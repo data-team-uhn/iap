@@ -144,8 +144,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
 
     /**
      * How an instance performs a service task it meets: through the same dispatch a system workflow uses, so a
-     * handler behaves identically whichever kind of workflow reached it. The variables are this delivery's alone —
-     * an instance's persisted variables are not yet exposed to handlers.
+     * handler behaves identically whichever kind of workflow reached it. The instance's own variables are read in
+     * first, so a handler sees what an earlier walk recorded even across a wait, and what it records is written
+     * back, so a gateway later in the same walk can route on it.
      *
      * @param event the event being delivered
      * @param actor the user the instance is being moved for
@@ -154,8 +155,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
     private InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
-        return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor));
+        return (activity, instance) -> {
+            InstanceVariables.load(instance, variables);
+            perform(activity,
+                new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor));
+            InstanceVariables.flush(instance, variables);
+        };
     }
 
     /**

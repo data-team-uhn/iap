@@ -334,6 +334,35 @@ public class Submission extends Entity
             .collect(Collectors.toList());
     }
 
+    /**
+     * The questions one named requirement asks, on the same terms as {@link #getQuestions()}.
+     *
+     * <p>A schema says which questions belong together by putting them in one requirement. Something that
+     * asks them in stages - a model reading a document in more than one pass - needs to ask for a stage by
+     * name rather than re-deriving the grouping from the questions themselves.</p>
+     *
+     * <p>Empty when the requirement's own condition does not hold, so a requirement that is not being asked
+     * yields nothing rather than being asked anyway.</p>
+     *
+     * @param name the requirement's node name, or its full path
+     * @return its questions, empty when it does not apply, is not a form, or does not exist
+     */
+    @NotNull
+    public List<Question> getQuestions(final String name)
+    {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(requirement -> name.equals(requirement.getName()) || name.equals(requirement.getPath()))
+            .filter(this::applies)
+            .filter(FormRequirement.class::isInstance)
+            .map(FormRequirement.class::cast)
+            .map(this::getQuestionsOf)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+    }
+
     private List<Question> getQuestionsOf(final FormRequirement form)
     {
         final List<Question> result = new ArrayList<>();

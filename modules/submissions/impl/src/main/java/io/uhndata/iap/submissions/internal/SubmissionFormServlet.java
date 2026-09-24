@@ -23,6 +23,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -49,6 +50,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.DateUtils;
@@ -88,7 +91,6 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 6455351484949339021L;
 
-    /** The lifecycle in which a submitter may still answer. */
     private static final String NAME = "name";
 
     private static final String LABEL = "label";
@@ -98,6 +100,17 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String ITEMS = "items";
 
     private static final String TYPE = "type";
+
+    /** Where the extraction workflows record how far reading the documents got, and what they made of them. */
+    private static final String EXTRACTION_STATUS = "extractionStatus";
+
+    private static final String EXTRACTION_MESSAGE = "extractionMessage";
+
+    /** What an upload's {@code parseStatus} says when the daemon never produced anything for it. */
+    private static final String PARSE_FAILED = "failed";
+
+    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    private static final String READING_WORKFLOW = "readingWorkflow";
 
     @Reference
     private transient ConditionEvaluator conditions;
@@ -129,18 +142,81 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // two indexes that disagreed about what counts as an answer would have the form and the decision to
         // accept it disagree too
         final Map<String, List<String>> answers = submission.getAnswersByQuestion();
+        // Where a pre-filled answer came from, for the questions a model answered. Read once here rather than
+        // per question, because it means walking every answer's extractions.
+        final Map<String, JsonObject> provenance = ProvenanceProjection.of(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
+        // Counts the questions as they are written out, so each carries the number it is asked under. One
+        // counter per rendering: the servlet is shared, and a field would have two readers counting together.
+        final AtomicInteger number = new AtomicInteger();
         submission.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
-        return Json.createObjectBuilder()
+            .forEach(requirement ->
+                requirements.add(requirement(requirement, submission, answers, provenance, number)));
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
             // The same two rules the save handler enforces, so an editor can offer editing only where a save
             // would actually be accepted rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            // Whether anything reads the attached documents: a schema version that names a reading workflow
+            // has answers filled in from them, one that names none never will. Without the difference the
+            // view cannot tell a form waiting for its reading from one that is simply unanswered.
+            .add("readsDocuments", submission.getSchemaVersion().get(READING_WORKFLOW, String.class) != null)
+            .add("requirements", requirements);
+        final JsonObjectBuilder extraction = extraction(submission);
+        if (extraction != null) {
+            json.add("extraction", extraction);
+        }
+        return json.build();
+    }
+
+    /**
+     * Where reading the answers out of the attached documents got to, once it has started: the state the view
+     * shows a spinner or a banner for, the message that goes with it, and whether asking again would do
+     * anything. Written by the extraction system workflows,
+     * read back here by name.
+     *
+     * @param submission the submission being read
+     * @return the extraction block, or {@code null} when no reading was ever asked for
+     */
+    private static JsonObjectBuilder extraction(final Submission submission)
+    {
+        final String status = submission.get(EXTRACTION_STATUS, String.class);
+        if (status == null) {
+            return null;
+        }
+        final JsonObjectBuilder json = Json.createObjectBuilder().add("status", status);
+        final String message = submission.get(EXTRACTION_MESSAGE, String.class);
+        if (message != null) {
+            json.add("message", message);
+        }
+        json.add("retryable", hasFailedParse(submission));
+        return json;
+    }
+
+    /**
+     * Whether any current upload is sitting on a failed parse, which is the one kind of failure asking again
+     * can do something about.
+     *
+     * <p>Not the same question as the reading having failed. A reading fails for reasons of its own - the model
+     * refusing or giving an answer that cannot be read - and sending the same document to the daemon a second
+     * time does nothing about any of them. This decides whether the view offers to try again, so it has to mean
+     * exactly the case where trying again is worth the click.</p>
+     *
+     * @param submission the submission being read
+     * @return {@code true} when at least one upload failed to parse
+     */
+    private static boolean hasFailedParse(final Submission submission)
+    {
+        for (final Document document : submission.getDocuments()) {
+            final DocumentVersion version = document.getCurrentVersion();
+            final File file = version == null ? null : version.getFile();
+            if (file != null && PARSE_FAILED.equals(file.getParseStatus())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -152,7 +228,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME, requirement.getName())
@@ -163,7 +240,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(DESCRIPTION, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
             json.add(ITEMS, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers));
+                submission, answers, provenance, number));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, submission, json);
         } else if (requirement instanceof ApprovalRequirement) {
@@ -270,7 +347,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the items' JSON
      */
     private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder items = Json.createArrayBuilder();
         children.stream()
@@ -284,9 +362,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                         .add(TYPE, section.getType())
                         .add(LABEL, Objects.toString(section.getTitle(), ""))
                         .add(DESCRIPTION, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS, items(section.getChildren(), path, submission, answers)));
+                        .add(ITEMS, items(section.getChildren(), path, submission, answers, provenance,
+                            number)));
                 } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
+                    items.add(question((Question) child, path, answers, provenance, number));
                 }
             });
         return items;
@@ -304,20 +383,28 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the question's JSON
      */
     private JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
         // Emitted even when empty, so that "answered freely" is something the form states rather than something a
         // reader infers from a missing field
         final JsonArrayBuilder options = Json.createArrayBuilder();
-        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
-            .add("value", option.getValue())
-            .add("label", option.getLabel())));
+        question.getOfferedOptions().forEach(option -> {
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add("value", option.value())
+                .add("label", option.label());
+            if (!option.description().isBlank()) {
+                json.add(DESCRIPTION, option.description());
+            }
+            options.add(json);
+        });
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME, question.getName())
             .add(TYPE, question.getType())
             .add("path", path)
+            .add("number", number.incrementAndGet())
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
@@ -343,6 +430,18 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         }
         if (patternMessage != null) {
             json.add("patternMessage", patternMessage);
+        }
+        // Why this is being asked at all, in the schema author's own words. Distinct from the description,
+        // which says how to answer: a submitter looking at a question they did not expect wants to know what
+        // the answer is for, and until this was carried across, the only place that was written down was the
+        // schema.
+        final String purpose = question.getPurpose();
+        if (purpose != null && !purpose.isBlank()) {
+            json.add("purpose", purpose);
+        }
+        final JsonObject where = provenance.get(question.getPath());
+        if (where != null) {
+            json.add("provenance", where);
         }
         return json
             .add("options", options)

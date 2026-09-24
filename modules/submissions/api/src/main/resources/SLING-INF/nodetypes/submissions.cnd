@@ -73,6 +73,12 @@
   // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
   // to tag it `draft`.
 
+  // Where reading answers out of the attached documents got to: running, done or
+  // failed - with a short message for the person looking at it.
+  // Set by the extraction system workflows, read by the submission view.
+  - extractionStatus (STRING)
+  - extractionMessage (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -143,9 +149,19 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
+  // Whether the submitter has settled this answer, by accepting it or by
+  // changing it, and whether they said the quoted passage does not support it.
+  // Separate on purpose: the second is a verdict on the evidence, not on the
+  // answer, and settles nothing.
+  - reviewed (BOOLEAN) = false
+  - evidenceRejected (BOOLEAN) = false
+
   // How far the submitter's own value ended up from extractedAnswer: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
-  // own length. Written when the submitter accepts or edits the extracted
+  // own length. Declared, not written yet: nothing measures it, and the review
+  // flow that would (reviewExtraction) records only the verdict. Left here
+  // because the shape is settled and the measurement is not.
+  // Would be written when the submitter accepts or edits the extracted
   // answer, and absent until then, since an extraction nobody has acted on has
   // nothing to be compared against.
   - editDistance (LONG)
@@ -163,12 +179,13 @@
 
 //-----------------------------------------------------------------------------
 // One passage backing an extracted answer, kept as a node rather than a plain
-// string so the quote stays linked to the page it came from and the UI can
-// send the reader to that spot in the source document.
+// string so the UI can send the reader to that spot in the source document.
 [sub:Evidence] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
 
-  // The quoted text
+  // The quoted text. Every one stored was found in the document: a quote that
+  // could not be found is not evidence, so it is dropped rather than kept.
+  // The answer still pays for it, through a lower confidence.
   - quote (STRING)
 
   // The nearest detected header of the quoted text
@@ -177,6 +194,10 @@
   // Page in the source PDF, when known. Absent for documents that carry no
   // page markers, e.g. anything that came in as DOCX.
   - page (LONG)
+
+  // The document revision the quote came from, when the run read several
+  // documents as one text. Absent when it read one: the run's source is it.
+  - source (REFERENCE)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -246,6 +267,11 @@
   // like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
+  // The parse job the file was queued under, and where the upload was staged for
+  // the daemon on the shared volume. The job record is deleted once its outcome
+  // has been read in, so these are what is left to trace a parse by.
+  - parseJobId (STRING)
+  - sharedPath (STRING)
 
   // Token count of the Markdown. A cheap character heuristic, len(md) // 4;
   // no ML tokenizer is involved.
@@ -254,8 +280,14 @@
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions LibreOffice and Docling produced: the .md and other
-  // versions of the document created during the parsing process
+  // What the parse produced and is worth keeping: the Markdown the extraction
+  // reads, and the PDF Docling read it out of. pdfFile is only there when
+  // LibreOffice rendered one; a PDF upload is the PDF, kept once as
+  // uploadedFile. The .docx and anything else made along the way is not kept.
+  + markdownFile (nt:file) = nt:file
+  + pdfFile (nt:file) = nt:file
+
+  // Any other rendition the pipeline produces, keyed by whatever name it chooses
   + * (nt:file) = nt:file
 
   // Allow any other properties for extensibility

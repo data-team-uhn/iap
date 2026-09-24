@@ -269,6 +269,7 @@ class WorkflowEventServletTest
         Mockito.when(part.getFileName()).thenReturn("note.pdf");
         Mockito.when(part.getContentType()).thenReturn("application/pdf");
         Mockito.when(part.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] { 0x25, 0x50 }));
+        Mockito.when(part.getSize()).thenReturn(2L);
 
         final Object value = WorkflowEventServlet.value(new RequestParameter[] { part });
 
@@ -276,7 +277,36 @@ class WorkflowEventServletTest
         final EventAttachment attachment = (EventAttachment) value;
         assertEquals("note.pdf", attachment.getFileName());
         assertEquals("application/pdf", attachment.getMimeType());
+        // Said by the request, so a handler can refuse a file too large to be worth reading before reading it
+        assertEquals(2L, attachment.getSize());
         assertArrayEquals(new byte[] { 0x25, 0x50 }, attachment.openStream().readAllBytes());
+    }
+
+    @Test
+    void offersEveryUploadedFileAsAnAttachmentWhenSeveralShareAName() throws IOException
+    {
+        // A `multiple` file input posts them all under one name. Reading those as strings would corrupt every
+        // one of them, which is the whole thing this is here to avoid.
+        final RequestParameter first = filePart("first.pdf", new byte[] { 0x25, 0x50 });
+        final RequestParameter second = filePart("second.pdf", new byte[] { 0x25, 0x44 });
+
+        final Object value = WorkflowEventServlet.value(new RequestParameter[] { first, second });
+
+        assertInstanceOf(EventAttachment[].class, value);
+        final EventAttachment[] attachments = (EventAttachment[]) value;
+        assertEquals(2, attachments.length);
+        assertEquals("first.pdf", attachments[0].getFileName());
+        assertArrayEquals(new byte[] { 0x25, 0x44 }, attachments[1].openStream().readAllBytes());
+    }
+
+    private static RequestParameter filePart(final String name, final byte[] content) throws IOException
+    {
+        final RequestParameter part = Mockito.mock(RequestParameter.class);
+        Mockito.when(part.isFormField()).thenReturn(false);
+        Mockito.when(part.getFileName()).thenReturn(name);
+        Mockito.when(part.getContentType()).thenReturn("application/pdf");
+        Mockito.when(part.getInputStream()).thenReturn(new ByteArrayInputStream(content));
+        return part;
     }
 
     @Test

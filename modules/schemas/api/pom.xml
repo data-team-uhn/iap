@@ -61,6 +61,13 @@
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- A question may take its options from a content path that documents itself
+         (AutoDocumentable), e.g. the live leaves of /Categories. -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-autodoc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-content-api</artifactId>

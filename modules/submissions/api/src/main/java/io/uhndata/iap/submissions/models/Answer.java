@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
@@ -27,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
@@ -94,5 +96,121 @@ public class Answer extends EntityPart
     {
         final List<Extraction> extractions = this.getExtractions();
         return extractions.isEmpty() ? null : extractions.get(extractions.size() - 1);
+    }
+
+    /**
+     * The extraction run the form shows, and so the one a submitter reviews: whichever was surest of itself.
+     *
+     * <p>Here rather than in whoever happens to need it, because two places need it - the projection that shows
+     * a suggestion, and the handler that records what the submitter said about it. Two copies of this rule would
+     * mean the form could show one run while the verdict landed on another, and nothing would say so: both would
+     * work, and the confidence the submitter vouched for would not be the one that was stored.</p>
+     *
+     * <p>Ties go to the earlier run, since the first is as good an answer as any and picking consistently is the
+     * whole point.</p>
+     *
+     * @return the surest run, or {@code null} if extraction has never run
+     */
+    @Nullable
+    public Extraction getSurestExtraction()
+    {
+        Extraction best = null;
+        for (final Extraction extraction : this.getExtractions()) {
+            if (best == null || confidenceOf(extraction) > confidenceOf(best)) {
+                best = extraction;
+            }
+        }
+        return best;
+    }
+
+    /** How sure a run was, with a run that did not say counting as not sure at all. */
+    private static double confidenceOf(final Extraction extraction)
+    {
+        final Double confidence = extraction.getConfidence();
+        return confidence == null ? 0.0 : confidence;
+    }
+
+    /**
+     * What the extraction suggested, as the values this answer would hold if nobody touched it.
+     *
+     * <p>Not the model's reply as it came: a question that takes several values is asked for them as one
+     * comma-separated string, so a suggestion of "St Michael's, Sunnybrook" is two values and not one. The form
+     * compares this against the live answer to tell an untouched suggestion from a corrected one, and comparing
+     * the unsplit string against two stored values reported every multi-valued answer as corrected.</p>
+     *
+     * @return the suggested values, empty when nothing suggested an answer here
+     */
+    @NotNull
+    public List<String> getSuggestedValues()
+    {
+        final Extraction surest = getSurestExtraction();
+        final String suggested = surest == null ? null : surest.getExtractedAnswer();
+        if (suggested == null) {
+            return List.of();
+        }
+        return readAnswer(suggested, getQuestion());
+    }
+
+    /**
+     * One reply from the model, as the values to store for a question: split by {@link #splitAnswer}, and for a
+     * question that offers options, each part matched to an option. A model names an option the way a person
+     * reads it - "English" - while what is stored and compared is the option's value, "english". A part that
+     * matches no option is kept as the model gave it, so what it said is still there to see.
+     *
+     * <p>Shared by what the extraction writes down and what the form shows as the suggestion, for the reason
+     * {@link #splitAnswer} gives.</p>
+     *
+     * @param answer the model's reply
+     * @param question the question it answers, or {@code null} when it can no longer be read
+     * @return the values
+     */
+    @NotNull
+    public static List<String> readAnswer(@NotNull final String answer, @Nullable final Question question)
+    {
+        if (question == null) {
+            return splitAnswer(answer, false);
+        }
+        final List<OfferedOption> options = question.getOfferedOptions();
+        return splitAnswer(answer, question.isMultiple()).stream()
+            .map(value -> matchOption(value, options))
+            .toList();
+    }
+
+    /** The value of the option a reply part names, by value or by label, ignoring case; or the part itself. */
+    private static String matchOption(final String value, final List<OfferedOption> options)
+    {
+        for (final OfferedOption option : options) {
+            if (value.equalsIgnoreCase(option.value()) || value.equalsIgnoreCase(option.label())) {
+                return option.value();
+            }
+        }
+        return value;
+    }
+
+    /**
+     * One reply from the model, as the values it stands for.
+     *
+     * <p>The one place this rule lives, because two places need it and they must not drift: what the extraction
+     * writes down and what the form shows as the suggestion have to be the same list, or a submitter is told they
+     * corrected an answer they never touched.</p>
+     *
+     * <p>A reply that splits into nothing is kept whole. That is a model that answered with punctuation only, and
+     * storing the question as unanswered would lose what it did say.</p>
+     *
+     * @param answer the model's reply, as it came
+     * @param multiple whether the question takes more than one value
+     * @return the values, never empty
+     */
+    @NotNull
+    public static List<String> splitAnswer(@NotNull final String answer, final boolean multiple)
+    {
+        if (!multiple) {
+            return List.of(answer);
+        }
+        final List<String> values = Arrays.stream(answer.split(","))
+            .map(String::strip)
+            .filter(part -> !part.isEmpty())
+            .toList();
+        return values.isEmpty() ? List.of(answer) : values;
     }
 }

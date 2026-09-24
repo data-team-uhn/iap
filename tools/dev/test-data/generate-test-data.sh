@@ -18,7 +18,7 @@
 
 # Fills a running IAP instance with sample data for the submission dashboards: a demo schema
 # (with one active version) and a batch of submissions in assorted lifecycle states, some of
-# them carrying reviews so the "My review queue" widget has something to show.
+# them carrying reviews so the review screens have something to show.
 #
 # This has to run against a live instance rather than ship as Sling-Initial-Content because a
 # submission's mandatory `schemaVersion` REFERENCE needs the schema version's UUID, which only
@@ -30,7 +30,7 @@
 #
 # All content is created with the admin user, so every submission shows up in admin's
 # "My submissions"; reviews alternate between admin and another (fake) reviewer, so only some
-# submissions show up in admin's "My review queue".
+# of them are admin's to look at.
 #
 # Re-running the script is safe: the schema is kept as it is, and every submission is removed
 # and recreated, so the same names are reused instead of accumulating.
@@ -159,8 +159,8 @@ for i in $(seq 1 "$COUNT"); do
     -F "schema=$SCHEMA_UUID" \
     -F "schema@TypeHint=Reference"
   # Submissions under review or sent back for changes get an open review whose state mirrors
-  # the submission's, alternating between admin (visible in admin's review queue) and another
-  # reviewer (not visible); approved ones get a finished review.
+  # the submission's, alternating between admin and another reviewer; approved ones get a
+  # finished review.
   if [ "$STATUS" = "in-review" ] || [ "$STATUS" = "changes-requested" ]; then
     REVIEWER="${REVIEWERS[$(( i % ${#REVIEWERS[@]} ))]}"
     if [ "$STATUS" = "in-review" ]; then REVIEW_STATUS=in-progress; else REVIEW_STATUS="$STATUS"; fi

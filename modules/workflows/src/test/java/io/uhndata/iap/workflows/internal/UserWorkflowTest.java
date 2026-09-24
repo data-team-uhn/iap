@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +54,7 @@ import io.uhndata.iap.workflows.models.ExclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
+import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -166,12 +168,24 @@ class UserWorkflowTest
      */
     private void outcomeIs(final String flowPath, final String outcome)
     {
+        variableIs(flowPath, "outcome", outcome);
+    }
+
+    /**
+     * Gives an arc the guard "this instance variable equals this", written the way a definition writes it.
+     *
+     * @param flowPath the arc to put the condition on
+     * @param variable the variable the guard reads
+     * @param expected the value the arc is taken for
+     */
+    private void variableIs(final String flowPath, final String variable, final String expected)
+    {
         this.context.create().resource(flowPath + "/cond:condition", Map.of(
             TYPE, "cond/SingleCondition", "comparator", "equals"));
         this.context.create().resource(flowPath + "/cond:condition/operandA", Map.of(
-            TYPE, "cond/ConditionOperand", "source", "variable", "value", "outcome"));
+            TYPE, "cond/ConditionOperand", "source", "variable", "value", variable));
         this.context.create().resource(flowPath + "/cond:condition/operandB", Map.of(
-            TYPE, "cond/ConditionOperand", "value", outcome));
+            TYPE, "cond/ConditionOperand", "value", expected));
     }
 
     @Test
@@ -588,6 +602,30 @@ class UserWorkflowTest
             (String[]) read(TASK).get("outcomeOptions"));
     }
 
+    // A task can belong to one part of the form rather than to the request as a whole, and the form offers it
+    // there. Carried on the task because whoever reads it cannot necessarily read the definition.
+    @Test
+    void raisesTasksNamingTheRequirementTheyAreAbout() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("requirement", "proposal"));
+
+        started();
+
+        assertEquals("proposal", read(TASK).get("requirement"));
+    }
+
+    @Test
+    void raisesTasksNamingNoRequirementWhenTheDefinitionNamesNone() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("requirement", "   "));
+
+        started();
+
+        assertNull(read(TASK).get("requirement"), "a blank name is no requirement at all");
+    }
+
     @Test
     void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
     {
@@ -950,6 +988,49 @@ class UserWorkflowTest
     }
 
     @Test
+    void routesOnAVariableAServiceTaskLeftBehind() throws Exception
+    {
+        this.context.create().resource("/Workflows/timeOffRequest", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+        this.context.create().resource(PROCESS, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+        this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
+        this.context.create().resource(PROCESS + "/requestSubmitted/toRecord", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRecord", TARGET_REF, "record"));
+        this.context.create().resource(PROCESS + "/record", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "record", HANDLER, "recordVerdict"));
+        this.context.create().resource(PROCESS + "/record/toDecision", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDecision", TARGET_REF, "decision"));
+        this.context.create().resource(PROCESS + "/decision", Map.of(
+            TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "decision"));
+        this.context.create().resource(PROCESS + "/decision/toApproved", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
+        variableIs(PROCESS + "/decision/toApproved", "verdict", "PROPOSAL");
+        this.context.create().resource(PROCESS + "/decision/toRejected", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRejected", TARGET_REF, "requestRejected",
+            "isDefault", true));
+        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+        this.context.create().resource(PROCESS + "/requestRejected", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+        createBootstrap();
+        reference(HOST, "workflow", PROCESS);
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject(engine, "handlers", List.of(new VerdictHandler()));
+        inject(engine, "conditions", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
+
+        engine.receiveEvent(host(EngineFixture.REQUESTER), START);
+
+        // Without writing the handler's variable onto the instance, the guard never holds and the default
+        // rejected end is taken. That is the hang the reading workflow showed: verdict stayed in memory.
+        assertEquals(Set.of("approved"), hostTags());
+        assertEquals("PROPOSAL", read(HOST + "/wf:instances/timeOffRequest/verdict").get("stringValue"));
+    }
+
+    @Test
     void performsServiceTasksItMeetsAlongTheWay() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
@@ -976,6 +1057,39 @@ class UserWorkflowTest
         assertEquals(Set.of("approved"), hostTags());
     }
 
+    // The step after a user task is a delivery of its own. Everything the walk before the wait recorded is
+    // on the instance, and a handler that cannot see it makes its decisions on nothing: the reading workflow's
+    // step after "what kind of study is this?" saw neither the answer nor the verdict the gate had reached.
+    @Test
+    void showsAServiceTaskAfterAWaitWhatTheWalkBeforeItRecorded() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        this.context.create().resource(PROCESS + "/record", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "record", HANDLER, "noop"));
+        this.context.create().resource(PROCESS + "/record/toEnd", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd", TARGET_REF, "requestApproved"));
+        this.context.resourceResolver().getResource(PROCESS + "/decision/toApproved")
+            .adaptTo(ModifiableValueMap.class).put(TARGET_REF, "record");
+        createBootstrap();
+        reference(HOST, "workflow", PROCESS);
+        final RecordingHandler handler = new RecordingHandler();
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject(engine, "handlers", List.of(handler));
+        inject(engine, "conditions", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
+        engine.receiveEvent(host(EngineFixture.REQUESTER), START);
+        // What an earlier walk left behind, as the gate leaves its verdict
+        this.context.create().resource(HOST + "/wf:instances/timeOffRequest/verdict", Map.of(
+            TYPE, Variable.RESOURCE_TYPE, "dataType", "string", "stringValue", "PROPOSAL"));
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("PROPOSAL", handler.variables.get("verdict"));
+        // And what the person just decided, which is the step's whole reason for running
+        assertEquals("approved", handler.variables.get("outcome"));
+    }
+
     @Test
     void doesNothingWhenTheResourceNamesNoWorkflow() throws Exception
     {
@@ -994,6 +1108,8 @@ class UserWorkflowTest
      */
     private static final class RecordingHandler implements ServiceTaskHandler
     {
+        private final Map<String, Object> variables = new HashMap<>();
+
         private String target;
 
         @Override
@@ -1007,6 +1123,27 @@ class UserWorkflowTest
             throws PersistenceException
         {
             this.target = taskContext.getTarget().getPath();
+            for (final String name : List.of("verdict", "outcome")) {
+                this.variables.put(name, taskContext.getVariable(name));
+            }
+        }
+    }
+
+    /**
+     * A handler that leaves a {@code verdict} behind, the way the reading workflow's gate does.
+     */
+    private static final class VerdictHandler implements ServiceTaskHandler
+    {
+        @Override
+        public String getName()
+        {
+            return "recordVerdict";
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext taskContext)
+        {
+            taskContext.setVariable("verdict", "PROPOSAL");
         }
     }
 }

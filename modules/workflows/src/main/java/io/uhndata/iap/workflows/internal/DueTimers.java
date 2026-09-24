@@ -164,7 +164,11 @@ public class DueTimers implements Runnable
         try {
             this.engine.receiveEvent(task, new WorkflowEvent(TaskCompletion.TIMEOUT_EVENT, Map.of()));
             LOGGER.debug("Delivered the passed deadline of {}", task.getPath());
-        } catch (final WorkflowException e) {
+        } catch (final WorkflowException | RuntimeException e) {
+            // RuntimeException too, and deliberately: the walk asserts its way through a definition, so a
+            // malformed one throws rather than returning. Letting that out would end the sweep at the oldest
+            // deadline in the repository, and since the query is in deadline order it would end there again
+            // on every later sweep - no deadline anywhere would ever be met again.
             LOGGER.error("Could not deliver the passed deadline of {}: {}", task.getPath(), e.getMessage(), e);
         }
     }

@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Value;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -70,6 +71,8 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 
@@ -134,8 +137,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Review.class,
-            Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class,
+            DocumentVersion.class, File.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -162,7 +165,8 @@ class SubmissionFormServletTest
         this.context.create().resource(VERSION_PATH + "/" + DURATION, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How long?", "dataType", "text"));
         this.context.create().resource(VERSION_PATH + "/" + DURATION + "/half", Map.of(
-            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day"));
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day",
+            "description", "Morning or afternoon."));
         this.context.create().resource(VERSION_PATH + "/" + DURATION + "/several", Map.of(
             TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
@@ -181,6 +185,182 @@ class SubmissionFormServletTest
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
         reference(SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+    }
+
+    // A question the submitter answered themselves has no block, which is what "nobody suggested this"
+    // looks like on the wire
+    @Test
+    void saysNothingAboutWhereAnAnswerCameFromWhenNobodySuggestedIt() throws IOException
+    {
+        answer(START_DATE, "2026-10-06");
+
+        assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("provenance"));
+    }
+
+    @Test
+    void saysWhereAPreFilledAnswerCameFrom() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(List.of("2026-10-06"), where.getJsonArray("suggested").stream()
+            .map(value -> ((JsonString) value).getString()).toList());
+        assertEquals(0.85, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("Stated under Dates.", where.getString("reasoning"));
+        assertFalse(where.getBoolean("reviewed"), "nobody has settled it yet");
+        assertFalse(where.getBoolean("evidenceRejected"));
+    }
+
+    @Test
+    void sendsTheQuoteAndWhereItLives() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject passage =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance")
+                .getJsonArray("passages").getJsonObject(0);
+
+        assertEquals("leave begins on the sixth", passage.getString("quote"));
+        assertEquals("p. 4 · 3.1 Dates", passage.getString("cite"));
+    }
+
+    // Step 2 keeps an extraction per attempt, so the form has to pick one
+    @Test
+    void showsTheSurestOfSeveralAttempts() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a9", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        // The surest one first, so that keeping it is a decision rather than the last one winning
+        this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the better one", "confidence", 0.9));
+        this.context.create().resource(answer.getPath() + "/e2", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the first guess", "confidence", 0.3));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.9, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("the better one", ((JsonString) where.getJsonArray("suggested").get(0)).getString());
+    }
+
+    // The whole point of recording the quote's page: a reader can open the document there and check it
+    @Test
+    void pointsEachPassageAtThePdfItWasReadFrom() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a7");
+        final String version = documentVersionWith("note", "pdfFile");
+        references(extraction.getPath(), "sources", version);
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertEquals(version + "/file/pdfFile#page=4", passages.getJsonObject(0).getString("source"));
+        assertEquals(version + "/file/pdfFile", passages.getJsonObject(1).getString("source"),
+            "a quote the document gave no page for still opens the document");
+    }
+
+    // A run that read two documents as one text has two sources, and a quote that says which one it came from
+    // opens that one rather than whichever the run lists first
+    @Test
+    void pointsAPassageAtTheDocumentItWasQuotedFrom() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a8");
+        final String preamble = documentVersionWith("preamble", "pdfFile");
+        final String questionnaire = documentVersionWith("questionnaire", "pdfFile");
+        references(extraction.getPath(), "sources", preamble, questionnaire);
+        reference(extraction.getPath() + "/q1", questionnaire, "source");
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertEquals(questionnaire + "/file/pdfFile#page=4", passages.getJsonObject(0).getString("source"));
+        assertEquals(preamble + "/file/pdfFile", passages.getJsonObject(1).getString("source"),
+            "a quote naming no document of its own opens the run's first");
+    }
+
+    // A revision whose upload never landed, and one whose parse produced no PDF: neither can be opened,
+    // and a link that led nowhere would read as though the document were one click away
+    @Test
+    void offersNothingToOpenWhenNoRevisionHasAPdf() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a6");
+        this.context.create().resource(SUBMISSION_PATH + "/gone/1", Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        references(extraction.getPath(), "sources",
+            SUBMISSION_PATH + "/gone/1", documentVersionWith("note", null));
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertFalse(passages.getJsonObject(0).containsKey("source"));
+    }
+
+    /** An extracted answer with two quotes behind it, one placed on a page and one placed nowhere. */
+    private Resource extractionReadingTwoQuotes(final String name)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "2026-10-06", "confidence", 0.9));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence",
+            "quote", "leave begins on the sixth", "page", 4L));
+        this.context.create().resource(extraction.getPath() + "/q2", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "and again here"));
+        return extraction;
+    }
+
+    /** A document revision holding a file, with the named rendition under it when one is named. */
+    private String documentVersionWith(final String document, final String rendition)
+    {
+        final String path = SUBMISSION_PATH + "/" + document + "/1";
+        this.context.create().resource(path, Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        this.context.create().resource(path + "/file", Map.of(TYPE, File.RESOURCE_TYPE));
+        if (rendition != null) {
+            this.context.create().resource(path + "/file/" + rendition, Map.of("jcr:primaryType", "nt:file"));
+        }
+        return path;
+    }
+
+    // A schema version that names no reading workflow never fills an answer in from a document, however
+    // many are attached. The view needs the difference to tell a form waiting for its reading from one
+    // that is simply unanswered.
+    @Test
+    void saysWhetherAnythingReadsTheAttachedDocuments() throws IOException
+    {
+        assertFalse(form(REQUESTER).getBoolean("readsDocuments"));
+
+        modify(VERSION_PATH, "readingWorkflow", "the-reading-workflow");
+
+        assertTrue(form(REQUESTER).getBoolean("readsDocuments"));
+    }
+
+    // A bare extraction: nothing found, nothing said, and no page markers in the source
+    @Test
+    void copesWithAnExtractionThatSaysAlmostNothing() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a8", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction"));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "somewhere in here"));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.0, where.getJsonNumber("confidence").doubleValue());
+        assertTrue(where.getJsonArray("suggested").isEmpty());
+        assertFalse(where.containsKey("reasoning"));
+        assertFalse(where.getJsonArray("passages").getJsonObject(0).containsKey("cite"),
+            "a DOCX carries no pages, and this passage has no heading either");
     }
 
     @Test
@@ -217,6 +397,8 @@ class SubmissionFormServletTest
         assertEquals("Half day", offered.getJsonObject(0).getString("label"));
         assertEquals("multiple-days", offered.getJsonObject(1).getString("value"));
         assertEquals("multiple-days", offered.getJsonObject(1).getString("label"));
+        assertEquals("Morning or afternoon.", offered.getJsonObject(0).getString("description"));
+        assertFalse(offered.getJsonObject(1).containsKey("description"));
         assertEquals("2026-10-06", startDate.getJsonArray("value").getString(0));
         // Unanswered, and saying so as an empty list rather than by omission
         assertTrue(item(details, "endDate").getJsonArray("value").isEmpty());
@@ -402,6 +584,74 @@ class SubmissionFormServletTest
         modify(SUBMISSION_PATH, "tags", new String[] {"submitted"});
 
         assertFalse(form(REQUESTER).getBoolean("editable"));
+    }
+
+    // What the answer is for, in the schema author's words. A submitter looking at a question they did not
+    // expect wants to know why it is being asked, which is not what the description tells them.
+    @Test
+    void carriesWhyAQuestionIsAsked() throws IOException
+    {
+        assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("purpose"),
+            "a question that states no purpose claims none");
+
+        modify(VERSION_PATH + "/" + START_DATE, "purpose", "Working out who covers the desk");
+
+        assertEquals("Working out who covers the desk",
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getString("purpose"));
+    }
+
+    @Test
+    void saysNothingAboutExtractionBeforeItWasAskedFor() throws IOException
+    {
+        assertFalse(form(REQUESTER).containsKey("extraction"));
+    }
+
+    @Test
+    void saysWhereReadingTheDocumentsGotTo() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "failed");
+        modify(SUBMISSION_PATH, "extractionMessage", "The model's answer could not be read");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("failed", extraction.getString("status"));
+        assertEquals("The model's answer could not be read", extraction.getString("message"));
+    }
+
+    // Whether the view offers to try again. A reading that failed for its own reasons is not retryable:
+    // sending the same document to the daemon a second time changes nothing about the model refusing it.
+    @Test
+    void saysWhetherAskingAgainWouldDoAnything() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "failed");
+        this.context.create().resource(SUBMISSION_PATH + "/d5", Map.of(TYPE, Document.RESOURCE_TYPE));
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"),
+            "a document with nothing uploaded has no parse to have failed");
+
+        this.context.create().resource(SUBMISSION_PATH + "/d6", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        final String version = documentVersionWith("d6", null);
+        modify(version + "/file", "parseStatus", "completed");
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"),
+            "a document that was read has nothing to send again");
+
+        modify(version + "/file", "parseStatus", "failed");
+
+        assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
+    }
+
+    @Test
+    void leavesOutWhatTheReadingHasNotSaidYet() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("running", extraction.getString("status"));
+        assertFalse(extraction.containsKey("message"));
+        assertFalse(extraction.containsKey("category"));
     }
 
     @Test
@@ -592,6 +842,39 @@ class SubmissionFormServletTest
         final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** An answer a model read, with the extraction and the quote behind it. */
+    private void extracted(final String questionPath, final String value, final double confidence)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", value, "confidence", confidence,
+            "reasoning", "Stated under Dates."));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence",
+            "quote", "leave begins on the sixth", "header", "3.1 Dates", "page", 4L));
+    }
+
+    /** A multi-valued REFERENCE, which is how an extraction points at the revisions it read. */
+    private void references(final String fromPath, final String property, final String... toPaths)
+    {
+        try {
+            final Node source = Objects.requireNonNull(
+                this.context.resourceResolver().getResource(fromPath)).adaptTo(Node.class);
+            final Value[] values = new Value[toPaths.length];
+            for (int i = 0; i < toPaths.length; i++) {
+                values[i] = source.getSession().getValueFactory().createValue(Objects.requireNonNull(
+                    this.context.resourceResolver().getResource(toPaths[i])).adaptTo(Node.class));
+            }
+            source.setProperty(property, values);
+            this.context.resourceResolver().commit();
+        } catch (final RepositoryException | PersistenceException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void reference(final String fromPath, final String toPath, final String property)

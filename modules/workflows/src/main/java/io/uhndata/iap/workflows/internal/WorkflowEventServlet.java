@@ -184,7 +184,11 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * What one parameter contributes to the payload: a file, a string, or an array of strings.
+     * What one parameter contributes to the payload: a file, a string, or an array of either.
+     *
+     * <p>Files are kept as parts however many arrive under the name. A {@code multiple} file input posts
+     * several under one name, and reading those as strings would destroy the bytes on the way in - which is
+     * the one thing this method exists to avoid.</p>
      *
      * <p>Package-visible so a test can drive it with a real file part: the mock request the other tests use
      * turns everything it is given into a form field, so the one case worth pinning here is the one it cannot
@@ -195,8 +199,10 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
      */
     static Object value(final RequestParameter[] values)
     {
-        if (values.length == 1 && !values[0].isFormField()) {
-            return new RequestParameterAttachment(values[0]);
+        if (values.length > 0 && Arrays.stream(values).noneMatch(RequestParameter::isFormField)) {
+            return values.length == 1
+                ? new RequestParameterAttachment(values[0])
+                : Arrays.stream(values).map(RequestParameterAttachment::new).toArray(EventAttachment[]::new);
         }
         return values.length == 1 ? values[0].getString()
             : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
@@ -231,6 +237,12 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         public String getMimeType()
         {
             return this.part.getContentType();
+        }
+
+        @Override
+        public long getSize()
+        {
+            return this.part.getSize();
         }
 
         @Override

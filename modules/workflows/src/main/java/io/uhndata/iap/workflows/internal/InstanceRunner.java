@@ -75,6 +75,9 @@ final class InstanceRunner
     /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
 
+    /** The activity property naming the requirement a task is about; see {@code wf:TaskInstance}. */
+    static final String REQUIREMENT_PROPERTY = "requirement";
+
     /** The name of the container a {@code wf:WorkflowAttachable} host keeps its instances in. */
     static final String INSTANCES = "wf:instances";
 
@@ -504,6 +507,12 @@ final class InstanceRunner
                 .toArray(String[]::new),
             STATUS_PROPERTY, OPEN,
             START_TIME_PROPERTY, Calendar.getInstance()));
+        // Copied for the same reason as the options: a form placing this task beside the requirement it is about cannot
+        // read the definition to find out which one that is.
+        final String requirement = activity.get(REQUIREMENT_PROPERTY, String.class);
+        if (requirement != null && !requirement.isBlank()) {
+            properties.put(REQUIREMENT_PROPERTY, requirement);
+        }
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
         this.resolver.create(instance, name, properties);
     }
@@ -660,13 +669,7 @@ final class InstanceRunner
      */
     private void setOutcome(final Resource instance, final String outcome) throws PersistenceException
     {
-        final Resource existing = instance.getChild(OUTCOME_VARIABLE);
-        if (existing == null) {
-            this.resolver.create(instance, OUTCOME_VARIABLE, Map.of(
-                JCR_PRIMARY_TYPE_PROPERTY, "wf:Variable", "dataType", "string", "stringValue", outcome));
-        } else {
-            modifiable(existing).put("stringValue", outcome);
-        }
+        InstanceVariables.persist(instance, OUTCOME_VARIABLE, outcome);
     }
 
     /**

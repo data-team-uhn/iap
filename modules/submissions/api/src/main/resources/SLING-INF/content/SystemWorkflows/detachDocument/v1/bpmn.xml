@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2026 DATA @ UHN. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="detachDocumentDefinitions"
+                  targetNamespace="https://iap.uhndata.io/system/detachDocument">
+  <bpmn:message id="detachDocumentMessage" name="detachDocument" />
+  <bpmn:process id="detachDocument" name="Take a document back off a submission" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="File removed">
+      <bpmn:messageEventDefinition id="removalRequested" messageRef="detachDocumentMessage" />
+      <bpmn:outgoing>toDetach</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toDetach" sourceRef="requested" targetRef="detach" />
+    <bpmn:serviceTask id="detach" iap:handler="detachDocument" name="Remove the document">
+      <bpmn:incoming>toDetach</bpmn:incoming>
+      <bpmn:outgoing>toMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMark" sourceRef="detach" targetRef="mark" />
+    <!-- Taking a file back off can be the thing that makes a request incomplete, exactly as attaching
+         one can be the thing that completes it, so the same tag is maintained here. -->
+    <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
+      <bpmn:incoming>toMark</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="mark" targetRef="done" />
+    <bpmn:endEvent id="done" name="Document removed">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="detachDocumentDiagram">
+    <bpmndi:BPMNPlane id="detachDocumentPlane" bpmnElement="detachDocument">
+      <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="146" y="223" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="detachShape" bpmnElement="detach">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="550" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="530" y="223" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toDetachEdge" bpmnElement="toDetach">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -32,9 +32,6 @@ const AUTHORIZATION = `Basic ${Buffer.from('admin:admin').toString('base64')}`;
 /** Health check outcomes that mean the instance is not usable yet. */
 const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAILABLE'];
 
-/** The tag the startup gate watches. Every check carrying it must be OK, a WARN included. */
-const GATE_TAG = 'systemalive';
-
 /**
  * How long the gate's checks must have been passing before an instance counts as ready.
  *

@@ -152,6 +152,34 @@ class SaveAnswersHandlerTest
         assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
+    // Typing over a suggestion is a verdict on it, and the commonest one. Without this, only the accept button
+    // ever settled anything, so a corrected answer kept its "AI found" badge next to a value already replaced.
+    @Test
+    void settlesASuggestionTheSubmitterWritesOver() throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        stampAnswers();
+        final Resource run = this.context.create().resource(onlyAnswer().getPath() + "/extraction0", Map.of(
+            TYPE, "sub/Extraction", "extractedAnswer", "2026-10-06", "confidence", 0.9));
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        this.context.resourceResolver().refresh();
+        assertTrue(present(this.context.resourceResolver().getResource(run.getPath()))
+            .getValueMap().get("reviewed", Boolean.FALSE));
+    }
+
+    @Test
+    void hasNoVerdictToRecordForAnAnswerNobodySuggested() throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        stampAnswers();
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
     @Test
     void passesOverAnAnswerWhoseQuestionIsGone() throws Exception
     {

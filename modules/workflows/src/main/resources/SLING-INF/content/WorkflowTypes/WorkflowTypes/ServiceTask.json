@@ -14,7 +14,10 @@
     "{https://iap.uhndata.io/bpmn}event=event",
     "{https://iap.uhndata.io/bpmn}template=template",
     "{https://iap.uhndata.io/bpmn}urgency=urgency",
-    "{https://iap.uhndata.io/bpmn}notify=notify[]",
-    "{https://iap.uhndata.io/bpmn}requirement=requirement"
+    "{https://iap.uhndata.io/bpmn}recipients=recipients[]",
+    "{https://iap.uhndata.io/bpmn}requirement=requirement",
+    "{https://iap.uhndata.io/bpmn}documents=documents[]",
+    "{https://iap.uhndata.io/bpmn}promptFrom=promptFrom[]",
+    "{https://iap.uhndata.io/bpmn}recordWhen=recordWhen"
   ]
 }

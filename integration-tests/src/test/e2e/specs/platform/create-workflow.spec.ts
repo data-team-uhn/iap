@@ -18,6 +18,8 @@
 
 import { expect, test } from '@playwright/test';
 
+import { uniqueTitle } from '../../support/titles';
+
 const asAdmin = { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` };
 
 /**
@@ -28,15 +30,18 @@ const asAdmin = { Authorization: `Basic ${Buffer.from('admin:admin').toString('b
  */
 test.describe('creating a workflow through the bootstrap system workflow', () => {
   test('a POST to /Workflows creates a definition and redirects to it', async ({ request }) => {
+    const title = uniqueTitle('Leave request approval');
     const response = await request.post('/Workflows', {
       headers: asAdmin,
-      form: { title: 'Leave request approval' },
+      form: { title },
       maxRedirects: 0,
     });
 
     expect(response.status()).toBe(302);
+    // The name is derived from the title, and the title is one no earlier attempt used, so what comes
+    // back is under /Workflows and is this attempt's own
     const location = response.headers().location;
-    expect(location).toBe('/Workflows/leaveRequestApproval');
+    expect(location).toMatch(/^\/Workflows\/\w+$/);
 
     const created = await request.get(`${location}.json`, { headers: asAdmin });
     expect(created.ok()).toBeTruthy();
@@ -44,23 +49,25 @@ test.describe('creating a workflow through the bootstrap system workflow', () =>
       'jcr:primaryType'?: string; title?: string; active?: boolean;
     };
     expect(definition['jcr:primaryType']).toBe('wf:WorkflowDefinition');
-    expect(definition.title).toBe('Leave request approval');
+    expect(definition.title).toBe(title);
     // Freshly created definitions are inactive until someone authors and enables them
     expect(definition.active ?? false).toBe(false);
   });
 
   test('identical titles get distinct names', async ({ request }) => {
+    const title = uniqueTitle('Duplicated');
     const first = await request.post('/Workflows', {
-      headers: asAdmin, form: { title: 'Duplicated' }, maxRedirects: 0,
+      headers: asAdmin, form: { title }, maxRedirects: 0,
     });
     const second = await request.post('/Workflows', {
-      headers: asAdmin, form: { title: 'Duplicated' }, maxRedirects: 0,
+      headers: asAdmin, form: { title }, maxRedirects: 0,
     });
 
     expect(first.status()).toBe(302);
     expect(second.status()).toBe(302);
-    expect(first.headers().location).toBe('/Workflows/duplicated');
-    expect(second.headers().location).toBe('/Workflows/duplicated2');
+    // The title is new to this instance, so the first POST gets the plain name and the second the
+    // next one along rather than both landing on whatever an earlier run left behind
+    expect(second.headers().location).toBe(`${first.headers().location}2`);
   });
 
   test('a POST without a title is refused as bad request', async ({ request }) => {
