@@ -16,10 +16,12 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getInputFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -29,20 +31,25 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // what makes it safe to compare: a condition matching a date compares the stored string, and any
 // format that varied by who typed it would compare differently for different people. Picking a day
 // finishes the answer, but typing one digit at a time does not, so this still saves on blur.
-function DateAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
+function DateAnswer({ question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps) {
   return (
-    <TextField
-      label={questionLabel(question)}
-      type="date"
-      required={isRequired(question)}
-      disabled={disabled}
-      fullWidth
-      value={values[0] ?? ""}
-      slotProps={{ inputLabel: { shrink: true } }}
-      helperText={question.description}
-      onChange={event => onChange([ event.target.value ])}
-      onBlur={event => onAnswered([ event.target.value ].filter(Boolean))}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <TextField
+          type="date"
+          required={isRequired(question)}
+          disabled={disabled}
+          fullWidth
+          sx={getInputFrame(suggested === true)}
+          value={values[0] ?? ""}
+          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          helperText={question.description}
+          onChange={event => onChange([ event.target.value ])}
+          onBlur={event => onAnswered([ event.target.value ].filter(Boolean))}
+        />
+      </AnswerRow>
+    </Box>
   );
 }
 

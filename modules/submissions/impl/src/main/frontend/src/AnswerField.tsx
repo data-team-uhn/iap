@@ -22,8 +22,10 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
+import AnswerProvenance, { ConfirmAnswer } from "./AnswerProvenance";
 import { registerBuiltinAnswerComponents } from "./answers";
-import { questionLabel } from "./answers/label";
+import QuestionText from "./answers/QuestionText";
+import { statusOf } from "./provenance";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -40,6 +42,10 @@ interface AnswerFieldProps {
   // than on every keystroke. That is what makes saving as-you-go bearable, and it is also what keeps
   // the saved answers current enough for the server to re-decide which questions apply.
   onAnswered: (values: string[]) => void;
+  // Called when the submitter accepts a pre-filled answer as it stands, and when they say the cited
+  // passage does not support it. Both are absent for a question nothing suggested an answer to.
+  onAcceptSuggestion?: () => void;
+  onRejectEvidence?: (rejected: boolean) => void;
 }
 
 // What a save is currently doing, shown per field because that is where it can fail: a request may
@@ -50,7 +56,7 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
     return <CircularProgress size={16} aria-label="Saving" />;
   }
   if (state === "saved") {
-    return <Typography variant="caption" color="text.secondary">Saved</Typography>;
+    return <Typography variant="caption">Saved</Typography>;
   }
   if (state === "failed") {
     return (
@@ -69,7 +75,9 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
 // component rather than another branch in this one. What stays here is everything that is the same
 // whatever is being answered — following the saved answer, deciding whether anything actually
 // changed, and reporting what the save is doing.
-function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
+function AnswerField(
+  { question, state, error, disabled, onAnswered, onAcceptSuggestion, onRejectEvidence }: AnswerFieldProps,
+) {
   const [ draft, setDraft ] = useState(question.value);
   // The server is the authority on what the answer is: it re-reads the whole form after every save,
   // and an answer changed elsewhere should appear here. Adjusted while rendering, which is React's
@@ -102,29 +110,70 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // as complete when it is not
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <QuestionText question={question} labelOnly />
+        <Typography variant="description">
           {`This question asks for ${question.dataType}, which cannot be answered here.`}
         </Typography>
       </Box>
     );
   }
 
+  // An answer the model drafted and nobody has checked yet is framed, so the ones still to check
+  // stand out. The answer component draws the frame round the answer itself.
+  const pending = question.provenance !== undefined
+    && statusOf(question.provenance, question.value) === "suggested";
+
   return (
-    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-      {/* Built through createElement rather than as <Answer/>: which component this is depends on the
-          question, and JSX on a value looks to the compiler like a component being defined here on
-          every render. The registry hands back the same function each time, so nothing remounts. */}
-      <Box sx={{ flexGrow: 1 }}>
-        {createElement(Answer, {
-          question,
-          values: draft,
-          disabled: Boolean(disabled),
-          onChange: setDraft,
-          onAnswered: submit,
-        })}
+    <Box
+      sx={{
+        // The question with its answer, then the evidence; one column on a phone. The confirm
+        // button sits inside the first, beside the answer it confirms.
+        display: "grid",
+        gridTemplateColumns: question.provenance
+          ? { xs: "minmax(0, 1fr)", md: "minmax(0, 3fr) minmax(0, 2fr)" }
+          : "minmax(0, 1fr)",
+        columnGap: 2,
+        rowGap: 1,
+        alignItems: "start",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+        {/* Built through createElement rather than as <Answer/>: which component this is depends on the
+            question, and JSX on a value looks to the compiler like a component being defined here on
+            every render. The registry hands back the same function each time, so nothing remounts. */}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          {createElement(Answer, {
+            question,
+            values: draft,
+            disabled: Boolean(disabled),
+            onChange: setDraft,
+            onAnswered: submit,
+            suggested: pending,
+            aside: question.provenance
+              ? (
+                <ConfirmAnswer
+                  provenance={question.provenance}
+                  value={question.value}
+                  disabled={disabled}
+                  onAccept={() => onAcceptSuggestion?.()}
+                />
+              )
+              : undefined,
+          })}
+        </Box>
+        <Box sx={{ pt: 4 }}><SaveStatus state={state} error={error} /></Box>
       </Box>
-      <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
+      {question.provenance
+        ? (
+          <AnswerProvenance
+            provenance={question.provenance}
+            value={question.value}
+            disabled={disabled}
+            onAccept={() => onAcceptSuggestion?.()}
+            onRejectEvidence={rejected => onRejectEvidence?.(rejected)}
+          />
+        )
+        : null}
     </Box>
   );
 }

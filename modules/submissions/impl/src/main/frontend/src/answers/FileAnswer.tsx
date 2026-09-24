@@ -18,7 +18,7 @@
 
 import { Stack, Typography } from "@mui/material";
 
-import { questionLabel } from "./label";
+import QuestionText from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -33,8 +33,8 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 function FileAnswer({ question }: AnswerComponentProps) {
   return (
     <Stack>
-      <Typography variant="subtitle2">{questionLabel(question)}</Typography>
-      <Typography variant="body2" color="text.secondary">
+      <QuestionText question={question} />
+      <Typography variant="description">
         Attaching a file is not available yet.
       </Typography>
     </Stack>

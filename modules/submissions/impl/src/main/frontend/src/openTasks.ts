@@ -45,6 +45,10 @@ export interface SubmissionTask {
   // The decisions this task may be completed with. Empty means there is nothing to decide: the
   // task is done or it is not, which is what a "send this" step looks like.
   outcomeOptions: string[];
+  // The requirement this task is about, when its definition named one. Such a task is offered where
+  // that requirement is rather than among the actions on the page, so that pressing it acts on what
+  // is right above it. A task naming none is a step of the request as a whole.
+  requirement?: string;
 }
 
 function strings(value: unknown): string[] {
@@ -68,6 +72,7 @@ function asTask(node: JsonNode): SubmissionTask | null {
     path,
     label: typeof node.label === "string" ? node.label : path.substring(path.lastIndexOf("/") + 1),
     outcomeOptions: strings(node.outcomeOptions),
+    requirement: typeof node.requirement === "string" ? node.requirement : undefined,
   };
 }
 

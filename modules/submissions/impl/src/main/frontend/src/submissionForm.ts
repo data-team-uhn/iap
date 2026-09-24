@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { readJson, RequestError } from "@iap/frontend-commons/requestFailure";
+
+import type { QuestionProvenance } from "./provenance";
 
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
@@ -44,6 +47,8 @@ export function formatDate(value: unknown): string {
 export interface FormAnswerOption {
   value: string;
   label: string;
+  // What the option means, when the label alone does not say. A category is judged by this.
+  description?: string;
 }
 
 export interface FormQuestion {
@@ -54,6 +59,10 @@ export interface FormQuestion {
   path: string;
   text: string;
   description?: string;
+  // Why this is being asked, in the schema author's words. Distinct from the description, which says
+  // how to answer: a question the submitter did not expect is easier to answer once they know what the
+  // answer is for.
+  purpose?: string;
   // One of text, long, double, boolean, date, file
   dataType: string;
   // How many values an answer takes, as the schema stores it: a positive minimum is what "required"
@@ -72,7 +81,16 @@ export interface FormQuestion {
   // The answers this question offers, empty when it is answered freely. Always present, so that
   // "answered freely" is something the form states rather than something a reader infers.
   options: FormAnswerOption[];
+  // Where this question comes in the order the form asks them, counted by the server over the
+  // requirements that apply. Given rather than counted here because the form is shown two ways, and a
+  // question that is 3 while being answered has to be 3 while being read. Optional because it is
+  // additive: a form without it is shown unnumbered rather than refused.
+  number?: number;
   value: string[];
+  // Where a pre-filled answer came from, present only for a question the extraction answered. A
+  // question the submitter answered themselves has none, which is what "nobody suggested this"
+  // looks like.
+  provenance?: QuestionProvenance;
 }
 
 export interface FormSection {
@@ -115,13 +133,30 @@ export interface FormRequirement {
   decidedAt?: string;
 }
 
+// Where reading the answers out of the uploaded documents got to. `running` is the only state that
+// is still going; the others stop the spinner, and `failed` comes with a reason for the person.
+export interface ExtractionState {
+  status: "running" | "done" | "failed";
+  message?: string;
+  // Whether an upload is sitting on a failed parse. It decides which half of the pipeline asking
+  // again has to start from: a document the daemon never read has to go back to the daemon, while
+  // one that parsed fine only needs the model asked again.
+  retryable?: boolean;
+}
+
 export interface SubmissionForm {
   path: string;
   title: string;
   // Whether this reader may still answer: the same two rules the save workflow enforces, so the
   // editor offers editing only where a save would be accepted rather than learning from a refusal
   editable: boolean;
+  // Whether anything reads the documents attached here, which is whether the schema version names a
+  // reading workflow. False means the answers will never be filled in from a document, however many
+  // are attached.
+  readsDocuments: boolean;
   requirements: FormRequirement[];
+  // Present once the documents were sent to be read; absent for a submission that never was
+  extraction?: ExtractionState;
 }
 
 export function isQuestion(item: FormItem): item is FormQuestion {
@@ -141,12 +176,15 @@ export function isMultiple(question: FormQuestion): boolean {
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
-export async function fetchForm(path: string): Promise<SubmissionForm> {
-  const response = await fetch(`${path}.form.json`);
+export async function fetchForm(
+  path: string,
+  doFetch: (url: string, init?: RequestInit) => Promise<Response> = fetch,
+): Promise<SubmissionForm> {
+  const response = await doFetch(`${path}.form.json`);
   if (!response.ok) {
-    throw new Error(`This request could not be loaded (${response.status})`);
+    throw new RequestError(response.status);
   }
-  return (await response.json()) as SubmissionForm;
+  return readJson<SubmissionForm>(response);
 }
 
 // Records one answer, by posting it to the submission itself. That POST is a `save` event, matched
@@ -172,6 +210,47 @@ export async function saveAnswer(path: string, question: string, values: string[
   }
 }
 
+// Records what the submitter makes of a pre-filled answer, as a `reviewExtraction` event.
+//
+// Two verdicts, sent separately because they mean different things. Confirming settles the answer.
+// Saying the passage does not support it is a report about the extraction, and settles nothing.
+//
+// The event is named by a selector, so `.json` has to follow it. See attachDocument below for why.
+export async function reviewExtraction(path: string, question: string,
+  verdict: { confirmed?: boolean; evidenceRejected?: boolean }): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("question", question);
+  if (verdict.confirmed !== undefined) {
+    body.append("confirmed", String(verdict.confirmed));
+  }
+  if (verdict.evidenceRejected !== undefined) {
+    body.append("evidenceRejected", String(verdict.evidenceRejected));
+  }
+  const response = await fetch(`${path}.reviewExtraction.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This could not be recorded (${response.status})`);
+  }
+}
+
+// Asks for the reading to be done over, from as far back as it has to start: `retryParse` sends the
+// uploads whose parse failed to the daemon again, and `extractAnswers` asks the model again about the
+// ones that parsed perfectly well.
+//
+// Offered beside the message saying what went wrong, because what usually goes wrong is on our side —
+// the daemon down, the model refusing — and the submitter has no way of telling that from a problem
+// with their own document.
+//
+// The event is named by a selector, so `.json` has to follow it. See attachDocument below for why.
+export async function readAgain(path: string, fromTheParse: boolean): Promise<void> {
+  const event = fromTheParse ? "retryParse" : "extractAnswers";
+  const response = await fetch(`${path}.${event}.json`, { method: "POST" });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `The document could not be read again (${response.status})`);
+  }
+}
+
 // Attaches a file to the requirement it answers, as an `attachDocument` event on the submission —
 // uploading is a workflow step for the same reason answering is, so what may be attached and until
 // when is the handler's answer rather than a permission on the folder.
@@ -190,5 +269,20 @@ export async function attachDocument(path: string, requirement: string, file: Fi
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
+  }
+}
+
+// Takes the document answering a requirement back off, as a `detachDocument` event. The whole
+// document goes, not its latest version: attaching twice makes a new version, which reads as a
+// replacement, but removing says this was the wrong file altogether.
+//
+// The event is named by a selector, so `.json` has to follow it, for the reason given above.
+export async function detachDocument(path: string, requirement: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("requirement", requirement);
+  const response = await fetch(`${path}.detachDocument.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This file could not be removed (${response.status})`);
   }
 }

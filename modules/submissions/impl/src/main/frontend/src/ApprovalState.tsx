@@ -35,7 +35,7 @@ export default function ApprovalState({ requirement }: { requirement: FormRequir
       + (requirement.approved ? "" : ", and not approved")
     : undefined;
   return (
-    <Typography variant="body2" color={requirement.approved ? "success.main" : "text.secondary"}>
+    <Typography variant="body2" sx={{ color: requirement.approved ? "success.main" : "text.secondary" }}>
       {decided ?? (requirement.approverGroup
         ? `Waiting for approval from ${requirement.approverGroup}`
         : "Waiting for approval")}

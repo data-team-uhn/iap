@@ -19,26 +19,33 @@
 import { Checkbox, FormControlLabel, FormHelperText, Stack } from "@mui/material";
 
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getOptionFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A yes/no answer. A tick is a finished answer the moment it happens — there is nothing to leave —
 // so it saves on change rather than on blur, which is what every other input here waits for.
-function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function BooleanAnswer({ question, values, disabled, onAnswered, suggested, aside }: AnswerComponentProps) {
   return (
     <Stack>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={values[0] === "true"}
-            disabled={disabled}
-            required={isRequired(question)}
-            onChange={event => onAnswered([ String(event.target.checked) ])}
-          />
-        }
-        label={questionLabel(question)}
-      />
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={values[0] === "true"}
+              disabled={disabled}
+              required={isRequired(question)}
+              slotProps={{ input: { "aria-labelledby": getQuestionTextId(question) } }}
+              onChange={event => onAnswered([ String(event.target.checked) ])}
+            />
+          }
+          label="Yes"
+          sx={{ alignSelf: "flex-start", ...getOptionFrame(suggested === true && values[0] === "true") }}
+        />
+      </AnswerRow>
       {question.description && <FormHelperText>{question.description}</FormHelperText>}
     </Stack>
   );

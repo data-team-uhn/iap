@@ -67,8 +67,15 @@ function label(outcome: string): string {
 // somebody is deciding on it, and an approver blocked by the requester's unanswered question would be
 // stuck with no way to act.
 function SubmissionTasks(
-  { path, blockedReason, onCompleted }:
-  { path: string; blockedReason?: string; onCompleted?: () => void },
+  { path, blockedReason, onCompleted, requirement, refreshToken }: {
+    path: string;
+    blockedReason?: string;
+    onCompleted?: () => void;
+    requirement?: string;
+    // Bumped by the page when the request changed, so a step that another control just opened shows
+    // up here too. Pressing "Extract data" below the upload opens the page's "send" step.
+    refreshToken?: number;
+  },
 ) {
   const authenticatedFetch = useAuthenticatedFetch();
   const [ tasks, setTasks ] = useState<SubmissionTask[]>([]);
@@ -85,7 +92,7 @@ function SubmissionTasks(
 
   useEffect(() => {
     void load();
-  }, [ load ]);
+  }, [ load, refreshToken ]);
 
   const complete = (task: SubmissionTask, outcome?: string, note?: string) => {
     setBusy(true);
@@ -112,9 +119,22 @@ function SubmissionTasks(
     close();
   };
 
-  const steps = tasks.filter(task => task.outcomeOptions.length === 0);
-  const decisions = tasks.filter(task => task.outcomeOptions.length > 0);
+  // Whose tasks these are. A task says which requirement it is about, and this says which of them this
+  // placement shows: the page passes nothing and gets the tasks that are about the request as a whole,
+  // a requirement passes its own name and gets the ones that act on it. Every task is offered exactly
+  // once, because the two are complements.
+  const here = tasks.filter(task => task.requirement === requirement);
+  const steps = here.filter(task => task.outcomeOptions.length === 0);
+  const decisions = here.filter(task => task.outcomeOptions.length > 0);
   if (steps.length === 0 && decisions.length === 0 && !error) {
+    return null;
+  }
+  // A step offered under a requirement is hidden until that requirement is ready for it, rather than
+  // shown greyed out. It acts on what is directly above it, so an empty upload is reason enough not to
+  // offer it at all, and the control that would make it possible is right there. A step among the
+  // page's own actions stays put and says why it cannot be taken: nothing on the page would otherwise
+  // explain where it went.
+  if (requirement != undefined && blockedReason != undefined) {
     return null;
   }
 

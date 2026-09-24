@@ -20,8 +20,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, Box, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
+
 import AnswerField, { type SaveState } from "./AnswerField";
-import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
 import {
   APPROVAL_REQUIREMENT,
@@ -33,27 +35,34 @@ import {
   type SubmissionForm,
   fetchForm,
   isQuestion,
+  reviewExtraction,
   saveAnswer,
 } from "./submissionForm";
+import SubmissionTasks from "./SubmissionTasks";
 
 interface FieldState {
   state: SaveState;
   error?: string;
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+// What the submitter said about a pre-filled answer. Both keys are optional because the two verdicts
+// are given separately: one settles the answer, the other reports a bad quote.
+interface ReviewVerdict {
+  confirmed?: boolean;
+  evidenceRejected?: boolean;
 }
 
+
 // The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
+function Items({ items, disabled, states, onAnswered, onReviewed }: {
   items: FormItem[];
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
 }) {
   return (
-    <Stack spacing={2}>
+    <Stack spacing={3}>
       { items.map(item => isQuestion(item)
         ? (
           <AnswerField
@@ -63,16 +72,19 @@ function Items({ items, disabled, states, onAnswered }: {
             state={states[item.path]?.state ?? "idle"}
             error={states[item.path]?.error}
             onAnswered={values => onAnswered(item, values)}
+            onAcceptSuggestion={() => onReviewed(item, { confirmed: true })}
+            onRejectEvidence={rejected => onReviewed(item, { evidenceRejected: rejected })}
           />
         )
         : (
           <Box key={item.name}>
             <Typography variant="subtitle1">{item.label || item.name}</Typography>
             { item.description && (
-              <Typography variant="body2" color="text.secondary">{item.description}</Typography>
+              <Typography variant="description">{item.description}</Typography>
             ) }
             <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered}
+                onReviewed={onReviewed} />
             </Box>
           </Box>
         )) }
@@ -83,23 +95,31 @@ function Items({ items, disabled, states, onAnswered }: {
 // One requirement. A requirement that holds no questions is still shown, and where it can be
 // answered it is answered here: a document is uploaded, and an approval says where it stands
 // because it is somebody else who grants it.
-function Requirement({ path, requirement, disabled, states, onAnswered, onAttached }: {
+function Requirement({ path, requirement, disabled, states, onAnswered, onReviewed, onAttached,
+  blockedReason, onTaskCompleted, refreshToken }: {
   path: string;
   requirement: FormRequirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
   onAttached: () => void;
+  blockedReason?: string;
+  onTaskCompleted?: () => void;
+  refreshToken?: number;
 }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="h6">{requirement.label || requirement.name}</Typography>
       { requirement.description && (
-        <Typography variant="body2" color="text.secondary">{requirement.description}</Typography>
+        <Typography variant="description">{requirement.description}</Typography>
       ) }
       <Divider sx={{ my: 2 }} />
       { requirement.type === FORM_REQUIREMENT && requirement.items
-        ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+        ? (
+          <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered}
+            onReviewed={onReviewed} />
+        )
         : requirement.type === DOCUMENT_REQUIREMENT
           ? <DocumentUpload
             path={path}
@@ -107,13 +127,23 @@ function Requirement({ path, requirement, disabled, states, onAnswered, onAttach
             disabled={disabled}
             onAttached={onAttached}
           />
-          : requirement.type === APPROVAL_REQUIREMENT
-            ? <ApprovalState requirement={requirement} />
-            : (
-              <Typography variant="body2" color="text.secondary">
-                This part of the request is somebody else&apos;s step, and cannot be completed here.
-              </Typography>
-            ) }
+          : (
+            <Typography variant="description">
+              This part of the request is somebody else&apos;s step, and cannot be completed here.
+            </Typography>
+          ) }
+      {/* The step this requirement is about, when its definition named one: pressing it acts on what is
+          directly above, rather than on a button at the top of the page that says nothing about which
+          part of the form it belongs to. Renders nothing when no task named this requirement. */}
+      <SubmissionTasks
+        path={path}
+        requirement={requirement.name}
+        // The page's reason is about sending the request, and a request with open questions always has
+        // one. A step under a form section is how those questions get answered, so it must not wait.
+        blockedReason={requirement.type === FORM_REQUIREMENT ? undefined : blockedReason}
+        onCompleted={onTaskCompleted}
+        refreshToken={refreshToken}
+      />
     </Paper>
   );
 }
@@ -129,7 +159,15 @@ function Requirement({ path, requirement, disabled, states, onAnswered, onAttach
 // the request is still missing is recorded on the submission, and the control offering to *send* it
 // reads that. Without this, answering the last question or attaching the last document leaves that
 // control refusing a request that is now complete, until something else re-reads the page.
-function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () => void }) {
+function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, refreshToken }: {
+  path: string;
+  onChanged?: () => void;
+  blockedReason?: string;
+  onTaskCompleted?: () => void;
+  // Bumped by the page when the submission changed behind the editor's back, such as answers landing
+  // from the background reading. The editor cannot see that happen on its own.
+  refreshToken?: number;
+}) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
@@ -138,18 +176,19 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
   // were given, but their reads can land out of order, and an older form would put back what was
   // just replaced.
   const latest = useRef(0);
+  const doFetch = useAuthenticatedFetch();
 
-  const reload = useCallback((token: number) => fetchForm(path).then(next => {
+  const reload = useCallback((token: number) => fetchForm(path, doFetch).then(next => {
     if (token === latest.current) {
       setForm(next);
       setError(undefined);
     }
-  }), [ path ]);
+  }), [ path, doFetch ]);
 
   useEffect(() => {
     const token = latest.current;
-    reload(token).catch((e: unknown) => setError(message(e)));
-  }, [ reload ]);
+    reload(token).catch((e: unknown) => setError(describeRequestFailure(e)));
+  }, [ reload, refreshToken ]);
 
   const answered = useCallback((question: FormQuestion, values: string[]) => {
     const token = latest.current + 1;
@@ -164,8 +203,19 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
         return reload(token);
       })
       .catch((e: unknown) => setStates(current => (
-        { ...current, [question.path]: { state: "failed", error: message(e) } })));
+        { ...current, [question.path]: { state: "failed", error: describeRequestFailure(e) } })));
   }, [ path, reload, onChanged ]);
+
+  // Recording a verdict changes nothing the submitter typed, so it does not touch the per-field save
+  // state. It does reload, because the server decides how the answer then reads back.
+  const reviewed = useCallback((question: FormQuestion, verdict: ReviewVerdict) => {
+    const token = latest.current + 1;
+    latest.current = token;
+    reviewExtraction(path, question.path, verdict)
+      .then(() => reload(token))
+      .catch((e: unknown) => setStates(current => (
+        { ...current, [question.path]: { state: "failed", error: describeRequestFailure(e) } })));
+  }, [ path, reload ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;
@@ -182,7 +232,9 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           This request can no longer be changed. It is shown as it was submitted.
         </Alert>
       ) }
-      { form.requirements.map(requirement => (
+      {/* Approvals are left out: the submitter cannot act on them, and a reviewer's step shown as a
+          form section reads as something still to fill in. The read-only page lists where they stand. */}
+      { form.requirements.filter(requirement => requirement.type !== APPROVAL_REQUIREMENT).map(requirement => (
         <Requirement
           key={requirement.name}
           path={path}
@@ -190,18 +242,22 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          onReviewed={reviewed}
+          blockedReason={blockedReason}
+          onTaskCompleted={onTaskCompleted}
+          refreshToken={refreshToken}
           // The form again, because what it asks can change with what was just attached: a
           // requirement that is now answered, and a request that is no longer incomplete
           onAttached={() => {
             const token = latest.current + 1;
             latest.current = token;
             onChanged?.();
-            reload(token).catch((e: unknown) => setError(message(e)));
+            reload(token).catch((e: unknown) => setError(describeRequestFailure(e)));
           }}
         />
       )) }
       { form.requirements.length === 0 && (
-        <Typography color="text.secondary">This request asks nothing yet.</Typography>
+        <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }
     </Stack>
   );

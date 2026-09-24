@@ -16,10 +16,12 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getInputFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -27,33 +29,38 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // whole numbers and refuses a decimal point, `double` does neither. That is the difference the
 // schema is stating by asking for one rather than the other, and a single "number" input would
 // leave a submitter to discover it from a rejected save instead.
-function NumberAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
+function NumberAnswer({ question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps) {
   const whole = question.dataType === "long";
 
   return (
-    <TextField
-      label={questionLabel(question)}
-      type="number"
-      required={isRequired(question)}
-      disabled={disabled}
-      fullWidth
-      value={values[0] ?? ""}
-      slotProps={{
-        inputLabel: { shrink: true },
-        // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
-        // them, which is the whole point of asking for a long.
-        // The schema's bounds become the input's own hints; the save is what enforces them.
-        htmlInput: {
-          step: whole ? 1 : "any",
-          inputMode: whole ? "numeric" : "decimal",
-          min: question.minValue,
-          max: question.maxValue,
-        },
-      }}
-      helperText={question.description}
-      onChange={event => onChange([ event.target.value ])}
-      onBlur={event => onAnswered([ event.target.value ].filter(Boolean))}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <TextField
+          type="number"
+          required={isRequired(question)}
+          disabled={disabled}
+          fullWidth
+          sx={getInputFrame(suggested === true)}
+          value={values[0] ?? ""}
+          slotProps={{
+            // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
+            // them, which is the whole point of asking for a long.
+            // The schema's bounds become the input's own hints; the save is what enforces them.
+            htmlInput: {
+              "aria-labelledby": getQuestionTextId(question),
+              step: whole ? 1 : "any",
+              inputMode: whole ? "numeric" : "decimal",
+              min: question.minValue,
+              max: question.maxValue,
+            },
+          }}
+          helperText={question.description}
+          onChange={event => onChange([ event.target.value ])}
+          onBlur={event => onAnswered([ event.target.value ].filter(Boolean))}
+        />
+      </AnswerRow>
+    </Box>
   );
 }
 

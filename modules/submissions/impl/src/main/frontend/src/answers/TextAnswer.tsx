@@ -16,39 +16,46 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { isMultiple, isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getInputFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // Typed-in text. Several values are typed one per line: a set of inputs that grow and shrink is a
 // good deal more machinery, and a question that offers its answers is a choice question instead.
-function TextAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
+function TextAnswer({ question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps) {
   const many = isMultiple(question);
   const helperText = many
     ? `${question.description ?? ""} One per line.`.trim()
     : question.description;
 
   return (
-    <TextField
-      label={questionLabel(question)}
-      required={isRequired(question)}
-      disabled={disabled}
-      multiline={many}
-      minRows={many ? 2 : undefined}
-      fullWidth
-      value={many ? values.join("\n") : values[0] ?? ""}
-      slotProps={{ inputLabel: { shrink: true } }}
-      helperText={helperText}
-      onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
-      // Blank lines and a blank field are not answers; dropping them here is what makes clearing a
-      // field store nothing rather than store an empty string
-      onBlur={event => onAnswered(many
-        ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
-        : [ event.target.value ].filter(Boolean))}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <TextField
+          required={isRequired(question)}
+          disabled={disabled}
+          multiline={many}
+          minRows={many ? 2 : undefined}
+          fullWidth
+          sx={getInputFrame(suggested === true)}
+          value={many ? values.join("\n") : values[0] ?? ""}
+          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          helperText={helperText}
+          onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
+          // Blank lines and a blank field are not answers; dropping them here is what makes clearing a
+          // field store nothing rather than store an empty string
+          onBlur={event => onAnswered(many
+            ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
+            : [ event.target.value ].filter(Boolean))}
+        />
+      </AnswerRow>
+    </Box>
   );
 }
 

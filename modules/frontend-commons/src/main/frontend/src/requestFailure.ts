@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { isNotAuthenticated } from "./reLogin";
+
 // Thrown when the server answered, but not with success. The status is kept so the failure can be
 // described in the user's terms rather than the protocol's; the reason phrase is deliberately not,
 // since HTTP/2 drops it and it would render as a dangling blank.
@@ -26,6 +28,29 @@ export class RequestError extends Error {
     super(`HTTP ${status}`);
     this.name = "RequestError";
     this.status = status;
+  }
+}
+
+// Thrown when the server answered 200 with a body that is not JSON — usually Sling's HTML login
+// page or an error page, which `response.json()` would reject with a raw "Unexpected token '<'"
+// that means nothing to the person looking at it.
+export class UnreadableResponseError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Unreadable response (HTTP ${status})`);
+    this.name = "UnreadableResponseError";
+    this.status = status;
+  }
+}
+
+// The JSON body of a response that claimed to be data. An HTML page is refused here so callers
+// never have to catch a SyntaxError and guess what it meant.
+export async function readJson<T>(response: Response): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new UnreadableResponseError(response.status);
   }
 }
 
@@ -47,6 +72,14 @@ const describe = (error: unknown): string => {
       ? "You appear to be offline. Check your connection, then try again."
       : "The server could not be reached. It may be restarting, or the connection may have dropped. "
         + "Try again in a moment.";
+  }
+  if (isNotAuthenticated(error)) {
+    return "Your session has expired. Sign in again, then retry.";
+  }
+  // An HTML login or error page arriving where JSON was expected. The browser's own
+  // "Unexpected token '<'" wording is kept out: it names the parser, not the problem.
+  if (error instanceof UnreadableResponseError) {
+    return "The server sent a page instead of data. Reload and try again.";
   }
   if (error instanceof SyntaxError) {
     return "The server's response could not be read.";
