@@ -88,6 +88,24 @@ describe("ChoiceAnswer", () => {
     expect(screen.getByText("Pick the one that fits.")).toBeInTheDocument();
   });
 
+  it("says why the question is being asked", () => {
+    renderChoice({ purpose: "This decides which review path the request takes." });
+
+    expect(screen.getByText("This decides which review path the request takes.")).toBeInTheDocument();
+  });
+
+  it("shows what an option means, under its label", () => {
+    renderChoice({
+      options: [
+        { value: "prom", label: "PROM", description: "Studies collecting new data going forward." },
+        { value: "prem", label: "PREM" },
+      ],
+    });
+
+    expect(screen.getByText("Studies collecting new data going forward.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "PREM" })).toBeInTheDocument();
+  });
+
   describe("a question that takes several answers", () => {
     it("offers them as boxes to tick rather than a single pick", async () => {
       const onAnswered = renderChoice({ maxAnswers: 0 });

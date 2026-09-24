@@ -98,6 +98,18 @@ describe("useAuthenticatedFetch", () => {
 
   const requestsFor = (url: string) => fetchMock.mock.calls.filter(([called]) => called === url);
 
+  it("does not treat a 200 with no url as a login page", async () => {
+    const onResult = vi.fn();
+    const requestReLogin = vi.fn(() => Promise.resolve(true));
+    answer([{ ok: true, status: 200, text: () => Promise.resolve("payload") }]);
+    renderCaller(requestReLogin, onResult);
+
+    screen.getByRole("button").click();
+
+    await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:payload"); });
+    expect(requestReLogin).not.toHaveBeenCalled();
+  });
+
   it("passes an ordinary response straight through", async () => {
     const onResult = vi.fn();
     answer([ok()]);

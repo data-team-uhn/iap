@@ -16,7 +16,10 @@
  * limitations under the License.
  */
 
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
+import {
+  describeRequestFailure, messageOf, readJson, RequestError, UnreadableResponseError,
+} from "@iap/frontend-commons/requestFailure";
 
 // Every description is logged with the original, so the raw failure stays reachable in the console
 let logged: ReturnType<typeof vi.spyOn>;
@@ -28,6 +31,23 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("readJson", () => {
+  it("returns the parsed body", async () => {
+    const response = { status: 200, json: () => Promise.resolve({ title: "A long weekend" }) } as Response;
+
+    expect(await readJson<{ title: string }>(response)).toEqual({ title: "A long weekend" });
+  });
+
+  it("refuses an unreadable body as its own error, not a SyntaxError", async () => {
+    const response = {
+      status: 200,
+      json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+    } as Response;
+
+    await expect(readJson(response)).rejects.toBeInstanceOf(UnreadableResponseError);
+  });
 });
 
 describe("RequestError", () => {
@@ -89,6 +109,16 @@ describe("describeRequestFailure", () => {
   it("says a response could not be read when it did not parse", () => {
     expect(describeRequestFailure(new SyntaxError("Unexpected token < in JSON at position 0")))
       .toBe("The server's response could not be read.");
+  });
+
+  it("says the server sent a page when the body was HTML", () => {
+    expect(describeRequestFailure(new UnreadableResponseError(200)))
+      .toBe("The server sent a page instead of data. Reload and try again.");
+  });
+
+  it("says to sign in again when the session could not be recovered", () => {
+    expect(describeRequestFailure(new NotAuthenticatedError("gone")))
+      .toBe("Your session has expired. Sign in again, then retry.");
   });
 
   describe("when the server answered with a status", () => {

@@ -18,12 +18,14 @@
 
 import { type ChangeEvent, useState } from "react";
 
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { type Requirement, attachDocument } from "./submissionForm";
+import { validateUpload } from "./fileValidation";
+import { type Requirement, attachDocument, detachDocument } from "./submissionForm";
 
 // Taken out of the page without being taken out of the document: the file input is the real control,
 // so it has to remain focusable and nameable. `hidden` or `display: none` would drop it out of the
@@ -48,11 +50,14 @@ function refusal(error: unknown): string {
 // The upload is an `attachDocument` event on the submission rather than a write, for the same reason
 // answering a question is: a submitter can read their own request and nothing more. What may be
 // attached and until when is the handler's decision — this control only reports the answer.
-function DocumentUpload({ path, requirement, disabled, onAttached }: {
+function DocumentUpload({ path, requirement, disabled, reading = false, onAttached }: {
   path: string;
   requirement: Requirement;
   // Whether this reader may still change the request at all, which is the server's `editable`
   disabled: boolean;
+  // Whether the documents are being parsed or read. A file removed then would leave the reading
+  // waiting on a parse that lands on nothing, so the server refuses it and this does not offer it.
+  reading?: boolean;
   onAttached: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -64,6 +69,37 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
+    // Checked here before it is sent, so a file that cannot be read is refused in a moment rather
+    // than after a slow upload. The server checks again; this is not the rule, only the quick half.
+    validateUpload(file, accepted).then(problem => {
+      if (problem !== undefined) {
+        setBusy(false);
+        setFailure(problem);
+        return undefined;
+      }
+      return send(file);
+    }, (error: unknown) => {
+      setBusy(false);
+      setFailure(refusal(error));
+    });
+  };
+
+  const remove = () => {
+    setBusy(true);
+    setFailure(undefined);
+    detachDocument(doFetch, path, requirement.name).then(
+      () => {
+        setBusy(false);
+        onAttached();
+      },
+      (error: unknown) => {
+        setBusy(false);
+        setFailure(refusal(error));
+      }
+    );
+  };
+
+  const send = (file: File) =>
     attachDocument(doFetch, path, requirement.name, file).then(
       () => {
         setBusy(false);
@@ -76,14 +112,29 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
         setFailure(refusal(error));
       }
     );
-  };
 
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
       {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
       {attached.length > 0
-        ? <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
-        : <Typography variant="body2" color="text.secondary">
+        ? (
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
+            {/* Attaching again would file a new version of the same document, which reads as a
+                replacement. Somebody who picked the wrong file wants it gone, not superseded. */}
+            <Button
+              size="small"
+              color="inherit"
+              startIcon={<DeleteIcon />}
+              disabled={disabled || busy || reading}
+              title={reading ? "Wait until the document has been read, or abort the reading" : undefined}
+              onClick={remove}
+            >
+              Remove
+            </Button>
+          </Stack>
+        )
+        : <Typography variant="placeholder">
           {/* Whether skipping this blocks anything is the form's own statement, not a guess here */}
           {requirement.required === false ? "Nothing attached yet — optional" : "Nothing attached yet"}
         </Typography>}

@@ -22,12 +22,17 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
+import AnswerProvenance, { ConfirmAnswer } from "./AnswerProvenance";
 import { useAnswerComponents } from "./answers";
 import { questionLabel } from "./answers/label";
+import QuestionText from "./answers/QuestionText";
+import { statusOf } from "./provenance";
 
 import type { FormQuestion } from "./submissionForm";
 
-export type SaveState = "idle" | "saving" | "saved" | "failed";
+// "reviewFailed" is distinct from "failed": confirming a suggestion or rejecting its evidence never
+// touches the answer itself, so a refused review must not read as the saved answer having failed.
+export type SaveState = "idle" | "saving" | "saved" | "failed" | "reviewFailed";
 
 interface AnswerFieldProps {
   question: FormQuestion;
@@ -38,6 +43,10 @@ interface AnswerFieldProps {
   // than on every keystroke. That is what makes saving as-you-go bearable, and it is also what keeps
   // the saved answers current enough for the server to re-decide which questions apply.
   onAnswered: (values: string[]) => void;
+  // Called when the submitter accepts a pre-filled answer as it stands, and when they say the cited
+  // passage does not support it. Both are absent for a question nothing suggested an answer to.
+  onAcceptSuggestion?: () => void;
+  onRejectEvidence?: (rejected: boolean) => void;
 }
 
 // What a save is currently doing, shown per field because that is where it can fail. A request may
@@ -50,15 +59,18 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
   if (state === "saved") {
     return <Typography variant="caption">Saved</Typography>;
   }
-  if (state === "failed") {
-    // With no Save button this is the only report that an answer was refused, so it cannot live on
-    // the icon: SvgIcon marks itself aria-hidden, which hides anything said through it. The text
-    // carries the outcome, and the wrapper takes focus so the reason is reachable from a keyboard
+  if (state === "failed" || state === "reviewFailed") {
+    // With no Save button this is the only report that an answer, or a review of it, was refused, so
+    // it cannot live on the icon: SvgIcon marks itself aria-hidden, which hides anything said through
+    // it. The text carries the outcome, and the wrapper takes focus so the reason is reachable from a
+    // keyboard. The two states read differently: the answer itself is untouched by a refused review.
+    const fallback = state === "reviewFailed" ? "This review could not be recorded" : "This answer was not saved";
+    const caption = state === "reviewFailed" ? "Review failed" : "Not saved";
     return (
-      <Tooltip title={error ?? "This answer was not saved"}>
+      <Tooltip title={error ?? fallback}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} tabIndex={0}>
           <ErrorOutlinedIcon color="error" fontSize="small" />
-          <Typography variant="caption" color="error">Not saved</Typography>
+          <Typography variant="caption" color="error">{caption}</Typography>
         </Box>
       </Tooltip>
     );
@@ -72,7 +84,9 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
 // it recognizes and how well (see answerComponents.ts). Adding a kind of question is adding a
 // component rather than another branch in this one. What stays here is what is the same whatever is
 // being answered: following the saved answer, noticing a change, and reporting what the save does.
-function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
+function AnswerField(
+  { question, state, error, disabled, onAnswered, onAcceptSuggestion, onRejectEvidence }: AnswerFieldProps,
+) {
   const ready = useAnswerComponents();
   const [ draft, setDraft ] = useState(question.value);
   const [ focused, setFocused ] = useState(false);
@@ -89,7 +103,8 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   // Held back while this field has focus. Clearing an answer changes the server's value, so without this a
   // submitter who empties a field and immediately types again has the field blanked mid-word when the re-read
   // lands. `seen` is left alone too, so the new value is applied on the first render after they leave.
-  if (seen !== answered && !focused) {
+  // Held back while this field's own save is going too: the value the server has then is the one before it.
+  if (seen !== answered && !focused && state !== "saving") {
     setSeen(answered);
     setDraft(question.value);
   }
@@ -121,33 +136,71 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // as complete when it is not
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
-        <Typography variant="placeholder">
+        <QuestionText question={question} labelOnly />
+        <Typography variant="description">
           {`This question asks for ${question.dataType}, which cannot be answered here.`}
         </Typography>
       </Box>
     );
   }
 
+  // An answer the model drafted and nobody has checked yet is framed, so the ones still to check
+  // stand out. The answer component draws the frame round the answer itself.
+  const pending = question.provenance !== undefined
+    && statusOf(question.provenance, question.value) === "suggested";
+
   return (
     <Box
-      sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={() => setFocused(false)}
+      sx={{
+        // The question with its answer, then the evidence; one column on a phone. The confirm
+        // button sits inside the first, beside the answer it confirms.
+        display: "grid",
+        gridTemplateColumns: question.provenance
+          ? { xs: "minmax(0, 1fr)", md: "minmax(0, 3fr) minmax(0, 2fr)" }
+          : "minmax(0, 1fr)",
+        columnGap: 2,
+        rowGap: 1,
+        alignItems: "start",
+      }}
     >
-      {/* Built through createElement rather than as <Answer/>, because which component this is comes
-          from the registry and so is only known during the render that uses it. In JSX that is what
-          react-hooks/static-components refuses: "Cannot create components during render" */}
-      <Box sx={{ flexGrow: 1 }}>
-        {createElement(Answer, {
-          question,
-          values: draft,
-          disabled: Boolean(disabled),
-          onChange: setDraft,
-          onAnswered: submit,
-        })}
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+        {/* Built through createElement rather than as <Answer/>, because which component this is comes
+            from the registry and so is only known during the render that uses it. In JSX that is what
+            react-hooks/static-components refuses: "Cannot create components during render" */}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          {createElement(Answer, {
+            question,
+            values: draft,
+            disabled: Boolean(disabled),
+            onChange: setDraft,
+            onAnswered: submit,
+            suggested: pending,
+            aside: question.provenance
+              ? (
+                <ConfirmAnswer
+                  provenance={question.provenance}
+                  value={question.value}
+                  disabled={disabled}
+                  onAccept={() => onAcceptSuggestion?.()}
+                />
+              )
+              : undefined,
+          })}
+        </Box>
+        <Box sx={{ pt: 4 }}><SaveStatus state={state} error={error} /></Box>
       </Box>
-      <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
+      {question.provenance
+        ? (
+          <AnswerProvenance
+            provenance={question.provenance}
+            value={question.value}
+            disabled={disabled}
+            onRejectEvidence={rejected => onRejectEvidence?.(rejected)}
+          />
+        )
+        : null}
     </Box>
   );
 }
