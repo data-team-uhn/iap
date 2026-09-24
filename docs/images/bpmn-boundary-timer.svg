@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" width="600" height="500" role="img">
+  <style>
+    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
+    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #5f6368; }
+    .task { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; }
+    .svc  { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .gw   { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .ev-s { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .ev-e { fill: #fce8e6; stroke: #c5221f; stroke-width: 3; }
+    .ev-i { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .flow { stroke: #5f6368; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .tok  { fill: #d93025; stroke: #fff; stroke-width: 2; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="26" class="lbl-b">Non-interrupting (dashed border) — the task carries on</text>
+
+  <line x1="20" y1="86" x2="72" y2="86" class="flow"/>
+  <rect x="74" y="58" width="150" height="56" rx="10" class="task"/>
+  <text x="149" y="84" class="lbl" text-anchor="middle">Manager</text>
+  <text x="149" y="100" class="lbl" text-anchor="middle">reviews request</text>
+  <circle cx="204" cy="114" r="15" class="ev-i" stroke-dasharray="4 3"/>
+  <circle cx="204" cy="114" r="11" fill="none" stroke="#ea8600" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 204 108 L 204 114 L 208 117" stroke="#ea8600" stroke-width="1.5" fill="none"/>
+  <line x1="226" y1="86" x2="286" y2="86" class="flow"/>
+  <circle cx="308" cy="86" r="19" class="ev-e"/>
+  <text x="308" y="128" class="lbl-sm" text-anchor="middle">Decided</text>
+
+  <path d="M 204 129 L 204 172 L 286 172" class="flow"/>
+  <text x="212" y="166" class="lbl-sm">after 5 days</text>
+  <circle cx="308" cy="172" r="19" class="ev-e"/>
+  <rect x="300" y="167" width="16" height="10" fill="#c5221f"/>
+  <path d="M 300 167 L 308 174 L 316 167" fill="none" stroke="#fff" stroke-width="1.4"/>
+  <text x="308" y="210" class="lbl-sm" text-anchor="middle">Reminder emailed</text>
+
+  <text x="20" y="234" class="cap">The reminder goes out and that branch ends. The review is still open for the manager to perform.</text>
+
+  <line x1="20" y1="258" x2="580" y2="258" stroke="#dadce0" stroke-width="1"/>
+
+  <text x="20" y="296" class="lbl-b">Interrupting (solid border) — the task is abandoned</text>
+
+  <line x1="20" y1="356" x2="72" y2="356" class="flow"/>
+  <rect x="74" y="328" width="150" height="56" rx="10" class="task"/>
+  <text x="149" y="354" class="lbl" text-anchor="middle">Manager</text>
+  <text x="149" y="370" class="lbl" text-anchor="middle">reviews request</text>
+  <circle cx="204" cy="384" r="15" class="ev-i"/>
+  <circle cx="204" cy="384" r="11" fill="none" stroke="#ea8600" stroke-width="1.6"/>
+  <path d="M 204 378 L 204 384 L 208 387" stroke="#ea8600" stroke-width="1.6" fill="none"/>
+  <line x1="226" y1="356" x2="286" y2="356" class="flow"/>
+  <circle cx="308" cy="356" r="19" class="ev-e"/>
+  <text x="308" y="398" class="lbl-sm" text-anchor="middle">Decided</text>
+
+  <path d="M 204 399 L 204 442 L 286 442" class="flow"/>
+  <text x="212" y="436" class="lbl-sm">after 15 days</text>
+  <rect x="288" y="418" width="140" height="48" rx="10" class="svc"/>
+  <text x="358" y="447" class="lbl" text-anchor="middle">Decline by default</text>
+  <line x1="430" y1="442" x2="466" y2="442" class="flow"/>
+  <circle cx="488" cy="442" r="19" class="ev-e"/>
+
+  <text x="20" y="490" class="cap">The review is cancelled. Nobody can act on it any more.</text>
+
+</svg>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 280" width="860" height="280" role="img">
+  <style>
+    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
+    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #5f6368; }
+    .task { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; }
+    .svc  { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .gw   { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .ev-s { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .ev-e { fill: #fce8e6; stroke: #c5221f; stroke-width: 3; }
+    .ev-i { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .flow { stroke: #5f6368; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .tok  { fill: #d93025; stroke: #fff; stroke-width: 2; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <circle cx="45" cy="45" r="18" class="ev-s"/>
+  <line x1="65" y1="45" x2="118" y2="45" class="flow"/>
+  <rect x="120" y="21" width="118" height="48" rx="10" class="task"/>
+  <text x="179" y="49" class="lbl" text-anchor="middle">Review</text>
+  <line x1="240" y1="45" x2="292" y2="45" class="flow"/>
+  <rect x="294" y="21" width="118" height="48" rx="10" class="svc"/>
+  <text x="353" y="49" class="lbl" text-anchor="middle">Record</text>
+  <line x1="414" y1="45" x2="466" y2="45" class="flow"/>
+  <circle cx="488" cy="45" r="18" class="ev-e"/>
+  <circle cx="45" cy="45" r="8" class="tok"/>
+  <text x="530" y="41" class="lbl-b">1. Started</text>
+  <text x="530" y="59" class="cap">the token sits on the start event</text>
+  <circle cx="45" cy="140" r="18" class="ev-s"/>
+  <line x1="65" y1="140" x2="118" y2="140" class="flow"/>
+  <rect x="120" y="116" width="118" height="48" rx="10" class="task"/>
+  <text x="179" y="144" class="lbl" text-anchor="middle">Review</text>
+  <line x1="240" y1="140" x2="292" y2="140" class="flow"/>
+  <rect x="294" y="116" width="118" height="48" rx="10" class="svc"/>
+  <text x="353" y="144" class="lbl" text-anchor="middle">Record</text>
+  <line x1="414" y1="140" x2="466" y2="140" class="flow"/>
+  <circle cx="488" cy="140" r="18" class="ev-e"/>
+  <circle cx="179" cy="140" r="8" class="tok"/>
+  <text x="530" y="136" class="lbl-b">2. Waiting</text>
+  <text x="530" y="154" class="cap">somebody owes a review</text>
+  <circle cx="45" cy="235" r="18" class="ev-s"/>
+  <line x1="65" y1="235" x2="118" y2="235" class="flow"/>
+  <rect x="120" y="211" width="118" height="48" rx="10" class="task"/>
+  <text x="179" y="239" class="lbl" text-anchor="middle">Review</text>
+  <line x1="240" y1="235" x2="292" y2="235" class="flow"/>
+  <rect x="294" y="211" width="118" height="48" rx="10" class="svc"/>
+  <text x="353" y="239" class="lbl" text-anchor="middle">Record</text>
+  <line x1="414" y1="235" x2="466" y2="235" class="flow"/>
+  <circle cx="488" cy="235" r="18" class="ev-e"/>
+  <circle cx="488" cy="235" r="8" class="tok"/>
+  <text x="530" y="231" class="lbl-b">3. Finished</text>
+  <text x="530" y="249" class="cap">nothing is left to do</text>
+</svg>

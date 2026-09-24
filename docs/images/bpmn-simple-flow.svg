@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img">
+  <style>
+    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
+    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #5f6368; }
+    .task { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; }
+    .svc  { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .gw   { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .ev-s { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .ev-e { fill: #fce8e6; stroke: #c5221f; stroke-width: 3; }
+    .ev-i { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .flow { stroke: #5f6368; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .tok  { fill: #d93025; stroke: #fff; stroke-width: 2; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <circle cx="45" cy="70" r="20" class="ev-s"/>
+  <text x="45" y="112" class="lbl-sm" text-anchor="middle">Request filed</text>
+  <line x1="67" y1="70" x2="128" y2="70" class="flow"/>
+
+  <rect x="130" y="44" width="130" height="52" rx="10" class="task"/>
+  <text x="195" y="68" class="lbl" text-anchor="middle">Manager</text>
+  <text x="195" y="84" class="lbl" text-anchor="middle">reviews request</text>
+  <line x1="262" y1="70" x2="325" y2="70" class="flow"/>
+
+  <path d="M 330 70 L 362 38 L 394 70 L 362 102 Z" class="gw"/>
+  <text x="362" y="76" class="lbl-b" text-anchor="middle">×</text>
+  <text x="362" y="26" class="lbl-sm" text-anchor="middle">Approved?</text>
+
+  <path d="M 394 70 L 450 70 L 450 34 L 505 34" class="flow"/>
+  <text x="452" y="26" class="lbl-sm">yes</text>
+  <path d="M 362 102 L 362 140 L 505 140" class="flow"/>
+  <line x1="355" y1="116" x2="369" y2="108" stroke="#5f6368" stroke-width="1.6"/>
+  <text x="370" y="134" class="lbl-sm">no (default)</text>
+
+  <rect x="507" y="8" width="130" height="52" rx="10" class="svc"/>
+  <text x="572" y="32" class="lbl" text-anchor="middle">Book the</text>
+  <text x="572" y="48" class="lbl" text-anchor="middle">time off</text>
+
+  <rect x="507" y="114" width="130" height="52" rx="10" class="svc"/>
+  <text x="572" y="138" class="lbl" text-anchor="middle">Close the</text>
+  <text x="572" y="154" class="lbl" text-anchor="middle">request</text>
+
+  <line x1="639" y1="34" x2="694" y2="34" class="flow"/>
+  <circle cx="716" cy="34" r="20" class="ev-e"/>
+  <line x1="639" y1="140" x2="694" y2="140" class="flow"/>
+  <circle cx="716" cy="140" r="20" class="ev-e"/>
+  <text x="716" y="180" class="lbl-sm" text-anchor="middle">Finished</text>
+
+</svg>
