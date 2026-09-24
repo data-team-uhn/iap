@@ -25,6 +25,7 @@ import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
+import { validateUpload } from "./fileValidation";
 import {
   type DocumentRequirement,
   attachDocument,
@@ -49,11 +50,14 @@ export interface DocumentUploadProps {
   requirement: DocumentRequirement;
   // Whether this reader may still change the request at all, which is the server's `editable`
   disabled: boolean;
+  // Whether the documents are being parsed or read. A file removed then would leave the reading
+  // waiting on a parse that lands on nothing, so the server refuses it and this does not offer it.
+  reading?: boolean;
   onAttached: () => void;
 }
 
 // Answering a document requirement: what has been attached for it, and a way to attach a file.
-function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
+function DocumentUpload({ path, requirement, disabled, reading = false, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
@@ -88,7 +92,14 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     );
   };
 
-  const upload = (file: File) => run(() => attachDocument(doFetch, path, requirement.name, file));
+  // Checked here before it is sent, so a file that cannot be read is refused in a moment rather than
+  // after a slow upload. The server checks again; this is only the quick half.
+  const upload = (file: File) => run(() => validateUpload(file, accepted).then(problem => {
+    if (problem !== undefined) {
+      throw new Error(problem);
+    }
+    return attachDocument(doFetch, path, requirement.name, file);
+  }));
   const remove = () => run(() => detachDocument(doFetch, path, requirement.name));
 
   return (
@@ -108,7 +119,14 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
                 </Fragment>
               ))}
             </Typography>
-            <Button size="small" color="inherit" startIcon={<DeleteIcon />} disabled={disabled || busy} onClick={remove}>
+            <Button
+              size="small"
+              color="inherit"
+              startIcon={<DeleteIcon />}
+              disabled={disabled || busy || reading}
+              title={reading ? "Wait until the document has been read, or abort the reading" : undefined}
+              onClick={remove}
+            >
               Remove
             </Button>
           </Stack>

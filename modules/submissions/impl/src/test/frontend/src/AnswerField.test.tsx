@@ -167,6 +167,19 @@ describe("AnswerField", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("This answer was not saved");
   });
 
+  // Confirming a suggestion or rejecting its evidence never touches the answer itself, so a refused
+  // review must read differently from a refused save, not as the answer having failed
+  it("reports a refused review separately from a refused save", async () => {
+    render(<AnswerField question={question()} state="reviewFailed" onAnswered={vi.fn()} />);
+
+    expect(screen.getByText("Review failed")).toBeInTheDocument();
+    expect(screen.queryByText("Not saved")).not.toBeInTheDocument();
+
+    fireEvent.mouseOver(screen.getByText("Review failed"));
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("This review could not be recorded");
+  });
+
   it("adopts a new stored answer, and keeps what is being typed when nothing changed", async () => {
     // Each read of the form returns fresh arrays, so following the prop by identity would reset
     // every field on every save. It follows the content instead.
@@ -214,5 +227,56 @@ describe("AnswerField", () => {
     render(<AnswerField question={question({ text: "" })} state="idle" onAnswered={vi.fn()} />);
 
     expect(screen.getByLabelText("startDate")).toBeInTheDocument();
+  });
+
+  // A question nobody suggested an answer to says nothing about where its answer came from, which is
+  // what makes the lane mean something on the questions that do carry it
+  it("says nothing about provenance for an answer the submitter gave themselves", () => {
+    render(<AnswerField question={question()} state="idle" onAnswered={vi.fn()} />);
+
+    expect(screen.queryByText("AI found:")).not.toBeInTheDocument();
+  });
+
+  it("shows where a pre-filled answer came from, and reports accepting it", async () => {
+    const accepted = vi.fn();
+    const pre = question({
+      dataType: "text",
+      value: [ "Clinical trial" ],
+      provenance: {
+        suggested: [ "Clinical trial" ],
+        confidence: 0.9,
+        passages: [ { quote: "This is a prospective interventional phase II study." } ],
+        reviewed: false,
+        evidenceRejected: false,
+      },
+    });
+    render(
+      <AnswerField question={pre} state="idle" onAnswered={vi.fn()} onAcceptSuggestion={accepted} />);
+
+    expect(screen.getByText("AI found:")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+    expect(accepted).toHaveBeenCalled();
+  });
+
+  // The two callbacks are optional, so a caller that wires neither still renders rather than throwing
+  it("copes with a caller that wired neither verdict", async () => {
+    const pre = question({
+      dataType: "text",
+      value: [ "Clinical trial" ],
+      provenance: {
+        suggested: [ "Clinical trial" ],
+        confidence: 0.4,
+        passages: [ { quote: "This is a prospective interventional phase II study." } ],
+        reviewed: false,
+        evidenceRejected: false,
+      },
+    });
+    render(<AnswerField question={pre} state="idle" onAnswered={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+    await userEvent.click(screen.getByRole("button", { name: /prospective interventional/ }));
+    await userEvent.click(screen.getByRole("button", { name: /doesn.t support the answer/ }));
+
+    expect(screen.getByText("Low confidence")).toBeInTheDocument();
   });
 });

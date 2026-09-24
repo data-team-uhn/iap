@@ -243,7 +243,68 @@ const EMPTY_FORM = {
   path: "/Submissions/demo-1",
   title: "Test my drug",
   editable: true,
+  readsDocuments: false,
   requirements: [],
+};
+
+// A question as the SubmissionFormServlet projects one: numbered, with its options and whatever has
+// been answered already.
+function formQuestion(name: string, number: number, text: string, value: string[]) {
+  return {
+    name, number, text, value,
+    type: "sch/Question",
+    path: "BasicInformation/" + name,
+    dataType: "text",
+    minAnswers: 0,
+    maxAnswers: 1,
+    options: [],
+  };
+}
+
+// The form behind DEEP_SUBMISSION: the same structure, as the server projects it. The page reads this
+// rather than the schema version inside the submission, so that what it shows is what was asked -
+// requirements whose condition does not hold are not in it, and every question carries its number.
+const DEEP_FORM = {
+  path: "/Submissions/demo-1",
+  title: "Test my drug",
+  editable: false,
+  readsDocuments: false,
+  requirements: [
+    {
+      name: "BasicInformation",
+      type: "sch/FormRequirement",
+      label: "Basic information",
+      description: "General information about the study",
+      items: [
+        formQuestion("StudyTitle", 1, "What is the full title of the study?",
+          [ "A wonder drug against everything" ]),
+        formQuestion("Keywords", 2, "Which keywords describe the study?", [ "pharmacology", "Yes" ]),
+        formQuestion("Blinded", 3, "Is the study blinded?", [ "No" ]),
+        // No text: the label falls back to the name
+        formQuestion("Duration", 4, "", [ "36" ]),
+        {
+          name: "ContactDetails",
+          type: "sch/Section",
+          label: "Contact details",
+          items: [
+            // Answered by nobody: nothing is shown under it
+            formQuestion("Email", 5, "What is the contact email?", []),
+            {
+              name: "MailingAddress",
+              type: "sch/Section",
+              label: "Mailing address",
+              description: "Where to send paper mail",
+              items: [],
+            },
+            // No label: falls back to the name
+            { name: "Fax", type: "sch/Section", label: "", items: [] },
+          ],
+        },
+      ],
+    },
+    // No label: falls back to the name
+    { name: "ExtraForm", type: "sch/FormRequirement", label: "", description: "", items: [] },
+  ],
 };
 
 // Answers the tag definitions, the deep serialization and the form projection alike, so that a test
@@ -295,7 +356,10 @@ describe("SubmissionView", () => {
   });
 
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
-    const fetchMock = vi.fn(tagAwareFetch(DEEP_SUBMISSION));
+    const serving = tagAwareFetch(DEEP_SUBMISSION);
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+      ? Promise.resolve({ ok: true, json: () => Promise.resolve(DEEP_FORM) } as unknown as Response)
+      : serving(url));
     vi.stubGlobal("fetch", fetchMock);
 
     renderAt("/Submissions/demo-1");
@@ -314,22 +378,21 @@ describe("SubmissionView", () => {
     // The form requirement, its section, and its questions, with and without answers
     expect(screen.getByText("Basic information")).toBeInTheDocument();
     expect(screen.getByText("Contact details")).toBeInTheDocument();
-    expect(screen.getByText("What is the full title of the study?")).toBeInTheDocument();
+    expect(screen.getByText("1. What is the full title of the study?")).toBeInTheDocument();
     expect(screen.getByText("A wonder drug against everything")).toBeInTheDocument();
-    expect(screen.getByText("What is the contact email?")).toBeInTheDocument();
-    expect(screen.getAllByText("Not answered yet").length).toBeGreaterThan(0);
+    expect(screen.getByText("5. What is the contact email?")).toBeInTheDocument();
+    // An unanswered question shows nothing under it, rather than a placeholder that reads as an answer
+    expect(screen.queryByText("Not answered yet")).not.toBeInTheDocument();
 
     // Answer values are formatted per type: multi-values joined, booleans worded, numbers
-    // stringified, and nested nodes treated as not answered
+    // stringified, and nested nodes shown as nothing at all
     expect(screen.getByText("pharmacology, Yes")).toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument();
     expect(screen.getByText("36")).toBeInTheDocument();
-    expect(screen.getAllByText("Not answered yet").length).toBe(2);
+    expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 
-    // Four fallbacks at once. A question with no text takes its node name, non-question schema
-    // children are skipped, a nested section shows its description a level deeper, and untitled
-    // sections and forms take their node names
-    expect(screen.getByText("Duration")).toBeInTheDocument();
+    // A question with no text falls back to its node name, and a numbered question keeps its number.
+    expect(screen.getByText("4. Duration")).toBeInTheDocument();
     expect(screen.queryByText("Fill this form carefully")).toBeNull();
     expect(screen.getByText("Mailing address")).toBeInTheDocument();
     expect(screen.getByText("Where to send paper mail")).toBeInTheDocument();
@@ -369,6 +432,107 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/demo-1");
 
     expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  it("reads a lone tag written as a bare string", async () => {
+    // A single-valued property is serialized as a string, not as a one-element array, so a request
+    // whose only tag is `incomplete` would otherwise read as having no tags at all
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": "incomplete" }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  const PROPOSAL_REQUIREMENT = {
+    name: "proposal",
+    type: "sch/DocumentRequirement",
+    label: "Research proposal",
+    required: true,
+    acceptedFileTypes: [] as string[],
+    attached: [] as string[],
+  };
+
+  // The send step waiting, a form insisting on the proposal document and reading it, and the
+  // submission as given. `readsDocuments` is what makes the reading exemption apply at all, so a
+  // test about a schema that reads nothing overrides it through formExtras.
+  function servingWithSendStepAsking(submission: unknown, formExtras: Record<string, unknown> = {}) {
+    return vi.fn((url: string) => {
+      if (url.includes("wf:instances")) {
+        return jsonResponse(WAITING);
+      }
+      if (url.endsWith(".form.json")) {
+        return jsonResponse({
+          ...EMPTY_FORM, readsDocuments: true, requirements: [ PROPOSAL_REQUIREMENT ], ...formExtras,
+        });
+      }
+      return tagAwareFetch(submission)(url);
+    });
+  }
+
+  // The proposal attached, and the save that attached it has counted the unanswered questions
+  const WITH_PROPOSAL_ATTACHED = {
+    ...DEEP_SUBMISSION,
+    "tags": ["draft", "incomplete"],
+    "attached": {
+      "@path": "/Submissions/demo-1/attached",
+      "sling:resourceType": "sub/Document",
+      "title": "proposal.pdf",
+      "fulfills": { "@name": "proposal" },
+    },
+  };
+
+  // The incomplete tag comes from a save, and a request nobody has saved yet carries none. Completing
+  // the step anyway would move the process on with nothing to read, so the form has to be asked.
+  it("will not offer the step while the document the request insists on is missing", async () => {
+    vi.stubGlobal("fetch", servingWithSendStepAsking(DEEP_SUBMISSION));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await waitFor(() => expect(step).toBeDisabled());
+  });
+
+  // The answers the tag counts as missing are the ones reading the document fills in, so the step that
+  // sends it to be read cannot wait for them
+  it("offers the step once that document is attached, unanswered questions or not", async () => {
+    vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await act(() => Promise.resolve());
+    expect(step).toBeEnabled();
+  });
+
+  // Nothing reads the attached document here, so there is no reading to wait for and the unanswered
+  // questions are the submitter's own. A request that attaches a doctor's note is this case.
+  it("insists on the missing answers when nothing reads the attached document", async () => {
+    vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED, { readsDocuments: false }));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await waitFor(() => expect(step).toBeDisabled());
+  });
+
+  it("waits for the document to be read before offering the next step", async () => {
+    vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED, { extraction: { status: "running" } }));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await waitFor(() => expect(step).toBeDisabled());
+  });
+
+  // Once the reading is over, whatever it left unanswered is the submitter's to fill in
+  it("insists on the missing answers once the document has been read", async () => {
+    vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED, { extraction: { status: "done" } }));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await waitFor(() => expect(step).toBeDisabled());
   });
 
   it("credits whoever raised the submission, not the engine that wrote it", async () => {
@@ -509,9 +673,130 @@ describe("SubmissionView", () => {
         : otherwise(url));
     }
 
-    function projection(requirements: unknown[] = [PROTOCOL]) {
-      return { ...EMPTY_FORM, requirements };
+    function projection(requirements: unknown[] = [PROTOCOL], extra: Record<string, unknown> = {}) {
+      return { ...EMPTY_FORM, requirements, ...extra };
     }
+
+    it("shows that the document is still being read, and asks again a little later", async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchMock = serving(projection([], { extraction: { status: "running" } }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        renderAt("/Submissions/demo-1");
+        await act(() => Promise.resolve());
+        await act(() => Promise.resolve());
+        await act(() => Promise.resolve());
+
+        expect(screen.getByRole("status")).toHaveTextContent("Reading the uploaded document");
+        const before = fetchMock.mock.calls.length;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(4000);
+        });
+        // The answers land from a background job, so the page has to go and look for them
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("says why nothing was filled in when the reading stopped", async () => {
+      const message = "The model's answer could not be read";
+      vi.stubGlobal("fetch", serving(projection([], { extraction: { status: "failed", message } })));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("falls back on a plain explanation when the reading failed without one", async () => {
+      vi.stubGlobal("fetch", serving(projection([], { extraction: { status: "failed" } })));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(/could not be read/)).toBeInTheDocument();
+    });
+
+    // Asking again starts from wherever it has to: the daemon when a parse failed, the model when the
+    // document parsed fine and it was the reading that broke.
+    const FAILED_PARSE = {
+      status: "failed",
+      message: "The document could not be read. The daemon could not be reached",
+      retryable: true,
+    };
+
+    function servingRetry(retry: () => Promise<Response>, extraction: unknown = FAILED_PARSE) {
+      const otherwise = tagAwareFetch({ ...DEEP_SUBMISSION, tags: ["draft"] });
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          return retry();
+        }
+        if (url.endsWith(".form.json")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(projection([], { extraction })),
+          } as unknown as Response);
+        }
+        return otherwise(url);
+      });
+    }
+
+    it("offers to send the document again when its parse failed", async () => {
+      const fetchMock = servingRetry(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as unknown as Response));
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+
+      renderAt("/Submissions/demo-1");
+
+      await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+      expect(fetchMock).toHaveBeenCalledWith("/Submissions/demo-1.retryParse.json", { method: "POST" });
+    });
+
+    it("asks the model again when the document itself parsed perfectly well", async () => {
+      // Nothing to send the daemon: what broke was the reading, so only the model is asked again
+      const fetchMock = servingRetry(
+        () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as unknown as Response),
+        { status: "failed", message: "The model's answer could not be read" });
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+
+      renderAt("/Submissions/demo-1");
+
+      await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+      expect(fetchMock).toHaveBeenCalledWith("/Submissions/demo-1.extractAnswers.json", { method: "POST" });
+    });
+
+    it("says so when sending it again was refused, and keeps showing the submission", async () => {
+      vi.stubGlobal("fetch", servingRetry(() => Promise.resolve({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ error: "Nothing accepts the event retryParse" }),
+      } as unknown as Response)));
+      const user = userEvent.setup();
+
+      renderAt("/Submissions/demo-1");
+
+      await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+      expect(await screen.findByText("Nothing accepts the event retryParse")).toBeInTheDocument();
+      // A refused retry is not a submission that cannot be shown
+      expect(screen.getByText("Test my drug")).toBeInTheDocument();
+    });
+
+    it("says nothing once the reading is done", async () => {
+      vi.stubGlobal("fetch", serving(projection([], { extraction: { status: "done" } })));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("link", { name: /Back to the dashboard/ })).toBeInTheDocument();
+      await act(() => Promise.resolve());
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(/could not be read/)).toBeNull();
+    });
 
     // One approval requirement, with whatever the projection is saying about it
     function approval(state: Record<string, unknown>) {
@@ -621,6 +906,8 @@ describe("SubmissionView", () => {
       await waitFor(() => expect(screen.queryByText("Nothing attached yet")).toBeNull());
       // The grouping already says which requirement it answers, so the document does not repeat it
       expect(screen.queryByText(/fulfills/)).toBeNull();
+      // Nor its name: the title is the file name, and the link already shows it
+      expect(screen.getAllByText("protocol.pdf")).toHaveLength(1);
     });
 
     it("does not group a document under a requirement that only shares its name", async () => {

@@ -91,7 +91,9 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     setDialogOpen(false);
     setRefreshToken(current => current + 1);
     if (path) {
-      void navigate(path);
+      // Straight into the editor: a request that was just raised has nothing in it yet, and the only
+      // thing anybody opens it for is to start filling it in.
+      void navigate(`${path}.edit`);
     }
   };
 

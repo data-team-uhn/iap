@@ -153,6 +153,19 @@ ENTRY_CONTENT
         {
           test:/\.css$/,
           use:['style-loader','css-loader']
+        },
+        {
+          // PDF.js parses in a web worker, which has to be a separately served file. It is emitted
+          // under a fixed name next to the rest of the frontend, where fileValidation.ts points
+          // PDF.js at it. The per-rule publicPath is needed because the global one is '/'. Named
+          // .js, not .mjs: Sling serves .mjs as application/octet-stream, which a module import
+          // refuses; the file is an ES module either way.
+          test: /pdf\.worker\.min\.mjs$/,
+          type: 'asset/resource',
+          generator: {
+            filename: 'pdf.worker.min.js',
+            publicPath: '/libs/iap/resources/'
+          }
         }
       ]
     },

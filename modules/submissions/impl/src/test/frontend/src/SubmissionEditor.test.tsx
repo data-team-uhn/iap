@@ -74,22 +74,37 @@ function endDate() {
   };
 }
 
+/** The same question, pre-filled by the extraction and not yet settled by the submitter. */
+function suggested() {
+  return {
+    ...duration([ "Yes" ]),
+    provenance: {
+      suggested: [ "Yes" ],
+      confidence: 0.9,
+      passages: [ { quote: "the leave runs over three days" } ],
+      reviewed: false,
+      evidenceRejected: false,
+    },
+  };
+}
+
 function form(overrides: Partial<SubmissionForm> = {}): SubmissionForm {
   return {
     path: PATH,
     title: "A long weekend",
     editable: true,
+    readsDocuments: false,
     requirements: [ details([ duration() ], { description: "When and why." }) ],
     ...overrides,
   };
 }
 
-function json(body: unknown, init: { ok?: boolean; status?: number } = {}) {
+function json(body: unknown, init: { ok?: boolean; status?: number; url?: string } = {}) {
   return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
     // The authenticated fetch reads this to tell a form from a login page served with a 200
-    url: "",
+    url: init.url ?? "",
     json: () => Promise.resolve(body),
   } as unknown as Response);
 }
@@ -99,11 +114,11 @@ function serving(...reads: SubmissionForm[]) {
   let read = 0;
   return vi.fn((url: string, options?: { method?: string }) => {
     if (options?.method === "POST") {
-      return json({});
+      return json({}, { url });
     }
     const next = reads[Math.min(read, reads.length - 1)];
     read += 1;
-    return json(next);
+    return json(next, { url });
   });
 }
 
@@ -136,6 +151,39 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByLabelText(/Which day are you back/)).toBeInTheDocument();
     const posted = fetchMock.mock.calls.find(([ , options ]) => (options as { method?: string })?.method === "POST");
     expect(posted?.[0]).toBe(`${PATH}.save.json`);
+  });
+
+  it("records a confirmation as an event on the submission", async () => {
+    const withProvenance = form({ requirements: [ details([ suggested() ]) ] });
+    const fetchMock = serving(withProvenance);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionEditor path={PATH} />);
+    await screen.findByText("AI found:");
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+
+    const posted = fetchMock.mock.calls.find(([ , options ]) =>
+      (options as { method?: string })?.method === "POST");
+    expect(posted?.[0]).toBe(`${PATH}.reviewExtraction.json`);
+    const body = (posted?.[1] as unknown as { body: URLSearchParams }).body;
+    expect(body.get("question")).toBe("details/duration");
+    expect(body.get("confirmed")).toBe("true");
+  });
+
+  // The answer is unchanged, so nothing about it should read as unsaved
+  it("reports a refused review without claiming the answer failed to save", async () => {
+    const withProvenance = form({ requirements: [ details([ suggested() ]) ] });
+    const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? json({ error: "Nothing was extracted for that" }, { ok: false, status: 400 })
+      : json(withProvenance));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionEditor path={PATH} />);
+    await screen.findByText("AI found:");
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+
+    expect(await screen.findByText("Review failed")).toBeInTheDocument();
+    expect(screen.queryByText("Not saved")).not.toBeInTheDocument();
   });
 
   it("reports a refused save on the field it belongs to", async () => {
@@ -189,9 +237,9 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
   });
 
-  it("shows a requirement that holds no questions, rather than dropping it", async () => {
-    // An approval is still something the request is waiting on, and leaving it out would say the
-    // request asks less than it does
+  it("leaves approvals out, since the submitter has nothing to do there", async () => {
+    // Where an approval stands is shown on the read-only page. In the editor a reviewer's step drawn
+    // as a form section reads as something the submitter still has to fill in.
     vi.stubGlobal("fetch", serving(form({
       requirements: [ {
         name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: "sch/ApprovalRequirement",
@@ -201,53 +249,9 @@ describe("SubmissionEditor", () => {
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("Approval")).toBeInTheDocument();
-  });
-
-  describe("an approval", () => {
-    it("says who it is waiting on while nobody has decided", async () => {
-      vi.stubGlobal("fetch", serving(form({
-        requirements: [ approval({ approverGroup: "time-off-approvers", approved: false }) ],
-      })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText("Waiting for approval from time-off-approvers")).toBeInTheDocument();
-    });
-
-    it("says only that it is waiting when nobody is named", async () => {
-      // An approval nobody has been assigned still waits, and saying so beats saying nothing
-      vi.stubGlobal("fetch", serving(form({
-        requirements: [ approval({ approverGroup: "", approved: false }) ],
-      })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
-    });
-
-    it("reports the decision once somebody has made it", async () => {
-      vi.stubGlobal("fetch", serving(form({
-        requirements: [ approval({
-          approved: true, decidedBy: "priya", decidedAt: "2026-08-27T09:15:30.500-05:00",
-        }) ],
-      })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText(/Approved by priya on /)).toBeInTheDocument();
-    });
-
-    it("reports a refusal as a decision rather than as silence", async () => {
-      // Without this a refused request looks like one nobody has looked at yet
-      vi.stubGlobal("fetch", serving(form({
-        requirements: [ approval({ approved: false, decidedBy: "priya" }) ],
-      })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText("Reviewed by priya, and not approved")).toBeInTheDocument();
-    });
+    expect(await screen.findByText("A long weekend")).toBeInTheDocument();
+    expect(screen.queryByText("Approval")).toBeNull();
+    expect(screen.queryByText(/Waiting for approval/)).toBeNull();
   });
 
   // One approval requirement, with whatever the projection is saying about it
@@ -263,7 +267,7 @@ describe("SubmissionEditor", () => {
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
       required: true,
-      acceptedFileTypes: [ "application/pdf", "image/png" ],
+      acceptedFileTypes: [ ".doc", "application/pdf" ],
       template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
       templateName: "Doctor's note.docx",
       attached: [],
@@ -275,8 +279,12 @@ describe("SubmissionEditor", () => {
       return form({ requirements: [ { ...NOTE, ...note } ], ...overrides });
     }
 
-    function pick(name = "note.pdf", type = "application/pdf") {
-      return new File([ "%PDF" ], name, { type });
+    // A .doc, because the browser-side check now looks inside the file and a legacy Word document is
+    // recognised by eight bytes rather than by a library these tests would have to stand in for.
+    const OLE_MAGIC = new Uint8Array([ 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 ]);
+
+    function pick(name = "note.doc", type = "application/msword") {
+      return new File([ OLE_MAGIC ], name, { type });
     }
 
     it("offers to attach a file, with the types it takes and nothing else", async () => {
@@ -341,7 +349,7 @@ describe("SubmissionEditor", () => {
       expect(init.method).toBe("POST");
       const body = init.body as FormData;
       expect(body.get("requirement")).toBe("doctorsNote");
-      expect((body.get("file") as File).name).toBe("note.pdf");
+      expect((body.get("file") as File).name).toBe("note.doc");
       // No Content-Type of our own: only the browser knows the multipart boundary it generated
       expect(init.headers).toBeUndefined();
       // What the server now says is attached, rather than what this page hoped
@@ -389,17 +397,33 @@ describe("SubmissionEditor", () => {
     });
 
     it("says why the engine refused a file, in the engine's own words", async () => {
-      // The requirement takes anything, because `userEvent.upload` enforces `accept` as a real file
-      // dialog does. A type the control advertised as unacceptable would never reach the server.
+      // A file the browser-side check is happy with, so the request really does reach the server.
+      // What the server then refuses, it refuses on its own reading of the request, and that reason
+      // is the one worth showing.
       vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
         options?.method === "POST"
-          ? json({ error: "A image/gif is not accepted here" }, { ok: false, status: 400 })
+          ? json({ error: "This request no longer takes documents" }, { ok: false, status: 400 })
           : json(asked({ acceptedFileTypes: [] }))));
 
       render(<SubmissionEditor path={PATH} />);
-      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick("scan.gif", "image/gif"));
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
-      expect(await screen.findByText("A image/gif is not accepted here")).toBeInTheDocument();
+      expect(await screen.findByText("This request no longer takes documents")).toBeInTheDocument();
+    });
+
+    // The browser-side check, which is there so a person finds out at once rather than after a slow
+    // upload. The server checks again; this only saves the wait.
+    it("refuses a file it can see is wrong before sending it", async () => {
+      const fetchMock = serving(asked({ acceptedFileTypes: undefined }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/),
+        new File([ "not a document" ], "scan.gif", { type: "image/gif" }));
+
+      expect(await screen.findByText(/scan.gif is not a/)).toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([ , options ]) =>
+        (options as { method?: string })?.method === "POST")).toBe(false);
     });
 
     it("falls back on its own words when the refusal carries none", async () => {
@@ -499,7 +523,7 @@ describe("SubmissionEditor", () => {
       // Attaching the last thing a request was waiting for makes it ready to send, which is the same
       // chain a saved answer walks
       const changed = vi.fn();
-      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.pdf" ] })));
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.doc" ] })));
 
       render(<SubmissionEditor path={PATH} onChanged={changed} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
@@ -528,6 +552,32 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("When you are away")).toBeInTheDocument();
     expect(screen.getByLabelText(/Which day are you back/)).toBeInTheDocument();
+  });
+
+  // A step under a form section is how its open questions get answered, so the page's "not ready to
+  // send" reason must not hide it: a request with open questions always has that reason.
+  it("offers a form section's own step even while the request cannot be sent", async () => {
+    const instances = {
+      reading: {
+        "@path": `${PATH}/wf:instances/reading`,
+        "sling:resourceType": "wf/WorkflowInstance",
+        "task": {
+          "sling:resourceType": "wf/TaskInstance",
+          "@path": `${PATH}/wf:instances/reading/task`,
+          "label": "Read the questions for this kind of study",
+          "status": "created",
+          "@mine": true,
+          "requirement": "details",
+        },
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      json(url.includes("wf:instances") ? instances : form())));
+
+    render(<SubmissionEditor path={PATH} blockedReason="Answer everything this request asks for before sending it." />);
+
+    expect(await screen.findByRole("button", { name: /Read the questions for this kind of study/ }))
+      .toBeEnabled();
   });
 
   it("falls back on the name when a requirement or a section is unlabelled", async () => {
@@ -575,7 +625,23 @@ describe("SubmissionEditor", () => {
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText(/could not be loaded \(404\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/could not be found on the server/)).toBeInTheDocument();
+  });
+
+  it("says the server sent a page when the form arrives as HTML", async () => {
+    // Sling answers an expired session with a 200 login page. Parsing that as JSON used to show
+    // "Unexpected token '<'", which names the parser rather than the problem.
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      url: "/form.json",
+      json: () => Promise.reject(new SyntaxError("Unexpected token '<', \"<!doctype \"... is not valid JSON")),
+    } as unknown as Response)));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText(/sent a page instead of data/)).toBeInTheDocument();
+    expect(screen.queryByText(/Unexpected token/)).toBeNull();
   });
 
   it("keeps the newest answer when two are finished in quick succession", async () => {
