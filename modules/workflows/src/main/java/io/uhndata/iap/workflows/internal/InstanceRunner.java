@@ -74,6 +74,9 @@ final class InstanceRunner
     /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
 
+    /** The activity property naming the requirement a task is about; see {@code wf:TaskInstance}. */
+    static final String REQUIREMENT_PROPERTY = "requirement";
+
     /**
      * How many nodes one delivery may pass through, counted across all its branches, before the definition is
      * declared broken. Far above anything a real workflow needs, so a definition whose arcs form a cycle fails fast
@@ -557,6 +560,12 @@ final class InstanceRunner
                 .toArray(String[]::new),
             STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
+        // Copied for the same reason as the options: a form placing this task beside the requirement it is about
+        // cannot read the definition to find out which one that is
+        final String requirement = activity.get(REQUIREMENT_PROPERTY, String.class);
+        if (requirement != null && !requirement.isBlank()) {
+            properties.put(REQUIREMENT_PROPERTY, requirement);
+        }
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
         this.resolver.create(instance, name, properties);
     }

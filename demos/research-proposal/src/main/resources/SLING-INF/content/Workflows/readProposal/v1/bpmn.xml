@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2026 DATA @ UHN. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
+                  id="readProposalDefinitions"
+                  targetNamespace="https://iap.uhndata.io/demo/readProposal">
+  <bpmn:process id="readProposal" name="Read a research proposal" isExecutable="true">
+    <bpmn:startEvent id="started" name="The document is readable">
+      <bpmn:outgoing>toAsk</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toAsk" sourceRef="started" targetRef="askTheModel" />
+    <bpmn:serviceTask id="askTheModel" iap:handler="intakeAnswers" iap:requirement="common"
+        iap:recordWhen="common/isProposal=proposal"
+        iap:promptFrom="protocol_structure.md,is_proposal_system.md"
+        name="Read the document once">
+      <bpmn:incoming>toAsk</bpmn:incoming>
+      <bpmn:outgoing>toProposalCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toProposalCheck" sourceRef="askTheModel" targetRef="isProposal" />
+    <bpmn:exclusiveGateway id="isProposal" name="A research proposal?" default="toFinishNotAProposal">
+      <bpmn:incoming>toProposalCheck</bpmn:incoming>
+      <bpmn:outgoing>toStudyType</bpmn:outgoing>
+      <bpmn:outgoing>toFinishNotAProposal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toStudyType" name="Yes" sourceRef="isProposal" targetRef="studyType">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>common/isProposal</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>proposal</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">common/isProposal == proposal</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <!-- Nothing was written, so there is nothing to mark complete. End the reading so the view
+         does not keep spinning. -->
+    <bpmn:sequenceFlow id="toFinishNotAProposal" name="No" sourceRef="isProposal" targetRef="finishNotAProposal" />
+    <bpmn:serviceTask id="finishNotAProposal" iap:handler="finishReading" name="The reading is over">
+      <bpmn:incoming>toFinishNotAProposal</bpmn:incoming>
+      <bpmn:outgoing>toNotAProposal</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toNotAProposal" sourceRef="finishNotAProposal" targetRef="notAProposal" />
+    <bpmn:exclusiveGateway id="studyType" name="Prospective or retrospective?" default="toFinishUnclassified">
+      <bpmn:incoming>toStudyType</bpmn:incoming>
+      <bpmn:incoming>categoryToStudyType</bpmn:incoming>
+      <bpmn:outgoing>toProspective</bpmn:outgoing>
+      <bpmn:outgoing>toRetrospective</bpmn:outgoing>
+      <bpmn:outgoing>toFinishUnclassified</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toProspective" name="Prospective" sourceRef="studyType" targetRef="askProspective">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>includes any</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>common/category</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>/Categories/Prospective</sv:value>
+              <sv:value>/Categories/Prospective/Observational</sv:value>
+              <sv:value>/Categories/Prospective/Observational/SurveysEducation</sv:value>
+              <sv:value>/Categories/Prospective/Observational/SensitiveDataClinical</sv:value>
+              <sv:value>/Categories/Prospective/Interventional</sv:value>
+              <sv:value>/Categories/Prospective/Interventional/Behavioral</sv:value>
+              <sv:value>/Categories/Prospective/Interventional/SocTrials</sv:value>
+              <sv:value>/Categories/Prospective/Interventional/ClinicalTrials</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">common/category is prospective</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toRetrospective" name="Retrospective" sourceRef="studyType" targetRef="askRetrospective">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>includes any</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>common/category</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>/Categories/Retrospective</sv:value>
+              <sv:value>/Categories/Retrospective/RetrospectiveData</sv:value>
+              <sv:value>/Categories/Retrospective/RetrospectiveBiospecimen</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">common/category is retrospective</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <!-- No category means no guess. Incomplete cannot come off while that question is empty.
+         Pause the reading so the view does not spin, then wait for the submitter. -->
+    <bpmn:sequenceFlow id="toFinishUnclassified" sourceRef="studyType" targetRef="finishUnclassified" />
+    <bpmn:serviceTask id="finishUnclassified" iap:handler="finishReading" name="The reading is paused">
+      <bpmn:incoming>toFinishUnclassified</bpmn:incoming>
+      <bpmn:outgoing>toChooseCategory</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toChooseCategory" sourceRef="finishUnclassified" targetRef="chooseCategory" />
+    <bpmn:userTask id="chooseCategory" iap:performers="@creator" iap:requirement="common"
+        name="Choose what kind of study this is">
+      <bpmn:incoming>toChooseCategory</bpmn:incoming>
+      <bpmn:outgoing>categoryToStudyType</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="categoryToStudyType" name="Category answered"
+        sourceRef="chooseCategory" targetRef="studyType" />
+    <bpmn:serviceTask id="askProspective" iap:handler="intakeAnswers" iap:requirement="prospective"
+        name="Ask what only prospective studies are asked">
+      <bpmn:incoming>toProspective</bpmn:incoming>
+      <bpmn:outgoing>prospectiveToMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="prospectiveToMark" sourceRef="askProspective" targetRef="markCompleteness" />
+    <bpmn:serviceTask id="askRetrospective" iap:handler="intakeAnswers" iap:requirement="retrospective"
+        name="Ask what only retrospective studies are asked">
+      <bpmn:incoming>toRetrospective</bpmn:incoming>
+      <bpmn:outgoing>retrospectiveToMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="retrospectiveToMark" sourceRef="askRetrospective" targetRef="markCompleteness" />
+    <bpmn:serviceTask id="markCompleteness" iap:handler="markCompleteness"
+        name="Record whether anything is still missing">
+      <bpmn:incoming>prospectiveToMark</bpmn:incoming>
+      <bpmn:incoming>retrospectiveToMark</bpmn:incoming>
+      <bpmn:outgoing>toFinish</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toFinish" sourceRef="markCompleteness" targetRef="finishReading" />
+    <bpmn:serviceTask id="finishReading" iap:handler="finishReading" name="The reading is over">
+      <bpmn:incoming>toFinish</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="finishReading" targetRef="done" />
+    <bpmn:endEvent id="done" name="The document has been read">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="notAProposal" name="Not a research proposal">
+      <bpmn:incoming>toNotAProposal</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="readProposalDiagram">
+    <bpmndi:BPMNPlane id="readProposalPlane" bpmnElement="readProposal">
+      <bpmndi:BPMNShape id="startedShape" bpmnElement="started">
+        <dc:Bounds x="160" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="askTheModelShape" bpmnElement="askTheModel">
+        <dc:Bounds x="250" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="isProposalShape" bpmnElement="isProposal">
+        <dc:Bounds x="400" y="193" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finishNotAProposalShape" bpmnElement="finishNotAProposal">
+        <dc:Bounds x="375" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notAProposalShape" bpmnElement="notAProposal">
+        <dc:Bounds x="407" y="420" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="studyTypeShape" bpmnElement="studyType">
+        <dc:Bounds x="530" y="193" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="askProspectiveShape" bpmnElement="askProspective">
+        <dc:Bounds x="640" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="askRetrospectiveShape" bpmnElement="askRetrospective">
+        <dc:Bounds x="640" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markCompletenessShape" bpmnElement="markCompleteness">
+        <dc:Bounds x="800" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finishReadingShape" bpmnElement="finishReading">
+        <dc:Bounds x="950" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finishUnclassifiedShape" bpmnElement="finishUnclassified">
+        <dc:Bounds x="640" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="chooseCategoryShape" bpmnElement="chooseCategory">
+        <dc:Bounds x="640" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="1100" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toAskEdge" bpmnElement="toAsk">
+        <di:waypoint x="196" y="218" />
+        <di:waypoint x="250" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toProposalCheckEdge" bpmnElement="toProposalCheck">
+        <di:waypoint x="350" y="218" />
+        <di:waypoint x="400" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toStudyTypeEdge" bpmnElement="toStudyType">
+        <di:waypoint x="450" y="218" />
+        <di:waypoint x="530" y="218" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="475" y="200" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFinishNotAProposalEdge" bpmnElement="toFinishNotAProposal">
+        <di:waypoint x="425" y="243" />
+        <di:waypoint x="425" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="260" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toNotAProposalEdge" bpmnElement="toNotAProposal">
+        <di:waypoint x="425" y="380" />
+        <di:waypoint x="425" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toProspectiveEdge" bpmnElement="toProspective">
+        <di:waypoint x="555" y="193" />
+        <di:waypoint x="555" y="120" />
+        <di:waypoint x="640" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="562" y="132" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRetrospectiveEdge" bpmnElement="toRetrospective">
+        <di:waypoint x="580" y="218" />
+        <di:waypoint x="640" y="218" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="582" y="200" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFinishUnclassifiedEdge" bpmnElement="toFinishUnclassified">
+        <di:waypoint x="555" y="243" />
+        <di:waypoint x="555" y="340" />
+        <di:waypoint x="640" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toChooseCategoryEdge" bpmnElement="toChooseCategory">
+        <di:waypoint x="690" y="380" />
+        <di:waypoint x="690" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="categoryToStudyTypeEdge" bpmnElement="categoryToStudyType">
+        <di:waypoint x="640" y="460" />
+        <di:waypoint x="480" y="460" />
+        <di:waypoint x="480" y="218" />
+        <di:waypoint x="530" y="218" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="488" y="438" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="prospectiveToMarkEdge" bpmnElement="prospectiveToMark">
+        <di:waypoint x="740" y="120" />
+        <di:waypoint x="850" y="120" />
+        <di:waypoint x="850" y="178" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="retrospectiveToMarkEdge" bpmnElement="retrospectiveToMark">
+        <di:waypoint x="740" y="218" />
+        <di:waypoint x="800" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFinishEdge" bpmnElement="toFinish">
+        <di:waypoint x="900" y="218" />
+        <di:waypoint x="950" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="1050" y="218" />
+        <di:waypoint x="1100" y="218" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -353,8 +353,9 @@
   - author (STRING) mandatory
 
   // The part of the submission this comment is about,
-  // e.g. a sub:Answer or a sub:Document
-  - subject (REFERENCE)
+  // e.g. a sub:Answer or a sub:Document. Weak, so removing that part is
+  // never blocked by a comment about it.
+  - subject (WEAKREFERENCE)
 
   // Optional anchors narrowing this comment down to a specific selection
   // within the subject (e.g. a range of text within a sub:Answer, or a
