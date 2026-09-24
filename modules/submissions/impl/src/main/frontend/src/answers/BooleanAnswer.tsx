@@ -20,14 +20,15 @@ import {
   FormControl,
   FormControlLabel,
   FormHelperText,
-  FormLabel,
   Radio,
   RadioGroup,
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getOptionFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -36,16 +37,41 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 //
 // A single checkbox would be the same control for "no" as for "not answered yet", which a question
 // that may be left unanswered has to be able to tell apart.
-function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function BooleanAnswer(
+  { question, values, disabled, onAnswered, suggested, aside }: AnswerComponentProps,
+) {
   const required = isRequired(question);
   return (
-    <FormControl required={required} disabled={disabled} component="fieldset">
-      <FormLabel component="legend">{questionLabel(question)}</FormLabel>
-      {/* required on each input, not on the FormControl, which never forwards it to a radio */}
-      <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
-        <FormControlLabel value="true" control={<Radio required={required} />} label="Yes" />
-        <FormControlLabel value="false" control={<Radio required={required} />} label="No" />
-      </RadioGroup>
+    <FormControl
+      required={required}
+      disabled={disabled}
+      component="fieldset"
+      aria-labelledby={getQuestionTextId(question)}
+      fullWidth
+    >
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        {/* required on each input, not on the FormControl, which never forwards it to a radio */}
+        <RadioGroup
+          row
+          aria-labelledby={getQuestionTextId(question)}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          <FormControlLabel
+            value="true"
+            control={<Radio required={required} />}
+            label="Yes"
+            sx={{ alignSelf: "flex-start", ...getOptionFrame(suggested === true && values[0] === "true") }}
+          />
+          <FormControlLabel
+            value="false"
+            control={<Radio required={required} />}
+            label="No"
+            sx={{ alignSelf: "flex-start", ...getOptionFrame(suggested === true && values[0] === "false") }}
+          />
+        </RadioGroup>
+      </AnswerRow>
       {question.description && <FormHelperText>{question.description}</FormHelperText>}
     </FormControl>
   );

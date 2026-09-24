@@ -16,39 +16,47 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getInputFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A calendar day.
-//
-// A date input stores what it shows as `yyyy-mm-dd` whatever the reader's locale displays.
-// Picking a day finishes the answer, but typing one digit at a time does not, so this still saves on blur.
-function DateAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
+// A calendar day. A date input stores what it shows as `yyyy-mm-dd` whatever the reader's locale
+// displays. Picking a day finishes the answer, but typing one digit at a time does not, so this
+// still saves on blur.
+function DateAnswer(
+  { question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps,
+) {
   return (
-    <TextField
-      label={questionLabel(question)}
-      type="date"
-      required={isRequired(question)}
-      disabled={disabled}
-      fullWidth
-      value={values[0] ?? ""}
-      slotProps={{ inputLabel: { shrink: true } }}
-      helperText={question.description}
-      onChange={event => onChange([ event.target.value ])}
-      // An empty value now means "clear this answer", so a value the browser cannot parse must not
-      // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
-      // is how the input tells the two apart.
-      onBlur={event => {
-        if (!event.target.validity.badInput) {
-          onAnswered([ event.target.value ].filter(Boolean));
-        }
-      }}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <TextField
+          type="date"
+          required={isRequired(question)}
+          disabled={disabled}
+          fullWidth
+          sx={getInputFrame(suggested === true)}
+          value={values[0] ?? ""}
+          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          helperText={question.description}
+          onChange={event => onChange([ event.target.value ])}
+          // An empty value now means "clear this answer", so a value the browser cannot parse must not
+          // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
+          // is how the input tells the two apart.
+          onBlur={event => {
+            if (!event.target.validity.badInput) {
+              onAnswered([ event.target.value ].filter(Boolean));
+            }
+          }}
+        />
+      </AnswerRow>
+    </Box>
   );
 }
 

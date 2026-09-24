@@ -23,6 +23,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Divider,
   Link,
@@ -35,16 +36,23 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
+import StepProgress from "@iap/frontend-commons/components/StepProgress";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import QuestionText from "./answers/QuestionText";
 import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
+import { PHASE_LABEL, READING_PHASES, failedPhase, phaseFor, type ReadingPhase } from "./readingProgress";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type ApprovalRequirement,
   type DocumentRequirement,
+  type ExtractionState,
+  type FormItem,
+  type FormQuestion,
+  type Requirement,
   type SubmissionForm,
   describeNothingAttached,
   fetchForm,
@@ -52,6 +60,10 @@ import {
   isApprovalRequirement,
   isDocumentRequirement,
   toFileUrl,
+  isFormRequirement,
+  isQuestion,
+  readAgain,
+  stopProcessing,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -62,6 +74,21 @@ const EDIT = ".edit";
 // The tag the save workflow places when something the schema asks for has not been answered
 const INCOMPLETE = "incomplete";
 
+// How often to ask again while the uploaded documents are still being read
+const EXTRACTION_POLL_MS = 4000;
+
+// How long to keep asking before giving up on the answer arriving. Comfortably past the server side
+// deadline on a parse, so a reading that is merely slow is never given up on here first; the server
+// sweep fails a lost parse and the next poll sees that. This is the backstop for a page left open
+// against a server that has stopped answering at all, which would otherwise poll for as long as the
+// tab is open.
+const EXTRACTION_POLL_LIMIT = (45 * 60 * 1000) / EXTRACTION_POLL_MS;
+
+// How often the bar inches forward. The phase math is in milliseconds, so a tick is this long.
+const READING_TICK_MS = 400;
+
+const READING_LABELS = READING_PHASES.map(name => PHASE_LABEL[name]);
+
 // Whether the request is still missing an answer, read from the submission this page already holds
 // rather than by asking for its form: the save workflow worked it out and recorded it.
 function isIncomplete(submission: JsonNode | undefined): boolean {
@@ -69,6 +96,45 @@ function isIncomplete(submission: JsonNode | undefined): boolean {
   // A single-valued property is serialized as a bare string, not as a one-element array
   return Array.isArray(tags) ? tags.includes(INCOMPLETE) : tags === INCOMPLETE;
 }
+
+// The documents attached against one requirement
+function documentsFulfilling(requirement: Requirement, documents: JsonNode[]): JsonNode[] {
+  return documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
+}
+
+// Why the waiting step may not be completed yet, or nothing when it may.
+//
+// Two things are checked. A document the request insists on that nobody has attached: completing a
+// step without it moves the process on with nothing to read, and nothing shows that it happened. And
+// the incomplete tag the save placed, but not while an attached document is still to be read: the
+// answers the tag counts as missing are the ones the reading fills in, so the step that sends the
+// document to be read must not wait for them. While the reading runs, the step waits for it instead.
+//
+// Only a form whose schema version reads its documents gets that second exemption. Without asking
+// that, a request that attaches a document nothing ever reads waits for a reading that will not
+// happen, and the incomplete tag stops meaning anything.
+function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | undefined): string | undefined {
+  const documents = submission ? childrenOfType(submission, "sub/Document") : [];
+  const asked = (form?.requirements ?? []).filter(isDocumentRequirement);
+  const missing = asked.find(requirement =>
+    requirement.required && documentsFulfilling(requirement, documents).length === 0);
+  if (missing) {
+    return `Attach the ${missing.label || missing.name} before going on.`;
+  }
+  const extraction = form?.extraction?.status;
+  if (extraction === "running") {
+    return "Wait until the uploaded document has been read.";
+  }
+  const stillToBeRead = form?.readsDocuments === true && extraction === undefined
+    && asked.some(requirement => documentsFulfilling(requirement, documents).length > 0);
+  if (stillToBeRead || !isIncomplete(submission)) {
+    return undefined;
+  }
+  return "Answer everything this request asks for before sending it.";
+}
+
+
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -90,47 +156,120 @@ function createdBy(submission: JsonNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
-// One question with its answer (or a placeholder when unanswered).
-function QuestionRow({ question, answers }: { question: JsonNode; answers: JsonNode[] }) {
-  const answer = answers.find(candidate =>
-    isNode(candidate.question) && candidate.question["@path"] === question["@path"]);
-  const value = answer && formatValue(answer.value);
+// One question with its answer. An unanswered one shows the question alone: a placeholder under every
+// open question reads as pre-filled text, and there is nothing to say about an answer that is not there.
+//
+// A chosen answer is shown as the words that were chosen. What is stored is the option's value, which is
+// what a condition compares against - "in-repository", "prom" - and reading those back is reading the
+// schema's shorthand rather than the answer.
+function QuestionRow({ question }: { question: FormQuestion }) {
+  const chosen = question.value
+    .map(value => question.options.find(option => option.value === value)?.label ?? value);
   return (
     <Box>
-      <Typography variant="subtitle2">{String(question.text ?? question["@name"])}</Typography>
-      {value
-        ? <Typography>{value}</Typography>
-        : <Typography variant="placeholder">Not answered yet</Typography>}
+      <QuestionText question={question} labelOnly />
+      {chosen.length > 0 ? <Typography>{chosen.join(", ")}</Typography> : null}
     </Box>
   );
 }
 
 // The items of a form or section: questions, and nested sections with their own headings.
-function FormItems({ container, answers, level }: { container: JsonNode; answers: JsonNode[]; level: number }) {
-  const items = Object.values(container).filter(isNode);
+function FormItems({ items, level }: { items: FormItem[]; level: number }) {
   return (
     <Stack spacing={2}>
-      {items.map((item, index) => {
-        if (item["sling:resourceType"] === "sch/Question") {
-          return <QuestionRow key={"item-" + index} question={item} answers={answers} />;
-        }
-        if (item["sling:resourceType"] === "sch/Section") {
-          return (
-            <Box key={"item-" + index}>
-              <Typography variant={level === 0 ? "subtitle1" : "subtitle2"} sx={{ fontWeight: "bold", mb: 1 }}>
-                {String(item.title ?? item["@name"])}
-              </Typography>
-              {item.description
-                ? <Typography variant="description">{formatValue(item.description)}</Typography>
-                : null}
-              <FormItems container={item} answers={answers} level={level + 1} />
-            </Box>
-          );
-        }
-        return null;
-      })}
+      {items.map(item => (isQuestion(item)
+        ? <QuestionRow key={item.path} question={item} />
+        : (
+          <Box key={item.name}>
+            <Typography variant={level === 0 ? "subtitle1" : "subtitle2"} sx={{ fontWeight: "bold", mb: 1 }}>
+              {item.label || item.name}
+            </Typography>
+            {item.description ? <Typography variant="description">{item.description}</Typography> : null}
+            <FormItems items={item.items} level={level + 1} />
+          </Box>
+        )))}
     </Stack>
   );
+}
+
+// Offered beside the step that sends the request, and only while a reading is still going. Aborting
+// drops a parse that has not finished, or cuts off the model call and the text it was reading.
+function AbortProcessing(
+  { path, onStopped, onError }: { path: string; onStopped: () => void; onError: (message: string) => void }
+) {
+  const [busy, setBusy] = useState(false);
+  const doFetch = useAuthenticatedFetch();
+  const abort = () => {
+    setBusy(true);
+    void stopProcessing(doFetch, path)
+      .then(() => onStopped())
+      .catch((e: unknown) => onError(messageOf(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <Button variant="outlined" color="warning" disabled={busy} onClick={abort}>
+      Abort
+    </Button>
+  );
+}
+
+// The four stages, stepped through between the two moments the server does report: the parse
+// ending, and a job taking the reading. Past that, extraction and validation share one call.
+function ReadingBar({ extraction }: { extraction: ExtractionState }) {
+  const live = useReadingPhase(extraction);
+  const failed = failedPhase(extraction);
+  const error = failed === undefined
+    ? undefined
+    : extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it.";
+  return <StepProgress steps={READING_LABELS} activeStep={READING_PHASES.indexOf(failed ?? live)} error={error} />;
+}
+
+// Which stage to show. Extraction and validation share the model call, so once a job has the
+// reading the active step walks from one to the other on a clock.
+function useReadingPhase(extraction: ExtractionState): ReadingPhase {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(current => current + 1), READING_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const sinceReadingMs = useTicksSince(extraction.reading === true, tick) * READING_TICK_MS;
+  return phaseFor(extraction, sinceReadingMs);
+}
+
+// How many ticks the current key has been the current one. Remembered on the render that the key
+// changes, so the segment starts empty without waiting for an effect.
+function useTicksSince(key: boolean | ReadingPhase, tick: number): number {
+  const [started, setStarted] = useState<{ key: boolean | ReadingPhase; tick: number }>({ key, tick });
+  if (started.key !== key) {
+    setStarted({ key, tick });
+  }
+  const from = started.key === key ? started.tick : tick;
+  return tick - from;
+}
+
+// Where reading the answers out of the uploaded documents got to. While it runs the page asks again
+// every few seconds; when it stops without answers the person is told why, in the words the server
+// chose.
+function ExtractionProgress(
+  { extraction, waiting }: { extraction: ExtractionState; waiting: boolean }
+) {
+  if (extraction.status === "running" && !waiting) {
+    // Stopped asking, and the server still says it is running. Nothing more will arrive on its own, so
+    // say so rather than spin: a spinner that never stops cannot be told from work still going on.
+    return (
+      <Alert severity="warning">
+        The document is taking longer to read than expected. Reload the page to check again.
+      </Alert>
+    );
+  }
+  if (extraction.status === "running") {
+    return <ReadingBar extraction={extraction} />;
+  }
+  if (extraction.status === "done") {
+    return null;
+  }
+  // Only `failed` is left. The step that stopped carries the message.
+  return <ReadingBar extraction={extraction} />;
 }
 
 // The `sub:File` of a document's newest version. Older versions are its history and stay unshown.
@@ -185,8 +324,7 @@ function Documents({ form, failure, documents }: {
     : null;
 
   const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
-  const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
-    isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
+  const fulfilling = (requirement: DocumentRequirement) => documentsFulfilling(requirement, documents);
   // Anything whose requirement does not currently apply, is gone from the schema, or that never named
   // one: still somebody's evidence, so shown rather than silently dropped
   const claimed = new Set(requirements.flatMap(requirement =>
@@ -224,15 +362,18 @@ function Documents({ form, failure, documents }: {
 // The approvals this request needs, and where each of them stands. Read from the same projection the
 // editor reads, so the two modes cannot disagree about what is still waiting — and shown in view mode
 // because a request parked on somebody else's decision is exactly what a reader has come to find out.
-function Approvals({ form, failure }: { form: SubmissionForm | undefined; failure: string | undefined }) {
-  if (!form) {
+function Approvals({ requirements, loaded, failure }: {
+  requirements: ApprovalRequirement[];
+  loaded: boolean;
+  failure: string | undefined;
+}) {
+  if (!loaded) {
     return failure
       ? <Typography variant="placeholder">Which approvals this request needs could not be read</Typography>
       : <CircularProgress size={24} aria-label="Loading the approvals" />;
   }
-  const requirements = form.requirements.filter(isApprovalRequirement);
   if (requirements.length === 0) {
-    return <Typography color="text.secondary">This request needs no approvals</Typography>;
+    return <Typography variant="placeholder">This request needs no approvals</Typography>;
   }
   return (
     <Stack spacing={2} divider={<Divider />}>
@@ -240,7 +381,7 @@ function Approvals({ form, failure }: { form: SubmissionForm | undefined; failur
         <Stack key={requirement.name} spacing={1}>
           <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
           {requirement.description
-            ? <Typography color="text.secondary">{requirement.description}</Typography>
+            ? <Typography variant="description">{requirement.description}</Typography>
             : null}
           <ApprovalState requirement={requirement} />
         </Stack>
@@ -304,9 +445,16 @@ function SubmissionView() {
   // asked for — the documents and the approvals — and a requirement can be conditional, so neither
   // can read it off the schema. Fetching it in each of them would ask the server the same question
   // twice and let the two disagree while one of the answers was still in flight.
-  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+  // Kept with the path it was read for, so a read that fails keeps the last good form of this page, and
+  // only of this page: dropping it would stop the polling and hide the progress of a reading still going.
+  const [loadedForm, setLoadedForm] = useState<{ path: string; form: SubmissionForm } | undefined>(undefined);
+  const form = loadedForm?.path === path ? loadedForm.form : undefined;
   const [formFailure, setFormFailure] = useState<string>();
   const [error, setError] = useState<string>();
+  // Kept apart from `error`, which takes the whole page down: a retry that was refused has not stopped
+  // the submission from being shown, and the one thing worth saying about it belongs beside the banner
+  // the button is on.
+  const [retryError, setRetryError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
   // fetch for the currently displayed path has settled, one way or the other
   const [loadedPath, setLoadedPath] = useState<string>();
@@ -323,13 +471,13 @@ function SubmissionView() {
     fetchForm(fetchUtil, path).then(
       next => {
         if (!cancelled) {
-          setForm(next);
+          setLoadedForm({ path, form: next });
           setFormFailure(undefined);
         }
       },
       (failure: unknown) => {
         if (!cancelled) {
-          setForm(undefined);
+          setLoadedForm(current => (current?.path === path ? current : undefined));
           setFormFailure(describeRequestFailure(failure));
         }
       }
@@ -351,7 +499,7 @@ function SubmissionView() {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json() as Promise<JsonNode>;
+        return readJson<JsonNode>(response);
       })
       .then(json => {
         if (!cancelled) {
@@ -374,6 +522,56 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
+  // While the documents are still being read, ask again in a little while: the answers land on the
+  // submission from a background job, and nothing else on this page would notice them arriving.
+  //
+  // Counted, and given up on. A parse the daemon never answers for is failed by the server sweep, so
+  // this stops on its own in the normal case; the count is for the case where nothing is answering,
+  // where polling every four seconds for as long as somebody leaves the tab open helps nobody.
+  // Counted per submission, and reset when the page turns to another one: the budget is what this
+  // reading is worth waiting for, and carrying an exhausted count across would tell somebody opening
+  // a second submission that its reading had already taken too long before it had taken any time at all.
+  const extracting = form?.extraction?.status === "running";
+  const [ polls, setPolls ] = useState(0);
+  const [ polledFor, setPolledFor ] = useState(path);
+  if (polledFor !== path) {
+    // Adjusted while rendering rather than in an effect, which is React's own way of resetting state
+    // when a prop changes: doing it in an effect renders once with the old count before correcting it.
+    setPolledFor(path);
+    setPolls(0);
+  }
+  useEffect(() => {
+    if (!extracting || polls >= EXTRACTION_POLL_LIMIT) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      setPolls(current => current + 1);
+      setReloads(current => current + 1);
+    }, EXTRACTION_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [extracting, reloads, polls]);
+
+  const failed = form?.extraction?.status === "failed";
+
+  // Asking again starts the waiting over as well as the parse. Without resetting the count, a page that
+  // had already given up on the last reading would show the new one as overdue the moment it began.
+  const [asking, setAsking] = useState(false);
+  const askAgain = () => {
+    setAsking(true);
+    setRetryError(undefined);
+    // From the daemon when a parse failed, from the model when the document was read but the answers
+    // were not: sending a perfectly good document to the daemon again would fix nothing.
+    void readAgain(fetchUtil, path, form?.extraction?.retryable === true)
+      .then(() => {
+        setPolls(0);
+        setReloads(current => current + 1);
+      })
+      // The refusal's own words: the engine says why it would not take this, and wrapping that in
+      // "something went wrong" buries the one sentence worth reading.
+      .catch((e: unknown) => setRetryError(messageOf(e)))
+      .finally(() => setAsking(false));
+  };
+
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
   // with nothing to show are exactly the ones somebody needs a way out of. Before this, the
@@ -387,9 +585,8 @@ function SubmissionView() {
             looking at it rather than at the bottom of one of the two views. */}
         <SubmissionTasks
           path={path}
-          blockedReason={isIncomplete(submission)
-            ? "Answer everything this request asks for before sending it."
-            : undefined}
+          blockedReason={whyBlocked(submission, form)}
+          refreshToken={reloads}
           onCompleted={() => {
             // Back to reading it: what was just done has usually made it read-only, and what has
             // changed is what the person now wants to see
@@ -397,6 +594,19 @@ function SubmissionView() {
             void navigate(path);
           }}
         />
+        {extracting
+          ? (
+            <AbortProcessing
+              path={path}
+              onStopped={() => setReloads(current => current + 1)}
+              onError={setRetryError}
+            />
+          )
+          : null}
+        {/* Only for whoever may still change the request: the server refuses anybody else */}
+        {failed && form.editable
+          ? <Button variant="outlined" disabled={asking} onClick={askAgain}>Try again</Button>
+          : null}
         <ToggleButtonGroup
           exclusive
           value={editing ? "edit" : "view"}
@@ -425,15 +635,34 @@ function SubmissionView() {
     </Stack>
   );
 
+  // Shown in both modes: whoever is filling the form in is the one waiting for the answers to arrive
+  const progress = form?.extraction
+    ? (
+      <>
+        <ExtractionProgress
+          extraction={form.extraction}
+          waiting={polls < EXTRACTION_POLL_LIMIT}
+        />
+        {retryError ? <Alert severity="error">{retryError}</Alert> : null}
+      </>
+    )
+    : null;
+
   if (editing) {
     return (
       <Stack spacing={2}>
         {header}
+        {progress}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
-            the previous one's answers until the new form lands. Answering or attaching can be the
-            thing that completes the request, and whether it is complete decides whether the step
-            above offers to send it. */}
-        <SubmissionEditor key={path} path={path} onChanged={() => setReloads(current => current + 1)} />
+            the previous one's answers until the new form lands. */}
+        <SubmissionEditor
+          key={path}
+          path={path}
+          onChanged={() => setReloads(current => current + 1)}
+          blockedReason={whyBlocked(submission, form)}
+          onTaskCompleted={() => setReloads(current => current + 1)}
+          refreshToken={reloads}
+        />
       </Stack>
     );
   }
@@ -455,14 +684,13 @@ function SubmissionView() {
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
-  const answers = childrenOfType(submission, "sub/Answer");
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
-  const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];
 
   return (
     <Stack spacing={2}>
       {header}
+      {progress}
       <Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
@@ -476,20 +704,24 @@ function SubmissionView() {
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>
       </Box>
-      {forms.map((form, index) => (
+      {(form?.requirements ?? []).filter(isFormRequirement).map(requirement => (
         <Panel
-          key={"form-" + index}
-          title={String(form.label ?? form["@name"])}
-          subtitle={form.description ? formatValue(form.description) : undefined}
+          key={requirement.name}
+          title={requirement.label || requirement.name}
+          subtitle={requirement.description}
         >
-          <FormItems container={form} answers={answers} level={0} />
+          <FormItems items={requirement.items} level={0} />
         </Panel>
       ))}
       <Panel title="Documents">
         <Documents form={form} failure={formFailure} documents={documents} />
       </Panel>
       <Panel title="Approvals">
-        <Approvals form={form} failure={formFailure} />
+        <Approvals
+          requirements={(form?.requirements ?? []).filter(isApprovalRequirement)}
+          loaded={form !== undefined}
+          failure={formFailure}
+        />
       </Panel>
       <Panel title="Reviews">
         {reviews.length > 0

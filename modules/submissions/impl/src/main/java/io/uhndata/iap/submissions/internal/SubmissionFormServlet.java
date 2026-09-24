@@ -18,7 +18,6 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,9 +54,7 @@ import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
-import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -106,14 +103,6 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String ATTACHED_KEY = "attached";
 
     private static final String REQUIRED_KEY = "required";
-
-    /** Where the extraction workflows record how far reading the documents got, and what they made of them. */
-    private static final String EXTRACTION_STATUS = "extractionStatus";
-
-    private static final String EXTRACTION_MESSAGE = "extractionMessage";
-
-    /** What an upload's {@code parseStatus} says when the daemon never produced anything for it. */
-    private static final String PARSE_FAILED = "failed";
 
     /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
     private static final String READING_WORKFLOW = "readingWorkflow";
@@ -182,61 +171,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             // Whether anything reads the attached documents: a schema version that names a reading workflow
             // has answers filled in from them, one that names none never will. Without the difference the
             // view cannot tell a form waiting for its reading from one that is simply unanswered.
-            .add("readsDocuments", submission.getSchemaVersion().get(READING_WORKFLOW, String.class) != null)
+            .add("readsDocuments", version.get(READING_WORKFLOW, String.class) != null)
             .add("requirements", requirements);
-        final JsonObjectBuilder extraction = extraction(submission);
+        final JsonObjectBuilder extraction = ReadingProjection.describe(submission);
         if (extraction != null) {
             json.add("extraction", extraction);
         }
         return json.build();
-    }
-
-    /**
-     * Where reading the answers out of the attached documents got to, once it has started: the state the view
-     * shows a spinner or a banner for, the message that goes with it, and whether asking again would do
-     * anything. Written by the extraction system workflows,
-     * read back here by name.
-     *
-     * @param submission the submission being read
-     * @return the extraction block, or {@code null} when no reading was ever asked for
-     */
-    private static JsonObjectBuilder extraction(final Submission submission)
-    {
-        final String status = submission.get(EXTRACTION_STATUS, String.class);
-        if (status == null) {
-            return null;
-        }
-        final JsonObjectBuilder json = Json.createObjectBuilder().add("status", status);
-        final String message = submission.get(EXTRACTION_MESSAGE, String.class);
-        if (message != null) {
-            json.add("message", message);
-        }
-        json.add("retryable", hasFailedParse(submission));
-        return json;
-    }
-
-    /**
-     * Whether any current upload is sitting on a failed parse, which is the one kind of failure asking again
-     * can do something about.
-     *
-     * <p>Not the same question as the reading having failed. A reading fails for reasons of its own - the model
-     * refusing or giving an answer that cannot be read - and sending the same document to the daemon a second
-     * time does nothing about any of them. This decides whether the view offers to try again, so it has to mean
-     * exactly the case where trying again is worth the click.</p>
-     *
-     * @param submission the submission being read
-     * @return {@code true} when at least one upload failed to parse
-     */
-    private static boolean hasFailedParse(final Submission submission)
-    {
-        for (final Document document : submission.getDocuments()) {
-            final DocumentVersion version = document.getCurrentVersion();
-            final File file = version == null ? null : version.getFile();
-            if (file != null && PARSE_FAILED.equals(file.getParseStatus())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -264,51 +205,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers, provenance, number));
+            final FormRequirement form = (FormRequirement) requirement;
+            json.add(ITEMS_KEY, items(form.getChildren(), requirement.getName(), submission, answers, provenance,
+                number));
+            json.add("extracted", ReadingProjection.isExtracted(form));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, documents, json);
         } else if (requirement instanceof ApprovalRequirement) {
-            describe((ApprovalRequirement) requirement, submission, json);
+            ApprovalProjection.describe((ApprovalRequirement) requirement, submission, json);
         }
         return json;
-    }
-
-    /**
-     * What an approval requirement adds: who it waits on, and the decision once somebody has made one.
-     *
-     * <p>Nobody fills an approval in here, so what the form can offer is an honest account of where it stands.
-     * That is worth projecting rather than leaving the reader to infer it, because the alternative — a section
-     * that says only that it cannot be completed here — is indistinguishable from a part of the form that is
-     * broken.</p>
-     *
-     * <p>Approved is the model's own predicate, an approved review naming this requirement, so the form and the
-     * completeness tag cannot disagree about what an approval means. The decision is reported from the same
-     * review; a rejection is a review that is not approved, which is why the reviewer and the date are given
-     * whenever a review exists rather than only when it granted the approval.</p>
-     *
-     * @param requirement the requirement being described
-     * @param submission the submission it is being resolved against
-     * @param json the requirement's JSON, added to in place
-     */
-    private void describe(final ApprovalRequirement requirement, final Submission submission,
-        final JsonObjectBuilder json)
-    {
-        // Always stated, empty meaning "not narrowed to a group": a reader has to tell that from "nobody has said
-        // who decides", and both are things the section says out loud
-        json.add("approverGroup", Objects.toString(requirement.getApproverGroup(), ""));
-        final List<Review> reviews = submission.getReviewsOf(requirement);
-        json.add("approved", reviews.stream().anyMatch(Review::isApproved));
-        // The last word rather than the first: an approval that was revisited is reported as it now stands
-        reviews.stream().reduce((first, second) -> second).ifPresent(review -> {
-            json.add("decidedBy", Objects.toString(review.getReviewer(), ""));
-            final Calendar decided = review.getCreated();
-            if (decided != null) {
-                // The same spelling the resource JSON uses for a date, so the reader parses one format
-                json.add("decidedAt", DateUtils.PREFERRED_DATETIME_FORMAT
-                    .format(decided.toInstant().atZone(decided.getTimeZone().toZoneId())));
-            }
-        });
     }
 
     /**

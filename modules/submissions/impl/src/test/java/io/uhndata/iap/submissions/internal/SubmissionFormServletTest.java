@@ -63,6 +63,7 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -118,6 +119,8 @@ class SubmissionFormServletTest
 
     private static final String DETAILS = "details";
 
+    private static final String CLASSIFICATION = "classification";
+
     private static final String START_DATE = "details/startDate";
 
     private static final String DURATION = "details/duration";
@@ -137,8 +140,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, DocumentVersion.class,
-            File.class, Review.class, Submission.class);
+            ClassificationRequirement.class, Section.class, Question.class, AnswerOption.class, Answer.class,
+            Document.class, DocumentVersion.class, File.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -183,6 +186,13 @@ class SubmissionFormServletTest
         this.context.create().resource(VERSION_PATH + "/" + APPROVAL, Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval",
             "approverGroup", APPROVERS));
+        // Its decision question carries no extractionPrompt of its own -- the model prompt lives on the
+        // requirement -- which is exactly what marksAClassificationTheModelAnswers below checks for
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION, Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Urgency",
+            "prompt", "Decide whether this request is urgent.", "document", "doctorsNote"));
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION + "/decision", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Is this urgent?"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -198,6 +208,25 @@ class SubmissionFormServletTest
         answer(START_DATE, "2026-10-06");
 
         assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("provenance"));
+    }
+
+    @Test
+    void marksASectionTheModelAnswers() throws IOException
+    {
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"),
+            "a question with no extraction prompt is answered by hand");
+
+        modify(VERSION_PATH + "/" + START_DATE, "extractionPrompt", "Find the first day of the leave.");
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
+    // A classification's prompt sits on the requirement, not on its decision question, so the question
+    // carrying no extractionPrompt of its own must not read as hand-filled
+    @Test
+    void marksAClassificationTheModelAnswers() throws IOException
+    {
+        assertTrue(requirement(form(REQUESTER), CLASSIFICATION).getBoolean("extracted"));
     }
 
     @Test
@@ -448,6 +477,7 @@ class SubmissionFormServletTest
         this.hidden.add("doctorsNote");
         this.hidden.add("signedForm");
         this.hidden.add(APPROVAL);
+        this.hidden.add(CLASSIFICATION);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -589,6 +619,19 @@ class SubmissionFormServletTest
         assertEquals("Scan", requirement(form, "scan").getString("templateName"));
     }
 
+    // The question the model answers may sit inside a section of the requirement
+    @Test
+    void marksARequirementWhoseSectionTheModelAnswers() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when", Map.of(
+            TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Dates"));
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when/returning", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Returning?", "dataType", "date",
+            "extractionPrompt", "Find the day the leave ends."));
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
     @Test
     void describesNestedSections() throws IOException
     {
@@ -679,6 +722,28 @@ class SubmissionFormServletTest
         modify(version + "/file", "parseStatus", "failed");
 
         assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
+    }
+
+    // The two moments the progress bar can see. A queued parse is still with the daemon; once it has
+    // been read in, and a job has claimed the reading, the bar moves on.
+    @Test
+    void saysWhetherTheParseAndTheReadingHaveStarted() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+        this.context.create().resource(SUBMISSION_PATH + "/d7", Map.of(TYPE, Document.RESOURCE_TYPE));
+        final String version = documentVersionWith("d7", null);
+        modify(version + "/file", "parseStatus", "queued");
+
+        JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+        assertFalse(extraction.getBoolean("parsed"));
+        assertFalse(extraction.getBoolean("reading"));
+
+        modify(version + "/file", "parseStatus", "completed");
+        modify(SUBMISSION_PATH, "extractionReadingClaimed", Boolean.TRUE);
+
+        extraction = form(REQUESTER).getJsonObject("extraction");
+        assertTrue(extraction.getBoolean("parsed"));
+        assertTrue(extraction.getBoolean("reading"));
     }
 
     @Test

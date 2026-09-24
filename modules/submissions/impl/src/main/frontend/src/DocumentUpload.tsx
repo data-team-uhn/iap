@@ -71,11 +71,14 @@ export interface DocumentUploadProps {
   requirement: DocumentRequirement;
   // Whether this reader may still change the request at all, which is the server's `editable`
   disabled: boolean;
+  // Whether the documents are being parsed or read. A file removed then would leave the reading
+  // waiting on a parse that lands on nothing, so the server refuses it and this does not offer it.
+  reading?: boolean;
   onAttached: () => void;
 }
 
 // Answering a document requirement: what has been attached for it, and a way to attach a file.
-function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
+function DocumentUpload({ path, requirement, disabled, reading = false, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
@@ -138,7 +141,14 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
                 </Fragment>
               ))}
             </Typography>
-            <Button size="small" color="inherit" startIcon={<DeleteIcon />} disabled={disabled || busy} onClick={remove}>
+            <Button
+              size="small"
+              color="inherit"
+              startIcon={<DeleteIcon />}
+              disabled={disabled || busy || reading}
+              title={reading ? "Wait until the document has been read, or abort the reading" : undefined}
+              onClick={remove}
+            >
               Remove
             </Button>
           </Stack>

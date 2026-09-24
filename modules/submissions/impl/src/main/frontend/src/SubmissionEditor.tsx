@@ -18,14 +18,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
 
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
 
 import AnswerField, { type SaveState } from "./AnswerField";
-import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
+import { completeTask, fetchOpenTasks, type SubmissionTask } from "./openTasks";
 import {
   type FormItem,
   type FormQuestion,
@@ -36,27 +37,35 @@ import {
   isDocumentRequirement,
   isFormRequirement,
   isQuestion,
+  isRequired,
+  reviewExtraction,
   saveAnswer,
 } from "./submissionForm";
+import SubmissionTasks from "./SubmissionTasks";
 
 interface FieldState {
   state: SaveState;
   error?: string;
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+// What the submitter said about a pre-filled answer. Both keys are optional because the two verdicts
+// are given separately: one settles the answer, the other reports a bad quote.
+interface ReviewVerdict {
+  confirmed?: boolean;
+  evidenceRejected?: boolean;
 }
 
+
 // The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
+function Items({ items, disabled, states, onAnswered, onReviewed }: {
   items: FormItem[];
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
 }) {
   return (
-    <Stack spacing={2}>
+    <Stack spacing={3}>
       { items.map(item => isQuestion(item)
         ? (
           <AnswerField
@@ -66,6 +75,8 @@ function Items({ items, disabled, states, onAnswered }: {
             state={states[item.path]?.state ?? "idle"}
             error={states[item.path]?.error}
             onAnswered={values => onAnswered(item, values)}
+            onAcceptSuggestion={() => onReviewed(item, { confirmed: true })}
+            onRejectEvidence={rejected => onReviewed(item, { evidenceRejected: rejected })}
           />
         )
         : (
@@ -75,7 +86,8 @@ function Items({ items, disabled, states, onAnswered }: {
               <Typography variant="description">{item.description}</Typography>
             ) }
             <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered}
+                onReviewed={onReviewed} />
             </Box>
           </Box>
         )) }
@@ -86,18 +98,33 @@ function Items({ items, disabled, states, onAnswered }: {
 // One requirement. A requirement that holds no questions is still shown, and where it can be
 // answered it is answered here: a document is uploaded, and an approval says where it stands
 // because it is somebody else who grants it.
-function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
+function RequirementPanel({ path, requirement, disabled, states, onAnswered, onReviewed, onAttached,
+  blockedReason, onTaskCompleted, refreshToken, offerStep }: {
   path: string;
   requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
   onAttached: () => void;
+  blockedReason?: string;
+  onTaskCompleted?: () => void;
+  refreshToken?: number;
+  // A document step that starts the reading is the Next button's job, so it is not also offered here.
+  offerStep: boolean;
 }) {
   return (
     <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
       { isFormRequirement(requirement)
-        ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+        ? (
+          <Items
+            items={requirement.items}
+            disabled={disabled}
+            states={states}
+            onAnswered={onAnswered}
+            onReviewed={onReviewed}
+          />
+        )
         : isDocumentRequirement(requirement)
           ? (
             <DocumentUpload
@@ -107,14 +134,138 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
               onAttached={onAttached}
             />
           )
-          : isApprovalRequirement(requirement)
-            ? <ApprovalState requirement={requirement} />
-            : (
-              <Typography variant="placeholder">
-                This part of the request cannot be completed here yet.
-              </Typography>
-            ) }
+          : (
+            <Typography variant="placeholder">
+              This part of the request cannot be completed here yet.
+            </Typography>
+          ) }
+      {/* The step this requirement is about, when its definition named one. A document step that
+          starts the reading is the Next button's job, so it is not also offered here. A step under
+          a form is how those questions get answered, so it must not wait on the page's reason. */}
+      { offerStep
+        ? (
+          <SubmissionTasks
+            path={path}
+            requirement={requirement.name}
+            blockedReason={isFormRequirement(requirement) ? undefined : blockedReason}
+            onCompleted={onTaskCompleted}
+            refreshToken={refreshToken}
+          />
+        )
+        : null }
     </Panel>
+  );
+}
+
+// What this page of the editor shows. A schema that reads its documents is two pages: the upload and
+// the questions answered by hand, then only the sections the model fills in. Anything else is one page.
+function shown(form: SubmissionForm, page: 1 | 2): Requirement[] {
+  const asked = form.requirements.filter(requirement => !isApprovalRequirement(requirement));
+  if (!form.readsDocuments) {
+    return asked;
+  }
+  return page === 2
+    ? asked.filter(requirement => requirement.extracted === true)
+    : asked.filter(requirement => requirement.extracted !== true);
+}
+
+// The step that sends an uploaded document to be read, when one is waiting. It is the task whose
+// requirement names a document, which used to be a button under that upload.
+function readingTask(tasks: SubmissionTask[], requirements: Requirement[]): SubmissionTask | undefined {
+  const documents = new Set(
+    requirements.filter(isDocumentRequirement).map(requirement => requirement.name),
+  );
+  return tasks.find(task => task.requirement !== undefined && documents.has(task.requirement));
+}
+
+// A required question on this page that still has nothing in it. Sections are walked so a question
+// nested under a heading counts the same as one sitting directly in the requirement.
+function unanswered(items: FormItem[] | undefined): FormQuestion | undefined {
+  for (const item of items ?? []) {
+    if (isQuestion(item)) {
+      const filled = item.value.filter(value => value.trim() !== "");
+      if (isRequired(item) && filled.length < item.minAnswers) {
+        return item;
+      }
+    } else {
+      const nested = unanswered(item.items);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return undefined;
+}
+
+// Why Next cannot start the reading yet. The document it would send has to be attached, and every
+// required question on this page has to be answered. Questions the model fills in are on the next
+// page, so they do not hold this one back.
+function whyNextWaits(task: SubmissionTask | undefined, requirements: Requirement[]): string | undefined {
+  if (task?.requirement !== undefined) {
+    const document = requirements.find(requirement => requirement.name === task.requirement);
+    if (document?.required === true && (document.attached ?? []).length === 0) {
+      return `Attach the ${document.label || document.name} before going on.`;
+    }
+  }
+  const open = requirements
+    .filter(isFormRequirement)
+    .filter(requirement => requirement.extracted !== true)
+    .map(requirement => unanswered(requirement.items))
+    .find(question => question !== undefined);
+  return open ? "Answer every required question before going on." : undefined;
+}
+
+// Starts the reading, then opens the page of answers the model fills in. When the reading was
+// already started, it only turns the page.
+function NextPage({ path, requirements, refreshToken, onOpened }: {
+  path: string;
+  requirements: Requirement[];
+  refreshToken?: number;
+  onOpened: () => void;
+}) {
+  const authenticatedFetch = useAuthenticatedFetch();
+  const [ task, setTask ] = useState<SubmissionTask>();
+  const [ error, setError ] = useState<string>();
+  const [ busy, setBusy ] = useState(false);
+
+  const load = useCallback(() => fetchOpenTasks(path).then(
+    tasks => setTask(readingTask(tasks, requirements)),
+    () => setTask(undefined),
+  ), [ path, requirements ]);
+
+  useEffect(() => {
+    void load();
+  }, [ load, refreshToken ]);
+
+  const waiting = whyNextWaits(task, requirements);
+
+  const go = () => {
+    if (waiting) {
+      return;
+    }
+    if (!task) {
+      onOpened();
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    completeTask(authenticatedFetch, task)
+      .then(() => onOpened())
+      .catch((e: unknown) => setError(describeRequestFailure(e)))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
+      <Tooltip title={waiting ?? ""}>
+        <span>
+          <Button variant="contained" disabled={busy || waiting !== undefined} onClick={go}>
+            Next
+          </Button>
+        </span>
+      </Tooltip>
+      { error ? <Alert severity="error" onClose={() => setError(undefined)}>{error}</Alert> : null }
+    </Stack>
   );
 }
 
@@ -129,11 +280,21 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
 // the request is still missing is recorded on the submission, and the control offering to *send* it
 // reads that. Without this, answering the last question or attaching the last document leaves that
 // control refusing a request that is now complete, until something else re-reads the page.
-function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () => void }) {
+function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, refreshToken }: {
+  path: string;
+  onChanged?: () => void;
+  blockedReason?: string;
+  onTaskCompleted?: () => void;
+  // Bumped by the page when the submission changed behind the editor's back, such as answers landing
+  // from the background reading. The editor cannot see that happen on its own.
+  refreshToken?: number;
+}) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
   const [ states, setStates ] = useState<Record<string, FieldState | undefined>>({});
+  // 1 is the upload and the questions answered by hand. 2 is the answers read out of the document.
+  const [ page, setPage ] = useState<1 | 2>(1);
   // Which read is the current one. Answers finished in quick succession are saved in the order they
   // were given, but their reads can land out of order. An older form would put back what was just
   // replaced.
@@ -149,8 +310,8 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
 
   useEffect(() => {
     const token = latestFormRead.current;
-    reload(token).catch((e: unknown) => setError(message(e)));
-  }, [ reload ]);
+    reload(token).catch((e: unknown) => setError(describeRequestFailure(e)));
+  }, [ reload, refreshToken ]);
 
   const answered = useCallback((question: FormQuestion, values: string[]) => {
     const token = latestFormRead.current + 1;
@@ -167,14 +328,14 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           onChanged?.();
         },
         (e: unknown) => setStates(current => (
-          { ...current, [question.path]: { state: "failed", error: message(e) } })),
+          { ...current, [question.path]: { state: "failed", error: describeRequestFailure(e) } })),
       )
       // Read again whichever way the save went. This answer already holds the newest token, so
       // skipping the read after a refusal would leave the form waiting for one that never comes
       .then(() => reload(token))
       // A read that fails says nothing about the answer, which is why it is reported against the
       // form rather than against the field
-      .catch((e: unknown) => setError(message(e)));
+      .catch((e: unknown) => setError(describeRequestFailure(e)));
   }, [ doFetch, path, reload, onChanged ]);
 
   // The form again, because what it asks can change with what was just attached: a requirement that
@@ -183,8 +344,21 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     onChanged?.();
-    reload(token).catch((e: unknown) => setError(message(e)));
+    reload(token).catch((e: unknown) => setError(describeRequestFailure(e)));
   }, [ reload, onChanged ]);
+
+  // Recording a verdict changes nothing the submitter typed, so it does not touch the per-field save
+  // state. It does reload, because the server decides how the answer then reads back.
+  const reviewed = useCallback((question: FormQuestion, verdict: ReviewVerdict) => {
+    const token = latestFormRead.current + 1;
+    latestFormRead.current = token;
+    reviewExtraction(doFetch, path, question.path, verdict)
+      .then(() => reload(token))
+      // Distinct from a save failure: the answer itself is untouched here, only the review of it
+      // was refused, and AnswerField must not show that as the answer having failed to save
+      .catch((e: unknown) => setStates(current => (
+        { ...current, [question.path]: { state: "reviewFailed", error: describeRequestFailure(e) } })));
+  }, [ doFetch, path, reload ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;
@@ -201,7 +375,9 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           This request can no longer be changed. It is shown as it was submitted.
         </Alert>
       ) }
-      { form.requirements.map(requirement => (
+      {/* Approvals are left out: the submitter cannot act on them, and a reviewer's step shown as a
+          form section reads as something still to fill in. The read-only page lists where they stand. */}
+      { shown(form, page).map(requirement => (
         <RequirementPanel
           key={requirement.name}
           path={path}
@@ -209,9 +385,34 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          onReviewed={reviewed}
+          blockedReason={blockedReason}
+          onTaskCompleted={onTaskCompleted}
+          refreshToken={refreshToken}
+          // The reading is started from Next, below, rather than from a button under the upload.
+          offerStep={!(form.readsDocuments && isDocumentRequirement(requirement))}
           onAttached={attached}
         />
       )) }
+      { form.readsDocuments && page === 1
+        ? (
+          <NextPage
+            path={path}
+            requirements={form.requirements}
+            refreshToken={refreshToken}
+            onOpened={() => {
+              setPage(2);
+              onTaskCompleted?.();
+            }}
+          />
+        )
+        : null }
+      { form.readsDocuments && page === 2 && shown(form, 2).length === 0
+        ? <Typography variant="placeholder">The answers read from the document will appear here.</Typography>
+        : null }
+      { form.readsDocuments && page === 2
+        ? <Button onClick={() => setPage(1)}>Back</Button>
+        : null }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }

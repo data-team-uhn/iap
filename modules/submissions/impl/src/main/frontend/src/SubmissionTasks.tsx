@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import GavelIcon from "@mui/icons-material/Gavel";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
@@ -61,8 +61,15 @@ function label(outcome: string): string {
 // It holds back the steps that *send* the request and nothing else: an approver blocked by the
 // requester's unanswered question would be stuck with no way to act.
 function SubmissionTasks(
-  { path, blockedReason, onCompleted }:
-  { path: string; blockedReason?: string; onCompleted?: () => void },
+  { path, blockedReason, onCompleted, requirement, refreshToken }: {
+    path: string;
+    blockedReason?: string;
+    onCompleted?: () => void;
+    requirement?: string;
+    // Bumped by the page when the request changed, so a step that another control just opened shows
+    // up here too, such as the page's "send" step once the reading is done.
+    refreshToken?: number;
+  },
 ) {
   const { tasks, reload } = useSubmissionTasks(path);
   const doFetch = useAuthenticatedFetch();
@@ -70,6 +77,13 @@ function SubmissionTasks(
   const [ busy, setBusy ] = useState(false);
   const [ deciding, setDeciding ] = useState<{ task: SubmissionTask; outcome: string }>();
   const [ note, setNote ] = useState("");
+
+  // Read again when the page says the request changed
+  useEffect(() => {
+    if (refreshToken !== undefined) {
+      void reload();
+    }
+  }, [ reload, refreshToken ]);
 
   const complete = (task: SubmissionTask, outcome?: string, note?: string) => {
     setBusy(true);
@@ -95,12 +109,22 @@ function SubmissionTasks(
     close();
   };
 
-  const offered = tasks.filter(task => offers(task, COMPLETE));
+  // A task says which requirement it is about, and this says which of them this placement shows: the
+  // page passes nothing and gets the tasks about the request as a whole, a requirement passes its own
+  // name and gets the ones that act on it. Every task is offered exactly once.
+  const offered = tasks.filter(task => offers(task, COMPLETE) && task.requirement === requirement);
   const steps = offered.filter(task => task.outcomeOptions.length === 0);
   const decisions = offered.filter(task => task.outcomeOptions.length > 0);
   if (offered.length === 0) {
     return null;
   }
+  // A step offered under a requirement is hidden until that requirement is ready for it, rather than
+  // shown greyed out: the control that would make it possible is right above it. A step among the
+  // page's own actions stays put and says why it cannot be taken.
+  if (requirement != undefined && blockedReason != undefined) {
+    return null;
+  }
+
   return (
     <Stack spacing={1}>
       { steps.length > 0 && (

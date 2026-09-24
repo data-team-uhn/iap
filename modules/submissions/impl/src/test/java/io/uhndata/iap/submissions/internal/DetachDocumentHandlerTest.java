@@ -268,6 +268,64 @@ class DetachDocumentHandlerTest
         assertTrue(documents().stream().noneMatch(document -> "note.pdf".equals(document.getTitle())));
     }
 
+    // Removed mid-parse, the parse lands on nothing and the reading it was for never ends
+    @Test
+    void refusesWhileTheDocumentsAreBeingRead() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        modify(this.target, "extractionStatus", "running");
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
+        assertEquals(1, documents().size());
+    }
+
+    @Test
+    void dropsASuggestionNobodyTouchedWithTheFile() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        final Resource untouched = reading("untouched", versionOf("note.pdf"));
+        modify(untouched.getParent(), "value", new String[] {"one week off"});
+        modify(untouched, "extractedAnswer", "one week off");
+        final String answer = untouched.getParent().getPath();
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(answer));
+    }
+
+    @Test
+    void keepsAConfirmedSuggestion() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        final Resource confirmed = reading("confirmed", versionOf("note.pdf"));
+        modify(confirmed.getParent(), "value", new String[] {"one week off"});
+        modify(confirmed, "extractedAnswer", "one week off");
+        modify(confirmed, "reviewed", Boolean.TRUE);
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(confirmed.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(confirmed.getParent().getPath()));
+    }
+
+    @Test
+    void keepsAnAnswerAnotherReadingStillBacks() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        attach("anything", "other.pdf");
+        final Resource fromNote = reading("backed", versionOf("note.pdf"));
+        modify(fromNote.getParent(), "value", new String[] {"one week off"});
+        modify(fromNote, "extractedAnswer", "one week off");
+        final Resource fromOther = this.context.create().resource(fromNote.getParent().getPath() + "/other",
+            Map.of(TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", "one week off"));
+        references(fromOther, "sources", versionOf("other.pdf"));
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(fromNote.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(fromOther.getPath()));
+    }
+
     @Test
     void translatesAFailedReadingLookupIntoAPersistenceFailure() throws Exception
     {
@@ -372,13 +430,22 @@ class DetachDocumentHandlerTest
         return present(submission.adaptTo(Submission.class)).getDocuments();
     }
 
-    /** The newest version of the document with this title. */
+    /**
+     * The newest version of the document with this title. Found by node type, since the mock repository does not
+     * stamp the resource type a version's model is adapted by.
+     */
     private Resource versionOf(final String title)
     {
         for (final Document document : documents()) {
             if (title.equals(document.getTitle())) {
-                return present(this.context.resourceResolver().getResource(
-                    present(document.getCurrentVersion()).getPath()));
+                Resource version = null;
+                for (final Resource child : present(this.context.resourceResolver().getResource(document.getPath()))
+                    .getChildren()) {
+                    if ("sub:DocumentVersion".equals(child.getValueMap().get("jcr:primaryType", String.class))) {
+                        version = child;
+                    }
+                }
+                return present(version);
             }
         }
         throw new AssertionError("no document titled " + title);
@@ -391,15 +458,21 @@ class DetachDocumentHandlerTest
             TYPE, "sub/Answer", "jcr:primaryType", "sub:Answer"));
         final Resource extraction = this.context.create().resource(answer.getPath() + "/run", Map.of(
             TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction"));
+        references(extraction, "sources", version);
+        return extraction;
+    }
+
+    /** Points a multi-valued reference property at one node. */
+    private void references(final Resource from, final String property, final Resource to)
+    {
         try {
-            final Node source = present(extraction.adaptTo(Node.class));
-            source.setProperty("sources", new Value[] {
-                source.getSession().getValueFactory().createValue(present(version.adaptTo(Node.class))) });
+            final Node source = present(from.adaptTo(Node.class));
+            source.setProperty(property, new Value[] {
+                source.getSession().getValueFactory().createValue(present(to.adaptTo(Node.class))) });
             this.context.resourceResolver().commit();
         } catch (final RepositoryException | PersistenceException e) {
             throw new IllegalStateException(e);
         }
-        return extraction;
     }
 
     /** A quote in an extraction, taken from the given version. */

@@ -46,6 +46,10 @@ export interface SubmissionTask {
   // The events the reader may send the task, as the server listed them: `complete` when the task
   // is theirs to do
   "@events": string[];
+  // The requirement this task is about, when its definition named one. Such a task is offered where
+  // that requirement is rather than among the actions on the page, so that pressing it acts on what
+  // is right above it. A task naming none is a step of the request as a whole.
+  requirement?: string;
 }
 
 function strings(value: unknown): string[] {
@@ -66,6 +70,7 @@ function asTask(node: JsonNode): SubmissionTask | null {
     label: typeof node.label === "string" ? node.label : path.substring(path.lastIndexOf("/") + 1),
     outcomeOptions: strings(node.outcomeOptions),
     "@events": strings(node["@events"]),
+    requirement: typeof node.requirement === "string" ? node.requirement : undefined,
   };
 }
 

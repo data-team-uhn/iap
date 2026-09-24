@@ -67,7 +67,8 @@ export const SIGNED_OUT_MESSAGE = "You are no longer signed in. Sign in and try 
 // prefers to redirect -- with a 200 whose body is the login page, recognisable only from the URL the
 // response came back from.
 function isLoginRedirect(response: Response): boolean {
-  return response.ok && response.url.startsWith(`${window.location.origin}/login`);
+  return response.ok && typeof response.url === "string"
+    && response.url.startsWith(`${window.location.origin}/login`);
 }
 
 // Whether there is still a session behind this page. Only consulted for the statuses that are

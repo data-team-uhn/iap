@@ -83,13 +83,29 @@ describe("SubmissionTasks", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.simple.-dereference.events.json");
   });
 
+  // A step can open while this bar is on screen - starting the reading from Next opens the
+  // page's "send" step - and the bar only learns of it by reading again when the page says so
+  it("shows a step that opened since it last looked, once the page asks it to look again", async () => {
+    let container: unknown = {};
+    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => Promise.resolve(
+      { url, ok: true, status: 200, json: () => Promise.resolve(container) } as unknown as Response)));
+
+    const { rerender } = render(<SubmissionTasks path={PATH} refreshToken={0} />, { wrapper: NoticeProvider });
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+    container = waitingOn(SEND);
+    rerender(<SubmissionTasks path={PATH} refreshToken={1} />);
+
+    expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+  });
+
   it("refuses to offer the step while the request is not ready to be sent", async () => {
     // The one thing this control decides for itself, and it is not about who may act: whether there is
     // anything left to answer, which the save workflow has already worked out
     const fetchMock = repository(waitingOn(SEND));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionTasks path={PATH} blockedReason="Answer everything this request asks for." />);
+    render(<SubmissionTasks path={PATH} blockedReason="Answer everything this request asks for." />,
+      { wrapper: NoticeProvider });
     const button = await screen.findByRole("button", { name: /Say when you want/ });
 
     expect(button).toBeDisabled();
@@ -99,6 +115,24 @@ describe("SubmissionTasks", () => {
       .toHaveTextContent("Answer everything this request asks for.");
     // And nothing was sent
     expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
+  });
+
+  it("offers a requirement's step under that requirement only, and hides it while it is blocked", async () => {
+    const fetchMock = repository(waitingOn({ ...SEND, requirement: "documents" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <>
+        <SubmissionTasks path={PATH} />
+        <SubmissionTasks path={PATH} requirement="documents" blockedReason="Upload a document first." />
+        <SubmissionTasks path={PATH} requirement="documents" />
+      </>,
+      { wrapper: NoticeProvider },
+    );
+
+    expect(await screen.findByRole("button", { name: /Say when you want/ })).toBeEnabled();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("completes the task and tells the page, which is what makes it a submit button", async () => {
