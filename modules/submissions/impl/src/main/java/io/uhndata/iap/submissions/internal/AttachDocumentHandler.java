@@ -206,6 +206,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             .map(document -> resolver.getResource(document.getPath()))
             .orElse(null);
         if (existing != null) {
+            // Otherwise the new file is never read for them: a reading leaves answered questions alone
+            DocumentReadings.dropSuggestions(resolver, existing);
             Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
                 "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
             return existing;

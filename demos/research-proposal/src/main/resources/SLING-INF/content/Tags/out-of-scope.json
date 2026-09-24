@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Out of scope",
+  "description": "The questionnaire is not a patient-reported measure, so the PFQ Council does not govern it. Intake forms, consent forms and screening forms end here: nobody refused this one, it was never the Council's to decide.",
+  "category": ["lifecycle"],
+  "targetResourceTypes": ["sub/Submission"],
+  "color": "#5b6670",
+  "icon": "BlockOutlined",
+  "order": 75
+}

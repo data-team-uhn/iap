@@ -26,6 +26,7 @@ import java.util.Map;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
@@ -53,8 +54,10 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
@@ -70,6 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,7 +130,7 @@ class AttachDocumentHandlerTest
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
-            DocumentVersion.class, File.class, Submission.class, Activity.class);
+            DocumentVersion.class, File.class, Submission.class, Activity.class, Answer.class, Extraction.class);
         // Whether a request may still be changed is read from its lifecycle tag
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
@@ -189,6 +193,38 @@ class AttachDocumentHandlerTest
         assertEquals("right.pdf", document.getValueMap().get("title", String.class));
         assertEquals(2, document.adaptTo(Document.class).getVersions().size());
         assertNotNull(uploadedFile());
+    }
+
+    // A reading leaves answered questions alone, so what the old file said has to go for the new one to be read
+    @Test
+    void dropsTheUntouchedSuggestionsOfTheFileItReplaces() throws Exception
+    {
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        final Resource first = present(this.context.resourceResolver().getResource(
+            present(onlyDocument().adaptTo(Document.class).getCurrentVersion()).getPath()));
+        final String untouched = reading("untouched", first, "one week off", "one week off");
+        final String changed = reading("changed", first, "two weeks off", "one week off");
+
+        this.handler.execute(context(payload(NOTE, upload("note-signed.pdf", PDF))));
+
+        assertNull(this.context.resourceResolver().getResource(untouched), "the new file is read for it");
+        assertNotNull(this.context.resourceResolver().getResource(changed), "what the submitter wrote stays");
+        assertNotNull(this.context.resourceResolver().getResource(changed + "/run"), "with its reading");
+    }
+
+    /** An answer read from a version: the value it holds now, and what the model suggested. */
+    private String reading(final String name, final Resource version, final String value, final String suggested)
+        throws Exception
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, "sub/Answer", "jcr:primaryType", "sub:Answer", "value", new String[] {value}));
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/run", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", suggested));
+        final Node run = extraction.adaptTo(Node.class);
+        run.setProperty("sources", new Value[] {
+            run.getSession().getValueFactory().createValue(version.adaptTo(Node.class)) });
+        this.context.resourceResolver().commit();
+        return answer.getPath();
     }
 
     @Test

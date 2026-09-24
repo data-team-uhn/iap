@@ -134,4 +134,24 @@ public interface WorkflowTaskContext
      */
     void startWorkflow(@NotNull Resource host, @NotNull WorkflowVersion version)
         throws WorkflowException, PersistenceException;
+
+    /**
+     * Starts an instance of a workflow on a resource, optionally cancelling the instance of the same workflow the
+     * resource already runs, so that a reading can be started over.
+     *
+     * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
+     * @param version the workflow version to start
+     * @param replaceActive whether to cancel an active instance of this workflow on the resource first
+     * @throws WorkflowException when the version is not active, the resource cannot hold workflows, or the
+     *             definition cannot be run
+     * @throws PersistenceException when the instance cannot be written
+     */
+    default void startWorkflow(@NotNull Resource host, @NotNull WorkflowVersion version, boolean replaceActive)
+        throws WorkflowException, PersistenceException
+    {
+        if (replaceActive) {
+            throw new UnsupportedOperationException("This context cannot replace an active instance");
+        }
+        startWorkflow(host, version);
+    }
 }

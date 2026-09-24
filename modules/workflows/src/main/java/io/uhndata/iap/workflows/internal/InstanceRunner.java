@@ -75,6 +75,9 @@ final class InstanceRunner
     /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
 
+    /** The activity property naming the requirement a task is about; see {@code wf:TaskInstance}. */
+    static final String REQUIREMENT_PROPERTY = "requirement";
+
     /** The name of the container a {@code wf:WorkflowAttachable} host keeps its instances in. */
     static final String INSTANCES = "wf:instances";
 
@@ -96,6 +99,8 @@ final class InstanceRunner
     private static final String STATUS_PROPERTY = "status";
 
     private static final String COMPLETED_STATUS = "completed";
+
+    private static final String ACTIVE_STATUS = "active";
 
     private static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
 
@@ -161,6 +166,39 @@ final class InstanceRunner
         final Resource instance = createInstance(host, version);
         run(instance, createToken(instance, starts.get(0).getElementId()), starts.get(0));
         return instance;
+    }
+
+    /**
+     * Cancels every instance of the same workflow still active on a host, along with the tasks it was waiting on,
+     * so a new start replaces it rather than running beside it. Any version of the workflow counts.
+     *
+     * @param host the resource the workflow drives
+     * @param version the version about to be started
+     * @throws PersistenceException when an instance cannot be written
+     */
+    void cancelActive(final Resource host, final WorkflowVersion version) throws PersistenceException
+    {
+        final Resource container = host.getChild(WorkflowInstances.NODE_NAME);
+        if (container == null) {
+            return;
+        }
+        final String definition = getParentPath(version.getPath());
+        for (final Resource child : container.getChildren()) {
+            final WorkflowInstance instance = child.adaptTo(WorkflowInstance.class);
+            if (instance == null || !ACTIVE_STATUS.equals(instance.getStatus())) {
+                continue;
+            }
+            final WorkflowVersion running = instance.getWorkflowVersion();
+            if (running != null && definition.equals(getParentPath(running.getPath()))) {
+                terminate(child);
+                modifiable(child).put(STATUS_PROPERTY, CANCELLED);
+            }
+        }
+    }
+
+    private static String getParentPath(final String path)
+    {
+        return path.substring(0, Math.max(path.lastIndexOf('/'), 0));
     }
 
     /**
@@ -509,6 +547,12 @@ final class InstanceRunner
             this.principals.resolve(activity.getPerformers(), hostOf(instance)).toArray(String[]::new));
         properties.put(STATUS_PROPERTY, OPEN);
         properties.put(START_TIME_PROPERTY, started);
+        // Copied for the same reason as the options: a form placing this task beside the requirement it is about
+        // cannot read the definition to find out which one that is.
+        final String requirement = activity.get(REQUIREMENT_PROPERTY, String.class);
+        if (requirement != null && !requirement.isBlank()) {
+            properties.put(REQUIREMENT_PROPERTY, requirement);
+        }
         arm(activity, started, List.of(), properties);
         this.resolver.create(instance, name, properties);
     }
@@ -610,7 +654,7 @@ final class InstanceRunner
         final String name = NodeNameUtils.findFreeName(container, definitionName(version));
         final Resource instance = this.resolver.create(container, name, Map.of(
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
-            STATUS_PROPERTY, "active",
+            STATUS_PROPERTY, ACTIVE_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
         // right identifier as the wrong type
@@ -665,13 +709,7 @@ final class InstanceRunner
      */
     private void setOutcome(final Resource instance, final String outcome) throws PersistenceException
     {
-        final Resource existing = instance.getChild(OUTCOME_VARIABLE);
-        if (existing == null) {
-            this.resolver.create(instance, OUTCOME_VARIABLE, Map.of(
-                JCR_PRIMARY_TYPE_PROPERTY, "wf:Variable", "dataType", "string", "stringValue", outcome));
-        } else {
-            modifiable(existing).put("stringValue", outcome);
-        }
+        InstanceVariables.persist(instance, OUTCOME_VARIABLE, outcome);
     }
 
     /**

@@ -78,6 +78,9 @@ public class DetachDocumentHandler implements ServiceTaskHandler
         final ResourceResolver resolver = context.getResourceResolver();
         final Resource document = Objects.requireNonNull(resolver.getResource(attached.getPath()),
             "A document the submission just listed can be read by the same resolver");
+        // A reading stores strong references to the revisions it read, and Oak refuses to delete a revision
+        // that is still referenced
+        DocumentReadings.dropAll(resolver, document);
         VersioningUtils.checkOut(target);
         resolver.delete(document);
     }
