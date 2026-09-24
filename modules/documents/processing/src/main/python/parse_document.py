@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
+from time import perf_counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from collections.abc import Callable
@@ -107,10 +108,16 @@ def parse_document(
         # The lock is optional (the CLI has no concurrent callers), so the two arms differed
         # only in holding it — nullcontext keeps the call itself written once
         with docx_lock if docx_lock is not None else contextlib.nullcontext():
+            # Timed inside the lock, so a wait behind another DOCX is not counted as its own time
+            t0 = perf_counter()
             markdown = convert_docx_to_markdown(
                 docling_input, converter=docx_converter
             )
-        _log(f"Converted DOCX ({len(markdown):,} chars)")
+            elapsed = perf_counter() - t0
+        # The same report the PDF path ends with, so both read the same in the logs
+        _log("\n=== Timing ===")
+        _log(f"Total:                {elapsed:.2f}s")
+        _log(f"Markdown characters:  {len(markdown):,}")
 
     # The Markdown lives beside the staged source (same stem), not a LibreOffice temp.
     output_md = source.with_suffix(".md")
