@@ -30,6 +30,7 @@ request guards were moved to :mod:`daemon_utils` for exactly that reason; see
 
 import json
 import pathlib
+import re
 import sys
 import threading
 import time
@@ -290,6 +291,16 @@ class TestResolveParsePath:
         with pytest.raises(daemon.ParseRequestError):
             daemon.resolve_parse_path(str(tmp_path / "missing.pdf"))
         assert issubclass(daemon.ParseRequestError, ValueError)
+
+
+class TestLogStderr:
+    """Every container log line is timestamped, since nothing upstream of it adds one."""
+
+    def test_prefixes_the_message_with_a_utc_timestamp(self, capsys):
+        daemon._log_stderr("parse job=abc done")
+
+        logged = capsys.readouterr().err
+        assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z parse job=abc done\n$", logged)
 
 
 class TestHealthReporting:

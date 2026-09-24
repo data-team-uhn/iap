@@ -155,6 +155,46 @@ class TestPipelineOptionNames:
             importlib.reload(docling_config)
 
 
+class TestTransformersChatter:
+    """Warnings Docling provokes and we cannot fix by passing a different argument."""
+
+    def test_the_layout_processor_note_is_not_printed(self):
+        import logging
+
+        # The note is logged on a child logger and printed by the handler on "transformers".
+        # Reproduce that handler's filters on a collector, which is the terminal.
+        installed = [
+            item
+            for handler in logging.getLogger("transformers").handlers
+            for item in handler.filters
+        ]
+        assert installed
+
+        seen: list[str] = []
+
+        class Collect(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                seen.append(record.getMessage())
+
+        collector = Collect()
+        collector.setLevel(logging.WARNING)
+        for item in installed:
+            collector.addFilter(item)
+        child = logging.getLogger("transformers.models.auto.image_processing_auto")
+        child.addHandler(collector)
+        try:
+            child.warning(
+                "Using a slow image processor as `use_fast` is unset and a slow "
+                "processor was saved with this model."
+            )
+            child.warning("`torch_dtype` is deprecated! Use `dtype` instead!")
+            child.warning("a real transformers failure")
+        finally:
+            child.removeHandler(collector)
+
+        assert seen == ["a real transformers failure"]
+
+
 class TestPerfSettingNames:
     """``settings.perf.*`` is assigned by attribute, so a rename would create a new attribute
     that nothing reads instead of failing."""

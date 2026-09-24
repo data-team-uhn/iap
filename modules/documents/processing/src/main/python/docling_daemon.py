@@ -128,8 +128,9 @@ SHUTDOWN_DELIVERY_TIMEOUT_SECONDS = 5.0
 
 
 def _log_stderr(message: str) -> None:
-    """Log one line to the container log."""
-    print(message, file=sys.stderr, flush=True)
+    """Log one line to the container log, timestamped in UTC since nothing upstream adds one."""
+    stamp = time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime())
+    print(f"{stamp} {message}", file=sys.stderr, flush=True)
 
 
 class DaemonState:
@@ -450,7 +451,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             return
         # ``format % args`` stays printf: that is BaseHTTPRequestHandler's contract with its
         # callers. Only the line assembled around it is ours to write as an f-string.
-        sys.stderr.write(f"{self.address_string()} - {format % args}\n")
+        _log_stderr(f"{self.address_string()} - {format % args}")
 
     def do_GET(self) -> None:
         # Drained like every POST route, and for the same reason: answering with the body still
@@ -606,7 +607,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             # traceback goes to the log under a reference and the caller gets the reference.
             # Same rule as JdkHttpRequests (#104) and EmailTestEndpoint (#107).
             reference = uuid.uuid4().hex[:12]
-            print(f"Parse failure {reference}:", file=sys.stderr, flush=True)
+            _log_stderr(f"Parse failure {reference}:")
             traceback.print_exc(file=sys.stderr)
             # The three causes stay distinguishable, in the daemon's own words rather than the
             # exception's: _run_parse sets shutdown_requested for a dead pool too, so a
@@ -755,13 +756,11 @@ def _warn_if_exposed(host: str) -> None:
         return
     if (os.environ.get(TRUSTED_NETWORK_VARIABLE) or "").strip():
         return
-    print(
+    _log_stderr(
         f"WARNING: binding {host}, not loopback, with no {TOKEN_ENVIRONMENT_VARIABLE} set. "
         f"Anyone who can reach this port can parse any document on the shared volume and "
         f"spend the worker pool. Set {TOKEN_ENVIRONMENT_VARIABLE}, or in Docker publish as "
-        f"\"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it.",
-        file=sys.stderr,
-        flush=True,
+        f"\"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it."
     )
 
 
@@ -783,7 +782,7 @@ def main() -> None:
     try:
         _STATE = DaemonState(args.workers)
     except Exception as e:
-        print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
+        _log_stderr(f"Docling daemon initialization failed: {e}")
         sys.exit(1)
 
     # Build the server before installing the handlers. The other order leaves a window where a
@@ -793,11 +792,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    print(
+    _log_stderr(
         f"Docling daemon listening on http://{args.host}:{args.port} "
         f"with {_STATE.worker_count} warm PDF workers "
-        f"(shared docs root: {get_shared_docs_root()})",
-        flush=True,
+        f"(shared docs root: {get_shared_docs_root()})"
     )
 
     # serve_forever() on a thread of its own, so the main thread is free to watch for the
@@ -822,14 +820,12 @@ def main() -> None:
         # same way as a corrupt document -- so a plain SIGTERM looked like a parse failure.
         _SERVER.server_close()
         _STATE.close()
-        print("Docling daemon stopped", flush=True)
+        _log_stderr("Docling daemon stopped")
 
     if pool_broke:
-        print(
+        _log_stderr(
             "PDF worker pool broke and cannot be rebuilt in-process; exiting so a fresh "
-            "daemon is started",
-            file=sys.stderr,
-            flush=True,
+            "daemon is started"
         )
         sys.exit(1)
 
