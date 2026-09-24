@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/adminDashboard/entry",
+  "ext:widgetGroup": "Configuration",
   "ext:name": "Submission categories",
   "ext:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
   "ext:targetURL": "/admin/categories",

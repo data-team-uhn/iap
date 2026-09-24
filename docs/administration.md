@@ -38,7 +38,26 @@ the properties every point understands, it reads:
 | `ext:renderURL` | The summary component |
 | `ext:targetURL` | The tool's page, conventionally `/admin/<tool>` |
 | `ext:actionLabel` | Header action next to the title. A single verb for what the tool is for (`"Manage"`, `"Triage"`, `"Read"`); the title beside it already names the area, and the frame folds that title into the action's accessible name |
-| `defaultOrder` | Position on the landing page |
+| `ext:widgetGroup` | The widget group it is listed under — see [below](#widget-groups) |
+| `defaultOrder` | Position within its group |
+
+### Widget groups
+
+The landing page arranges the tools into collapsible
+[widget groups](ui-extensions.md#widget-groups). The console defines two, in
+`admin-console` under `/Extensions/Admin/AdminDashboard/Groups/`:
+
+| Group | Order | For |
+|---|---|---|
+| `Configuration` | 10 | Setting up how the platform behaves: the categories, workflows and models it runs on |
+| `Operations` | 20 | Keeping an instance healthy day to day: faults to triage, archived items, caught mail |
+
+A tool names its group with `"ext:widgetGroup": "Configuration"`. Choose by what the
+administrator is doing when they reach for the tool, not by which module owns it. A
+tool that fits neither can leave the property out and be listed under "Other". A module
+or deployment can also add a group of its own: another group node on
+`iap/adminDashboard/entry`, conventionally under `/Extensions/Admin/`, so that
+non-administrators cannot read it.
 
 A widget should show a live summary of the tool's area — the archive tool counts what
 was archived in the last 24 hours, the last 7 days, and in total — rather than only a
@@ -70,6 +89,7 @@ extensions is the whole of the wiring; both nodes live under `/Extensions/Admin/
   "ext:targetURL": "/admin/categories",
   "ext:actionLabel": "Manage",
   "ext:renderURL": "asset:iap-categories.CategoriesWidget.js",
+  "ext:widgetGroup": "Configuration",
   "defaultOrder": 10
 }
 
@@ -139,13 +159,14 @@ any repository content.
 
 ## The tools
 
-| Tool | Path | Module | `defaultOrder` |
-|---|---|---|---|
-| Submission categories | `/admin/categories` | `categories` | 10 |
-| Workflows | `/admin/workflows` | `workflows` | 20 |
-| Recorded errors | `/admin/errors` | `error-tracking` | 30 |
-| Archive | `/admin/archive` | `deletion` | 30 |
-| Caught mail | `/admin/mail` | `email-catcher` | 40 |
+| Tool | Path | Module | Group | `defaultOrder` |
+|---|---|---|---|---|
+| Submission categories | `/admin/categories` | `categories` | Configuration | 10 |
+| Workflows | `/admin/workflows` | `workflows` | Configuration | 20 |
+| LLM configuration | `/admin/llm` | `llm` | Configuration | 30 |
+| Recorded errors | `/admin/errors` | `error-tracking` | Operations | 30 |
+| Archive | `/admin/archive` | `deletion` | Operations | 30 |
+| Caught mail | `/admin/mail` | `email-catcher` | Operations | 40 |
 
 The last of those is a development facility that ships everywhere and is off unless
 switched on.

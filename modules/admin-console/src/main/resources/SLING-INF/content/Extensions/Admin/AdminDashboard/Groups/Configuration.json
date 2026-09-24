@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "Configuration",
+  "ext:isWidgetGroup": true,
+  "defaultOrder": 10
+}

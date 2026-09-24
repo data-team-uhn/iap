@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/adminDashboard/entry",
+  "ext:widgetGroup": "Operations",
   "ext:name": "Caught mail",
   "ext:subtitle": "What this instance would have emailed, filed here instead of being delivered",
   "ext:targetURL": "/admin/mail",
