@@ -79,15 +79,18 @@ declare module "@mui/material/styles" {
     admin?: PaletteOptions["error"];
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
-  // title of a screen, `description` is secondary explanatory prose, and `placeholder` stands in
-  // where content is missing.
+  // title of a screen, `subheading` a muted heading introducing a run of content within it,
+  // `description` is secondary explanatory prose, and `placeholder` stands in where content is
+  // missing.
   interface TypographyVariants {
     pageTitle: CSSProperties;
+    subheading: CSSProperties;
     description: CSSProperties;
     placeholder: CSSProperties;
   }
   interface TypographyVariantsOptions {
     pageTitle?: CSSProperties;
+    subheading?: CSSProperties;
     description?: CSSProperties;
     placeholder?: CSSProperties;
   }
@@ -96,6 +99,7 @@ declare module "@mui/material/styles" {
 declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
+    subheading: true;
     description: true;
     placeholder: true;
   }
@@ -145,6 +149,12 @@ const appTheme = createTheme({
       ...baseTypography.h4,
       fontWeight: baseTypography.fontWeightBold,
       color: headingColor,
+    },
+    // A heading that organizes a screen rather than titling content, e.g. the title of a group of
+    // dashboard widgets. Rendered as a semantic <h2> (see the variant mapping below).
+    subheading: {
+      ...baseTypography.overline,
+      color: mutedColor,
     },
     // The small-print variants are always de-emphasized in this app — field labels, metadata
     // lines, eyebrow headings — so the muted colour is part of the variant, not the call sites.
@@ -218,6 +228,7 @@ const appTheme = createTheme({
       defaultProps: {
         variantMapping: {
           pageTitle: "h1",
+          subheading: "h2",
           description: "p",
           placeholder: "p",
         },

@@ -16,9 +16,13 @@
  * limitations under the License.
  */
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+
+import { ThemeProvider } from "@mui/material/styles";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { appTheme } from "@iap/frontend-commons/appTheme";
 import WidgetDashboard from "@iap/frontend-commons/components/WidgetDashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import { STORE_KEY, setActivePersona } from "@iap/ui-extension/personas";
@@ -43,6 +47,20 @@ const widget = (name: string, order: number) => ({
   "ext:name": name,
   "defaultOrder": order,
   "ext:render": () => <div>{`${name} content`}</div>,
+});
+
+// Builds a widget group node as returned by loadExtensions: a data-only extension on the same point,
+// identified by its node name and titled by its ext:name.
+const group = (name: string, label = name) => ({
+  "@name": name,
+  "ext:name": label,
+  "ext:isWidgetGroup": true,
+});
+
+// A widget filed under a group.
+const grouped = (name: string, order: number, groupName: string) => ({
+  ...widget(name, order),
+  "ext:widgetGroup": groupName,
 });
 
 describe("WidgetDashboard", () => {
@@ -210,6 +228,227 @@ describe("WidgetDashboard", () => {
 
       expect(await screen.findByText("Reviews content")).toBeInTheDocument();
       expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("widget groups", () => {
+    // Two groups of two and one widgets, plus one widget in no group.
+    const groupedDashboard = () => [
+      group("Configuration"),
+      group("Operations"),
+      grouped("Categories", 10, "Configuration"),
+      grouped("Workflows", 20, "Configuration"),
+      grouped("Errors", 30, "Operations"),
+      widget("Loose", 40),
+    ];
+
+    const groupToggle = (name: string) => screen.getByRole("button", { name });
+
+    // A group title's semantic element comes from the app theme's `subheading` variant mapping, so
+    // these renders need the real theme around them.
+    const Themed = ({ children }: { children: ReactNode }) => (
+      <ThemeProvider theme={appTheme}>{children}</ThemeProvider>
+    );
+    const renderThemed = (ui: ReactNode) => render(ui, { wrapper: Themed });
+
+    // Collapsed groups are remembered in localStorage, which this environment does not reliably
+    // provide; each test gets a fresh one of its own.
+    let stored: Map<string, string>;
+    beforeEach(() => {
+      stored = new Map<string, string>();
+      vi.stubGlobal("localStorage", {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => stored.set(key, value),
+      });
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const remembered = (point: string): unknown =>
+      JSON.parse(stored.get(`iap.widgetDashboard.${point}.collapsed`) ?? "null");
+
+    it("titles each group with a level-2 heading, and lists ungrouped widgets under Other", async () => {
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
+        .toEqual([ "Configuration", "Operations", "Other" ]);
+      expect(groupToggle("Configuration")).toHaveAttribute("aria-expanded", "true");
+      // Every widget is still framed, but the group nodes are not rendered as widgets
+      expect(screen.getAllByText(/ content$/)).toHaveLength(4);
+      expect(document.querySelectorAll(".MuiPaper-root")).toHaveLength(4);
+    });
+
+    it("does not title the widgets when none of them is in a group", async () => {
+      mockedLoadExtensions.mockResolvedValue([ group("Unused"), widget("One", 0), grouped("Two", 1, "Missing") ]);
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("One content")).toBeInTheDocument();
+      // A widget naming a group that does not exist is kept, just not under a title
+      expect(screen.getByText("Two content")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("collapses a group down to its title and widget count, and expands it again", async () => {
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+      await screen.findByText("Categories content");
+
+      fireEvent.click(groupToggle("Configuration"));
+
+      expect(groupToggle("Configuration (2)")).toHaveAttribute("aria-expanded", "false");
+      await waitFor(() => expect(screen.queryByText("Categories content")).not.toBeInTheDocument());
+      expect(screen.queryByText("Workflows content")).not.toBeInTheDocument();
+      // The other groups are untouched
+      expect(screen.getByText("Errors content")).toBeInTheDocument();
+      expect(screen.getByText("Loose content")).toBeInTheDocument();
+
+      fireEvent.click(groupToggle("Configuration (2)"));
+
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      expect(groupToggle("Configuration")).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("collapses Other like any other group", async () => {
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+      await screen.findByText("Loose content");
+
+      fireEvent.click(groupToggle("Other"));
+
+      expect(groupToggle("Other (1)")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText("Loose content")).not.toBeInTheDocument());
+    });
+
+    it("remembers which groups were collapsed the next time the dashboard is shown", async () => {
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      const { unmount } = renderThemed(<WidgetDashboard point="TestWidgets" />);
+      await screen.findByText("Categories content");
+      fireEvent.click(groupToggle("Configuration"));
+      expect(remembered("TestWidgets")).toEqual([ "Configuration" ]);
+      unmount();
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("Errors content")).toBeInTheDocument();
+      expect(groupToggle("Configuration (2)")).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("Categories content")).not.toBeInTheDocument();
+    });
+
+    it("remembers collapsed groups per dashboard", async () => {
+      stored.set("iap.widgetDashboard.OtherWidgets.collapsed", JSON.stringify([ "Operations" ]));
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      const { rerender } = renderThemed(<WidgetDashboard point="TestWidgets" />);
+      await screen.findByText("Errors content");
+
+      rerender(<WidgetDashboard point="OtherWidgets" />);
+
+      expect(await screen.findByRole("button", { name: "Operations (1)" })).toBeInTheDocument();
+      // A choice made on this dashboard is remembered for this dashboard alone
+      fireEvent.click(groupToggle("Configuration"));
+      expect(remembered("OtherWidgets")).toEqual([ "Operations", "Configuration" ]);
+      expect(remembered("TestWidgets")).toBeNull();
+    });
+
+    it("starts expanded when what is remembered cannot be read", async () => {
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      stored.set("iap.widgetDashboard.TestWidgets.collapsed", "not json");
+      const { unmount } = renderThemed(<WidgetDashboard point="TestWidgets" />);
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      unmount();
+
+      stored.set("iap.widgetDashboard.TestWidgets.collapsed", JSON.stringify({ Configuration: true }));
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+    });
+
+    it("ignores remembered entries that are not group names", async () => {
+      stored.set("iap.widgetDashboard.TestWidgets.collapsed", JSON.stringify([ 3, "Operations" ]));
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      expect(groupToggle("Operations (1)")).toBeInTheDocument();
+    });
+
+    it("still collapses groups when storage is unavailable", async () => {
+      const blocked = vi.fn(() => {
+        throw new Error("blocked");
+      });
+      vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
+      mockedLoadExtensions.mockResolvedValue(groupedDashboard());
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+
+      fireEvent.click(groupToggle("Configuration"));
+
+      expect(groupToggle("Configuration (2)")).toBeInTheDocument();
+      // Both the read and the write were attempted, and their failures swallowed
+      expect(blocked).toHaveBeenCalledWith("iap.widgetDashboard.TestWidgets.collapsed");
+      expect(blocked).toHaveBeenCalledWith("iap.widgetDashboard.TestWidgets.collapsed", "[\"Configuration\"]");
+    });
+
+    it("drops a group whose widgets all belong to another persona", async () => {
+      mockedLoadExtensions.mockResolvedValue([
+        group("Configuration"),
+        group("Reviewing"),
+        grouped("Categories", 10, "Configuration"),
+        { ...grouped("Reviews", 20, "Reviewing"), "ext:personas": [ "reviewer" ] },
+      ]);
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
+        .toEqual([ "Configuration" ]);
+
+      act(() => setActivePersona("reviewer"));
+
+      expect(await screen.findByText("Reviews content")).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
+        .toEqual([ "Configuration", "Reviewing" ]);
+    });
+
+    it("hides a group limited to another persona, widgets included", async () => {
+      mockedLoadExtensions.mockResolvedValue([
+        group("Configuration"),
+        { ...group("Reviewing"), "ext:personas": [ "reviewer" ] },
+        grouped("Categories", 10, "Configuration"),
+        grouped("Reviews", 20, "Reviewing"),
+      ]);
+
+      renderThemed(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findByText("Categories content")).toBeInTheDocument();
+      // Hidden with its group, not moved to Other
+      expect(screen.queryByText("Reviews content")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
+        .toEqual([ "Configuration" ]);
+
+      act(() => setActivePersona("reviewer"));
+
+      expect(await screen.findByText("Reviews content")).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent))
+        .toEqual([ "Configuration", "Reviewing" ]);
+    });
+
+    it("renders the empty state when there are groups but no widgets", async () => {
+      mockedLoadExtensions.mockResolvedValue([ group("Configuration") ]);
+
+      renderThemed(<WidgetDashboard point="TestWidgets" empty={<span>Nothing to see</span>} />);
+
+      expect(await screen.findByText("Nothing to see")).toBeInTheDocument();
     });
   });
 });
