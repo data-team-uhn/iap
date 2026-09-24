@@ -650,6 +650,68 @@ class SubmissionTest
     }
 
     @Test
+    void asksOneRequirementByName()
+        throws RepositoryException
+    {
+        // A schema says which questions belong together by putting them in one requirement, and reading a
+        // document in stages means asking for a stage by name rather than re-deriving the grouping
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOneRequirementByItsFullPath()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("/Schemas/schema/1.0/form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatIsNotBeingAsked()
+        throws RepositoryException
+    {
+        // The whole point of naming a stage: a stage whose turn has not come yields nothing rather than
+        // being asked anyway
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("form").isEmpty());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatAsksNoQuestions()
+        throws RepositoryException
+    {
+        // The document and approval requirements ask for other things, and a name nobody carries is not a form
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("consent").isEmpty());
+        assertTrue(submission.getQuestions("nothing-by-that-name").isEmpty());
+    }
+
+    @Test
+    void asksNothingWhenNoRequirementIsNamed()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions(null).isEmpty());
+        assertTrue(submission.getQuestions("   ").isEmpty());
+    }
+
+    @Test
     void reportsMissingDocumentRequirementWhenNoDocumentIsAttached()
         throws RepositoryException
     {

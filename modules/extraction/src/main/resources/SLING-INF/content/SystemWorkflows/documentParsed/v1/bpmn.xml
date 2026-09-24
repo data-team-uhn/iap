@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="documentParsedDefinitions"
+                  targetNamespace="https://iap.uhndata.io/system/documentParsed">
+  <bpmn:message id="documentParsedMessage" name="documentParsed" />
+  <bpmn:process id="documentParsed" name="Read a finished parse in" isExecutable="true">
+    <!-- Only the extraction module's own user may fire this: the payload names files on the shared volume -->
+    <bpmn:startEvent id="parsed" iap:performers="iap-extraction" name="Parse finished">
+      <bpmn:messageEventDefinition id="parsedRequested" messageRef="documentParsedMessage" />
+      <bpmn:outgoing>toIngest</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toIngest" sourceRef="parsed" targetRef="ingest" />
+    <bpmn:serviceTask id="ingest" iap:handler="ingestParse" name="Read the parse onto the file">
+      <bpmn:incoming>toIngest</bpmn:incoming>
+      <bpmn:outgoing>toQueue</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toQueue" sourceRef="ingest" targetRef="queue" />
+    <bpmn:serviceTask id="queue" iap:handler="queueExtraction" name="Queue the reading of the answers">
+      <bpmn:incoming>toQueue</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="queue" targetRef="done" />
+    <bpmn:endEvent id="done" name="Parse recorded">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="documentParsedDiagram">
+    <bpmndi:BPMNPlane id="documentParsedPlane" bpmnElement="documentParsed">
+      <bpmndi:BPMNShape id="parsedShape" bpmnElement="parsed">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="143" y="223" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ingestShape" bpmnElement="ingest">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="queueShape" bpmnElement="queue">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="550" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="530" y="223" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toIngestEdge" bpmnElement="toIngest">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toQueueEdge" bpmnElement="toQueue">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

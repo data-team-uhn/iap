@@ -66,6 +66,17 @@ public interface EventAttachment
     String getMimeType();
 
     /**
+     * How many bytes the caller sent.
+     *
+     * <p>Asked before the content is opened, so a handler can refuse a file too large to be worth reading
+     * without reading it. Like the media type it comes from the request rather than from the bytes, but a
+     * caller cannot understate it without sending a smaller file.</p>
+     *
+     * @return the size in bytes, as the container measured the received part; never negative
+     */
+    long getSize();
+
+    /**
      * Opens the file's content.
      *
      * @return a stream over the bytes, which the caller closes

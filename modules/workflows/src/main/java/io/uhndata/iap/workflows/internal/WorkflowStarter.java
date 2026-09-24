@@ -59,6 +59,9 @@ final class WorkflowStarter
     /** The activity property naming the chain of references leading to the workflow version. */
     private static final String WORKFLOW_FROM_PARAMETER = "workflowFrom";
 
+    /** The activity property asking for an earlier active instance of the same workflow to be cancelled first. */
+    private static final String REPLACE_ACTIVE_PARAMETER = "replaceActive";
+
     private WorkflowStarter()
     {
     }
@@ -96,8 +99,12 @@ final class WorkflowStarter
             throw new WorkflowDefinitionException("The workflow version " + version.getPath()
                 + " is not active, so " + host.getPath() + " cannot be put through it");
         }
-        new InstanceRunner(resolver, performer, context.getActor(), new FlowRouting(conditions), principals)
-            .start(host, version);
+        final InstanceRunner runner =
+            new InstanceRunner(resolver, performer, context.getActor(), new FlowRouting(conditions), principals);
+        if (Boolean.parseBoolean(String.valueOf(context.getActivity().get(REPLACE_ACTIVE_PARAMETER)))) {
+            runner.cancelActive(host, version);
+        }
+        runner.start(host, version);
         HostAccess.grantReaders(principals, resolver, host, version, context.getActor());
     }
 

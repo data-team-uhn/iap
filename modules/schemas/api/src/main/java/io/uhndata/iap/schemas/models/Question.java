@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -80,6 +83,9 @@ public class Question extends FormItem
 
     @ValueMapValue
     private String responseShape;
+
+    @ValueMapValue
+    private String optionsFrom;
 
     /**
      * The question text shown to the submitter.
@@ -250,19 +256,20 @@ public class Question extends FormItem
     }
 
     /**
-     * The tags of the schema sections that may contain the answer. Chunk selection for extraction is tag-driven:
-     * the union of the extracted questions' tags decides which chunks a model is given.
+     * A content path whose live items are the answers this question offers, in place of child
+     * {@link AnswerOption} nodes. The form, the model prompt and the answer matching all read
+     * {@link #getOfferedOptions()}, which follows this path when it is set.
      *
-     * @return a list of tags, empty if none were assigned
+     * @return an absolute repository path, or {@code null} when the options are declared as children
      */
-    @NotNull
-    public List<String> getRubricTags()
+    @Nullable
+    public String getOptionsFrom()
     {
-        return this.rubricTags == null ? List.of() : List.of(this.rubricTags);
+        return this.optionsFrom;
     }
 
     /**
-     * The answers this question offers, in the order they are declared.
+     * The answers this question offers as declared child nodes, in the order they are declared.
      *
      * <p>
      * A question offering none is answered freely, in whatever its {@link #getDataType() data type} accepts; one
@@ -270,11 +277,34 @@ public class Question extends FormItem
      * against an agreed value rather than against whatever a submitter typed.
      * </p>
      *
-     * @return the offered options, an empty list if the question is answered freely
+     * <p>When {@link #getOptionsFrom()} is set, the live list is {@link #getOfferedOptions()}, not this.</p>
+     *
+     * @return the declared options, an empty list if none are declared as children
      */
     @NotNull
     public List<AnswerOption> getOptions()
     {
         return this.getChildren(AnswerOption.RESOURCE_TYPE, AnswerOption.class);
+    }
+
+    /**
+     * The answers this question offers, as the form, the model and the matching all see them.
+     *
+     * <p>From {@link #getOptionsFrom()} when that path is set, otherwise from the declared
+     * {@link #getOptions() children}. One list, so a category tree an administrator edits is the same list
+     * a submitter picks from, a model is shown, and a reply is matched against.</p>
+     *
+     * @return the offered options, an empty list if the question is answered freely
+     */
+    @NotNull
+    public List<OfferedOption> getOfferedOptions()
+    {
+        if (this.optionsFrom != null && !this.optionsFrom.isBlank()) {
+            return OptionCatalog.read(this.resource.getResourceResolver(), this.optionsFrom);
+        }
+        return getOptions().stream()
+            .map(option -> new OfferedOption(option.getValue(), option.getLabel(),
+                Objects.requireNonNullElse(option.getDescription(), "")))
+            .toList();
     }
 }

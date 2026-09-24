@@ -611,22 +611,62 @@ public final class WorkflowDefinitionUtils
         if (values.isEmpty()) {
             return;
         }
-        setSvSingleValue(node, name, values.get(0), declaredType);
+        setSvSingleValue(node, name, values.get(0), declaredType, context);
     }
 
+    /**
+     * Sets one value in the type the diagram declared for it.
+     *
+     * <p>A number the diagram calls a number and that is not one is stored as the text it is, not thrown over.
+     * The parse rebuilds the whole graph in place, so a throw from here would leave the version holding the
+     * nodes parsed so far and none of the arcs - a working workflow replaced by a broken one over one mistyped
+     * property.</p>
+     */
     private static void setSvSingleValue(final NodeBuilder node, final String name, final String value,
-        final String declaredType)
+        final String declaredType, final ParseContext context)
     {
         switch (declaredType) {
             case "Boolean" -> node.setProperty(name, Boolean.parseBoolean(value));
-            case "Long" -> node.setProperty(name, Long.parseLong(value));
-            case "Double" -> node.setProperty(name, Double.parseDouble(value));
+            case "Long" -> setSvLong(node, name, value, context);
+            case "Double" -> setSvDouble(node, name, value, context);
             case "Name" -> node.setProperty(name, value, Type.NAME);
             // String, an absent type, and anything the engine has no use for: stored as written. A condition
             // operand's `value` is UNDEFINED in the node type precisely because the evaluator unifies types at
             // evaluation time rather than trusting what was stored.
             case null, default -> node.setProperty(name, value);
         }
+    }
+
+    /** Stores a declared whole number, falling back to the text when it does not parse as one. */
+    private static void setSvLong(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        try {
+            node.setProperty(name, Long.parseLong(value));
+        } catch (final RuntimeException e) {
+            storeAsText(node, name, value, context);
+        }
+    }
+
+    /** Stores a declared decimal, falling back to the text when it does not parse as one. */
+    private static void setSvDouble(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        try {
+            node.setProperty(name, Double.parseDouble(value));
+        } catch (final RuntimeException e) {
+            storeAsText(node, name, value, context);
+        }
+    }
+
+    private static void storeAsText(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        LOGGER.warn("The extension property {} of a node in {} is not the number it says it is,"
+            + " storing it as text", name, context.path());
+        ErrorLogger.logProblem("an extension property is not the number it declares",
+            ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
+        node.setProperty(name, value);
     }
 
     private static Type<Iterable<String>> svMultipleType(final String declaredType)

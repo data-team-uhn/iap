@@ -171,6 +171,13 @@
   // nothing to decide about — it is done, or it is not.
   - outcomeOptions (STRING) multiple
 
+  // The requirement this task is about, copied from its defining activity. A task
+  // that names one is a step of that part of the form rather than of the request
+  // as a whole, and a form can offer it where the requirement is rather than
+  // among the actions on the page. Placement only: what the task does, and who
+  // may do it, are unaffected.
+  - requirement (STRING)
+
   // The principals who may complete this task, as its defining activity named
   // them when the task was raised, with "@creator" answered against the host so
   // that every entry stands on its own. Recorded so that "what is waiting for

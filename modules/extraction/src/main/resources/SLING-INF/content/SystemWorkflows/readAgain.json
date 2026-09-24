@@ -1,0 +1,43 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a submission's documents again",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "Queues the reading of an already parsed submission again, after the model failed. Fired by the submitter through POST <submission>.readAgain.json; the reading then runs as a background job, the same as after a parse.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Asked to read again",
+      "messageName": "readAgain",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toQueue": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQueue",
+        "targetRef": "queue"
+      }
+    },
+    "queue": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "queue",
+      "label": "Queue the reading",
+      "handler": "readAgain",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Queued",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

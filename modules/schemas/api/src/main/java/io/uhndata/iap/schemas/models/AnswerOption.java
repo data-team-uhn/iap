@@ -22,6 +22,7 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -43,6 +44,9 @@ public class AnswerOption extends EntityPart
 
     @ValueMapValue
     private String label;
+
+    @ValueMapValue
+    private String description;
 
     /**
      * What an answer picking this option stores. This is the durable half of an option: conditions compare against
@@ -66,5 +70,17 @@ public class AnswerOption extends EntityPart
     public String getLabel()
     {
         return this.label == null || this.label.isEmpty() ? this.value : this.label;
+    }
+
+    /**
+     * What this option means, for a person choosing and for a model matching. The {@link #getLabel() label} is
+     * the short name; this is the longer account of when it applies.
+     *
+     * @return a description, or {@code null} when there is nothing more to say than the label
+     */
+    @Nullable
+    public String getDescription()
+    {
+        return this.description;
     }
 }

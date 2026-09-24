@@ -301,6 +301,46 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
+    void storesADeclaredNumberAsTextWhenItIsNotOne() throws Exception
+    {
+        // The parse rebuilds the whole graph in place, so throwing here would replace a working workflow with
+        // the nodes parsed so far and none of the arcs. One mistyped property costs its own type, nothing more.
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"whole\" sv:type=\"Long\"><sv:value>soon</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:property sv:name=\"fraction\" sv:type=\"Double\"><sv:value>a half</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:property sv:name=\"comparator\"><sv:value>equals</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals("soon", condition.getString("whole"));
+        assertEquals("a half", condition.getString("fraction"));
+        assertEquals("equals", condition.getString("comparator"),
+            "and the rest of the subtree is still built");
+    }
+
+    @Test
+    void storesADeclaredNumberAsANumber() throws Exception
+    {
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"whole\" sv:type=\"Long\"><sv:value>3</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"fraction\" sv:type=\"Double\"><sv:value>0.5</sv:value>"
+            + "</sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals(3L, condition.getLong("whole"));
+        assertEquals(0.5d, condition.getProperty("fraction").getValue(Type.DOUBLE));
+    }
+
+    @Test
     void storesANameTypedPropertyAsAName() throws Exception
     {
         // Single and multiple alike: a NAME is not a string that happens to look like one, and a condition

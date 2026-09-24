@@ -207,6 +207,11 @@
   // The shape the LLM's reply must take, as a JSON schema
   - responseShape (STRING)
 
+  // A content path whose live items are the answers this question offers, in
+  // place of child AnswerOption nodes. The form, the model prompt and the
+  // answer matching all read the same list: value, label, and description.
+  - optionsFrom (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -235,6 +240,10 @@
 
   // What the submitter reads; the value itself when left out
   - label (STRING)
+
+  // What this option means, for a person choosing and for a model matching.
+  // The label is the short name; this is the longer account of when it applies.
+  - description (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

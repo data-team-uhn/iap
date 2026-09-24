@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -98,7 +100,7 @@ class QuestionTest
         assertNull(question.getPurpose());
         assertNull(question.getExtractionPrompt());
         assertNull(question.getResponseShape());
-        assertTrue(question.getRubricTags().isEmpty());
+        assertNull(question.getOptionsFrom());
         assertNull(question.getMinValue());
         assertNull(question.getMaxValue());
         assertNull(question.getPattern());
@@ -228,11 +230,68 @@ class QuestionTest
             .map(AnswerOption::getValue).toList());
     }
 
+    // The form, the model and the matching all read offered options, so a description declared on a
+    // child is the same description they are shown
+    @Test
+    void offersDeclaredOptionsWithTheirDescriptions()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/kind",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.option(resource, "prom", "prom", "PROM", "The patient's own health.");
+
+        final OfferedOption offered = resource.adaptTo(Question.class).getOfferedOptions().get(0);
+
+        assertEquals("prom", offered.value());
+        assertEquals("PROM", offered.label());
+        assertEquals("The patient's own health.", offered.description());
+    }
+
+    @Test
+    void exposesThePathItsOptionsComeFrom()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/category", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE,
+            "optionsFrom", "/Categories"));
+
+        assertEquals("/Categories", resource.adaptTo(Question.class).getOptionsFrom());
+    }
+
+    // The live list is the path's, not the children: a category tree an administrator edits is what
+    // the form shows, even when the question happens to have a leftover child
+    @Test
+    void offersTheOptionsAtThePathItNames()
+    {
+        this.context.create().resource("/Choices/data", Map.of("label", "Chart review",
+            "description", "Reads records already held."));
+        this.context.create().resource("/Choices/trial", Map.of("label", "Clinical trial"));
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/category", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE,
+            "optionsFrom", "/Choices"));
+        this.option(resource, "leftover", "ignored", "Ignored");
+
+        final List<OfferedOption> offered = resource.adaptTo(Question.class).getOfferedOptions();
+
+        assertEquals(List.of("/Choices/data", "/Choices/trial"),
+            offered.stream().map(OfferedOption::value).toList());
+        assertEquals("Reads records already held.", offered.get(0).description());
+        assertEquals("", offered.get(1).description());
+    }
+
     private void option(final Resource question, final String name, final String value, final String label)
     {
-        this.context.create().resource(question.getPath() + "/" + name, Map.of(
-            "sling:resourceType", AnswerOption.RESOURCE_TYPE,
-            "value", value,
-            "label", label));
+        this.option(question, name, value, label, null);
+    }
+
+    private void option(final Resource question, final String name, final String value, final String label,
+        final String description)
+    {
+        final Map<String, Object> properties = new HashMap<>();
+        properties.put("sling:resourceType", AnswerOption.RESOURCE_TYPE);
+        properties.put("value", value);
+        properties.put("label", label);
+        if (description != null) {
+            properties.put("description", description);
+        }
+        this.context.create().resource(question.getPath() + "/" + name, properties);
     }
 }

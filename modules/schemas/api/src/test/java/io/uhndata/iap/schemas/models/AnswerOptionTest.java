@@ -31,6 +31,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link AnswerOption}.
@@ -67,6 +68,17 @@ class AnswerOptionTest
 
         assertEquals("multiple-days", option.getValue());
         assertEquals("Several days", option.getLabel());
+        assertNull(option.getDescription());
+    }
+
+    @Test
+    void exposesTheDescriptionWhenItHasOne()
+    {
+        assertEquals("More than one working day.", this.option(Map.of(
+            "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", "multiple-days",
+            "label", "Several days",
+            "description", "More than one working day.")).getDescription());
     }
 
     // An option whose label would only repeat its value may declare the value alone

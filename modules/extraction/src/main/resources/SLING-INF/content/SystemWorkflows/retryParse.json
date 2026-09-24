@@ -1,0 +1,43 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Send a submission's failed parses again",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "Asks for the uploads whose parse failed to be parsed again, and for nothing else: an upload never sent is sent, one already queued or already read is left alone. What usually fails is the daemon being unreachable rather than the document, and the upload is still sitting there perfectly readable, so the only thing standing between the submitter and their answers is somebody being able to say try again. Fired by the submitter through POST <submission>.retryParse.json, offered by the view beside the message saying what went wrong. Nothing here decides whether a retry is worth doing: sending the same broken document to the same unreachable daemon simply fails the same way, and the submitter can see that it did.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Asked to try again",
+      "messageName": "retryParse",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toParse": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParse",
+        "targetRef": "parse"
+      }
+    },
+    "parse": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parse",
+      "label": "Send the uploads that failed again",
+      "handler": "parseDocuments",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Sent again",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

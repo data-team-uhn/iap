@@ -1,0 +1,71 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a patient facing questionnaire",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "description": "Once the questionnaire is parsed, one model call fills every question the schema asks of the document. There is no gate: every questionnaire is asked the same things.",
+    "started": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "started",
+      "label": "The questionnaire is readable",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toAsk": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAsk",
+        "targetRef": "askTheModel"
+      }
+    },
+    // One call for the whole requirement. `requirement` names which questions in the schema are put to the
+    // model; everything outside it is for the submitter to answer. `documents` names what is read, in order:
+    // the preamble first, then the questionnaire, sent as one text under a heading each.
+    "askTheModel": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askTheModel",
+      "label": "Read the questionnaire",
+      "handler": "intakeAnswers",
+      "requirement": "extracted",
+      "documents": [ "preamble", "questionnaire" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "markCompleteness": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markCompleteness",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinish": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinish",
+        "targetRef": "finishReading"
+      }
+    },
+    // Moves the submission off `running` whatever the reading found, so the view stops showing a spinner
+    // nobody can tell from a reading still in progress.
+    "finishReading": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishReading",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "The questionnaire has been read",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
