@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "File",
+  "ext:subtitle": "An attached file",
+  "ext:renderURL": "asset:iap-submissions.FileAnswer.js",
+  "defaultOrder": 5
+}

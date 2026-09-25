@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "Number",
+  "ext:subtitle": "A number, whole or not",
+  "ext:renderURL": "asset:iap-submissions.NumberAnswer.js",
+  "defaultOrder": 4
+}

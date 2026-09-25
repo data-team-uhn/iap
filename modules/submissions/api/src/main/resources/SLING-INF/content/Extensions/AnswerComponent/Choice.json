@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "Choice",
+  "ext:subtitle": "Picking from the answers a question offers",
+  "ext:renderURL": "asset:iap-submissions.ChoiceAnswer.js",
+  "defaultOrder": 1
+}
