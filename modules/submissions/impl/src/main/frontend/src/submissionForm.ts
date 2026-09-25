@@ -113,6 +113,10 @@ export interface Requirement {
   type: string;
   label: string;
   description?: string;
+  // Whether the model fills this section in from an uploaded document. The editor keeps those
+  // sections on their own page, opened once reading has been started. Absent on a document or an
+  // approval, which hold no questions.
+  extracted?: boolean;
 }
 
 // The one kind answered by filling questions in. A document or an approval is satisfied some other

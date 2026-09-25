@@ -73,7 +73,7 @@ function SubmissionTasks(
     onCompleted?: () => void;
     requirement?: string;
     // Bumped by the page when the request changed, so a step that another control just opened shows
-    // up here too. Pressing "Extract data" below the upload opens the page's "send" step.
+    // up here too, such as the page's "send" step once the reading is done.
     refreshToken?: number;
   },
 ) {
@@ -134,7 +134,8 @@ function SubmissionTasks(
   // offer it at all, and the control that would make it possible is right there. A step among the
   // page's own actions stays put and says why it cannot be taken: nothing on the page would otherwise
   // explain where it went.
-  if (requirement != undefined && blockedReason != undefined) {
+  // Unless a refusal is showing: hiding it would leave no trace of why the step was not taken.
+  if (requirement != undefined && blockedReason != undefined && !error) {
     return null;
   }
 

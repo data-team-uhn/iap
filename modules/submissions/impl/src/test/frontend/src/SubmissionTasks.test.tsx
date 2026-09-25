@@ -77,7 +77,7 @@ describe("SubmissionTasks", () => {
     expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
   });
 
-  // A step can open while this bar is on screen - pressing "Extract data" under the upload opens the
+  // A step can open while this bar is on screen - starting the reading from Next opens the
   // page's "send" step - and the bar only learns of it by reading again when the page says so
   it("shows a step that opened since it last looked, once the page asks it to look again", async () => {
     let container: unknown = {};
