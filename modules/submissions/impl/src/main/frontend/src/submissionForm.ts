@@ -242,6 +242,16 @@ export async function reviewExtraction(path: string, question: string,
 // with their own document.
 //
 // The event is named by a selector, so `.json` has to follow it. See attachDocument below for why.
+// Stops a reading that is still going. The server drops a parse that has not finished, or cuts off
+// the model call and the Markdown it was reading, and the page asks again so the spinner goes away.
+export async function stopProcessing(path: string): Promise<void> {
+  const response = await fetch(`${path}.stopProcessing.json`, { method: "POST" });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `The reading could not be aborted (${response.status})`);
+  }
+}
+
 export async function readAgain(path: string, fromTheParse: boolean): Promise<void> {
   const event = fromTheParse ? "retryParse" : "extractAnswers";
   const response = await fetch(`${path}.${event}.json`, { method: "POST" });

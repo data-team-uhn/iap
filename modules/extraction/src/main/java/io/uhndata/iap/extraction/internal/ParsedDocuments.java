@@ -77,6 +77,15 @@ public class ParsedDocuments
     }
 
     /**
+     * Drop the text kept from the last reading. A stop deletes that Markdown, and the next reading must not be
+     * served a document the submitter just threw out.
+     */
+    public void forget()
+    {
+        this.kept = null;
+    }
+
+    /**
      * When the stored Markdown was last written.
      *
      * @param markdown the {@code nt:file} holding it

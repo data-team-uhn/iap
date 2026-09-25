@@ -541,6 +541,25 @@ describe("SubmissionView", () => {
 
     const step = await screen.findByRole("button", { name: /Send it/ });
     await waitFor(() => expect(step).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Abort" })).toBeEnabled();
+  });
+
+  it("stops a reading that is still going", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.endsWith(".stopProcessing.json")) {
+        return jsonResponse({});
+      }
+      return servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED, { extraction: { status: "running" } })(url, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderAt("/Submissions/demo-1");
+
+    await user.click(await screen.findByRole("button", { name: "Abort" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/Submissions/demo-1.stopProcessing.json", { method: "POST" }));
   });
 
   // Once the reading is over, whatever it left unanswered is the submitter's to fill in

@@ -53,6 +53,9 @@ final class ExtractionStatus
     /** Parsing or reading failed for a reason other than the document itself. */
     static final String FAILED = "failed";
 
+    /** What the view is told when the submitter stopped the reading. */
+    static final String STOPPED = "Reading was stopped.";
+
     private ExtractionStatus()
     {
         // Constants and one helper

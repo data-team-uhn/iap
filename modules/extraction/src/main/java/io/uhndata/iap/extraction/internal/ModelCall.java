@@ -77,7 +77,7 @@ final class ModelCall
         final LLMRequestOptions options, final Function<String, T> read, final Function<String, String> fault,
         final String stage) throws IOException
     {
-        final String reply = client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
+        final String reply = chat(client, system, userMessage, options);
         final T first = read.apply(reply);
         if (first != null) {
             return first;
@@ -86,11 +86,36 @@ final class ModelCall
         // unreadable has nothing to correct; one told it held two objects, or stopped mid-string, does.
         final String wrong = fault == null ? SHAPE_CORRECTION : fault.apply(reply);
         LOGGER.warn("The {} did not answer in the required shape ({}); asking once more", stage, wrong);
-        final T second = read.apply(client.chat(system,
-            List.of(new LLMMessage("user", userMessage + CORRECTION_OPENING + wrong)), options));
+        final T second = read.apply(chat(client, system, userMessage + CORRECTION_OPENING + wrong, options));
         if (second == null) {
             LOGGER.warn("The {} did not answer in the required shape twice", stage);
         }
         return second;
+    }
+
+    /**
+     * Send one turn, unless this reading has been stopped.
+     *
+     * @param client the client to ask through
+     * @param system the system prompt
+     * @param userMessage what to show the model
+     * @param options the per-call options
+     * @return the reply
+     * @throws IOException if the model cannot be reached, or the reading was stopped
+     */
+    private static String chat(final LLMClient client, final String system, final String userMessage,
+        final LLMRequestOptions options) throws IOException
+    {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new ReadingRuns.Stopped();
+        }
+        try {
+            return client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
+        } catch (final IOException e) {
+            if (ReadingRuns.isStopped(e)) {
+                throw new ReadingRuns.Stopped();
+            }
+            throw e;
+        }
     }
 }

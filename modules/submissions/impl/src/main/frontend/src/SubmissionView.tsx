@@ -47,7 +47,7 @@ import SubmissionEditor from "./SubmissionEditor";
 import {
   APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, FORM_REQUIREMENT, type ExtractionState, type FormItem,
   type FormQuestion, type FormRequirement, type SubmissionForm, fetchForm, formatDate, isQuestion,
-  readAgain,
+  readAgain, stopProcessing,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -215,11 +215,31 @@ function uploadsOf(document: JsonNode): Upload[] {
   });
 }
 
+// Offered beside the step that sends the request, and only while a reading is still going. Aborting
+// drops a parse that has not finished, or cuts off the model call and the text it was reading.
+function AbortProcessing(
+  { path, onStopped, onError }: { path: string; onStopped: () => void; onError: (message: string) => void }
+) {
+  const [busy, setBusy] = useState(false);
+  const abort = () => {
+    setBusy(true);
+    void stopProcessing(path)
+      .then(() => onStopped())
+      .catch((e: unknown) => onError(messageOf(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <Button variant="outlined" color="warning" disabled={busy} onClick={abort}>
+      Abort
+    </Button>
+  );
+}
+
 // Where reading the answers out of the uploaded documents got to. While it runs the page asks again
 // every few seconds; when it stops without answers the person is told why, in the words the server
 // chose.
 function ExtractionProgress(
-  { extraction, waiting, onRetry }: { extraction: ExtractionState; waiting: boolean; onRetry: () => void }
+  { extraction, waiting }: { extraction: ExtractionState; waiting: boolean }
 ) {
   if (extraction.status === "running" && !waiting) {
     // Stopped asking, and the server still says it is running. Nothing more will arrive on its own, so
@@ -240,11 +260,9 @@ function ExtractionProgress(
   if (extraction.status === "done") {
     return null;
   }
-  // Only `failed` is left here: the daemon unreachable, the model refusing, none of it anything the
-  // submitter did or can see, so asking again is worth offering.
-  const again = <Button color="inherit" size="small" onClick={onRetry}>Try again</Button>;
+  // Only `failed` is left here. Asking again lives with the other page actions; this only says why.
   return (
-    <Alert severity="warning" action={again}>
+    <Alert severity="warning">
       {extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it."}
     </Alert>
   );
@@ -519,6 +537,24 @@ function SubmissionView() {
     return () => clearTimeout(timer);
   }, [extracting, reloads, polls]);
 
+  const failed = form?.extraction?.status === "failed";
+
+  // Asking again starts the waiting over as well as the parse. Without resetting the count, a page that
+  // had already given up on the last reading would show the new one as overdue the moment it began.
+  const askAgain = () => {
+    setRetryError(undefined);
+    // From the daemon when a parse failed, from the model when the document was read but the answers
+    // were not: sending a perfectly good document to the daemon again would fix nothing.
+    void readAgain(path, form?.extraction?.retryable === true)
+      .then(() => {
+        setPolls(0);
+        setReloads(current => current + 1);
+      })
+      // The refusal's own words: the engine says why it would not take this, and wrapping that in
+      // "something went wrong" buries the one sentence worth reading.
+      .catch((e: unknown) => setRetryError(messageOf(e)));
+  };
+
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode — and it is rendered whatever the page is doing, because the
   // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
@@ -541,6 +577,18 @@ function SubmissionView() {
             void navigate(path);
           }}
         />
+        {extracting
+          ? (
+            <AbortProcessing
+              path={path}
+              onStopped={() => setReloads(current => current + 1)}
+              onError={setRetryError}
+            />
+          )
+          : null}
+        {failed
+          ? <Button variant="outlined" onClick={askAgain}>Try again</Button>
+          : null}
         <ToggleButtonGroup
           exclusive
           value={editing ? "edit" : "view"}
@@ -569,22 +617,6 @@ function SubmissionView() {
     </Stack>
   );
 
-  // Asking again starts the waiting over as well as the parse. Without resetting the count, a page that
-  // had already given up on the last reading would show the new one as overdue the moment it began.
-  const askAgain = () => {
-    setRetryError(undefined);
-    // From the daemon when a parse failed, from the model when the document was read but the answers
-    // were not: sending a perfectly good document to the daemon again would fix nothing.
-    void readAgain(path, form?.extraction?.retryable === true)
-      .then(() => {
-        setPolls(0);
-        setReloads(current => current + 1);
-      })
-      // The refusal's own words: the engine says why it would not take this, and wrapping that in
-      // "something went wrong" buries the one sentence worth reading.
-      .catch((e: unknown) => setRetryError(messageOf(e)));
-  };
-
   // Shown in both modes: whoever is filling the form in is the one waiting for the answers to arrive
   const progress = form?.extraction
     ? (
@@ -592,7 +624,6 @@ function SubmissionView() {
         <ExtractionProgress
           extraction={form.extraction}
           waiting={polls < EXTRACTION_POLL_LIMIT}
-          onRetry={askAgain}
         />
         {retryError ? <Alert severity="error">{retryError}</Alert> : null}
       </>
