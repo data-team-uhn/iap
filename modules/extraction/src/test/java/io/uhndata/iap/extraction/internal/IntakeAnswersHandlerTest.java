@@ -94,6 +94,9 @@ class IntakeAnswersHandlerTest
         final Field documents = IntakeAnswersHandler.class.getDeclaredField("documents");
         documents.setAccessible(true);
         documents.set(this.handler, new ParsedDocuments());
+        final Field runs = IntakeAnswersHandler.class.getDeclaredField("runs");
+        runs.setAccessible(true);
+        runs.set(this.handler, new ReadingRuns());
     }
 
     private WorkflowTaskContext task()
@@ -520,6 +523,36 @@ class IntakeAnswersHandlerTest
 
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
         assertTrue(answers().isEmpty());
+    }
+
+    @Test
+    void aStopAbortsTheStep() throws Exception
+    {
+        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+            .thenThrow(new ReadingRuns.Stopped());
+
+        final PersistenceException failure =
+            assertThrows(PersistenceException.class, () -> this.handler.execute(task()));
+
+        assertEquals(ExtractionStatus.STOPPED, failure.getMessage());
+    }
+
+    @Test
+    void anInterruptedCallAbortsTheStep() throws Exception
+    {
+        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+            .thenAnswer(invocation -> {
+                Thread.currentThread().interrupt();
+                throw new IOException("closed");
+            });
+
+        try {
+            final PersistenceException failure =
+                assertThrows(PersistenceException.class, () -> this.handler.execute(task()));
+            assertEquals(ExtractionStatus.STOPPED, failure.getMessage());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

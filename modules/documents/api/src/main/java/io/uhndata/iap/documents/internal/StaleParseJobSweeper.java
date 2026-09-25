@@ -265,7 +265,10 @@ public class StaleParseJobSweeper implements Runnable
     {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
-        this.parseService.discardStaging(staged);
+        if (!this.parseService.discardStaging(staged)) {
+            // The record is all that names the folder: kept, so the next sweep tries again
+            return;
+        }
         try {
             resolver.delete(jobNode);
             resolver.commit();

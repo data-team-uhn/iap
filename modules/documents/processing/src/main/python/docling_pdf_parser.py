@@ -26,7 +26,7 @@ import logging
 import multiprocessing
 import os
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -133,6 +133,20 @@ class StuckWorkerError(RuntimeError):
     """
 
 
+class ParseAbandonedError(RuntimeError):
+    """The caller cancelled this parse while it was still converting.
+
+    Raised instead of the conversion's own result, after :func:`_abandon_batches` has reclaimed
+    what it could -- the same best-effort reclaim a timeout gets, just triggered by a cancel
+    request instead of the clock.
+    """
+
+
+# How often the page-batch loop checks ``should_abandon`` between completions. Short enough
+# that a cancel is noticed promptly; long enough not to spin while batches are converting.
+ABANDON_POLL_SECONDS = 2.0
+
+
 def get_parse_timeout_seconds() -> float | None:
     """The whole-conversion ceiling, or ``None`` when it is switched off."""
     return read_positive_number_from_env(
@@ -146,11 +160,16 @@ def _run_pdf_chunks(
     *,
     log: LogFn,
     timeout: float | None = None,
+    should_abandon: Callable[[], bool] | None = None,
 ) -> list[tuple[int, int, str, str, int, float, str | None]]:
     """Submit page batches to executor and collect results in page order.
 
     @param timeout: seconds allowed for the whole conversion, or ``None`` for no ceiling
+    @param should_abandon: polled every :data:`ABANDON_POLL_SECONDS` between batch
+        completions; abandons the conversion the same way a timeout does, once it starts
+        returning ``True``
     @raise RuntimeError: when a batch failed, or the conversion outlasted ``timeout``
+    @raise ParseAbandonedError: when ``should_abandon`` asked to stop
     @raise StuckWorkerError: when an abandoned batch could not be reclaimed
     """
     completed_results: list[tuple[int, int, str, str, int, float, str | None]] = []
@@ -163,11 +182,30 @@ def _run_pdf_chunks(
         for chunk in chunks
     }
 
-    try:
-        # One deadline for the lot, and it is the only one: a batch wedged inside a single page
-        # never comes back, so waiting on it held the daemon's one parse slot for good while
-        # /health kept answering 200.
-        for future in as_completed(future_to_chunk, timeout=timeout):
+    # One deadline for the lot, and it is the only one: a batch wedged inside a single page
+    # never comes back, so waiting on it held the daemon's one parse slot for good while
+    # /health kept answering 200.
+    deadline = None if timeout is None else perf_counter() + timeout
+    pending = set(future_to_chunk)
+    while pending:
+        if should_abandon is not None and should_abandon():
+            log("Parse was cancelled; abandoning the remaining page batches")
+            _abandon_batches(future_to_chunk, log=log)
+            raise ParseAbandonedError("the caller cancelled this parse")
+
+        poll = ABANDON_POLL_SECONDS
+        if deadline is not None:
+            remaining = deadline - perf_counter()
+            if remaining <= 0:
+                log(f"Conversion exceeded {timeout:.0f}s; abandoning the remaining page batches")
+                _abandon_batches(future_to_chunk, log=log)
+                raise RuntimeError(
+                    f"conversion exceeded the {timeout:.0f}s {PARSE_TIMEOUT_VARIABLE} ceiling"
+                )
+            poll = min(poll, remaining)
+
+        done, pending = wait(pending, timeout=poll, return_when=FIRST_COMPLETED)
+        for future in done:
             _, start_page, end_page = future_to_chunk[future]
             try:
                 result = future.result()
@@ -176,8 +214,8 @@ def _run_pdf_chunks(
                 # in-process. Let the real exception type through so the daemon's handler flags
                 # the pool and asks for a restart; a "failed batch" tuple would leave it
                 # reporting healthy.
-                for pending in future_to_chunk:
-                    pending.cancel()
+                for other in future_to_chunk:
+                    other.cancel()
                 raise
             except Exception as e:
                 result = (
@@ -197,17 +235,12 @@ def _run_pdf_chunks(
                 had_failure = f"pages {r_start}-{r_end}: {error}"
                 log(f"FAILED pages {r_start}-{r_end}: {error}")
                 _abandon_batches(future_to_chunk, log=log)
+                pending = set()
                 break
             log(
                 f"Completed pages {r_start}-{r_end}: status={status}, "
                 f"markdown={md_len:,} chars, time={elapsed:.2f}s"
             )
-    except FutureTimeoutError:
-        log(f"Conversion exceeded {timeout:.0f}s; abandoning the remaining page batches")
-        _abandon_batches(future_to_chunk, log=log)
-        raise RuntimeError(
-            f"conversion exceeded the {timeout:.0f}s {PARSE_TIMEOUT_VARIABLE} ceiling"
-        ) from None
 
     if had_failure:
         raise RuntimeError(f"Page batch conversion failed ({had_failure})")
@@ -251,6 +284,7 @@ def convert_pdf_to_markdown(
     workers: int | None = None,
     executor: ProcessPoolExecutor | None = None,
     log: LogFn | None = None,
+    should_abandon: Callable[[], bool] | None = None,
 ) -> str:
     """
     Convert a PDF file to Markdown and return the text.
@@ -260,6 +294,7 @@ def convert_pdf_to_markdown(
     @param workers: optional override for parallel worker process count
     @param executor: optional persistent ProcessPoolExecutor (daemon mode)
     @param log: optional log sink; defaults to print
+    @param should_abandon: see :func:`_run_pdf_chunks`
     @return: cleaned Markdown text
     """
     log_fn = log if log is not None else print
@@ -309,9 +344,13 @@ def convert_pdf_to_markdown(
             initializer=_init_worker,
             mp_context=get_worker_context(),
         ) as pool:
-            completed_results = _run_pdf_chunks(chunks, pool, log=log_fn, timeout=timeout)
+            completed_results = _run_pdf_chunks(
+                chunks, pool, log=log_fn, timeout=timeout, should_abandon=should_abandon
+            )
     else:
-        completed_results = _run_pdf_chunks(chunks, executor, log=log_fn, timeout=timeout)
+        completed_results = _run_pdf_chunks(
+            chunks, executor, log=log_fn, timeout=timeout, should_abandon=should_abandon
+        )
 
     all_markdown: list[str] = []
     for _start_page, _end_page, _status, md, _md_len, _elapsed, _error in completed_results:

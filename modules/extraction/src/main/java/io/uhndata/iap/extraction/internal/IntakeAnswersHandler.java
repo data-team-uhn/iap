@@ -90,6 +90,9 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     @Reference
     private ParsedDocuments documents;
 
+    @Reference
+    private ReadingRuns runs;
+
     @Override
     public String getName()
     {
@@ -100,6 +103,28 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws PersistenceException
     {
         final Resource target = context.getTarget();
+        this.runs.begin(target.getPath());
+        try {
+            read(context, target);
+        } catch (final ReadingRuns.Stopped e) {
+            Thread.interrupted();
+            throw new PersistenceException(ExtractionStatus.STOPPED, e);
+        } finally {
+            this.runs.end(target.getPath());
+        }
+    }
+
+    /**
+     * Read the requirement this step names.
+     *
+     * @param context the step
+     * @param target the submission
+     * @throws PersistenceException if an answer cannot be written
+     * @throws ReadingRuns.Stopped when the reading was stopped mid-call
+     */
+    private void read(final WorkflowTaskContext context, final Resource target)
+        throws PersistenceException, ReadingRuns.Stopped
+    {
         final Submission submission = SubmissionFiles.submission(target);
         final List<Part> parts = partsToRead(context, submission);
         if (parts == null) {
@@ -258,7 +283,12 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final File first = parts.get(0).file();
         try {
             return this.intake.run(first, scanOf(parts), ExtractionFields.toFields(questions), extraSystem);
+        } catch (final ReadingRuns.Stopped e) {
+            throw e;
         } catch (final IOException e) {
+            if (ReadingRuns.isStopped(e)) {
+                throw new ReadingRuns.Stopped();
+            }
             // Not a failure of the walk. Throwing here reverts everything the reading has written so far and
             // leaves the committed `running` behind, with no step left to move it on
             LOGGER.warn("The intake could not be asked about {}: {}", first.getPath(), e.getMessage());

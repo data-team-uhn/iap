@@ -39,8 +39,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 /**
  * Runs the reading of a submission's answers in the background: fires the {@code extractAnswers} event on the
  * submission, and the system workflow catching it does the rest - the schema's reading workflow - in one commit.
- * The same event can be fired from the submission itself, {@code POST <submission>.extractAnswers.json}, to read
- * it again.
+ * The submitter asks for another reading through {@code readAgain}, which queues one of these jobs too.
  *
  * <p>Every parse that lands queues one of these, so this is also where it is decided whose turn it is. Its own
  * session sees committed state, which is what makes the question answerable: a job that finds a parse still
@@ -72,6 +71,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     @Reference
     private WorkflowEngine engine;
 
+    @Reference
+    private ReadingRuns runs;
+
     @Override
     public JobResult process(final Job job)
     {
@@ -82,7 +84,17 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         }
         try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
             Map.of(ResourceResolverFactory.SUBSERVICE, ParseCompletionHandler.SUBSERVICE))) {
-            return runReading(resolver, path);
+            this.runs.begin(path);
+            try {
+                return runReading(resolver, path);
+            } finally {
+                this.runs.end(path);
+            }
+        } catch (final ReadingRuns.Stopped e) {
+            Thread.interrupted();
+            LOGGER.info("Reading of {} was stopped", path);
+            giveUp(path, ExtractionStatus.STOPPED);
+            return JobResult.CANCEL;
         } catch (final LoginException e) {
             LOGGER.error("Cannot read submissions to extract answers from {}: {}", path, e.getMessage(), e);
             return JobResult.CANCEL;
@@ -134,7 +146,13 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         LOGGER.info("Reading run started: submission={}", path);
         try {
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT, Map.of()));
+        } catch (final ReadingRuns.Stopped e) {
+            throw e;
         } catch (final WorkflowException | RuntimeException e) {
+            if (ReadingRuns.isStopped(e)) {
+                Thread.interrupted();
+                throw new ReadingRuns.Stopped();
+            }
             // The engine reverted the whole walk, so the `running` the parse step committed is still there and
             // this job still holds the claim. Left alone that is a submission nothing can ever read again and a
             // spinner that never stops, which is the one outcome this pipeline treats as worse than a bad answer.
@@ -175,6 +193,25 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),
                 e.getMessage(), e);
             resolver.revert();
+        }
+    }
+
+    /**
+     * Give the reading up when the session it was using has already been closed.
+     *
+     * @param path the submission whose reading failed
+     * @param reason what to tell the person looking at it
+     */
+    private void giveUp(final String path, final String reason)
+    {
+        try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
+            Map.of(ResourceResolverFactory.SUBSERVICE, ParseCompletionHandler.SUBSERVICE))) {
+            final Resource submission = resolver.getResource(path);
+            if (submission != null) {
+                giveUp(resolver, submission, reason);
+            }
+        } catch (final LoginException e) {
+            LOGGER.error("Cannot record that the reading of {} was stopped: {}", path, e.getMessage(), e);
         }
     }
 

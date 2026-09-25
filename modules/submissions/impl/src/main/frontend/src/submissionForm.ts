@@ -276,6 +276,16 @@ export async function reviewExtraction(doFetch: AuthenticatedFetch, path: string
   }
 }
 
+// Stops a reading that is still going. The server drops a parse that has not finished, or cuts off
+// the model call and the Markdown it was reading, and the page asks again so the spinner goes away.
+export async function stopProcessing(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  const response = await doFetch(`${path}.stopProcessing.json`, { method: "POST" });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `The reading could not be aborted (${response.status})`);
+  }
+}
+
 // Asks for the reading to be done over, from as far back as it has to start: `retryParse` sends the
 // uploads whose parse failed to the daemon again, and `extractAnswers` asks the model again about the
 // ones that parsed perfectly well.
