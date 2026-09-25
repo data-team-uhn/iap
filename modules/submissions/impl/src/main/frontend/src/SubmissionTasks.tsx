@@ -73,7 +73,7 @@ function SubmissionTasks(
     onCompleted?: () => void;
     requirement?: string;
     // Bumped by the page when the request changed, so a step that another control just opened shows
-    // up here too. Pressing "Extract data" below the upload opens the page's "send" step.
+    // up here too. Starting the reading from Next opens the page's "send" step.
     refreshToken?: number;
   },
 ) {

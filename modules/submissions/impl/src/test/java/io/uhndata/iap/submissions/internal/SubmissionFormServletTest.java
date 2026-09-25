@@ -198,6 +198,17 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void marksASectionTheModelAnswers() throws IOException
+    {
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"),
+            "a question with no extraction prompt is answered by hand");
+
+        modify(VERSION_PATH + "/" + START_DATE, "extractionPrompt", "Find the first day of the leave.");
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
+    @Test
     void saysWhereAPreFilledAnswerCameFrom() throws IOException
     {
         extracted(START_DATE, "2026-10-06", 0.85);

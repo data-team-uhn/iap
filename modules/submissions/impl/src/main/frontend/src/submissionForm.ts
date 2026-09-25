@@ -110,6 +110,9 @@ export interface FormRequirement {
   description?: string;
   // Present only for requirements that hold questions; a document or an approval has none
   items?: FormItem[];
+  // Whether the model fills this section in from an uploaded document. The editor keeps those
+  // sections on their own page, opened once reading has been started.
+  extracted?: boolean;
   // Present only for document requirements: whether the submission is incomplete without it. An
   // optional one is still asked - whether it is asked at all was decided server-side - but skipping
   // it blocks nothing, and the control says so.

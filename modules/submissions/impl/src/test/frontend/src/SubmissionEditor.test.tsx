@@ -611,4 +611,111 @@ describe("SubmissionEditor", () => {
     await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
     expect(screen.getByText("Newest")).toBeInTheDocument();
   });
+
+  it("starts the reading from Next and opens only the answers the model fills in", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    const study = {
+      name: "common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
+      items: [ duration() ],
+    };
+    const admin = {
+      name: "administrative", type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
+      items: [ { ...endDate(), value: [ "2026-10-06" ] } ],
+    };
+    const taskPath = `${PATH}/wf:instances/proposal/upload`;
+    const instances = {
+      proposal: {
+        "@path": `${PATH}/wf:instances/proposal`,
+        "sling:resourceType": "wf/WorkflowInstance",
+        "upload": {
+          "sling:resourceType": "wf/TaskInstance",
+          "@path": taskPath,
+          "label": "Extract data",
+          "status": "created",
+          "@mine": true,
+          "requirement": "proposal",
+        },
+      },
+    };
+    const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
+      if (options?.method === "POST") {
+        return json({}, { url });
+      }
+      return json(url.includes("wf:instances") ? instances : form({
+        readsDocuments: true,
+        requirements: [ proposal, admin, study ],
+      }), { url });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.getByText("Administrative information")).toBeInTheDocument();
+    expect(screen.queryByText("The study")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Extract data" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("The study")).toBeInTheDocument();
+    expect(screen.queryByText("Research proposal")).toBeNull();
+    expect(screen.queryByText("Administrative information")).toBeNull();
+    expect(fetchMock.mock.calls.some(([ url, options ]) =>
+      url === taskPath && (options as { method?: string })?.method === "POST")).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByText("The study")).toBeNull();
+  });
+
+  it("holds Next back until the document it would send is attached", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [] as string[],
+    };
+    const instances = {
+      proposal: {
+        "@path": `${PATH}/wf:instances/proposal`,
+        "sling:resourceType": "wf/WorkflowInstance",
+        "upload": {
+          "sling:resourceType": "wf/TaskInstance",
+          "@path": `${PATH}/wf:instances/proposal/upload`,
+          "label": "Extract data",
+          "status": "created",
+          "@mine": true,
+          "requirement": "proposal",
+        },
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? instances : form({
+      readsDocuments: true,
+      requirements: [ proposal ],
+    }))));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    // The button is drawn before the waiting step has been read, and only then knows it cannot go on
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeDisabled());
+  });
+
+  it("holds Next back until every required question on the page is answered", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(form({
+      readsDocuments: true,
+      requirements: [ proposal, {
+        name: "screening", type: FORM_REQUIREMENT, label: "About this questionnaire", extracted: false,
+        items: [ duration() ],
+      } ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
+  });
 });
