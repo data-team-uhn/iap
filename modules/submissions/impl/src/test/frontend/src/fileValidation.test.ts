@@ -29,11 +29,16 @@ import {
 // PDF.js and JSZip are loaded on demand, so the tests stand in for them rather than shipping real
 // files. What is under test is the rules, not those two libraries.
 // A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
-// because one byte cannot say 501.
+// because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password.
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
   getDocument: (args: { data: ArrayBuffer }) => {
     const bytes = new Uint8Array(args.data);
+    if (bytes[0] === 0x26) {
+      const locked = new Error("No password given");
+      locked.name = "PasswordException";
+      return { promise: Promise.reject(locked) };
+    }
     return {
       promise: bytes[0] === 0x25
         ? Promise.resolve({ numPages: bytes[1] + (bytes[2] ?? 0) * 256 })
@@ -146,6 +151,12 @@ describe("what is inside the file", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     await expect(validateUpload(upload("proposal.pdf", [ 0x00, 1, 0 ])))
       .resolves.toMatch(/damaged, or it is not a PDF/);
+  });
+
+  // An empty password opens without throwing, so this is only a file that genuinely needs one
+  it("refuses a PDF encrypted with a password", async () => {
+    await expect(validateUpload(upload("proposal.pdf", [ 0x26 ])))
+      .resolves.toMatch(/encrypted with a password/);
   });
 
   it("accepts a PDF within the page limit", async () => {
