@@ -17,22 +17,20 @@
  */
 package io.uhndata.iap.llm;
 
-import java.util.Objects;
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Per-call overrides for a single {@link LLMClient} request. Every override is optional: an unset value means
- * "fall back to the active model's configured setting" (see {@link LLMSettings}). Two overrides are supported:
+ * Per-call overrides for a single {@link LLMClient} request. Every override is optional. Two overrides are
+ * supported:
  * <ul>
- * <li>the maximum number of output tokens, so a caller that expects a long reply can raise the ceiling
- * for that call alone, without changing the shared JCR configuration and without having the answer
- * silently truncated by the global default; and</li>
+ * <li>the maximum number of output tokens, which is the only place this ceiling is set: a caller knows what
+ * shape of answer it asked for, and the same number tells {@link CallBudget} how much of the context window
+ * to keep free for it. Unset, the request carries no ceiling and the provider applies its own;</li>
  * <li>a JSON Schema the provider must constrain the response to (structured outputs), so the reply is guaranteed
  * to be a JSON object of the required shape rather than free text that has to be parsed defensively.</li>
  * </ul>
- * Instances are immutable; build them with {@link #builder()} or one of the static factory methods.
+ * Instances are immutable; build them with {@link #builder()}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -64,49 +62,14 @@ public final class LLMRequestOptions
     }
 
     /**
-     * Options that override nothing; every setting falls back to the active model's configuration.
+     * The maximum number of output tokens this call asks for.
      *
-     * @return a request-options instance with no overrides
-     */
-    @NotNull
-    public static LLMRequestOptions defaults()
-    {
-        return new Builder().build();
-    }
-
-    /**
-     * Options that override only the maximum number of output tokens for this call.
-     *
-     * @param maxOutputTokens the maximum number of tokens to generate; must be positive
-     * @return a request-options instance carrying the given output-token ceiling
-     */
-    @NotNull
-    public static LLMRequestOptions withMaxOutputTokens(final long maxOutputTokens)
-    {
-        return new Builder().maxOutputTokens(maxOutputTokens).build();
-    }
-
-    /**
-     * The per-call maximum number of output tokens, or {@code null} when the model default should be used.
-     *
-     * @return the override, or {@code null} when not set
+     * @return the ceiling, or {@code null} when this call sets none
      */
     @Nullable
     public Long getMaxOutputTokens()
     {
         return this.maxOutputTokens;
-    }
-
-    /**
-     * The per-call maximum number of output tokens, or the given fallback when this call sets no override.
-     *
-     * @param fallback the value to use when no per-call override is set (typically
-     *            {@link LLMSettings#getMaxOutputTokens()})
-     * @return the per-call override when set, otherwise {@code fallback}
-     */
-    public long resolveMaxOutputTokens(final long fallback)
-    {
-        return this.maxOutputTokens == null ? fallback : this.maxOutputTokens;
     }
 
     /**
@@ -140,27 +103,6 @@ public final class LLMRequestOptions
     {
         return this.responseSchema != null && !this.responseSchema.isBlank()
             && this.responseSchemaName != null && !this.responseSchemaName.isBlank();
-    }
-
-    @Override
-    public boolean equals(final Object other)
-    {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof LLMRequestOptions)) {
-            return false;
-        }
-        final LLMRequestOptions that = (LLMRequestOptions) other;
-        return Objects.equals(this.maxOutputTokens, that.maxOutputTokens)
-            && Objects.equals(this.responseSchemaName, that.responseSchemaName)
-            && Objects.equals(this.responseSchema, that.responseSchema);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(this.maxOutputTokens, this.responseSchemaName, this.responseSchema);
     }
 
     /**
