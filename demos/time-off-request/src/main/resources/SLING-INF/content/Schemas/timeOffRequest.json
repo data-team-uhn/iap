@@ -16,7 +16,7 @@
         "jcr:primaryType": "sch:Question",
         "text": "Which day are you taking off?",
         "dataType": "date",
-        "required": true
+        "minAnswers": 1
       }
     },
     "approval": {
