@@ -237,11 +237,6 @@ clashing with a widget's (a `Workflows` group beside the `Workflows` widget). Gr
 are flat: no group nests inside another. If that is ever needed, an optional parent
 reference on the group node is the natural extension.
 
-The name is "widget group" — always qualified, never bare — because every shorter word
-is already taken: *category* by submission categories (`cat:`), *section* by form
-sections (`sch:Section`), and *group* alone by principals and `cond:ConditionGroup`.
-The grouping rules live in `widgetDashboardModel.ts`, beside `WidgetDashboard`.
-
 ### Breadcrumb trail
 
 A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages:
