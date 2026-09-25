@@ -234,6 +234,24 @@ inside yet — which is the main reason to doubt they should persist an instance
 trail**, if one is needed, wants to survive deletion and restore, so it would be its own tree rather than
 a child.
 
+### Events over HTTP
+
+A `POST` to a resource under workflow control is a domain event, sent to the engine with the request
+parameters as its payload (`:`-prefixed ones excluded). The event is the target's default — `create` on a
+homepage, `complete` on a user task — unless a selector names one: `POST /Schemas/x/1.0.activate.json`
+sends `activate`. Nothing is registered per event; a name no definition waits for is a 409.
+
+Two servlets bring types under control, and differ only in what they bind:
+
+| Servlet | Types | Extension |
+| --- | --- | --- |
+| `WorkflowEventServlet` | `wf/WorkflowsHomepage`, `wf/TaskInstance`, `sub/SubmissionsHomepage` | any |
+| `WorkflowJsonEventServlet` | `sch/SchemasHomepage`, `sch/Schema`, `sch/SchemaVersion`, `sch/SchemaPart` | `json` only |
+
+The schema types need the extension so that a plain `POST` still reaches the Sling POST servlet, which only
+an administrator can use there; that is how `tools/dev/test-data/generate-test-data.sh` imports a schema.
+Anything else — the editor included — names its event, so it always sends `.json`.
+
 ## Sling Models
 
 Everything above is reachable as Sling Models in `io.uhndata.iap.workflows.models`, so callers never touch

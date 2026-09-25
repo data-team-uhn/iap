@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.apache.sling.testing.mock.sling.servlet.MockRequestPathInfo;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,8 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link WorkflowEventServlet}: the POST-to-event translation, and the mapping of each acceptance
- * layer's failure onto its HTTP status.
+ * Unit tests for {@link WorkflowEventServlet} and {@link WorkflowJsonEventServlet}: the POST-to-event translation,
+ * and the mapping of each acceptance layer's failure onto its HTTP status.
  *
  * @version $Id$
  * @since 0.1.0
@@ -149,6 +150,64 @@ class WorkflowEventServletTest
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
         assertEquals(TaskCompletion.COMPLETE_EVENT, sent.getValue().getName());
         assertEquals("approved", sent.getValue().get(TaskCompletion.OUTCOME_PARAMETER));
+    }
+
+    @Test
+    void aSelectorNamesTheEvent() throws WorkflowException, IOException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "My cool workflow"));
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("activate");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("activate", sent.getValue().getName());
+        assertEquals("My cool workflow", sent.getValue().get("title"));
+    }
+
+    @Test
+    void aSelectorOverridesTheTaskDefault() throws WorkflowException, IOException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource task = this.context.create().resource(
+            "/Submissions/x/wf:instances/timeOffRequest/approveRequest", WorkflowFixture.TYPE,
+            TaskInstance.RESOURCE_TYPE);
+        final MockSlingJakartaHttpServletRequest request = request(Map.of());
+        request.setResource(task);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("reassign");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("reassign", sent.getValue().getName());
+    }
+
+    @Test
+    void theJsonServletHandsEventsToTheSameEngine() throws Exception
+    {
+        final WorkflowJsonEventServlet json = new WorkflowJsonEventServlet();
+        final Field reference = WorkflowJsonEventServlet.class.getDeclaredField("engine");
+        reference.setAccessible(true);
+        reference.set(json, this.engine);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("patch", "{}"));
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("update");
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setExtension("json");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        json.doPost(request, response);
+
+        assertEquals(200, response.getStatus());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("update", sent.getValue().getName());
+        assertEquals("{}", sent.getValue().get("patch"));
     }
 
     @Test
