@@ -23,7 +23,7 @@
     {
       // Internal-request helpers, used by the Login Page Ready health check to render the login
       // page through the SlingRequestProcessor
-      "id":"org.apache.sling:org.apache.sling.servlet-helpers:2.0.0",
+      "id":"org.apache.sling:org.apache.sling.servlet-helpers:${sling.servlet-helpers.version}",
       "start-order":"20"
     }
   ],
