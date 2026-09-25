@@ -165,7 +165,9 @@ export default function PdfViewer({ passage, onClose }: PdfViewerProps) {
         if (cancelled || loaded === undefined) {
           return;
         }
-        const doc = loaded as PdfDocument;
+        // The viewer only uses a slice of the pdf.js document. The render signatures do not
+        // overlap, so the cast has to go through unknown.
+        const doc = loaded as unknown as PdfDocument;
         pdfRef.current = doc;
         setPageCount(doc.numPages);
         setPage(preferred !== undefined && preferred <= doc.numPages ? preferred : 1);
@@ -198,20 +200,24 @@ export default function PdfViewer({ passage, onClose }: PdfViewerProps) {
     const stopped = () => lifetime.cancelled || !followSearch.current;
     const preferred = parsePdfSource(source).page;
     void (async () => {
-      for (const candidate of pageSearchOrder(doc.numPages, preferred)) {
-        if (stopped()) {
-          return;
+      try {
+        for (const candidate of pageSearchOrder(doc.numPages, preferred)) {
+          if (stopped()) {
+            return;
+          }
+          const runs = await readRuns(doc, candidate);
+          if (stopped()) {
+            return;
+          }
+          if (findQuoteRects(runs, passage.quote).length > 0) {
+            setLocated(candidate);
+            setPage(candidate);
+            setSearched(true);
+            return;
+          }
         }
-        const runs = await readRuns(doc, candidate);
-        if (stopped()) {
-          return;
-        }
-        if (findQuoteRects(runs, passage.quote).length > 0) {
-          setLocated(candidate);
-          setPage(candidate);
-          setSearched(true);
-          return;
-        }
+      } catch {
+        // A page that cannot be read, or the document closed under the search: the search is over
       }
       if (!stopped()) {
         setLocated(undefined);
@@ -231,15 +237,19 @@ export default function PdfViewer({ passage, onClose }: PdfViewerProps) {
     const lifetime = { cancelled: false };
     const stopped = () => lifetime.cancelled;
     void (async () => {
-      const pdfPage = await doc.getPage(page);
+      let pdfPage: PdfPage;
+      let runs: PdfTextRun[];
+      try {
+        pdfPage = await doc.getPage(page);
+        runs = runsFrom((await pdfPage.getTextContent()).items);
+      } catch {
+        // The document closed under it, or the page cannot be read: nothing to draw
+        return;
+      }
       if (stopped()) {
         return;
       }
       const viewport = pdfPage.getViewport({ scale: fitScale(frameRef.current, pdfPage) });
-      const runs = runsFrom((await pdfPage.getTextContent()).items);
-      if (stopped()) {
-        return;
-      }
       setBoxes(findQuoteRects(runs, passage.quote).map(rect => toCss(viewport, rect)));
       setCanvasSize({ width: viewport.width, height: viewport.height });
       const canvas = canvasRef.current;
@@ -286,7 +296,7 @@ export default function PdfViewer({ passage, onClose }: PdfViewerProps) {
         : boxes.length > 0 || located === page
           ? undefined
           : located === undefined
-            ? "The passage is not in the PDF text, so nothing is marked."
+            ? "The passage could not be marked in the PDF text."
             : "The passage is not on this page.";
 
   return (

@@ -50,10 +50,13 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
@@ -113,7 +116,7 @@ class DetachDocumentHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
-            Submission.class, Activity.class);
+            Submission.class, Activity.class, Answer.class, Extraction.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
@@ -147,6 +150,18 @@ class DetachDocumentHandlerTest
         this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
 
         assertTrue(documents().isEmpty(), "nothing answers the requirement any more");
+    }
+
+    // Removed mid-reading, the reading would land on nothing and never end
+    @Test
+    void refusesWhileTheDocumentsAreBeingRead() throws Exception
+    {
+        attach(NOTE);
+        modify(this.target, "extractionStatus", "running");
+
+        assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER)));
+        assertEquals(1, documents().size());
     }
 
     // Attaching twice makes versions of one document. Removing is not undoing the last upload - it says the
@@ -188,6 +203,9 @@ class DetachDocumentHandlerTest
         final Resource kept = versionOf("other.pdf");
         final Resource fromRemoved = reading("from-the-note", removed);
         final String answerPath = fromRemoved.getParent().getPath();
+        // The submitter changed what the model suggested, so the answer is theirs
+        modify(fromRemoved.getParent(), "value", new String[] {"two weeks off"});
+        modify(fromRemoved, "extractedAnswer", "one week off");
         final Resource quoted = reading("quoted-from-the-note", kept);
         quote(quoted, removed);
         final Resource fromKept = reading("from-the-other", kept);
@@ -203,6 +221,58 @@ class DetachDocumentHandlerTest
         assertNotNull(resolver().getResource(answerPath),
             "the answer stays; only the reading of this file goes");
         assertTrue(documents().stream().noneMatch(document -> NOTE.equals(document.getTitle())));
+    }
+
+    // A value the model read out of the file, that nobody confirmed or changed, would otherwise stay behind
+    // with no reading and look like something the submitter typed. It goes with the file.
+    @Test
+    void dropsASuggestionNobodyTouchedWithTheFile() throws Exception
+    {
+        attach(NOTE);
+        final Resource untouched = reading("untouched", versionOf(NOTE));
+        modify(untouched.getParent(), "value", new String[] {"one week off"});
+        modify(untouched, "extractedAnswer", "one week off");
+        final String answer = untouched.getParent().getPath();
+
+        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
+
+        assertNull(resolver().getResource(answer));
+    }
+
+    // Confirming a suggestion makes it the submitter's answer, so only its reading goes
+    @Test
+    void keepsAConfirmedSuggestion() throws Exception
+    {
+        attach(NOTE);
+        final Resource confirmed = reading("confirmed", versionOf(NOTE));
+        modify(confirmed.getParent(), "value", new String[] {"one week off"});
+        modify(confirmed, "extractedAnswer", "one week off");
+        modify(confirmed, "reviewed", Boolean.TRUE);
+
+        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
+
+        assertNull(resolver().getResource(confirmed.getPath()));
+        assertNotNull(resolver().getResource(confirmed.getParent().getPath()));
+    }
+
+    // Another reading still backs the answer, so it is not only a suggestion from the file being removed
+    @Test
+    void keepsAnAnswerAnotherReadingStillBacks() throws Exception
+    {
+        attach(NOTE);
+        this.attacher.execute(context(attachment("anything", upload("other.pdf")), REQUESTER));
+        patchDocumentTypes();
+        final Resource fromNote = reading("backed", versionOf(NOTE));
+        modify(fromNote.getParent(), "value", new String[] {"one week off"});
+        modify(fromNote, "extractedAnswer", "one week off");
+        final Resource fromOther = this.context.create().resource(fromNote.getParent().getPath() + "/other",
+            Map.of(TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", "one week off"));
+        references(fromOther, "sources", versionOf("other.pdf"));
+
+        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
+
+        assertNull(resolver().getResource(fromNote.getPath()));
+        assertNotNull(resolver().getResource(fromOther.getPath()));
     }
 
     @Test

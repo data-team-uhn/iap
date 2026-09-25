@@ -29,21 +29,17 @@ export function getQuestionTextId(question: FormQuestion): string {
 // The question itself, printed on its own line above whatever answers it, in the body text colour.
 // Kept out of the input's outline: a long question squeezed into a field label is small, grey and cut off.
 function QuestionText({ question, labelOnly }: { question: FormQuestion; labelOnly?: boolean }) {
+  // The question alone. Its purpose is for the model: a line of it under every question was too much.
   return (
-    <>
-      <Typography
-        id={labelOnly ? undefined : getQuestionTextId(question)}
-        variant="subtitle1"
-        component="div"
-        sx={{ fontWeight: 500, mb: 0.5 }}
-      >
-        {questionLabel(question)}
-        {!labelOnly && isRequired(question) ? " *" : ""}
-      </Typography>
-      {question.purpose
-        ? <Typography variant="description" sx={{ display: "block", mb: 0.5 }}>{question.purpose}</Typography>
-        : null}
-    </>
+    <Typography
+      id={labelOnly ? undefined : getQuestionTextId(question)}
+      variant="subtitle1"
+      component="div"
+      sx={{ fontWeight: 500, mb: 0.5 }}
+    >
+      {questionLabel(question)}
+      {!labelOnly && isRequired(question) ? " *" : ""}
+    </Typography>
   );
 }
 

@@ -20,6 +20,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
+import { loadAnswerComponents } from "@iap/submissions/answers";
+// Imported rather than fetched, so the editor this page opens can draw a text question whichever test
+// file ran before this one
+import "@iap/submissions/answers/TextAnswer";
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
@@ -365,6 +369,11 @@ function servingWithSendStep(submission: unknown) {
     : tagAwareFetch(submission)(url));
 }
 
+// The editor shows a spinner until the components are known, so they are loaded before each test
+beforeEach(async () => {
+  await loadAnswerComponents();
+});
+
 describe("SubmissionView", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -473,7 +482,7 @@ describe("SubmissionView", () => {
   // submission as given. `readsDocuments` is what makes the reading exemption apply at all, so a
   // test about a schema that reads nothing overrides it through formExtras.
   function servingWithSendStepAsking(submission: unknown, formExtras: Record<string, unknown> = {}) {
-    return vi.fn((url: string) => {
+    return vi.fn((url: string, _init?: RequestInit) => {
       if (url.includes("wf:instances")) {
         return jsonResponse(WAITING);
       }
@@ -787,7 +796,7 @@ describe("SubmissionView", () => {
         await act(() => Promise.resolve());
         await act(() => Promise.resolve());
 
-        expect(screen.getByRole("status")).toHaveTextContent("Reading the uploaded document");
+        expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 4. Parsing.");
         const before = fetchMock.mock.calls.length;
         await act(async () => {
           await vi.advanceTimersByTimeAsync(4000);
@@ -805,8 +814,7 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByText(message)).toBeInTheDocument();
-      expect(screen.queryByRole("status")).toBeNull();
+      expect(await screen.findByRole("alert")).toHaveTextContent(`Extraction stopped. ${message}`);
     });
 
     it("falls back on a plain explanation when the reading failed without one", async () => {
@@ -866,7 +874,7 @@ describe("SubmissionView", () => {
 
       await user.click(await screen.findByRole("button", { name: "Try again" }));
 
-      expect(fetchMock).toHaveBeenCalledWith("/Submissions/demo-1.extractAnswers.json", { method: "POST" });
+      expect(fetchMock).toHaveBeenCalledWith("/Submissions/demo-1.readAgain.json", { method: "POST" });
     });
 
     it("says so when sending it again was refused, and keeps showing the submission", async () => {
@@ -933,6 +941,16 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByText(/Approved by priya on /)).toBeInTheDocument();
+    });
+
+    it("says what an approval is for, under its name or its node name", async () => {
+      vi.stubGlobal("fetch", serving(projection([
+        approval({ label: "", description: "The board signs off on the ethics of the study" }) ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("reb")).toBeInTheDocument();
+      expect(screen.getByText("The board signs off on the ethics of the study")).toBeInTheDocument();
     });
 
     it("says so plainly when the request needs no approval at all", async () => {
