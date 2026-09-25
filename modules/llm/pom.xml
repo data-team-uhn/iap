@@ -48,6 +48,8 @@
             <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.core:jackson-core</ignoredUnusedDeclaredDependency>
             <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.core:jackson-annotations</ignoredUnusedDeclaredDependency>
             <ignoredUnusedDeclaredDependency>com.knuddels:jtokkit</ignoredUnusedDeclaredDependency>
+            <ignoredUnusedDeclaredDependency>dev.langchain4j:langchain4j-reactive-streaming</ignoredUnusedDeclaredDependency>
+            <ignoredUnusedDeclaredDependency>io.smallrye.reactive:mutiny-zero</ignoredUnusedDeclaredDependency>
           </ignoredUnusedDeclaredDependencies>
         </configuration>
       </plugin>
@@ -59,19 +61,22 @@
         <configuration>
           <instructions>
             <!-- Only the public API package is exported; the internal package and every embedded library
-                 (LangChain4j + its JDK HTTP client + jtokkit) stay private to this bundle. -->
+                 (LangChain4j + its JDK HTTP client + jtokkit + mutiny-zero) stay private to this bundle. -->
             <Export-Package>io.uhndata.iap.llm</Export-Package>
             <!-- LangChain4j itself and its JDK HTTP client transport are embedded into this bundle (fat
-                 bundle), since they are plain JARs with no OSGi metadata. jtokkit is a transitive dependency
-                 of LangChain4j, embedded here by artifactId. Jackson is NOT embedded: the platform already
-                 ships it as a proper OSGi bundle (see base.json), so this bundle imports those packages
-                 instead of carrying a second, private copy that could drift to a different version. -->
+                 bundle), since they are plain JARs with no OSGi metadata. jtokkit and mutiny-zero are
+                 transitive dependencies of LangChain4j, embedded here by artifactId. Jackson is NOT
+                 embedded: the platform already ships it as a proper OSGi bundle (see base.json), so this
+                 bundle imports those packages instead of carrying a second, private copy that could drift
+                 to a different version. -->
             <Embed-Dependency>
               langchain4j-open-ai,
               langchain4j-core,
               langchain4j-http-client,
               langchain4j-http-client-jdk,
-              jtokkit
+              langchain4j-reactive-streaming,
+              jtokkit,
+              mutiny-zero
             </Embed-Dependency>
             <!-- Keep the genuine platform dependencies as mandatory imports (they are provided by the OSGi
                  runtime); make every other package the embedded libraries reference optional, so the self
@@ -166,11 +171,12 @@
     </dependency>
 
     <!--
-      LangChain4j is the LLM transport (see OpenAIClient). These artifacts, together with the Jackson and
-      jtokkit libraries LangChain4j needs at runtime, are embedded into this bundle (see Embed-Dependency
+      LangChain4j is the LLM transport (see OpenAIClient). These artifacts, together with the jtokkit and
+      mutiny-zero libraries LangChain4j needs at runtime, are embedded into this bundle (see Embed-Dependency
       above). They are declared directly (rather than relying on transitive resolution) because
       Embed-Dependency only embeds directly-declared artifacts, and marked optional so they do not leak as
-      transitive compile dependencies onto modules that depend on this one.
+      transitive compile dependencies onto modules that depend on this one. langchain4j-reactive-streaming
+      and mutiny-zero are declared at the versions langchain4j-open-ai depends on, and have to move with it.
     -->
     <dependency>
       <groupId>dev.langchain4j</groupId>
@@ -194,6 +200,12 @@
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-http-client-jdk</artifactId>
       <version>1.20.0</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>dev.langchain4j</groupId>
+      <artifactId>langchain4j-reactive-streaming</artifactId>
+      <version>1.20.0-beta30</version>
       <optional>true</optional>
     </dependency>
     <!--
@@ -224,6 +236,12 @@
       <groupId>com.knuddels</groupId>
       <artifactId>jtokkit</artifactId>
       <version>1.1.0</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye.reactive</groupId>
+      <artifactId>mutiny-zero</artifactId>
+      <version>1.3.1</version>
       <optional>true</optional>
     </dependency>
 
