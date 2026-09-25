@@ -25,25 +25,26 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.workflows.api.WorkflowEngine;
-import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
 /**
- * Brings homepages and user tasks under workflow control: every POST to them, whatever its extension, is a
- * domain event.
+ * Brings schemas under workflow control for POSTs with the {@code .json} extension, which is how events are
+ * named: {@code POST /Schemas/x/1.0.activate.json}.
+ *
+ * <p>A POST without the extension is left to the Sling POST servlet, which only an administrator can use on
+ * this content. That keeps imports such as {@code tools/dev/test-data/generate-test-data.sh} working.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
-    // Literals where the owning module must not be depended on: submissions depends on workflows, so workflows
-    // can only name its resource type, not import it.
-    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage" },
-    methods = { HttpConstants.METHOD_POST })
-public class WorkflowEventServlet extends AbstractWorkflowEventServlet
+    // Literals: schemas depends on workflows, so workflows cannot import its resource types
+    resourceTypes = { "sch/SchemasHomepage", "sch/Schema", "sch/SchemaVersion", "sch/SchemaPart" },
+    methods = { HttpConstants.METHOD_POST },
+    extensions = { "json" })
+public class WorkflowJsonEventServlet extends AbstractWorkflowEventServlet
 {
-    private static final long serialVersionUID = -6273669283473534077L;
+    private static final long serialVersionUID = 2958132771047469905L;
 
     @Reference
     private transient WorkflowEngine engine;
