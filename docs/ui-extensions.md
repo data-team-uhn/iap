@@ -168,12 +168,74 @@ Tiled on the homepage dashboard in a responsive grid, each framed with a title
 (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`,
 `ext:widgetHideHeader`, and `ext:actionLabel` (a header action button leading to
 `ext:targetURL`, an in-app path — both must be set). `ext:personas` restricts a
-widget.
+widget, and `ext:widgetGroup` files it under a [widget group](#widget-groups).
 
 The layout is the shared `WidgetDashboard`
 (`@iap/frontend-commons/components/WidgetDashboard`), parameterized by point. The
 administration console binds the same component to `iap/adminDashboard/entry`, so
 widgets behave identically on both — see [Administration](administration.md).
+
+#### Widget groups
+
+Any dashboard can arrange its widgets into **widget groups**: runs of widgets under a
+muted title across the whole row, with no border or surface, that collapse and expand.
+A collapsed group's title shows how many widgets it holds — `Configuration (3)` — and
+its widgets are unmounted, so they stop fetching whatever they summarize.
+
+A group is a data-only extension on the **same point as the widgets**, marked as a
+group:
+
+```json
+// Extensions/Admin/AdminDashboard/Groups/Configuration.json
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "Configuration",
+  "ext:isWidgetGroup": true,
+  "defaultOrder": 10
+}
+```
+
+A widget joins it by naming the group's **node name** in `ext:widgetGroup`
+(`"ext:widgetGroup": "Configuration"`). `ext:name` is only the displayed title, so a
+deployment can relabel a group without touching the widgets that reference it.
+
+| Property | On | Meaning |
+|---|---|---|
+| `ext:isWidgetGroup` | group | `true` marks the extension as a group, not a widget. The marker is explicit because a widget with no `ext:renderURL` is still a widget |
+| `ext:name` | group | The title displayed |
+| `defaultOrder` | group | Order among the groups. Widgets keep their own `defaultOrder` within a group |
+| `ext:personas` | group | The personas the group, and so every widget in it, shows to; absent means all |
+| `ext:widgetGroup` | widget | The node name of the group it is listed under |
+
+The rules:
+
+- **Within a group, the usual layout applies**: the column count follows the group's
+  own widget count, so a group of two sits side by side exactly as a dashboard of two
+  would.
+- **Ungrouped widgets come last, under "Other"**. So does a widget naming a group that
+  does not exist (renamed, disabled, not installed): the reference is soft and a
+  widget is never lost to it.
+- **When no group has any widget to show, the "Other" title is left out** as well, so a
+  dashboard that defines no groups looks exactly as it did before groups existed. The
+  homepage dashboard is currently like this.
+- **A group appears only when at least one of its widgets is visible in the current
+  persona.** `ext:personas` on a group node limits the group and everything in it: a
+  widget shows only if both it and its group belong to the persona. A widget hidden
+  with its group is not moved to "Other", so the reason a widget is hidden may be on
+  its group rather than on the widget itself.
+- **Collapsed groups are remembered per viewer**, in the browser's `localStorage`
+  (`iap.widgetDashboard.<point>.collapsed`), so a dashboard looks the same when you
+  return to it from a tool. Storage is a convenience only: without it, every group
+  starts expanded.
+- If two group nodes share a node name, the first in `defaultOrder` wins.
+
+Keep group nodes in a `Groups/` folder beside the point's widgets
+(`/Extensions/Admin/AdminDashboard/Groups/`). Membership is by `ext:pointId`, so the
+location does not matter to the query, and the folder keeps a group's node name from
+clashing with a widget's (a `Workflows` group beside the `Workflows` widget). Groups
+are flat: no group nests inside another. If that is ever needed, an optional parent
+reference on the group node is the natural extension.
 
 ### Breadcrumb trail
 

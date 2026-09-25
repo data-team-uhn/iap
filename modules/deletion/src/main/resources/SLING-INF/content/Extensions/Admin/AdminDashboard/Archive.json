@@ -1,6 +1,7 @@
 {
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/adminDashboard/entry",
+  "ext:widgetGroup": "Operations",
   "ext:name": "Archive",
   "ext:subtitle": "Deleted items waiting to be restored or purged",
   "ext:targetURL": "/admin/archive",
