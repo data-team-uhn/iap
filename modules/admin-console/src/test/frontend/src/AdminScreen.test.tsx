@@ -45,10 +45,19 @@ describe("AdminScreen", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("flags a tool's page as administrative beside its title, but not the landing page", () => {
+    const { unmount } = renderScreen(<AdminScreen title="Some tool">content</AdminScreen>);
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    unmount();
+
+    renderScreen(<AdminScreen>content</AdminScreen>);
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+  });
+
   it("displays the main action on the heading's row", () => {
     renderScreen(<AdminScreen title="Some tool" action={<button>New thing</button>}>content</AdminScreen>);
 
-    const row = screen.getByRole("heading", { name: "Some tool" }).parentElement;
+    const row = screen.getByRole("heading", { name: "Some tool" }).parentElement?.parentElement;
     expect(row).toContainElement(screen.getByRole("button", { name: "New thing" }));
     expect(row).not.toContainElement(screen.getByText("content"));
   });

@@ -18,7 +18,13 @@
 
 import type { ReactNode } from "react";
 
-import { Stack, Typography } from "@mui/material";
+import { Chip, Stack, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+
+import { chipStyle } from "@iap/frontend-commons/chipStyle";
+
+// The theme's light-scheme error red; chipStyle adapts the text to either scheme.
+const ADMIN_RED = "#d32f2f";
 
 interface AdminScreenProps {
   // The name of the administrative tool this page hosts, e.g. "Submission categories". When unset
@@ -34,13 +40,17 @@ interface AdminScreenProps {
 // main action beside it, above the tool's content. Wayfinding is left to the shell (the breadcrumb
 // extension on the pageTop extension point).
 function AdminScreen({ title, action, children }: AdminScreenProps) {
+  const theme = useTheme();
   return (
     <>
       <Stack
         direction="row"
         sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 3 }}
       >
-        <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+          <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
+          { title && <Chip size="small" label="Admin" sx={chipStyle(theme, ADMIN_RED)} /> }
+        </Stack>
         {action}
       </Stack>
       {children}
