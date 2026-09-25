@@ -20,20 +20,18 @@ package io.uhndata.iap.workflows.internal;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
-import jakarta.servlet.Servlet;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.apache.sling.api.request.RequestDispatcherOptions;
 import org.apache.sling.api.request.RequestParameter;
-import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
-import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,41 +45,60 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
 /**
  * The HTTP door into the {@link WorkflowEngine}: it turns a {@code POST} into a domain event and answers with
  * what the engine made of it. Which workflow runs, if any, is the engine's and the definitions' business.
  *
- * <p>Binding this servlet to a resource type is what replaces direct-CRUD semantics with workflow-managed ones
- * for it. Adding a type to {@code resourceTypes} is how something comes under workflow control.</p>
+ * <p>The event is the target's default unless a selector names one: {@code POST <path>.activate.json} sends
+ * {@code activate}. Nothing is registered per event; a name no definition is waiting for is a 409.</p>
+ *
+ * <p>It is not registered by type here: {@link WorkflowEventServletRegistrar} binds it to the resource types the
+ * system workflows target, which is what brings a type under workflow control. The one exception is the
+ * {@code .import} extension, forwarded untouched to the Sling POST servlet, so that an administrator can still
+ * import content, as the test data does.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = { Servlet.class })
-@SlingServletResourceTypes(
-    // The homepages under workflow control, plus the user tasks of running instances. Literals where the owning
-    // module must not be depended on: submissions depends on workflows, so workflows can only name its resource
-    // type, not import it.
-    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage" },
-    methods = { HttpConstants.METHOD_POST })
 public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 {
     /** The domain event a POST to a workflow-managed homepage translates to. */
     public static final String CREATE_EVENT = "create";
 
-    private static final long serialVersionUID = -6273669283473534077L;
+    /** The extension that bypasses the engine, for the Sling POST servlet. */
+    static final String IMPORT_EXTENSION = "import";
+
+    /** The resource type the Sling POST servlet is the default servlet of. */
+    private static final String SLING_DEFAULT_TYPE = "sling/servlet/default";
+
+    private static final long serialVersionUID = 4735148026553286411L;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkflowEventServlet.class);
 
-    @Reference
-    private transient WorkflowEngine engine;
+    private final transient WorkflowEngine engine;
+
+    /**
+     * Constructor.
+     *
+     * @param engine the engine receiving the translated events
+     */
+    WorkflowEventServlet(final WorkflowEngine engine)
+    {
+        this.engine = engine;
+    }
 
     @Override
     protected void doPost(final SlingJakartaHttpServletRequest request,
-        final SlingJakartaHttpServletResponse response) throws IOException
+        final SlingJakartaHttpServletResponse response) throws IOException, ServletException
     {
+        if (IMPORT_EXTENSION.equals(request.getRequestPathInfo().getExtension())) {
+            final RequestDispatcherOptions options = new RequestDispatcherOptions();
+            options.setForceResourceType(SLING_DEFAULT_TYPE);
+            Objects.requireNonNull(request.getRequestDispatcher(request.getResource(), options),
+                "Sling always dispatches to an existing resource").forward(request, response);
+            return;
+        }
         try {
             final String name = eventName(request);
             final WorkflowResult result =
@@ -104,7 +121,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             // deployer, and /LoggedErrors is where they look
             LOGGER.error("Executing the {} event on {} failed: {}", eventName(request),
                 request.getResource().getPath(), e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(WorkflowEventServlet.class, "receiveEvent")
+            ErrorLogger.logError(e, ErrorContext.of(getClass(), "receiveEvent")
                 .about(request.getResource())
                 .actingFor(request.getResourceResolver().getUserID())
                 .with("event", eventName(request)));
@@ -113,15 +130,18 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Which domain event a POST means, decided by what it was aimed at: posting to a homepage asks for something
-     * to be created, posting to a user task says it has been decided. The servlet stays dumb: it names the event
-     * and hands it over; what happens next is the definitions' business.
+     * Which domain event a POST means: the one a selector names, otherwise the target's default. Posting to a
+     * homepage asks for something to be created, posting to a user task says it has been decided.
      *
      * @param request the incoming request
      * @return the domain event name
      */
     private String eventName(final SlingJakartaHttpServletRequest request)
     {
+        final String named = request.getRequestPathInfo().getSelectorString();
+        if (named != null && !named.isEmpty()) {
+            return named;
+        }
         return request.getResource().isResourceType(TaskInstance.RESOURCE_TYPE)
             ? TaskCompletion.COMPLETE_EVENT : CREATE_EVENT;
     }
