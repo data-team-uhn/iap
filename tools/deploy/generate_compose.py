@@ -375,6 +375,11 @@ def env_entries(args, env_file):
         entries.append(('IAP_DOCLING_TOKEN', secrets.token_urlsafe(32), [
             "Protects the connection between IAP and Docling.",
         ]))
+        entries.append(('IAP_DOCLING_CALLBACK_JWT', 'devcallbacktoken', [
+            "Authenticates the parse outcomes the daemon POSTs back to IAP. Read by both",
+            "containers, and compared as an opaque secret, so any value will do for",
+            "development. Empty on either side means asynchronous parsing is refused.",
+        ]))
     return entries
 
 
@@ -454,6 +459,11 @@ def iap_service(args, compose_directory):
     service['environment'] = iap_environment(args)
 
     volumes = ['iap-data:/opt/iap/.iap-data']
+    if args.docling:
+        # The daemon reads documents off this volume and writes its outputs beside them, so IAP
+        # stages every upload here and reads the results back. Both containers see it at the same
+        # path, which is what lets a staged file's path be handed to the daemon as it is.
+        volumes.append('${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs')
     if args.dev:
         volumes.append("{}:/root/.m2:ro".format(Path.home() / '.m2'))
     if args.mail:
@@ -519,6 +529,20 @@ def iap_environment(args):
         # The mail feature registers a crypto service that reads its password from this variable,
         # and does not start without it. The value is in .env.
         environment['SLING_COMMONS_CRYPTO_PASSWORD'] = '${SLING_COMMONS_CRYPTO_PASSWORD}'
+
+    if args.docling:
+        comment(environment, "The shared secret the daemon presents when it POSTs a parse")
+        comment(environment, "outcome back. Compared as an opaque string, so any value does, but")
+        comment(environment, "it must be the one the daemon is given. In .env.")
+        environment['IAP_DOCLING_CALLBACK_JWT'] = '${IAP_DOCLING_CALLBACK_JWT}'
+        comment(environment, "Only needed if the daemon itself requires one (also")
+        comment(environment, "IAP_DOCLING_TOKEN, set on the docling service below); sent as this")
+        comment(environment, "side's own Authorization header when dispatching a parse. Empty by")
+        comment(environment, "default, matching the daemon's default of requiring no credential.")
+        environment['IAP_DOCLING_TOKEN'] = '${IAP_DOCLING_TOKEN:-}'
+        comment(environment, "Where the document volume shared with the daemon is mounted; the")
+        comment(environment, "same path on both sides, so a staged path can be handed over as is.")
+        environment['IAP_SHARED_DOCS'] = '/shared-docs'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
@@ -641,8 +665,17 @@ def docling_service():
         'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
         'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
         'IAP_DOCLING_PARSE_TIMEOUT_SECONDS': '${IAP_DOCLING_PARSE_TIMEOUT_SECONDS:-900}',
+        # Asynchronous parsing: /parse?job_id= answers at once and the daemon POSTs the
+        # outcome here later. The destination is configured on the daemon, not sent with the
+        # dispatch, because the callback carries the token below. Both containers are on the
+        # iap network, so the app is reachable by service name on its internal port.
+        'IAP_DOCLING_CALLBACK_URL': 'http://iap:8080/system/documents/parseCallback',
+        # The same .env value IAP is given, so the two cannot drift apart. Without it the
+        # daemon refuses asynchronous requests and IAP refuses the deliveries.
+        'IAP_DOCLING_CALLBACK_JWT': '${IAP_DOCLING_CALLBACK_JWT}',
         'HOME': '/tmp'
     }
+    service['networks'] = ['iap']
     service['volumes'] = ['${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs']
     service['deploy'] = {
         'resources': {
