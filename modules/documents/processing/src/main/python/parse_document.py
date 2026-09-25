@@ -15,11 +15,11 @@
 # limitations under the License.
 #
 
-"""Shared convert + chunk + write path used by the daemon and the CLI.
+"""Shared convert + write path used by the daemon and the CLI.
 
 LibreOffice prep (when needed) runs first and saves converted files beside the source.
-Docling then converts to Markdown in memory. :func:`chunker.chunk_file` writes
-``{stem}.md`` and ``Chunks/``.
+Docling then converts to Markdown in memory, the PDF's bookmarks settle the heading levels
+across the whole document, and ``{stem}.md`` is written beside the source.
 """
 
 from __future__ import annotations
@@ -37,17 +37,13 @@ import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from docling.document_converter import DocumentConverter
 
-from chunker import (
-    DEFAULT_MIN_STRUCTURE_TOKENS,
-    CHUNKS_DIRNAME,
-    DEFAULT_MAX_TOKENS,
-    chunk_file,
-)
 from docling_docx_parser import convert_docx_to_markdown
 from docling_pdf_parser import convert_pdf_to_markdown
+from heading_levels import correct_heading_levels
 from libreoffice_convert import prepare_office_document
 from markdown_cleanup import get_source_file_basename
-from markdown_markers import INPUT_SUFFIXES, SUPPORTED_SUFFIXES
+from markdown_markers import INPUT_SUFFIXES, SUPPORTED_SUFFIXES, count_tokens
+from shared_docs import write_atomically
 
 LogFn = Callable[[str], None]
 
@@ -55,9 +51,6 @@ LogFn = Callable[[str], None]
 def parse_document(
     input_path: Path,
     *,
-    chunk: bool = True,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
-    min_structure_tokens: int = DEFAULT_MIN_STRUCTURE_TOKENS,
     pdf_executor: ProcessPoolExecutor | None = None,
     pdf_workers: int | None = None,
     pdf_batch_pages: int | None = None,
@@ -65,20 +58,16 @@ def parse_document(
     docx_converter: DocumentConverter | None = None,
     log: LogFn | None = None,
 ) -> dict[str, Any]:
-    """LibreOffice prep, Docling convert, then write ``{stem}.md`` + ``Chunks/`` beside the source.
+    """LibreOffice prep, Docling convert, bookmark heading levels, then write ``{stem}.md``.
 
     @param input_path: absolute path to the staged ``.pdf`` / ``.docx`` / ``.doc``
-    @param chunk: when False, write ``Chunks/outline.json`` recording ``chunked: false`` and
-        no chunk files
-    @param max_tokens: chunk budget
-    @param min_structure_tokens: leave the document unchunked below this size
     @param pdf_executor: warm PDF pool (daemon); ``None`` lets Docling size its own pool
     @param pdf_workers: worker count hint for the PDF pool
     @param pdf_batch_pages: pages per worker batch; ``None`` sizes it automatically
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
-    @return: summary ``{ok, markdown_path, chunked, chunks_dir, logs, filename}``
+    @return: summary ``{ok, markdown_path, tokens, logs, filename}``
     """
     source = Path(input_path)
     if not source.is_file():
@@ -123,27 +112,19 @@ def parse_document(
             )
         _log(f"Converted DOCX ({len(markdown):,} chars)")
 
-    # Markdown + Chunks live beside the staged source (same stem), not a LibreOffice temp.
+    # The Markdown lives beside the staged source (same stem), not a LibreOffice temp.
     output_md = source.with_suffix(".md")
+    # Docling only sees one page-range batch at a time, so the whole-document heading levels
+    # come from the PDF's bookmarks (the staged PDF, or LibreOffice's rendition of a DOC/DOCX).
+    markdown = correct_heading_levels(markdown, output_md, log=_log)
+    write_atomically(output_md, markdown)
 
-    # chunk=False comes through here too, so every path stages and swaps the whole tree and a
-    # re-parse cannot leave one revision's catalog.json beside another's Markdown.
-    summary = chunk_file(
-        output_md,
-        max_tokens=max_tokens,
-        min_structure_tokens=min_structure_tokens,
-        markdown=markdown,
-        chunk=chunk,
-    )
-    if summary["logs"]:
-        _log(summary["logs"])
-
-    chunks_dir_path = summary["chunks_dir"] or (output_md.parent / CHUNKS_DIRNAME)
+    tokens = count_tokens(markdown)
+    _log(f"Wrote '{output_md.name}' ({tokens} tokens)")
     return {
         "ok": True,
         "markdown_path": str(output_md.resolve()),
-        "chunked": summary["chunked"],
-        "chunks_dir": str(chunks_dir_path.resolve()),
+        "tokens": tokens,
         "logs": "\n".join(logs),
         "filename": filename,
     }

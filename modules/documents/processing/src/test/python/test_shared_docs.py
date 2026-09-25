@@ -21,7 +21,7 @@ CodeQL's ``py/path-injection`` query models ``os.path.realpath`` (normalization)
 ``str.startswith`` (SafeAccessCheck on the true branch). It does not model
 ``os.path.commonpath`` or ``Path.relative_to``. ``resolve_parse_path`` uses all three:
 ``startswith`` so the query sees a check, ``commonpath`` so a sibling whose name merely
-starts with the root is still refused. Derived writes (``{stem}.md``, ``Chunks/``) are
+starts with the root is still refused. Derived writes (``{stem}.md``) are
 new path expressions and stay tainted; they go through the I/O helpers that repeat
 ``realpath`` + ``startswith`` in the same function as the syscall.
 
@@ -33,6 +33,7 @@ not a check. :mod:`shared_docs` has no Docling dependency so this runs everywher
 import os
 import tempfile
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -182,16 +183,80 @@ class TestIoHelpersWorkOutsideTheJail:
         assert dest.read_text(encoding="utf-8") == "hello"
         assert not shared_docs.path_exists(scratch)
 
-    def test_make_dirs_exists_and_remove_tree(self, tmp_path):
-        nested = tmp_path / "Chunks" / "inner"
+    def test_make_dirs_and_exists(self, tmp_path):
+        nested = tmp_path / "renditions" / "inner"
         shared_docs.make_dirs(nested)
-        shared_docs.write_text(nested / "Chunk-1.md", "body\n")
-        assert shared_docs.path_is_file(nested / "Chunk-1.md")
-        shared_docs.remove_tree(tmp_path / "Chunks")
-        assert not shared_docs.path_exists(tmp_path / "Chunks")
+        shared_docs.write_text(nested / "doc.md", "body\n")
+        assert shared_docs.path_is_file(nested / "doc.md")
 
     def test_remove_file_missing_is_ok(self, tmp_path):
         shared_docs.remove_file(tmp_path / "absent.txt")
+
+
+class TestWriteAtomically:
+    """``{stem}.md`` is the parse's only output, and it is written through here.
+
+    ``parse_document`` cannot be imported without Docling, so without these the write had no
+    test that runs in CI.
+    """
+
+    def test_the_content_lands_at_the_target(self, tmp_path):
+        target = tmp_path / "doc.md"
+        shared_docs.write_atomically(target, "# Doc\n")
+        assert target.read_text(encoding="utf-8") == "# Doc\n"
+
+    def test_a_second_write_replaces_the_first(self, tmp_path):
+        target = tmp_path / "doc.md"
+        shared_docs.write_atomically(target, "old\n")
+        shared_docs.write_atomically(target, "new\n")
+        assert target.read_text(encoding="utf-8") == "new\n"
+
+    def test_a_clean_write_leaves_no_scratch_behind(self, tmp_path):
+        shared_docs.write_atomically(tmp_path / "doc.md", "# Doc\n")
+        assert sorted(entry.name for entry in tmp_path.iterdir()) == ["doc.md"]
+
+    def test_a_long_target_name_still_writes(self, tmp_path):
+        # The name is the submitter's. A scratch built from it went over NAME_MAX, and the
+        # document was then unparseable however often it was retried.
+        target = tmp_path / ("x" * 250 + ".md")
+        shared_docs.write_atomically(target, "# Doc\n")
+        assert target.read_text(encoding="utf-8") == "# Doc\n"
+
+    def test_a_failed_write_keeps_the_previous_file(self, tmp_path, monkeypatch):
+        target = tmp_path / "doc.md"
+        shared_docs.write_atomically(target, "good\n")
+
+        def explode(path, text):
+            raise OSError("no space left on device")
+
+        monkeypatch.setattr(shared_docs, "write_text", explode)
+        with pytest.raises(OSError, match="no space left"):
+            shared_docs.write_atomically(target, "half a docu")
+        assert target.read_text(encoding="utf-8") == "good\n"
+
+    def test_a_failed_write_leaves_no_scratch_behind(self, tmp_path, monkeypatch):
+        def write_then_fail(path, text):
+            Path(path).write_text(text, encoding="utf-8")
+            raise OSError("no space left on device")
+
+        monkeypatch.setattr(shared_docs, "write_text", write_then_fail)
+        with pytest.raises(OSError):
+            shared_docs.write_atomically(tmp_path / "doc.md", "half a docu")
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_cleanup_failure_does_not_mask_the_real_one(self, tmp_path, monkeypatch):
+        # remove_file re-raises anything but a missing file, so a read-only directory reported
+        # EACCES while the parse had actually failed on a full disk.
+        def explode(path, text):
+            raise OSError("no space left on device")
+
+        def cleanup_explodes(path, *, missing_ok=True):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(shared_docs, "write_text", explode)
+        monkeypatch.setattr(shared_docs, "remove_file", cleanup_explodes)
+        with pytest.raises(OSError, match="no space left"):
+            shared_docs.write_atomically(tmp_path / "doc.md", "# Doc\n")
 
 
 # Under neither the shared docs root nor the system temp directory, and never created: the
@@ -211,9 +276,9 @@ class TestIoHelpersRefuseAnythingOutsideBothRoots:
 
     @pytest.mark.parametrize("attempt", [
         pytest.param(lambda path: shared_docs.write_text(path, "x"), id="write_text"),
+        pytest.param(lambda path: shared_docs.write_atomically(path, "x"), id="write_atomically"),
         pytest.param(lambda path: shared_docs.replace_file(path, path), id="replace_file-source"),
         pytest.param(shared_docs.remove_file, id="remove_file"),
-        pytest.param(shared_docs.remove_tree, id="remove_tree"),
         pytest.param(shared_docs.make_dirs, id="make_dirs"),
         pytest.param(shared_docs.path_exists, id="path_exists"),
         pytest.param(shared_docs.path_is_file, id="path_is_file"),
@@ -244,14 +309,13 @@ class TestIoHelpersRefuseAnythingOutsideBothRoots:
 
 
 class TestDerivedOutputsStayContained:
-    def test_markdown_and_chunks_land_under_the_root(self, root):
-        # The daemon writes {stem}.md and Chunks/ beside the source, so containing the
+    def test_the_markdown_lands_under_the_root(self, root):
+        # The daemon writes {stem}.md beside the source, so containing the
         # source is what contains the writes.
         (root / "sub").mkdir()
         (root / "sub" / "proto.pdf").write_bytes(b"%PDF")
         source = shared_docs.resolve_parse_path(str(root / "sub" / "proto.pdf"))
         assert source.with_suffix(".md").is_relative_to(root)
-        assert (source.parent / "Chunks").is_relative_to(root)
 
 
 class TestRequestErrorType:

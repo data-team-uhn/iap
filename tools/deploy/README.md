@@ -173,7 +173,7 @@ mail is broken. `docker compose logs smtps_test_container` names each message as
 ## Document parsing
 
 `--docling` adds the Docling parser (`modules/documents/processing`), which turns an uploaded PDF
-or DOCX into cleaned Markdown and, on request, a tree of chunks. It is a Python daemon that keeps
+or DOCX into cleaned Markdown. It is a Python daemon that keeps
 its workers and models loaded between conversions, so only the first request after boot is slow.
 
 Both containers share one directory: IAP stages an upload into it, the parser writes its output
@@ -196,7 +196,7 @@ The parser is published on `127.0.0.1:18765` only, and `/parse` and `/shutdown` 
 `IAP_DOCLING_TOKEN` the generator wrote into `.env`:
 
 ```bash
-curl -X POST -H "Authorization: Bearer $(grep '^IAP_DOCLING_TOKEN=' .env | cut -d= -f2)"   "http://127.0.0.1:18765/parse?path=/shared-docs/test/test.pdf&chunk=true"
+curl -X POST -H "Authorization: Bearer $(grep '^IAP_DOCLING_TOKEN=' .env | cut -d= -f2)"   "http://127.0.0.1:18765/parse?path=/shared-docs/test/test.pdf"
 ```
 
 `GET /health` needs no credential, so container probes and a quick "is it up?" both use it. IAP

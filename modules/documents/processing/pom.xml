@@ -28,7 +28,7 @@
   <artifactId>iap-processing</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Document processing</name>
-  <description>Document-processing pipeline (parsing, markdown cleanup, chunking).</description>
+  <description>Document-processing pipeline (parsing, markdown cleanup).</description>
 
   <properties>
     <!-- python3, not python: `python` is absent on a machine without python-is-python3, and

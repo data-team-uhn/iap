@@ -134,7 +134,7 @@ always present and current:
 ## The docling image
 
 `modules/documents/processing` builds `iap/docling`, the Python daemon that converts uploaded
-PDF/DOC/DOCX documents into cleaned, chunked Markdown. The `docker` profile therefore builds
+PDF/DOC/DOCX documents into cleaned Markdown. The `docker` profile therefore builds
 both images, as in `mvn clean install -Pdocker`. To build only this one:
 
 ```
@@ -163,11 +163,11 @@ network, where Compose resolves the service name.
 with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
 
 ```
-POST /parse?path=/shared-docs/<dir>/<file>.pdf&chunk=true
+POST /parse?path=/shared-docs/<dir>/<file>.pdf
 ```
 
 The request body is read and discarded. The reply is a small JSON summary
-(`markdown_path`, `chunked`, `chunks_dir`, `logs`, `filename`) — the Markdown and the chunk tree are
+(`markdown_path`, `tokens`, `logs`, `filename`) — the Markdown itself is
 written to the shared volume beside the source, not returned. A request without `path` is a
 `400 {"error": "path query parameter is required"}`.
 

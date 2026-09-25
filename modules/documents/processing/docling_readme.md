@@ -12,8 +12,8 @@ Docling converts PDF or DOCX documents to Markdown format.
 
 | Package                   | Why                                                                                  |
 | ------------------------- | ------------------------------------------------------------------------------------ |
-| `docling`                 | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
-| `pypdf`                   | Page counting / PDF reading before batching; bookmark extraction                     |
+| `docling`                 | Main processor: `.pdf` / `.doc` / `.docx` → `.md`                                    |
+| `pypdf`                   | Page counting / PDF reading before batching                                          |
 | `cryptography`            | pypdf AES support for signed / permission-restricted PDFs (empty user password)      |
 | `psutil`                  | Lets the batch-sizing script self-optimise workers to CPU/RAM                        |
 | `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling                                           |
@@ -78,7 +78,7 @@ On start you get:
 - Nothing starts the daemon for you. Start it with Docker, or by hand for local work.
 - The caller **stages** the upload once under `/shared-docs/{uuid}/{fileName}`, then calls
   `POST /parse?path=...`. Python writes all derived files.
-  The reply is a small summary (`ok`, `markdown_path`, `chunked`, `chunks_dir`, `logs`).
+  The reply is a small summary (`ok`, `markdown_path`, `tokens`, `logs`, `filename`).
 
 ### Manual HTTP daemon start (optional)
 
@@ -93,8 +93,8 @@ python modules/documents/processing/src/main/python/docling_daemon.py --host 127
 
 - `GET  http://localhost:18765/health` — readiness probe: `{"status", "workers", "ready"}`.
   Deliberately carries no filesystem paths, since it is the one endpoint with no credential.
-- `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
-  path under the shared root → summary JSON. LibreOffice prep + Docling + `chunk_file`.
+- `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf` —
+  path under the shared root → summary JSON. LibreOffice prep + Docling.
 - `POST http://localhost:18765/shutdown` — graceful stop; **served only with
   `--enable-shutdown`**, and answers 404 otherwise. A container is stopped with a signal, so the
   endpoint is useful only when the caller owns the daemon process and is a denial-of-service
@@ -153,8 +153,7 @@ Daemon flags:
 | `--workers N`  | auto, from cores + RAM budget | Parallel PDF worker processes  |
 | `--enable-shutdown` | off                     | Serve `POST /shutdown`; 404 otherwise |
 
-Per-request options go on the `/parse` query string: `chunk` (default true), `max_tokens`
-(2000) and `min_structure_tokens` (20000).
+`/parse` takes no per-request options beyond `path`.
 
 Run the daemon yourself — in Docker for a real deployment, or by hand for local work (see
 [Manual daemon start](#manual-http-daemon-start-optional)). Docling is the only processor: if
