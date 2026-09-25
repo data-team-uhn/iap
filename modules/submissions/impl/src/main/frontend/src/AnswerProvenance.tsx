@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { Box, Button, Link, Typography } from "@mui/material";
 
+import PdfViewer from "./pdfViewer";
 import {
   type ProvenancePassage,
   type QuestionProvenance,
@@ -66,8 +67,8 @@ function Badge({ status }: { status: ReturnType<typeof statusOf> }) {
         fontSize: "0.72rem",
         fontWeight: 500,
         whiteSpace: "nowrap",
-        px: settled ? 1 : 0,
-        p: "2px 4px",
+        py: "2px",
+        px: settled ? 1 : "4px",
         color: settled ? "text.secondary" : AI_TEXT,
         backgroundColor: settled ? "rgba(25,41,88,0.06)" : "rgb(25 41 88 / 8%)",
       }}
@@ -107,7 +108,7 @@ function ConfidenceChip() {
 // Every passage is shown, not just the first. The server verifies each one against the document and
 // sends the ones that held up, so a lane that showed one of three understated the evidence and left
 // the other two as payload nobody could see.
-function Quote({ passage }: { passage: ProvenancePassage }) {
+function Quote({ passage, onOpen }: { passage: ProvenancePassage; onOpen: (passage: ProvenancePassage) => void }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
@@ -119,7 +120,7 @@ function Quote({ passage }: { passage: ProvenancePassage }) {
             </Typography>
           )}
         {canOpen(passage) && (
-          <Link href={passage.source} target="_blank" rel="noopener" sx={{ fontSize: "0.78rem" }}>
+          <Link component="button" type="button" onClick={() => onOpen(passage)} sx={{ fontSize: "0.78rem" }}>
             {openLabel(passage)}
           </Link>
         )}
@@ -140,9 +141,10 @@ function Quote({ passage }: { passage: ProvenancePassage }) {
 // Nothing opens itself. The excerpt in the trigger is usually enough to judge, so seeing the whole
 // passage is always a deliberate reveal.
 export default function AnswerProvenance(
-  { provenance, value, onRejectEvidence }: AnswerProvenanceProps,
+  { provenance, value, disabled = false, onRejectEvidence }: Omit<AnswerProvenanceProps, "onAccept">,
 ) {
   const [ open, setOpen ] = useState(false);
+  const [ shown, setShown ] = useState<ProvenancePassage | undefined>(undefined);
   const status = statusOf(provenance, value);
   const passage = leadPassage(provenance);
   const further = furtherPassagesLabel(provenance);
@@ -154,7 +156,7 @@ export default function AnswerProvenance(
         mt: { xs: 0, md: 7.3 },
         pl: 1.5,
         minWidth: 0,
-        borderColor: pending ? AI : "rgba(25,41,88,0.14)",
+        borderLeft: `2px solid ${pending ? AI : "rgba(25,41,88,0.14)"}`,
         display: "flex",
         flexDirection: "column",
         gap: 0.75,
@@ -206,11 +208,14 @@ export default function AnswerProvenance(
               p: 1.5,
             }}
           >
-            {provenance.passages.map((each, index) => <Quote key={`${index}-${each.quote}`} passage={each} />)}
+            {provenance.passages.map((each, index) => (
+              <Quote key={`${index}-${each.quote}`} passage={each} onOpen={setShown} />
+            ))}
             {/* One verdict for the lane, not one per passage: the server records a single flag, and
                 asking about each quote separately would ask more of a reader than the report is worth. */}
             <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
-              {provenance.evidenceRejected
+              {/* A request that can no longer be changed takes no verdict on its evidence either */}
+              {!disabled && provenance.evidenceRejected
                 ? (
                   <Typography component="span" sx={{ fontSize: "0.78rem", color: "text.secondary" }}>
                     Thanks, noted.{" "}
@@ -219,7 +224,9 @@ export default function AnswerProvenance(
                     </Link>
                   </Typography>
                 )
-                : (
+                : null}
+              {!disabled && !provenance.evidenceRejected
+                ? (
                   <Link
                     component="button"
                     type="button"
@@ -229,7 +236,8 @@ export default function AnswerProvenance(
                   >
                     This passage doesn{"’"}t support the answer
                   </Link>
-                )}
+                )
+                : null}
               {isLowConfidence(provenance)
                 ? (
                   <Typography component="span" sx={{ fontSize: "0.78rem", color: "#7A4A00" }}>
@@ -241,6 +249,15 @@ export default function AnswerProvenance(
           </Box>
         )
         : null}
+      {shown?.source === undefined
+        ? null
+        : (
+          <PdfViewer
+            key={`${shown.source}:${shown.quote}`}
+            passage={shown}
+            onClose={() => setShown(undefined)}
+          />
+        )}
     </Box>
   );
 }

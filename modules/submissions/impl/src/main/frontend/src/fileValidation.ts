@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { loadPdfjs } from "./pdfjsClient";
+
 // Checks an upload in the browser, before it is sent.
 //
 // This is here so a person finds out in a moment rather than after a slow upload and a parse, and so
@@ -35,10 +37,8 @@ export const MAX_PDF_PAGES = 500;
 
 export const ACCEPTED_EXTENSIONS = [ ".pdf", ".docx", ".doc" ];
 
-interface ContentCheck {
-  valid: boolean;
-  error?: string;
-}
+// A failed check always says why
+type ContentCheck = { valid: true } | { valid: false; error: string };
 
 // The lowercase extension including the dot, or undefined when the name carries none.
 export function fileExtension(fileName: string): string | undefined {
@@ -55,15 +55,6 @@ function megabytes(bytes: number): number {
   return Math.ceil(bytes / (1024 * 1024));
 }
 
-// PDF.js parses in a web worker and refuses to open anything until told where the worker script is.
-// webpack emits that script under a fixed name beside the rest of the frontend (see the rule in
-// webpack.config-template.js); the URL below is what it rewrites to that location.
-async function loadPdfjs() {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
-  return pdfjs;
-}
-
 // PDF.js names this exception when a file will not open without a password. An empty password
 // opens without throwing, so this is only a file that genuinely needs one.
 function isPasswordException(error: unknown): boolean {
@@ -77,14 +68,20 @@ async function checkPdf(file: File): Promise<ContentCheck> {
     const pdfjs = await loadPdfjs();
     const data = await file.arrayBuffer();
     // No password is passed. A file whose only password is empty opens; one that needs a password throws.
-    const pdf = await pdfjs.getDocument({ data }).promise;
-    if (pdf.numPages > MAX_PDF_PAGES) {
-      return {
-        valid: false,
-        error: `It has ${pdf.numPages} pages, and the limit is ${MAX_PDF_PAGES}.`,
-      };
+    const task = pdfjs.getDocument({ data });
+    try {
+      const pdf = await task.promise;
+      if (pdf.numPages > MAX_PDF_PAGES) {
+        return {
+          valid: false,
+          error: `It has ${pdf.numPages} pages, and the limit is ${MAX_PDF_PAGES}.`,
+        };
+      }
+      return { valid: true };
+    } finally {
+      // Each check has its own worker holding the whole file; left alone it lives as long as the tab
+      void task.destroy();
     }
-    return { valid: true };
   } catch (error) {
     if (isPasswordException(error)) {
       return { valid: false, error: "It is encrypted with a password." };
@@ -96,12 +93,16 @@ async function checkPdf(file: File): Promise<ContentCheck> {
   }
 }
 
-// A DOCX is a zip. These two parts are what makes it a Word document rather than any other zip.
+// A DOCX is a zip whose content types name a Word main document. The part's name is not fixed:
+// some producers call it word/document2.xml.
+const WORD_MAIN_DOCUMENT = "wordprocessingml.document.main+xml";
+
 async function checkDocx(file: File): Promise<ContentCheck> {
   try {
     const { default: JSZip } = await import("jszip");
     const zip = await JSZip.loadAsync(file);
-    if (!zip.file("[Content_Types].xml") || !zip.file("word/document.xml")) {
+    const types = zip.file("[Content_Types].xml");
+    if (!types || !(await types.async("string")).includes(WORD_MAIN_DOCUMENT)) {
       return { valid: false, error: "It is not a Word document." };
     }
     return { valid: true };
@@ -152,10 +153,18 @@ function isAccepted(file: File, accepted: string[], extension: string | undefine
   if (byExtension || byType) {
     return true;
   }
-  // A browser that does not know the format reports no type at all, and refusing then would be refusing
-  // for lack of information. The server checks the type again on arrival, so leave that call to it.
-  return file.type === "" && accepted.some(type => !type.startsWith("."));
+  // A browser that does not know the format reports no type at all. The name then says which type it is
+  // meant to be, and the content is checked against that below.
+  const meant = extension === undefined ? undefined : TYPE_BY_EXTENSION[extension];
+  return file.type === "" && meant !== undefined && accepted.some(type => type.toLowerCase() === meant);
 }
+
+// The types the pipeline reads, by the extension that names them
+const TYPE_BY_EXTENSION: Partial<Record<string, string>> = {
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".doc": "application/msword",
+};
 
 /**
  * What is wrong with an upload, or undefined when nothing is.
@@ -181,5 +190,5 @@ export async function validateUpload(file: File, accepted: string[] = []): Promi
     return `${file.name} is not a ${ACCEPTED_EXTENSIONS.join(", ")} file.`;
   }
   const content = await checkContent(file, extension);
-  return content.valid ? undefined : `${file.name}: ${content.error ?? "It cannot be read."}`;
+  return content.valid ? undefined : `${file.name}: ${content.error}`;
 }
