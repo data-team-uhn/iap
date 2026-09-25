@@ -32,7 +32,8 @@ from docling.datamodel.accelerator_options import AcceleratorOptions  # noqa: E4
 from docling.datamodel.pipeline_options import (  # noqa: E402
     HeadingHierarchyOptions,
     PdfPipelineOptions,
-    TableStructureV2Options,
+    TableFormerMode,
+    TableStructureOptions,
 )
 from docling.datamodel.settings import settings  # noqa: E402
 
@@ -80,13 +81,12 @@ PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     layout_batch_size=1,
     table_batch_size=1,
     batch_polling_interval_seconds=0.1,
-    # TableFormer V2. V1 with cell matching smeared one cell's text across a whole column:
-    # on a 4-page sample it repeated the same paragraph over 7 table rows, which inflates the
-    # document and hands the model the same text seven times. V2 got the same table right in
-    # 3 rows, and table structure is the pipeline's dominant cost -- it dropped from 13.7s to
-    # 4.9s on those pages. The weights need `with_tableformer_v2=True` in the Dockerfile's
-    # download_models call, or the offline container fails on the first table.
-    table_structure_options=TableStructureV2Options(do_cell_matching=True),
+    # Measured against V2, with and without cell matching, on a long protocol: same speed, but V2
+    # emitted several times the table text for identical prose, repeating and padding a contents
+    # page. Chosen to keep the document small, since the whole of it is sent in one model call.
+    table_structure_options=TableStructureOptions(
+        do_cell_matching=False, mode=TableFormerMode.FAST
+    ),
     document_timeout=read_positive_number_from_env(
         DOCUMENT_TIMEOUT_VARIABLE, DEFAULT_DOCUMENT_TIMEOUT_SECONDS, float, "a number"
     ),
