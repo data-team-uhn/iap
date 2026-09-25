@@ -149,9 +149,10 @@ class ParseResultIngesterTest
         }
 
         @Override
-        public void discardStaging(final String stagedPath)
+        public boolean discardStaging(final String stagedPath)
         {
             this.onDiscard.accept(stagedPath);
+            return true;
         }
 
         @Override

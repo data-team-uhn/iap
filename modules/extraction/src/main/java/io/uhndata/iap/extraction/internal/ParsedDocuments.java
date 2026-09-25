@@ -28,15 +28,8 @@ import io.uhndata.iap.submissions.models.File;
 /**
  * Reads a parsed document, once per reading rather than once per step.
  *
- * <p>Several steps of a reading want the same Markdown: one intake per requirement the reading asks about. Each
- * used to read it out of the repository itself - a whole binary property read and decoded
- * from UTF-8, then normalized again for every quote checked against it. For a 200,000-token protocol that is
- * about 800 kB, several times over, in a walk that reads one document.</p>
- *
- * <p>So the most recent one is kept. One entry, not a cache with a policy: the steps of a reading run one after
- * another on the same document, which is exactly what one slot serves, and a second submission being read at the
- * same time simply replaces it and reads its own. The entry is keyed by the stored file and when it was last
- * written, so a re-parse is never served the document it replaced.</p>
+ * <p>The steps of a reading run one after another on the same document, so one entry is kept, keyed by the
+ * stored file and when it was last written: a re-parse is never served the document it replaced.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,7 +59,7 @@ public class ParsedDocuments
             return DocumentScan.EMPTY;
         }
         final String key = markdown.getPath();
-        final Calendar writtenAt = lastModified(markdown);
+        final Calendar writtenAt = getLastModified(markdown);
         final Entry current = this.kept;
         if (current != null && current.matches(key, writtenAt)) {
             return current.scan;
@@ -77,12 +70,21 @@ public class ParsedDocuments
     }
 
     /**
+     * Drop the text kept from the last reading. A stop deletes that Markdown, and the next reading must not be
+     * served a document the submitter just threw out.
+     */
+    public void forget()
+    {
+        this.kept = null;
+    }
+
+    /**
      * When the stored Markdown was last written.
      *
      * @param markdown the {@code nt:file} holding it
      * @return the moment, or {@code null} when the repository did not record one
      */
-    private static Calendar lastModified(final Resource markdown)
+    private static Calendar getLastModified(final Resource markdown)
     {
         final Resource content = markdown.getChild(JCR_CONTENT);
         return content == null ? null : content.getValueMap().get(JCR_LAST_MODIFIED, Calendar.class);

@@ -1,0 +1,43 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Stop reading a submission's documents",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "Stops a reading that is still going. A parse that has not finished is dropped: the daemon is told, the staging folder is wiped, and the job record is deleted. A parse that has already been read in stops the model call instead, and the Markdown that call was consuming is removed so a later try starts clean. Fired by the submitter through POST <submission>.stopProcessing.json.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Asked to stop",
+      "messageName": "stopProcessing",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toStop": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStop",
+        "targetRef": "stop"
+      }
+    },
+    "stop": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "stop",
+      "label": "Stop the reading",
+      "handler": "stopProcessing",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Stopped",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

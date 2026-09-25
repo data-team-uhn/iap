@@ -58,6 +58,7 @@ def parse_document(
     docx_lock: threading.Lock | None = None,
     docx_converter: DocumentConverter | None = None,
     log: LogFn | None = None,
+    should_abandon: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """LibreOffice prep, Docling convert, bookmark heading levels, then write ``{stem}.md``.
 
@@ -68,6 +69,9 @@ def parse_document(
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
+    @param should_abandon: polled while a PDF is converting; see
+        :func:`docling_pdf_parser._run_pdf_chunks`. Not consulted for DOCX, which converts in
+        one call with no batch boundary to abandon at.
     @return: summary ``{ok, markdown_path, tokens, logs, filename}``
     """
     source = Path(input_path)
@@ -103,6 +107,7 @@ def parse_document(
             workers=pdf_workers,
             batch_pages=pdf_batch_pages,
             log=_log,
+            should_abandon=should_abandon,
         )
     else:
         # The lock is optional (the CLI has no concurrent callers), so the two arms differed

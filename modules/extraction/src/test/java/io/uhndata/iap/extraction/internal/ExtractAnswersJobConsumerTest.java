@@ -18,11 +18,14 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
@@ -75,6 +78,7 @@ class ExtractAnswersJobConsumerTest
         this.submission = this.tree.submission();
         inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject("engine", this.engine);
+        inject("runs", new ReadingRuns());
     }
 
     private void inject(final String name, final Object value) throws Exception
@@ -163,6 +167,56 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(ExtractionStatus.FAILED,
             this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+    }
+
+    @Test
+    void recordsAStopAndDoesNotRetry() throws Exception
+    {
+        jobFor(this.submission.getPath());
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenThrow(new ReadingRuns.Stopped());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ExtractionStatus.STOPPED,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aStopThatCannotBeRecordedIsStillNotRetried() throws Exception
+    {
+        jobFor(this.submission.getPath());
+        final ResourceResolverFactory real = new TestResolverFactory(this.context.resourceResolver());
+        final ResourceResolverFactory flaky = Mockito.mock(ResourceResolverFactory.class);
+        final AtomicInteger opened = new AtomicInteger();
+        Mockito.when(flaky.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
+            if (opened.incrementAndGet() > 1) {
+                throw new LoginException("no");
+            }
+            return real.getServiceResourceResolver(invocation.getArgument(0));
+        });
+        inject("resolverFactory", flaky);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenThrow(new ReadingRuns.Stopped());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+    }
+
+    @Test
+    void aReadingInterruptedMidCallIsAStop() throws Exception
+    {
+        jobFor(this.submission.getPath());
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            throw new NotAuthorizedException("closed");
+        });
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ExtractionStatus.STOPPED,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+        Thread.interrupted();
     }
 
     @Test
