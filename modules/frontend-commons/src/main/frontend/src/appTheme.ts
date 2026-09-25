@@ -18,8 +18,7 @@
 
 import type { CSSProperties } from 'react';
 
-import { red } from '@mui/material/colors';
-import { alpha, createTheme, lighten, type Breakpoint } from '@mui/material/styles';
+import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 
 // Fallbacks matching the QuorumPath brand; deployments configure their own colours through
 // /libs/iap/conf/ThemeColor, which reaches the page as these meta tags
@@ -64,21 +63,10 @@ declare module "@mui/material/styles" {
   // Backgrounds besides `default` and `paper`: `muted` is a subtly tinted static surface for page
   // regions that should read as "background, but set apart"; `tinted` is paper with some of the
   // primary colour mixed in, for surfaces that carry the brand quietly (the frame bars, emphasised
-  // widgets); `admin` is the canvas of the administration area, a faint tint of the primary brand
-  // colour signalling that the user is somewhere with more responsibility.
+  // widgets).
   interface TypeBackground {
     muted: string;
     tinted: string;
-    admin: string;
-  }
-  // A dedicated palette slot for marking administrative zones (e.g. the border around the admin
-  // working panel), so that marking can be tuned in one place. It currently matches the error
-  // colour - administration is a danger zone.
-  interface Palette {
-    admin: Palette["error"];
-  }
-  interface PaletteOptions {
-    admin?: PaletteOptions["error"];
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
@@ -199,16 +187,13 @@ const appTheme = createTheme({
       palette: {
         primary: { main: primaryColor },
         secondary: { main: secondaryColor },
-        // The scheme's default error.main - keep the two in sync if error is ever customized
-        admin: { main: red[700] },
-        // A gray canvas, so that paper surfaces stand out against it. Muted and admin are
-        // translucent, so they compose with whatever they overlap
+        // A gray canvas, so that paper surfaces stand out against it. Muted is translucent, so it
+        // composes with whatever it overlaps
         background: {
           default: "#ebedf0",
           paper: "#ffffff",
           muted: "rgba(0, 0, 0, 0.04)",
           tinted: TINTED_SURFACE,
-          admin: alpha(primaryColor, 0.06),
         },
       },
     },
@@ -218,16 +203,11 @@ const appTheme = createTheme({
         // legible on the dark scheme's dark surfaces.
         primary: { main: lighten(primaryColor, 0.6) },
         secondary: { main: secondaryColor },
-        // The scheme's default error.main - keep the two in sync if error is ever customized
-        admin: { main: red[500] },
-        // The same lightened primary as the scheme's primary colour, so the tint stays a hue
-        // shift rather than a muddy darkening
         background: {
           default: "#101010",
           paper: "#1a1a1a",
           muted: "rgba(255, 255, 255, 0.08)",
           tinted: TINTED_SURFACE,
-          admin: alpha(lighten(primaryColor, 0.6), 0.1),
         },
       },
     },

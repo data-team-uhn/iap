@@ -171,7 +171,6 @@ using those extensions is what keeps a deployment's rebranding effective:
   out against it, in both colour schemes.
 - `background.tinted` for surfaces that carry the brand quietly: the frame bars and
   emphasised widgets.
-- The `admin` palette entry and `background.admin` for the administrative danger zone.
 - `background.muted` for surfaces that need to recede — translucent, so it composes
   with whatever it overlaps rather than assuming white.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
