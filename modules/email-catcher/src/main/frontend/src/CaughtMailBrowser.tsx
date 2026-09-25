@@ -58,7 +58,8 @@ function CaughtMailBrowser() {
       {status?.enabled === false && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Mail is being delivered normally, so nothing new will appear here. Switch the catcher on
-          under <em>IAP Email Catcher</em> in the OSGi configuration console.
+          from the administration dashboard, or under <em>IAP Email Catcher</em> in the OSGi
+          configuration console.
         </Alert>
       )}
       <EntityDataGrid

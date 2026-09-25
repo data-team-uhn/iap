@@ -73,7 +73,7 @@ describe("CaughtMailBrowser", () => {
     vi.stubGlobal("fetch", answering(false, []));
     browser();
 
-    expect(await screen.findByText(/Mail is being delivered normally/)).toBeInTheDocument();
+    expect(await screen.findByText(/Mail is being delivered normally/)).toHaveTextContent(/administration dashboard/);
     expect(screen.getByText("IAP Email Catcher")).toBeInTheDocument();
     expect(screen.getByText("Not catching")).toBeInTheDocument();
   });
