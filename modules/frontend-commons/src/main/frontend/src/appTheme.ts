@@ -61,12 +61,14 @@ declare module "@mui/material/styles" {
   interface ThemeOptions {
     iapShell?: Partial<IapShellConfig>;
   }
-  // Two backgrounds besides `default` and `paper`: `muted` is a subtly tinted static surface for
-  // page regions that should read as "background, but set apart"; `admin` is the canvas of the
-  // administration area, a faint tint of the primary brand colour signalling that the user is
-  // somewhere with more responsibility (and giving paper surfaces contrast to stand out against).
+  // Backgrounds besides `default` and `paper`: `muted` is a subtly tinted static surface for page
+  // regions that should read as "background, but set apart"; `tinted` is paper with some of the
+  // primary colour mixed in, for surfaces that carry the brand quietly (the frame bars, emphasised
+  // widgets); `admin` is the canvas of the administration area, a faint tint of the primary brand
+  // colour signalling that the user is somewhere with more responsibility.
   interface TypeBackground {
     muted: string;
+    tinted: string;
     admin: string;
   }
   // A dedicated palette slot for marking administrative zones (e.g. the border around the admin
@@ -123,6 +125,9 @@ const headingColor = "var(--mui-palette-primary-main)";
 // restated as `color="textSecondary"` at every call site, so "how muted text looks" stays a
 // single theme decision.
 const mutedColor = "var(--mui-palette-text-secondary)";
+
+// Mixed from the scheme's own CSS variables, so the same definition serves both colour schemes.
+const TINTED_SURFACE = "color-mix(in srgb, var(--mui-palette-primary-main) 16%, var(--mui-palette-background-paper))";
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
 // variants below, so they don't hardcode (and drift from) the library's values.
@@ -196,8 +201,15 @@ const appTheme = createTheme({
         secondary: { main: secondaryColor },
         // The scheme's default error.main - keep the two in sync if error is ever customized
         admin: { main: red[700] },
-        // Translucent, so they compose with whatever they overlap rather than assuming white
-        background: { muted: "rgba(0, 0, 0, 0.04)", admin: alpha(primaryColor, 0.06) },
+        // A gray canvas, so that paper surfaces stand out against it. Muted and admin are
+        // translucent, so they compose with whatever they overlap
+        background: {
+          default: "#ebedf0",
+          paper: "#ffffff",
+          muted: "rgba(0, 0, 0, 0.04)",
+          tinted: TINTED_SURFACE,
+          admin: alpha(primaryColor, 0.06),
+        },
       },
     },
     dark: {
@@ -210,7 +222,13 @@ const appTheme = createTheme({
         admin: { main: red[500] },
         // The same lightened primary as the scheme's primary colour, so the tint stays a hue
         // shift rather than a muddy darkening
-        background: { muted: "rgba(255, 255, 255, 0.08)", admin: alpha(lighten(primaryColor, 0.6), 0.1) },
+        background: {
+          default: "#101010",
+          paper: "#1a1a1a",
+          muted: "rgba(255, 255, 255, 0.08)",
+          tinted: TINTED_SURFACE,
+          admin: alpha(lighten(primaryColor, 0.6), 0.1),
+        },
       },
     },
   },
