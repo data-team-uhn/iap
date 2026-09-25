@@ -46,7 +46,7 @@ const WIDTH_SPAN: Record<string, number> = { normal: 1, wide: 2, full: 3 };
 // which widgets are displayed while the page is up. Keying by index would hand one widget's key to
 // another as the list shrinks, remounting a widget that only moved and throwing away its state.
 function widgetKey(widget: WidgetExtension, index: number): string {
-  return (widget["jcr:path"] as string | undefined)
+  return (widget["@path"] as string | undefined)
     ?? (widget["ext:name"] as string | undefined)
     ?? `widget-${index}`;
 }
