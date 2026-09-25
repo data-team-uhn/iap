@@ -179,13 +179,12 @@ export function ArchiveBrowser() {
   const rows = data?.rows ?? [];
 
   return (
-    <AdminScreen title="Archive">
+    <AdminScreen
+      title="Archive"
+      description={"Everything that has been deleted and not yet destroyed. Restoring an entry puts every item "
+        + "it holds back where it was deleted from; purging it destroys them."}
+    >
       <LoadingOverlay open={!settled} />
-      <Typography variant="description" gutterBottom>
-        Everything that has been deleted and not yet destroyed. Restoring an entry puts every item it
-        holds back where it was deleted from; purging it destroys them.
-      </Typography>
-
       {loadError !== null && <Alert severity="error" sx={{ my: 2 }}>{loadError}</Alert>}
 
       <TextField
@@ -194,7 +193,7 @@ export function ArchiveBrowser() {
         onChange={event => { setFilterText(event.target.value); }}
         size="small"
         fullWidth
-        sx={{ my: 2 }}
+        sx={{ mb: 2 }}
       />
 
       <TableContainer>

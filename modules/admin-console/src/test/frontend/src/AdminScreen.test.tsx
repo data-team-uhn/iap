@@ -54,6 +54,25 @@ describe("AdminScreen", () => {
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
   });
 
+  it("describes the tool under its title, outside the panel", () => {
+    renderScreen(<AdminScreen title="Some tool" description="What it is for"><span>content</span></AdminScreen>);
+
+    expect(screen.getByText("What it is for").closest(".MuiPaper-root")).toBeNull();
+    expect(screen.getByText("content").closest(".MuiPaper-root")).not.toBeNull();
+  });
+
+  it("sets the content on a panel", () => {
+    renderScreen(<AdminScreen title="Some tool"><span>content</span></AdminScreen>);
+
+    expect(screen.getByText("content").closest(".MuiPaper-root")).not.toBeNull();
+  });
+
+  it("lays the content directly on the page when the panel is disabled", () => {
+    renderScreen(<AdminScreen title="Some tool" disablePanel><span>content</span></AdminScreen>);
+
+    expect(screen.getByText("content").closest(".MuiPaper-root")).toBeNull();
+  });
+
   it("displays the main action on the heading's row", () => {
     renderScreen(<AdminScreen title="Some tool" action={<button>New thing</button>}>content</AdminScreen>);
 

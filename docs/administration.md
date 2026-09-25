@@ -122,10 +122,13 @@ Wrap the page in `AdminScreen`:
 </AdminScreen>
 ```
 
-Both props are optional; with no `title` it heads the page "Administration". The
-main action sits on the heading's row. The chrome adds no surface or frame of its
-own: a tool's content lays out directly on the page, like any other view, and the
-console's landing page is its widget dashboard.
+The props are optional. `title` defaults to "Administration" if absent. The main
+action sits on the heading's row, a `description` saying what the tool is for
+goes under the heading, and a tool page's title carries a small "Admin" chip.
+The content sits on a `Panel`, a paper surface standing out against the page
+canvas. Content that brings its own surfaces passes `disablePanel` to lay out
+directly on the page instead (for example the console's landing page, whose
+widgets are panels themselves).
 
 Wayfinding is the shell's
 [breadcrumb trail](ui-extensions.md#the-breadcrumb-trail) on `pageTop`, which the

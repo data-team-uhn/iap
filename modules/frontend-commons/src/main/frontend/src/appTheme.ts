@@ -220,6 +220,12 @@ const appTheme = createTheme({
         variant: "outlined",
       },
     },
+    // Outlined fields are transparent by default, which reads as a hole in the gray canvas
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }),
+      },
+    },
     // Custom variants map to their proper document-outline element; the built-in variants keep
     // their default mapping (Typography falls back to it per variant).
     MuiTypography: {

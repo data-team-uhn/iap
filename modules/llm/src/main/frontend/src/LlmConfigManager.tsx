@@ -95,6 +95,7 @@ function LlmConfigManager() {
   return (
     <AdminScreen
       title="LLM configuration"
+      description="Every request goes to the provider and model selected here."
       action={
         <Button
           variant="contained"
@@ -121,9 +122,6 @@ function LlmConfigManager() {
       { catalog.providers.length > 0
         && (
           <Stack spacing={3}>
-            <Typography variant="description">
-              Every request goes to the provider and model selected here.
-            </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <TextField
                 select

@@ -22,6 +22,7 @@ import { Chip, Stack, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
+import Panel from "@iap/frontend-commons/components/Panel";
 
 // The theme's light-scheme error red; chipStyle adapts the text to either scheme.
 const ADMIN_RED = "#d32f2f";
@@ -32,28 +33,33 @@ interface AdminScreenProps {
   title?: string;
   // An optional main action, e.g. a "New category" button, displayed beside the heading.
   action?: ReactNode;
+  // An optional line under the heading saying what the tool is for.
+  description?: ReactNode;
+  // Lays the content directly on the page rather than on a panel, for content that brings its own
+  // surfaces (e.g. the landing page's widgets).
+  disablePanel?: boolean;
   // The tool's page content.
   children?: ReactNode;
 }
 
 // The shared chrome of every page of the administration console: the page heading, with an optional
-// main action beside it, above the tool's content. Wayfinding is left to the shell (the breadcrumb
-// extension on the pageTop extension point).
-function AdminScreen({ title, action, children }: AdminScreenProps) {
+// main action beside it, above the tool's content on a panel. Wayfinding is left to the shell (the
+// breadcrumb extension on the pageTop extension point).
+function AdminScreen({ title, action, description, disablePanel, children }: AdminScreenProps) {
   const theme = useTheme();
   return (
     <>
-      <Stack
-        direction="row"
-        sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 3 }}
-      >
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-          <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
-          { title && <Chip size="small" label="Admin" sx={chipStyle(theme, ADMIN_RED)} /> }
+      <Stack sx={{ gap: 1, mb: 3 }}>
+        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+            <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
+            { title && <Chip size="small" label="Admin" sx={chipStyle(theme, ADMIN_RED)} /> }
+          </Stack>
+          {action}
         </Stack>
-        {action}
+        { description && <Typography variant="description">{description}</Typography> }
       </Stack>
-      {children}
+      {disablePanel ? children : <Panel>{children}</Panel>}
     </>
   );
 }
