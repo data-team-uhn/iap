@@ -62,6 +62,7 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -117,6 +118,8 @@ class SubmissionFormServletTest
 
     private static final String DETAILS = "details";
 
+    private static final String CLASSIFICATION = "classification";
+
     private static final String START_DATE = "details/startDate";
 
     private static final String DURATION = "details/duration";
@@ -136,8 +139,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class,
-            DocumentVersion.class, File.class, Review.class, Submission.class);
+            ClassificationRequirement.class, Section.class, Question.class, AnswerOption.class, Answer.class,
+            Document.class, DocumentVersion.class, File.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -179,6 +182,13 @@ class SubmissionFormServletTest
         this.context.create().resource(VERSION_PATH + "/" + APPROVAL, Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval",
             "approverGroup", APPROVERS));
+        // Its decision question carries no extractionPrompt of its own -- the model prompt lives on the
+        // requirement -- which is exactly what marksAClassificationTheModelAnswers below checks for
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION, Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Urgency",
+            "prompt", "Decide whether this request is urgent.", "document", "doctorsNote"));
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION + "/decision", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Is this urgent?"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -194,6 +204,25 @@ class SubmissionFormServletTest
         answer(START_DATE, "2026-10-06");
 
         assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("provenance"));
+    }
+
+    @Test
+    void marksASectionTheModelAnswers() throws IOException
+    {
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"),
+            "a question with no extraction prompt is answered by hand");
+
+        modify(VERSION_PATH + "/" + START_DATE, "extractionPrompt", "Find the first day of the leave.");
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
+    // A classification's prompt sits on the requirement, not on its decision question, so the question
+    // carrying no extractionPrompt of its own must not read as hand-filled
+    @Test
+    void marksAClassificationTheModelAnswers() throws IOException
+    {
+        assertTrue(requirement(form(REQUESTER), CLASSIFICATION).getBoolean("extracted"));
     }
 
     @Test

@@ -111,6 +111,10 @@ export interface Requirement {
   type: string;
   label: string;
   description?: string;
+  // Whether the model fills this section in from an uploaded document. The editor keeps those
+  // sections on their own page, opened once reading has been started. Absent on a document or an
+  // approval, which hold no questions.
+  extracted?: boolean;
   // Present only for document requirements: whether the submission is incomplete without it. An
   // optional one is still asked - whether it is asked at all was decided server-side - but skipping
   // it blocks nothing, and the control says so.

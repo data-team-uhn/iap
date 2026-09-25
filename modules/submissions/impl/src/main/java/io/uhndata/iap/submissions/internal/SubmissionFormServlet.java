@@ -44,6 +44,7 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -240,8 +241,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers, provenance, number));
+            final List<FormItem> children = ((FormRequirement) requirement).getChildren();
+            json.add(ITEMS_KEY, items(children, requirement.getName(), submission, answers, provenance, number));
+            // A section the model fills in, as opposed to one the submitter answers by hand. The editor
+            // keeps the two on different pages: the hand-filled page is where reading is started.
+            // A classification's model prompt sits on the requirement itself, not on its decision question, so
+            // it is extracted by definition -- there is no hand-filled form of "what kind of document is this".
+            json.add("extracted", requirement instanceof ClassificationRequirement || isExtracted(children));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, submission, json);
         } else if (requirement instanceof ApprovalRequirement) {
@@ -447,6 +453,28 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return json
             .add("options", options)
             .add("value", value);
+    }
+
+    /**
+     * Whether a form requirement is filled in from a document. True when any question in it, including one
+     * nested in a section, says how to ask a model. Questions meant for the submitter have no such prompt.
+     *
+     * @param children the requirement's items, as the schema stores them
+     * @return {@code true} when the model is asked to answer something here
+     */
+    private static boolean isExtracted(final List<FormItem> children)
+    {
+        for (final FormItem child : children) {
+            if (child instanceof Question) {
+                final String prompt = ((Question) child).getExtractionPrompt();
+                if (prompt != null && !prompt.isBlank()) {
+                    return true;
+                }
+            } else if (child instanceof Section && isExtracted(((Section) child).getChildren())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
