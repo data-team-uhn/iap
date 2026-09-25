@@ -43,7 +43,10 @@ import java.util.regex.Pattern;
  */
 final class QuoteVerifier
 {
-    /** Anything shorter than this is too easy to match by accident to count as evidence. */
+    /**
+     * Anything shorter than this is too easy to match by accident to count as evidence. The PDF viewer's
+     * pdfQuoteLocator.ts uses the same number; change both together.
+     */
     private static final int MIN_QUOTE_LENGTH = 6;
 
     /** How much of a quote has to be right. 0.85 allows a slip or two, not a made-up sentence. */
