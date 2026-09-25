@@ -88,12 +88,6 @@ describe("ChoiceAnswer", () => {
     expect(screen.getByText("Pick the one that fits.")).toBeInTheDocument();
   });
 
-  it("says why the question is being asked", () => {
-    renderChoice({ purpose: "This decides which review path the request takes." });
-
-    expect(screen.getByText("This decides which review path the request takes.")).toBeInTheDocument();
-  });
-
   it("shows what an option means, under its label", () => {
     renderChoice({
       options: [
@@ -160,5 +154,17 @@ describe("ChoiceAnswer", () => {
 
       expect(screen.getByText("Your days. Choose at least 2. Choose up to 3.")).toBeInTheDocument();
     });
+  });
+});
+
+describe("ChoiceAnswer, as a suggestion", () => {
+  it("frames the option a reading suggested, one or several", () => {
+    const { rerender } = render(<ChoiceAnswer question={question()} values={[ "full-day" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Full day" })).toBeChecked();
+
+    rerender(<ChoiceAnswer question={question({ maxAnswers: 0 })} values={[ "half-day" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("checkbox", { name: "Half day" })).toBeChecked();
   });
 });

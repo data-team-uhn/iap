@@ -477,6 +477,7 @@ class SubmissionFormServletTest
         this.hidden.add("doctorsNote");
         this.hidden.add("signedForm");
         this.hidden.add(APPROVAL);
+        this.hidden.add(CLASSIFICATION);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -618,6 +619,19 @@ class SubmissionFormServletTest
         assertEquals("Scan", requirement(form, "scan").getString("templateName"));
     }
 
+    // The question the model answers may sit inside a section of the requirement
+    @Test
+    void marksARequirementWhoseSectionTheModelAnswers() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when", Map.of(
+            TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Dates"));
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when/returning", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Returning?", "dataType", "date",
+            "extractionPrompt", "Find the day the leave ends."));
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
     @Test
     void describesNestedSections() throws IOException
     {
@@ -708,6 +722,28 @@ class SubmissionFormServletTest
         modify(version + "/file", "parseStatus", "failed");
 
         assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
+    }
+
+    // The two moments the progress bar can see. A queued parse is still with the daemon; once it has
+    // been read in, and a job has claimed the reading, the bar moves on.
+    @Test
+    void saysWhetherTheParseAndTheReadingHaveStarted() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+        this.context.create().resource(SUBMISSION_PATH + "/d7", Map.of(TYPE, Document.RESOURCE_TYPE));
+        final String version = documentVersionWith("d7", null);
+        modify(version + "/file", "parseStatus", "queued");
+
+        JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+        assertFalse(extraction.getBoolean("parsed"));
+        assertFalse(extraction.getBoolean("reading"));
+
+        modify(version + "/file", "parseStatus", "completed");
+        modify(SUBMISSION_PATH, "extractionReadingClaimed", Boolean.TRUE);
+
+        extraction = form(REQUESTER).getJsonObject("extraction");
+        assertTrue(extraction.getBoolean("parsed"));
+        assertTrue(extraction.getBoolean("reading"));
     }
 
     @Test

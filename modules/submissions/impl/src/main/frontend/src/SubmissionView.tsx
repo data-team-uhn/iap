@@ -24,7 +24,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Divider,
   Link,
   Stack,
@@ -36,6 +35,7 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
+import StepProgress from "@iap/frontend-commons/components/StepProgress";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
@@ -43,6 +43,7 @@ import TagChip from "@iap/tags/TagChip";
 import QuestionText from "./answers/QuestionText";
 import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
+import { PHASE_LABEL, READING_PHASES, failedPhase, phaseFor, type ReadingPhase } from "./readingProgress";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type ApprovalRequirement,
@@ -81,6 +82,11 @@ const EXTRACTION_POLL_MS = 4000;
 // against a server that has stopped answering at all, which would otherwise poll for as long as the
 // tab is open.
 const EXTRACTION_POLL_LIMIT = (45 * 60 * 1000) / EXTRACTION_POLL_MS;
+
+// How often the bar inches forward. The phase math is in milliseconds, so a tick is this long.
+const READING_TICK_MS = 400;
+
+const READING_LABELS = READING_PHASES.map(name => PHASE_LABEL[name]);
 
 
 // A single-valued property is serialized as a bare string, not as a one-element array.
@@ -215,6 +221,40 @@ function AbortProcessing(
   );
 }
 
+// The four stages, stepped through between the two moments the server does report: the parse
+// ending, and a job taking the reading. Past that, extraction and validation share one call.
+function ReadingBar({ extraction }: { extraction: ExtractionState }) {
+  const live = useReadingPhase(extraction);
+  const failed = failedPhase(extraction);
+  const error = failed === undefined
+    ? undefined
+    : { message: extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it." };
+  return <StepProgress steps={READING_LABELS} activeStep={READING_PHASES.indexOf(failed ?? live)} error={error} />;
+}
+
+// Which stage to show. Extraction and validation share the model call, so once a job has the
+// reading the active step walks from one to the other on a clock.
+function useReadingPhase(extraction: ExtractionState): ReadingPhase {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(current => current + 1), READING_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const sinceReadingMs = useTicksSince(extraction.reading === true, tick) * READING_TICK_MS;
+  return phaseFor(extraction, sinceReadingMs);
+}
+
+// How many ticks the current key has been the current one. Remembered on the render that the key
+// changes, so the segment starts empty without waiting for an effect.
+function useTicksSince(key: boolean | ReadingPhase, tick: number): number {
+  const [started, setStarted] = useState<{ key: boolean | ReadingPhase; tick: number }>({ key, tick });
+  if (started.key !== key) {
+    setStarted({ key, tick });
+  }
+  const from = started.key === key ? started.tick : tick;
+  return tick - from;
+}
+
 // Where reading the answers out of the uploaded documents got to. While it runs the page asks again
 // every few seconds; when it stops without answers the person is told why, in the words the server
 // chose.
@@ -231,21 +271,13 @@ function ExtractionProgress(
     );
   }
   if (extraction.status === "running") {
-    return (
-      <Alert severity="info" icon={<CircularProgress size={20} />} role="status">
-        Reading the uploaded document. Answers found in it will appear here when it is done.
-      </Alert>
-    );
+    return <ReadingBar extraction={extraction} />;
   }
   if (extraction.status === "done") {
     return null;
   }
-  // Only `failed` is left here. Asking again lives with the other page actions; this only says why.
-  return (
-    <Alert severity="warning">
-      {extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it."}
-    </Alert>
-  );
+  // Only `failed` is left. The step that stopped carries the message.
+  return <ReadingBar extraction={extraction} />;
 }
 
 // The `sub:File` of a document's newest version. Older versions are its history and stay unshown.
@@ -418,7 +450,10 @@ function SubmissionView() {
   // asked for — the documents and the approvals — and a requirement can be conditional, so neither
   // can read it off the schema. Fetching it in each of them would ask the server the same question
   // twice and let the two disagree while one of the answers was still in flight.
-  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+  // Kept with the path it was read for, so a read that fails keeps the last good form of this page, and
+  // only of this page: dropping it would stop the polling and hide the progress of a reading still going.
+  const [loadedForm, setLoadedForm] = useState<{ path: string; form: SubmissionForm } | undefined>(undefined);
+  const form = loadedForm?.path === path ? loadedForm.form : undefined;
   const [formFailure, setFormFailure] = useState<string>();
   const [error, setError] = useState<string>();
   // Kept apart from `error`, which takes the whole page down: a retry that was refused has not stopped
@@ -441,13 +476,13 @@ function SubmissionView() {
     fetchForm(fetchUtil, path).then(
       next => {
         if (!cancelled) {
-          setForm(next);
+          setLoadedForm({ path, form: next });
           setFormFailure(undefined);
         }
       },
       (failure: unknown) => {
         if (!cancelled) {
-          setForm(undefined);
+          setLoadedForm(current => (current?.path === path ? current : undefined));
           setFormFailure(describeRequestFailure(failure));
         }
       }
@@ -525,7 +560,9 @@ function SubmissionView() {
 
   // Asking again starts the waiting over as well as the parse. Without resetting the count, a page that
   // had already given up on the last reading would show the new one as overdue the moment it began.
+  const [asking, setAsking] = useState(false);
   const askAgain = () => {
+    setAsking(true);
     setRetryError(undefined);
     // From the daemon when a parse failed, from the model when the document was read but the answers
     // were not: sending a perfectly good document to the daemon again would fix nothing.
@@ -536,7 +573,8 @@ function SubmissionView() {
       })
       // The refusal's own words: the engine says why it would not take this, and wrapping that in
       // "something went wrong" buries the one sentence worth reading.
-      .catch((e: unknown) => setRetryError(messageOf(e)));
+      .catch((e: unknown) => setRetryError(messageOf(e)))
+      .finally(() => setAsking(false));
   };
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
@@ -570,8 +608,9 @@ function SubmissionView() {
             />
           )
           : null}
-        {failed
-          ? <Button variant="outlined" onClick={askAgain}>Try again</Button>
+        {/* Only for whoever may still change the request: the server refuses anybody else */}
+        {failed && form.editable
+          ? <Button variant="outlined" disabled={asking} onClick={askAgain}>Try again</Button>
           : null}
         <ToggleButtonGroup
           exclusive

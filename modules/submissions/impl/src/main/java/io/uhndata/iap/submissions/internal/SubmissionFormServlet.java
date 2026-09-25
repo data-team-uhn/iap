@@ -54,8 +54,6 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
-import io.uhndata.iap.submissions.models.DocumentVersion;
-import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.DateUtils;
@@ -113,8 +111,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String EXTRACTION_MESSAGE = "extractionMessage";
 
-    /** What an upload's {@code parseStatus} says when the daemon never produced anything for it. */
-    private static final String PARSE_FAILED = "failed";
+    /** Set once a job has taken the reading, which is after every parse has been read in. */
+    private static final String READING_CLAIMED = "extractionReadingClaimed";
 
     /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
     private static final String READING_WORKFLOW = "readingWorkflow";
@@ -183,7 +181,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             // Whether anything reads the attached documents: a schema version that names a reading workflow
             // has answers filled in from them, one that names none never will. Without the difference the
             // view cannot tell a form waiting for its reading from one that is simply unanswered.
-            .add("readsDocuments", submission.getSchemaVersion().get(READING_WORKFLOW, String.class) != null)
+            .add("readsDocuments", version.get(READING_WORKFLOW, String.class) != null)
             .add("requirements", requirements);
         final JsonObjectBuilder extraction = extraction(submission);
         if (extraction != null) {
@@ -194,8 +192,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * Where reading the answers out of the attached documents got to, once it has started: the state the view
-     * shows a spinner or a banner for, the message that goes with it, and whether asking again would do
-     * anything. Written by the extraction system workflows,
+     * shows a progress bar or a banner for, the message that goes with it, and whether asking again would do
+     * anything. {@code parsed} and {@code reading} are the two moments the view can actually see: the daemon
+     * has answered, and a job has taken the reading. Written by the extraction system workflows,
      * read back here by name.
      *
      * @param submission the submission being read
@@ -212,32 +211,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         if (message != null) {
             json.add("message", message);
         }
-        json.add("retryable", hasFailedParse(submission));
+        json.add("retryable", ParseStatus.hasFailed(submission));
+        json.add("parsed", ParseStatus.isSettled(submission));
+        json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
         return json;
-    }
-
-    /**
-     * Whether any current upload is sitting on a failed parse, which is the one kind of failure asking again
-     * can do something about.
-     *
-     * <p>Not the same question as the reading having failed. A reading fails for reasons of its own - the model
-     * refusing or giving an answer that cannot be read - and sending the same document to the daemon a second
-     * time does nothing about any of them. This decides whether the view offers to try again, so it has to mean
-     * exactly the case where trying again is worth the click.</p>
-     *
-     * @param submission the submission being read
-     * @return {@code true} when at least one upload failed to parse
-     */
-    private static boolean hasFailedParse(final Submission submission)
-    {
-        for (final Document document : submission.getDocuments()) {
-            final DocumentVersion version = document.getCurrentVersion();
-            final File file = version == null ? null : version.getFile();
-            if (file != null && PARSE_FAILED.equals(file.getParseStatus())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
