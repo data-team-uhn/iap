@@ -49,10 +49,32 @@ public class Question extends FormItem
     private String dataType;
 
     @ValueMapValue
+    private Long minAnswers;
+
+    @ValueMapValue
+    private Long maxAnswers;
+
+    // Legacy flags, read only when the counts are absent
+    @ValueMapValue
     private boolean required;
 
     @ValueMapValue
     private boolean multiple;
+
+    @ValueMapValue
+    private Double minValue;
+
+    @ValueMapValue
+    private Double maxValue;
+
+    @ValueMapValue
+    private String pattern;
+
+    @ValueMapValue
+    private String patternMessage;
+
+    @ValueMapValue
+    private String optionsFrom;
 
     @ValueMapValue
     private String displayMode;
@@ -103,23 +125,119 @@ public class Question extends FormItem
     }
 
     /**
-     * Whether an answer must be provided before submitting.
+     * The fewest values an answer must give; {@code 0} or less asks for nothing. Falls back to the legacy
+     * {@code required} flag on questions written before the counts existed.
      *
-     * @return {@code true} if an answer is required
+     * @return the minimum number of values
      */
-    public boolean isRequired()
+    public long getMinAnswers()
     {
-        return this.required;
+        if (this.minAnswers != null) {
+            return this.minAnswers;
+        }
+        return this.required ? 1 : 0;
     }
 
     /**
-     * Whether more than one value may be provided.
+     * The most values an answer may give; {@code 0} or less allows any number. Falls back to the legacy
+     * {@code multiple} flag on questions written before the counts existed.
+     *
+     * @return the maximum number of values
+     */
+    public long getMaxAnswers()
+    {
+        if (this.maxAnswers != null) {
+            return this.maxAnswers;
+        }
+        return this.multiple ? 0 : 1;
+    }
+
+    /**
+     * Whether an answer must be provided before submitting: a reading of {@link #getMinAnswers()}.
+     *
+     * @return {@code true} if at least one value is required
+     */
+    public boolean isRequired()
+    {
+        return getMinAnswers() > 0;
+    }
+
+    /**
+     * Whether more than one value may be provided: a reading of {@link #getMaxAnswers()}.
      *
      * @return {@code true} if multiple values are allowed
      */
     public boolean isMultiple()
     {
-        return this.multiple;
+        return getMaxAnswers() != 1;
+    }
+
+    /**
+     * For numeric answers, the smallest value accepted.
+     *
+     * @return the smallest accepted value, or {@code null} when unbounded
+     */
+    @Nullable
+    public Double getMinValue()
+    {
+        return this.minValue;
+    }
+
+    /**
+     * For numeric answers, the largest value accepted.
+     *
+     * @return the largest accepted value, or {@code null} when unbounded
+     */
+    @Nullable
+    public Double getMaxValue()
+    {
+        return this.maxValue;
+    }
+
+    /**
+     * For text answers, a regular expression every value must match in full.
+     *
+     * @return the pattern, or {@code null} when anything is accepted
+     */
+    @Nullable
+    public String getPattern()
+    {
+        return this.pattern;
+    }
+
+    /**
+     * What the submitter is told when a value does not match {@link #getPattern() the pattern}.
+     *
+     * @return the message, or {@code null} when none is configured
+     */
+    @Nullable
+    public String getPatternMessage()
+    {
+        return this.patternMessage;
+    }
+
+    /**
+     * A content path whose live items are the answers this question offers, in place of child
+     * {@link AnswerOption} nodes.
+     *
+     * @return an absolute repository path, or {@code null} when the options, if any, are declared as children
+     */
+    @Nullable
+    public String getOptionsFrom()
+    {
+        return this.optionsFrom;
+    }
+
+    /**
+     * The answers this question offers as declared child nodes, in the order they are declared. A question
+     * offering none is answered freely, in whatever its {@link #getDataType() data type} accepts.
+     *
+     * @return the declared options, an empty list if there are none
+     */
+    @NotNull
+    public List<AnswerOption> getOptions()
+    {
+        return this.getChildren(AnswerOption.RESOURCE_TYPE, AnswerOption.class);
     }
 
     /**

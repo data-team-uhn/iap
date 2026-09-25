@@ -14,7 +14,7 @@
       "StudyTitle": {
         "jcr:primaryType": "sch:Question",
         "text": "What is the full title of the study?",
-        "required": true
+        "minAnswers": 1
       },
       "StudySummary": {
         "jcr:primaryType": "sch:Question",
