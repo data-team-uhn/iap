@@ -142,40 +142,42 @@ describe("AnswerProvenance", () => {
     expect(reject).toHaveBeenCalledWith(false);
   });
 
-  // Some sources carry no usable structure, so the link must not promise a spot it cannot reach
+  // Some sources carry no usable structure, so the control must not promise a spot it cannot reach
   it("offers only to search when the passage names no place", async () => {
     show({ passages: [ { quote: "Symptom diaries may be completed electronically.", source: PDF } ] });
 
     await userEvent.click(screen.getByRole("button", { name: /Symptom diaries/ }));
 
-    expect(screen.getByRole("link", { name: "Find in protocol" })).toHaveAttribute("href", PDF);
+    expect(screen.getByRole("button", { name: "Find in protocol" })).toBeInTheDocument();
   });
 
-  // The link goes to the document itself, at the page the quote sits on
+  // Opening shows the document in the viewer, at the page the quote sits on
   it("opens the document at the page the passage came from", async () => {
     show();
 
     await userEvent.click(screen.getByRole("button", { name: /pembrolizumab/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Open in protocol" }));
 
-    expect(screen.getByRole("link", { name: "Open in protocol" }))
-      .toHaveAttribute("href", `${PDF}#page=9`);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "p. 9 · §5.1 Study treatment" })).toBeInTheDocument();
   });
 
-  // A parse that produced no PDF leaves nothing to open, and a link that led nowhere would be worse
+  // A parse that produced no PDF leaves nothing to open, and a control that led nowhere would be worse
   // than none: it reads as though the document were one click away
   it("offers no link when the passage has no document behind it", async () => {
     show({ passages: [ { quote: "Symptom diaries may be completed electronically." } ] });
 
     await userEvent.click(screen.getByRole("button", { name: /Symptom diaries/ }));
 
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open in protocol" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Find in protocol" })).not.toBeInTheDocument();
   });
 
   it("shows nothing to open when the extraction offered no passage", () => {
     show({ passages: [] });
 
     expect(screen.getByText("AI found:")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open in protocol" })).not.toBeInTheDocument();
   });
 
   // The server verifies every passage against the document and sends the ones that held up, so
@@ -193,7 +195,7 @@ describe("AnswerProvenance", () => {
     expect(screen.getAllByText(/The first passage/)).toHaveLength(2);
     expect(screen.getByText(/The second passage/)).toBeInTheDocument();
     expect(screen.getByText("p. 7")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Open in protocol" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Open in protocol" })).toHaveLength(2);
   });
 
   it("says nothing about further passages when there is only the one", () => {

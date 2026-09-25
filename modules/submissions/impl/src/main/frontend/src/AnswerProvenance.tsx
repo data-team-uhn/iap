@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { Box, Button, Link, Typography } from "@mui/material";
 
+import PdfViewer from "./pdfViewer";
 import {
   type ProvenancePassage,
   type QuestionProvenance,
@@ -107,7 +108,7 @@ function ConfidenceChip() {
 // Every passage is shown, not just the first. The server verifies each one against the document and
 // sends the ones that held up, so a lane that showed one of three understated the evidence and left
 // the other two as payload nobody could see.
-function Quote({ passage }: { passage: ProvenancePassage }) {
+function Quote({ passage, onOpen }: { passage: ProvenancePassage; onOpen: (passage: ProvenancePassage) => void }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
@@ -119,7 +120,7 @@ function Quote({ passage }: { passage: ProvenancePassage }) {
             </Typography>
           )}
         {canOpen(passage) && (
-          <Link href={passage.source} target="_blank" rel="noopener" sx={{ fontSize: "0.78rem" }}>
+          <Link component="button" type="button" onClick={() => onOpen(passage)} sx={{ fontSize: "0.78rem" }}>
             {openLabel(passage)}
           </Link>
         )}
@@ -143,6 +144,7 @@ export default function AnswerProvenance(
   { provenance, value, onRejectEvidence }: AnswerProvenanceProps,
 ) {
   const [ open, setOpen ] = useState(false);
+  const [ shown, setShown ] = useState<ProvenancePassage | undefined>(undefined);
   const status = statusOf(provenance, value);
   const passage = leadPassage(provenance);
   const further = furtherPassagesLabel(provenance);
@@ -206,7 +208,9 @@ export default function AnswerProvenance(
               p: 1.5,
             }}
           >
-            {provenance.passages.map((each, index) => <Quote key={`${index}-${each.quote}`} passage={each} />)}
+            {provenance.passages.map((each, index) => (
+              <Quote key={`${index}-${each.quote}`} passage={each} onOpen={setShown} />
+            ))}
             {/* One verdict for the lane, not one per passage: the server records a single flag, and
                 asking about each quote separately would ask more of a reader than the report is worth. */}
             <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
@@ -241,6 +245,15 @@ export default function AnswerProvenance(
           </Box>
         )
         : null}
+      {shown?.source === undefined
+        ? null
+        : (
+          <PdfViewer
+            key={`${shown.source}:${shown.quote}`}
+            passage={shown}
+            onClose={() => setShown(undefined)}
+          />
+        )}
     </Box>
   );
 }

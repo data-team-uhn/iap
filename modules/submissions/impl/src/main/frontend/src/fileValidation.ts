@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { loadPdfjs } from "./pdfjsClient";
+
 // Checks an upload in the browser, before it is sent.
 //
 // This is here so a person finds out in a moment rather than after a slow upload and a parse, and so
@@ -53,15 +55,6 @@ export function fileExtension(fileName: string): string | undefined {
 // Math.round turned 50.2 MB into "is 50 MB, and the limit is 50 MB".
 function megabytes(bytes: number): number {
   return Math.ceil(bytes / (1024 * 1024));
-}
-
-// PDF.js parses in a web worker and refuses to open anything until told where the worker script is.
-// webpack emits that script under a fixed name beside the rest of the frontend (see the rule in
-// webpack.config-template.js); the URL below is what it rewrites to that location.
-async function loadPdfjs() {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
-  return pdfjs;
 }
 
 // PDF.js names this exception when a file will not open without a password. An empty password
