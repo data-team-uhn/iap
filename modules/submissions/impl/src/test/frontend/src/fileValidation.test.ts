@@ -29,15 +29,32 @@ import {
 // PDF.js and JSZip are loaded on demand, so the tests stand in for them rather than shipping real
 // files. What is under test is the rules, not those two libraries.
 // A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
-// because one byte cannot say 501.
+// because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password.
+const destroyed = vi.hoisted(() => ({ count: 0 }));
+
+// The [Content_Types].xml of an Office zip whose main part is of this kind
+function contentTypes(kind: string): string {
+  return `<Types><Override ContentType="application/vnd.openxmlformats-officedocument.${kind}.main+xml"/></Types>`;
+}
+
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
   getDocument: (args: { data: ArrayBuffer }) => {
     const bytes = new Uint8Array(args.data);
+    const destroy = () => {
+      destroyed.count++;
+      return Promise.resolve();
+    };
+    if (bytes[0] === 0x26) {
+      const locked = new Error("No password given");
+      locked.name = "PasswordException";
+      return { promise: Promise.reject(locked), destroy };
+    }
     return {
       promise: bytes[0] === 0x25
         ? Promise.resolve({ numPages: bytes[1] + (bytes[2] ?? 0) * 256 })
         : Promise.reject(new Error("not a pdf")),
+      destroy,
     };
   },
 }));
@@ -47,7 +64,11 @@ vi.mock("jszip", () => ({
     loadAsync: (file: File) => file.name.includes("broken")
       ? Promise.reject(new Error("not a zip"))
       : Promise.resolve({
-        file: (name: string) => file.name.includes("bare") ? null : { name },
+        file: (name: string) => file.name.includes("bare") ? null : {
+          name,
+          async: () => Promise.resolve(
+            contentTypes(file.name.includes("sheet") ? "spreadsheetml.sheet" : "wordprocessingml.document")),
+        },
       }),
   },
 }));
@@ -148,6 +169,12 @@ describe("what is inside the file", () => {
       .resolves.toMatch(/damaged, or it is not a PDF/);
   });
 
+  // An empty password opens without throwing, so this is only a file that genuinely needs one
+  it("refuses a PDF encrypted with a password", async () => {
+    await expect(validateUpload(upload("proposal.pdf", [ 0x26 ])))
+      .resolves.toMatch(/encrypted with a password/);
+  });
+
   it("accepts a PDF within the page limit", async () => {
     await expect(validateUpload(pdf(10))).resolves.toBeUndefined();
   });
@@ -192,5 +219,30 @@ describe("the limits themselves", () => {
     expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
     expect(MAX_PDF_PAGES).toBe(500);
     expect(ACCEPTED_EXTENSIONS).toEqual([ ".pdf", ".docx", ".doc" ]);
+  });
+
+  // Each check opens its own PDF.js worker holding the whole file, which has to go once it is done
+  it("lets go of the PDF it opened", async () => {
+    const before = destroyed.count;
+    await validateUpload(pdf(3));
+    await validateUpload(upload("locked.pdf", [ 0x26 ]));
+    expect(destroyed.count).toBe(before + 2);
+  });
+
+  // The main document's name is not fixed, so the content types are what say it is a Word document
+  it("refuses a zip whose content types name no Word document", async () => {
+    expect(await validateUpload(upload("budget-sheet.docx"))).toMatch(/not a Word document/);
+  });
+
+  // With no type from the browser, the name says what it is meant to be, and only an accepted kind passes
+  it("refuses an untyped file whose name is not an accepted kind", async () => {
+    expect(await validateUpload(upload("notes.xyz"), [ "application/pdf" ])).toMatch(/is not a/);
+    expect(await validateUpload(upload("proposal.pdf"), [ "application/pdf" ])).toBeUndefined();
+  });
+});
+
+describe("an untyped file with no extension", () => {
+  it("is refused where a type is asked for, since nothing says what it is", async () => {
+    expect(await validateUpload(upload("README"), [ "application/pdf" ])).toMatch(/is not a/);
   });
 });

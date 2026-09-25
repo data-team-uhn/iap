@@ -64,12 +64,19 @@ async function loadPdfjs() {
   return pdfjs;
 }
 
+// PDF.js names this exception when a file will not open without a password. An empty password
+// opens without throwing, so this is only a file that genuinely needs one.
+function isPasswordException(error: unknown): boolean {
+  return error instanceof Error && error.name === "PasswordException";
+}
+
 // Opens the PDF. A file PDF.js refuses is one the parser would refuse too, and counting its pages is
 // the only way to know the length before the upload.
 async function checkPdf(file: File): Promise<ContentCheck> {
   try {
     const pdfjs = await loadPdfjs();
     const data = await file.arrayBuffer();
+    // No password is passed. A file whose only password is empty opens; one that needs a password throws.
     const pdf = await pdfjs.getDocument({ data }).promise;
     if (pdf.numPages > MAX_PDF_PAGES) {
       return {
@@ -79,6 +86,9 @@ async function checkPdf(file: File): Promise<ContentCheck> {
     }
     return { valid: true };
   } catch (error) {
+    if (isPasswordException(error)) {
+      return { valid: false, error: "It is encrypted with a password." };
+    }
     // The same message covers a broken file and a PDF.js that could not start, so the cause goes to
     // the console where it can be told apart
     console.error("Could not check %s", file.name, error);
