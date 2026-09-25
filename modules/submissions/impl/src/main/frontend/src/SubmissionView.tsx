@@ -24,8 +24,8 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Divider,
+  LinearProgress,
   Link,
   Paper,
   Stack,
@@ -43,6 +43,7 @@ import TagChip from "@iap/tags/TagChip";
 import QuestionText from "./answers/QuestionText";
 import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
+import { PHASE_LABEL, READING_PHASES, phaseFor, segmentFills, type ReadingPhase } from "./readingProgress";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, FORM_REQUIREMENT, type ExtractionState, type FormItem,
@@ -67,6 +68,9 @@ const EXTRACTION_POLL_MS = 4000;
 // against a server that has stopped answering at all, which would otherwise poll for as long as the
 // tab is open.
 const EXTRACTION_POLL_LIMIT = (45 * 60 * 1000) / EXTRACTION_POLL_MS;
+
+// How often the bar inches forward. The phase math is in milliseconds, so a tick is this long.
+const READING_TICK_MS = 400;
 
 
 // A single-valued property is serialized as a bare string, not as a one-element array.
@@ -235,6 +239,73 @@ function AbortProcessing(
   );
 }
 
+// The four segments, filling on their own between the two moments the server does report: the parse
+// ending, and a job taking the reading. Past that, extracting and checking share one call.
+function ReadingBar({ extraction }: { extraction: ExtractionState }) {
+  const clock = useReadingClock(extraction);
+  const fills = segmentFills(clock.phase, clock.elapsedMs);
+  return (
+    <Alert severity="info" icon={false} role="status">
+      <Stack spacing={1} sx={{ width: "100%" }}>
+        <Typography variant="body2">
+          {PHASE_LABEL[clock.phase]}. Answers found in the document will appear here when this is done.
+        </Typography>
+        <Stack direction="row" spacing={0.5} aria-hidden>
+          {READING_PHASES.map((name, index) => (
+            <LinearProgress
+              key={name}
+              variant="determinate"
+              value={fills[index] ?? 0}
+              sx={{ flex: 1, height: 8, borderRadius: 1 }}
+            />
+          ))}
+        </Stack>
+        <Stack direction="row" spacing={0.5}>
+          {READING_PHASES.map(name => (
+            <Typography
+              key={name}
+              variant="caption"
+              sx={{
+                flex: 1,
+                textAlign: "center",
+                fontWeight: name === clock.phase ? "bold" : undefined,
+                color: name === clock.phase ? "text.primary" : "text.secondary",
+              }}
+            >
+              {PHASE_LABEL[name]}
+            </Typography>
+          ))}
+        </Stack>
+      </Stack>
+    </Alert>
+  );
+}
+
+// How long the current stage has been showing, and how long a job has held the reading. Both reset
+// when the stage changes, which is what lets the next segment start empty.
+function useReadingClock(extraction: ExtractionState): { phase: ReadingPhase; elapsedMs: number } {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(current => current + 1), READING_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const sinceReadingMs = useTicksSince(extraction.reading === true, tick) * READING_TICK_MS;
+  const phase = phaseFor(extraction, sinceReadingMs);
+  const elapsedMs = useTicksSince(phase, tick) * READING_TICK_MS;
+  return { phase, elapsedMs };
+}
+
+// How many ticks the current key has been the current one. Remembered on the render that the key
+// changes, so the segment starts empty without waiting for an effect.
+function useTicksSince(key: boolean | ReadingPhase, tick: number): number {
+  const [started, setStarted] = useState<{ key: boolean | ReadingPhase; tick: number }>({ key, tick });
+  if (started.key !== key) {
+    setStarted({ key, tick });
+  }
+  const from = started.key === key ? started.tick : tick;
+  return tick - from;
+}
+
 // Where reading the answers out of the uploaded documents got to. While it runs the page asks again
 // every few seconds; when it stops without answers the person is told why, in the words the server
 // chose.
@@ -251,11 +322,7 @@ function ExtractionProgress(
     );
   }
   if (extraction.status === "running") {
-    return (
-      <Alert severity="info" icon={<CircularProgress size={20} />} role="status">
-        Reading the uploaded document. Answers found in it will appear here when it is done.
-      </Alert>
-    );
+    return <ReadingBar extraction={extraction} />;
   }
   if (extraction.status === "done") {
     return null;

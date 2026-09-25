@@ -642,6 +642,28 @@ class SubmissionFormServletTest
         assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
     }
 
+    // The two moments the progress bar can see. A queued parse is still with the daemon; once it has
+    // been read in, and a job has claimed the reading, the bar moves on.
+    @Test
+    void saysWhetherTheParseAndTheReadingHaveStarted() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+        this.context.create().resource(SUBMISSION_PATH + "/d7", Map.of(TYPE, Document.RESOURCE_TYPE));
+        final String version = documentVersionWith("d7", null);
+        modify(version + "/file", "parseStatus", "queued");
+
+        JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+        assertFalse(extraction.getBoolean("parsed"));
+        assertFalse(extraction.getBoolean("reading"));
+
+        modify(version + "/file", "parseStatus", "completed");
+        modify(SUBMISSION_PATH, "extractionReadingClaimed", Boolean.TRUE);
+
+        extraction = form(REQUESTER).getJsonObject("extraction");
+        assertTrue(extraction.getBoolean("parsed"));
+        assertTrue(extraction.getBoolean("reading"));
+    }
+
     @Test
     void leavesOutWhatTheReadingHasNotSaidYet() throws IOException
     {

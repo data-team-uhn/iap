@@ -109,6 +109,12 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     /** What an upload's {@code parseStatus} says when the daemon never produced anything for it. */
     private static final String PARSE_FAILED = "failed";
 
+    /** What an upload's {@code parseStatus} says while the daemon has not answered yet. */
+    private static final String PARSE_QUEUED = "queued";
+
+    /** Set once a job has taken the reading, which is after every parse has been read in. */
+    private static final String READING_CLAIMED = "extractionReadingClaimed";
+
     /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
     private static final String READING_WORKFLOW = "readingWorkflow";
 
@@ -173,8 +179,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * Where reading the answers out of the attached documents got to, once it has started: the state the view
-     * shows a spinner or a banner for, the message that goes with it, and whether asking again would do
-     * anything. Written by the extraction system workflows,
+     * shows a progress bar or a banner for, the message that goes with it, and whether asking again would do
+     * anything. {@code parsed} and {@code reading} are the two moments the view can actually see: the daemon
+     * has answered, and a job has taken the reading. Written by the extraction system workflows,
      * read back here by name.
      *
      * @param submission the submission being read
@@ -192,6 +199,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             json.add("message", message);
         }
         json.add("retryable", hasFailedParse(submission));
+        json.add("parsed", parsesSettled(submission));
+        json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
         return json;
     }
 
@@ -217,6 +226,25 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             }
         }
         return false;
+    }
+
+    /**
+     * Whether every current upload has left the daemon. A file never sent has no status, which is not a parse
+     * still going; one still {@code queued} is.
+     *
+     * @param submission the submission being read
+     * @return {@code true} when no upload is waiting on the daemon
+     */
+    private static boolean parsesSettled(final Submission submission)
+    {
+        for (final Document document : submission.getDocuments()) {
+            final DocumentVersion version = document.getCurrentVersion();
+            final File file = version == null ? null : version.getFile();
+            if (file != null && PARSE_QUEUED.equals(file.getParseStatus())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -789,7 +789,7 @@ describe("SubmissionView", () => {
         await act(() => Promise.resolve());
         await act(() => Promise.resolve());
 
-        expect(screen.getByRole("status")).toHaveTextContent("Reading the uploaded document");
+        expect(screen.getByRole("status")).toHaveTextContent("Parsing");
         const before = fetchMock.mock.calls.length;
         await act(async () => {
           await vi.advanceTimersByTimeAsync(4000);

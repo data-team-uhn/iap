@@ -142,6 +142,11 @@ export interface ExtractionState {
   // again has to start from: a document the daemon never read has to go back to the daemon, while
   // one that parsed fine only needs the model asked again.
   retryable?: boolean;
+  // Whether every upload has left the daemon. The parse itself reports no progress, only this end.
+  parsed?: boolean;
+  // Whether a job has taken the reading, which is after the parse has been read in and before the
+  // model is asked. Absent on a form served before this was recorded.
+  reading?: boolean;
 }
 
 export interface SubmissionForm {
