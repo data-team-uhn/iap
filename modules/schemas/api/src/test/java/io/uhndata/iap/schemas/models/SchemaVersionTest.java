@@ -63,7 +63,7 @@ class SchemaVersionTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class,
             FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            SchemaVersion.class, WorkflowVersion.class);
+            Schema.class, SchemaVersion.class, WorkflowVersion.class);
     }
 
     @Test
@@ -80,13 +80,11 @@ class SchemaVersionTest
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0", Map.of(
             "sling:resourceType", SchemaVersion.RESOURCE_TYPE,
             "version", "1.0",
-            "description", "Initial version",
-            "active", true));
+            "description", "Initial version"));
         final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
 
         assertEquals("1.0", version.getVersion());
         assertEquals("Initial version", version.getDescription());
-        assertTrue(version.isActive());
     }
 
     @Test
@@ -147,5 +145,62 @@ class SchemaVersionTest
         assertEquals("consent", version.getDocumentRequirements().get(0).getName());
         assertEquals(1, version.getApprovalRequirements().size());
         assertEquals("reb", version.getApprovalRequirements().get(0).getName());
+    }
+
+    @Test
+    void readsItsStateFromItsLifecycleTag()
+    {
+        this.context.create().resource("/Schemas/schema", "sling:resourceType", Schema.RESOURCE_TYPE);
+        final Resource draft = this.version("2.0");
+        final Resource active = this.version("1.0");
+        final Resource retired = this.version("0.9");
+        Lifecycle.tag(this.context, Map.of(
+            draft.getPath(), "draft",
+            active.getPath(), "active",
+            retired.getPath(), "retired"));
+
+        final SchemaVersion d = draft.adaptTo(SchemaVersion.class);
+        assertEquals(LifecycleState.DRAFT, d.getState());
+        assertTrue(d.isDraft());
+        assertFalse(d.isActive());
+
+        final SchemaVersion a = active.adaptTo(SchemaVersion.class);
+        assertEquals(LifecycleState.ACTIVE, a.getState());
+        assertFalse(a.isDraft());
+        assertTrue(a.isActive());
+
+        final SchemaVersion r = retired.adaptTo(SchemaVersion.class);
+        assertEquals(LifecycleState.RETIRED, r.getState());
+        assertFalse(r.isActive());
+    }
+
+    @Test
+    void isNotActiveUnderARetiredSchema()
+    {
+        this.context.create().resource("/Schemas/schema", "sling:resourceType", Schema.RESOURCE_TYPE);
+        final Resource resource = this.version("1.0");
+        Lifecycle.tag(this.context, Map.of("/Schemas/schema", "retired", resource.getPath(), "active"));
+        final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
+
+        // Its own state is untouched, so reopening the schema brings it back as it was
+        assertEquals(LifecycleState.ACTIVE, version.getState());
+        assertFalse(version.isActive());
+    }
+
+    @Test
+    void readsAsRetiredWithoutALifecycleTag()
+    {
+        Lifecycle.tag(this.context, Map.of());
+        final SchemaVersion version = this.version("1.0").adaptTo(SchemaVersion.class);
+
+        assertEquals(LifecycleState.RETIRED, version.getState());
+        assertFalse(version.isDraft());
+        assertFalse(version.isActive());
+    }
+
+    private Resource version(final String name)
+    {
+        return this.context.create().resource("/Schemas/schema/" + name,
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE);
     }
 }

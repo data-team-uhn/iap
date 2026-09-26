@@ -48,13 +48,12 @@ const SCHEMAS = {
     "@path": "/Schemas/timeOffRequest",
     "@name": "timeOffRequest",
     "title": "Time off request",
-    "active": true,
     "v1": {
       "jcr:primaryType": "sch:SchemaVersion",
       "@path": "/Schemas/timeOffRequest/v1",
       "@name": "v1",
       "version": "1.0",
-      "active": true,
+      "tags": ["active"],
     },
   },
 };

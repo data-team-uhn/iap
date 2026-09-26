@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Time off request",
-  "active": true,
   "v1": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/timeOffRequest/v1",
     "description": "One day off, asked for and approved. The starting point the rest of the demo grows from.",
     "details": {

@@ -36,9 +36,9 @@ test.describe('the time off request demo', () => {
     const response = await request.get('/Schemas/timeOffRequest/v1.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { version?: string; active?: boolean };
+    const version = (await response.json()) as { version?: string; tags?: string[] };
     expect(version.version).toBe('1.0');
-    expect(version.active).toBe(true);
+    expect(version.tags).toContain('active');
   });
 
   test('asks which day is being taken off, and requires an answer', async ({ request }) => {
