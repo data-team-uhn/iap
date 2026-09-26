@@ -79,7 +79,7 @@ likewise true, and it is meaningful only on an attached event; on a free-standin
 
 ### What an executable graph carries
 
-Six properties exist for the engine rather than for the diagram, all set by hand today and by the BPMN
+Seven things exist for the engine rather than for the diagram, all set by hand today and by the BPMN
 parser once it exists:
 
 - **`messageName` on an event** is the domain event name it catches or throws, resolved from the BPMN
@@ -87,6 +87,11 @@ parser once it exists:
 - **`targetResourceType` on a version**, e.g. `wf/WorkflowsHomepage`, is the resource type whose events
   that version handles, which is how a workflow describing the platform's own behavior is found. User
   workflows need none: they are reached through the schema version that references them.
+- **A `cond:condition` on a start event** guards it: the workflow only starts when the condition holds for
+  the event's target, evaluated by the [conditions](conditions.md) module. This is how several system
+  workflows answer the same message in different states of the target, e.g. `activate` on a draft and on a
+  retired schema version, and how an event the target's state does not allow is refused. At most one guard
+  may hold at a time; two holding at once is a contradiction between definitions, and none holding is a 409.
 - **`performers` on a flow node** names the principals allowed to make execution pass through it — who
   may fire an event, and who may complete a user task. This is where authorization lives, because nobody
   holds repository rights on the content a workflow manages: the engine writes as its own service user,
@@ -108,7 +113,8 @@ parser once it exists:
   only job is to write it down. On any node rather than only on end events — on a user task it is the
   state the host is in for as long as that task waits, which is what lets a process move its host between
   states without finishing. Placing it retires whatever other tag the host carries in the same category,
-  since a lifecycle is a state rather than a growing pile of markers.
+  since a lifecycle is a state rather than a growing pile of markers. It is being replaced by the `addTag`
+  and `removeTag` service tasks below; today only a user workflow's end event honours it.
 
 ### The vocabulary
 
@@ -250,6 +256,23 @@ The one way around the engine is the `.import` extension, which forwards the req
 servlet. The repository still decides who may write, and on content the engine manages only an administrator
 can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
 schema with `POST /Schemas.import`.
+
+### Built-in service tasks
+
+A few handlers are the engine's own, because what they do is generic:
+
+| `handler` | Configuration | Does |
+| --- | --- | --- |
+| `createEntity` | `entityType` | Creates an entity of that type under the target, titled by the event's `title` |
+| `startWorkflow` | `workflowFrom` | Starts the user workflow a chain of references leads to, e.g. `schemaVersion/workflow` |
+| `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
+| `removeTag` | `tag` | Removes the tag |
+
+The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
+transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
+execution has created, once it has created something, and on the target otherwise, the same rule
+`startWorkflow` follows. They may place and remove `system` tags. Only tags placed on the host itself are
+touched; inherited or computed tags are unaffected.
 
 ## Sling Models
 

@@ -20,6 +20,7 @@
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
+<cond = 'https://iap.uhndata.io/cond/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -229,8 +230,9 @@
   - messageName (STRING)
 
 //-----------------------------------------------------------------------------
-// Entry point of a workflow process.
-[wf:StartEvent] > wf:Event
+// Entry point of a workflow process. Its optional cond:condition guards it: the
+// workflow only starts when the condition holds for the event's target.
+[wf:StartEvent] > wf:Event, cond:Conditionable
   query
 
   - sling:resourceType (STRING) = "wf/StartEvent" mandatory autocreated protected
