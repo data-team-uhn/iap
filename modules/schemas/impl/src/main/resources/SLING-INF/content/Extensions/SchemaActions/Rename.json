@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schema/actions",
+  "ext:name": "Rename the schema",
+  "ext:renderURL": "asset:iap-schemas.SchemaRenameAction.js",
+  "defaultOrder": 10
+}

@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schemaVersion/actions",
+  "ext:name": "Retire the version",
+  "ext:renderURL": "asset:iap-schemas.SchemaVersionRetireAction.js",
+  "defaultOrder": 30
+}

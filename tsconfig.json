@@ -29,6 +29,7 @@
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
       "@iap/llm/*": ["./modules/llm/src/main/frontend/src/*"],
       "@iap/login/*": ["./modules/login/src/main/frontend/src/*"],
+      "@iap/schemas/*": ["./modules/schemas/impl/src/main/frontend/src/*"],
       "@iap/stored-notifications/*": ["./modules/notifications/stored/src/main/frontend/src/*"],
       "@iap/submissions/*": ["./modules/submissions/impl/src/main/frontend/src/*"],
       // The test tree is a fallback so that other modules' tests can import the tag

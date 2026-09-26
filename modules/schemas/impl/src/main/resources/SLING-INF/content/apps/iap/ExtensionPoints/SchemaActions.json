@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "sch/schema/actions",
+  "ext:pointName": "Actions available on a schema"
+}
