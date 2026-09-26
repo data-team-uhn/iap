@@ -20,6 +20,7 @@ package io.uhndata.iap.schemas.models;
 import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
@@ -49,17 +50,13 @@ public class Question extends FormItem
     private String dataType;
 
     @ValueMapValue
-    private Long minAnswers;
+    private long minAnswers;
 
+    // Defaulted here too: the node type's default only reaches nodes created through JCR, and an absent
+    // maximum read as 0 would turn "one value" into "any number of values"
     @ValueMapValue
-    private Long maxAnswers;
-
-    // Legacy flags, read only when the counts are absent
-    @ValueMapValue
-    private boolean required;
-
-    @ValueMapValue
-    private boolean multiple;
+    @Default(longValues = 1)
+    private long maxAnswers;
 
     @ValueMapValue
     private Double minValue;
@@ -125,31 +122,23 @@ public class Question extends FormItem
     }
 
     /**
-     * The fewest values an answer must give; {@code 0} or less asks for nothing. Falls back to the legacy
-     * {@code required} flag on questions written before the counts existed.
+     * The fewest values an answer must give; {@code 0} or less asks for nothing.
      *
      * @return the minimum number of values
      */
     public long getMinAnswers()
     {
-        if (this.minAnswers != null) {
-            return this.minAnswers;
-        }
-        return this.required ? 1 : 0;
+        return this.minAnswers;
     }
 
     /**
-     * The most values an answer may give; {@code 0} or less allows any number. Falls back to the legacy
-     * {@code multiple} flag on questions written before the counts existed.
+     * The most values an answer may give; {@code 0} or less allows any number.
      *
      * @return the maximum number of values
      */
     public long getMaxAnswers()
     {
-        if (this.maxAnswers != null) {
-            return this.maxAnswers;
-        }
-        return this.multiple ? 0 : 1;
+        return this.maxAnswers;
     }
 
     /**

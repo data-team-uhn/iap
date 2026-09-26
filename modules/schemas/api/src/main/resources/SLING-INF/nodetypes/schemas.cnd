@@ -167,9 +167,6 @@
   // negative leaves that end unconstrained. (0,1) is an optional single value,
   // (1,1) a mandatory one, (2,4) "pick two to four". Falling short of the
   // minimum is incompleteness; exceeding the maximum refuses the save.
-  // Questions written before these existed carry the legacy `required` and
-  // `multiple` flags instead, which the model still reads when the counts are
-  // absent.
   - minAnswers (LONG) = '0' autocreated
   - maxAnswers (LONG) = '1' autocreated
 

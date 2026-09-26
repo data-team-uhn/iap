@@ -96,25 +96,6 @@ class QuestionTest
     }
 
     @Test
-    void readsTheLegacyFlagsWhenTheCountsAreAbsent()
-    {
-        final Question legacy = this.question("legacy", Map.of("required", true, "multiple", true));
-        assertEquals(1, legacy.getMinAnswers());
-        assertEquals(0, legacy.getMaxAnswers());
-        assertTrue(legacy.isRequired());
-        assertTrue(legacy.isMultiple());
-    }
-
-    @Test
-    void prefersTheCountsOverTheLegacyFlags()
-    {
-        final Question both = this.question("both",
-            Map.of("required", true, "multiple", true, "minAnswers", 0L, "maxAnswers", 1L));
-        assertFalse(both.isRequired());
-        assertFalse(both.isMultiple());
-    }
-
-    @Test
     void exposesTheValueConstraints()
     {
         final Question question = this.question("participants", Map.of(
