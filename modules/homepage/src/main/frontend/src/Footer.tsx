@@ -22,13 +22,13 @@ import FooterContent from "@iap/frontend-commons/components/FooterContent";
 
 // The standard page footer of the app shell. The content (affiliation logo, `iap/footer/link`
 // extensions, version and credits) lives in the shared FooterContent, also rendered by the
-// login page; this wrapper contributes the in-shell placement: the muted band, and client-side
+// login page; this wrapper contributes the in-shell placement: the tinted band, and client-side
 // routing for in-app links.
 // Registered on the `iap/coreUI/pageBottom` extension point, so it scrolls with the content.
 function Footer() {
   return (
     <FooterContent
-      sx={{ px: 3, py: 2, bgcolor: "background.muted" }}
+      sx={{ px: 3, py: 2, bgcolor: "background.tinted" }}
       internalLinkProps={(url: string) => ({ component: RouterLink, to: url })}
     />
   );

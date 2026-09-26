@@ -31,7 +31,7 @@ import AdminScreen from "./AdminScreen";
 // reach the console in the first place).
 function AdminDashboard() {
   return (
-    <AdminScreen>
+    <AdminScreen disablePanel>
       <WidgetDashboard
         point="AdminDashboard"
         empty={<Typography variant="placeholder">No administration tools are available.</Typography>}

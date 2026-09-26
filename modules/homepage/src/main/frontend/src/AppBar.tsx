@@ -49,7 +49,7 @@ function AppBar() {
       variant="dense"
       sx={{
         gap: 1,
-        bgcolor: "background.muted",
+        bgcolor: "background.tinted",
         // The dense 48px bar suits narrow screens; from sm up, open to the standard 64px
         minHeight: { sm: 64 },
       }}

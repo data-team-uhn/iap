@@ -122,18 +122,17 @@ Wrap the page in `AdminScreen`:
 </AdminScreen>
 ```
 
-Both props are optional; with no `title` it heads the page "Administration". The
-chrome marks the administrative area as a danger zone — a panel with a 2px
-`admin.main` border over a `background.admin` tint, hugging the tool's content, so the
-frame visibly belongs to what it encloses and scrolls with it. Title and main action
-sit *inside* the panel, since an action on administrative data belongs in the zone.
+The props are optional. `title` defaults to "Administration" if absent. The main
+action sits on the heading's row, a `description` saying what the tool is for
+goes under the heading, and a tool page's title carries a small "Admin" chip.
+The content sits on a `Panel`, a paper surface standing out against the page
+canvas. Content that brings its own surfaces passes `disablePanel` to lay out
+directly on the page instead (for example the console's landing page, whose
+widgets are panels themselves).
 
-The chrome adds no wayfinding of its own; that is the shell's
-[breadcrumb trail](ui-extensions.md#the-breadcrumb-trail) on `pageTop`. On a nested
-page the panel pulls itself up over the main region's top gutter
-(`--iap-content-gutter`) plus its own border, so the border lands on the trail's
-divider and attaches the trail to the zone visually. Top-level pages keep a normal
-margin.
+Wayfinding is the shell's
+[breadcrumb trail](ui-extensions.md#the-breadcrumb-trail) on `pageTop`, which the
+heading lines up with.
 
 ## Access control
 

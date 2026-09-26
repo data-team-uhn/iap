@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { Alert, Chip, Typography } from "@mui/material";
+import { Alert, Chip } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
@@ -43,6 +43,8 @@ function CaughtMailBrowser() {
   return (
     <AdminScreen
       title="Caught mail"
+      description={"What this instance would have emailed, filed here instead of being delivered. Open a "
+        + "message to read it as a recipient would have."}
       action={status !== null && (
         <Chip
           size="small"
@@ -51,10 +53,6 @@ function CaughtMailBrowser() {
         />
       )}
     >
-      <Typography variant="description" sx={{ mb: 2 }}>
-        What this instance would have emailed, filed here instead of being delivered. Open a message
-        to read it as a recipient would have.
-      </Typography>
       {status?.enabled === false && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Mail is being delivered normally, so nothing new will appear here. Switch the catcher on

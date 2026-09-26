@@ -18,79 +18,49 @@
 
 import type { ReactNode } from "react";
 
-import { Box, Stack, Typography } from "@mui/material";
-import { useLocation } from "react-router";
+import { Chip, Stack, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+
+import { chipStyle } from "@iap/frontend-commons/chipStyle";
+import Panel from "@iap/frontend-commons/components/Panel";
+
+// The theme's light-scheme error red; chipStyle adapts the text to either scheme.
+const ADMIN_RED = "#d32f2f";
 
 interface AdminScreenProps {
   // The name of the administrative tool this page hosts, e.g. "Submission categories". When unset
   // (the landing page itself), the page is headed "Administration".
   title?: string;
-  // An optional main action, e.g. a "New category" button, displayed at the top of the working
-  // panel - inside the marked administrative zone, where an action on administrative data belongs.
+  // An optional main action, e.g. a "New category" button, displayed beside the heading.
   action?: ReactNode;
+  // An optional line under the heading saying what the tool is for.
+  description?: ReactNode;
+  // Lays the content directly on the page rather than on a panel, for content that brings its own
+  // surfaces (e.g. the landing page's widgets).
+  disablePanel?: boolean;
   // The tool's page content.
   children?: ReactNode;
 }
 
-// The shared chrome wrapping every page of the administration console: the page heading and an
-// optional main action, above the tool's content. Deliberately borderless and breadcrumb-free:
-// the page sits directly on the background, and wayfinding is left to the shell (the breadcrumb
-// extension on the pageTop extension point).
-function AdminScreen({ title, action, children }: AdminScreenProps) {
-  // On a nested page (deeper than one level) the shell's breadcrumb trail renders right above
-  // the content; the working panel pulls itself up over the main region's top gutter (published
-  // by the shell as --iap-content-gutter) plus its own 2px border, so the red border lands
-  // exactly on the trail's divider line, visually attaching the trail to the zone. Top-level
-  // pages (like the console's landing page) have no trail and keep a normal top margin instead.
-  const { pathname } = useLocation();
-  const nested = pathname.replace(/\/+$/, "").split("/").filter(Boolean).length > 1;
-  const collapseOntoTrail = nested
-    ? { mt: "calc(-1 * var(--iap-content-gutter) - 2px)" }
-    : { mt: 2 };
-
-  // The admin widget container carries the whole "more responsibility here" signal: a
-  // red border hugging a muted primary tint, on an otherwise plain page. Keeping both on the
-  // panel (rather than on the page shell) means the frame visibly belongs to the content it
-  // encloses and naturally scrolls with it, and the tint gives the tool's surfaces (category
-  // cards, widgets) something to stand out against.
-  //
-  // A tool's title and main action live inside the panel, beside each other: the action acts on
-  // administrative data, so it belongs in the zone, and the breadcrumb trail above already
-  // provides the outside-the-zone wayfinding. The console's landing page instead keeps its
-  // "Administration" heading outside, introducing the zone as a whole.
-  const heading = <Typography variant="pageTitle">{title ?? "Administration"}</Typography>;
-
+// The shared chrome of every page of the administration console: the page heading, with an optional
+// main action beside it, above the tool's content on a panel. Wayfinding is left to the shell (the
+// breadcrumb extension on the pageTop extension point).
+function AdminScreen({ title, action, description, disablePanel, children }: AdminScreenProps) {
+  const theme = useTheme();
   return (
-    <Box sx={collapseOntoTrail}>
-      { !title && heading }
-      <Box
-        sx={{
-          mt: title ? 0 : 3,
-          p: 3,
-          border: 2,
-          borderColor: "admin.main",
-          borderRadius: 2,
-          bgcolor: "background.admin",
-        }}
-      >
-        { (title !== undefined || action !== undefined)
-          && (
-            <Stack
-              direction="row"
-              sx={{
-                justifyContent: title ? "space-between" : "flex-end",
-                alignItems: "center",
-                gap: 2,
-                mb: 3,
-              }}
-            >
-              { title && heading }
-              {action}
-            </Stack>
-          )}
-        {children}
-      </Box>
-    </Box>
+    <>
+      <Stack sx={{ gap: 1, mb: 3 }}>
+        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+            <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
+            { title && <Chip size="small" label="Admin" sx={chipStyle(theme, ADMIN_RED)} /> }
+          </Stack>
+          {action}
+        </Stack>
+        { description && <Typography variant="description">{description}</Typography> }
+      </Stack>
+      {disablePanel ? children : <Panel>{children}</Panel>}
+    </>
   );
 }
 

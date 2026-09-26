@@ -20,53 +20,64 @@ import type { ReactElement } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
-// The screen reads the current URL to decide its top spacing, so it needs a router around it; the
-// title's semantic element comes from the app theme's `pageTitle` variant mapping, so it needs
-// the real theme too.
-const renderAt = (url: string, ui: ReactElement) =>
-  render(
-    <ThemeProvider theme={appTheme}>
-      <MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>
-    </ThemeProvider>
-  );
+// The title's semantic element comes from the app theme's `pageTitle` variant mapping, so the
+// screen needs the real theme around it.
+const renderScreen = (ui: ReactElement) => render(<ThemeProvider theme={appTheme}>{ui}</ThemeProvider>);
 
 describe("AdminScreen", () => {
   it("titles the landing page itself when no tool title is given", () => {
-    renderAt("/admin", <AdminScreen>content</AdminScreen>);
+    renderScreen(<AdminScreen>content</AdminScreen>);
 
-    expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Administration" })).toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
   it("titles a tool page with its name, without any breadcrumb chrome", () => {
-    renderAt("/admin/categories", <AdminScreen title="Submission categories">tool content</AdminScreen>);
+    renderScreen(<AdminScreen title="Submission categories">tool content</AdminScreen>);
 
-    expect(screen.getByRole("heading", { name: "Submission categories" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Submission categories" })).toBeInTheDocument();
     expect(screen.getByText("tool content")).toBeInTheDocument();
     // Wayfinding is left to the shell, so the screen itself renders no links back to the console
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("displays the main action inside the working panel", () => {
-    renderAt("/admin/categories",
-      <AdminScreen title="Some tool" action={<button>New thing</button>}>content</AdminScreen>);
+  it("flags a tool's page as administrative beside its title, but not the landing page", () => {
+    const { unmount } = renderScreen(<AdminScreen title="Some tool">content</AdminScreen>);
+    expect(screen.getByText("Admin")).toBeInTheDocument();
+    unmount();
 
-    const actionButton = screen.getByRole("button", { name: "New thing" });
-    // The action acts on administrative data, so it shares the marked panel with the content
-    expect(actionButton.closest("div")?.parentElement).toContainElement(screen.getByText("content"));
+    renderScreen(<AdminScreen>content</AdminScreen>);
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
   });
 
-  it("keeps the action alone on its row when the panel has no title", () => {
-    renderAt("/admin/categories",
-      <AdminScreen action={<button>New thing</button>}>content</AdminScreen>);
+  it("describes the tool under its title, outside the panel", () => {
+    renderScreen(<AdminScreen title="Some tool" description="What it is for"><span>content</span></AdminScreen>);
 
-    // Nothing to sit opposite, so the row pushes the action to its end instead of spreading
-    const row = screen.getByRole("button", { name: "New thing" }).closest("div");
-    expect(getComputedStyle(row as Element).justifyContent).toBe("flex-end");
+    expect(screen.getByText("What it is for").closest(".MuiPaper-root")).toBeNull();
+    expect(screen.getByText("content").closest(".MuiPaper-root")).not.toBeNull();
+  });
+
+  it("sets the content on a panel", () => {
+    renderScreen(<AdminScreen title="Some tool"><span>content</span></AdminScreen>);
+
+    expect(screen.getByText("content").closest(".MuiPaper-root")).not.toBeNull();
+  });
+
+  it("lays the content directly on the page when the panel is disabled", () => {
+    renderScreen(<AdminScreen title="Some tool" disablePanel><span>content</span></AdminScreen>);
+
+    expect(screen.getByText("content").closest(".MuiPaper-root")).toBeNull();
+  });
+
+  it("displays the main action on the heading's row", () => {
+    renderScreen(<AdminScreen title="Some tool" action={<button>New thing</button>}>content</AdminScreen>);
+
+    const row = screen.getByRole("heading", { name: "Some tool" }).parentElement?.parentElement;
+    expect(row).toContainElement(screen.getByRole("button", { name: "New thing" }));
+    expect(row).not.toContainElement(screen.getByText("content"));
   });
 });

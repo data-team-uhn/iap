@@ -18,7 +18,7 @@
 
 import { useMemo, useState } from "react";
 
-import { FormControlLabel, Switch, Typography } from "@mui/material";
+import { FormControlLabel, Switch } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
@@ -53,6 +53,8 @@ function LoggedErrorsBrowser() {
   return (
     <AdminScreen
       title="Recorded errors"
+      description={"Faults the instance could not deal with on its own. Each row is one distinct fault, however "
+        + "many times it has happened; open one to see the details and record what you decided."}
       action={
         <FormControlLabel
           control={
@@ -65,10 +67,6 @@ function LoggedErrorsBrowser() {
         />
       }
     >
-      <Typography variant="description" sx={{ mb: 2 }}>
-        Faults the instance could not deal with on its own. Each row is one distinct fault, however
-        many times it has happened; open one to see the details and record what you decided.
-      </Typography>
       <EntityDataGrid
         entityType={LOGGED_ERROR_TYPE}
         filters={filters}

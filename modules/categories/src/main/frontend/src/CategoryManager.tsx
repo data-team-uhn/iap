@@ -139,6 +139,7 @@ function CategoryManager() {
           New category
         </Button>
       }
+      disablePanel
     >
       <LoadingOverlay open={loading} />
       { /* Reported above the tree rather than in place of it: reloading follows every write too,

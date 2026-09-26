@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 
+import { appTheme } from "@iap/frontend-commons/appTheme";
 import Widget from "@iap/frontend-commons/components/Widget";
 
 describe("Widget", () => {
@@ -54,6 +56,26 @@ describe("Widget", () => {
 
     expect(screen.getByText("body").closest(".MuiPaper-root")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Highlighted" })).toBeInTheDocument();
+  });
+
+  describe("surface tint", () => {
+    // The tint is a colour of the app theme, so these renders need the real theme around them
+    const surface = (props: { emphasis?: boolean; borderless?: boolean }) => {
+      const { container, unmount } = render(
+        <ThemeProvider theme={appTheme}><Widget {...props}><div>body</div></Widget></ThemeProvider>
+      );
+      const color = getComputedStyle(container.firstElementChild!).backgroundColor;
+      unmount();
+      return color;
+    };
+
+    it("tints an emphasised widget", () => {
+      expect(surface({ emphasis: true })).not.toBe(surface({}));
+    });
+
+    it("drops the fill, tint included, when borderless", () => {
+      expect(surface({ emphasis: true, borderless: true })).toBe("rgba(0, 0, 0, 0)");
+    });
   });
 
   it("does not render the header when hideHeader is set", () => {

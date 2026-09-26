@@ -67,7 +67,7 @@ export default function LoginPage() {
   const signInHeading = meta("signInHeading") ?? "Continue with institutional credentials";
 
   return (
-    <Box sx={{ minBlockSize: "100dvh", display: "flex", flexDirection: "column" }}>
+    <Box sx={{ minBlockSize: "100dvh", display: "flex", flexDirection: "column", bgcolor: "background.paper" }}>
       <PreLoginExtensions />
       <Box
         sx={{
@@ -100,8 +100,8 @@ export default function LoginPage() {
         >
           { /* A small pointer from the brand panel toward the sign-in action, centered on the
                heading's alignment line. The outer triangle is filled with the seam colour and
-               the two inner layers (the page background, then the panel's translucent muted
-               tint, reproducing the panel's colour opaquely) are clipped slightly smaller, so
+               the two inner layers (the paper, then the panel's translucent muted tint,
+               reproducing the panel's colour opaquely) are clipped slightly smaller, so
                the pointer wears the seam as its edge instead of interrupting it. */ }
           <Box
             aria-hidden="true"
@@ -126,7 +126,7 @@ export default function LoginPage() {
                 clipPath: "polygon(0 1.4px, 0 calc(100% - 1.4px), calc(100% - 1.4px) 50%)",
               },
               "&::before": {
-                bgcolor: "background.default",
+                bgcolor: "background.paper",
               },
               "&::after": {
                 bgcolor: "background.muted",

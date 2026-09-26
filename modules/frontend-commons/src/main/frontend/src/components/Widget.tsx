@@ -19,13 +19,12 @@
 import { type ReactNode } from "react";
 
 import { Box, Paper, Stack, Typography } from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 
 // The surface every dashboard widget sits on. Styling lives here (driven by theme tokens) rather
 // than in the dashboard layout, so the widget frame can grow more elaborate without cluttering the
-// tiling logic, and so all widgets stay visually consistent. An emphasised widget gets a primary-
-// tinted surface (relative to the palette, so it reads correctly in both schemes); a borderless
-// widget drops its border and fill to sit seamlessly on the page.
+// tiling logic, and so all widgets stay visually consistent. An emphasised widget sits on the
+// theme's tinted surface; a borderless widget drops its fill to sit seamlessly on the page.
 const WidgetSurface = styled(Paper, {
   shouldForwardProp: prop => prop !== "emphasis" && prop !== "borderless",
 })<{ emphasis?: boolean; borderless?: boolean }>(({ theme, emphasis, borderless }) => ({
@@ -33,14 +32,10 @@ const WidgetSurface = styled(Paper, {
   // Fill the grid cell so widgets sharing a row are the same height (the grid stretches the cells;
   // this makes the surface stretch to match).
   height: "100%",
-  ...(emphasis && {
-    backgroundColor: alpha(theme.palette.primary.main, 0.08),
-    borderColor: alpha(theme.palette.primary.main, 0.4),
-  }),
-  ...(borderless && {
-    border: "none",
-    backgroundColor: "transparent",
-  }),
+  // The fill against the page canvas is what sets a widget apart
+  border: "none",
+  ...(emphasis && { backgroundColor: (theme.vars ?? theme).palette.background.tinted }),
+  ...(borderless && { backgroundColor: "transparent" }),
 }));
 
 interface WidgetProps {
@@ -53,7 +48,7 @@ interface WidgetProps {
   action?: ReactNode;
   // When true, the widget is rendered on a tinted surface to draw attention to it.
   emphasis?: boolean;
-  // When true, the widget has no border or surface fill and blends into the page background.
+  // When true, the widget has no surface fill and blends into the page background.
   borderless?: boolean;
   // When true, the title/subtitle header is not rendered (the widget supplies its own chrome),
   // and neither is the action.

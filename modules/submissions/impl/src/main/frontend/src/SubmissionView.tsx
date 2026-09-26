@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Box, Divider, Link, Stack, Typography } from "@mui/material";
 import { Link as RouterLink, useLocation } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
@@ -104,17 +105,6 @@ function FormItems({ container, answers, level }: { container: JsonNode; answers
         return null;
       })}
     </Stack>
-  );
-}
-
-// One titled block of the view, rendered as an outlined surface.
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="h6" gutterBottom>{title}</Typography>
-      {subtitle ? <Typography variant="description" gutterBottom>{subtitle}</Typography> : null}
-      {children}
-    </Paper>
   );
 }
 
@@ -264,24 +254,24 @@ function SubmissionView() {
         </Typography>
       </Box>
       {forms.map((form, index) => (
-        <Section
+        <Panel
           key={"form-" + index}
           title={String(form.label ?? form["@name"])}
           subtitle={form.description ? formatValue(form.description) : undefined}
         >
           <FormItems container={form} answers={answers} level={0} />
-        </Section>
+        </Panel>
       ))}
-      <Section title="Documents">
+      <Panel title="Documents">
         {documents.length > 0
           ? <Documents documents={documents} />
           : <Typography variant="placeholder">{missingDocuments}</Typography>}
-      </Section>
-      <Section title="Reviews">
+      </Panel>
+      <Panel title="Reviews">
         {reviews.length > 0
           ? <Reviews reviews={reviews} />
           : <Typography variant="placeholder">No reviews yet</Typography>}
-      </Section>
+      </Panel>
     </Stack>
   );
 }
