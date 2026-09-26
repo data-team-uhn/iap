@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -95,12 +96,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
         // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
         // is recorded here, and would otherwise refuse the person who raised the request
         final String actor = UserIds.canonical(target.getResourceResolver());
-        try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
+        try (ResourceResolver serviceResolver = serviceResolver()) {
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
-            final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
-                "A target the caller could reach is always visible to the engine");
+            final Resource privilegedTarget = privileged(serviceResolver, target);
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
@@ -108,9 +107,50 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
             PerformerCheck.verify(serviceResolver, start, actor);
             return execute(privilegedTarget, event, start, actor);
+        }
+    }
+
+    @Override
+    public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
+    {
+        final String actor = UserIds.canonical(target.getResourceResolver());
+        try (ResourceResolver serviceResolver = serviceResolver()) {
+            final Resource privilegedTarget = privileged(serviceResolver, target);
+            if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
+                return TaskCompletion.availableEvents(privilegedTarget, PerformerCheck.of(serviceResolver, actor));
+            }
+            return SystemWorkflowLocator.availableEvents(serviceResolver, privilegedTarget, this.conditionEvaluator,
+                PerformerCheck.of(serviceResolver, actor));
+        }
+    }
+
+    /**
+     * Opens the engine's own session.
+     *
+     * @return a service resource resolver, to be closed by the caller
+     * @throws WorkflowFailedException when the service user is not available
+     */
+    private ResourceResolver serviceResolver() throws WorkflowFailedException
+    {
+        try {
+            return this.resolverFactory
+                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
         } catch (final LoginException e) {
             throw new WorkflowFailedException("The workflow engine's service user is not available", e);
         }
+    }
+
+    /**
+     * The target as the engine sees it.
+     *
+     * @param serviceResolver the engine's own session
+     * @param target the target as the caller sees it
+     * @return the same resource, backed by the engine's session
+     */
+    private Resource privileged(final ResourceResolver serviceResolver, final Resource target)
+    {
+        return Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
+            "A target the caller could reach is always visible to the engine");
     }
 
     /**

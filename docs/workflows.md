@@ -257,6 +257,20 @@ servlet. The repository still decides who may write, and on content the engine m
 can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
 schema with `POST /Schemas.import`.
 
+### Available events
+
+`WorkflowEngine.getAvailableEvents(resource)` answers what the asking user could send to a resource right now:
+on a task, `complete` while it is open and its activity names them; anywhere else, the message of every system
+start event for the resource's type whose guard holds and whose `performers` admit them. It is the same
+matching and the same performer check an event goes through, asked without sending one, so a frontend decides
+what to offer from the workflows rather than from a copy of their rules.
+
+Available means the engine would take the event, not that it will succeed: the payload can still be invalid,
+and a step can still refuse, as a publish check refusing an incomplete schema would.
+
+Over HTTP it is the `events` serialization processor, off by default: `GET /Schemas.1.simple.events.json` adds
+`@events` to the homepage and to each schema, which is how a listing learns its rows' actions in one request.
+
 ### Built-in service tasks
 
 A few handlers are the engine's own, because what they do is generic:
