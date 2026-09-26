@@ -7,7 +7,7 @@ Submitters pick from a tree of categories phrased in their own language rather t
 naming a schema. The leaf they land on carries the schema version governing their
 submission, and through it the workflow it follows.
 
-The module contributes node types, two models, the `retired` tag, and the admin UI.
+The module contributes node types, two models, and the admin UI.
 It ships no categories — the taxonomy is a deployment's own content. `test-data`
 loads a sample one.
 
@@ -43,11 +43,12 @@ position and reordering computes against the wrong neighbour. Nothing enforces t
 ## Retirement
 
 Retiring closes a category to new submissions while existing ones keep referencing
-it. It is the inheritable `retired` tag (`content/Tags/retired.json`,
-`targetResourceTypes: ["cat/Category"]`), not a property — the repository
+it. It is the inheritable `retired` tag, not a property — the repository
 materializes an inheritable tag onto the whole subtree at commit time, so "this
 category and its subcategories" is enforced rather than promised, and "everything
-currently closed" is a query rather than a tree walk.
+currently closed" is a query rather than a tree walk. The definition is shared with
+schema lifecycles, so it ships with `schemas/api` (`content/Tags/retired.json`),
+which categories already depend on.
 
 Which property the tag arrives in tells the two states apart, in Java
 (`hasTag`/`hasOwnTag`) and in the frontend (`inheritedTags`/`tags`):

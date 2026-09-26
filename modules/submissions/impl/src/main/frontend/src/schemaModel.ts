@@ -65,6 +65,12 @@ function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
         && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
+// Lifecycle states are tags placed on the node itself
+function hasTag(node: JsonNode, tag: string): boolean {
+  const tags = node.tags;
+  return Array.isArray(tags) && tags.includes(tag);
+}
+
 // An empty string is not a value here. `title` is mandatory in the CND and Oak still permits it,
 // so a caller's `?? fallback` has to fire on one.
 function text(node: JsonNode, key: string): string | undefined {
@@ -73,23 +79,23 @@ function text(node: JsonNode, key: string): string | undefined {
 }
 
 /**
- * The schemas a submission may be raised against: those marked active, each paired with its active
- * version. Both halves have to be active: a retired version of a live schema is no more open than a
+ * The schemas a submission may be raised against: those not retired, each paired with its active
+ * version. Both halves have to be open: a retired version of a live schema is no more open than a
  * live version of a retired one.
  *
  * The server already leaves retired ones out, so this normally has nothing to do. It is checked
  * again because that filtering is a serialization default, switchable off per request. Reading the
- * flag we were given beats assuming which processors ran.
+ * tags we were given beats assuming which processors ran.
  *
  * @param tree a `/Schemas` listing, serialized to the depth `SCHEMAS_URL` asks for
  * @returns what may be picked, in the order the schemas were served
  */
 export function schemaChoices(tree: JsonNode): SchemaChoice[] {
   return childNodes(tree, SCHEMA_PRIMARY_TYPE)
-    .filter(schema => schema.active === true)
+    .filter(schema => !hasTag(schema, "retired"))
     .flatMap(schema => {
       const version = childNodes(schema, SCHEMA_VERSION_PRIMARY_TYPE)
-        .find(candidate => candidate.active === true);
+        .find(candidate => hasTag(candidate, "active"));
       if (!version) {
         return [];
       }

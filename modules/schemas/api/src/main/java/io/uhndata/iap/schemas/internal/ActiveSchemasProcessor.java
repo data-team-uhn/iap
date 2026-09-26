@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.function.Function;
 
 import javax.jcr.Node;
+import javax.jcr.Property;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import jakarta.json.JsonValue;
 
@@ -36,7 +38,8 @@ import io.uhndata.iap.schemas.models.SchemasHomepage;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Leaves retired schemas and schema versions out of the schema tree's serialization. The name of this processor is
+ * Leaves closed schemas and schema versions out of the schema tree's serialization: a schema carrying the
+ * {@code retired} lifecycle tag, and a version not carrying {@code active}. The name of this processor is
  * {@code active}, and it is enabled by default; ask for {@code -active} to see everything.
  *
  * <p>Anyone choosing what to submit against reads this tree, and a retired schema is not something they may
@@ -47,8 +50,9 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  * it by path already knows which one they want, and somebody has to be able to read one in order to bring it
  * back. What disappears is the retired schema in a listing, and the retired version in a listing of versions.</p>
  *
- * <p>Absent counts as retired, because that is what the node type says: {@code active} defaults to {@code false},
- * so a schema is something someone deliberately opens rather than something that arrives open.</p>
+ * <p>Only the tags placed on the child itself count. A schema is open unless retired, so one without lifecycle
+ * tags is kept; a version is closed until made active, so one without them is left out. A version also inherits
+ * its schema's retirement, but a retired schema is already gone from any listing that would hold it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,15 +64,23 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     private static final List<String> SERIALIZED_TREES =
         List.of(SchemasHomepage.RESOURCE_TYPE, Schema.RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
 
-    /** The node types whose retirement this hides; anything else a schema holds is none of its business. */
-    private static final List<String> RETIRABLE = List.of("sch:Schema", "sch:SchemaVersion");
+    private static final String NAME = "active";
 
-    private static final String ACTIVE = "active";
+    private static final String SCHEMA_TYPE = "sch:Schema";
+
+    private static final String VERSION_TYPE = "sch:SchemaVersion";
+
+    /** The property holding the names of the tags placed on a node. */
+    private static final String TAGS_PROPERTY = "tags";
+
+    private static final String ACTIVE_TAG = "active";
+
+    private static final String RETIRED_TAG = "retired";
 
     @Override
     public String getName()
     {
-        return ACTIVE;
+        return NAME;
     }
 
     @Override
@@ -101,7 +113,7 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
 
     /**
      * Whether a child belongs in the serialization. Everything that is not a schema or a version is not filtered.
-     * Schemas and schema versions are discarded if they are not active.
+     * A schema is discarded if it is retired, and a version unless it is active.
      *
      * <p>A child that cannot be read is kept. Hiding a schema that is in fact open would leave a submitter
      * with nothing to choose and no way to tell why. Keeping a retired one costs at most a refusal from the
@@ -113,14 +125,40 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     private static boolean isOffered(final Node child)
     {
         try {
-            for (final String type : RETIRABLE) {
-                if (child.isNodeType(type)) {
-                    return child.hasProperty(ACTIVE) && child.getProperty(ACTIVE).getBoolean();
-                }
+            if (child.isNodeType(SCHEMA_TYPE)) {
+                return !hasOwnTag(child, RETIRED_TAG);
+            }
+            if (child.isNodeType(VERSION_TYPE)) {
+                return hasOwnTag(child, ACTIVE_TAG);
             }
             return true;
         } catch (final RepositoryException e) {
             return true;
         }
+    }
+
+    /**
+     * Whether a tag is placed on a node itself, read from its {@code tags} property, multivalued or not.
+     *
+     * @param node the node to look at
+     * @param tag the tag name
+     * @return {@code true} if the node's own tags include it
+     * @throws RepositoryException when the property cannot be read
+     */
+    private static boolean hasOwnTag(final Node node, final String tag) throws RepositoryException
+    {
+        if (!node.hasProperty(TAGS_PROPERTY)) {
+            return false;
+        }
+        final Property tags = node.getProperty(TAGS_PROPERTY);
+        if (!tags.isMultiple()) {
+            return tag.equals(tags.getString());
+        }
+        for (final Value value : tags.getValues()) {
+            if (tag.equals(value.getString())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -31,15 +31,23 @@ describe("schemaChoices", () => {
   });
 
   it("offers nothing for a retired schema, whatever its versions say", () => {
-    const retired = { s: { ...SCHEMAS.timeOffRequest, active: false } };
+    const retired = { s: { ...SCHEMAS.timeOffRequest, tags: [ "retired" ] } };
 
     expect(schemaChoices(retired)).toEqual([]);
   });
 
   it("offers nothing for a live schema whose versions are all retired", () => {
-    const noVersion = { s: { ...SCHEMAS.timeOffRequest, v1: { ...SCHEMAS.timeOffRequest.v1, active: false } } };
+    const noVersion = { s: { ...SCHEMAS.timeOffRequest, v1: { ...SCHEMAS.timeOffRequest.v1, tags: [ "retired" ] } } };
 
     expect(schemaChoices(noVersion)).toEqual([]);
+  });
+
+  it("offers nothing for a version that is still a draft, or carries no lifecycle tag", () => {
+    const draft = { s: { ...SCHEMAS.timeOffRequest, v1: { ...SCHEMAS.timeOffRequest.v1, tags: [ "draft" ] } } };
+    const untagged = { s: { ...SCHEMAS.timeOffRequest, v1: { ...SCHEMAS.timeOffRequest.v1, tags: undefined } } };
+
+    expect(schemaChoices(draft)).toEqual([]);
+    expect(schemaChoices(untagged)).toEqual([]);
   });
 
   it("falls back to the node name for a schema with no title", () => {
@@ -56,7 +64,7 @@ describe("schemaChoices", () => {
   it("passes over a child of the homepage that is not a schema", () => {
     const alien = {
       s: SCHEMAS.timeOffRequest,
-      "rep:policy": { "jcr:primaryType": "rep:ACL", "@path": "/Schemas/rep:policy", "active": true },
+      "rep:policy": { "jcr:primaryType": "rep:ACL", "@path": "/Schemas/rep:policy", "tags": [ "active" ] },
     };
 
     expect(schemaChoices(alien).map(choice => choice.path)).toEqual([ "/Schemas/timeOffRequest/v1" ]);
@@ -66,11 +74,11 @@ describe("schemaChoices", () => {
     const withNotes = {
       s: {
         ...SCHEMAS.timeOffRequest,
-        v1: { ...SCHEMAS.timeOffRequest.v1, active: false },
+        v1: { ...SCHEMAS.timeOffRequest.v1, tags: [ "draft" ] },
         notes: {
           "jcr:primaryType": "nt:unstructured",
           "@path": "/Schemas/timeOffRequest/notes",
-          "active": true,
+          "tags": [ "active" ],
         },
       },
     };

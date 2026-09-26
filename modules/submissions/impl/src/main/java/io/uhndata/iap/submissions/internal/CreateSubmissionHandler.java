@@ -65,6 +65,12 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The {@code REFERENCE} property holding the schema version. */
     private static final String SCHEMA_VERSION_PROPERTY = "schemaVersion";
 
+    /** The lifecycle tag of a schema version that accepts new submissions. */
+    private static final String ACTIVE_TAG = "active";
+
+    /** The lifecycle tag of a closed schema, which its versions inherit. */
+    private static final String RETIRED_TAG = "retired";
+
     @Override
     public String getName()
     {
@@ -130,12 +136,13 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
 
     /**
      * Resolves and vets the schema version the payload points at. It must exist, be a schema version rather
-     * than whatever else sits at that path, and both it and its parent schema must be active. That last one
-     * is where "no new submissions may be created from an inactive version" is actually enforced.
+     * than whatever else sits at that path, carry the {@code active} lifecycle tag, and belong to a schema that
+     * is not {@code retired}: a retired schema closes all of its versions, which inherit the tag rather than
+     * carry it. This is where "no new submissions against a closed version" is actually enforced.
      *
      * @param context the executing task's context
      * @return the resolved schema version's resource
-     * @throws InvalidPayloadException when the payload does not point at an active schema version
+     * @throws InvalidPayloadException when the payload does not point at an open schema version
      */
     private Resource resolveSchemaVersion(final WorkflowTaskContext context) throws InvalidPayloadException
     {
@@ -150,7 +157,10 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         final SchemaVersion version = Objects.requireNonNull(resource.adaptTo(SchemaVersion.class),
             "A sch:SchemaVersion resource failed to adapt to its model");
         final Schema schema = version.getSchema();
-        if (!version.isActive() || schema == null || !schema.isActive()) {
+        final Taggable versionTags = version.as(Taggable.class);
+        final Taggable schemaTags = schema == null ? null : schema.as(Taggable.class);
+        if (versionTags == null || !versionTags.hasOwnTag(ACTIVE_TAG) || schemaTags == null
+            || schemaTags.hasOwnTag(RETIRED_TAG)) {
             throw new InvalidPayloadException(
                 "The schema version at " + path + " is not accepting new submissions");
         }

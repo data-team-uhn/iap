@@ -18,9 +18,10 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { ListSubheader, MenuItem, TextField } from "@mui/material";
+import { ListSubheader, MenuItem, Stack, TextField } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import TagChip from "@iap/tags/TagChip";
 
 import type { JcrNode } from "./categoryModel";
 
@@ -30,13 +31,14 @@ interface VersionOption {
   uuid: string;
   // The version label, e.g. "1.0"
   version: string;
-  active: boolean;
+  tags: unknown;
 }
 
 interface SchemaGroup {
   // The schema's node name, unique among its siblings, which titles are not.
   name: string;
   title: string;
+  tags: unknown;
   versions: VersionOption[];
 }
 
@@ -59,6 +61,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
       return {
         name,
         title: (node.title as string | undefined) ?? name,
+        tags: node.tags,
         versions: Object.values(node)
           .filter(version => isType(version, "sch:SchemaVersion"))
           .flatMap(version => {
@@ -66,7 +69,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
             return uuid ? [{
               uuid,
               version: (version.version as string | undefined) ?? "?",
-              active: version.active === true,
+              tags: version.tags,
             }] : [];
           }),
       };
@@ -104,11 +107,21 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
     </MenuItem>,
   ];
   groups.forEach(group => {
-    items.push(<ListSubheader key={`schema-${group.name}`}>{group.title}</ListSubheader>);
+    items.push(
+      <ListSubheader key={`schema-${group.name}`}>
+        <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
+          <span>{group.title}</span>
+          <TagChip tags={group.tags} category="lifecycle" />
+        </Stack>
+      </ListSubheader>
+    );
     group.versions.forEach(version => {
       items.push(
         <MenuItem key={version.uuid} value={version.uuid}>
-          v{version.version}{version.active ? "" : " (inactive)"}
+          <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
+            <span>v{version.version}</span>
+            <TagChip tags={version.tags} category="lifecycle" />
+          </Stack>
         </MenuItem>
       );
     });
