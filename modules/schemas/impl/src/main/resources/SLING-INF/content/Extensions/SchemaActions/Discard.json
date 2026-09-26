@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schema/actions",
+  "ext:name": "Discard the schema",
+  "ext:renderURL": "asset:iap-schemas.SchemaDiscardAction.js",
+  "defaultOrder": 30
+}
