@@ -12,6 +12,8 @@ target/
 src/test/
 pom.xml
 pytest.ini
+run_check.py
+.venv/
 docker-compose.yml
 *.md
 

@@ -53,9 +53,11 @@
         </configuration>
       </plugin>
 
-      <!-- Run the pytest suite during the test phase, honouring the shared skipTests flag.
-           Needs Python on the PATH with the packages in requirements-test.txt installed;
-           CI does that in .github/workflows/pull-request-build.yml. -->
+      <!-- Run ruff and the pytest suite during the test phase, honouring the shared skipTests flag.
+           Both go through run_check.py, which provisions .venv from requirements-test.txt the first
+           time and runs them out of it, so a fresh checkout needs nothing installed by hand. Where
+           the virtualenv cannot be built at all the checks are skipped rather than failing a build
+           that has nothing to do with this module, though not under CI, where they stay mandatory. -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -74,7 +76,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>-m</argument>
+                <argument>run_check.py</argument>
                 <argument>ruff</argument>
                 <argument>check</argument>
                 <argument>src</argument>
@@ -93,7 +95,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>-m</argument>
+                <argument>run_check.py</argument>
                 <argument>pytest</argument>
                 <argument>src/test/python</argument>
               </arguments>
