@@ -64,6 +64,8 @@ export interface PaginationRequest {
   childFilter?: DescendantFilter;
   // A full text search term
   fullText?: string;
+  // Extra selectors serializing each entity, e.g. "1" to include its children
+  resourceSelectors?: string;
   // An opaque identifier echoed back in the response, for matching responses to requests
   req?: string;
 }
@@ -114,6 +116,7 @@ export async function fetchEntityPage(
     descending: request.descending ? "true" : undefined,
     filter: nonEmpty(request.fullText),
     childType: request.childFilter?.type,
+    resourceSelectors: nonEmpty(request.resourceSelectors),
     req: nonEmpty(request.req),
   };
   const params = new URLSearchParams();

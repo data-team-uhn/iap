@@ -160,6 +160,13 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
 
+An entity type whose entities hold rows of their own — a schema's versions — registers
+`children`: the serialization `selectors` that bring them along with each entity (`"1"` for
+one level down), how to read them off an entity (`rows`), and which column names every row in
+the tree (`treeField`). The regular view then nests them under their entity; paging, sorting
+and searching still apply to the entities alone. The narrow-screen list mode keeps one card
+per entity, so the type describes the children on its card.
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme

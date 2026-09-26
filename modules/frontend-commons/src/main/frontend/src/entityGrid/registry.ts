@@ -41,6 +41,21 @@ export type EntityGridColumn = GridColDef<EntityRow> & {
   cardValue?: (row: EntityRow) => ReactNode;
 };
 
+// Rows nested under each listed entity, shown beneath it as a tree: e.g. a schema's versions. They
+// arrive with their entity, serialized deep enough to include them, so paging, sorting and searching
+// still apply to the entities alone.
+export interface EntityGridChildren {
+  // Selectors serializing each listed entity with its children, e.g. "1" for one level down
+  selectors: string;
+  // One entity's children, as rows of their own; each is identified by its `@path`
+  rows: (row: EntityRow) => EntityRow[];
+  // The column whose value names each row in the tree, parent or child, e.g. "title". It becomes
+  // the tree column, with the expand toggle.
+  treeField: string;
+  // Whether entities start expanded, showing their children; collapsed by default
+  expanded?: boolean;
+}
+
 // How to present one entity type in a data grid: where its entities live, the columns to show,
 // and the initial sort order. A module defining an entity type registers its configuration with
 // registerEntityType, and any grid can then render that type by name.
@@ -60,6 +75,9 @@ export interface EntityGridConfig {
   // columns, so the renderer can leave out what the user hid (keeping the card's identity —
   // the title — is fine regardless).
   listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
+  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity,
+  // so a type with children describes them on its card, e.g. through a column's cardValue.
+  children?: EntityGridChildren;
 }
 
 const configs = new Map<string, EntityGridConfig>();
