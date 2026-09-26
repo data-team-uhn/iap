@@ -314,6 +314,19 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 `create_extension_point.py` scaffolds the node and a consumer component.
 
+### Action points
+
+When a point collects the actions available on one kind of thing — a workflow version, a schema
+version, a submission — each extension is a component that renders its own button (and any dialog
+it needs), and decides for itself whether it applies, rendering nothing when it does not. The page
+never learns which actions exist, so another module can add one without touching it.
+
+`getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` resolves a point's
+components, once per page load however many rows ask. A broken extension is skipped and an
+unreadable point yields no actions, so a failing action bar never takes the page down with it. The
+host renders the components in order with a props contract of its own, typically the thing acted
+on, a `reload`, and a way to `report` back.
+
 ## Tools
 
 From the repository root, in [`tools/dev/extension-manager/`](../tools/dev/extension-manager/):
