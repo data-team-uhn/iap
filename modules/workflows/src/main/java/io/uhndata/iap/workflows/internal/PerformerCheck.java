@@ -56,8 +56,29 @@ final class PerformerCheck
     /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
     private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
 
-    private PerformerCheck()
+    /** The actor, or {@code null} when the repository does not know them. */
+    private final Authorizable authorizable;
+
+    /** The actor's own id and the groups they belong to, read the first time a node names anyone. */
+    private Set<String> identities;
+
+    private PerformerCheck(final Authorizable authorizable)
     {
+        this.authorizable = authorizable;
+    }
+
+    /**
+     * Looks the actor up once, to be asked about any number of nodes.
+     *
+     * @param serviceResolver the engine's own session, used to look the actor up
+     * @param actor the user who fired the event, as their repository user id
+     * @return a check for this actor
+     * @throws WorkflowFailedException when the repository cannot say who the actor is
+     */
+    static PerformerCheck of(final ResourceResolver serviceResolver, final String actor)
+        throws WorkflowFailedException
+    {
+        return new PerformerCheck(lookUp(serviceResolver, actor));
     }
 
     /**
@@ -73,46 +94,57 @@ final class PerformerCheck
     static void verify(final ResourceResolver serviceResolver, final FlowNode node, final String actor)
         throws WorkflowException
     {
-        final Authorizable authorizable = lookUp(serviceResolver, actor);
-        if (authorizable == null) {
-            throw new NotAuthorizedException(REFUSAL_MESSAGE);
-        }
-        // Administrators pass everything, as they bypass access control in the repository itself. Without it, a
-        // definition can lock its own authors out with no way back in.
-        if (authorizable instanceof User && ((User) authorizable).isAdmin()) {
-            return;
-        }
-        final List<String> performers = node.getPerformers();
-        // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
-        // not necessarily report belonging to it
-        if (!performers.contains(EVERYONE_GROUP) && !isNamed(authorizable, performers)) {
+        if (!of(serviceResolver, actor).admits(node)) {
             throw new NotAuthorizedException(REFUSAL_MESSAGE);
         }
     }
 
     /**
-     * Whether any of the named principals is the actor themselves or a group they belong to. An empty list matches
-     * nothing: a definition naming no performers admits nobody.
+     * Whether the node names the actor, directly or through a group they belong to.
      *
-     * @param authorizable the actor
-     * @param performers the principals the node admits
-     * @return {@code true} if the actor is among them
+     * @param node the flow node execution wants to pass through
+     * @return {@code true} if the actor may make execution pass through it
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    private static boolean isNamed(final Authorizable authorizable, final List<String> performers)
-        throws WorkflowFailedException
+    boolean admits(final FlowNode node) throws WorkflowFailedException
     {
-        try {
-            final Set<String> identities = new HashSet<>();
-            identities.add(authorizable.getID());
-            // Transitive: naming a group also admits the members of its member groups
-            for (final Iterator<Group> groups = authorizable.memberOf(); groups.hasNext();) {
-                identities.add(groups.next().getID());
-            }
-            return performers.stream().anyMatch(identities::contains);
-        } catch (final RepositoryException e) {
-            throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
+        if (this.authorizable == null) {
+            return false;
         }
+        // Administrators pass everything, as they bypass access control in the repository itself. Without it, a
+        // definition can lock its own authors out with no way back in.
+        if (this.authorizable instanceof User && ((User) this.authorizable).isAdmin()) {
+            return true;
+        }
+        final List<String> performers = node.getPerformers();
+        // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
+        // not necessarily report belonging to it
+        return performers.contains(EVERYONE_GROUP) || performers.stream().anyMatch(identities()::contains);
+    }
+
+    /**
+     * The actor's own id and the ids of the groups they belong to, transitively: naming a group also admits the
+     * members of its member groups.
+     *
+     * @return the actor's identities
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    private Set<String> identities() throws WorkflowFailedException
+    {
+        if (this.identities == null) {
+            try {
+                final Set<String> found = new HashSet<>();
+                found.add(this.authorizable.getID());
+                for (final Iterator<Group> groups = this.authorizable.memberOf(); groups.hasNext();) {
+                    found.add(groups.next().getID());
+                }
+                this.identities = found;
+            } catch (final RepositoryException e) {
+                throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to",
+                    e);
+            }
+        }
+        return this.identities;
     }
 
     /**

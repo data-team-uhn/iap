@@ -20,6 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.jcr.Node;
 
@@ -356,6 +357,56 @@ class UserWorkflowTest
 
         assertThrows(NoApplicableWorkflowException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
+    }
+
+    @Test
+    void offersCompletionToWhoeverTheOpenTaskNames() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(TaskCompletion.COMPLETE_EVENT),
+            engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
+    }
+
+    @Test
+    void readsNoSystemWorkflowForATask() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertNull(engine.inspectWorkflow(as(TASK, EngineFixture.REQUESTER), "complete", version -> version));
+    }
+
+    @Test
+    void offersNothingToSomeoneTheTaskDoesNotName() throws Exception
+    {
+        createProcess("someone-else");
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(), engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
+    }
+
+    @Test
+    void offersNothingOnceTheTaskIsDone() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(Set.of(), engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
+    }
+
+    @Test
+    void offersNothingOnATaskWhoseDefinitionHasGoneAway() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE));
+        this.context.resourceResolver().commit();
+
+        assertEquals(Set.of(), engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
     }
 
     @Test

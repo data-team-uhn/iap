@@ -17,8 +17,14 @@
  */
 package io.uhndata.iap.workflows.api;
 
+import java.util.Set;
+import java.util.function.Function;
+
 import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * The one door into the workflow machinery. Every domain event is handed to {@link #receiveEvent}, and nothing
@@ -58,4 +64,36 @@ public interface WorkflowEngine
      */
     @NotNull
     WorkflowResult receiveEvent(@NotNull Resource target, @NotNull WorkflowEvent event) throws WorkflowException;
+
+    /**
+     * The events the asking user could send to one resource right now: those a workflow waits for in the
+     * resource's current state, and whose definition admits that user. What the frontend offers is decided by
+     * this rather than by a copy of the workflows' rules. An available event is one the engine would accept, not
+     * one guaranteed to succeed: its payload and the steps it runs may still refuse it.
+     *
+     * @param target the resource events would be aimed at, resolved through the asking user's own session
+     * @return the event names, in alphabetical order; empty when nothing is available
+     * @throws WorkflowFailedException when the engine cannot establish who is asking
+     * @throws WorkflowException never directly, only as the above
+     */
+    @NotNull
+    Set<String> getAvailableEvents(@NotNull Resource target) throws WorkflowException;
+
+    /**
+     * Reads the definition of the system workflow that would handle an event the asking user sent to one
+     * resource right now, e.g. to find out how it is configured. Definitions can only be read through the engine's
+     * own session, which is open only during this call, so the definition is handed to a function instead of
+     * returned.
+     *
+     * @param <T> what the function makes of the definition
+     * @param target the resource the event would be aimed at, resolved through the asking user's own session
+     * @param event the event's name
+     * @param reader what to read from the workflow version that would run
+     * @return what the reader returned, or {@code null} if no workflow would take the event from this user
+     * @throws WorkflowFailedException when the engine cannot establish who is asking
+     * @throws WorkflowException never directly, only as the above
+     */
+    @Nullable
+    <T> T inspectWorkflow(@NotNull Resource target, @NotNull String event,
+        @NotNull Function<WorkflowVersion, T> reader) throws WorkflowException;
 }
