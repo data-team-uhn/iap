@@ -1,12 +1,11 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Demo Study Authorization",
-  "active": true,
   "1.0": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
     "description": "Initial demo version",
-    "active": true,
+    "tags": ["active"],
     "BasicInformation": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Basic information",

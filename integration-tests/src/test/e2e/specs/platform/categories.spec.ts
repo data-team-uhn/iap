@@ -57,7 +57,7 @@ test.describe('submission categories', () => {
   });
 
   test('defines the retired tag it closes categories with', async ({ request }) => {
-    // The categories module contributes this definition into /Tags, a node the tags module owns. It has
+    // Shipped by schemas/api, which shares it with schema lifecycles, into /Tags, a node the tags module owns. It has
     // to be inheritable: that is what makes a category under a retired one retired as well, which is
     // what "this category or its subcategories" has always meant and what a boolean property could
     // only have promised.

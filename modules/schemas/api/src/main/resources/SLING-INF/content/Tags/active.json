@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Active",
+  "description": "Open: new submissions may be filed under this.",
+  "category": ["lifecycle"],
+  "targetResourceTypes": ["sch/SchemaVersion"],
+  "color": "#1d6a3a",
+  "icon": "TaskAltOutlined",
+  "order": 15
+}

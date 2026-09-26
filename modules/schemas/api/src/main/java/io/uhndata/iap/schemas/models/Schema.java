@@ -46,9 +46,6 @@ public class Schema extends Entity
     @ValueMapValue
     private String title;
 
-    @ValueMapValue
-    private boolean active;
-
     /**
      * The human-readable name of the schema.
      *
@@ -61,13 +58,25 @@ public class Schema extends Entity
     }
 
     /**
+     * Whether this schema is open or closed as a whole: open unless the {@code retired} tag is placed on it.
+     *
+     * @return {@link LifecycleState#RETIRED} or {@link LifecycleState#ACTIVE}
+     */
+    @NotNull
+    public LifecycleState getState()
+    {
+        return LifecycleState.of(this, LifecycleState.ACTIVE) == LifecycleState.RETIRED
+            ? LifecycleState.RETIRED : LifecycleState.ACTIVE;
+    }
+
+    /**
      * Whether new submissions may be created against this schema.
      *
      * @return {@code true} if the schema accepts new submissions
      */
     public boolean isActive()
     {
-        return this.active;
+        return getState() == LifecycleState.ACTIVE;
     }
 
     /**
@@ -82,8 +91,8 @@ public class Schema extends Entity
     }
 
     /**
-     * The version of this schema that new submissions are currently created against. At most one version is
-     * expected to be active at a time.
+     * The version of this schema that new submissions are created against: the first active one in order.
+     * Activating a version does not retire the one before it, so several may be active at once.
      *
      * @return the active schema version, or {@code null} if none of the versions are active
      */

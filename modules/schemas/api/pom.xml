@@ -43,6 +43,7 @@
             <Sling-Model-Packages>io.uhndata.iap.schemas.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/sch/;path:=/libs/sch/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -59,6 +60,12 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Lifecycle states are tags, read through the Taggable model -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

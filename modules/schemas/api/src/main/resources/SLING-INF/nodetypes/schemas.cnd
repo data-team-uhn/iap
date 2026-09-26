@@ -57,8 +57,8 @@
   // Human-readable name for this schema
   - title (STRING) mandatory
 
-  // When false, no new submissions may be created against any version of this schema
-  - active (BOOLEAN) = false
+  // Open to new submissions unless it carries the `retired` lifecycle tag,
+  // which its versions inherit
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -86,8 +86,8 @@
   // Optional description of this version
   - description (STRING)
 
-  // When false, no new submissions may be created against this version
-  - active (BOOLEAN) = false
+  // Where it stands is its `lifecycle` tag: `draft`, `active` or `retired`.
+  // Only an active version accepts new submissions.
 
   // The user workflow driving submissions under this schema version.
   // References the exact wf:WorkflowVersion to be instantiated, so that a
