@@ -41,6 +41,7 @@ How content is shaped, related, and moved through its process.
 
 | Document | What it covers |
 | --- | --- |
+| [schemas.md](schemas.md) | What a process asks of a submission — questions, documents, approvals — held in versions that never change once submissions depend on them, and moved from draft to active to retired |
 | [workflows.md](workflows.md) | The process content is put through: BPMN 2.0 diagrams stored as a graph of nodes, instances, tokens, tasks and the engine that moves them |
 | [categories.md](categories.md) | The tree submitters choose from, in their own language, so nobody has to know which schema applies; a category carries the schema version that governs what they are asked for |
 | [conditions.md](conditions.md) | The shared vocabulary for content that only applies *sometimes* — a question shown only when an earlier answer calls for it, a review needed only when a submission is sensitive |
