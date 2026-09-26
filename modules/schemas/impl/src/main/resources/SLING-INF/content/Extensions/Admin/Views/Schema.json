@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Schema",
+  "ext:targetURL": "/admin/schemas/*",
+  "ext:renderURL": "asset:iap-schemas.SchemaPage.js?lazy"
+}

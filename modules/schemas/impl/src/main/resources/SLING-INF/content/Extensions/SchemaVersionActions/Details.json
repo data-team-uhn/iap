@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schemaVersion/actions",
+  "ext:name": "Edit the version's details",
+  "ext:renderURL": "asset:iap-schemas.SchemaVersionDetailsAction.js",
+  "defaultOrder": 10
+}
