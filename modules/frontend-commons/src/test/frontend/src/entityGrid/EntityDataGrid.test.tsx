@@ -150,6 +150,36 @@ registerEntityType(STRING_CHOICE_TYPE, {
   ],
 });
 
+// A type listing entities with nested rows: each entity arrives with its versions inline
+const versionsOf = (row: Record<string, unknown>) => Object.values(row)
+  .filter((value): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && (value as Record<string, unknown>).kind === "version");
+const TREE_TYPE = "test/TreeEntity";
+registerEntityType(TREE_TYPE, {
+  homepage: "/TreeEntities",
+  columns: [
+    { field: "title", headerName: "Name", flex: 2 },
+    { field: "status", headerName: "Status" },
+  ],
+  defaultSort: { field: "title", sort: "asc" },
+  children: { selectors: "1", rows: versionsOf, treeField: "title" },
+});
+const EXPANDED_TYPE = "test/ExpandedTreeEntity";
+registerEntityType(EXPANDED_TYPE, {
+  homepage: "/ExpandedTreeEntities",
+  columns: [ { field: "status", headerName: "Status" } ],
+  children: { selectors: "1", rows: versionsOf, treeField: "label", expanded: true },
+});
+const TREE_ROWS = [
+  {
+    "@path": "/TreeEntities/study",
+    "title": "Clinical study",
+    "status": "open",
+    "v1": { "@path": "/TreeEntities/study/v1", "kind": "version", "title": "Version one", "status": "retired" },
+    "v2": { "@name": "v2", "kind": "version", "status": "active" },
+  },
+];
+
 // Makes MUI's useMediaQuery see a narrow viewport, switching the grid to its list mode
 function fakeNarrowScreen() {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -183,6 +213,62 @@ describe("EntityDataGrid", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
+  });
+
+  it("lists entities with their children nested under them", async () => {
+    const fetchMock = mockPage(TREE_ROWS);
+
+    render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    // Named with how many children it has
+    expect(await screen.findByText("Clinical study (2)")).toBeInTheDocument();
+    const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
+    expect(url.searchParams.get("resourceSelectors")).toBe("1");
+    expect(url.searchParams.get("sortBy")).toBe("title");
+    // The named column became the tree column, rather than showing twice
+    expect(screen.getAllByRole("columnheader").map(header => header.textContent)).toEqual([ "Name", "Status" ]);
+    // Collapsed until asked
+    expect(screen.queryByText("Version one")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /see children/i }));
+
+    expect(await screen.findByText("Version one")).toBeInTheDocument();
+    // A child without a title of its own goes by its name
+    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
+  });
+
+  it("sorts by the column the tree column stands for", async () => {
+    const fetchMock = mockPage(TREE_ROWS);
+
+    render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText(/Clinical study/);
+    fireEvent.click(screen.getByRole("columnheader", { name: /Name/ }));
+
+    await waitFor(() => {
+      const url = new URL(fetchMock.mock.calls.at(-1)?.[0] ?? "", "http://localhost");
+      expect(url.searchParams.get("sortBy")).toBe("title");
+      expect(url.searchParams.get("descending")).toBe("true");
+    });
+  });
+
+  it("can start with every entity expanded", async () => {
+    mockPage(TREE_ROWS);
+
+    render(<EntityDataGrid entityType={EXPANDED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("retired")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
+  });
+
+  it("keeps one card per entity on narrow screens", async () => {
+    fakeNarrowScreen();
+    mockPage(TREE_ROWS);
+
+    render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("Clinical study")).toBeInTheDocument();
+    expect(screen.queryByText("Version one")).not.toBeInTheDocument();
   });
 
   it("lists the fetched entities using the registered columns and sorting", async () => {
