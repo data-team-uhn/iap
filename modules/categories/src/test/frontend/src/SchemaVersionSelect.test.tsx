@@ -31,8 +31,12 @@ const schemasJson = {
     "jcr:primaryType": "sch:Schema",
     "title": "Basic study",
     "notAVersion": { "jcr:primaryType": "nt:unstructured" },
-    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-1", "version": "1.0", "active": true },
-    "v2": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-2", "version": "2.0", "active": false },
+    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-1", "version": "1.0", "tags": ["active"] },
+    "v2": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-2", "version": "2.0", "tags": ["retired"] },
+    "v4": {
+      "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-4", "version": "4.0",
+      "tags": ["active"], "inheritedTags": ["retired"],
+    },
     "unreferenceable": { "jcr:primaryType": "sch:SchemaVersion", "version": "3.0" },
   },
   "untitled": {
@@ -100,6 +104,8 @@ describe("SchemaVersionSelect", () => {
     expect(within(listbox).getByText("Basic study")).toBeInTheDocument();
     expect(within(listbox).getByText("v1.0")).toBeInTheDocument();
     expect(within(listbox).getByText("v2.0 (inactive)")).toBeInTheDocument();
+    // Active in its own right, but retired along with its schema
+    expect(within(listbox).getByText("v4.0 (inactive)")).toBeInTheDocument();
   });
 
   it("falls back to the node name for a schema with no title, and to '?' for a version with no label", async () => {
@@ -109,7 +115,7 @@ describe("SchemaVersionSelect", () => {
     const listbox = await openMenu();
 
     expect(within(listbox).getByText("untitled")).toBeInTheDocument();
-    // No `active: true` either, so it reads as inactive
+    // No lifecycle tag either, so it reads as inactive
     expect(within(listbox).getByText("v? (inactive)")).toBeInTheDocument();
   });
 

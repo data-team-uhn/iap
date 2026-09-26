@@ -49,6 +49,15 @@ interface SchemaVersionSelectProps {
 const isType = (value: unknown, primaryType: string): value is JcrNode =>
   typeof value === "object" && value !== null && (value as JcrNode)["jcr:primaryType"] === primaryType;
 
+const hasTag = (node: JcrNode, property: string, tag: string): boolean => {
+  const tags = node[property];
+  return Array.isArray(tags) && tags.includes(tag);
+};
+
+// Accepting submissions: tagged active, and not retired along with its schema
+const isActive = (version: JcrNode): boolean =>
+  hasTag(version, "tags", "active") && !hasTag(version, "inheritedTags", "retired");
+
 // Parses the /Schemas serialization into selectable groups: one group per schema, one option per
 // version. Versions without an identifier cannot be referenced and are skipped.
 const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
@@ -66,7 +75,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
             return uuid ? [{
               uuid,
               version: (version.version as string | undefined) ?? "?",
-              active: version.active === true,
+              active: isActive(version),
             }] : [];
           }),
       };

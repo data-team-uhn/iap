@@ -15,25 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.uhndata.iap.schemas.models;
 
-// A /Schemas tree as the serializer returns it at depth 2: the homepage's own properties, its
-// schemas under their node names, and each schema's versions under theirs.
-export const SCHEMAS = {
-  "jcr:primaryType": "sch:SchemasHomepage",
-  "@path": "/Schemas",
-  "@name": "Schemas",
-  "timeOffRequest": {
-    "jcr:primaryType": "sch:Schema",
-    "@path": "/Schemas/timeOffRequest",
-    "@name": "timeOffRequest",
-    "title": "Time off request",
-    "v1": {
-      "jcr:primaryType": "sch:SchemaVersion",
-      "@path": "/Schemas/timeOffRequest/v1",
-      "@name": "v1",
-      "version": "1.0",
-      "description": "Asking for a day off",
-      "tags": ["active"],
-    },
-  },
-};
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * Unit tests for {@link LifecycleState}.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+class LifecycleStateTest
+{
+    @Test
+    void namesTheTagOfEachState()
+    {
+        assertEquals("draft", LifecycleState.DRAFT.getTag());
+        assertEquals("active", LifecycleState.ACTIVE.getTag());
+        assertEquals("retired", LifecycleState.RETIRED.getTag());
+    }
+}
