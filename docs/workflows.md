@@ -241,16 +241,15 @@ parameters as its payload (`:`-prefixed ones excluded). The event is the target'
 homepage, `complete` on a user task — unless a selector names one: `POST /Schemas/x/1.0.activate.json`
 sends `activate`. Nothing is registered per event; a name no definition waits for is a 409.
 
-Two servlets bring types under control, and differ only in what they bind:
+The types under workflow control are the ones the definitions say: the `targetResourceType` of every system
+workflow version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to exactly those, with
+any extension, and `WorkflowEventServletRegistrar` binds it again whenever `/SystemWorkflows` changes. So a
+module brings a type under control by shipping a system workflow for it, and nothing else registers a servlet.
 
-| Servlet | Types | Extension |
-| --- | --- | --- |
-| `WorkflowEventServlet` | `wf/WorkflowsHomepage`, `wf/TaskInstance`, `sub/SubmissionsHomepage` | any |
-| `WorkflowJsonEventServlet` | `sch/SchemasHomepage`, `sch/Schema`, `sch/SchemaVersion`, `sch/SchemaPart` | `json` only |
-
-The schema types need the extension so that a plain `POST` still reaches the Sling POST servlet, which only
-an administrator can use there; that is how `tools/dev/test-data/generate-test-data.sh` imports a schema.
-Anything else — the editor included — names its event, so it always sends `.json`.
+The one way around the engine is the `.import` extension, which forwards the request untouched to the Sling POST
+servlet. The repository still decides who may write, and on content the engine manages only an administrator
+can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
+schema with `POST /Schemas.import`.
 
 ## Sling Models
 
