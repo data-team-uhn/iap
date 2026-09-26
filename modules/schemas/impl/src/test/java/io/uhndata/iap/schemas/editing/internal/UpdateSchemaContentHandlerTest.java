@@ -21,6 +21,8 @@ import java.util.Map;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -177,6 +179,40 @@ class UpdateSchemaContentHandlerTest
     }
 
     @Test
+    void editsContentThatWasCheckedIn() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        final Resource active = this.fixture.version(this.schema, "v1", "active");
+        final VersionManager versions = versionManager();
+        versions.checkin(this.schema.getPath());
+        versions.checkin(active.getPath());
+
+        this.handler.execute(patch(this.schema, "{\"title\": \"Imported\"}"));
+        this.handler.execute(patch(active, "{\"description\": \"Imported too\"}"));
+
+        assertEquals("Imported", this.fixture.get("/Schemas/study").getValueMap().get("title"));
+        assertEquals("Imported too", this.fixture.get("/Schemas/study/v1").getValueMap().get("description"));
+        assertTrue(versions.isCheckedOut(this.schema.getPath()));
+    }
+
+    @Test
+    void checksOutTheVersionableNodeHoldingAPart() throws PersistenceException, RepositoryException
+    {
+        final Resource version = this.fixture.version(this.schema, "v1", "draft");
+        final Resource form = this.fixture.create(version.getPath(), "form", "sch:FormRequirement",
+            Map.of("label", "Form"));
+        versionManager().checkin(version.getPath());
+
+        SchemaContent.checkOut(form);
+
+        assertTrue(versionManager().isCheckedOut(version.getPath()));
+    }
+
+    private VersionManager versionManager() throws RepositoryException
+    {
+        return this.context.resourceResolver().adaptTo(Session.class).getWorkspace().getVersionManager();
+    }
+
+    @Test
     void servesOnlySchemasAndVersions()
     {
         assertThrows(WorkflowDefinitionException.class,
@@ -196,14 +232,15 @@ class UpdateSchemaContentHandlerTest
         final Resource workflow = Mockito.mock(Resource.class);
         Mockito.when(workflow.isResourceType("wf/WorkflowVersion")).thenReturn(true);
         Mockito.when(resolver.getResource("/w")).thenReturn(workflow);
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.isCheckedOut()).thenReturn(true);
+        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(patch(target, "{\"version\": \"2\"}")));
 
         Mockito.when(target.adaptTo(ModifiableValueMap.class)).thenReturn(Mockito.mock(ModifiableValueMap.class));
         assertThrows(PersistenceException.class, () -> this.handler.execute(patch(target, "{\"workflow\": \"/w\"}")));
 
-        final Node node = Mockito.mock(Node.class);
-        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(workflow.adaptTo(Node.class)).thenReturn(Mockito.mock(Node.class));
         Mockito.when(node.setProperty(Mockito.anyString(), Mockito.any(Node.class)))
             .thenThrow(new RepositoryException("locked"));

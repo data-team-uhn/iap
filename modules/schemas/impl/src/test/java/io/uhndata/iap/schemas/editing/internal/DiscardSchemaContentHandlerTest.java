@@ -86,6 +86,18 @@ class DiscardSchemaContentHandlerTest
     }
 
     @Test
+    void discardsADraftOfACheckedInSchema() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v2", "draft");
+        this.context.resourceResolver().adaptTo(Session.class).getWorkspace().getVersionManager()
+            .checkin(this.schema.getPath());
+
+        this.handler.execute(task(draft));
+
+        assertNull(this.fixture.get("/Schemas/study/v2"));
+    }
+
+    @Test
     void keepsWhatHasBeenPublished() throws PersistenceException
     {
         final Resource active = this.fixture.version(this.schema, "v1", "active");

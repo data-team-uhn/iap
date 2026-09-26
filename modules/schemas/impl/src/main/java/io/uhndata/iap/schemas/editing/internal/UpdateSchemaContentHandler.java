@@ -80,6 +80,7 @@ public class UpdateSchemaContentHandler implements ServiceTaskHandler
             }
             changes.put(field, value(context, field, entry.getValue()));
         }
+        SchemaContent.checkOut(target);
         for (final Map.Entry<SchemaFields.Field, Object> change : changes.entrySet()) {
             write(target, change.getKey(), change.getValue());
         }

@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.schemas.editing.internal;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.junit.jupiter.api.Test;
@@ -34,6 +37,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class SchemaContentTest
 {
+    @Test
+    void reportsContentThatCannotBeCheckedOut() throws RepositoryException
+    {
+        final Resource target = Mockito.mock(Resource.class);
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.isCheckedOut()).thenThrow(new RepositoryException("gone"));
+        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
+
+        assertThrows(PersistenceException.class, () -> SchemaContent.checkOut(target));
+    }
+
     @Test
     void reportsContentThatCannotBeTagged()
     {

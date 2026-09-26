@@ -19,7 +19,11 @@ package io.uhndata.iap.schemas.editing.internal;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -82,6 +86,36 @@ final class SchemaContent
     {
         return new WorkflowDefinitionException(
             "The " + handler + " handler serves schemas and schema versions, not " + target.getResourceType());
+    }
+
+    /**
+     * Makes content writable. Schemas and versions are versionable, and content created through the Sling POST
+     * servlet is checked in, which makes it and everything under it read-only; this checks out whichever
+     * versionable node is holding it, as the POST servlet's own auto-checkout would. Only tags escape the
+     * read-only state, being ignored by versioning.
+     *
+     * <p>A checkout takes effect at once, outside the engine's commit, so a refused edit leaves the node
+     * checked out, which changes nothing about what it holds.</p>
+     *
+     * @param resource the node about to be modified, or whose children are about to change
+     * @throws PersistenceException when the checkout fails
+     */
+    static void checkOut(@NotNull final Resource resource) throws PersistenceException
+    {
+        final Node node = Objects.requireNonNull(resource.adaptTo(Node.class),
+            "Schemas are stored in a JCR repository");
+        try {
+            if (node.isCheckedOut()) {
+                return;
+            }
+            Node versionable = node;
+            while (!versionable.isNodeType("mix:versionable")) {
+                versionable = versionable.getParent();
+            }
+            versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Cannot check out " + resource.getPath(), e);
+        }
     }
 
     /**

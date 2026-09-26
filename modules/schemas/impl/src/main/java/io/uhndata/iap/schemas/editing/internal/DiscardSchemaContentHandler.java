@@ -81,6 +81,8 @@ public class DiscardSchemaContentHandler implements ServiceTaskHandler
             throw new NoApplicableWorkflowException("This cannot be discarded while it is referenced from "
                 + String.join(", ", referrers));
         }
+        // Removing a child is a change to its parent, which must be writable
+        SchemaContent.checkOut(Objects.requireNonNull(target.getParent(), "Schemas live under /Schemas"));
         context.getResourceResolver().delete(target);
     }
 
