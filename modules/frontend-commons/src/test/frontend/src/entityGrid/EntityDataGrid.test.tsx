@@ -162,7 +162,7 @@ registerEntityType(TREE_TYPE, {
     { field: "status", headerName: "Status" },
   ],
   defaultSort: { field: "title", sort: "asc" },
-  children: { selectors: "1", rows: versionsOf, treeField: "title" },
+  children: { selectors: "1", rows: versionsOf, treeField: "title", countLabel: count => `${count} versions` },
 });
 const EXPANDED_TYPE = "test/ExpandedTreeEntity";
 registerEntityType(EXPANDED_TYPE, {
@@ -220,8 +220,10 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // Named with how many children it has
-    expect(await screen.findByText("Clinical study (2)")).toBeInTheDocument();
+    // Named with how many children it has, as its type words it, in the regular weight of the row
+    const count = await screen.findByText("(2 versions)", { exact: false });
+    expect(count.closest(".MuiDataGrid-cell")).toHaveTextContent("Clinical study (2 versions)");
+    expect(count).toHaveStyle({ fontWeight: 400 });
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.searchParams.get("resourceSelectors")).toBe("1");
     expect(url.searchParams.get("sortBy")).toBe("title");
@@ -236,6 +238,10 @@ describe("EntityDataGrid", () => {
     // A child without a title of its own goes by its name
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
+    // The entity stands out from what is nested under it
+    const cellOf = (text: string) => screen.getByText(text).closest(".MuiDataGrid-cell");
+    expect(cellOf("Clinical study")).toHaveClass("entity-grid-entity");
+    expect(cellOf("Version one")).not.toHaveClass("entity-grid-entity");
   });
 
   it("sorts by the column the tree column stands for", async () => {
@@ -259,6 +265,9 @@ describe("EntityDataGrid", () => {
 
     expect(await screen.findByText("retired")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
+    // Without a wording of its own, the bare number of children, beside what the tree names the entity
+    expect(screen.getByText("(2)", { exact: false }).closest(".MuiDataGrid-cell"))
+      .toHaveTextContent("/TreeEntities/study (2)");
   });
 
   it("keeps one card per entity on narrow screens", async () => {
@@ -322,6 +331,24 @@ describe("EntityDataGrid", () => {
     expect(url.searchParams.getAll("fieldValue")).toEqual(["@me"]);
     expect(url.searchParams.get("childType")).toBe("sub:Review");
     expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer"]);
+  });
+
+  it("lists rows it is given in the browser, without fetching them", async () => {
+    const fetchMock = mockPage([]);
+    const rows = [
+      { "@path": "/GridEntities/a", "title": "Alpha", "status": "draft" },
+      { "@path": "/GridEntities/b", "title": "Beta", "status": "active" },
+    ];
+
+    render(<EntityDataGrid entityType={TEST_TYPE} rows={rows} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    // Searched in the browser too
+    fireEvent.change(screen.getByPlaceholderText("Search…"), { target: { value: "beta" } });
+    await waitFor(() => expect(screen.queryByText("Alpha")).not.toBeInTheDocument());
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([ url ]) => url.includes(".paginate.json"))).toEqual([]);
   });
 
   it("shows an error when the server rejects the request", async () => {
