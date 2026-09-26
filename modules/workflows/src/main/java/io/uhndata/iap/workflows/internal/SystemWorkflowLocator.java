@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -34,9 +36,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Finds the system workflow waiting for an event: an active version of an active definition under
- * {@code /SystemWorkflows}, declaring the target's resource type, with a start event catching the event's name.
- * Exactly one may be waiting. None means the event is not acceptable here; several mean the installed
- * definitions contradict each other.
+ * {@code /SystemWorkflows}, declaring the target's resource type, with a start event catching the event's name
+ * whose guard holds for the target. Exactly one may be waiting. None means the event is not acceptable here, at
+ * least not in the target's current state; several mean the installed definitions contradict each other.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,15 +53,17 @@ final class SystemWorkflowLocator
      * Finds the single start event waiting for this event on this target.
      *
      * @param serviceResolver the engine's own session, able to read the system workflows tree
-     * @param target the resource the event is aimed at
+     * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
+     * @param evaluator decides whether a start event's guard holds
      * @return the matched start event, backed by the service session
      * @throws NoApplicableWorkflowException when nothing is waiting for this event here
      * @throws WorkflowDefinitionException when several start events compete for it
      */
-    static StartEvent find(final ResourceResolver serviceResolver, final Resource target, final WorkflowEvent event)
-        throws WorkflowException
+    static StartEvent find(final ResourceResolver serviceResolver, final Resource target, final WorkflowEvent event,
+        final ConditionEvaluator evaluator) throws WorkflowException
     {
+        final Content context = target.adaptTo(Content.class);
         final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
         final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
         final List<StartEvent> matches = homepage == null ? List.of()
@@ -71,6 +75,8 @@ final class SystemWorkflowLocator
                     && target.isResourceType(version.getTargetResourceType()))
                 .flatMap(version -> version.getStartEvents().stream())
                 .filter(start -> event.getName().equals(start.getMessageName()))
+                .filter(start -> start.getCondition() == null
+                    || context != null && evaluator.applies(start, context))
                 .collect(Collectors.toList());
         if (matches.isEmpty()) {
             throw new NoApplicableWorkflowException(
