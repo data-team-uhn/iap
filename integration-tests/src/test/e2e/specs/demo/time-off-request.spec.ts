@@ -45,10 +45,10 @@ test.describe('the time off request demo', () => {
     const response = await request.get('/Schemas/timeOffRequest/v1/details/day.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const question = (await response.json()) as { text?: string; dataType?: string; required?: boolean };
+    const question = (await response.json()) as { text?: string; dataType?: string; minAnswers?: number };
     expect(question.text).toBe('Which day are you taking off?');
     expect(question.dataType).toBe('date');
-    expect(question.required).toBe(true);
+    expect(question.minAnswers).toBe(1);
   });
 
   test('routes approval to the approvers group', async ({ request }) => {
