@@ -147,6 +147,10 @@
 // A single question the submitter must answer.
 // Referenceable so that submission answers can point back to it.
 [sch:Question] > sch:FormItem, mix:referenceable
+  // The answer options are offered in the order they are declared, which only
+  // an orderable type preserves
+  orderable
+
   - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
 
   // The question text shown to the submitter
@@ -158,11 +162,22 @@
   // Expected answer type: text, long, double, boolean, date, file
   - dataType (STRING) = "text" mandatory autocreated
 
-  // Whether an answer must be provided before submitting
-  - required (BOOLEAN) = false
+  // How many values an answer takes: a positive minimum is what "required"
+  // means, a maximum other than 1 is what "multiple" means, and zero or
+  // negative leaves that end unconstrained. (0,1) is an optional single value,
+  // (1,1) a mandatory one, (2,4) "pick two to four". Falling short of the
+  // minimum is incompleteness; exceeding the maximum refuses the save.
+  - minAnswers (LONG) = '0' autocreated
+  - maxAnswers (LONG) = '1' autocreated
 
-  // Whether more than one value may be provided
-  - multiple (BOOLEAN) = false
+  // For numeric answers, the smallest and largest value accepted
+  - minValue (DOUBLE)
+  - maxValue (DOUBLE)
+
+  // For text answers, a regular expression every value must match in full,
+  // and what the submitter is told when one does not
+  - pattern (STRING)
+  - patternMessage (STRING)
 
   // How the question is rendered to the submitter
   - displayMode (STRING)
@@ -182,12 +197,42 @@
   // and select every chunk whose LLM-assigned rubricTags intersect that union.
   - rubricTags (STRING) multiple
 
+  // A content path whose live items are the answers this question offers, in
+  // place of child AnswerOption nodes
+  - optionsFrom (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
+  // The answers this question offers. A question declaring none is answered
+  // freely, in whatever its dataType accepts; one declaring options is answered
+  // only with their values, which is what lets a condition compare against an
+  // agreed value.
+  + * (sch:AnswerOption)
+
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One of the answers a question offers. The value is what an answer stores and
+// what a condition compares against, so changing it changes the meaning of
+// every answer already recorded; the label is only what the submitter reads.
+[sch:AnswerOption] > data:EntityPart
+  - sling:resourceType (STRING) = "sch/AnswerOption" mandatory autocreated protected
+
+  // What an answer picking this option stores
+  - value (STRING) mandatory
+
+  // What the submitter reads; the value itself when left out
+  - label (STRING)
+
+  // When this option applies, for a person choosing and for a model matching
+  - description (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
 //-----------------------------------------------------------------------------
 // Abstract base for anything a submission must fulfill: a set of questions
@@ -236,6 +281,14 @@
 // consent form, in an expected format described by this requirement.
 [sch:DocumentRequirement] > sch:Requirement
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
+
+  // Whether the document must be attached before the submission is complete.
+  // A flag rather than a count: several files under one requirement are
+  // revisions of one deliverable, and "three letters" is three requirements.
+  // Whether it is asked at all is the condition's decision, not this one's.
+  // Defaults to true, so a forgotten flag demands too much rather than too
+  // little.
+  - required (BOOLEAN) = true autocreated
 
   // Accepted MIME types for the uploaded document, e.g. application/pdf
   - acceptedFileTypes (STRING) multiple
