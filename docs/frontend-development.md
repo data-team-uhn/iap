@@ -160,6 +160,24 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
 
+An entity type whose entities hold rows of their own registers `children`, and the grid nests
+those rows under their entity. A schema listing its versions:
+
+```ts
+registerEntityType("sch/Schema", {
+  homepage: "/Schemas",
+  columns: SCHEMA_COLUMNS,
+  children: {
+    selectors: "1",           // fetch each schema with one level of children
+    rows: versionsOf,         // which of those children are rows
+    treeField: "title",       // the column shown as the tree, on schemas and versions alike
+  },
+});
+```
+
+Paging, sorting and searching still apply to the schemas alone. On a phone the list keeps one
+card per schema, so the card describes its versions.
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme

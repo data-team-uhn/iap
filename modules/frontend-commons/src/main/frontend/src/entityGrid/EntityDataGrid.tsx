@@ -44,6 +44,8 @@ import {
   ColumnsPanelTrigger,
   DataGridPro,
   FilterPanelTrigger,
+  GRID_TREE_DATA_GROUPING_FIELD,
+  type GridGroupingColDefOverride,
   type GridColumnVisibilityModel,
   type GridFilterModel,
   type GridListViewColDef,
@@ -104,6 +106,12 @@ interface EntityDataGridProps {
   // will do; the grid only watches for it changing.
   refreshToken?: number;
 }
+
+// Where a row sits in the tree, as the grid's getTreeDataPath reads it
+const TREE_PATH = "__treePath__";
+
+// A row's key in the tree: its path, or its name when a projection left the path out
+const rowPath = (row: EntityRow): string => String(row["@path"] ?? row["@name"]);
 
 // A stable default: a grid adding no columns of its own would otherwise get a fresh array, and so a
 // fresh column list, on every render
@@ -555,6 +563,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // On narrow (typically touch) screens the grid switches to the Pro list mode: one card per
   // row instead of columns, with sorting moved into the toolbar's sort menu
   const compactList = useMediaQuery(theme.breakpoints.down("sm"));
+  // Children show as a tree in the regular view only; a list card describes its own
+  const tree = compactList ? undefined : config?.children;
   const columnStorageKey = `iap.entityGrid.${entityType}.columns`;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -597,6 +607,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
       filters: [...filters ?? [], ...columnFilters],
       childFilter,
       fullText: fullText || undefined,
+      resourceSelectors: config.children?.selectors,
     }).then(page => {
       if (!cancelled) {
         setRows(page.rows);
@@ -631,8 +642,18 @@ function EntityDataGrid(props: EntityDataGridProps) {
     }
   };
 
-  const gridColumns = useMemo(
-    () => withElementCellsCentred(withCompactDates(withServerFilterOperators(columns))), [columns]);
+  const gridColumns = useMemo(() => withElementCellsCentred(withCompactDates(withServerFilterOperators(
+    tree ? columns.filter(column => column.field !== tree.treeField) : columns))), [columns, tree]);
+  // The rows as the grid shows them: in a tree, each entity followed by its children, each carrying
+  // its place in the tree. Keyed by path, which is unique at every level; the tree column shows the
+  // row's name instead.
+  const gridRows = useMemo<EntityRow[]>(() => tree
+    ? rows.flatMap(row => {
+      const parent = rowPath(row);
+      return [ { ...row, [TREE_PATH]: [ parent ] },
+        ...tree.rows(row).map(child => ({ ...child, [TREE_PATH]: [ parent, rowPath(child) ] })) ];
+    })
+    : rows, [rows, tree]);
 
   if (!config) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
@@ -685,7 +706,20 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // grid throws on duplicate ids and would take the whole widget down with it.
   const getRowId = (row: EntityRow) => {
     const path = row["@path"] ?? row["@name"];
-    return typeof path === "string" ? path : `@${rows.indexOf(row)}`;
+    return typeof path === "string" ? path : `@${gridRows.indexOf(row)}`;
+  };
+  // In a tree the sort on the named column is shown on the tree column that took its place, and
+  // sent to the server as the column it stands for
+  const toTree = (field: string) => field === tree?.treeField ? GRID_TREE_DATA_GROUPING_FIELD : field;
+  const fromTree = (field: string) => tree && field === GRID_TREE_DATA_GROUPING_FIELD ? tree.treeField : field;
+  const treeColumn = tree && columns.find(column => column.field === tree.treeField);
+  const groupingColDef: GridGroupingColDefOverride<EntityRow> | undefined = tree && {
+    headerName: treeColumn?.headerName,
+    flex: treeColumn?.flex ?? 1,
+    minWidth: treeColumn?.minWidth,
+    sortable: treeColumn?.sortable !== false,
+    filterable: false,
+    valueGetter: (_value: never, row: EntityRow) => row[tree.treeField] ?? row["@name"],
   };
 
   // Clicking a row navigates to the entity's own page, when the entity type declares one
@@ -701,8 +735,15 @@ function EntityDataGrid(props: EntityDataGridProps) {
     <Box sx={{ height, width: "100%", "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" } }}>
       <DataGridPro
         columns={gridColumns}
-        rows={rows}
+        rows={gridRows}
         getRowId={getRowId}
+        treeData={Boolean(tree)}
+        getTreeDataPath={tree && (row => row[TREE_PATH] as string[])}
+        groupingColDef={groupingColDef}
+        isGroupExpandedByDefault={tree?.expanded ? () => true : undefined}
+        // Sorting and filtering happen on the server, which sees the entities only
+        disableChildrenSorting
+        disableChildrenFiltering
         // An approximate total is only a lower bound: report the count as unknown-but-estimated,
         // so the grid keeps the next page reachable (a plain rowCount would cap the page count)
         // and presents the total with its stock estimate wording. The servlet counts far enough
@@ -718,8 +759,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onPaginationModelChange={setPaginationModel}
         pageSizeOptions={pageSizeOptions}
         sortingMode="server"
-        sortModel={sortModel}
-        onSortModelChange={sortBy}
+        sortModel={sortModel.map(item => ({ ...item, field: toTree(item.field) }))}
+        onSortModelChange={model => sortBy(model.map(item => ({ ...item, field: fromTree(item.field) })))}
         filterMode="server"
         onFilterModelChange={searchFor}
         listView={compactList}
