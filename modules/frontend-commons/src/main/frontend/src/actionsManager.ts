@@ -34,8 +34,7 @@ export type ActionComponent = ComponentType<Record<string, unknown>>;
 const actions = new Map<string, ActionComponent[]>();
 const requests = new Map<string, Promise<ActionComponent[]>>();
 
-// The action components registered on an extension point, in the order the repository lists them
-// (by `defaultOrder`).
+// The action components registered on an extension point, in the order the repository lists them.
 //
 // Failures are absorbed, not surfaced: a broken extension is skipped, and an unreadable extension
 // point yields no actions. A page's action bar failing never hides the page itself.

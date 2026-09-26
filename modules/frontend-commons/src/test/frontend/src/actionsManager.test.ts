@@ -74,8 +74,6 @@ describe("getActions", () => {
   });
 
   it("resolves to no actions when the extension point cannot be read", async () => {
-    // A page whose action bar cannot be built still displays the thing itself, which is what its
-    // reader came for
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedLoadExtensions.mockRejectedValue(new Error("Network is down"));
 
