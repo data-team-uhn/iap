@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Create a schema",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemasHomepage",
+    "description": "What happens when a new schema is asked for: the schema, named after its title, with an empty first version as a draft. Administrators only.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "create",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the schema",
+      "handler": "createEntity",
+      "entityType": "sch:Schema",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toInitialize": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toInitialize",
+        "targetRef": "initialize"
+      }
+    },
+    "initialize": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "initialize",
+      "label": "Give it a first, draft version",
+      "handler": "initializeSchemaVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

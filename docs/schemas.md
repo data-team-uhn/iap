@@ -1,6 +1,6 @@
 # Schemas
 
-**Module:** `modules/schemas` · **Bundle:** `iap-schemas-api` (start-order 27) ·
+**Module:** `modules/schemas` · **Bundles:** `iap-schemas-api` (start-order 27), `iap-schemas-impl` (28) ·
 **Models:** `io.uhndata.iap.schemas.models`
 
 A schema describes what an institutional process asks of a submission: the questions to
@@ -82,3 +82,39 @@ order.
 The `draft`, `active` and `retired` definitions ship with this module (`content/Tags/`) because
 submissions use `draft`, categories `retired`, and both already depend on it. `active` applies to
 versions only.
+
+## Editing through workflows
+
+Nothing writes to `/Schemas` directly: every change is an event, `POST <path>.<event>.json`, handled by a
+system workflow shipped with `schemas/impl` (`content/SystemWorkflows/`). Each one admits only
+`iap-administrators`, and each is its own definition so a deployment can change one — add an approval
+step to activation, say — without touching the others.
+
+| Target | Event | What it does |
+|---|---|---|
+| `/Schemas` | `create` (`title`, optional `version` label) | A schema named after its title, with an empty draft `v1` |
+| a schema | `update` (`patch`) | Edits its `title` |
+| a schema | `retire` / `activate` | Closes it as a whole, or reopens it |
+| a schema | `discard` | Deletes it, if none of its versions was ever published |
+| a version | `update` (`patch`) | Edits `version`, `description`, `workflow` (the path of a `wf:WorkflowVersion`) |
+| a version | `activate` | Publishes a draft, or reopens a retired version |
+| a version | `retire` | Closes an active version |
+| a version | `discard` | Deletes a draft |
+
+A **patch** is one JSON object in the `patch` parameter: a key left out is left alone, `null`
+removes the property, anything else is the new value. The whole patch is checked before anything is
+written. On a published version only wording may change — here, `description` — because
+submissions may already depend on the rest.
+
+A draft is **activated** only when nothing in it would break once it is frozen: answer counts and
+value bounds that are not upside down, patterns that compile, option values that are present and
+unique, and conditions that use known comparisons on questions of this same version. Every problem
+is reported at once.
+
+Nothing that could be referenced is deleted: `discard` refuses while anything outside the draft
+refers into it, e.g. a category bound to it.
+
+Refusals follow the engine's layers: 400 for a malformed request, 409 when the content is not in a
+state that allows it (published, already active, failing the checks, referenced), 403 when the user
+is not among the performers. `performers` is matched with `memberOf()`, which does not see Keycloak
+roles under dynamic membership; the `admin` user and local members of `iap-administrators` pass.

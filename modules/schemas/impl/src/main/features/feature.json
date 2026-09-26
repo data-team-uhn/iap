@@ -17,8 +17,13 @@
 {
   "bundles": [
     {
-      "id": "${project.groupId}:${project.artifactId}:${project.version}",
+      "id": "${project.groupId}:iap-schemas-api:${project.version}",
       "start-order": "27"
+    },
+    {
+      // After the workflow engine, whose handler SPI it implements
+      "id": "${project.groupId}:${project.artifactId}:${project.version}",
+      "start-order": "28"
     }
   ],
   "configurations": {
