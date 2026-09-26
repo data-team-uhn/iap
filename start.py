@@ -141,6 +141,25 @@ def handle_tcp_bind_fail(bind_port):
     sys.exit(1)
 
 
+# The document daemon POSTs parse outcomes to IAP_DOCLING_CALLBACK_URL. That URL is the
+# daemon's own configuration, not something a request can override, so a second instance
+# on another port is invisible to a daemon that was started for 8080. Default the Java
+# process to this instance's port, and say so when an already-set URL points elsewhere.
+def apply_docling_callback_url(env, bind_port):
+    path = '/system/documents/parseCallback'
+    default = 'http://localhost:%d%s' % (bind_port, path)
+    existing = (env.get('IAP_DOCLING_CALLBACK_URL') or '').strip()
+    if not existing:
+        env['IAP_DOCLING_CALLBACK_URL'] = default
+        return
+    if (':%d/' % bind_port) not in existing and not existing.endswith(':%d' % bind_port):
+        banner(TERMINAL_YELLOW,
+               'This instance is on port %d, but IAP_DOCLING_CALLBACK_URL is' % bind_port,
+               existing,
+               'A daemon already running will still POST parse results there.',
+               'Restart it with IAP_DOCLING_CALLBACK_URL=%s' % default)
+
+
 def get_platform_version():
     with open(str(ROOT / 'pom.xml'), encoding='utf-8') as pom:
         for line in pom:
@@ -410,8 +429,8 @@ def main(argv):
     if options['test']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
     if options['demo']:
-        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
-                          % platform_version]
+        for demo in ('iap-demo-time-off-request', 'iap-demo-research-proposal'):
+            launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (demo, platform_version)]
     # The document daemon runs beside a local instance, not as the compose service the aggregated
     # feature names by default
     launcher_args += ['-V', 'docling.url=http://localhost:18765']
@@ -447,6 +466,7 @@ def main(argv):
         java_opts += (' -Dorg.apache.jackrabbit.oak.plugins.document.ClusterNodeInfo.HWADDRESS=%s'
                       % machine_id)
     env = dict(os.environ, JAVA_OPTS=java_opts)
+    apply_docling_callback_url(env, bind_port)
 
     # Path.as_uri() produces the platform-correct form (file:///home/... or file:///C:/...)
     repository_urls = ','.join([

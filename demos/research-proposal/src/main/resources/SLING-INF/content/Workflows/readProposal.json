@@ -1,0 +1,245 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a research proposal",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "description": "Once the document is parsed, one model call asks whether it is a proposal, what kind of study it is, and the questions every study is asked. A non-proposal writes nothing; otherwise the category decides which questions are read next, or the researcher chooses a category if the model could not.",
+    "started": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "started",
+      "label": "The document is readable",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toAsk": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAsk",
+        "targetRef": "askTheModel"
+      }
+    },
+    // One call. The document is the expensive part of any question about it. recordWhen means a
+    // document that is not a proposal has none of those answers written, then the reading ends.
+    "askTheModel": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askTheModel",
+      "label": "Read the document once",
+      "handler": "intakeAnswers",
+      "requirement": "common",
+      "recordWhen": "common/isProposal=proposal",
+      "promptFrom": [ "protocol_structure.md", "is_proposal_system.md" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toProposalCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toProposalCheck",
+        "targetRef": "isProposal"
+      }
+    },
+    // The same pattern as a PFQ whose measureType is neither: the verdict is an ordinary answer,
+    // and a gateway on that answer decides whether there is anything left to ask.
+    "isProposal": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "isProposal",
+      "label": "A research proposal?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toStudyType": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStudyType",
+        "label": "Yes",
+        "targetRef": "studyType",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "common/isProposal" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "proposal" ]
+          }
+        }
+      },
+      "toFinishNotAProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishNotAProposal",
+        "label": "No",
+        "targetRef": "finishNotAProposal",
+        "isDefault": true
+      }
+    },
+    // Nothing was written, so there is nothing to mark complete. End the reading so the view
+    // does not keep spinning.
+    "finishNotAProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishNotAProposal",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toNotAProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toNotAProposal",
+        "targetRef": "notAProposal"
+      }
+    },
+    // The classification decides which questions are asked next. Exactly one arc is taken. There is
+    // no safe guess between prospective and retrospective, so the default waits for the submitter
+    // to answer the category, then comes back here.
+    "studyType": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "studyType",
+      "label": "Prospective or retrospective?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toProspective": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toProspective",
+        "label": "Prospective",
+        "targetRef": "askProspective",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "common/category" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "/Categories/Prospective",
+              "/Categories/Prospective/Observational",
+              "/Categories/Prospective/Observational/SurveysEducation",
+              "/Categories/Prospective/Observational/SensitiveDataClinical",
+              "/Categories/Prospective/Interventional",
+              "/Categories/Prospective/Interventional/Behavioral",
+              "/Categories/Prospective/Interventional/SocTrials",
+              "/Categories/Prospective/Interventional/ClinicalTrials"
+            ]
+          }
+        }
+      },
+      "toRetrospective": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRetrospective",
+        "label": "Retrospective",
+        "targetRef": "askRetrospective",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "common/category" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "/Categories/Retrospective",
+              "/Categories/Retrospective/RetrospectiveData",
+              "/Categories/Retrospective/RetrospectiveBiospecimen"
+            ]
+          }
+        }
+      },
+      "toFinishUnclassified": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishUnclassified",
+        "targetRef": "finishUnclassified",
+        "isDefault": true
+      }
+    },
+    // Category is still empty, so incomplete cannot come off. Pause the reading so the view
+    // does not spin while the submitter picks a category.
+    "finishUnclassified": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishUnclassified",
+      "label": "The reading is paused",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toChooseCategory": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toChooseCategory",
+        "targetRef": "chooseCategory"
+      }
+    },
+    // Offered under the common questions, where the category is answered. Completing it re-reads the
+    // answer at studyType; still unanswered comes back here.
+    "chooseCategory": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "chooseCategory",
+      "label": "Choose what kind of study this is",
+      "performers": [ "@creator" ],
+      "requirement": "common",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "categoryToStudyType": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "categoryToStudyType",
+        "label": "Category answered",
+        "targetRef": "studyType"
+      }
+    },
+    "askProspective": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askProspective",
+      "label": "Ask what only prospective studies are asked",
+      "handler": "intakeAnswers",
+      "requirement": "prospective",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "prospectiveToMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "prospectiveToMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "askRetrospective": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askRetrospective",
+      "label": "Ask what only retrospective studies are asked",
+      "handler": "intakeAnswers",
+      "requirement": "retrospective",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "retrospectiveToMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "retrospectiveToMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "markCompleteness": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markCompleteness",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinish": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinish",
+        "targetRef": "finishReading"
+      }
+    },
+    "finishReading": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishReading",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "The document has been read",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "notAProposal": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "notAProposal",
+      "label": "Not a research proposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

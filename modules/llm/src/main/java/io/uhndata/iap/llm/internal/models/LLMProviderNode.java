@@ -21,9 +21,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
-import org.apache.sling.models.annotations.injectorspecific.SlingObject;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -56,9 +54,6 @@ public class LLMProviderNode
     @Default(longValues = DEFAULT_TIMEOUT_SECONDS)
     private long timeoutSeconds;
 
-    @SlingObject
-    private Resource resource;
-
     /**
      * The base URL of this provider's API.
      *
@@ -89,19 +84,5 @@ public class LLMProviderNode
     public long getTimeoutSeconds()
     {
         return this.timeoutSeconds;
-    }
-
-    /**
-     * Read an arbitrary, format-specific property of this provider (such as {@code projectId} or
-     * {@code apiVersion}) that has no dedicated field of its own.
-     *
-     * @param name the property name
-     * @return the property value as a string, or {@code null} if not set
-     */
-    @Nullable
-    public String getProperty(@NotNull final String name)
-    {
-        final Object value = this.resource.getValueMap().get(name);
-        return value == null ? null : value.toString();
     }
 }

@@ -1,0 +1,55 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Attach a document to a submission",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "What happens when a submitter uploads a file for something their schema asks for: the file is stored on the submission as a document recording which requirement it fulfills, and whether anything is still missing is recorded again - an upload can be the thing that completes a request, so the same tag a save maintains has to be maintained here too. Uploading is a workflow rather than a write for the same reason answering is: a submitter can read their own submission and nothing more, so there is no path by which they could put a file there themselves, and what may be attached and until when is decided by the handler rather than by an ACL. The start event admits everyone because the rule that matters is *the person who raised this particular submission*, which no performer can express.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "File uploaded",
+      "messageName": "attachDocument",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toAttach": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAttach",
+        "targetRef": "attach"
+      }
+    },
+    "attach": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "attach",
+      "label": "Store the document",
+      "handler": "attachDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Document attached",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

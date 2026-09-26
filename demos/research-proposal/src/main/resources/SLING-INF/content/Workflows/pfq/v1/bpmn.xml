@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2026 DATA @ UHN. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
+                  id="pfqDefinitions"
+                  targetNamespace="https://iap.uhndata.io/demos/pfq">
+  <bpmn:process id="pfq" name="Patient facing questionnaire" isExecutable="true">
+    <bpmn:startEvent id="created" name="Request started">
+      <bpmn:outgoing>toFill</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toFill" sourceRef="created" targetRef="fill" />
+    <!-- The screening questions and the uploads are one step, and the questions come first. One of them asks
+         whether there is a copy to upload, and that answer is what the two upload requirements are conditioned
+         on: a condition can only be met by an answer already given. Completing this task is what sets the
+         reading going. -->
+    <bpmn:userTask id="fill" iap:performers="@creator" iap:hostTag="draft" iap:requirement="questionnaire"
+        name="Extract data">
+      <bpmn:incoming>toFill</bpmn:incoming>
+      <bpmn:outgoing>toParse</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toParse" sourceRef="fill" targetRef="parse" />
+    <!-- Stages whatever was uploaded and queues its parse. Answering that there is no copy leaves the upload
+         requirements out of the form, so there is nothing to stage, nothing is queued, and the reading is
+         never asked for. That is the whole of the skip: it needs no branch here. -->
+    <bpmn:serviceTask id="parse" iap:handler="parseDocuments" name="Send the questionnaire to be read">
+      <bpmn:incoming>toParse</bpmn:incoming>
+      <bpmn:outgoing>toCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toCheck" sourceRef="parse" targetRef="check" />
+    <!-- Where the requester waits while the reading runs, and then checks it. An instance cannot be in two
+         places, so the reading is /Workflows/readPfq and this task is what this one does meanwhile. -->
+    <bpmn:userTask id="check" iap:performers="@creator" iap:hostTag="draft"
+        name="Send to the PFQ Council review">
+      <bpmn:incoming>toCheck</bpmn:incoming>
+      <bpmn:outgoing>toReview</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toReview" sourceRef="check" targetRef="review" />
+    <bpmn:userTask id="review" iap:performers="pfq-council" iap:outcomeOptions="approved, rejected"
+        iap:hostTag="submitted" name="Review the questionnaire">
+      <bpmn:incoming>toReview</bpmn:incoming>
+      <bpmn:outgoing>toRecord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toRecord" sourceRef="review" targetRef="record" />
+    <bpmn:serviceTask id="record" iap:handler="recordReview" iap:requirement="review"
+        name="Write the decision down">
+      <bpmn:incoming>toRecord</bpmn:incoming>
+      <bpmn:outgoing>toDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDecision" sourceRef="record" targetRef="decision" />
+    <bpmn:exclusiveGateway id="decision" name="Authorized?" default="toRejected">
+      <bpmn:incoming>toDecision</bpmn:incoming>
+      <bpmn:outgoing>toApproved</bpmn:outgoing>
+      <bpmn:outgoing>toRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="approved">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>variable</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>outcome</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>approved</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="rejected" />
+    <bpmn:endEvent id="approved" iap:hostTag="approved" name="Questionnaire authorized">
+      <bpmn:incoming>toApproved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="rejected" iap:hostTag="rejected" name="Not authorized">
+      <bpmn:incoming>toRejected</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="pfqDiagram">
+    <bpmndi:BPMNPlane id="pfqPlane" bpmnElement="pfq">
+      <bpmndi:BPMNShape id="createdShape" bpmnElement="created">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="140" y="223" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="fillShape" bpmnElement="fill">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="parseShape" bpmnElement="parse">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="checkShape" bpmnElement="check">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reviewShape" bpmnElement="review">
+        <dc:Bounds x="810" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recordShape" bpmnElement="record">
+        <dc:Bounds x="960" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision">
+        <dc:Bounds x="1110" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1105" y="230" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvedShape" bpmnElement="approved">
+        <dc:Bounds x="1220" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1196" y="143" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rejectedShape" bpmnElement="rejected">
+        <dc:Bounds x="1220" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1204" y="303" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toFillEdge" bpmnElement="toFill">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toParseEdge" bpmnElement="toParse">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="810" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRecordEdge" bpmnElement="toRecord">
+        <di:waypoint x="910" y="198" />
+        <di:waypoint x="960" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="1060" y="198" />
+        <di:waypoint x="1110" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
+        <di:waypoint x="1135" y="173" />
+        <di:waypoint x="1135" y="118" />
+        <di:waypoint x="1220" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
+        <di:waypoint x="1135" y="223" />
+        <di:waypoint x="1135" y="278" />
+        <di:waypoint x="1220" y="278" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

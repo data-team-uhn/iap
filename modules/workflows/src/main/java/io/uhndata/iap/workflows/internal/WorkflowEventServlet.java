@@ -18,8 +18,10 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
@@ -29,6 +31,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.request.RequestParameter;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
@@ -39,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -56,20 +60,36 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  * <p>Binding this servlet to a resource type is what replaces direct-CRUD semantics with workflow-managed ones
  * for it. Adding a type to {@code resourceTypes} is how something comes under workflow control.</p>
  *
+ * <p>The event a POST means is the target's, unless a selector names one:
+ * {@code POST <path>.attachDocument.json} sends that message instead of the default. Nothing is registered per
+ * message — the definitions decide which messages exist, and a message nothing is waiting for is a 409.</p>
+ *
+ * <p><strong>The extension is not optional.</strong> Sling reads the last dot-separated token of a URL as the
+ * extension, so {@code <path>.attachDocument} names no selector at all: the POST falls through to the target's
+ * default event, succeeds at being the wrong thing, and comes back as a refusal from whichever handler that
+ * default reached — which reads as the named event being broken rather than as never having been asked for.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
-    // The homepages under workflow control, plus the user tasks of running instances. Literals where the owning
-    // module must not be depended on: submissions depends on workflows, so workflows can only name its resource
-    // type, not import it.
-    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage" },
+    // The homepages under workflow control, the entities that are themselves editable through a workflow, and the
+    // user tasks of running instances. Literals where the owning module must not be depended on: submissions
+    // depends on workflows, so workflows can only name its resource types, not import them.
+    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage",
+        "sub/Submission" },
     methods = { HttpConstants.METHOD_POST })
 public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 {
     /** The domain event a POST to a workflow-managed homepage translates to. */
     public static final String CREATE_EVENT = "create";
+
+    /** The domain event a POST to an entity that is editable through a workflow translates to. */
+    public static final String SAVE_EVENT = "save";
+
+    /** Named rather than imported, for the same reason as in the resource types above. */
+    private static final String SUBMISSION_RESOURCE_TYPE = "sub/Submission";
 
     private static final long serialVersionUID = -6273669283473534077L;
 
@@ -113,22 +133,45 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Which domain event a POST means, decided by what it was aimed at: posting to a homepage asks for something
-     * to be created, posting to a user task says it has been decided. The servlet stays dumb: it names the event
-     * and hands it over; what happens next is the definitions' business.
+     * Which domain event a POST means, decided by what it was aimed at: posting to a homepage asks for something to
+     * be created, posting to a user task says it has been decided, and posting to an entity changes that one. The
+     * servlet stays dumb — it names the event and hands it over; what happens next is the definitions' business.
+     *
+     * <p>A selector names the event outright, which is how anything beyond those defaults is reached: an entity has
+     * one obvious thing that happens to it and any number of less obvious ones, and there is no reading of the URL
+     * that tells {@code save} from {@code attachDocument}. Naming it costs nothing in safety, because a client
+     * naming an event has never been what decides whether it happens: the engine answers 409 when no start event is
+     * waiting for that message and 403 when this user is not among its performers, exactly as it does for the
+     * defaults.</p>
      *
      * @param request the incoming request
      * @return the domain event name
      */
     private String eventName(final SlingJakartaHttpServletRequest request)
     {
-        return request.getResource().isResourceType(TaskInstance.RESOURCE_TYPE)
-            ? TaskCompletion.COMPLETE_EVENT : CREATE_EVENT;
+        final String named = request.getRequestPathInfo().getSelectorString();
+        if (named != null && !named.isEmpty()) {
+            return named;
+        }
+        final Resource target = request.getResource();
+        if (target.isResourceType(TaskInstance.RESOURCE_TYPE)) {
+            return TaskCompletion.COMPLETE_EVENT;
+        }
+        // Posting to an entity rather than to the homepage that holds them means changing that one, not making
+        // another. Which is as far as the default needs to go: the other things one might do to a submission —
+        // send it for review, withdraw it — are steps of its own workflow, so they arrive as user tasks and are
+        // already told apart above.
+        return target.isResourceType(SUBMISSION_RESOURCE_TYPE) ? SAVE_EVENT : CREATE_EVENT;
     }
 
     /**
      * The event payload: every ordinary request parameter, single values as strings and repeated ones as string
      * arrays. Sling's own control parameters, {@code :}-prefixed, are the transport's business and stay out.
+     *
+     * <p>An uploaded file is the one thing that does not become a string. Reading it as one would decode its bytes
+     * as text and corrupt anything that is not text, so it arrives as an {@link EventAttachment} for a handler that
+     * has somewhere to put it. Whether a given activity wants one is the handler's business; this only declines to
+     * destroy it on the way in.</p>
      *
      * @param request the incoming request
      * @return the payload for the translated event
@@ -137,11 +180,79 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     {
         return request.getRequestParameterMap().entrySet().stream()
             .filter(entry -> !entry.getKey().startsWith(":") && !"_charset_".equals(entry.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> {
-                final RequestParameter[] values = entry.getValue();
-                return values.length == 1 ? values[0].getString()
-                    : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
-            }));
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> value(entry.getValue())));
+    }
+
+    /**
+     * What one parameter contributes to the payload: a file, a string, or an array of either.
+     *
+     * <p>Files are kept as parts however many arrive under the name. A {@code multiple} file input posts
+     * several under one name, and reading those as strings would destroy the bytes on the way in - which is
+     * the one thing this method exists to avoid.</p>
+     *
+     * <p>Package-visible so a test can drive it with a real file part: the mock request the other tests use
+     * turns everything it is given into a form field, so the one case worth pinning here is the one it cannot
+     * express.</p>
+     *
+     * @param values everything sent under one name
+     * @return the payload value
+     */
+    static Object value(final RequestParameter[] values)
+    {
+        if (values.length > 0 && Arrays.stream(values).noneMatch(RequestParameter::isFormField)) {
+            return values.length == 1
+                ? new RequestParameterAttachment(values[0])
+                : Arrays.stream(values).map(RequestParameterAttachment::new).toArray(EventAttachment[]::new);
+        }
+        return values.length == 1 ? values[0].getString()
+            : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
+    }
+
+    /**
+     * A multipart part, offered to a handler as an attachment.
+     *
+     * <p>Holds the part rather than its bytes: Sling has already buffered it wherever it saw fit, and copying it
+     * into the heap to hand it over would double that for no reason — a handler writes it straight into the
+     * repository.</p>
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class RequestParameterAttachment implements EventAttachment
+    {
+        private final RequestParameter part;
+
+        RequestParameterAttachment(final RequestParameter part)
+        {
+            this.part = part;
+        }
+
+        @Override
+        public String getFileName()
+        {
+            return this.part.getFileName();
+        }
+
+        @Override
+        public String getMimeType()
+        {
+            return this.part.getContentType();
+        }
+
+        @Override
+        public long getSize()
+        {
+            return this.part.getSize();
+        }
+
+        @Override
+        public InputStream openStream() throws IOException
+        {
+            // Sling declares this nullable, and the annotation is load-bearing rather than defensive: a part with
+            // nothing to read is a broken request rather than an empty file, since a zero-byte upload still has a
+            // stream. Asserted rather than branched on, so there is no path a test cannot reach
+            return Objects.requireNonNull(this.part.getInputStream(), "A file part always has content to read");
+        }
     }
 
     /**

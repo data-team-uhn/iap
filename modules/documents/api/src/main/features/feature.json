@@ -42,6 +42,9 @@
     "io.uhndata.iap.documents.internal.ParseJobConsumer":{
       "daemonUrl":"${docling.url}"
     },
+    "io.uhndata.iap.documents.internal.ParseAbandonment":{
+      "daemonUrl":"${docling.url}"
+    },
     // Only the daemon ever ends a job, so a daemon killed mid-parse leaves one active for good, and
     // everything waiting on it waits for good with it. The sweep gives up on such a job and takes its
     // staging folder with it. Half an hour sits above the daemon's own quarter-hour ceiling on a whole

@@ -45,9 +45,12 @@
         // group.
         "set ACL for everyone \n deny jcr:read on /libs/iap/config,/apps/iap/config \n end",
         // A dedicated user for LLMConfigurationServiceImpl: it only ever reads the catalog
-        // (/libs/iap/config/LLM) and the active selection (/apps/iap/config/LLM), so it gets
-        // read on exactly those two, not the broad read-everything sling-readall carried.
-        "create service user llm-config \n set ACL for llm-config \n allow jcr:read on /libs/iap/config,/apps/iap/config \n end",
+        // (/libs/iap/config/LLM) and the active selection (/apps/iap/config/LLM). /libs itself
+        // is not world-readable (only sling-search-path-reader and a few service users), so a
+        // grant on /libs/iap/config alone cannot be reached: getResource returns null and the
+        // gate logs "LLM catalog not found". Read on /libs is the walk; the two config folders
+        // are what it actually uses. Not sling-readall: that is the whole repository.
+        "create service user llm-config \n set ACL for llm-config \n allow jcr:read on /libs,/libs/iap/config,/apps/iap/config \n end",
         // The group the shipped administration screens name as their operator; it exists so
         // that a grant has something real to point at, who belongs to it is a deployment's
         // business. Created here too (harmless if another module already has) since this ACL

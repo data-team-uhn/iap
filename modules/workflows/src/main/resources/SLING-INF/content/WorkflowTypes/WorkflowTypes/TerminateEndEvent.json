@@ -7,5 +7,6 @@
   "xmlElement": "bpmn:endEvent",
   "xmlChildElement": "bpmn:terminateEventDefinition",
   "jcrNodeType": "wf:EndEvent",
+  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ],
   "jcrProperties": "{\"terminate\": true}"
 }

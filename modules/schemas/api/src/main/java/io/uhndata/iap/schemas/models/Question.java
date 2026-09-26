@@ -17,7 +17,11 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
@@ -47,10 +51,26 @@ public class Question extends FormItem
     private String dataType;
 
     @ValueMapValue
-    private boolean required;
+    @Default(longValues = 0)
+    private long minAnswers;
+
+    // Defaulted here as well as in the node type: the CND default only reaches nodes created through JCR, and a
+    // model reading an absent maximum as 0 would turn "one value" into "any number of values"
+    @ValueMapValue
+    @Default(longValues = 1)
+    private long maxAnswers;
 
     @ValueMapValue
-    private boolean multiple;
+    private Double minValue;
+
+    @ValueMapValue
+    private Double maxValue;
+
+    @ValueMapValue
+    private String pattern;
+
+    @ValueMapValue
+    private String patternMessage;
 
     @ValueMapValue
     private String displayMode;
@@ -63,6 +83,9 @@ public class Question extends FormItem
 
     @ValueMapValue
     private String responseShape;
+
+    @ValueMapValue
+    private String optionsFrom;
 
     /**
      * The question text shown to the submitter.
@@ -98,23 +121,94 @@ public class Question extends FormItem
     }
 
     /**
-     * Whether an answer must be provided before submitting.
+     * The fewest values an answer must give, {@code 0} or a negative number asking for nothing. Falling short is
+     * incompleteness rather than an error: answers are saved as they are given, so this is reported by the
+     * completeness marking instead of blocking a save.
      *
-     * @return {@code true} if an answer is required
+     * @return the minimum number of values
      */
-    public boolean isRequired()
+    public long getMinAnswers()
     {
-        return this.required;
+        return this.minAnswers;
     }
 
     /**
-     * Whether more than one value may be provided.
+     * The most values an answer may give, {@code 0} or a negative number allowing any amount. Unlike the minimum
+     * this is enforced when answers are saved, because no form offers a way to exceed it.
+     *
+     * @return the maximum number of values
+     */
+    public long getMaxAnswers()
+    {
+        return this.maxAnswers;
+    }
+
+    /**
+     * Whether an answer must be provided before submitting: a reading of {@link #getMinAnswers()}, not a fact of
+     * its own, so the two can never disagree.
+     *
+     * @return {@code true} if at least one value is required
+     */
+    public boolean isRequired()
+    {
+        return this.minAnswers > 0;
+    }
+
+    /**
+     * Whether more than one value may be provided: a reading of {@link #getMaxAnswers()}, not a fact of its own,
+     * so the two can never disagree.
      *
      * @return {@code true} if multiple values are allowed
      */
     public boolean isMultiple()
     {
-        return this.multiple;
+        return this.maxAnswers != 1;
+    }
+
+    /**
+     * For numeric answers, the smallest value accepted. A hard bound: a save giving less is refused.
+     *
+     * @return the smallest accepted value, or {@code null} when unbounded
+     */
+    @Nullable
+    public Double getMinValue()
+    {
+        return this.minValue;
+    }
+
+    /**
+     * For numeric answers, the largest value accepted. A hard bound: a save giving more is refused.
+     *
+     * @return the largest accepted value, or {@code null} when unbounded
+     */
+    @Nullable
+    public Double getMaxValue()
+    {
+        return this.maxValue;
+    }
+
+    /**
+     * For text answers, a regular expression every given value must match in full; a save that does not is
+     * refused.
+     *
+     * @return the pattern, or {@code null} when anything is accepted
+     */
+    @Nullable
+    public String getPattern()
+    {
+        return this.pattern;
+    }
+
+    /**
+     * What the submitter is told when a value does not match {@link #getPattern() the pattern}. Without one the
+     * refusal quotes the pattern itself, which only its author can read.
+     *
+     * @return the message, or {@code null} when none is configured
+     */
+    @Nullable
+    public String getPatternMessage()
+    {
+        return this.patternMessage;
     }
 
     /**
@@ -159,5 +253,58 @@ public class Question extends FormItem
     public String getResponseShape()
     {
         return this.responseShape;
+    }
+
+    /**
+     * A content path whose live items are the answers this question offers, in place of child
+     * {@link AnswerOption} nodes. The form, the model prompt and the answer matching all read
+     * {@link #getOfferedOptions()}, which follows this path when it is set.
+     *
+     * @return an absolute repository path, or {@code null} when the options are declared as children
+     */
+    @Nullable
+    public String getOptionsFrom()
+    {
+        return this.optionsFrom;
+    }
+
+    /**
+     * The answers this question offers as declared child nodes, in the order they are declared.
+     *
+     * <p>
+     * A question offering none is answered freely, in whatever its {@link #getDataType() data type} accepts; one
+     * offering options is answered only with their values. That is the difference that lets a condition compare
+     * against an agreed value rather than against whatever a submitter typed.
+     * </p>
+     *
+     * <p>When {@link #getOptionsFrom()} is set, the live list is {@link #getOfferedOptions()}, not this.</p>
+     *
+     * @return the declared options, an empty list if none are declared as children
+     */
+    @NotNull
+    public List<AnswerOption> getOptions()
+    {
+        return this.getChildren(AnswerOption.RESOURCE_TYPE, AnswerOption.class);
+    }
+
+    /**
+     * The answers this question offers, as the form, the model and the matching all see them.
+     *
+     * <p>From {@link #getOptionsFrom()} when that path is set, otherwise from the declared
+     * {@link #getOptions() children}. One list, so a category tree an administrator edits is the same list
+     * a submitter picks from, a model is shown, and a reply is matched against.</p>
+     *
+     * @return the offered options, an empty list if the question is answered freely
+     */
+    @NotNull
+    public List<OfferedOption> getOfferedOptions()
+    {
+        if (this.optionsFrom != null && !this.optionsFrom.isBlank()) {
+            return OptionCatalog.read(this.resource.getResourceResolver(), this.optionsFrom);
+        }
+        return getOptions().stream()
+            .map(option -> new OfferedOption(option.getValue(), option.getLabel(),
+                Objects.requireNonNullElse(option.getDescription(), "")))
+            .toList();
     }
 }

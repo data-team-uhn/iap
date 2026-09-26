@@ -27,6 +27,9 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.models.ConditionGroup;
+import io.uhndata.iap.conditions.models.ConditionOperand;
+import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
@@ -64,7 +67,8 @@ public final class WorkflowFixture
      */
     public static void setUp(final SlingContext context)
     {
-        context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, EntityHomepage.class);
+        context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, EntityHomepage.class,
+            SingleCondition.class, ConditionGroup.class, ConditionOperand.class);
         context.addModelsForPackage("io.uhndata.iap.workflows.models");
 
         registerType(context, "WorkflowsHomepage", "data/EntityHomepage");
@@ -92,9 +96,9 @@ public final class WorkflowFixture
         registerType(context, "EventBasedGateway", Gateway.RESOURCE_TYPE);
         registerType(context, "SequenceFlow", "data/EntityPart");
         registerType(context, "WorkflowInstances", "data/Content");
-        registerType(context, "WorkflowInstance", "data/Entity");
+        registerType(context, "WorkflowInstance", "data/EntityPart");
         registerType(context, "WorkflowToken", "data/EntityPart");
-        registerType(context, "TaskInstance", "data/Entity");
+        registerType(context, "TaskInstance", "data/EntityPart");
         registerType(context, "Variable", "data/EntityPart");
     }
 

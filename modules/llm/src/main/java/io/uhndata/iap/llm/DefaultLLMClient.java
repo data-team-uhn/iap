@@ -18,16 +18,16 @@
 package io.uhndata.iap.llm;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Base class for {@link LLMClient} implementations. It wires the four {@link LLMClient} chat overloads to a
- * single {@link #doChat(String, List, LLMRequestOptions)} hook that the concrete client implements, and holds
+ * Base class for {@link LLMClient} implementations. It wires {@link LLMClient#chat} to a single
+ * {@link #doChat(String, List, LLMRequestOptions)} hook that the concrete client implements, and holds
  * the {@link LLMConfigurationService} used to resolve the active {@link LLMSettings}. The transport, request
  * shaping and response parsing are entirely the subclass's concern
  * — {@link io.uhndata.iap.llm.internal.OpenAIClient} builds an OpenAI-compatible request through the
@@ -39,48 +39,72 @@ import org.osgi.service.component.annotations.Reference;
 public abstract class DefaultLLMClient implements LLMClient
 {
     /**
+     * Where every model call is timed.
+     *
+     * <p>This is the one place every call passes through, whoever made it and whichever client answers it, so it
+     * is the only place a stage's cost can be measured without each caller timing itself. The response schema's
+     * name says which stage the call was - {@code iap_is_proposal_gate}, {@code iap_proposal_category},
+     * {@code iap_intake} - so one log line per call is enough to tell where a reading spent its minutes.</p>
+     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultLLMClient.class);
+
+    /**
      * The configuration service used to resolve the active settings.
      *
      * <p>
-     * Declared here rather than in each concrete client. Declarative Services does not inherit a reference
-     * from a superclass in another bundle, which is why it used to be bound through a setter each subclass
-     * called from its own {@code @Reference} -- but a subclass that forgot the setter activated cleanly,
-     * since DS then had nothing to wait on, and answered the first request with a null field against a
-     * {@code @NotNull} accessor. Every client this base class has ships in this bundle, so the reference is
-     * inherited and a client cannot be satisfied without it.
+     * Held here so every client shares one accessor. The {@code @Reference} that fills it lives on the
+     * concrete {@code @Component}: DS will not inject a private field declared on this abstract class, even
+     * in the same bundle, and the client would activate with a null against a {@code @NotNull} accessor.
      * </p>
      */
-    @Reference
     private LLMConfigurationService configurationService;
-
-    @Override
-    @NotNull
-    public String chat(@NotNull final String userMessage) throws IOException
-    {
-        return doChat(null, Collections.singletonList(new LLMMessage("user", userMessage)), null);
-    }
-
-    @Override
-    @NotNull
-    public String chat(@Nullable final String systemPrompt, @NotNull final String userMessage) throws IOException
-    {
-        return doChat(systemPrompt, Collections.singletonList(new LLMMessage("user", userMessage)), null);
-    }
-
-    @Override
-    @NotNull
-    public String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages)
-        throws IOException
-    {
-        return doChat(systemPrompt, messages, null);
-    }
 
     @Override
     @NotNull
     public String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages,
         @Nullable final LLMRequestOptions options) throws IOException
     {
-        return doChat(systemPrompt, messages, options);
+        final String stage = options == null ? "none" : String.valueOf(options.getResponseSchemaName());
+        final long promptChars = countCharacters(systemPrompt, messages);
+        final long startedAt = System.nanoTime();
+        try {
+            final String reply = doChat(systemPrompt, messages, options);
+            LOGGER.info("LLM call done: stage={} promptChars={} maxOutputTokens={} ms={} replyChars={}",
+                stage, promptChars, options == null ? null : options.getMaxOutputTokens(),
+                millisecondsSince(startedAt), reply.length());
+            return reply;
+        } catch (final IOException e) {
+            LOGGER.warn("LLM call failed: stage={} promptChars={} ms={} reason={}",
+                stage, promptChars, millisecondsSince(startedAt), e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * How much text this call sends, which is what a provider charges for and what its prefill time scales with.
+     *
+     * @param systemPrompt the system prompt, may be {@code null}
+     * @param messages the conversation turns
+     * @return the total number of characters
+     */
+    private static long countCharacters(final String systemPrompt, final List<LLMMessage> messages)
+    {
+        long characters = systemPrompt == null ? 0 : systemPrompt.length();
+        for (final LLMMessage message : messages) {
+            characters += message.getContent().length();
+        }
+        return characters;
+    }
+
+    /**
+     * How long ago something started, in milliseconds.
+     *
+     * @param startedAt the {@link System#nanoTime()} it started at
+     * @return the elapsed milliseconds
+     */
+    protected static long millisecondsSince(final long startedAt)
+    {
+        return (System.nanoTime() - startedAt) / 1_000_000L;
     }
 
     /**
@@ -96,7 +120,8 @@ public abstract class DefaultLLMClient implements LLMClient
     }
 
     /**
-     * Set the configuration service, for a test that builds a client outside OSGi.
+     * Set the configuration service. The concrete client's {@code @Reference} bind method calls this; tests
+     * that build a client outside OSGi call it themselves.
      *
      * @param service the configuration service to use
      */

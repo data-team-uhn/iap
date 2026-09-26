@@ -99,14 +99,14 @@ class LLMConfigServletTest
             "timeoutSeconds", 600L));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
             "jcr:primaryType", "llm:Model",
-            "maxOutputTokens", 1024L,
+            "contextLimitTokens", 1024L,
             "temperature", 0.25d,
-            "chunked", Boolean.TRUE,
+            "reasoning", Boolean.TRUE,
             "developer", "meta"));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/other-model", Map.of(
             "jcr:primaryType", "llm:Model",
-            "maxOutputTokens", 2048L,
-            "chunked", Boolean.FALSE));
+            "contextLimitTokens", 2048L,
+            "reasoning", Boolean.FALSE));
     }
 
     private MockSlingJakartaHttpServletRequest request(final Resource resource)
@@ -148,14 +148,14 @@ class LLMConfigServletTest
 
         final JsonObject model = provider.getJsonArray("models").getJsonObject(0);
         assertEquals(MODEL, model.getString("name"));
-        assertEquals(1024, model.getJsonNumber("maxOutputTokens").longValue());
+        assertEquals(1024, model.getJsonNumber("contextLimitTokens").longValue());
         assertEquals(0.25d, model.getJsonNumber("temperature").doubleValue());
-        assertTrue(model.getBoolean("chunked"));
+        assertTrue(model.getBoolean("reasoning"));
         assertEquals("meta", model.getString("developer"));
 
         final JsonObject otherModel = provider.getJsonArray("models").getJsonObject(1);
         assertEquals("other-model", otherModel.getString("name"));
-        assertFalse(otherModel.getBoolean("chunked"));
+        assertFalse(otherModel.getBoolean("reasoning"));
     }
 
     @Test

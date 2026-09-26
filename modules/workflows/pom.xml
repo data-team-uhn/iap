@@ -53,7 +53,7 @@
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -65,6 +65,12 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The JSON processor SPI, for saying whether a task waits for whoever is reading it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-serialization-json</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- Nullability annotations for the exported API -->
@@ -84,7 +90,25 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>iap-principals</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A gateway's guards are ordinary structured conditions, evaluated by this module's evaluator, and the
+         engine contributes the operand source that reads a running instance's variables -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- An end event records what finishing meant by tagging the host, so the engine speaks the tag vocabulary -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- The /WorkflowTypes vocabulary documents itself through this -->
@@ -119,6 +143,12 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <!-- A deadline is met by a periodic sweep: the clock is the one thing in a workflow with no session of its
+         own to fire an event from -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.commons.scheduler</artifactId>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>

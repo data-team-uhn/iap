@@ -146,6 +146,9 @@ class DaemonState:
         # account for every one of them
         self.pending_parses: dict[Future, tuple[str, str, str]] = {}
         self.pending_lock = threading.Lock()
+        # Jobs the caller asked to stop. A conversion already running cannot be killed, so the
+        # callback is skipped instead and the caller wipes the folder itself.
+        self.cancelled_jobs: set[str] = set()
         self.docx_lock = threading.Lock()
         # The DOCX converter lives in this process, not the pool, so it sits outside the
         # per-worker RAM budget. That is fine: SimplePipeline parses OOXML and loads no models.
@@ -201,6 +204,36 @@ class DaemonState:
             )
             self.pending_parses[future] = (job_id, callback_url, token)
         future.add_done_callback(self._forget_parse)
+
+    def cancel_parse(self, job_id: str) -> str:
+        """Stop one accepted parse.
+
+        A parse that has not started is cancelled and forgotten. One already converting cannot
+        be killed; it is remembered so its callback is not sent, and the caller removes the
+        files it was writing.
+
+        @param job_id: the caller's identifier for the parse
+        @return: ``cancelled`` when it had not started, ``running`` when it had, ``unknown``
+            when this daemon is not doing it
+        """
+        with self.pending_lock:
+            match = None
+            for future, (pending_id, _callback_url, _token) in self.pending_parses.items():
+                if pending_id == job_id:
+                    match = future
+                    break
+            if match is None:
+                return "unknown"
+            if match.cancel():
+                self.pending_parses.pop(match, None)
+                return "cancelled"
+            self.cancelled_jobs.add(job_id)
+            return "running"
+
+    def is_cancelled(self, job_id: str) -> bool:
+        """Return whether a parse was stopped and should not call back."""
+        with self.pending_lock:
+            return job_id in self.cancelled_jobs
 
     def _forget_parse(self, future: Future) -> None:
         """Drop a parse that has run its course, callback and all."""
@@ -344,6 +377,9 @@ def _parse_and_call_back(
     """
     queued_at = time.monotonic()
     _log_stderr(f"parse job={job_id} queued path={input_path}")
+    if _STATE is not None and _STATE.is_cancelled(job_id):
+        _log_stderr(f"parse job={job_id} was stopped before it started")
+        return
     try:
         with _STATE.parse_slots:
             # Split from the conversion: with one parse slot, a slow answer is often a parse that
@@ -367,6 +403,9 @@ def _parse_and_call_back(
         )
         traceback.print_exc(file=sys.stderr)
         payload = parse_callbacks.failure_payload(job_id, str(exc) or type(exc).__name__)
+    if _STATE is not None and _STATE.is_cancelled(job_id):
+        _log_stderr(f"parse job={job_id} was stopped; not calling back")
+        return
     delivery_started = time.monotonic()
     parse_callbacks.deliver(callback_url, payload, token=token, log=_log_stderr)
     _log_stderr(
@@ -454,8 +493,33 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             self._handle_parse()
             return
 
+        if self.path.split("?", 1)[0] == "/cancel":
+            self._handle_cancel()
+            return
+
         drain_request_body(self)
         send_json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _handle_cancel(self) -> None:
+        """Stop one background parse. Query: ``?job_id=``."""
+        if self._refuse_unauthorized("/cancel"):
+            return
+        if not drain_request_body(self):
+            send_json_response(
+                self,
+                HTTPStatus.BAD_REQUEST,
+                {"error": "request body must be absent, or declared and under 1 MiB"},
+            )
+            return
+        if _STATE is None:
+            send_json_response(self, HTTPStatus.SERVICE_UNAVAILABLE, {"error": "daemon shutting down"})
+            return
+        job_id = (parse_query(self.path).get("job_id", [""])[0] or "").strip()
+        if not job_id:
+            send_json_response(self, HTTPStatus.BAD_REQUEST, {"error": "job_id is required"})
+            return
+        status = _STATE.cancel_parse(job_id)
+        send_json_response(self, HTTPStatus.OK, {"job_id": job_id, "status": status})
 
     def _handle_parse(self) -> None:
         """Parse a document already on the shared volume.

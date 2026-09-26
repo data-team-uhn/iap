@@ -1,0 +1,59 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+  "bundles":[
+    {
+      // Starts after the LLM client (25), the workflow engine (26), and the submissions and schemas models it
+      // reads and writes (28)
+      "id":"${project.groupId}:${project.artifactId}:${project.version}",
+      "start-order":"29"
+    }
+  ],
+  "configurations":{
+    "org.apache.sling.jcr.repoinit.RepositoryInitializer~extraction":{
+      "service.ranking:Integer": 400,
+      "scripts":[
+        // The user that hands a finished parse to the workflow engine and later asks it to read the answers out.
+        // The engine decides from the definitions whether this user may fire the events it fires, which is why
+        // the documentParsed start event names it and nobody else.
+        //
+        // It writes two things of its own, both on the submission: the claim that stops two jobs reading the
+        // same document twice, and the record of how a reading ended when it could not be handed on. Read
+        // alone left both silently undone - the claim could not be taken, so no reading ever started, and the
+        // submission sat at running for good.
+        "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read on /Submissions \n allow rep:write on /Submissions \n end"
+      ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapextraction":{
+      "user.mapping":[
+        "io.uhndata.iap.extraction:extraction=[iap-extraction]"
+      ]
+    },
+    // One submission in extraction at a time, matching the LLM module's call gate. A wider queue does not read
+    // anything sooner - the gate holds model calls to one whatever this says - it only moves the waiting from
+    // the queue, where a job waits as long as it takes, to the gate, where a job waits against the call
+    // timeout and fails when it runs out.
+    "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
+      "queue.name":"iap-extraction",
+      "queue.topics":[
+        "iap/extraction/extract"
+      ],
+      "queue.type":"UNORDERED",
+      "queue.maxparallel:Double":1.0
+    }
+  }
+}

@@ -53,6 +53,8 @@
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- `@me` has to resolve to the id the repository uses, not the one the login was typed with;
+         UserIds is where that difference is dealt with once -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>

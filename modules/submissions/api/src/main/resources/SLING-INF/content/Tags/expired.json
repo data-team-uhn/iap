@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Expired",
+  "description": "Nobody acted on this in the time its process allowed, so it ended without a decision.",
+  "category": ["lifecycle"],
+  "system": true,
+  "color": "#6b5b45",
+  "icon": "HourglassDisabledOutlined",
+  "order": 80
+}

@@ -1,0 +1,142 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Patient facing questionnaire",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "bpmnAuthoritative": true,
+    "active": true,
+    "description": "A requester answers the screening questions, uploads the questionnaire if they have one, checks what was read, and sends it. The PFQ Council then accepts or refuses it.",
+    "created": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "created",
+      "label": "Request started",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toFill": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFill",
+        "targetRef": "fill"
+      }
+    },
+    // The screening questions and the uploads are one step, and completing it is what sets the reading going.
+    // They are together because the answer to "is a copy available" is what decides whether the upload
+    // requirements apply, and a condition can only be met by an answer that has already been given.
+    "fill": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "fill",
+      "label": "Extract data",
+      "performers": [ "@creator" ],
+      "hostTag": "draft",
+      // Offered under the questionnaire upload rather than among the actions on the page: pressing it
+      // reads the file that is right above it.
+      "requirement": "questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toParse": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParse",
+        "targetRef": "parse"
+      }
+    },
+    // Stages whatever was uploaded and queues its parse. With nothing uploaded it queues nothing and the
+    // token passes straight on, which is what makes the skip above cost no steps here.
+    "parse": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parse",
+      "label": "Send the questionnaire to be read",
+      "handler": "parseDocuments",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheck",
+        "targetRef": "check"
+      }
+    },
+    // Where the requester waits while the reading runs, and then checks it. An instance cannot be in two
+    // places, so the reading is a workflow of its own and this task is what this one does meanwhile.
+    "check": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "check",
+      "label": "Send to the PFQ Council review",
+      "performers": [ "@creator" ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toReview",
+        "targetRef": "review"
+      }
+    },
+    "review": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "review",
+      "label": "Review the questionnaire",
+      "performers": [ "pfq-council" ],
+      "hostTag": "submitted",
+      "outcomeOptions": [ "approved", "rejected" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "review",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Authorized?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "approved",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "rejected",
+        "isDefault": true
+      }
+    },
+    "approved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "approved",
+      "hostTag": "approved",
+      "label": "Questionnaire authorized",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "rejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "rejected",
+      "hostTag": "rejected",
+      "label": "Not authorized",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

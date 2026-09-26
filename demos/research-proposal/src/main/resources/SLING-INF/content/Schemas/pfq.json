@@ -1,0 +1,348 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Patient facing questionnaire",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "active": true,
+    "jcr:reference:workflow": "/Workflows/pfq/v1",
+    // What reads the uploaded questionnaire once the daemon has parsed it. Unlike the proposal, there is no
+    // gate: a submission against this schema is a questionnaire because the submitter said so, and there is
+    // nothing to decide before reading it.
+    "jcr:reference:readingWorkflow": "/Workflows/readPfq/v1",
+    "description": "Ask the PFQ Council to authorize a patient facing questionnaire. Answer the screening questions and upload the questionnaire; what it says about itself is read out of it and filled in below for you to check.",
+    "screening": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "About this questionnaire",
+      "description": "Answered by hand. Nothing here is read from the document, and the reading does not start until these are answered.",
+      "authorized": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Has this questionnaire already been authorized for use at UHN?",
+        "description": "Search the PFQ Repository before you answer.",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether the Council has seen this questionnaire before, and whether this is a new authorization or a change to one",
+        "inRepository": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "in-repository",
+          "label": "Yes - it is in the repository"
+        },
+        "notInRepository": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "not-in-repository",
+          "label": "No - it is not in the repository"
+        },
+        "notSure": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "not-sure",
+          "label": "Not sure - help me search"
+        }
+      },
+      "extending": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which authorized PFQ are you extending?",
+        "description": "Name it as the repository lists it. Answer 'none' when this is not an extension of an existing questionnaire.",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Tying this request to the questionnaire it builds on, so the Council reviews the change rather than the whole instrument"
+      },
+      "repurpose": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Describe how you wish to repurpose this PROM or PREM - what is changing in population, setting or purpose?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether an instrument validated for one population and purpose still holds for the new one"
+      },
+      "documentAvailable": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is a copy of the questionnaire available to upload?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether there is a document to read: without one the questions below it are not asked and nothing is read",
+        "yes": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "yes",
+          "label": "Yes"
+        },
+        "no": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "no",
+          "label": "No - it is still being developed"
+        }
+      },
+      "outline": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Provide an outline, or the intent of what data you are hoping to collect.",
+        "dataType": "text",
+        "purpose": "What the questionnaire is for, when there is no document yet to say so"
+      }
+    },
+    "questionnaire": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "The questionnaire",
+      "description": "The questionnaire itself, as a PDF or Word document. Everything under 'Read from the questionnaire' is read out of it.",
+      "acceptedFileTypes": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword"
+      ],
+      "required": true,
+      // Asked only when the submitter said there is a copy. A questionnaire still being developed has
+      // nothing to upload, nothing to parse and so nothing to read: the reading never starts, because no
+      // parse ever finishes to start it.
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [ "screening/documentAvailable" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "yes" ]
+        }
+      }
+    },
+    "preamble": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Preamble and instructions",
+      "description": "The preamble and instructions given to the patient - what the questionnaire is for and how the answers will be used - when they are not part of the file above.",
+      "acceptedFileTypes": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword"
+      ],
+      "required": false,
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [ "screening/documentAvailable" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "yes" ]
+        }
+      }
+    },
+    "extracted": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Read from the questionnaire",
+      "description": "Read out of the uploaded document. Check every answer: each one carries the words it came from.",
+      // Shown from the moment a reading is asked for, and not before: the status is unset until the
+      // submitter presses the button, and is set to running by the step that queues the parse.
+      //
+      // running has to be in this list, not only done and failed. The reading reads the questions it is to
+      // ask through this same condition, and while it runs the status is running - so leaving it out hid the
+      // questions from the reading that was meant to answer them, and the whole thing finished in 48ms
+      // having asked the model nothing.
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes any",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": [ "extractionStatus" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "running", "done", "failed" ]
+        }
+      },
+      // Named by the askTheModel step of the reading workflow. Every question here has an extractionPrompt,
+      // which is what makes it one the model is asked.
+      "name": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Name and version of the questionnaire",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Identifying the instrument in the repository, and telling two versions of it apart",
+        "extractionPrompt": "Find the name of the questionnaire as it is titled in the document, with its version or edition when one is given. Quote the title as written, without the word 'questionnaire' added or removed."
+      },
+      "measureType": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is this a PROM or a PREM?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Which of the two kinds of patient facing questionnaire this is, which decides how the Council reviews it",
+        "extractionPrompt": "Decide from what the items ask about, not from the title. A PROM (patient-reported outcome measure) asks the patient about their own health status and the quality of life it affects: symptoms, functionality, pain, and physical, mental and social health, in the patient's own words and without a clinician's interpretation. EQ-5D-5L is one: five dimensions - mobility, self-care, usual activities, pain/discomfort, anxiety/depression - each rated from no problems to extreme problems. Your Symptoms Matter (ISAAC) is another: the patient rates their own symptoms as they are now. A PREM (patient-reported experience measure) asks how the patient perceived the care they received: waiting times, communication, access, being treated with respect and dignity, being involved in decisions about treatment, being given clear information, coordination of care, and the timeliness of treatment. The Canadian Patient Experiences Survey - Inpatient Care is one: it asks about the quality of care during a hospital stay. The test is what the items are about: the patient's own health is prom, the care they were given is prem. Some questionnaires are neither, and answering neither is correct for them: intake forms, consent forms, and screening forms such as COVID screening are not patient-reported measures at all. Answer with exactly one of these values: prom, prem, neither.",
+        "responseShape": "{\"type\":\"string\",\"enum\":[\"prom\",\"prem\",\"neither\"]}",
+        "prom": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "prom",
+          "label": "PROM (patient-reported outcome measure)"
+        },
+        "prem": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "prem",
+          "label": "PREM (patient-reported experience measure)"
+        },
+        // The Council governs PROMs and PREMs and nothing else. An intake form, a consent form or a COVID
+        // screening form is a patient facing questionnaire but not a patient-reported measure, and saying so
+        // is a better answer than forcing it into one of the two.
+        "neither": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "neither",
+          "label": "Neither - not a patient-reported measure"
+        }
+      },
+      "languages": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Languages the questionnaire is available in",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "purpose": "Which patients can be given it as it stands, and what would have to be translated",
+        "extractionPrompt": "Name every language the document is written in or says it is available in. Answer with the language names, separated by commas. When the document is in one language and says nothing about others, answer with that one.",
+        // The UHN supported-language list goes here when it is settled; until then anything else is Other.
+        "english": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "english",
+          "label": "English"
+        },
+        "french": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "french",
+          "label": "French"
+        },
+        "other": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "other",
+          "label": "Other"
+        }
+      },
+      "itemCount": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Number of items",
+        "dataType": "long",
+        "purpose": "How much is asked of the patient, which is what burden is judged on",
+        "extractionPrompt": "Count the questions the patient is asked to answer. Count a question with several rated statements under it as one item per statement, since that is what the patient answers. Do not count instructions, headings, or the consent text. Answer with the number alone."
+      },
+      "completionTime": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How long the questionnaire takes to complete",
+        "dataType": "text",
+        "purpose": "Whether the burden on the patient is proportionate, and whether it fits the visit it is given in",
+        "extractionPrompt": "When the document states how long it takes, use that. Otherwise estimate from the number and kind of items: a short rating scale takes about five seconds an item, a free-text question about a minute. Answer with exactly one of these values: 0-5, 6-10, 11-15, 15+.",
+        "responseShape": "{\"type\":\"string\",\"enum\":[\"0-5\",\"6-10\",\"11-15\",\"15+\"]}",
+        "upTo5": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "0-5",
+          "label": "0-5 mins"
+        },
+        "upTo10": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "6-10",
+          "label": "6-10 mins"
+        },
+        "upTo15": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "11-15",
+          "label": "11-15 mins"
+        },
+        "over15": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "15+",
+          "label": "15+ mins"
+        }
+      },
+      "identifiers": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Identifiers the questionnaire collects",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "purpose": "Whether the questionnaire collects personal health information, which decides what consent and storage it needs",
+        "extractionPrompt": "Find every identifier the questionnaire asks the patient for: their name, a medical record number, a date of birth, contact details such as an address, telephone number or email. Answer with the matching values from this list, separated by commas: none, name, mrn, dob, contact, other. Answer none when it asks for no identifier at all.",
+        "none": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "none",
+          "label": "None"
+        },
+        "name": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "name",
+          "label": "Name"
+        },
+        "mrn": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "mrn",
+          "label": "MRN"
+        },
+        "dob": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "dob",
+          "label": "Date of birth"
+        },
+        "contact": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "contact",
+          "label": "Contact details"
+        },
+        "otherIdentifier": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "other",
+          "label": "Other"
+        }
+      },
+      "copyright": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Copyright or licence notice found in the document",
+        "dataType": "text",
+        "purpose": "Whether UHN may use the instrument as it stands, and whether a licence has to be bought or asked for",
+        "extractionPrompt": "Find any copyright line, licence statement, permission notice or attribution requirement, wherever it appears - often in a footer or at the end. Quote it as written. Answer that none is found when the document carries no such notice."
+      },
+      "statedPurpose": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Stated purpose of the questionnaire, as written in the preamble",
+        "dataType": "text",
+        "purpose": "What the patient is told the questionnaire is for, in the words they are told it in",
+        "extractionPrompt": "Find where the document tells the patient what the questionnaire is for and how their answers will be used. Quote it, or give it in one or two sentences when it runs long. This is usually in the preamble or the instructions, before the first question."
+      },
+      "population": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Intended patient population, as stated in the document",
+        "dataType": "text",
+        "purpose": "Who the instrument was validated for, which is what the repurposing above is judged against",
+        "extractionPrompt": "Find who the questionnaire is meant for: the condition, the treatment, the age group or the care setting. Prefer what the document states outright; when it states nothing, say what the questions themselves imply and that it is implied."
+      },
+      "respondent": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who will be completing this survey?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether the answers are the patient's own, which is what makes a measure patient-reported at all",
+        "extractionPrompt": "Decide who the questions address. A questionnaire written as 'you' or 'your health' is answered by the patient; one asking about 'the person you care for' is answered by a caregiver; one asking for clinical observations is completed by staff. Answer with exactly one of these values: patient, caregiver, staff, unclear.",
+        "responseShape": "{\"type\":\"string\",\"enum\":[\"patient\",\"caregiver\",\"staff\",\"unclear\"]}",
+        "patient": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "patient",
+          "label": "Patient"
+        },
+        "caregiver": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "caregiver",
+          "label": "Caregiver"
+        },
+        "staff": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "staff",
+          "label": "Clinical staff"
+        },
+        "unclear": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "unclear",
+          "label": "Unclear"
+        }
+      }
+    },
+    "review": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "PFQ Council review",
+      "description": "The Council decides whether the questionnaire is authorized for use at UHN.",
+      "approverGroup": "pfq-council"
+    }
+  }
+}

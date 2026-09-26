@@ -31,7 +31,6 @@ import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,24 +65,6 @@ class LLMClientFactoryImplTest
         }
 
         @Override
-        public String chat(final String userMessage)
-        {
-            return this.reply;
-        }
-
-        @Override
-        public String chat(final String systemPrompt, final String userMessage)
-        {
-            return this.reply;
-        }
-
-        @Override
-        public String chat(final String systemPrompt, final List<LLMMessage> messages)
-        {
-            return this.reply;
-        }
-
-        @Override
         public String chat(final String systemPrompt, final List<LLMMessage> messages,
             final LLMRequestOptions options)
         {
@@ -95,7 +76,7 @@ class LLMClientFactoryImplTest
     {
         final LLMSettings.ProviderSettings provider = new LLMSettings.ProviderSettings(null, null, 0,
             api == null ? null : Map.of("api", api));
-        final LLMSettings.ModelSettings model = new LLMSettings.ModelSettings(0, 0, 0.0, 0, 0, null, null);
+        final LLMSettings.ModelSettings model = new LLMSettings.ModelSettings(0, 0.0, null, null);
         return new LLMSettings(providerName, provider, "a-model", model);
     }
 
@@ -117,32 +98,21 @@ class LLMClientFactoryImplTest
     }
 
     @Test
-    void handsOutTheClientRegisteredForAProvider()
-    {
-        assertSame(this.openAiClient, this.factory.getClient(OPENAI));
-    }
-
-    @Test
-    void hasNoClientForAnUnknownOrMissingProvider()
-    {
-        assertNull(this.factory.getClient("anthropic"));
-        assertNull(this.factory.getClient(null));
-    }
-
-    @Test
     void forgetsAClientThatGoesAway()
     {
         this.factory.unbindClient(this.openAiClient, Map.of(PROVIDER_PROPERTY, OPENAI));
-        assertNull(this.factory.getClient(OPENAI));
+
+        assertThrows(IOException.class, () -> this.factory.getActiveClient());
     }
 
     @Test
-    void ignoresAClientRegisteredWithoutAProviderName()
+    void ignoresAClientRegisteredWithoutAProviderName() throws IOException
     {
         final LLMClient nameless = new StubClient("nameless");
         this.factory.bindClient(nameless, Map.of());
         this.factory.unbindClient(nameless, Map.of());
-        assertSame(this.openAiClient, this.factory.getClient(OPENAI));
+
+        assertSame(this.openAiClient, this.factory.getActiveClient());
     }
 
     @Test
@@ -182,16 +152,17 @@ class LLMClientFactoryImplTest
     }
 
     @Test
-    void acceptsAClientThatDeclaresSeveralDialects()
+    void acceptsAClientThatDeclaresSeveralDialects() throws Exception
     {
         final LLMClient multi = new StubClient("from the multilingual client");
         this.factory.bindClient(multi, Map.of(PROVIDER_PROPERTY, new String[] { "openai", "anthropic" }));
+        inject(this.factory, "configurationService",
+            (LLMConfigurationService) () -> settings("claude", "anthropic"));
 
-        assertSame(multi, this.factory.getClient("anthropic"));
-        assertSame(multi, this.factory.getClient(OPENAI));
+        assertSame(multi, this.factory.getActiveClient());
 
         this.factory.unbindClient(multi, Map.of(PROVIDER_PROPERTY, new String[] { "openai", "anthropic" }));
 
-        assertNull(this.factory.getClient("anthropic"));
+        assertThrows(IOException.class, () -> this.factory.getActiveClient());
     }
 }

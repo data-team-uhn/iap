@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read the answers out of a submission's documents",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "Hands a submission whose documents have been parsed to the workflow that reads them, which its schema version names as `readingWorkflow`. Nothing is read here. A system workflow runs straight through with no instance behind it, so it cannot branch, cannot wait and cannot fork; what a reading is worth doing in what order - one call or several, which questions when, what happens to a document that turns out not to be a proposal - is a process, and belongs on a diagram somebody can read and change. A schema version that names no reading workflow simply has none, and this ends without doing anything. Fired by the platform once every parse has landed, and by anybody through POST <submission>.extractAnswers.json.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Answers requested",
+      "messageName": "extractAnswers",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toRead": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRead",
+        "targetRef": "read"
+      }
+    },
+    "read": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "read",
+      "label": "Put the submission through its reading workflow",
+      "handler": "startWorkflow",
+      "workflowFrom": "schemaVersion/readingWorkflow",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Handed over",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
