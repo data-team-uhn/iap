@@ -120,3 +120,11 @@ active at once.
 **Discarding** goes through the deletion service, into the archive: anything something else refers
 to, such as a version that submissions or a category point at, is refused, with the referrers
 listed. What is in use is retired instead.
+
+## In the admin console
+
+The Schemas tool (`/admin/schemas`) lists every schema with its versions nested under it. Each
+schema has a page, `/admin/schemas/<schema>`, listing its versions, and each version a page of its
+own, `/admin/schemas/<schema>?version=<name>`, showing everything it asks of a submission. The version
+is a query parameter because version names such as `1.0` have dots, and the admin console leaves a
+path whose last segment has a dot to normal resolution, as a selector or an extension.

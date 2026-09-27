@@ -16,20 +16,15 @@
  * limitations under the License.
  */
 
-import { SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
-import { listing, useNode } from "./useNode";
+import { useNode } from "./useNode";
+
+import type { JcrNode } from "./schemaModel";
 
 const asNode = (node: JcrNode): JcrNode => node;
 
-// One schema and its versions. The changes made on its page are workflow events sent by its actions.
-export function useSchema(name: string) {
-  const path = `${SCHEMAS_ROOT}/${name}`;
-  const { value, loading, loadError, reload } = useNode(path, listing(1), asNode);
-
-  return {
-    schema: value,
-    loading,
-    loadError,
-    reload,
-  };
+// One version with everything in it. The workflow reference stays an identifier: the version's content
+// is what is shown, not the workflow's.
+export function useSchemaVersionTree(path: string) {
+  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference", asNode);
+  return { tree: value, loading, loadError, reload };
 }
