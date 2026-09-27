@@ -67,21 +67,6 @@
       <version>${project.version}</version>
     </dependency>
     <!-- The comparators and aggregates a condition may name, checked before a version is published -->
-    <!-- The fields processor describes what an update would change on each serialized schema -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-serialization-json</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-error-tracking-api</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-conditions</artifactId>

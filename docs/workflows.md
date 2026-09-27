@@ -321,6 +321,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
+| `updateContent` | `fields` (a child node listing the fields, with their `label`, `multiline`, `referenceType`) | Applies the event's `patch` to what the execution created, or else the target |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
@@ -355,6 +356,18 @@ They act on what the execution has created, once it has created something, and o
 target otherwise, the same rule `startWorkflow` and `callActivity` follow. They may place
 and remove `system` tags. Only tags placed on the host itself are touched; inherited or
 computed tags are unaffected.
+
+`updateContent` changes content from one JSON object in the event's `patch`: a key left
+out is left alone, `null` or blank removes the property, anything else is its new value,
+and a reference is given as the path of the node it points at. Only the fields the
+activity lists may change, and of those only the ones the target's node type declares
+by name (not through a residual definition): the declaration says whether a field is
+mandatory and whether it holds text or a reference, so one activity can serve several
+types, each keeping to its own fields. The whole patch is checked before anything is
+written. The `fields` serialization adds `@fields` to content an update would change:
+the fields the requesting user's `update` event could change there, with their labels,
+read from the activity of the workflow that would run, so an editor offers exactly what
+the update accepts.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service

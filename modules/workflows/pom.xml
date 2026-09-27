@@ -190,6 +190,18 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
+    <!-- A real repository, whose node types decide which fields an update may change -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+    </dependency>
+    <!-- The link types data:Entity mixes in, without which the entity node types do not register -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-links-api</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>

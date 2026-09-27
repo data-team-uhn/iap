@@ -37,8 +37,13 @@
       "jcr:primaryType": "wf:Activity",
       "elementId": "update",
       "label": "Apply the changes",
-      "handler": "updateSchemaContent",
-      "fields": ["version", "description", "workflow"],
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "version": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
+        "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true },
+        "workflow": { "jcr:primaryType": "nt:unstructured", "label": "Workflow", "referenceType": "wf/WorkflowVersion" }
+      },
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
