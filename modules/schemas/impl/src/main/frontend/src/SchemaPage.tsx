@@ -92,7 +92,7 @@ function SchemaPage() {
       status={<TagChip tags={schema.tags} />}
       description={"A draft version can change in any way. Once active, only its wording can change. Create a "
         + "new version to change anything else."}
-      action={<SchemaActions schema={schema} reload={reloadSchema} report={report}
+      action={<SchemaActions schema={schema} reload={reload} report={report}
         removed={() => void navigate("/admin/schemas")} />}
       disablePanel
     >

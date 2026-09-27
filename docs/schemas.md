@@ -85,8 +85,8 @@ runs. An event no guard admits is refused with a 409, and `@events` (see
 
 | Target | Event | Guard | Steps |
 |---|---|---|---|
-| `/Schemas` | `create` (`title`, optional `version`) | | create the schema, send it `createVersion` |
-| a schema | `createVersion` (optional `version`) | not `retired` | add an empty version, tag it `draft` |
+| `/Schemas` | `create` (`title`, optional `version`, `source`) | | create the schema, send it `createVersion` |
+| a schema | `createVersion` (optional `version`, `source`) | not `retired` | add a version, empty or a copy of `source`, tag it `draft` |
 | a schema | `update` (`patch`) | | edit `title` |
 | a schema | `retire` | not `retired` | tag it `retired` |
 | a schema | `activate` | `retired` | remove `retired` |
@@ -121,6 +121,16 @@ listed. What is in use is retired instead.
 Whether a version **accepts submissions** is the guard of the `submit` event on it, which the
 submissions module's workflow will define: open to its own `active` versions, while the schema is
 not retired.
+
+### Copying
+
+A new version, of an existing schema or of a new one, can start as a copy of any version, of any
+schema and in any state, named by its path in the event's `source`. `createVersion`'s workflow creates
+the version, then copies the source into it with the engine's `copyContent` task (see
+[workflows.md](workflows.md)), keeping the new version's own label, then tags it `draft`, which
+replaces where the source stood. The copy keeps every part, option, condition and template; references
+to anything outside it, such as the version's workflow, are kept, and conditions name the copied
+questions.
 
 ## In the admin console
 

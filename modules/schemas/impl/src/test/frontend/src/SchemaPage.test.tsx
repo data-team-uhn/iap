@@ -211,6 +211,93 @@ describe("SchemaPage", () => {
     expect(posted[0].url).toBe("/Schemas/idea.discard.json");
   });
 
+  it("adds a version as a copy of the one made last, and opens it", async () => {
+    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { redirect: "/Schemas/study/v4" } } });
+    renderPage("study");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New version" }));
+    const dialog = await screen.findByRole("dialog");
+    const label = within(dialog).getByLabelText(/Label/);
+    expect(label).toHaveValue("4.0");
+    expect(within(dialog).getByRole("combobox", { name: "Start from" })).toHaveTextContent("A copy of version 3.0");
+    fireEvent.change(label, { target: { value: " 3.1 " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("This schema has no version v4.")).toBeInTheDocument();
+    expect(posted[0].url).toBe("/Schemas/study.createVersion.json");
+    expect(posted[0].params.get("version")).toBe("3.1");
+    expect(posted[0].params.get("source")).toBe("/Schemas/study/v3");
+    expect(await screen.findByText("Version 3.1 is created")).toBeInTheDocument();
+  });
+
+  it("adds an empty version, and stays when nothing is reported created", async () => {
+    const posted = serveSchemas();
+    renderPage("study");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New version" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "Start from" }));
+    fireEvent.click(await screen.findByRole("option", { name: "An empty version" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(posted[0].params.get("source")).toBeNull();
+    expect(screen.getByText("Clinical study")).toBeInTheDocument();
+  });
+
+  it("offers no new version on a retired schema", async () => {
+    serveSchemas();
+    renderPage("legacy");
+
+    expect(await screen.findByRole("button", { name: "Reopen" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New version" })).not.toBeInTheDocument();
+  });
+
+  it("starts the first version of a schema that has none empty, and can be cancelled", async () => {
+    serveSchemas({ homepage: { ...HOMEPAGE, "blank": {
+      "jcr:primaryType": "sch:Schema", "title": "Blank", "@events": [ "createVersion" ] } } });
+    renderPage("blank");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New version" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Label/)).toHaveValue("1.0");
+    expect(within(dialog).getByRole("combobox", { name: "Start from" })).toHaveTextContent("An empty version");
+    fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: " " } });
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("opens a version from its row, and sorts versions by label as numbers", async () => {
+    serveSchemas({ homepage: { ...HOMEPAGE, "many": { "jcr:primaryType": "sch:Schema", "title": "Many",
+      "v10": { "jcr:primaryType": "sch:SchemaVersion", "version": "10.0", "tags": [ "draft" ] },
+      "v2": { "jcr:primaryType": "sch:SchemaVersion", "version": "2.0", "description": "Second", "tags": [ "active" ] },
+    } } });
+    renderPage("many");
+
+    await versionRow("10.0");
+    fireEvent.click(screen.getByRole("columnheader", { name: "Version" }));
+    await waitFor(() => expect(screen.getAllByRole("row")[1]).toHaveTextContent("2.0"));
+    fireEvent.click(screen.getByRole("gridcell", { name: "2.0" }));
+
+    await waitFor(() => expect(screen.queryByRole("grid")).not.toBeInTheDocument());
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+  });
+
+  it("lists a card per version on a phone", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"), media: query, onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+    }));
+    serveSchemas();
+    renderPage("study");
+
+    expect(await screen.findByText("Version 3.0")).toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
   it("says when a schema has no versions", async () => {
     serveSchemas({ homepage: { ...HOMEPAGE, "empty": { "jcr:primaryType": "sch:Schema", "title": "Empty" } } });
     renderPage("empty");

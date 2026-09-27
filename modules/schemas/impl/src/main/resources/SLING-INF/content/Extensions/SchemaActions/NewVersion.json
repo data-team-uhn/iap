@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schema/actions",
+  "ext:name": "Add a version to the schema",
+  "ext:renderURL": "asset:iap-schemas.SchemaNewVersionAction.js",
+  "defaultOrder": 5
+}

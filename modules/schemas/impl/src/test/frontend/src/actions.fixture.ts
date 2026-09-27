@@ -18,6 +18,7 @@
 
 import type { ActionComponent } from "@iap/frontend-commons/actionsManager";
 import SchemaDiscardAction from "@iap/schemas/SchemaDiscardAction";
+import SchemaNewVersionAction from "@iap/schemas/SchemaNewVersionAction";
 import SchemaRenameAction from "@iap/schemas/SchemaRenameAction";
 import SchemaRetireAction from "@iap/schemas/SchemaRetireAction";
 import SchemaVersionActivateAction from "@iap/schemas/SchemaVersionActivateAction";
@@ -32,7 +33,7 @@ export const BUILTIN_ACTIONS = [
 ] as unknown as ActionComponent[];
 
 export const SCHEMA_ACTIONS = [
-  SchemaRenameAction, SchemaRetireAction, SchemaDiscardAction,
+  SchemaNewVersionAction, SchemaRenameAction, SchemaRetireAction, SchemaDiscardAction,
 ] as unknown as ActionComponent[];
 
 // What the actions manager would resolve for each point this module contributes to
