@@ -45,7 +45,7 @@ function SchemaRenameAction({ schema, reload }: SchemaActionProps) {
           node={schema}
           onSave={async changes => {
             await sendEvent(doFetch, pathOf(schema), "update", patch(changes));
-            reload();
+            await reload();
           }}
           onClose={() => setEditing(false)}
         />
