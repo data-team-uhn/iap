@@ -333,6 +333,24 @@ describe("EntityDataGrid", () => {
     expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer"]);
   });
 
+  it("lists rows it is given in the browser, without fetching them", async () => {
+    const fetchMock = mockPage([]);
+    const rows = [
+      { "@path": "/GridEntities/a", "title": "Alpha", "status": "draft" },
+      { "@path": "/GridEntities/b", "title": "Beta", "status": "active" },
+    ];
+
+    render(<EntityDataGrid entityType={TEST_TYPE} rows={rows} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    // Searched in the browser too
+    fireEvent.change(screen.getByPlaceholderText("Search…"), { target: { value: "beta" } });
+    await waitFor(() => expect(screen.queryByText("Alpha")).not.toBeInTheDocument());
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([ url ]) => url.includes(".paginate.json"))).toEqual([]);
+  });
+
   it("shows an error when the server rejects the request", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));

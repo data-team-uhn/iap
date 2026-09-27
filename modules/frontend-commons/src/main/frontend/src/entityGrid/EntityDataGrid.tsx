@@ -101,6 +101,8 @@ interface EntityDataGridProps {
   // changed what the listing should say, such as a row deleted from an actions column. Any new value
   // will do; the grid only watches for it changing.
   refreshToken?: number;
+  // Rows already at hand
+  rows?: EntityRow[];
 }
 
 // A stable default: a grid adding no columns of its own would otherwise get a fresh array, and so a
@@ -130,6 +132,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     disableVirtualization = false,
     extraColumns = NO_EXTRA_COLUMNS,
     refreshToken = 0,
+    rows: givenRows,
   } = props;
   const config = getEntityTypeConfig(entityType);
   // The type's own presentation plus whatever this particular grid adds. An added column is not
@@ -153,9 +156,13 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const [fullText, setFullText] = useState("");
   const [columnFilters, setColumnFilters] = useState<PropertyFilter[]>([]);
   const [columnVisibilityModel, changeColumnVisibility] = useColumnVisibility(entityType);
-  const { rows, rowCount, approximate, loading, error, retry } = useEntityPage({
-    config, columns, paginationModel, sortModel, filters, childFilter, columnFilters, fullText, refreshToken,
+  const local = givenRows !== undefined;
+  const page = useEntityPage({
+    config: local ? undefined : config, columns, paginationModel, sortModel, filters, childFilter, columnFilters,
+    fullText, refreshToken,
   });
+  const rows = givenRows ?? page.rows;
+  const { rowCount, approximate, error, retry } = page;
 
   const gridColumns = useMemo(() => withElementCellsCentred(withCompactDates(withServerFilterOperators(
     tree ? columns.filter(column => column.field !== tree.treeField) : columns))), [columns, tree]);
@@ -235,28 +242,28 @@ function EntityDataGrid(props: EntityDataGridProps) {
           renderCell: (params: GridRenderCellParams<EntityRow>) => <TreeCell params={params} tree={tree} />,
         }}
         isGroupExpandedByDefault={tree?.expanded ? () => true : undefined}
-        // Sorting and filtering happen on the server, which sees the entities only
+        // Only the entities are sorted and filtered, not the rows nested under them
         disableChildrenSorting
         disableChildrenFiltering
         // An approximate total is only a lower bound: report the count as unknown-but-estimated,
         // so the grid keeps the next page reachable (a plain rowCount would cap the page count)
         // and presents the total with its stock estimate wording. The servlet counts far enough
         // ahead that the estimate is rarely visible at all — most totals arrive exact.
-        rowCount={approximate ? -1 : rowCount}
+        rowCount={local ? undefined : approximate ? -1 : rowCount}
         estimatedRowCount={approximate ? rowCount : undefined}
         paginationMeta={approximate ? APPROXIMATE_META : undefined}
-        loading={loading}
+        loading={!local && page.loading}
         // Unlike the community DataGrid, DataGridPro defaults to one endless list; opt back in
         pagination
-        paginationMode="server"
+        paginationMode={local ? "client" : "server"}
         paginationModel={paginationModel}
         onPaginationModelChange={setPaginationModel}
         pageSizeOptions={pageSizeOptions}
-        sortingMode="server"
+        sortingMode={local ? "client" : "server"}
         sortModel={sortModel.map(item => ({ ...item, field: toTreeField(item.field, tree) }))}
         onSortModelChange={model => sortBy(model.map(item => ({ ...item, field: fromTreeField(item.field, tree) })))}
-        filterMode="server"
-        onFilterModelChange={searchFor}
+        filterMode={local ? "client" : "server"}
+        onFilterModelChange={local ? undefined : searchFor}
         listView={compactList}
         listViewColumn={listColumn}
         // Cards in list mode have variable height; regular rows keep the default fixed height
