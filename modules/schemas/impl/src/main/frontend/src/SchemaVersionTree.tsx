@@ -25,6 +25,7 @@ import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } 
 
 import { whenApplies } from "./conditionModel";
 import { type JcrNode, pathOf } from "./schemaModel";
+import SchemaNodeEditAction, { ReloadTree } from "./SchemaNodeEditAction";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import {
   conditionOf, detailOf, headingOf, indexQuestions, resourceTypeOf, partsOf, type QuestionIndex,
@@ -120,6 +121,7 @@ function PartCard({ part, index }: { part: JcrNode; index: QuestionIndex }) {
             </Stack>
           ) }
         </Stack>
+        <SchemaNodeEditAction node={part} title={`Edit ${type.label.toLowerCase()}`} />
       </Stack>
       <Collapse in={open && hasMore} unmountOnExit>
         <Stack spacing={1} sx={{ pl: { xs: 1, sm: 5 }, pr: 1, pb: 1 }}>
@@ -141,13 +143,13 @@ function PartList({ parts, index }: { parts: JcrNode[]; index: QuestionIndex }) 
 }
 
 // Everything a version asks of a submission, in the order it asks it.
-function SchemaVersionTree({ version }: { version: JcrNode }) {
+function SchemaVersionTree({ version, reload }: { version: JcrNode; reload: () => void }) {
   const index = useMemo(() => indexQuestions(version), [ version ]);
   const parts = partsOf(version);
   if (parts.length === 0) {
     return <Typography variant="placeholder">This version asks for nothing yet.</Typography>;
   }
-  return <PartList parts={parts} index={index} />;
+  return <ReloadTree value={reload}><PartList parts={parts} index={index} /></ReloadTree>;
 }
 
 export default SchemaVersionTree;

@@ -123,6 +123,37 @@ describe("SchemaVersionView", () => {
     expect(within(await card("Audit")).getByTitle("sch/AuditRequirement")).toBeInTheDocument();
   });
 
+  it("corrects what a question says, and re-reads the version", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v2");
+
+    fireEvent.click(within(await card("Which arms does it have?")).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: /Edit question/ });
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Which arms are there?" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v2/basics/design/arms.update.json"));
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ text: "Which arms are there?" });
+    // Nothing to correct where nothing is offered
+    expect(within(await card("Minimum age")).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  it("corrects what an option says", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v2");
+
+    await expand("Which arms does it have?");
+    const placebo = (await screen.findByText("Placebo")).closest("li") as HTMLElement;
+    fireEvent.click(within(placebo).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: /Edit option/ });
+    fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: "Placebo arm" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v2/basics/design/arms/placebo.update.json"));
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ label: "Placebo arm" });
+    expect(screen.getByText("drug").closest("li")?.querySelector("button")).toBeNull();
+  });
+
   it("collapses what it contains", async () => {
     serveSchemas();
     renderVersion("study", "v2");

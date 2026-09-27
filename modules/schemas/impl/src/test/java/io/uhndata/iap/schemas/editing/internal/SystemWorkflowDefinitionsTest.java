@@ -75,7 +75,8 @@ class SystemWorkflowDefinitionsTest
 
     private static final String[] RETIRED = { "retired" };
 
-    private static final Set<String> BOUND_TYPES = Set.of("sch/SchemasHomepage", SCHEMA, VERSION);
+    private static final Set<String> BOUND_TYPES =
+        Set.of("sch/SchemasHomepage", SCHEMA, VERSION, "sch/SchemaPart", "sch/AnswerOption");
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "sendEvent", "addTag", "removeTag", "delete",
         "copyContent", "updateContent", CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
@@ -107,7 +108,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(12, definitions.size());
+        assertEquals(14, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
