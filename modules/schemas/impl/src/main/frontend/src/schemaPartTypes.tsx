@@ -26,9 +26,11 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
 import { Box, Typography, type SvgIconProps } from "@mui/material";
 
+import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import {
   answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings,
 } from "./schemaVersionTreeModel";
+
 
 import type { JcrNode } from "./schemaModel";
 
@@ -53,7 +55,7 @@ function Detail({ children }: { children: string }) {
 }
 
 // A question's options: what the submitter reads, and what an answer stores when it differs
-function OptionList({ options }: { options: JcrNode[] }) {
+function OptionList({ options, editable = false }: { options: JcrNode[]; editable?: boolean }) {
   return (
     <Box component="ul" sx={{ m: 0, pl: 3 }}>
       { options.map(option => (
@@ -64,6 +66,7 @@ function OptionList({ options }: { options: JcrNode[] }) {
               {` · stored as ${String(option.value)}`}
             </Typography>
           ) }
+          { editable && <SchemaNodeEditAction node={option} title="Edit option" /> }
         </Typography>
       )) }
     </Box>
@@ -80,7 +83,7 @@ function questionDetails(part: JcrNode): ReactNode {
   }
   return (
     <>
-      { options.length > 0 && <OptionList options={options} /> }
+      { options.length > 0 && <OptionList options={options} editable /> }
       { optionsFrom && <Detail>{`The options are the items under ${optionsFrom}.`}</Detail> }
       { bounds && <Detail>{`${bounds}.`}</Detail> }
       { pattern && <Detail>{`Must match ${pattern}.`}</Detail> }
