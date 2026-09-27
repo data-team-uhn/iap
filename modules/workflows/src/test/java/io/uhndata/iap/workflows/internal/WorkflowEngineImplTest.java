@@ -62,6 +62,7 @@ import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -676,6 +677,33 @@ class WorkflowEngineImplTest
         final Resource target = EngineFixture.createTarget(this.context);
 
         assertEquals(Set.of(), engine().getAvailableEvents(target));
+    }
+
+    @Test
+    void readsTheDefinitionThatWouldHandleAnEvent() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+
+        assertEquals(VERSION, engine().inspectWorkflow(target, CREATE.getName(), WorkflowVersion::getPath));
+    }
+
+    @Test
+    void readsNothingWhenNoWorkflowWouldTakeTheEventFromTheUser() throws Exception
+    {
+        final Resource requester = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "some-other-group");
+        createOtherNoopWorkflow("archive");
+        guard(OTHER_VERSION + "/requested", "closed");
+        final WorkflowEngine engine = engine();
+
+        // Not a performer, a guard that does not hold, and nothing waiting at all
+        assertNull(engine.inspectWorkflow(requester, CREATE.getName(), WorkflowVersion::getPath));
+        assertNull(engine.inspectWorkflow(requester, "archive", WorkflowVersion::getPath));
+        assertNull(engine.inspectWorkflow(requester, "unknown", WorkflowVersion::getPath));
     }
 
     /**

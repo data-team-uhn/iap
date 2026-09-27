@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -45,9 +45,9 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
-import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -113,14 +113,19 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        final String actor = UserIds.canonical(target.getResourceResolver());
         try (ResourceResolver serviceResolver = serviceResolver()) {
-            final Resource privilegedTarget = privileged(serviceResolver, target);
-            if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
-                return TaskCompletion.availableEvents(privilegedTarget, PerformerCheck.of(serviceResolver, actor));
-            }
-            return SystemWorkflowLocator.availableEvents(serviceResolver, privilegedTarget, this.conditionEvaluator,
-                PerformerCheck.of(serviceResolver, actor));
+            return WorkflowQueries.availableEvents(serviceResolver, privileged(serviceResolver, target),
+                UserIds.canonical(target.getResourceResolver()), this.conditionEvaluator);
+        }
+    }
+
+    @Override
+    public <T> T inspectWorkflow(final Resource target, final String event, final Function<WorkflowVersion, T> reader)
+        throws WorkflowException
+    {
+        try (ResourceResolver serviceResolver = serviceResolver()) {
+            return WorkflowQueries.inspect(serviceResolver, privileged(serviceResolver, target),
+                UserIds.canonical(target.getResourceResolver()), this.conditionEvaluator, event, reader);
         }
     }
 
@@ -132,12 +137,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ResourceResolver serviceResolver() throws WorkflowFailedException
     {
-        try {
-            return this.resolverFactory
-                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
-        } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
-        }
+        return RepositoryFailures.serviceResolver(this.resolverFactory, SUBSERVICE_NAME);
     }
 
     /**
@@ -312,7 +312,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private FlowNode advance(final FlowNode node) throws WorkflowDefinitionException
     {
-        final List<SequenceFlow> flows = node.getOutgoingFlows();
+        final var flows = node.getOutgoingFlows();
         if (flows.size() != 1) {
             throw new WorkflowDefinitionException("A system workflow must be straight-through, but " + node.getPath()
                 + " has " + flows.size() + " outgoing sequence flows instead of exactly one");

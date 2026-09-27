@@ -268,6 +268,10 @@ what to offer from the workflows rather than from a copy of their rules.
 Available means the engine would take the event, not that it will succeed: the payload can still be invalid,
 and a step can still refuse, as a publish check refusing an incomplete schema would.
 
+`WorkflowEngine.inspectWorkflow(resource, event, reader)` goes one step further and reads the definition that
+would handle an event, e.g. how its steps are configured. Definitions are only readable through the engine's
+own session, open only during the call, so the definition is handed to `reader` rather than returned.
+
 Over HTTP it is the `events` serialization processor, off by default: `GET /Schemas.1.simple.events.json` adds
 `@events` to the homepage and to each schema, which is how a listing learns its rows' actions in one request.
 

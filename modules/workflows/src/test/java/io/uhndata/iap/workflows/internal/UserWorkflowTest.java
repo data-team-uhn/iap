@@ -368,6 +368,15 @@ class UserWorkflowTest
     }
 
     @Test
+    void readsNoSystemWorkflowForATask() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertNull(engine.inspectWorkflow(as(TASK, EngineFixture.REQUESTER), "complete", version -> version));
+    }
+
+    @Test
     void offersNothingToSomeoneTheTaskDoesNotName() throws Exception
     {
         createProcess("someone-else");
