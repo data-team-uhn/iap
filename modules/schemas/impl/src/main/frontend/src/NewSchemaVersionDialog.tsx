@@ -24,63 +24,46 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
+import { type JcrNode, latestVersion, nextVersionLabel, pathOf, titleOf } from "./schemaModel";
 import SchemaVersionPicker from "./SchemaVersionPicker";
-import { useSchemaList } from "./useSchemaList";
 
-interface NewSchemaDialogProps {
+interface NewSchemaVersionDialogProps {
+  schema: JcrNode;
   onClose: () => void;
-  onCreate: (title: string, version: string, source: string) => Promise<string | undefined>;
-  onCreated: (path: string) => void;
+  onCreate: (label: string, source: string) => Promise<void>;
 }
 
-// Starting a schema: a title, and a label for its first version, which begins as a draft, empty or as a copy of
-// any schema's version.
-function NewSchemaDialog({ onClose, onCreate, onCreated }: NewSchemaDialogProps) {
-  const [ title, setTitle ] = useState("");
-  const [ version, setVersion ] = useState("1.0");
-  const [ source, setSource ] = useState("");
-  const { schemas } = useSchemaList();
+// A new version of a schema: its label, and whether it starts empty or as a copy of one of the schema's
+// versions, by default the one made last.
+function NewSchemaVersionDialog({ schema, onClose, onCreate }: NewSchemaVersionDialogProps) {
+  const [ label, setLabel ] = useState(nextVersionLabel(schema));
+  const latest = latestVersion(schema);
+  const [ source, setSource ] = useState(latest ? pathOf(latest) : "");
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf });
 
-  const create = () => run(async () => {
-    const path = await onCreate(title.trim(), version.trim(), source);
-    if (path) {
-      onCreated(path);
-    } else {
-      onClose();
-    }
-  });
-
   return (
-    <ResponsiveDialog title="New schema" withCloseButton open onClose={onClose} closeDisabled={working}>
+    <ResponsiveDialog title={`New version of ${titleOf(schema)}`} withCloseButton open onClose={onClose}
+      closeDisabled={working}>
       <DialogContent dividers>
         <Stack spacing={2}>
           <DialogContentText>
-            The schema starts with a draft version, empty or copied from another schema&apos;s version.
-            Nothing can be submitted against it until that version is activated.
+            The new version starts as a draft. It can change in any way until it is activated.
           </DialogContentText>
           <TextField
-            label="Title"
+            label="Label"
             required
-            value={title}
+            value={label}
             disabled={working}
-            onChange={event => setTitle(event.target.value)}
-            helperText="What submitters and reviewers will call it"
+            onChange={event => setLabel(event.target.value)}
           />
-          <TextField
-            label="First version"
-            required
-            value={version}
-            disabled={working}
-            onChange={event => setVersion(event.target.value)}
-          />
-          <SchemaVersionPicker schemas={schemas} value={source} onChange={setSource} grouped disabled={working} />
+          <SchemaVersionPicker schemas={[ schema ]} value={source} onChange={setSource} disabled={working} />
           { failure && <Alert severity="error">{failure}</Alert> }
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" disabled={working || !title.trim() || !version.trim()} onClick={create}>
+        <Button variant="contained" disabled={working || !label.trim()}
+          onClick={() => run(() => onCreate(label.trim(), source))}>
           Create
         </Button>
       </DialogActions>
@@ -88,4 +71,4 @@ function NewSchemaDialog({ onClose, onCreate, onCreated }: NewSchemaDialogProps)
   );
 }
 
-export default NewSchemaDialog;
+export default NewSchemaVersionDialog;

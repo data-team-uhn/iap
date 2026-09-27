@@ -25,7 +25,7 @@ export const SCHEMA_ACTIONS_POINT = "SchemaActions";
 
 export interface SchemaActionProps {
   schema: JcrNode;
-  reload: () => void;
+  reload: () => void | Promise<void>;
   // What to do once the schema itself is gone, when reloading it would find nothing
   removed?: () => void;
 }

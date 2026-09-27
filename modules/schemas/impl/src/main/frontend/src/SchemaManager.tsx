@@ -92,7 +92,8 @@ function SchemaManager() {
       { creating && (
         <NewSchemaDialog
           onClose={() => setCreating(false)}
-          onCreate={(title, version) => sendEvent(doFetch, SCHEMAS_ROOT, "create", { title, version })}
+          onCreate={(title, version, source) =>
+            sendEvent(doFetch, SCHEMAS_ROOT, "create", { title, version, ...source && { source } })}
           onCreated={path => void navigate(schemaPageUrl(schemaNameFromRoute(path)))}
         />
       ) }
