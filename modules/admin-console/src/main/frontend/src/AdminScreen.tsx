@@ -18,7 +18,7 @@
 
 import type { ReactNode } from "react";
 
-import { Chip, Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
@@ -31,6 +31,11 @@ interface AdminScreenProps {
   // The name of the administrative tool this page hosts, e.g. "Submission categories". When unset
   // (the landing page itself), the page is headed "Administration".
   title?: string;
+  // Optional words before the title, in regular weight, naming what the titled page belongs to: e.g. the
+  // schema, on the page of one of its versions.
+  titlePrefix?: string;
+  // Optionally, where what the page shows stands, e.g. a lifecycle chip, displayed right after the title
+  status?: ReactNode;
   // An optional main action, e.g. a "New category" button, displayed beside the heading.
   action?: ReactNode;
   // An optional line under the heading saying what the tool is for.
@@ -45,14 +50,18 @@ interface AdminScreenProps {
 // The shared chrome of every page of the administration console: the page heading, with an optional
 // main action beside it, above the tool's content on a panel. Wayfinding is left to the shell (the
 // breadcrumb extension on the pageTop extension point).
-function AdminScreen({ title, action, description, disablePanel, children }: AdminScreenProps) {
+function AdminScreen({ title, titlePrefix, status, action, description, disablePanel, children }: AdminScreenProps) {
   const theme = useTheme();
   return (
     <>
       <Stack sx={{ gap: 1, mb: 3 }}>
         <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
-          <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-            <Typography variant="pageTitle">{title ?? "Administration"}</Typography>
+          <Stack direction="row" sx={{ alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+            <Typography variant="pageTitle">
+              { titlePrefix && <><Box component="span" sx={{ fontWeight: "fontWeightRegular" }}>{titlePrefix}</Box>{" "}</> }
+              {title ?? "Administration"}
+            </Typography>
+            {status}
             { title && <Chip size="small" label="Admin" sx={chipStyle(theme, ADMIN_RED)} /> }
           </Stack>
           {action}
