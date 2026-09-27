@@ -20,6 +20,7 @@ package io.uhndata.iap.deletion.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -105,7 +106,8 @@ public class DeletionServiceImpl implements DeletionService
                 operations.deletePermanently(plan);
                 return new DeletionResult(DeletionResult.Status.DELETED, null, impact);
             }
-            final String entryPath = operations.store(plan, plan.getUserSession().getUserID());
+            final String entryPath = operations.store(plan, Objects.requireNonNullElse(options.getOnBehalfOf(),
+                plan.getUserSession().getUserID()));
             return new DeletionResult(DeletionResult.Status.ARCHIVED, entryPath, impact);
         } catch (final RepositoryException e) {
             throw new DeletionException("Failed to delete " + item.getPath(), e);

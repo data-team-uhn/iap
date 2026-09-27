@@ -202,6 +202,18 @@ class DeletionServiceImplTest
     }
 
     @Test
+    void recordsWhomADeletionWasMadeFor() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult result = this.service.delete(this.resource(VICTIM_PATH),
+            DeletionOptions.of(false, false).onBehalfOf("coordinator"));
+
+        assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
+        assertEquals("coordinator", this.session.getNode(result.getArchiveEntryPath())
+            .getProperty(DeletionService.DELETED_BY_PROPERTY).getString());
+    }
+
+    @Test
     void simpleDeletionArchives() throws Exception
     {
         final Node node = this.target(VICTIM);
