@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Edit a schema",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/Schema",
+    "description": "Changes a schema's title.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "update",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Apply the changes",
+      "handler": "updateSchemaContent",
+      "fields": ["title"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema edited",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
