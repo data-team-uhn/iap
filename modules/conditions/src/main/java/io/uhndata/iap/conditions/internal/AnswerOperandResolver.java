@@ -51,6 +51,9 @@ import io.uhndata.iap.entities.models.Entity;
 @Component
 public class AnswerOperandResolver implements OperandResolver
 {
+    /** The operand source this resolver serves. */
+    static final String SOURCE = "answer";
+
     /** The property through which an answer node references its question. */
     private static final String QUESTION_PROPERTY = "question";
 
@@ -87,7 +90,7 @@ public class AnswerOperandResolver implements OperandResolver
     @Override
     public String getSource()
     {
-        return "answer";
+        return SOURCE;
     }
 
     @Override

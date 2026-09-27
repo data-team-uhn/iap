@@ -97,7 +97,10 @@ under the schema version), not relative to the context — so questions sharing 
 in different sections never collide. And the answer node (anything whose `question`
 property references it) is looked up **nearest-scope-first**: the context's own
 subtree, then widening one ancestor at a time up to the enclosing entity. A condition
-evaluated inside a repeated block therefore sees that block's own answer.
+evaluated inside a repeated block therefore sees that block's own answer. Copied
+content (see `copyContent` in [workflows.md](workflows.md)) has its `answer` operands
+rewritten to name the copied questions by UUID, which survives the questions being
+moved or renamed later.
 
 ### Aggregators
 
