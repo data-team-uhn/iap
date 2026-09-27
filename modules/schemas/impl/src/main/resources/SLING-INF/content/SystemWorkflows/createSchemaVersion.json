@@ -7,7 +7,7 @@
     "version": "1.0",
     "active": true,
     "targetResourceType": "sch/Schema",
-    "description": "Adds an empty version to an open schema, as a draft.",
+    "description": "Adds a version to an open schema, as a draft: empty, or a copy of the version named by the event's source. The copy keeps the new version's own label, and marking it a draft replaces where the source stood.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -38,6 +38,20 @@
       "elementId": "create",
       "label": "Create the version",
       "handler": "createSchemaVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toCopy": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCopy",
+        "targetRef": "copy"
+      }
+    },
+    "copy": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "copy",
+      "label": "Copy the source version, if one is named",
+      "handler": "copyContent",
+      "sourceType": "sch/SchemaVersion",
+      "skipProperties": ["version"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMarkDraft": {
         "jcr:primaryType": "wf:SequenceFlow",

@@ -17,8 +17,8 @@
  */
 
 import {
-  countSchemas, descriptionOf, fieldsOf, labelOf, offers, pathOf, schemaNameFromRoute, schemasOf, tagsOf, titleOf,
-  versionNameFromRoute, versionsOf,
+  countSchemas, descriptionOf, fieldsOf, labelOf, latestVersion, nextVersionLabel, offers, pathOf, schemaNameFromRoute,
+  schemasOf, tagsOf, titleOf, versionNameFromRoute, versionsOf,
 } from "@iap/schemas/schemaModel";
 
 import { HOMEPAGE, withPaths } from "./schemaServer.fixture";
@@ -68,6 +68,25 @@ describe("schemaModel", () => {
     };
 
     expect(versionsOf(schema).map(labelOf)).toEqual([ "1.1", "2.0", "10.0" ]);
+  });
+
+  it("proposes the next whole number as a new version's label", () => {
+    const [ study, idea ] = schemasOf(HOMEPAGE);
+    expect(nextVersionLabel(study)).toBe("4.0");
+    expect(nextVersionLabel(idea)).toBe("1.0");
+    expect(nextVersionLabel({ "a": { "jcr:primaryType": "sch:SchemaVersion", "version": "draft" } })).toBe("2.0");
+    expect(nextVersionLabel({})).toBe("1.0");
+  });
+
+  it("finds the version made last, or the last by label when it cannot tell", () => {
+    const version = (label: string, created?: string) =>
+      ({ "jcr:primaryType": "sch:SchemaVersion", "version": label, "jcr:created": created });
+    expect(labelOf(latestVersion({
+      a: version("1.0", "2026-01-01T00:00:00.000-05:00"),
+      b: version("2.0", "2025-01-01T00:00:00.000-05:00"),
+    })!)).toBe("1.0");
+    expect(labelOf(latestVersion({ a: version("1.0"), b: version("2.0") })!)).toBe("2.0");
+    expect(latestVersion({})).toBeUndefined();
   });
 
   it("counts the lifecycle tags", () => {

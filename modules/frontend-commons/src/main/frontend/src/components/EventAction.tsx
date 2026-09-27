@@ -27,7 +27,7 @@ import { useNotice } from "./NoticeSnackbar";
 
 interface EventActionProps {
   path: string;
-  reload: () => void;
+  reload: () => void | Promise<void>;
   label: string;
   event: string;
   title: string;
@@ -56,7 +56,7 @@ export function EventAction(props: EventActionProps) {
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
             notify({ title: done, severity: "success" });
-            reload();
+            await reload();
           }}
           onClose={() => setConfirming(false)}
         >
