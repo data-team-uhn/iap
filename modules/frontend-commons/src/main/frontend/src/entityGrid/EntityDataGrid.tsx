@@ -23,9 +23,12 @@ import { useTheme } from "@mui/material/styles";
 import {
   DataGridPro,
   type GridFilterModel,
+  type GridGroupNode,
   type GridListViewColDef,
   type GridPaginationModel,
+  type GridRenderCellParams,
   type GridSortModel,
+  GridTreeDataGroupingCell,
 } from "@mui/x-data-grid-pro";
 import { useNavigate } from "react-router";
 
@@ -39,10 +42,32 @@ import EntityListItem from "./EntityListItem";
 import {
   ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
 } from "./gridRows";
-import { type EntityGridColumn, getEntityTypeConfig } from "./registry";
+import { type EntityGridChildren, type EntityGridColumn, getEntityTypeConfig } from "./registry";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 import useColumnVisibility from "./useColumnVisibility";
 import useEntityPage from "./useEntityPage";
+
+// The tree column's cell: the grid's own, toggle included, with the number of an entity's children
+// worded as its type words it, and in the row's regular text rather than the entity's emphasis
+function TreeCell({ params, tree }: { params: GridRenderCellParams<EntityRow>; tree: EntityGridChildren }) {
+  const node = params.rowNode;
+  const count = node.type === "group" ? node.children.length : 0;
+  const name = (params.formattedValue ?? (node as GridGroupNode).groupingKey) as string;
+  return (
+    <GridTreeDataGroupingCell
+      {...params as GridRenderCellParams<EntityRow, unknown, unknown, GridGroupNode>}
+      hideDescendantCount
+      formattedValue={count === 0 ? name : (
+        <>
+          {name}
+          <Box component="span" sx={{ fontWeight: "fontWeightRegular", color: "text.primary" }}>
+            {` (${tree.countLabel?.(count) ?? count})`}
+          </Box>
+        </>
+      )}
+    />
+  );
+}
 
 import type { DescendantFilter, EntityRow, PropertyFilter } from "./pagination";
 
@@ -205,7 +230,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
         getRowId={row => rowId(row, gridRows)}
         treeData={Boolean(tree)}
         getTreeDataPath={tree && treeDataPath}
-        groupingColDef={tree && groupingColumn(columns, tree)}
+        groupingColDef={tree && {
+          ...groupingColumn(columns, tree),
+          renderCell: (params: GridRenderCellParams<EntityRow>) => <TreeCell params={params} tree={tree} />,
+        }}
         isGroupExpandedByDefault={tree?.expanded ? () => true : undefined}
         // Sorting and filtering happen on the server, which sees the entities only
         disableChildrenSorting

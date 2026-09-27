@@ -54,6 +54,9 @@ export interface EntityGridChildren {
   treeField: string;
   // Whether entities start expanded, showing their children; collapsed by default
   expanded?: boolean;
+  // How the number of an entity's children is worded beside its name, e.g. "2 versions"; the bare
+  // number by default
+  countLabel?: (count: number) => string;
 }
 
 // How to present one entity type in a data grid: where its entities live, the columns to show,

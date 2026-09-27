@@ -162,7 +162,7 @@ registerEntityType(TREE_TYPE, {
     { field: "status", headerName: "Status" },
   ],
   defaultSort: { field: "title", sort: "asc" },
-  children: { selectors: "1", rows: versionsOf, treeField: "title" },
+  children: { selectors: "1", rows: versionsOf, treeField: "title", countLabel: count => `${count} versions` },
 });
 const EXPANDED_TYPE = "test/ExpandedTreeEntity";
 registerEntityType(EXPANDED_TYPE, {
@@ -220,8 +220,10 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // Named with how many children it has
-    expect(await screen.findByText("Clinical study (2)")).toBeInTheDocument();
+    // Named with how many children it has, as its type words it, in the regular weight of the row
+    const count = await screen.findByText("(2 versions)", { exact: false });
+    expect(count.closest(".MuiDataGrid-cell")).toHaveTextContent("Clinical study (2 versions)");
+    expect(count).toHaveStyle({ fontWeight: 400 });
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.searchParams.get("resourceSelectors")).toBe("1");
     expect(url.searchParams.get("sortBy")).toBe("title");
@@ -238,7 +240,7 @@ describe("EntityDataGrid", () => {
     expect(screen.getByText("active")).toBeInTheDocument();
     // The entity stands out from what is nested under it
     const cellOf = (text: string) => screen.getByText(text).closest(".MuiDataGrid-cell");
-    expect(cellOf("Clinical study (2)")).toHaveClass("entity-grid-entity");
+    expect(cellOf("Clinical study")).toHaveClass("entity-grid-entity");
     expect(cellOf("Version one")).not.toHaveClass("entity-grid-entity");
   });
 
@@ -263,6 +265,9 @@ describe("EntityDataGrid", () => {
 
     expect(await screen.findByText("retired")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
+    // Without a wording of its own, the bare number of children, beside what the tree names the entity
+    expect(screen.getByText("(2)", { exact: false }).closest(".MuiDataGrid-cell"))
+      .toHaveTextContent("/TreeEntities/study (2)");
   });
 
   it("keeps one card per entity on narrow screens", async () => {

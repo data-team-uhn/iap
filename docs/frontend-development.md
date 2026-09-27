@@ -171,6 +171,7 @@ registerEntityType("sch/Schema", {
     selectors: "1",           // fetch each schema with one level of children
     rows: versionsOf,         // which of those children are rows
     treeField: "title",       // the column shown as the tree, on schemas and versions alike
+    countLabel: count => count === 1 ? "1 version" : `${count} versions`,
   },
 });
 ```
