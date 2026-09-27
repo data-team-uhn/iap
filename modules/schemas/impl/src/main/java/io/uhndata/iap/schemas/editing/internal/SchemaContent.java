@@ -78,7 +78,7 @@ final class SchemaContent
     static WorkflowDefinitionException unsupportedTarget(final String handler, final Resource target)
     {
         return new WorkflowDefinitionException(
-            "The " + handler + " handler serves schemas and schema versions, not " + target.getResourceType());
+            "The " + handler + " handler does not serve " + target.getResourceType());
     }
 
     /**
