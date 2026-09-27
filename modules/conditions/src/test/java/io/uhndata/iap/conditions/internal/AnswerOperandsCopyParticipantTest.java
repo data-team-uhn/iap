@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.conditions.internal;
 
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
@@ -24,6 +25,7 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Value;
 
+import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -52,6 +54,9 @@ class AnswerOperandsCopyParticipantTest
     void namesTheCopiedQuestionsByUuid() throws RepositoryException
     {
         final Session session = this.context.resourceResolver().adaptTo(Session.class);
+        // This module's own types: on a clean build its manifest, which declares them, does not exist yet
+        NodeTypeDefinitionScanner.get().register(session, List.of("SLING-INF/nodetypes/conditions.cnd"),
+            ResourceResolverType.JCR_OAK.getNodeTypeMode());
         final Node source = tree(session.getRootNode(), "source", "q");
         final String original = source.getNode("q").getIdentifier();
         final Node copy = tree(session.getRootNode(), "copy", original);
