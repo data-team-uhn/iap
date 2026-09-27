@@ -54,31 +54,17 @@ part of a schema, including requirement types added later. Answer options are no
 
 ## Lifecycle
 
-A schema version is in exactly one of three states, marked by a tag in the `lifecycle` category:
+A schema version carries one tag in the `lifecycle` category: `draft`, `active` or `retired`. A
+schema may carry `retired` too. That tag is inheritable, so the versions of a retired schema
+are retired along with it without being touched, and reopening the schema brings them back as
+they were.
 
-| State | Tag | Accepts submissions | May change |
-|---|---|---|---|
-| Draft | `draft` | no | in any way |
-| Active | `active` | yes | wording only |
-| Retired | `retired` | no | wording only |
-
-Draft → active happens once and is never undone: an active version may have submissions, and
-[tags.md](tags.md) relies on a published version never changing. Active and retired toggle
-freely.
-
-A version with **no lifecycle tag** reads as retired: closed and frozen, the safe side of not
-knowing. Everything the platform creates is tagged; a schema imported by hand must say
-`"tags": ["active"]` (or `draft`) on its version to be usable.
-
-A **schema** is open unless `retired` is placed on it. The tag is inheritable, so the versions of
-a retired schema are retired too without being touched — and reopening the schema brings them
-back as they were. `SchemaVersion.getState()` reports a version's own state; `isActive()` also
-looks above it.
-
-**Several versions may be active at once**: activating a draft does not retire the version it
-replaces, that is a separate decision. `Schema.getActiveVersion()` returns the first one in
-order.
+The models only store these tags; they do not say what a state allows. Which moves exist
+between states, what may still be edited, and whether a version accepts submissions are all
+decided by the workflows that act on schemas, as guards on the events they wait for. A version
+carrying no lifecycle tag can be moved by none of them, so a schema imported by hand should tag
+its versions, as `tools/dev/test-data/DemoStudy.json` does.
 
 The `draft`, `active` and `retired` definitions ship with this module (`content/Tags/`) because
-submissions use `draft`, categories `retired`, and both already depend on it. `active` applies to
-versions only.
+submissions use `draft`, categories `retired`, and both already depend on it. `active` applies
+to versions only.

@@ -24,7 +24,6 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -58,28 +57,6 @@ public class Schema extends Entity
     }
 
     /**
-     * Whether this schema is open or closed as a whole: open unless the {@code retired} tag is placed on it.
-     *
-     * @return {@link LifecycleState#RETIRED} or {@link LifecycleState#ACTIVE}
-     */
-    @NotNull
-    public LifecycleState getState()
-    {
-        return LifecycleState.of(this, LifecycleState.ACTIVE) == LifecycleState.RETIRED
-            ? LifecycleState.RETIRED : LifecycleState.ACTIVE;
-    }
-
-    /**
-     * Whether new submissions may be created against this schema.
-     *
-     * @return {@code true} if the schema accepts new submissions
-     */
-    public boolean isActive()
-    {
-        return getState() == LifecycleState.ACTIVE;
-    }
-
-    /**
      * The defined versions of this schema.
      *
      * @return a list of schema versions, empty if none
@@ -88,20 +65,5 @@ public class Schema extends Entity
     public List<SchemaVersion> getVersions()
     {
         return this.getChildren(SchemaVersion.RESOURCE_TYPE, SchemaVersion.class);
-    }
-
-    /**
-     * The version of this schema that new submissions are created against: the first active one in order.
-     * Activating a version does not retire the one before it, so several may be active at once.
-     *
-     * @return the active schema version, or {@code null} if none of the versions are active
-     */
-    @Nullable
-    public SchemaVersion getActiveVersion()
-    {
-        return this.getVersions().stream()
-            .filter(SchemaVersion::isActive)
-            .findFirst()
-            .orElse(null);
     }
 }

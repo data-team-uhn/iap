@@ -32,7 +32,6 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -125,8 +124,6 @@ class SchemaTest
 
         assertNotNull(schema);
         assertNull(schema.getTitle());
-        // Open unless retired
-        assertTrue(schema.isActive());
     }
 
     @Test
@@ -153,58 +150,5 @@ class SchemaTest
         final Schema schema = resource.adaptTo(Schema.class);
 
         assertTrue(schema.getVersions().isEmpty());
-    }
-
-    @Test
-    void findsActiveVersion()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema",
-            "sling:resourceType", "sch/Schema");
-        this.context.create().resource("/Schemas/schema/1.0", "sling:resourceType", "sch/SchemaVersion");
-        this.context.create().resource("/Schemas/schema/2.0", "sling:resourceType", "sch/SchemaVersion");
-        Lifecycle.tag(this.context, Map.of("/Schemas/schema/1.0", "retired", "/Schemas/schema/2.0", "active"));
-        final Schema schema = resource.adaptTo(Schema.class);
-
-        final SchemaVersion active = schema.getActiveVersion();
-
-        assertNotNull(active);
-        assertEquals("2.0", active.getName());
-    }
-
-    @Test
-    void returnsNullActiveVersionWhenNoneIsActive()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema",
-            "sling:resourceType", "sch/Schema");
-        // Untagged reads as retired
-        this.context.create().resource("/Schemas/schema/1.0", "sling:resourceType", "sch/SchemaVersion");
-        final Schema schema = resource.adaptTo(Schema.class);
-
-        assertNull(schema.getActiveVersion());
-    }
-
-    @Test
-    void isClosedByTheRetiredTag()
-    {
-        final Resource open = this.context.create().resource("/Schemas/open", "sling:resourceType", "sch/Schema");
-        final Resource closed = this.context.create().resource("/Schemas/closed", "sling:resourceType", "sch/Schema");
-        Lifecycle.tag(this.context, Map.of("/Schemas/closed", "retired"));
-
-        assertEquals(LifecycleState.ACTIVE, open.adaptTo(Schema.class).getState());
-        assertTrue(open.adaptTo(Schema.class).isActive());
-        assertEquals(LifecycleState.RETIRED, closed.adaptTo(Schema.class).getState());
-        assertFalse(closed.adaptTo(Schema.class).isActive());
-    }
-
-    @Test
-    void skipsVersionsThatAreNotActive()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema", "sling:resourceType",
-            "sch/Schema");
-        this.context.create().resource("/Schemas/schema/1.0", "sling:resourceType", "sch/SchemaVersion");
-        this.context.create().resource("/Schemas/schema/2.0", "sling:resourceType", "sch/SchemaVersion");
-        Lifecycle.tag(this.context, Map.of("/Schemas/schema/1.0", "retired", "/Schemas/schema/2.0", "draft"));
-
-        assertNull(resource.adaptTo(Schema.class).getActiveVersion());
     }
 }

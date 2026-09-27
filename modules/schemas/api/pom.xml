@@ -62,12 +62,6 @@
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Lifecycle states are tags, read through the Taggable model -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-tags-api</artifactId>
-      <version>${project.version}</version>
-    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-content-api</artifactId>

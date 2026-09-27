@@ -75,39 +75,6 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * Where this version stands, from the {@code lifecycle} tag placed on it. A version carrying none is read as
-     * retired: closed to submissions and frozen, which is the safe side of not knowing.
-     *
-     * @return this version's own state, regardless of its schema's
-     */
-    @NotNull
-    public LifecycleState getState()
-    {
-        return LifecycleState.of(this, LifecycleState.RETIRED);
-    }
-
-    /**
-     * Whether this version is still being written, and so may change in any way.
-     *
-     * @return {@code true} for a draft
-     */
-    public boolean isDraft()
-    {
-        return getState() == LifecycleState.DRAFT;
-    }
-
-    /**
-     * Whether new submissions may be created against this version: it is active, and not retired along with its
-     * schema.
-     *
-     * @return {@code true} if this version accepts new submissions
-     */
-    public boolean isActive()
-    {
-        return getState() == LifecycleState.ACTIVE && !LifecycleState.isRetired(this);
-    }
-
-    /**
      * The version of the workflow driving submissions filed under this schema version: what a submission is put
      * through once it exists, as against what this schema says a submission must contain.
      *
