@@ -82,6 +82,12 @@
       <artifactId>iap-links-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The delete service task, for workflows -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
