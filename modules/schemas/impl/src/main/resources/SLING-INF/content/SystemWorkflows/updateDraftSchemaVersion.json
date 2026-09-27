@@ -1,0 +1,57 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Edit a draft schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaVersion",
+    "description": "Changes anything about a version while it is a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "update",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Apply the changes",
+      "handler": "updateSchemaContent",
+      "fields": ["version", "description", "workflow"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema version edited",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
