@@ -13,7 +13,6 @@
     "{https://iap.uhndata.io/bpmn}workflowFrom=workflowFrom",
     "{https://iap.uhndata.io/bpmn}tag=tag",
     "{https://iap.uhndata.io/bpmn}replaceExisting=replaceExisting",
-    "{https://iap.uhndata.io/bpmn}fields=fields[]",
     "{https://iap.uhndata.io/bpmn}sourceType=sourceType",
     "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
     "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
