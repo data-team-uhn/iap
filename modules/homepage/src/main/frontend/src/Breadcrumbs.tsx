@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { Breadcrumbs as MuiBreadcrumbs, Link as MuiLink } from "@mui/material";
 import { matchPath, Link as RouterLink, useLocation } from "react-router";
 
+import { useAddedCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { getRoutes } from "@iap/frontend-commons/routes";
 
 // A view as returned by getRoutes(): the parsed JSON of one `ext:Extension` registered on the
@@ -37,13 +38,14 @@ const ancestorPaths = (pathname: string): string[] => {
 
 // The breadcrumb trail, registered on the `iap/coreUI/pageTop` extension point so it appears
 // above the main content of every page. Each ancestor of the current URL that corresponds to a
-// registered view becomes a link named after that view (`ext:name`); on a top-level
-// page there are no ancestors, so nothing is rendered at all. The trail is as access-controlled
+// registered view becomes a link named after that view (`ext:name`), followed by whatever crumbs the
+// page itself adds (see pageCrumbs); on a top-level page with none, nothing is rendered at all. The trail is as access-controlled
 // as the views themselves: a view the user cannot read is never served, so it simply doesn't
 // appear in their trail either.
 function Breadcrumbs() {
   const [ views, setViews ] = useState<View[]>([]);
   const { pathname } = useLocation();
+  const added = useAddedCrumbs();
 
   useEffect(() => {
     getRoutes()
@@ -67,7 +69,8 @@ function Breadcrumbs() {
       });
       return view && { path, label: (view["ext:name"] as string | undefined) ?? path };
     })
-    .filter(crumb => !!crumb);
+    .filter(crumb => !!crumb)
+    .concat(added);
 
   if (crumbs.length === 0) {
     return null;

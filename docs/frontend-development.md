@@ -186,7 +186,10 @@ MUI's `sx` prop and the theme, not stylesheets. The theme
 (`frontend-commons/src/appTheme.ts`) is extended with what this platform needs, and
 using those extensions is what keeps a deployment's rebranding effective:
 
-- `Typography variant="pageTitle"` for the one top-level heading of a view.
+- `Typography variant="pageTitle"` for the one top-level heading of a view. A view
+  showing one resource puts the resource's tags in line with that heading (`TagChip`
+  without a category, in `AdminScreen`'s `status` on an admin page); listing rows and
+  cards place their chips as their layout allows.
 - `background.default` is a gray canvas and `background.paper` the surfaces standing
   out against it, in both colour schemes.
 - `background.tinted` for surfaces that carry the brand quietly: the frame bars and
