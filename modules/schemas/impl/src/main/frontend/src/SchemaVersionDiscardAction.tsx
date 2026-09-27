@@ -32,7 +32,7 @@ function SchemaVersionDiscardAction(props: SchemaVersionActionProps) {
   return (
     <EventAction
       path={pathOf(version)}
-      reload={props.reload}
+      reload={props.removed ?? props.reload}
       report={props.report}
       icon={<DeleteOutlinedIcon fontSize="small" />}
       label="Discard"

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import { Alert } from "@mui/material";
 import { useLocation, useNavigate } from "react-router";
@@ -25,16 +25,38 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import TagChip from "@iap/tags/TagChip";
 
 import SchemaActions from "./SchemaActions";
-import { schemaNameFromRoute, tagsOf, titleOf } from "./schemaModel";
+import { type JcrNode, schemaNameFromRoute, tagsOf, titleOf } from "./schemaModel";
+import SchemaVersionList from "./SchemaVersionList";
+import SchemaVersionView from "./SchemaVersionView";
 import { useSchema } from "./useSchema";
-import VersionList from "./VersionList";
+
+// What stays true of the schema on its page and on each of its versions' pages
+function SchemaNotices({ schema, loadError, reload }: {
+  schema: JcrNode;
+  loadError?: string;
+  reload: () => Promise<void>;
+}) {
+  return (
+    <>
+      { loadError && <LoadError title="The schema could not be reloaded" message={loadError} onRetry={reload}
+        sx={{ mb: 2 }} /> }
+      { tagsOf(schema).includes("retired") && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          This schema is retired. None of its versions accepts new submissions.
+        </Alert>
+      ) }
+    </>
+  );
+}
 
 // One schema's page: its versions and where each stands, and the lifecycle actions on them and on
-// the schema as a whole.
+// the schema as a whole. With a version named, that version's own page.
 function SchemaPage() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const versionName = new URLSearchParams(search).get("version");
   const navigate = useNavigate();
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
@@ -51,24 +73,32 @@ function SchemaPage() {
     );
   }
 
+  const notices: ReactNode = <SchemaNotices schema={schema} loadError={loadError} reload={reload} />;
+  const snackbar = <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />;
+
+  if (versionName) {
+    return (
+      <>
+        <SchemaVersionView schema={schema} versionName={versionName} notices={notices} reloadSchema={reloadSchema}
+          report={report} />
+        {snackbar}
+      </>
+    );
+  }
+
   return (
     <AdminScreen
       title={titleOf(schema)}
+      status={<TagChip tags={schema.tags} />}
       description={"A draft version can change in any way. Once active, only its wording can change. Create a "
         + "new version to change anything else."}
       action={<SchemaActions schema={schema} reload={reloadSchema} report={report}
         removed={() => void navigate("/admin/schemas")} />}
       disablePanel
     >
-      { loadError && <LoadError title="The schema could not be reloaded" message={loadError} onRetry={reload}
-        sx={{ mb: 2 }} /> }
-      { tagsOf(schema).includes("retired") && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          This schema is retired. None of its versions accepts new submissions.
-        </Alert>
-      ) }
-      <VersionList schema={schema} reload={reloadSchema} report={report} />
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
+      {notices}
+      <SchemaVersionList schema={schema} reload={reloadSchema} report={report} />
+      {snackbar}
     </AdminScreen>
   );
 }
