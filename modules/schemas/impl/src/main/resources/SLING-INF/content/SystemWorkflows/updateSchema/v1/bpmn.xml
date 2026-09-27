@@ -22,6 +22,7 @@
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   id="updateSchemaDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/updateSchema">
   <bpmn:message id="updateMessage" name="update" />
@@ -31,7 +32,16 @@
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:fields="title" iap:handler="updateSchemaContent" name="Apply the changes">
+    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Apply the changes">
+      <bpmn:extensionElements>
+        <sv:node sv:name="fields">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+          <sv:node sv:name="title">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Title</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

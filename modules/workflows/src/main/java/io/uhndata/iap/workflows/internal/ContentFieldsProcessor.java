@@ -15,12 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.editing.internal;
+package io.uhndata.iap.workflows.internal;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 
 import javax.jcr.Node;
@@ -47,24 +45,22 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * The {@code fields} serialization processor: adds {@code @fields} to each schema and schema version serialized,
- * listing the fields the requesting user's {@code update} event could change on it right now, with what an
- * editor needs to show them. Which fields those are is the configuration of the update workflow that would run,
- * so the editor never lists fields of its own. Off by default.
+ * Adds {@code @fields} to content an update workflow would change: the fields the requesting user's {@code update}
+ * event would let a patch change there, each with its {@code name}, {@code label}, {@code kind} ({@code text} or
+ * {@code reference}), and whether it is {@code mandatory} or {@code multiline}. It is read from the
+ * {@link UpdateContentHandler} activity of the workflow that would run, so an editor offers exactly what the update
+ * accepts and keeps no list of its own. The name of this processor is {@code fields}; it is off by default.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = ResourceJsonProcessor.class)
-public class SchemaFieldsProcessor implements ResourceJsonProcessor
+public class ContentFieldsProcessor implements ResourceJsonProcessor
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SchemaFieldsProcessor.class);
-
-    private static final List<String> EDITED_TYPES = List.of("sch:Schema", "sch:SchemaVersion");
+    private static final Logger LOGGER = LoggerFactory.getLogger(ContentFieldsProcessor.class);
 
     private static final String UPDATE_EVENT = "update";
 
-    /** The requesting user's resolver, for the serialization running on this thread. */
     private final ThreadLocal<ResourceResolver> resolver = new ThreadLocal<>();
 
     @Reference
@@ -93,19 +89,21 @@ public class SchemaFieldsProcessor implements ResourceJsonProcessor
     {
         Resource resource = null;
         try {
-            if (EDITED_TYPES.stream().noneMatch(type -> isNodeType(node, type))) {
+            if (!node.isNodeType("data:Content")) {
                 return;
             }
             resource = Objects.requireNonNull(this.resolver.get().getResource(node.getPath()),
                 "A node being serialized is visible to the session serializing it");
             final WorkflowVersion update = this.engine.findApplicableWorkflow(resource, UPDATE_EVENT);
-            final List<String> allowed = update == null ? List.of() : update.getFlowNodes().stream()
-                .filter(Activity.class::isInstance)
-                .map(Activity.class::cast)
-                .filter(activity -> UpdateSchemaContentHandler.HANDLER_NAME.equals(activity.getHandler()))
-                .flatMap(activity -> SchemaFields.allowedBy(activity).stream())
-                .toList();
-            json.add("@fields", describe(resource.getResourceType(), allowed));
+            if (update != null) {
+                final List<ContentFields.Description> described = update.getFlowNodes().stream()
+                    .filter(Activity.class::isInstance)
+                    .map(Activity.class::cast)
+                    .filter(activity -> UpdateContentHandler.HANDLER_NAME.equals(activity.getHandler()))
+                    .flatMap(activity -> ContentFields.describedBy(activity).stream())
+                    .toList();
+                json.add("@fields", describe(ContentFields.editable(described, node)));
+            }
         } catch (final RepositoryException | WorkflowException e) {
             // Nothing editable is the safe answer; the serialization itself must not fail over it
             LOGGER.error("Could not list the fields editable on {}: {}", node, e.getMessage(), e);
@@ -120,33 +118,20 @@ public class SchemaFieldsProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * The fields an editor shows, in the order the content declares them.
+     * The fields as the serialization lists them.
      *
-     * @param resourceType the content's resource type
-     * @param allowed the fields the update could change
-     * @return one object per field
+     * @param fields the fields
+     * @return their descriptions
      */
-    private static JsonArrayBuilder describe(final String resourceType, final List<String> allowed)
+    private static JsonArrayBuilder describe(final List<ContentFields.Field> fields)
     {
-        final JsonArrayBuilder fields = Json.createArrayBuilder();
-        allowed.stream()
-            .map(name -> SchemaFields.find(resourceType, name))
-            .flatMap(Optional::stream)
-            .forEach(field -> fields.add(Json.createObjectBuilder()
-                .add("name", field.name())
-                .add("label", field.label())
-                .add("kind", field.kind().name().toLowerCase(Locale.ROOT))
-                .add("mandatory", field.mandatory())
-                .add("multiline", field.multiline())));
-        return fields;
-    }
-
-    private static boolean isNodeType(final Node node, final String type)
-    {
-        try {
-            return node.isNodeType(type);
-        } catch (final RepositoryException e) {
-            return false;
-        }
+        final JsonArrayBuilder described = Json.createArrayBuilder();
+        fields.forEach(field -> described.add(Json.createObjectBuilder()
+            .add("name", field.name())
+            .add("label", field.label())
+            .add("kind", field.reference() ? "reference" : "text")
+            .add("mandatory", field.mandatory())
+            .add("multiline", field.multiline())));
+        return described;
     }
 }
