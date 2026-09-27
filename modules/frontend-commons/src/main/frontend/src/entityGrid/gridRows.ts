@@ -59,6 +59,9 @@ export const toTreeField = (field: string, tree?: EntityGridChildren): string =>
 export const fromTreeField = (field: string, tree?: EntityGridChildren): string =>
   tree && field === GRID_TREE_DATA_GROUPING_FIELD ? tree.treeField : field;
 
+// The class of an entity's own cell in the tree column, which stands out from the rows nested under it
+export const ENTITY_CELL = "entity-grid-entity";
+
 // The tree column, presented as the column whose place it takes
 export function groupingColumn(columns: EntityGridColumn[], tree: EntityGridChildren)
   : GridGroupingColDefOverride<EntityRow> {
@@ -70,5 +73,6 @@ export function groupingColumn(columns: EntityGridColumn[], tree: EntityGridChil
     sortable: treeColumn?.sortable !== false,
     filterable: false,
     valueGetter: (_value: never, row: EntityRow) => row[tree.treeField] ?? row["@name"],
+    cellClassName: params => (treeDataPath(params.row).length === 1 ? ENTITY_CELL : ""),
   };
 }

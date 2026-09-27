@@ -36,7 +36,9 @@ import { BOTTOM_SHEET_SX, EntityGridSheetPanel, RemoveConditionLabel, filterPane
 import EntityGridStatusOverlay from "./EntityGridStatusOverlay";
 import EntityGridToolbar from "./EntityGridToolbar";
 import EntityListItem from "./EntityListItem";
-import { fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows } from "./gridRows";
+import {
+  ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
+} from "./gridRows";
 import { type EntityGridColumn, getEntityTypeConfig } from "./registry";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 import useColumnVisibility from "./useColumnVisibility";
@@ -189,7 +191,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
   });
 
   return (
-    <Box sx={{ height, width: "100%", "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" } }}>
+    <Box
+      sx={{
+        height,
+        width: "100%",
+        "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" },
+        [`& .${ENTITY_CELL}`]: { fontWeight: "fontWeightBold", color: "primary.main" },
+      }}
+    >
       <DataGridPro
         columns={gridColumns}
         rows={gridRows}

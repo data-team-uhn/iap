@@ -236,6 +236,10 @@ describe("EntityDataGrid", () => {
     // A child without a title of its own goes by its name
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
+    // The entity stands out from what is nested under it
+    const cellOf = (text: string) => screen.getByText(text).closest(".MuiDataGrid-cell");
+    expect(cellOf("Clinical study (2)")).toHaveClass("entity-grid-entity");
+    expect(cellOf("Version one")).not.toHaveClass("entity-grid-entity");
   });
 
   it("sorts by the column the tree column stands for", async () => {
