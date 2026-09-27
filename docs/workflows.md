@@ -285,12 +285,19 @@ A few handlers are the engine's own, because what they do is generic:
 | `startWorkflow` | `workflowFrom` | Starts the user workflow a chain of references leads to, e.g. `schemaVersion/workflow` |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
+| `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
 transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
 execution has created, once it has created something, and on the target otherwise, the same rule
 `startWorkflow` follows. They may place and remove `system` tags. Only tags placed on the host itself are
 touched; inherited or computed tags are unaffected.
+
+`sendEvent` chains system workflows: `createSchema` creates the schema, then sends it `createVersion`, whose
+own workflow creates the first version and tags it. The chained workflow runs inside the sending one, in the
+same session and the same commit, so either both happen or neither does. It is matched, guarded and authorized
+like any event, for the same user; the caller is still answered with what the first workflow created.
+Workflows sending events to each other more than ten deep are taken to be looping, and refused.
 
 ## Sling Models
 

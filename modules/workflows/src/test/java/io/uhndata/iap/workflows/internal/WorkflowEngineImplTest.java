@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -704,6 +705,146 @@ class WorkflowEngineImplTest
         assertNull(engine.inspectWorkflow(requester, CREATE.getName(), WorkflowVersion::getPath));
         assertNull(engine.inspectWorkflow(requester, "archive", WorkflowVersion::getPath));
         assertNull(engine.inspectWorkflow(requester, "unknown", WorkflowVersion::getPath));
+    }
+
+    @Test
+    void runsTheWorkflowAnEventIsSentToAsPartOfTheSameExecution() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        sendAfterCreating("initialize");
+        createChainedWorkflow("initialize", EngineFixture.ADMIN, Map.of(
+            "handler", CreateEntityHandler.HANDLER_NAME, "entityType", "wf:WorkflowVersion"));
+
+        final WorkflowResult result = engine().receiveEvent(target, CREATE);
+
+        // The caller is still sent to what the event they sent created
+        assertEquals("/Workflows/myCoolWorkflow", result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        // The sent event carried the same payload, and was aimed at the created workflow
+        final Resource chained =
+            this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow/myCoolWorkflow");
+        assertNotNull(chained);
+        assertEquals("My cool workflow", chained.getValueMap().get("title"));
+        assertEquals(EngineFixture.ADMIN, chained.getValueMap().get("createdBy"));
+    }
+
+    @Test
+    void refusesTheWholeEventWhenNothingWaitsForTheOneItSends() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        sendAfterCreating("initialize");
+
+        final WorkflowEngine engine = engine();
+
+        assertThrows(NoApplicableWorkflowException.class, () -> engine.receiveEvent(target, CREATE));
+    }
+
+    @Test
+    void refusesTheWholeEventWhenTheUserMayNotSendTheOneItSends() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+        sendAfterCreating("initialize");
+        createChainedWorkflow("initialize", "some-other-group", Map.of("handler", "noop"));
+
+        final WorkflowEngine engine = engine(new NoopHandler());
+
+        assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(target, CREATE));
+    }
+
+    @Test
+    void stopsWorkflowsSendingEventsToEachOtherInALoop() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        createOtherWorkflow("loop", Map.of("handler", EventSender.HANDLER_NAME, "message", "loop"));
+
+        final WorkflowEngine engine = engine();
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> engine.receiveEvent(target, new WorkflowEvent("loop", Map.of())));
+        assertTrue(refusal.getMessage().contains("in a loop"));
+    }
+
+    @Test
+    void refusesToSendAnEventTheActivityDoesNotName() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        createOtherWorkflow("archive", Map.of("handler", EventSender.HANDLER_NAME));
+
+        final WorkflowEngine engine = engine();
+
+        assertThrows(WorkflowDefinitionException.class,
+            () -> engine.receiveEvent(target, new WorkflowEvent("archive", Map.of())));
+    }
+
+    /**
+     * Makes the bootstrap graph send an event to the workflow it created, between creating it and ending.
+     *
+     * @param message the event to send
+     * @throws PersistenceException never, the mock repository removes the old arc in memory
+     */
+    private void sendAfterCreating(final String message) throws PersistenceException
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(VERSION + "/create/toDone"));
+        this.context.create().resource(VERSION + "/create/toSend", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toSend", "targetRef", "send"));
+        this.context.create().resource(VERSION + "/send", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", EventSender.HANDLER_NAME,
+            "message", message));
+        this.context.create().resource(VERSION + "/send/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
+    }
+
+    /**
+     * Creates a system workflow on workflow definitions, the kind of resource the bootstrap graph creates, running
+     * one activity.
+     *
+     * @param message the event it catches
+     * @param performer who may send it
+     * @param activity the activity's configuration
+     */
+    private void createChainedWorkflow(final String message, final String performer,
+        final Map<String, Object> activity)
+    {
+        createWorkflow("/SystemWorkflows/chained/v1", "wf/WorkflowDefinition", message, performer, activity);
+    }
+
+    /**
+     * Creates a second system workflow on the homepage, admitting only administrators, running one activity.
+     *
+     * @param message the event it catches
+     * @param activity the activity's configuration
+     */
+    private void createOtherWorkflow(final String message, final Map<String, Object> activity)
+    {
+        createWorkflow(OTHER_VERSION, WorkflowsHomepage.RESOURCE_TYPE, message, EngineFixture.ADMIN, activity);
+    }
+
+    private void createWorkflow(final String version, final String targetType, final String message,
+        final String performer, final Map<String, Object> activity)
+    {
+        this.context.create().resource(version.substring(0, version.lastIndexOf('/')), Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", message, "active", true));
+        this.context.create().resource(version, Map.of(
+            TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true, "targetResourceType", targetType));
+        this.context.create().resource(version + "/requested", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", message,
+            "performers", new String[] { performer }));
+        this.context.create().resource(version + "/requested/toStep", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toStep", "targetRef", "step"));
+        final Map<String, Object> step = new HashMap<>(activity);
+        step.put(TYPE, Activity.RESOURCE_TYPE);
+        step.put(ELEMENT_ID, "step");
+        this.context.create().resource(version + "/step", step);
+        this.context.create().resource(version + "/step/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
+        this.context.create().resource(version + "/done", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
     }
 
     /**
