@@ -176,7 +176,7 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           { editable && (
             <>
-              { dirty && <Typography variant="body2" color="text.secondary">Unsaved changes</Typography> }
+              { dirty && <Typography variant="description">Unsaved changes</Typography> }
               <Button variant="contained" onClick={() => save()} disabled={saving}>
                 { saving ? <CircularProgress size={20} /> : "Save" }
               </Button>
@@ -206,7 +206,7 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
           <Stack direction="row" spacing={2} sx={{ alignItems: "center", flexWrap: "wrap" }}>
             { version && <WorkflowStateChip state={version.state} /> }
             { version?.description !== undefined && version.description !== "" && (
-              <Typography variant="body2" color="text.secondary">{version.description}</Typography>
+              <Typography variant="description">{version.description}</Typography>
             )}
           </Stack>
         )}

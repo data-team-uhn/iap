@@ -56,7 +56,7 @@ function formatDate(value: string): string {
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-      <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120 }}>{label}</Typography>
+      <Typography variant="caption" sx={{ minWidth: 120 }}>{label}</Typography>
       <Box sx={{ typography: "body2" }}>{children}</Box>
     </Stack>
   );
@@ -156,7 +156,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>Versions</Typography>
           { workflow.versions.length === 0
-            ? <Typography color="text.secondary">This workflow has no versions yet.</Typography>
+            ? <Typography variant="placeholder">This workflow has no versions yet.</Typography>
             : (
               <Table size="small">
                 <TableHead>
