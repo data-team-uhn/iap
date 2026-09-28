@@ -145,7 +145,6 @@ class UpdateFieldsTest
      * The node types an update's fields are held to: what the workflow creates, when it creates something, and else
      * what it targets.
      *
-     * @param types the repository's node types
      * @param version a workflow version
      * @return the node types
      */
