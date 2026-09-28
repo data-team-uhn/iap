@@ -71,15 +71,19 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip.
-export function ActionIcon({ label, icon, onClick }: {
+// One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is.
+export function ActionIcon({ label, icon, onClick, pressed }: {
   label: string;
   icon: ReactNode;
   onClick: (event: MouseEvent<HTMLElement>) => void;
+  pressed?: boolean;
 }) {
   return (
     <Tooltip title={label}>
-      <IconButton size="small" aria-label={label} onClick={onClick}>{icon}</IconButton>
+      <IconButton size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : "default"}
+        onClick={onClick}>
+        {icon}
+      </IconButton>
     </Tooltip>
   );
 }

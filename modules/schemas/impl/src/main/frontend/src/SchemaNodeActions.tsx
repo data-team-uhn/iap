@@ -17,9 +17,11 @@
  */
 
 import { type JcrNode, nameIfAny } from "./schemaModel";
+import { useMoveMode } from "./schemaMove";
 import { AddBelow } from "./SchemaNodeCreateAction";
 import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
+import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
 
 interface SchemaNodeActionsProps {
   node: JcrNode;
@@ -30,14 +32,17 @@ interface SchemaNodeActionsProps {
   what: string;
 }
 
-// What may be done to a part or an answer option where it stands: correct it, add after it, remove it.
+// What may be done to a part or an answer option where it stands: correct it, add after it, move it, remove it.
+// While something is moving, only moving is.
 function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsProps) {
+  const { moving } = useMoveMode();
   const next = siblings.at(siblings.indexOf(node) + 1);
   return (
     <>
-      <SchemaNodeEditAction node={node} title={`Edit ${what}`} />
+      { !moving && <SchemaNodeEditAction node={node} title={`Edit ${what}`} /> }
       <AddBelow parent={parent} next={nameIfAny(next)} />
-      <SchemaNodeDiscardAction node={node} what={what} />
+      <SchemaNodeMoveAction node={node} what={what} />
+      { !moving && <SchemaNodeDiscardAction node={node} what={what} /> }
     </>
   );
 }
