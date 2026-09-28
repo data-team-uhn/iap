@@ -1,0 +1,57 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Reopen a schema",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/Schema",
+    "description": "Reopens a retired schema: its versions are back in the states they were in.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "activate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["retired"]
+        }
+      },
+      "toUnmarkRetired": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUnmarkRetired",
+        "targetRef": "unmarkRetired"
+      }
+    },
+    "unmarkRetired": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "unmarkRetired",
+      "label": "Remove the retired mark",
+      "handler": "removeTag",
+      "tag": "retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema reopened",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
