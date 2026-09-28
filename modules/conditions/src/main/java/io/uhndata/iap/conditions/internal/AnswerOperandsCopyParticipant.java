@@ -22,7 +22,6 @@ import java.util.Map;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
-import javax.jcr.Value;
 
 import org.osgi.service.component.annotations.Component;
 
@@ -49,12 +48,7 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
             && AnswerOperandResolver.SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
-            final Value[] named = copy.getProperty(VALUE_PROPERTY).getValues();
-            final String[] copied = new String[named.length];
-            for (int i = 0; i < named.length; i++) {
-                copied[i] = copyOf(named[i].getString(), source, identifiers);
-            }
-            copy.setProperty(VALUE_PROPERTY, copied);
+            OperandValues.rename(copy, named -> copyOf(named, source, identifiers));
         }
         final NodeIterator children = copy.getNodes();
         while (children.hasNext()) {
