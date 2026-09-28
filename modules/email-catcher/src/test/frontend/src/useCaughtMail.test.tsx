@@ -41,7 +41,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("useCatcherStatus", () => {
   it("reads whether mail is being caught, and how much has been", async () => {
-    stubFetch({ enabled: true, total: 3 });
+    stubFetch({ enabled: { label: "Catching mail", value: true }, total: { label: "Caught so far", value: 3 } });
     const { result } = renderHook(() => useCatcherStatus());
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });

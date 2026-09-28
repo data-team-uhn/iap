@@ -16,37 +16,33 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import SchemasWidget from "@iap/schemas/SchemasWidget";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
-import { serveSchemas } from "./schemaServer.fixture";
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  clearTagDefinitionsCache();
-});
-
-const renderWidget = () => render(<MemoryRouter><SchemasWidget /></MemoryRouter>);
-
+// Loading, refusal and rendering are tested in WidgetStatList.test.tsx.
 describe("SchemasWidget", () => {
-  it("counts the active and draft versions, and the retired schemas", async () => {
-    serveSchemas();
-    renderWidget();
-
-    expect(screen.getByLabelText("Loading the schemas")).toBeInTheDocument();
-    const active = await screen.findByText("Active versions");
-    expect(active.parentElement).toHaveTextContent("2");
-    expect(screen.getByText("Draft versions in progress").parentElement).toHaveTextContent("2");
-    expect(screen.getByText("Retired schemas").parentElement).toHaveTextContent("1");
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("says so when the schemas cannot be read", async () => {
-    serveSchemas({ failReads: 500 });
-    renderWidget();
+  it("lists the figures the summary reports", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(
+      JSON.stringify({ active: { label: "Active versions", value: 2 } }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    ));
+    render(<MemoryRouter><SchemasWidget /></MemoryRouter>);
 
-    expect(await screen.findByText("The schemas could not be loaded.")).toBeInTheDocument();
+    await waitFor(() => { expect(fetchMock).toHaveBeenCalled(); });
+    expect(fetchMock.mock.calls[0][0]).toBe("/Schemas.adminSummary.json");
+    expect(await screen.findByText("Active versions")).toBeInTheDocument();
+  });
+
+  it("says so when the summary is not available to this reader", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 403 }));
+    render(<MemoryRouter><SchemasWidget /></MemoryRouter>);
+
+    expect(await screen.findByText("The schemas summary is not available to you.")).toBeInTheDocument();
   });
 });

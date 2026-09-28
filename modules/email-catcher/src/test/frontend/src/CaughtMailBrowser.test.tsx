@@ -37,7 +37,9 @@ const page = (rows: unknown[]) => ({
 
 /** Answers both the catcher's state and the listing, each with its own Response. */
 const answering = (enabled: boolean, rows: unknown[] = [ MESSAGE_ROW ]) => vi.fn((url: string) => {
-  const body = url.includes(".adminSummary.json") ? { enabled, total: rows.length } : page(rows);
+  const body = url.includes(".adminSummary.json")
+    ? { enabled: { label: "Catching mail", value: enabled }, total: { label: "Caught so far", value: rows.length } }
+    : page(rows);
   return Promise.resolve(new Response(JSON.stringify(body),
     { status: 200, headers: { "Content-Type": "application/json" } }));
 });

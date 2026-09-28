@@ -16,11 +16,14 @@
  * limitations under the License.
  */
 
-import { Box, Skeleton, Typography } from "@mui/material";
+import { useState } from "react";
+
+import { Box } from "@mui/material";
 
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
 import CatcherSwitch from "./CatcherSwitch";
+import { CAUGHT_MAIL_PATH } from "./caughtMailModel";
 import { useCatcherStatus } from "./useCaughtMail";
 
 /**
@@ -31,45 +34,23 @@ import { useCatcherStatus } from "./useCaughtMail";
  * from somebody who came to the dashboard to check whether a notification worked.
  */
 function CaughtMailWidget() {
-  const { status, settled, reload } = useCatcherStatus();
+  const { status, reload } = useCatcherStatus();
+  // Bumped once the switch has written the setting, so the list reads the summary again
+  const [ generation, setGeneration ] = useState(0);
 
-  if (!settled) {
-    return <Skeleton variant="rounded" height={96} aria-label="Loading the caught mail summary" />;
-  }
-
-  // Reaching the administration console is not the same as being allowed to read /CaughtMail, and
-  // an "Off" with no messages would be a claim rather than an absence of one
-  if (status === null) {
-    return (
-      <Typography variant="placeholder">
-        The caught mail is not available to you.
-      </Typography>
-    );
-  }
+  const changed = () => {
+    reload();
+    setGeneration(previous => previous + 1);
+  };
 
   return (
     <Box>
-      <WidgetStatList
-        stats={[
-          { label: "Catching mail", mode: "boolean", value: status.enabled },
-          { label: "Caught so far", value: status.total },
-        ]}
-      />
-      {!status.enabled && (
-        <Typography variant="description" sx={{ mt: 1 }}>
-          {status.total > 0
-            ? "Mail is being delivered normally now; these were caught earlier."
-            : "Mail is being delivered normally, so nothing new will appear here."}
-        </Typography>
+      <WidgetStatList key={generation} url={CAUGHT_MAIL_PATH} name="caught mail" />
+      {status !== null && (
+        <Box sx={{ mt: 1 }}>
+          <CatcherSwitch enabled={status.enabled} onChanged={changed} />
+        </Box>
       )}
-      {status.enabled && status.total === 0 && (
-        <Typography variant="placeholder" sx={{ mt: 1 }}>
-          Nothing has been sent yet.
-        </Typography>
-      )}
-      <Box sx={{ mt: 1 }}>
-        <CatcherSwitch enabled={status.enabled} onChanged={reload} />
-      </Box>
     </Box>
   );
 }

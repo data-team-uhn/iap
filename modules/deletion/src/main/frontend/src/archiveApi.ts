@@ -24,15 +24,6 @@
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** The archive at a glance, as the administration console widget shows it. */
-export interface ArchiveSummary {
-  last24Hours: number;
-  lastWeek: number;
-  total: number;
-  /** Whether counting stopped at the server's bound, so the numbers are lower bounds. */
-  approximate: boolean;
-}
-
 /** One recorded deletion. */
 export interface ArchiveEntry {
   /** The entry's own repository path — where it is stored, inside the prefix tree. */
@@ -116,7 +107,7 @@ export interface ArchiveEntryDetail extends ArchiveEntry {
 }
 
 /** The archive root. The entries themselves live in buckets under it and are addressed by path. */
-const ARCHIVE_PATH = "/Archive";
+export const ARCHIVE_PATH = "/Archive";
 
 // Where an entry answers to its bare name, beside the prefix tree rather than over it. Mirrors
 // PrefixTreeResourceProvider.ADDRESS_SEGMENT; the tree itself stays a server-side concern, and this
@@ -155,28 +146,9 @@ export const entryResourcePath = (route: string): string | null => {
 };
 
 /**
- * Read the three counts the administration console widget shows.
- *
- * Rejects rather than resolving on failure: the widget has nothing to display without them, so
- * there is no partial answer worth inventing.
- */
-export const fetchArchiveSummary = async (doFetch: AuthenticatedFetch): Promise<ArchiveSummary> => {
-  const response = await doFetch(`${ARCHIVE_PATH}.summary.json`, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    throw new Error(`The archive summary could not be read (${String(response.status)})`);
-  }
-  const body = await response.json() as ArchiveSummary | null;
-  if (!body) {
-    throw new Error("The archive summary could not be read");
-  }
-  return body;
-};
-
-/**
  * Read one page of archive entries.
  *
- * Rejects on failure, for the same reason as the summary: a table with no rows and no explanation
- * would claim the archive is empty.
+ * Rejects on failure: a table with no rows and no explanation would claim the archive is empty.
  */
 export const fetchArchiveEntries = async (
   doFetch: AuthenticatedFetch,

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { ADMIN, adminAuth, signInAs } from '../../../support/auth';
 
@@ -92,6 +92,13 @@ let fingerprint = '';
 
 test.describe.configure({ mode: 'serial' });
 
+/**
+ * The console widget's count of errors still needing attention, read as the description of its label.
+ */
+const needingAttention = (page: Page) =>
+  page.getByText('Needing attention', { exact: true })
+    .locator('xpath=ancestor-or-self::dt/following-sibling::dd[1]');
+
 test.describe('an administrator triages an error the instance could not deal with', () => {
   // A story is many steps against a real instance, where a spec is one. Each step below still gets
   // its own budget, which is what keeps a failure pointing at the step that broke rather than at
@@ -161,7 +168,7 @@ test.describe('an administrator triages an error the instance could not deal wit
     await expect(page.getByText('Needing attention')).toBeVisible();
     // The count is the label's sibling rather than a labelled value
     await expect(page.getByText('Recorded in total')).toBeVisible();
-    await expect(page.getByText('Everything recorded has been dealt with.')).toHaveCount(0);
+    await expect(needingAttention(page)).not.toHaveText('0');
     await expect(page.getByRole('link', { name: 'Triage: Recorded errors' })).toBeVisible();
   });
 
@@ -247,6 +254,6 @@ test.describe('an administrator triages an error the instance could not deal wit
     await expect(page.getByText('Nothing needs attention.')).toBeVisible();
 
     await page.goto('/admin');
-    await expect(page.getByText('Everything recorded has been dealt with.')).toBeVisible();
+    await expect(needingAttention(page)).toHaveText('0');
   });
 });
