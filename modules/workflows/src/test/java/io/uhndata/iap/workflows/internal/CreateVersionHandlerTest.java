@@ -92,6 +92,22 @@ class CreateVersionHandlerTest
     }
 
     @Test
+    void createsTheVersionInWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
+    {
+        // createWorkflow runs createEntity at the homepage first: the version belongs to the workflow it made,
+        // not to the homepage the event was sent to
+        this.context.create().resource("/Workflows/fresh", "jcr:primaryType", "wf:WorkflowDefinition");
+        final Map<String, Object> variables = new HashMap<>();
+        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, "/Workflows/fresh");
+
+        this.handler.execute(AuthoringFixture.context(this.context.resourceResolver().getResource("/Workflows"),
+            "create", Map.of("version", "1.0"), this.activity, variables));
+
+        assertEquals("/Workflows/fresh/1-0", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertNotNull(this.context.resourceResolver().getResource("/Workflows/fresh/1-0"));
+    }
+
+    @Test
     void storesTheDiagramThatArrivedWithTheRequest() throws WorkflowException, PersistenceException, IOException
     {
         final Map<String, Object> payload = new HashMap<>();

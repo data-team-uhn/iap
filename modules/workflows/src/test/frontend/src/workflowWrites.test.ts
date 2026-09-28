@@ -67,8 +67,8 @@ const formOf = (fetchUtil: ReturnType<typeof acceptingFetch>, call: number): For
   fetchUtil.mock.calls[call][1]?.body as FormData;
 
 describe("createWorkflow", () => {
-  it("asks the homepage for a workflow, then that workflow for its first version", async () => {
-    const fetchUtil = acceptingFetch();
+  it("asks the homepage for a workflow and its first version in one event", async () => {
+    const fetchUtil = acceptingFetch(() => "/Workflows/standardReview/1-0");
 
     const versionPath = await createWorkflow(fetchUtil, {
       homepage: "/Workflows",
@@ -77,21 +77,19 @@ describe("createWorkflow", () => {
       description: "The first cut",
     });
 
-    // The homepage's own event: what a create means there is the system workflow's business, and
-    // nothing here names a node type or a node name -- the handler derives both
-    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows");
-    expect(paramsOf(fetchUtil, 0)).toEqual({ title: "Standard review" });
-
-    // Then the version, asked of the workflow that was just created
-    expect(fetchUtil.mock.calls[1][0]).toBe("/Workflows/created.createVersion.json");
-    const version = formOf(fetchUtil, 1);
-    expect(version.get("version")).toBe("1.0");
-    expect(version.get("description")).toBe("The first cut");
+    // One request, naming its event: a failure part-way can't leave a workflow with no version, and
+    // nothing here names a node type or a node name -- the handlers derive both
+    expect(fetchUtil).toHaveBeenCalledTimes(1);
+    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows.create.json");
+    const requested = formOf(fetchUtil, 0);
+    expect(requested.get("title")).toBe("Standard review");
+    expect(requested.get("version")).toBe("1.0");
+    expect(requested.get("description")).toBe("The first cut");
     // The diagram travels with the request rather than following it, so a version with no diagram is
     // never a state anything can observe
-    expect(version.get("bpmn.xml")).toBeInstanceOf(File);
+    expect(requested.get("bpmn.xml")).toBeInstanceOf(File);
 
-    expect(versionPath).toBe("/Workflows/created/created");
+    expect(versionPath).toBe("/Workflows/standardReview/1-0");
   });
 
   it("leaves an empty description out rather than sending one", async () => {
@@ -99,7 +97,7 @@ describe("createWorkflow", () => {
 
     await createWorkflow(fetchUtil, { homepage: "/Workflows", title: "Bare", version: "1.0", description: "" });
 
-    expect(formOf(fetchUtil, 1).get("description")).toBeNull();
+    expect(formOf(fetchUtil, 0).get("description")).toBeNull();
   });
 
   it("complains rather than guessing when the engine does not say what it created", async () => {
