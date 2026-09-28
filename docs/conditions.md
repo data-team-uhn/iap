@@ -102,7 +102,13 @@ content (see `copyContent` in [workflows.md](workflows.md)), an `answer` operand
 a copied question by UUID is pointed at the copy, while a path is kept as written: it
 stays readable, and the copy's own structure is what it resolves against.
 
-### Aggregators
+A module about to remove or move content asks `ConditionDependencies` (in the API) what
+depends on it: every name an `answer` operand may give what the content holds, the
+operands elsewhere in its entity that use one of them, and the part each such condition
+is on. The schema editor refuses to remove a question other parts' conditions depend on
+this way.
+
+## Aggregators
 
 An operand's `aggregate` folds its values into one before comparison — the
 principled way to use the single-value ordering comparators against a set, e.g.
