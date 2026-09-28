@@ -98,7 +98,7 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
         ? <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />
         : homepages.length === 0
           ? (
-            <Typography color="textSecondary">
+            <Typography variant="placeholder">
               There is nowhere you can read workflows from.
             </Typography>
           )
