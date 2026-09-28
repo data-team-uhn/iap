@@ -152,7 +152,8 @@ write through either session.**
 > belong to nothing at all. Bound principals cover local groups and provider-supplied
 > roles alike.
 
-Three guards ship with the module.
+Three guards ship with the module; other modules add their own, such as the schemas module's
+`ConditionDependencyVeto`, which keeps a question that conditions depend on (see [schemas.md](schemas.md)).
 
 **`UndeletableVeto`** — the `del:Undeletable` mixin marks a resource that must never
 be deleted: not archived, not permanently removed, not purged if it somehow reaches

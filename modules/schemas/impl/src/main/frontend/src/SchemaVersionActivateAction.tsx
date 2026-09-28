@@ -34,14 +34,13 @@ function SchemaVersionActivateAction(props: SchemaVersionActionProps) {
     <EventAction
       path={pathOf(version)}
       reload={props.reload}
-      report={props.report}
+      announce={{ report: props.report, message: `Version ${labelOf(version)} is active` }}
       icon={<PublishOutlinedIcon fontSize="small" />}
       label="Activate"
       event="activate"
       title={`Activate version ${labelOf(version)}`}
       explanation={"New submissions will be possible against this version. A draft is checked first, and "
         + "from then on only its wording can change. Activating it does not retire other versions."}
-      done={`Version ${labelOf(version)} is active`}
     />
   );
 }

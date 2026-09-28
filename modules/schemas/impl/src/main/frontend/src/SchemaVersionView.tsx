@@ -27,7 +27,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import TagChip from "@iap/tags/TagChip";
 
-import { descriptionOf, type JcrNode, labelOf, pathOf, titleOf, versionsOf } from "./schemaModel";
+import { descriptionOf, type JcrNode, labelOf, nameOf, pathOf, titleOf, versionsOf } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import SchemaVersionTree from "./SchemaVersionTree";
 import { schemaPageUrl } from "./useSchemaList";
@@ -46,7 +46,7 @@ interface SchemaVersionViewProps {
 // submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
 function SchemaVersionView({ schema, versionName, notices, reloadSchema, report }: SchemaVersionViewProps) {
   const navigate = useNavigate();
-  const schemaPage = schemaPageUrl(String(schema["@name"]));
+  const schemaPage = schemaPageUrl(nameOf(schema));
   usePageCrumbs([ { path: schemaPage, label: titleOf(schema) } ]);
   const version = versionsOf(schema).find(candidate => candidate["@name"] === versionName);
   const { tree, loading, loadError, reload } = useSchemaVersionTree(`${pathOf(schema)}/${versionName}`);

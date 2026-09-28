@@ -33,14 +33,13 @@ function SchemaVersionRetireAction(props: SchemaVersionActionProps) {
     <EventAction
       path={pathOf(version)}
       reload={props.reload}
-      report={props.report}
+      announce={{ report: props.report, message: `Version ${labelOf(version)} is retired` }}
       icon={<ArchiveOutlinedIcon fontSize="small" />}
       label="Retire"
       event="retire"
       color="warning"
       title={`Retire version ${labelOf(version)}`}
       explanation="No new submissions will be possible against it. Existing submissions keep using it."
-      done={`Version ${labelOf(version)} is retired`}
     />
   );
 }

@@ -154,6 +154,106 @@ describe("SchemaVersionView", () => {
     expect(screen.getByText("drug").closest("li")?.querySelector("button")).toBeNull();
   });
 
+  it("adds a requirement at the end of a draft", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    await card("Your name");
+    fireEvent.click(screen.getAllByRole("button", { name: "Add" }).at(-1)!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Document" }));
+    const dialog = await screen.findByRole("dialog", { name: /New document/ });
+    fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: "Consent form" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3.create.json"));
+    expect(posted[0].params.get("type")).toBe("sch:DocumentRequirement");
+    expect(posted[0].params.has("before")).toBe(false);
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ label: "Consent form" });
+  });
+
+  it("adds a part below another", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your name")).getByRole("button", { name: "Add below" }));
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    fireEvent.click(within(await card("Your name")).getByRole("button", { name: "Add below" }));
+    expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual([ "Section", "Question" ]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
+    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    // Where it goes is already chosen
+    expect(within(dialog).queryByRole("radiogroup")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your email" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
+    expect(posted[0].params.get("type")).toBe("sch:Question");
+    expect(posted[0].params.get("before")).toBe("age");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section" }));
+    const last = await screen.findByRole("dialog", { name: /New section/ });
+    fireEvent.change(within(last).getByLabelText(/Title/), { target: { value: "Contact" } });
+    fireEvent.click(within(last).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted).toHaveLength(2));
+    expect(posted[1].params.has("before")).toBe(false);
+  });
+
+  it("adds a part at the start of what holds it", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    await card("Your name");
+    fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Question" }));
+    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    expect(within(dialog).getByRole("radio", { name: "At the end" })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("radio", { name: "At the start" }));
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your title" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
+    expect(posted[0].params.get("before")).toBe("name");
+  });
+
+  it("adds an option to a question", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    await expand("Your name");
+    fireEvent.click(screen.getByRole("button", { name: "Add option" }));
+    const dialog = await screen.findByRole("dialog", { name: /New option/ });
+    fireEvent.change(within(dialog).getByLabelText(/Value/), { target: { value: "long" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name.create.json"));
+    expect(posted[0].params.get("type")).toBe("sch:AnswerOption");
+  });
+
+  it("removes a part or an option, and says why one stays", async () => {
+    const posted = serveSchemas({ answers: { "/Schemas/study/v3/intake/age.discard.json": {
+      status: 409, error: "The conditions of \"Your name\" depend on it. Change those conditions first.",
+    } } });
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Remove" }));
+    const dialog = await screen.findByRole("dialog", { name: /Remove this question/ });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    expect(await within(dialog).findByText(/depend on it/)).toBeInTheDocument();
+    // Asking again would be refused again
+    expect(within(dialog).getByRole("button", { name: "Remove" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await expand("Your name");
+    const short = screen.getByText("Short").closest("li") as HTMLElement;
+    fireEvent.click(within(short).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: /Remove this option/ }))
+      .getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(posted.map(event => event.url))
+      .toEqual([ "/Schemas/study/v3/intake/age.discard.json", "/Schemas/study/v3/intake/name/short.discard.json" ]));
+  });
+
   it("collapses what it contains", async () => {
     serveSchemas();
     renderVersion("study", "v2");
@@ -165,7 +265,7 @@ describe("SchemaVersionView", () => {
 
   it("says when a version asks for nothing yet", async () => {
     serveSchemas();
-    renderVersion("study", "v3");
+    renderVersion("idea", "v1");
 
     expect(await screen.findByText("This version asks for nothing yet.")).toBeInTheDocument();
   });
