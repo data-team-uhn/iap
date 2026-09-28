@@ -23,7 +23,9 @@ import {
   loadWorkflow,
   loadWorkflowCounts,
   loadWorkflowHomepages,
+  nextVersionLabel,
   stateOf,
+  type WorkflowSummary,
 } from "@iap/workflows/workflowModel";
 
 const definition = {
@@ -415,5 +417,38 @@ describe("the console's URLs", () => {
     expect(consoleTarget("/admin/workflows", [])).toEqual({ kind: "root" });
     expect(consoleTarget("/admin/workflows/", HOMEPAGES)).toEqual({ kind: "root" });
     expect(consoleTarget("/admin/workflows.html", HOMEPAGES)).toEqual({ kind: "root" });
+  });
+});
+
+describe("nextVersionLabel", () => {
+  const withLabels = (...labels: string[]): WorkflowSummary => ({
+    path: "/Workflows/review",
+    name: "review",
+    title: "Standard review",
+    active: false,
+    retired: false,
+    created: "",
+    lastModified: "",
+    versions: labels.map((label, index) => ({
+      name: `v${index + 1}`,
+      path: `/Workflows/review/v${index + 1}`,
+      version: label,
+      description: "",
+      state: "DRAFT",
+      lastModified: "",
+    })),
+  });
+
+  it("starts a workflow at 1.0", () => {
+    expect(nextVersionLabel(withLabels())).toBe("1.0");
+  });
+
+  it("follows the highest numeric label with the next whole number", () => {
+    expect(nextVersionLabel(withLabels("1.0", "2.1", "1.5"))).toBe("3.0");
+  });
+
+  it("counts the versions when no label is wholly a number", () => {
+    // "2.0 (pilot)" is a label that happens to start with a number, not a number
+    expect(nextVersionLabel(withLabels("alpha", "2.0 (pilot)", ""))).toBe("4.0");
   });
 });

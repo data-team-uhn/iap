@@ -73,14 +73,14 @@ class CreateVersionHandlerTest
     }
 
     @Test
-    void createsADraftNamedAfterTheLabel() throws WorkflowException, PersistenceException
+    void createsADraftNamedAfterItsPosition() throws WorkflowException, PersistenceException
     {
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(this.request(Map.of("version", "1.0"), variables));
 
-        assertEquals(AuthoringFixture.path("1-0"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
-        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        assertEquals(AuthoringFixture.path("v1"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
         assertEquals("wf:WorkflowVersion", created.getValueMap().get("jcr:primaryType"));
         assertEquals("1.0", created.getValueMap().get("version"));
@@ -103,8 +103,8 @@ class CreateVersionHandlerTest
         this.handler.execute(AuthoringFixture.context(this.context.resourceResolver().getResource("/Workflows"),
             "create", Map.of("version", "1.0"), this.activity, variables));
 
-        assertEquals("/Workflows/fresh/1-0", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
-        assertNotNull(this.context.resourceResolver().getResource("/Workflows/fresh/1-0"));
+        assertEquals("/Workflows/fresh/v1", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertNotNull(this.context.resourceResolver().getResource("/Workflows/fresh/v1"));
     }
 
     @Test
@@ -116,7 +116,7 @@ class CreateVersionHandlerTest
 
         this.handler.execute(this.request(payload, new HashMap<>()));
 
-        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
         assertEquals(AuthoringFixture.BPMN, AuthoringFixture.read(created.getChild("bpmn.xml")));
         assertEquals("application/xml",
@@ -129,7 +129,7 @@ class CreateVersionHandlerTest
         this.handler.execute(this.request(Map.of("version", "1.0", "description", "  The first cut  "),
             new HashMap<>()));
 
-        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
         assertEquals("The first cut", created.getValueMap().get("description"));
     }
@@ -139,30 +139,32 @@ class CreateVersionHandlerTest
     {
         this.handler.execute(this.request(Map.of("version", "1.0", "description", "   "), new HashMap<>()));
 
-        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
         assertNull(created.getValueMap().get("description"));
     }
 
     @Test
-    void findsAFreeNodeNameWhenTheDerivedOneIsTaken() throws WorkflowException, PersistenceException
+    void skipsANodeNameThatIsAlreadyTaken() throws WorkflowException, PersistenceException
     {
-        // Two labels that reduce to the same node name are told apart by an appended counter
-        AuthoringFixture.createVersion(this.context, "1-0", "1/0", WorkflowVersion.State.DRAFT, Map.of());
+        // One version so far, but already stored under the name the second would get
+        AuthoringFixture.createVersion(this.context, "v2", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        final Map<String, Object> variables = new HashMap<>();
 
-        this.handler.execute(this.request(Map.of("version", "1.0"), new HashMap<>()));
+        this.handler.execute(this.request(Map.of("version", "2.0"), variables));
 
-        assertNotNull(this.context.resourceResolver().getResource(AuthoringFixture.path("1-0-2")));
+        assertEquals(AuthoringFixture.path("v3"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     @Test
-    void namesAVersionWhoseLabelReducesToNothing() throws WorkflowException, PersistenceException
+    void keepsALabelThatCouldNotBeANodeName() throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> variables = new HashMap<>();
+        // The name does not come from the label, so a label may say anything
+        this.handler.execute(this.request(Map.of("version", "2.0 (pilot)"), new HashMap<>()));
 
-        this.handler.execute(this.request(Map.of("version", "!!!"), variables));
-
-        assertEquals(AuthoringFixture.path("version"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
+        assertNotNull(created);
+        assertEquals("2.0 (pilot)", created.getValueMap().get("version"));
     }
 
     @Test
@@ -176,11 +178,38 @@ class CreateVersionHandlerTest
     }
 
     @Test
-    void requiresALabel()
+    void labelsAFirstVersionOnePointZeroWhenNoLabelIsGiven() throws WorkflowException, PersistenceException
     {
-        final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(this.request(Map.of(), new HashMap<>())));
-        assertTrue(refusal.getMessage().contains("version is required"));
+        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+
+        assertEquals("1.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v1"))
+            .getValueMap().get("version"));
+    }
+
+    @Test
+    void labelsALaterVersionWithTheWholeNumberAfterTheHighest() throws WorkflowException, PersistenceException
+    {
+        // A label that is not a number, or not a finite one, takes no part in which number comes next
+        AuthoringFixture.createVersion(this.context, "v1", "1.0", WorkflowVersion.State.RETIRED, Map.of());
+        AuthoringFixture.createVersion(this.context, "v2", "2.5", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, "v3", "beta", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "v4", "Infinity", WorkflowVersion.State.DRAFT, Map.of());
+
+        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+
+        assertEquals("3.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v5"))
+            .getValueMap().get("version"));
+    }
+
+    @Test
+    void numbersAfterTheVersionCountWhenNoLabelIsANumber() throws WorkflowException, PersistenceException
+    {
+        AuthoringFixture.createVersion(this.context, "v1", "alpha", WorkflowVersion.State.DRAFT, Map.of());
+
+        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+
+        assertEquals("2.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v2"))
+            .getValueMap().get("version"));
     }
 
     @Test

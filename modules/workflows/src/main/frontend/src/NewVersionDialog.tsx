@@ -25,9 +25,8 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
+import { nextVersionLabel, type WorkflowSummary } from "./workflowModel";
 import { createVersion } from "./workflowWrites";
-
-import type { WorkflowSummary } from "./workflowModel";
 
 interface NewVersionDialogProps {
   workflow: WorkflowSummary;
@@ -39,7 +38,7 @@ interface NewVersionDialogProps {
 // Starts a version from the shipped starting diagram.
 // Carrying an existing version's diagram forward instead is the separate "draft a copy" flow.
 function NewVersionDialog({ workflow, onClose, onCreated }: NewVersionDialogProps) {
-  const [ version, setVersion ] = useState("");
+  const [ version, setVersion ] = useState(() => nextVersionLabel(workflow));
   const [ description, setDescription ] = useState("");
   const fetchUtil = useAuthenticatedFetch();
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });

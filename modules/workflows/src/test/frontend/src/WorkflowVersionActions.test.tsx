@@ -465,6 +465,17 @@ describe("the retire action", () => {
 });
 
 describe("the draft-from action", () => {
+  it("suggests the next whole number as the draft's label", async () => {
+    const user = userEvent.setup();
+    const active = version("2.1", "ACTIVE");
+    renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(version("1.0", "RETIRED"), active)));
+
+    await user.click(screen.getByRole("button", { name: "New draft from this" }));
+    const dialog = await screen.findByRole("dialog", { name: /New draft from version 2.1/ });
+
+    expect(within(dialog).getByRole("textbox", { name: /Version/ })).toHaveValue("3.0");
+  });
+
   it("copies an active version into a new draft and opens it", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch("/Workflows/review/2-0");
@@ -474,6 +485,7 @@ describe("the draft-from action", () => {
 
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog", { name: /New draft from version 1.0/ });
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "2.0");
     await user.click(within(dialog).getByRole("button", { name: "Create draft" }));
 
@@ -493,6 +505,7 @@ describe("the draft-from action", () => {
 
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog");
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "0.9");
 
     expect(within(dialog).getByText("This workflow already has a version with that label")).toBeInTheDocument();
@@ -564,6 +577,7 @@ describe("the draft-from action", () => {
 
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog");
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "2.0");
     await user.click(within(dialog).getByRole("button", { name: "Create draft" }));
 

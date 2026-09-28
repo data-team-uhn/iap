@@ -31,6 +31,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceUtil;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.FlowNode;
@@ -165,25 +166,81 @@ final class VersionEdits
     }
 
     /**
-     * A node name for a new version, derived from its label and free under the given definition. The label is what
-     * identifies a version to a reader, so the name only has to be stable and legible: two distinct labels that
-     * reduce to the same name are told apart by a counter rather than by rejecting the second one.
+     * A node name for a new version: {@code v} and its position among the definition's versions, skipping any name
+     * already taken. The label is what identifies a version to a reader, so the name is kept independent of it: a
+     * label may say anything, dots included, without the node's path or its console URL having to carry it.
      *
      * @param definition the workflow definition the version will be created under
-     * @param label the new version's label
-     * @return an unused child name
+     * @return an unused child name, e.g. {@code v3}
      */
-    static String availableName(final Resource definition, final String label)
+    static String availableName(final Resource definition)
     {
-        final String slug = label.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
-        final String base = slug.isEmpty() ? "version" : slug;
-        String candidate = base;
-        int suffix = 1;
-        while (definition.getChild(candidate) != null) {
-            ++suffix;
-            candidate = base + "-" + suffix;
+        int number = versionsOf(definition) + 1;
+        while (definition.getChild("v" + number) != null) {
+            ++number;
         }
-        return candidate;
+        return "v" + number;
+    }
+
+    /**
+     * The label a new version is created with: the one the event asks for, or when it names none, the whole number
+     * after the highest numeric label already there ({@code 3.0} after {@code 2.1}), or after the number of versions
+     * when none of them is numeric. A label that is sent but blank, or not text, is refused rather than defaulted.
+     *
+     * @param context the handler's context
+     * @param definition the workflow definition the version will be created under
+     * @return the label, trimmed
+     * @throws InvalidPayloadException when the label sent is not usable
+     */
+    static String newLabel(final WorkflowTaskContext context, final Resource definition)
+        throws InvalidPayloadException
+    {
+        if (context.getEvent().get(VERSION) == null) {
+            return nextLabel(definition);
+        }
+        return Payloads.requireText(context.getEvent(), VERSION, "A version label cannot be blank");
+    }
+
+    /**
+     * The whole-number label that follows a definition's versions.
+     *
+     * @param definition the workflow definition to look through
+     * @return e.g. {@code 3.0}
+     */
+    private static String nextLabel(final Resource definition)
+    {
+        double highest = Double.NaN;
+        for (final Resource child : definition.getChildren()) {
+            if (child.isResourceType(WorkflowVersion.RESOURCE_TYPE)) {
+                try {
+                    final double number = Double.parseDouble(child.getValueMap().get(VERSION, ""));
+                    if (Double.isFinite(number)) {
+                        highest = Double.isNaN(highest) ? number : Math.max(highest, number);
+                    }
+                } catch (final NumberFormatException e) {
+                    // A label that is not a number takes no part in which number comes next
+                }
+            }
+        }
+        final long next = Double.isNaN(highest) ? versionsOf(definition) + 1 : (long) Math.floor(highest) + 1;
+        return next + ".0";
+    }
+
+    /**
+     * How many versions a definition holds.
+     *
+     * @param definition the workflow definition to look through
+     * @return the number of its version children
+     */
+    private static int versionsOf(final Resource definition)
+    {
+        int count = 0;
+        for (final Resource child : definition.getChildren()) {
+            if (child.isResourceType(WorkflowVersion.RESOURCE_TYPE)) {
+                ++count;
+            }
+        }
+        return count;
     }
 
     /**

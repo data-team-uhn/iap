@@ -32,7 +32,7 @@ authored in, and the engine that runs them.
 ```
 /Workflows                         wf:WorkflowsHomepage
 └── timeOffRequest                 wf:WorkflowDefinition   title
-    └── 1.0                        wf:WorkflowVersion      version, state, bpmnXmlParsedHash,
+    └── v1                         wf:WorkflowVersion      version, state, bpmnXmlParsedHash,
                                                            targetResourceType
         ├── bpmn.xml               nt:file                 the BPMN 2.0 source
         ├── start_1                wf:StartEvent           elementId, label, flowNodeType
@@ -67,6 +67,11 @@ instead. Every state comparison then fails it: it cannot be edited, promoted or 
 draws it as an error chip. Of the actions that turn on a state, only **New draft from this** is still offered,
 which copies its diagram onto a genuine draft; **View** is offered whatever the state, as it always is.
 
+A version's node is named by its position, `v1`, `v2` and so on, skipping any name already taken; what
+readers see is its `version` label, which the author chooses. A label defaults to the whole number after the
+highest numeric label there (`3.0` after `2.1`) — suggested in the console, and applied by the server when a
+request names none — so a label can say anything, dots included, without the path having to carry it.
+
 At most one version of a definition is active at a time, and that is an invariant of the transition rather
 than of the node type: promoting a version retires the one it supersedes in the same save, so there is no
 moment at which two versions claim to be current.
@@ -83,10 +88,13 @@ was authored as, which the visual editor loads and saves, and the flow nodes tha
 which is what the engine reads. `bpmnXmlParsedHash` records the source as of the last successful parse,
 so a graph that has fallen behind its diagram can be spotted.
 
-The source is an `nt:file` child rather than a property, so that a diagram can be
-downloaded and re-uploaded as the document it is, and so that it does not weigh on every
-serialization of the version. It is served at the version's own path,
-`/Workflows/timeOffRequest/1.0/bpmn.xml`.
+The source is an `nt:file` child rather than a property, so that a diagram can be downloaded and
+re-uploaded as the document it is, and so that it does not weigh on every serialization of the version.
+It is served at the version's own path — `/Workflows/timeOffRequest/v1/bpmn.xml` — and the extension is
+load-bearing: Sling types a file from its name, so an extensionless one would be served as an untyped
+binary, both when shipped by a bundle and when downloaded from the repository. It costs nothing, since a
+version with no diagram yet still answers that path with a plain 404 — nothing renders a
+`wf:WorkflowVersion` as `xml`.
 
 Writing it is an event rather than a repository write: a diagram is a multipart part named `bpmn.xml` on a
 `save` or `createVersion` event, and the handler behind that event decides where it lands — so a version
@@ -379,8 +387,8 @@ later one's:
 | `/admin/workflows` | Redirects to `/admin/workflows/Workflows`, the default homepage's listing |
 | `/admin/workflows/SystemWorkflows` | The workflows stored in one homepage, a tab per homepage beside it |
 | `/admin/workflows/Workflows/review` | One workflow: its properties, and its versions with their actions |
-| `/admin/workflows/Workflows/review/2-0` | That version's diagram, read-only |
-| `/admin/workflows/Workflows/review/2-0.edit` | The same diagram, editable — drafts only |
+| `/admin/workflows/Workflows/review/v2` | That version's diagram, read-only |
+| `/admin/workflows/Workflows/review/v2.edit` | The same diagram, editable — drafts only |
 
 Each screen offers the way to the others: a draft being looked at offers **Edit**, and the editor offers
 **Save**, **Save and view**, and **Save and close** — the same save, differing only in where it leaves the
