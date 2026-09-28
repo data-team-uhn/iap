@@ -1,0 +1,144 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Edit a part of a draft schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaPart",
+    "description": "Changes anything a requirement, section or question holds, while its version is a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "update",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Apply the changes",
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
+        "title": { "jcr:primaryType": "nt:unstructured", "label": "Title" },
+        "text": { "jcr:primaryType": "nt:unstructured", "label": "Question", "multiline": true },
+        "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true },
+        "dataType": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Answer type",
+          "choices": {
+            "jcr:primaryType": "nt:unstructured",
+            "text": { "jcr:primaryType": "nt:unstructured", "label": "Text" },
+            "long": { "jcr:primaryType": "nt:unstructured", "label": "Whole number" },
+            "double": { "jcr:primaryType": "nt:unstructured", "label": "Decimal number" },
+            "boolean": { "jcr:primaryType": "nt:unstructured", "label": "Yes or no" },
+            "date": { "jcr:primaryType": "nt:unstructured", "label": "Date" },
+            "file": { "jcr:primaryType": "nt:unstructured", "label": "File" }
+          }
+        },
+        "minAnswers": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Minimum answers",
+          "help": "0 means optional. 1 or more means required."
+        },
+        "maxAnswers": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Maximum answers",
+          "help": "0 means unlimited. 1 means a single answer."
+        },
+        "minValue": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Lowest value",
+          "appliesWhen": {
+            "jcr:primaryType": "nt:unstructured",
+            "property": "dataType",
+            "values": ["long", "double"]
+          }
+        },
+        "maxValue": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Highest value",
+          "appliesWhen": {
+            "jcr:primaryType": "nt:unstructured",
+            "property": "dataType",
+            "values": ["long", "double"]
+          }
+        },
+        "pattern": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Pattern",
+          "help": "A regular expression every answer must match.",
+          "appliesWhen": {
+            "jcr:primaryType": "nt:unstructured",
+            "property": "dataType",
+            "values": ["text"]
+          }
+        },
+        "patternMessage": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Message when an answer does not match",
+          "appliesWhen": {
+            "jcr:primaryType": "nt:unstructured",
+            "property": "dataType",
+            "values": ["text"]
+          }
+        },
+        "optionsFrom": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Options from",
+          "help": "A path whose items are the options, instead of options listed here.",
+          "appliesWhen": {
+            "jcr:primaryType": "nt:unstructured",
+            "property": "dataType",
+            "values": ["text", "long", "double"]
+          }
+        },
+        "purpose": { "jcr:primaryType": "nt:unstructured", "label": "Purpose", "multiline": true },
+        "extractionPrompt": { "jcr:primaryType": "nt:unstructured", "label": "Extraction prompt", "multiline": true },
+        "rubricTags": { "jcr:primaryType": "nt:unstructured", "label": "Rubric tags" },
+        "required": { "jcr:primaryType": "nt:unstructured", "label": "Required" },
+        "acceptedFileTypes": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Accepted file types",
+          "help": "Media types, such as application/pdf. None means any."
+        },
+        "aiCheckPrompt": { "jcr:primaryType": "nt:unstructured", "label": "AI check prompt", "multiline": true },
+        "approverGroup": { "jcr:primaryType": "nt:unstructured", "label": "Approver group" }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Edited",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
