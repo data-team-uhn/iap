@@ -65,6 +65,12 @@ function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
         && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
+// Lifecycle states are tags placed on the node itself
+function hasTag(node: JsonNode, tag: string): boolean {
+  const tags = node.tags;
+  return Array.isArray(tags) && tags.includes(tag);
+}
+
 // An empty string is not a value here: `title` is mandatory in the CND and Oak still permits "",
 // so a caller's `?? fallback` has to fire on it.
 function text(node: JsonNode, key: string): string | undefined {
@@ -73,8 +79,8 @@ function text(node: JsonNode, key: string): string | undefined {
 }
 
 /**
- * The schemas a submission may be raised against: those marked active, each paired with its active
- * version. Both halves have to be active: a retired version of a live schema is no more open than a
+ * The schemas a submission may be raised against: those not retired, each paired with its active
+ * version. Both halves have to be open: a retired version of a live schema is no more open than a
  * live version of a retired one. That is the rule the server enforces when the submission is
  * actually raised, checked here only so that unusable choices are not offered.
  *
@@ -83,10 +89,10 @@ function text(node: JsonNode, key: string): string | undefined {
  */
 export function schemaChoices(tree: JsonNode): SchemaChoice[] {
   return childNodes(tree, SCHEMA_PRIMARY_TYPE)
-    .filter(schema => schema.active === true)
+    .filter(schema => !hasTag(schema, "retired"))
     .flatMap(schema => {
       const version = childNodes(schema, SCHEMA_VERSION_PRIMARY_TYPE)
-        .find(candidate => candidate.active === true);
+        .find(candidate => hasTag(candidate, "active"));
       if (!version) {
         return [];
       }

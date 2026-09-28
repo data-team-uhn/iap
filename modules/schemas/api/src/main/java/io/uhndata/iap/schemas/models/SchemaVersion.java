@@ -50,9 +50,6 @@ public class SchemaVersion extends Entity
     private String description;
 
     @ValueMapValue
-    private boolean active;
-
-    @ValueMapValue
     private String workflow;
 
     /**
@@ -75,16 +72,6 @@ public class SchemaVersion extends Entity
     public String getDescription()
     {
         return this.description;
-    }
-
-    /**
-     * Whether new submissions may be created against this version.
-     *
-     * @return {@code true} if this version accepts new submissions
-     */
-    public boolean isActive()
-    {
-        return this.active;
     }
 
     /**

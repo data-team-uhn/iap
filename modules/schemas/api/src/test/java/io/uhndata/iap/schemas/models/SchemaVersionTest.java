@@ -39,10 +39,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link SchemaVersion}, including the properties it inherits from
@@ -80,13 +78,11 @@ class SchemaVersionTest
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0", Map.of(
             "sling:resourceType", SchemaVersion.RESOURCE_TYPE,
             "version", "1.0",
-            "description", "Initial version",
-            "active", true));
+            "description", "Initial version"));
         final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
 
         assertEquals("1.0", version.getVersion());
         assertEquals("Initial version", version.getDescription());
-        assertTrue(version.isActive());
     }
 
     @Test
@@ -119,7 +115,6 @@ class SchemaVersionTest
         assertNotNull(version);
         assertNull(version.getVersion());
         assertNull(version.getWorkflow());
-        assertFalse(version.isActive());
     }
 
     @Test

@@ -30,9 +30,14 @@ const schemasJson = {
   "basic": {
     "jcr:primaryType": "sch:Schema",
     "title": "Basic study",
+    "tags": ["retired"],
     "notAVersion": { "jcr:primaryType": "nt:unstructured" },
-    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-1", "version": "1.0", "active": true },
-    "v2": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-2", "version": "2.0", "active": false },
+    "v1": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-1", "version": "1.0", "tags": ["active"] },
+    "v2": { "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-2", "version": "2.0", "tags": ["retired"] },
+    "v4": {
+      "jcr:primaryType": "sch:SchemaVersion", "jcr:uuid": "uuid-4", "version": "4.0",
+      "tags": ["active"], "inheritedTags": ["retired"],
+    },
     "unreferenceable": { "jcr:primaryType": "sch:SchemaVersion", "version": "3.0" },
   },
   "untitled": {
@@ -44,12 +49,18 @@ const schemasJson = {
 
 // The answer carries the `url` it came back from because the request goes through
 // useAuthenticatedFetch, which reads it to recognise the login page an expired session lands on.
+// The lifecycle chips look the tags up among the definitions, which are answered here too
+const LIFECYCLE = { tags: [
+  { name: "active", label: "Active", order: 15, category: ["lifecycle"] },
+  { name: "retired", label: "Retired", order: 50, category: ["lifecycle"] },
+], total: 2 };
+
 const stubSchemas = (body: unknown = schemasJson) =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
     status: 200,
     url,
-    json: () => Promise.resolve(body),
+    json: () => Promise.resolve(url.includes("/Tags.search.json") ? LIFECYCLE : body),
   } as unknown as Response)));
 
 const renderSelect = (value = "") => {
@@ -91,15 +102,18 @@ describe("SchemaVersionSelect", () => {
     });
   });
 
-  it("groups the versions under their schema, and marks the inactive ones", async () => {
+  it("groups the versions under their schema, showing where each stands", async () => {
     stubSchemas();
     renderSelect();
 
     const listbox = await openMenu();
 
-    expect(within(listbox).getByText("Basic study")).toBeInTheDocument();
-    expect(within(listbox).getByText("v1.0")).toBeInTheDocument();
-    expect(within(listbox).getByText("v2.0 (inactive)")).toBeInTheDocument();
+    const schema = within(listbox).getByText("Basic study").closest("li") as HTMLElement;
+    expect(await within(schema).findByText("Retired")).toBeInTheDocument();
+    const active = within(listbox).getByText("v1.0").closest("li") as HTMLElement;
+    expect(await within(active).findByText("Active")).toBeInTheDocument();
+    const retired = within(listbox).getByText("v2.0").closest("li") as HTMLElement;
+    expect(await within(retired).findByText("Retired")).toBeInTheDocument();
   });
 
   it("falls back to the node name for a schema with no title, and to '?' for a version with no label", async () => {
@@ -109,8 +123,7 @@ describe("SchemaVersionSelect", () => {
     const listbox = await openMenu();
 
     expect(within(listbox).getByText("untitled")).toBeInTheDocument();
-    // No `active: true` either, so it reads as inactive
-    expect(within(listbox).getByText("v? (inactive)")).toBeInTheDocument();
+    expect(within(listbox).getByText("v?")).toBeInTheDocument();
   });
 
   it("leaves out schemas with nothing referenceable in them", async () => {
@@ -139,7 +152,7 @@ describe("SchemaVersionSelect", () => {
     const { onChange } = renderSelect();
 
     const listbox = await openMenu();
-    fireEvent.click(within(listbox).getByText("v2.0 (inactive)"));
+    fireEvent.click(within(listbox).getByText("v2.0"));
 
     expect(onChange).toHaveBeenCalledWith("uuid-2");
   });
