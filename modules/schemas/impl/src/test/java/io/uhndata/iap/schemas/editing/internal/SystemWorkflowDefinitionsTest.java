@@ -78,8 +78,7 @@ class SystemWorkflowDefinitionsTest
     private static final Set<String> BOUND_TYPES = Set.of("sch/SchemasHomepage", SCHEMA, VERSION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "sendEvent", "addTag", "removeTag", "delete",
-        "copyContent", CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME,
-        UpdateSchemaContentHandler.HANDLER_NAME);
+        "copyContent", "updateContent", CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
 

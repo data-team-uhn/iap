@@ -91,7 +91,7 @@ public class CopyContentHandler implements ServiceTaskHandler
             .collect(Collectors.toSet());
         try {
             final Node target = node(host);
-            checkOut(target);
+            VersionableContent.checkOut(target);
             this.copier.copy(node(source), target, strings(context.getActivity().get("skipProperties")),
                 Map.of(TagManager.TAGS_PROPERTY, dropped));
         } catch (final RepositoryException e) {
@@ -122,23 +122,5 @@ public class CopyContentHandler implements ServiceTaskHandler
     private static Node node(final Resource resource)
     {
         return Objects.requireNonNull(resource.adaptTo(Node.class), "Content is stored in a JCR repository");
-    }
-
-    /**
-     * Makes the node receiving the copy writable, when it or what holds it is checked in.
-     *
-     * @param node the node about to receive the copy
-     * @throws RepositoryException when it cannot be checked out
-     */
-    private static void checkOut(final Node node) throws RepositoryException
-    {
-        if (node.isCheckedOut()) {
-            return;
-        }
-        Node versionable = node;
-        while (!versionable.isNodeType("mix:versionable")) {
-            versionable = versionable.getParent();
-        }
-        versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());
     }
 }
