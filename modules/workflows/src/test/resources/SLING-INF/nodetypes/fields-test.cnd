@@ -17,12 +17,21 @@
 <test = 'https://iap.uhndata.io/test/'>
 <data = 'https://iap.uhndata.io/data/'>
 
-// Content with a mandatory field, an optional one and a reference, all declared by name, and anything else
-// allowed only through the residual definition
+// Content with fields of every kind a patch can set, declared by name, a field of a kind it cannot, and anything
+// else allowed only through the residual definition
 [test:Item] > data:Content, mix:versionable, mix:referenceable
   - sling:resourceType (STRING) = "test/Item" mandatory autocreated protected
   - title (STRING) mandatory
   - note (STRING)
   - link (REFERENCE)
+  - weakLink (WEAKREFERENCE)
+  - related (REFERENCE) multiple
+  - shape (STRING)
+  - count (LONG)
+  - ratio (DOUBLE)
+  - flag (BOOLEAN)
+  - keywords (STRING) multiple
+  - sizes (LONG) multiple
+  - due (DATE)
   - * (UNDEFINED)
   + * (nt:base) = nt:unstructured

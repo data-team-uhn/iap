@@ -25,6 +25,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
 import jakarta.json.Json;
+import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
@@ -45,6 +46,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ContentFieldsProcessor}: {@code @fields} lists what the update that would run lets change,
@@ -91,11 +93,28 @@ class ContentFieldsProcessorTest
 
         final JsonObject json = serialize(this.fixture.item());
 
-        assertEquals(Json.createArrayBuilder()
-            .add(field("title", "Title", "text", true, false))
-            .add(field("note", "Note", "text", false, true))
-            .add(field("link", "link", "reference", false, false))
-            .build(), json.getJsonArray("@fields"));
+        final JsonArray fields = json.getJsonArray("@fields");
+        assertEquals(List.of("title", "note", "link", "weakLink", "related", "shape", "count", "ratio", "flag",
+            "keywords", "sizes"), fields.stream().map(field -> field.asJsonObject().getString("name")).toList());
+        assertEquals(field("title", "Title", "text", false, true, false).build(), fields.get(0));
+        assertEquals(field("note", "Note", "text", false, false, true).build(), fields.get(1));
+        assertEquals(field("link", "link", "reference", false, false, false).add("referenceType", "test/Item").build(),
+            fields.get(2));
+        assertEquals(field("related", "related", "reference", true, false, false).add("referenceRoot", "/").build(),
+            fields.get(4));
+        assertEquals(field("shape", "shape", "text", false, false, false)
+            .add("help", "What it looks like.")
+            .add("choices", Json.createArrayBuilder()
+                .add(Json.createObjectBuilder().add("value", "round").add("label", "Round"))
+                .add(Json.createObjectBuilder().add("value", "square").add("label", "square")))
+            .build(), fields.get(5));
+        assertEquals(field("count", "count", "long", false, false, false)
+            .add("appliesWhen", Json.createObjectBuilder().add("property", "shape")
+                .add("values", Json.createArrayBuilder().add("round").add("square")))
+            .build(), fields.get(6));
+        assertEquals("double", fields.getJsonObject(7).getString("kind"));
+        assertEquals("boolean", fields.getJsonObject(8).getString("kind"));
+        assertTrue(fields.getJsonObject(9).getBoolean("multiple"));
     }
 
     @Test
@@ -132,10 +151,10 @@ class ContentFieldsProcessorTest
         return json.build();
     }
 
-    private static JsonObject field(final String name, final String label, final String kind,
-        final boolean mandatory, final boolean multiline)
+    private static JsonObjectBuilder field(final String name, final String label, final String kind,
+        final boolean multiple, final boolean mandatory, final boolean multiline)
     {
         return Json.createObjectBuilder().add("name", name).add("label", label).add("kind", kind)
-            .add("mandatory", mandatory).add("multiline", multiline).build();
+            .add("multiple", multiple).add("mandatory", mandatory).add("multiline", multiline);
     }
 }

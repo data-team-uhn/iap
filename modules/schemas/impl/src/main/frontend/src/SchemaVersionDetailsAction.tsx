@@ -21,9 +21,10 @@ import { useState } from "react";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 
+import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
+import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import DetailsDialog, { editableText } from "./DetailsDialog";
 import { ActionIcon } from "./EventAction";
 import { patch, sendEvent } from "./schemaEvents";
 import { labelOf, offers, pathOf } from "./schemaModel";
@@ -34,14 +35,14 @@ import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 function SchemaVersionDetailsAction({ version, reload }: SchemaVersionActionProps) {
   const [ editing, setEditing ] = useState(false);
   const doFetch = useAuthenticatedFetch();
-  if (!offers(version, "update") || editableText(version).length === 0) {
+  if (!offers(version, "update") || fieldsOf(version).length === 0) {
     return null;
   }
   return (
     <>
       <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
       { editing && (
-        <DetailsDialog
+        <FieldsDialog
           title={`Version ${labelOf(version)}`}
           node={version}
           onSave={async changes => {

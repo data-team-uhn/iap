@@ -286,7 +286,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 | `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
-| `updateContent` | `fields` (a child node listing the fields, with their `label`, `multiline`, `referenceType`) | Applies the event's `patch` to what the execution created, or else the target |
+| `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
@@ -302,14 +302,42 @@ like any event, for the same user; the caller is still answered with what the fi
 Workflows sending events to each other more than ten deep are taken to be looping, and refused.
 
 `updateContent` changes content from one JSON object in the event's `patch`: a key left out is left alone,
-`null` or blank removes the property, anything else is its new value, and a reference is given as the path of
-the node it points at. Only the fields the activity lists may change, and of those only the ones the target's
-node type declares by name (not through a residual definition): the declaration says whether a field is
-mandatory and whether it holds text or a reference, so one activity can serve several types, each keeping to
-its own fields. The whole patch is checked before anything is written. The `fields` serialization adds
-`@fields` to content an update would change: the fields the requesting user's `update` event would accept
-there, with their labels, read from the activity of the workflow that would run, so an editor offers exactly
-what the update accepts.
+`null` or blank removes the property, anything else is its new value, a list of values for a field holding
+several, and a reference is given as the path of the node it points at. Only the fields the activity lists may
+change, and of those only the ones the target's node type declares by name (not through a residual definition):
+the declaration says whether a field is mandatory, whether it holds one value or several, and whether it holds
+text, a whole number, a number, true or false, or a reference, and the patch must give values of that kind. A field
+of any other type cannot be edited. So one activity can serve several types, each keeping to its own fields.
+
+What the activity says about a field is content too: a `label`, a short `help` text, whether it is `multiline`,
+the `referenceType` a reference must point at and the `referenceRoot` it must be under, and two rules the patch is held to:
+
+- **`choices`**: the values the field may take, as child nodes, each named by its value (or giving it as `value`)
+  with an optional `label`; any other value is refused.
+- **`appliesWhen`**: `{ "property": "dataType", "values": ["long", "double"] }`, the field applying only while that
+  other property of the node holds one of those values, as the patch leaves it. Setting a field that does not apply
+  is refused, and a field that stops applying loses its value unless it is mandatory; one naming no property applies
+  nowhere.
+
+```json
+"fields": {
+  "jcr:primaryType": "nt:unstructured",
+  "dataType": {
+    "label": "Answer type",
+    "choices": { "text": { "label": "Text" }, "long": { "label": "Whole number" } }
+  },
+  "minValue": {
+    "label": "Lowest value",
+    "appliesWhen": { "property": "dataType", "values": ["long", "double"] }
+  }
+}
+```
+
+The whole patch is checked before anything is written. The `fields` serialization adds `@fields` to content an
+update would change: the fields the requesting user's `update` event would accept there, with everything the
+activity says about them and what their declarations say (`kind`, `multiple`, `mandatory`), read from the activity
+of the workflow that would run, so an editor offers exactly what the update accepts, and can apply the same
+`appliesWhen` as the values change. `FieldsDialog` (`frontend-commons`) is that editor.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a schema version from
 another. The copy is made with the `ContentCopier` service (`java-utils`), which copies any structure node by

@@ -43,7 +43,12 @@
         "jcr:primaryType": "nt:unstructured",
         "version": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
         "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true },
-        "workflow": { "jcr:primaryType": "nt:unstructured", "label": "Workflow", "referenceType": "wf/WorkflowVersion" }
+        "workflow": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Workflow",
+          "referenceType": "wf/WorkflowVersion",
+          "referenceRoot": "/Workflows"
+        }
       },
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {

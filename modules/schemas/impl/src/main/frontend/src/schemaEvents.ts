@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import type { PatchValue } from "@iap/frontend-commons/fields/fieldsModel";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
@@ -50,5 +51,5 @@ export async function sendEvent(
 }
 
 // An update event's payload: the changed fields, as one JSON object.
-export const patch = (changes: Record<string, string | null>): Record<string, string> =>
+export const patch = (changes: Record<string, PatchValue>): Record<string, string> =>
   ({ patch: JSON.stringify(changes) });
