@@ -18,6 +18,7 @@
 
 import { describeRequestFailure, RequestError } from "./requestFailure";
 
+import type { PatchValue } from "./fields/fieldsModel";
 import type { AuthenticatedFetch } from "./reLogin";
 
 // Sends a workflow event to a node: POST <path>.<event>.json, and the engine decides what it does. A
@@ -49,3 +50,7 @@ export async function sendEvent(
   }
   return undefined;
 }
+
+// An update event's payload: the changed fields, as one JSON object.
+export const patch = (changes: Record<string, PatchValue>): Record<string, string> =>
+  ({ patch: JSON.stringify(changes) });

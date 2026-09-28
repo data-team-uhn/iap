@@ -42,11 +42,20 @@ const ACTIVE = [ "discard", "retire", "update" ];
 const RETIRED = [ "activate", "discard", "update" ];
 
 // And the `@fields` their updates would change
-const TITLE = [ { name: "title", label: "Title", kind: "text", mandatory: true, multiline: false } ];
-const DESCRIPTION = { name: "description", label: "Description", kind: "text", mandatory: false, multiline: true };
+const text = (name: string, label: string, mandatory: boolean, multiline = false) =>
+  ({ name, label, kind: "text", multiple: false, mandatory, multiline });
+const TITLE = [ text("title", "Title", true) ];
+const DESCRIPTION = text("description", "Description", false, true);
 const DRAFT_FIELDS = [
-  { name: "version", label: "Label", kind: "text", mandatory: true, multiline: false }, DESCRIPTION,
-  { name: "workflow", label: "Workflow", kind: "reference", mandatory: false, multiline: false },
+  text("version", "Label", true), DESCRIPTION,
+  { name: "workflow", label: "Workflow", kind: "reference", multiple: false, mandatory: false, multiline: false,
+    referenceType: "wf/WorkflowVersion", referenceRoot: "/Workflows" },
+];
+
+// The workflows a version may follow
+export const WORKFLOWS = [
+  { "@path": "/Workflows/review/v1", "version": "1.0" },
+  { "@path": "/Workflows/fastTrack/v2", "title": "Fast track" },
 ];
 const PUBLISHED_FIELDS = [ DESCRIPTION ];
 
@@ -117,9 +126,9 @@ export const CONTENT: Record<string, Record<string, unknown>> = {
         "arms": question({
           "jcr:uuid": "uuid-arms", "text": "Which arms does it have?", "minAnswers": 1, "maxAnswers": 0,
           "displayMode": "list", "@events": [ "update" ],
-          "@fields": [ { name: "text", label: "Question", kind: "text", mandatory: true, multiline: true } ],
+          "@fields": [ text("text", "Question", true, true) ],
           "placebo": { ...option("placebo", "Placebo"), "@events": [ "update" ],
-            "@fields": [ { name: "label", label: "Label", kind: "text", mandatory: false, multiline: false } ] },
+            "@fields": [ text("label", "Label", false) ] },
           "drug": option("drug"),
         }),
         "age": question({
@@ -203,6 +212,9 @@ export function serveSchemas(
     }
     if (url.startsWith("/Tags.search.json")) {
       return json(url, LIFECYCLE);
+    }
+    if (url.startsWith("/search.json")) {
+      return json(url, { rows: WORKFLOWS });
     }
     // Only the app's own requests: the data grid also posts its vendor's telemetry
     if (init?.method === "POST" && url.startsWith("/")) {

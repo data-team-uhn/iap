@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
 
@@ -56,5 +56,16 @@ describe("sendEvent", () => {
     const doFetch = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("could not be reached");
+  });
+});
+
+describe("patch", () => {
+  it("sends a patch as one JSON object", () => {
+    expect(patch({ title: "New", description: null })).toEqual({ patch: "{\"title\":\"New\",\"description\":null}" });
+  });
+
+  it("keeps numbers, truth values and lists as they are", () => {
+    expect(JSON.parse(patch({ minAnswers: 1, required: true, tags: [ "a", "b" ] }).patch))
+      .toEqual({ minAnswers: 1, required: true, tags: [ "a", "b" ] });
   });
 });
