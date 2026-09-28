@@ -47,6 +47,8 @@ import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 import useColumnVisibility from "./useColumnVisibility";
 import useEntityPage from "./useEntityPage";
 
+import type { DescendantFilter, EntityRow, PropertyFilter } from "./pagination";
+
 // The tree column's cell: the grid's own, toggle included, with the number of an entity's children
 // worded as its type words it, and in the row's regular text rather than the entity's emphasis
 function TreeCell({ params, tree }: { params: GridRenderCellParams<EntityRow>; tree: EntityGridChildren }) {
@@ -68,8 +70,6 @@ function TreeCell({ params, tree }: { params: GridRenderCellParams<EntityRow>; t
     />
   );
 }
-
-import type { DescendantFilter, EntityRow, PropertyFilter } from "./pagination";
 
 interface EntityDataGridProps {
   // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
