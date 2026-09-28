@@ -116,17 +116,43 @@ final class ContentTypes
      */
     static List<Type> accepted(final List<Type> listed, final Node parent) throws RepositoryException
     {
-        final List<NodeType> parentTypes = new ArrayList<>(List.of(parent.getMixinNodeTypes()));
-        parentTypes.add(0, parent.getPrimaryNodeType());
         final NodeTypeManager nodeTypes = parent.getSession().getWorkspace().getNodeTypeManager();
+        final List<NodeType> parentTypes = typesOf(parent);
         final List<Type> accepted = new ArrayList<>();
         for (final Type type : listed) {
-            if (nodeTypes.hasNodeType(type.nodeType())
-                && holds(parentTypes, nodeTypes.getNodeType(type.nodeType()))) {
+            if (nodeTypes.hasNodeType(type.nodeType()) && holds(parentTypes, nodeTypes.getNodeType(type.nodeType()))) {
                 accepted.add(type);
             }
         }
         return accepted;
+    }
+
+    /**
+     * Whether a node's types declare it holds children of a type.
+     *
+     * @param parent the node
+     * @param child the type of a child
+     * @return whether a child definition of its content types names a type the child is, other than
+     *     {@code nt:base}
+     * @throws RepositoryException when the node's types cannot be read
+     */
+    static boolean holds(final Node parent, final NodeType child) throws RepositoryException
+    {
+        return holds(typesOf(parent), child);
+    }
+
+    /**
+     * A node's types, the primary one first.
+     *
+     * @param node a node
+     * @return its primary type and its mixins
+     * @throws RepositoryException when they cannot be read
+     */
+    private static List<NodeType> typesOf(final Node node) throws RepositoryException
+    {
+        final List<NodeType> types = new ArrayList<>(List.of(node.getMixinNodeTypes()));
+        types.add(0, node.getPrimaryNodeType());
+        return types;
     }
 
     /**
