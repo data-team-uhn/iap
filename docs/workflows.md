@@ -239,12 +239,12 @@ a child.
 A `POST` to a resource under workflow control is a domain event, sent to the engine with the request
 parameters as its payload (`:`-prefixed ones excluded). The event is the target's default — `create` on a
 homepage, `complete` on a user task — unless a selector names one: `POST /Schemas/x/1.0.activate.json`
-sends `activate`. Nothing is registered per event; a name no definition waits for is a 409.
+sends `activate`.
 
 The types under workflow control are the ones the definitions say: the `targetResourceType` of every system
 workflow version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to exactly those, with
 any extension, and `WorkflowEventServletRegistrar` binds it again whenever `/SystemWorkflows` changes. So a
-module brings a type under control by shipping a system workflow for it, and nothing else registers a servlet.
+module brings a type under control by shipping a system workflow for it.
 
 The one way around the engine is the `.import` extension, which forwards the request untouched to the Sling POST
 servlet. The repository still decides who may write, and on content the engine manages only an administrator

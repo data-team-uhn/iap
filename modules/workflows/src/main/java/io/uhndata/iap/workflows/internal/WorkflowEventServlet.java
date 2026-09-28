@@ -51,12 +51,11 @@ import io.uhndata.iap.workflows.models.TaskInstance;
  * what the engine made of it. Which workflow runs, if any, is the engine's and the definitions' business.
  *
  * <p>The event is the target's default unless a selector names one: {@code POST <path>.activate.json} sends
- * {@code activate}. Nothing is registered per event; a name no definition is waiting for is a 409.</p>
+ * {@code activate}.</p>
  *
- * <p>It is not registered by type here: {@link WorkflowEventServletRegistrar} binds it to the resource types the
- * system workflows target, which is what brings a type under workflow control. The one exception is the
- * {@code .import} extension, forwarded untouched to the Sling POST servlet, so that an administrator can still
- * import content, as the test data does.</p>
+ * <p>It is not registered by type here. {@link WorkflowEventServletRegistrar} binds it to the resource types the
+ * system workflows target. The one exception is the {@code .import} extension, forwarded untouched to the Sling POST
+ * servlet, so that an administrator can still import content.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,7 +68,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The extension that bypasses the engine, for the Sling POST servlet. */
     static final String IMPORT_EXTENSION = "import";
 
-    /** The resource type the Sling POST servlet is the default servlet of. */
+    /** The resource type for the default Sling POST servlet. */
     private static final String SLING_DEFAULT_TYPE = "sling/servlet/default";
 
     private static final long serialVersionUID = 4735148026553286411L;
