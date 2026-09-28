@@ -1,13 +1,13 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
-  "title": "Correct an answer option",
+  "title": "Edit an answer option of a draft schema version",
   "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
     "targetResourceType": "sch/AnswerOption",
-    "description": "Corrects what an answer option says, on any version. Its value, which answers store and conditions compare against, cannot change here.",
+    "description": "Changes an answer option's value and wording, while its version is a draft.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -15,6 +15,19 @@
       "messageName": "update",
       "performers": ["iap-administrators"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
       "toUpdate": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toUpdate",
@@ -24,10 +37,15 @@
     "update": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "update",
-      "label": "Correct the option",
+      "label": "Apply the changes",
       "handler": "updateContent",
       "fields": {
         "jcr:primaryType": "nt:unstructured",
+        "value": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Value",
+          "help": "What answers store and conditions compare against."
+        },
         "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
         "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true }
       },
@@ -41,7 +59,7 @@
     "done": {
       "jcr:primaryType": "wf:EndEvent",
       "elementId": "done",
-      "label": "Corrected",
+      "label": "Edited",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     }
   }
