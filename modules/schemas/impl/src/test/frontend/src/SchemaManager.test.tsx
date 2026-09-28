@@ -35,7 +35,8 @@ afterEach(() => {
 });
 
 function Where() {
-  return <div data-testid="where">{useLocation().pathname}</div>;
+  const { pathname, search } = useLocation();
+  return <div data-testid="where">{pathname + search}</div>;
 }
 
 const renderManager = () => render(
@@ -82,14 +83,14 @@ describe("SchemaManager", () => {
     expect(await within(draft).findByRole("button", { name: "Activate" })).toBeInTheDocument();
   });
 
-  it("opens a schema's page from its row, or from one of its versions", async () => {
+  it("opens a version's page from its row", async () => {
     serveSchemas();
     renderManager();
 
     await expand(/Clinical study/);
     fireEvent.click(await screen.findByText("Version 2.0"));
 
-    expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/study");
+    expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/study?version=v2");
   });
 
   it("acts on a version without leaving the listing", async () => {

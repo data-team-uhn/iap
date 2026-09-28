@@ -22,8 +22,9 @@ import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons
 
 import LifecycleChip from "./LifecycleChip";
 import { descriptionOf, type JcrNode, labelOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
+import { versionPageUrl } from "./useSchemaList";
 
-export const VERSION_TYPE = "sch/SchemaVersion";
+export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
 
 const dateValue = (value: unknown) => typeof value === "string" ? new Date(value) : null;
 
@@ -55,6 +56,9 @@ const COLUMNS: EntityGridColumn[] = [
   },
 ];
 
+// The schema a version belongs to, by name, from where the version lives
+const schemaNameOf = (version: JcrNode): string => String(version["@path"]).split("/").at(-2) ?? "";
+
 // A version on a phone: its label and lifecycle tags, and its description
 function VersionCard({ row }: { row: JcrNode }) {
   return (
@@ -69,9 +73,10 @@ function VersionCard({ row }: { row: JcrNode }) {
 }
 
 // Registered at import, so any grid importing this module can list versions
-registerEntityType(VERSION_TYPE, {
+registerEntityType(SCHEMA_VERSION_TYPE, {
   homepage: SCHEMAS_ROOT,
   columns: COLUMNS,
   defaultSort: { field: "jcr:created", sort: "asc" },
+  rowLink: row => versionPageUrl(schemaNameOf(row), String(row["@name"])),
   listItem: row => <VersionCard row={row} />,
 });

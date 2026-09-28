@@ -192,6 +192,8 @@ describe("SchemaPage", () => {
     renderPage("legacy");
 
     expect(await screen.findByText(/This schema is retired/)).toBeInTheDocument();
+    // Its tags are shown beside its title
+    expect(await screen.findByText("Retired")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Reopen" }));
     await confirm("Reopen");
 

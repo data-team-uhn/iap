@@ -25,11 +25,11 @@ import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry
 
 import { type JcrNode, versionsOf } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
-import { VERSION_TYPE } from "./versionGrid";
+import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 
 // A schema's versions, each with where it stands and what can be done with it. The schema's page has
 // already read them, with what the server offers on each, so the grid lists them as they are.
-function VersionList({ schema, reload, report }: {
+function SchemaVersionList({ schema, reload, report }: {
   schema: JcrNode;
   reload: () => void;
   report: (message: string) => void;
@@ -51,7 +51,7 @@ function VersionList({ schema, reload, report }: {
 
   return (
     <EntityDataGrid
-      entityType={VERSION_TYPE}
+      entityType={SCHEMA_VERSION_TYPE}
       rows={versions}
       extraColumns={actionsColumn}
       pageSize={10}
@@ -63,4 +63,4 @@ function VersionList({ schema, reload, report }: {
   );
 }
 
-export default VersionList;
+export default SchemaVersionList;

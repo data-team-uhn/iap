@@ -17,14 +17,14 @@
  */
 
 import { SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
-import { useNode } from "./useNode";
+import { listing, useNode } from "./useNode";
 
 const asNode = (node: JcrNode): JcrNode => node;
 
 // One schema and its versions. The changes made on its page are workflow events sent by its actions.
 export function useSchema(name: string) {
   const path = `${SCHEMAS_ROOT}/${name}`;
-  const { value, loading, loadError, reload } = useNode(path, 1, asNode);
+  const { value, loading, loadError, reload } = useNode(path, listing(1), asNode);
 
   return {
     schema: value,

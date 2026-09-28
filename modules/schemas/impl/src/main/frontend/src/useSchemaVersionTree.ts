@@ -16,23 +16,15 @@
  * limitations under the License.
  */
 
-import ActionBar from "./ActionBar";
+import { useNode } from "./useNode";
 
 import type { JcrNode } from "./schemaModel";
 
-// A module adds an action on schema versions by shipping an `ext:Extension` on this point.
-export const VERSION_ACTIONS_POINT = "SchemaVersionActions";
+const asNode = (node: JcrNode): JcrNode => node;
 
-export interface SchemaVersionActionProps {
-  version: JcrNode;
-  schema: JcrNode;
-  reload: () => void;
-  removed?: () => void;
-  report: (message: string) => void;
+// One version with everything in it. The workflow reference stays an identifier: the version's content
+// is what is shown, not the workflow's.
+export function useSchemaVersionTree(path: string) {
+  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference", asNode);
+  return { tree: value, loading, loadError, reload };
 }
-
-function SchemaVersionActions(props: SchemaVersionActionProps) {
-  return <ActionBar point={VERSION_ACTIONS_POINT} {...props} />;
-}
-
-export default SchemaVersionActions;

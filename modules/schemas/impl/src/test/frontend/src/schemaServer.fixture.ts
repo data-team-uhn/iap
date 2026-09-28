@@ -81,6 +81,85 @@ export const HOMEPAGE = {
   },
 };
 
+// What versions ask of a submission, served when a version is read whole. A question and a requirement
+// carry the supertype the server stores on them; the rest is what the tree has to show.
+const question = (fields: Record<string, unknown>) => ({
+  "jcr:primaryType": "sch:Question", "sling:resourceType": "sch/Question", "sling:resourceSuperType": "sch/FormItem",
+  "dataType": "text", "minAnswers": 0, "maxAnswers": 1, ...fields,
+});
+
+const option = (value: string, label?: string) => ({
+  "jcr:primaryType": "sch:AnswerOption", "sling:resourceType": "sch/AnswerOption", value, label,
+});
+
+const requirement = (type: string, fields: Record<string, unknown>) => ({
+  "jcr:primaryType": `sch:${type}`, "sling:resourceType": `sch/${type}`, "sling:resourceSuperType": "sch/Requirement",
+  ...fields,
+});
+
+const operand = (source: string, ...value: string[]) => ({ "jcr:primaryType": "cond:ConditionOperand", source, value });
+
+const single = (comparator: string, operandA: unknown, operandB?: unknown) => ({
+  "jcr:primaryType": "cond:SingleCondition", "sling:resourceSuperType": "cond/Condition", comparator, operandA,
+  operandB,
+});
+
+export const CONTENT: Record<string, Record<string, unknown>> = {
+  "study/v2": {
+    "link:links": { "jcr:primaryType": "link:Links" },
+    "basics": requirement("FormRequirement", {
+      "label": "Basic information",
+      "description": "About the study",
+      "design": {
+        "jcr:primaryType": "sch:Section", "sling:resourceType": "sch/Section",
+        "sling:resourceSuperType": "sch/FormItem",
+        "title": "Design",
+        "arms": question({
+          "jcr:uuid": "uuid-arms", "text": "Which arms does it have?", "minAnswers": 1, "maxAnswers": 0,
+          "displayMode": "list",
+          "placebo": option("placebo", "Placebo"), "drug": option("drug"),
+        }),
+        "age": question({
+          "text": "Minimum age", "dataType": "long", "minAnswers": 2, "maxAnswers": 3, "minValue": 18, "maxValue": 99,
+          "cond:condition": single("includes", operand("answer", "uuid-arms"), operand("literal", "placebo")),
+        }),
+        "code": question({
+          "text": "Study code", "dataType": "exotic", "pattern": "^[A-Z]+$", "patternMessage": "Capitals only",
+          "cond:condition": single("is not empty", operand("answer", "basics/design/arms")),
+        }),
+        "site": question({ "text": "Site", "optionsFrom": "/Sites", "minValue": 1 }),
+        "lead": question({ "text": "Lead", "maxValue": 5, "chief": option("chief", "Chief") }),
+        "note": question({ "text": "Anything else?" }),
+      },
+    }),
+    "consent": requirement("DocumentRequirement", {
+      "label": "Consent form", "required": false, "acceptedFileTypes": [ "application/pdf" ],
+      "template": { "jcr:primaryType": "nt:file" },
+      "cond:condition": {
+        "jcr:primaryType": "cond:ConditionGroup", "requireAll": true,
+        "first": single("equals", operand("tags"), operand("literal", "urgent", "7")),
+        "nested": {
+          "jcr:primaryType": "cond:ConditionGroup", "sling:resourceSuperType": "cond/Condition",
+          "a": single("greater or equal", operand("property", "size"), operand("literal", "10")),
+          "b": single("sounds like", operand("answer", "nowhere"), operand("literal")),
+        },
+      },
+    }),
+    "protocol": requirement("DocumentRequirement", { label: "Protocol" }),
+    "reb": requirement("ApprovalRequirement", {
+      "label": "Ethics approval", "approverGroup": "reb-members",
+      "cond:condition": { "jcr:primaryType": "cond:ConditionGroup", "requireAll": false },
+    }),
+    "sign": requirement("ApprovalRequirement", {
+      label: "Sign-off",
+      "cond:condition": { "jcr:primaryType": "cond:ConditionGroup", "requireAll": true },
+    }),
+    "audit": requirement("AuditRequirement", {
+      label: "Audit", "cond:condition": { "jcr:primaryType": "cond:Mystery" },
+    }),
+  },
+};
+
 const LIFECYCLE = {
   tags: [
     { name: "draft", label: "Draft" },
@@ -105,12 +184,13 @@ export function withPaths(path: string, node: Record<string, unknown>): Record<s
 
 // Installs the server. `homepage` is what /Schemas serves; a schema is served from its own entry.
 // `answers` picks the answer to an event by the URL it is posted to; `failReads` makes every read of
-// schemas fail with that status.
+// schemas fail with that status, and `failContent` only the reads of a whole version.
 export function serveSchemas(
-  { homepage = HOMEPAGE, answers = {}, failReads }: {
+  { homepage = HOMEPAGE, answers = {}, failReads, failContent }: {
     homepage?: Record<string, unknown>;
     answers?: Record<string, EventAnswer>;
     failReads?: number;
+    failContent?: number;
   } = {},
 ): PostedEvent[] {
   const posted: PostedEvent[] = [];
@@ -146,6 +226,17 @@ export function serveSchemas(
     }
     if (url.startsWith("/Schemas.")) {
       return json(url, withPaths("/Schemas", homepage));
+    }
+    const version = /^\/Schemas\/([^./]+)\/([^./]+)\.deep/.exec(url);
+    if (version) {
+      if (failContent) {
+        return json(url, {}, failContent);
+      }
+      const [ , schema, name ] = version;
+      const node = (homepage[schema] as Record<string, unknown> | undefined)?.[name];
+      return node
+        ? json(url, withPaths(`/Schemas/${schema}/${name}`, { ...node, ...CONTENT[`${schema}/${name}`] }))
+        : json(url, {}, 404);
     }
     const name = /^\/Schemas\/([^./]+)\./.exec(url)?.[1] ?? "";
     return name in homepage
