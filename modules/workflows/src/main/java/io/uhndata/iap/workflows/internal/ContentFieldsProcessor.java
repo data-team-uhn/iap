@@ -23,8 +23,10 @@ import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import jakarta.json.Json;
+import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
@@ -46,8 +48,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Adds {@code @fields} to content an update workflow would change: the fields the requesting user's {@code update}
- * event would let a patch change there, each with its {@code name}, {@code label}, {@code kind} ({@code text} or
- * {@code reference}), and whether it is {@code mandatory} or {@code multiline}. It is read from the
+ * event would let a patch change there, each with its {@code name}, {@code label}, {@code kind}, whether it holds
+ * several values, is {@code mandatory} or {@code multiline}, the {@code default} new content starts with, and what
+ * else the activity says about it (see {@link ContentFields}). It is read from the
  * {@link UpdateContentHandler} activity of the workflow that would run, so an editor offers exactly what the update
  * accepts and keeps no list of its own. The name of this processor is {@code fields}; it is off by default.
  *
@@ -123,7 +126,7 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
      * @param fields the fields
      * @return their descriptions
      */
-    private static JsonArrayBuilder describe(final List<ContentFields.Field> fields)
+    static JsonArrayBuilder describe(final List<ContentFields.Field> fields) throws RepositoryException
     {
         final JsonArrayBuilder described = Json.createArrayBuilder();
         for (final ContentFields.Field field : fields) {
@@ -138,6 +141,9 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
             addIfSet(json, "help", description.help());
             addIfSet(json, "referenceType", description.referenceType());
             addIfSet(json, "referenceRoot", description.referenceRoot());
+            if (!field.defaults().isEmpty()) {
+                json.add("default", defaults(field));
+            }
             if (!description.choices().isEmpty()) {
                 final JsonArrayBuilder choices = Json.createArrayBuilder();
                 description.choices().forEach(choice -> choices.add(Json.createObjectBuilder()
@@ -168,5 +174,27 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
         if (value != null) {
             json.add(name, value);
         }
+    }
+
+    /**
+     * The values new content starts with in a field, as JSON of the field's kind.
+     *
+     * @param field a field with defaults
+     * @return one value, or a list of them for a field holding several
+     * @throws RepositoryException when a default cannot be read as the field's kind
+     */
+    private static JsonValue defaults(final ContentFields.Field field) throws RepositoryException
+    {
+        final JsonArrayBuilder values = Json.createArrayBuilder();
+        for (final Value value : field.defaults()) {
+            switch (field.kind()) {
+                case LONG -> values.add(value.getLong());
+                case DOUBLE -> values.add(value.getDouble());
+                case BOOLEAN -> values.add(value.getBoolean());
+                default -> values.add(value.getString());
+            }
+        }
+        final JsonArray array = values.build();
+        return field.multiple() ? array : array.get(0);
     }
 }

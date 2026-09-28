@@ -234,6 +234,16 @@ class UpdateContentHandlerTest
     }
 
     @Test
+    void refusesToLeaveNewContentWithoutAMandatoryField() throws RepositoryException
+    {
+        this.fixture.session().getNode("/box").addNode("fresh", "test:Item");
+        final WorkflowTaskContext task = context(Map.of("patch", "{\"note\": \"No title\"}"));
+        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource("/box/fresh"));
+
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(task));
+    }
+
+    @Test
     void refusesAMissingOrMalformedPatch()
     {
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(Map.of())));
