@@ -18,12 +18,17 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Map;
 
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletException;
+
+import org.apache.sling.api.request.RequestDispatcherOptions;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.servlethelpers.MockJakartaRequestDispatcherFactory;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.apache.sling.testing.mock.sling.servlet.MockRequestPathInfo;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,8 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link WorkflowEventServlet}: the POST-to-event translation, and the mapping of each acceptance
- * layer's failure onto its HTTP status.
+ * Unit tests for {@link WorkflowEventServlet}: the POST-to-event translation, the mapping of each acceptance
+ * layer's failure onto its HTTP status, and the {@code .import} pass-through to the Sling POST servlet.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,16 +77,11 @@ class WorkflowEventServletTest
         WorkflowFixture.setUp(this.context);
         this.target = EngineFixture.createTarget(this.context);
         this.engine = Mockito.mock(WorkflowEngine.class);
-        this.servlet = new WorkflowEventServlet();
-        // Wired by reflection, the way the other component tests do it: the SCR metadata the OSGi mocks would
-        // need only exists in the packaged bundle
-        final Field reference = WorkflowEventServlet.class.getDeclaredField("engine");
-        reference.setAccessible(true);
-        reference.set(this.servlet, this.engine);
+        this.servlet = new WorkflowEventServlet(this.engine);
     }
 
     @Test
-    void redirectsToTheCreatedEntity() throws WorkflowException, IOException
+    void redirectsToTheCreatedEntity() throws WorkflowException, IOException, ServletException
     {
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of(WorkflowResult.CREATED_PATH_VARIABLE, "/Workflows/myCoolWorkflow")));
@@ -95,7 +95,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void answersPlainCompletionWhenNothingWasCreated() throws WorkflowException, IOException
+    void answersPlainCompletionWhenNothingWasCreated() throws WorkflowException, IOException, ServletException
     {
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
@@ -108,7 +108,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void translatesThePostIntoACreateEvent() throws WorkflowException, IOException
+    void translatesThePostIntoACreateEvent() throws WorkflowException, IOException, ServletException
     {
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
@@ -131,7 +131,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void translatesAPostToATaskIntoACompleteEvent() throws WorkflowException, IOException
+    void translatesAPostToATaskIntoACompleteEvent() throws WorkflowException, IOException, ServletException
     {
         // What a POST means is decided by what it was aimed at: a homepage is asked to create something, a user
         // task is being told it has been decided. The servlet names the event and hands it over; that is all.
@@ -152,25 +152,81 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void mapsNoApplicableWorkflowToConflict() throws WorkflowException, IOException
+    void aSelectorNamesTheEvent() throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "My cool workflow"));
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("activate");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("activate", sent.getValue().getName());
+        assertEquals("My cool workflow", sent.getValue().get("title"));
+    }
+
+    @Test
+    void aSelectorOverridesTheTaskDefault() throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource task = this.context.create().resource(
+            "/Submissions/x/wf:instances/timeOffRequest/approveRequest", WorkflowFixture.TYPE,
+            TaskInstance.RESOURCE_TYPE);
+        final MockSlingJakartaHttpServletRequest request = request(Map.of());
+        request.setResource(task);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("reassign");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("reassign", sent.getValue().getName());
+    }
+
+    @Test
+    void forwardsAnImportToTheSlingPostServlet() throws Exception
+    {
+        final RequestDispatcher dispatcher = Mockito.mock(RequestDispatcher.class);
+        final ArgumentCaptor<RequestDispatcherOptions> options =
+            ArgumentCaptor.forClass(RequestDispatcherOptions.class);
+        final MockJakartaRequestDispatcherFactory factory = Mockito.mock(MockJakartaRequestDispatcherFactory.class);
+        Mockito.when(factory.getRequestDispatcher(Mockito.any(Resource.class), options.capture()))
+            .thenReturn(dispatcher);
+        final MockSlingJakartaHttpServletRequest request = request(Map.of(":operation", "import"));
+        request.setRequestDispatcherFactory(factory);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setExtension("import");
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        Mockito.verify(dispatcher).forward(request, response);
+        assertEquals("sling/servlet/default", options.getValue().getForceResourceType());
+        Mockito.verifyNoInteractions(this.engine);
+    }
+
+    @Test
+    void mapsNoApplicableWorkflowToConflict() throws WorkflowException, IOException, ServletException
     {
         assertEquals(409, statusFor(new NoApplicableWorkflowException("nothing waiting")));
     }
 
     @Test
-    void mapsNotAuthorizedToForbidden() throws WorkflowException, IOException
+    void mapsNotAuthorizedToForbidden() throws WorkflowException, IOException, ServletException
     {
         assertEquals(403, statusFor(new NotAuthorizedException("not allowed")));
     }
 
     @Test
-    void mapsInvalidPayloadToBadRequest() throws WorkflowException, IOException
+    void mapsInvalidPayloadToBadRequest() throws WorkflowException, IOException, ServletException
     {
         assertEquals(400, statusFor(new InvalidPayloadException("a title is required")));
     }
 
     @Test
-    void mapsBrokenDefinitionsToServerError() throws WorkflowException, IOException
+    void mapsBrokenDefinitionsToServerError() throws WorkflowException, IOException, ServletException
     {
         assertEquals(500, statusFor(new WorkflowDefinitionException("two workflows compete")));
     }
@@ -182,8 +238,9 @@ class WorkflowEventServletTest
      * @return the mapped status code
      * @throws WorkflowException never, only declared by the mocked engine
      * @throws IOException when the mock response cannot be written
+     * @throws ServletException never, only declared by the servlet
      */
-    private int statusFor(final WorkflowException failure) throws WorkflowException, IOException
+    private int statusFor(final WorkflowException failure) throws WorkflowException, IOException, ServletException
     {
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenThrow(failure);
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
