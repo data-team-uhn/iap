@@ -20,18 +20,30 @@ package io.uhndata.iap.workflows.models;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.Conditionable;
 
 /**
  * A Sling Model wrapping a {@code wf:StartEvent} node: where a new instance of the workflow begins. Always
- * {@link Event#isCatching() catching} — an instance comes into being because something triggered it.
+ * {@link Event#isCatching() catching} — an instance comes into being because something triggered it. Its
+ * {@link #getCondition() condition}, if any, guards it: the workflow only starts when it holds for the target.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, adapters = {FlowNode.class, Event.class},
     resourceType = StartEvent.RESOURCE_TYPE, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class StartEvent extends Event
+public class StartEvent extends Event implements Conditionable
 {
     /** The {@code sling:resourceType} of a {@code wf:StartEvent} node. */
     public static final String RESOURCE_TYPE = "wf/StartEvent";
+
+    @Override
+    @Nullable
+    public Condition getCondition()
+    {
+        return this.getChild("cond:condition", Condition.class);
+    }
 }

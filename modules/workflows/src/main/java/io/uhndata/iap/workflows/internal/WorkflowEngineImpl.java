@@ -33,6 +33,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -80,6 +81,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    @Reference
+    private ConditionEvaluator conditionEvaluator;
+
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
 
@@ -100,7 +104,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
-            final StartEvent start = SystemWorkflowLocator.find(serviceResolver, target, event);
+            final StartEvent start =
+                SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
             PerformerCheck.verify(serviceResolver, start, actor);
             return execute(privilegedTarget, event, start, actor);
         } catch (final LoginException e) {
