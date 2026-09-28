@@ -76,6 +76,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** The subservice name under which the engine's service user is mapped. */
     private static final String SUBSERVICE_NAME = "workflows";
 
+    /** How many events deep workflows may send events to each other before the definitions are declared broken. */
+    private static final int MAX_SENT_EVENTS_DEPTH = 10;
+
     /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
     private static final String CREATED_BY_PROPERTY = "createdBy";
 
@@ -182,10 +185,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Runs the matched workflow to quiescence: node by node from the start event, performing each service task,
-     * until an end event is reached and everything is committed at once. A system workflow has no instance, and
-     * nowhere to wait. Any node that cannot be passed straight through means the definition is not a valid system
-     * workflow.
+     * Runs the matched workflow and commits everything it changed at once. A failing event leaves no trace.
      *
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
@@ -198,28 +198,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final String actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
-        final Map<String, Object> variables = new LinkedHashMap<>();
         try {
-            FlowNode node = start;
-            for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
-                if (node instanceof EndEvent) {
-                    recordActor(resolver, variables, actor);
-                    resolver.commit();
-                    return new WorkflowResult(variables);
-                }
-                if (node instanceof Activity) {
-                    perform((Activity) node,
-                        new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor));
-                } else if (!(node instanceof StartEvent) || step > 0) {
-                    // A system workflow cannot contain this node: there is no persisted instance whose token
-                    // could rest here
-                    throw new WorkflowDefinitionException("A system workflow cannot wait, but " + node.getPath()
-                        + " is not a straight-through node");
-                }
-                node = advance(node);
-            }
-            throw new WorkflowDefinitionException("The workflow did not reach an end event within "
-                + InstanceRunner.MAX_STEPS + " steps; its sequence flows probably form a cycle");
+            final Map<String, Object> variables = run(target, event, start, actor, 0);
+            resolver.commit();
+            return new WorkflowResult(variables);
         } catch (final PersistenceException e) {
             revert(resolver);
             throw RepositoryFailures.translate(e);
@@ -230,16 +212,82 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
+     * Runs a system workflow to quiescence, without committing: node by node from the start event, performing
+     * each service task, until an end event is reached. A system workflow has no instance, and nowhere to wait.
+     * Any node that cannot be passed straight through means the definition is not a valid system workflow.
+     *
+     * @param target the resource the event is aimed at, backed by the engine's own session
+     * @param event the incoming event
+     * @param start the entry point to run from
+     * @param actor the user who fired the event
+     * @param depth how many sent events deep this run is, 0 for the event that came in
+     * @return the variables the run left behind
+     * @throws WorkflowException when the run cannot complete, typed by whose fault that is
+     * @throws PersistenceException when a write fails
+     */
+    private Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
+        final String actor, final int depth) throws WorkflowException, PersistenceException
+    {
+        final ResourceResolver resolver = target.getResourceResolver();
+        final Map<String, Object> variables = new LinkedHashMap<>();
+        FlowNode node = start;
+        for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
+            if (node instanceof EndEvent) {
+                recordActor(resolver, variables, actor);
+                return variables;
+            }
+            if (node instanceof Activity) {
+                perform((Activity) node,
+                    new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor), depth);
+            } else if (!(node instanceof StartEvent) || step > 0) {
+                // A system workflow cannot contain this node: there is no persisted instance whose token
+                // could rest here
+                throw new WorkflowDefinitionException("A system workflow cannot wait, but " + node.getPath()
+                    + " is not a straight-through node");
+            }
+            node = advance(node);
+        }
+        throw new WorkflowDefinitionException("The workflow did not reach an end event within "
+            + InstanceRunner.MAX_STEPS + " steps; its sequence flows probably form a cycle");
+    }
+
+    /**
+     * Runs the system workflow waiting for an event another workflow sent, as part of the sender's execution:
+     * matched, guarded and authorized like any incoming event, for the same user.
+     *
+     * @param target the resource the event is sent to
+     * @param event the sent event
+     * @param actor the user the sending execution acts for
+     * @param depth how many sent events deep this is
+     * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
+     * @throws PersistenceException when a write fails
+     */
+    private void chain(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+        throws WorkflowException, PersistenceException
+    {
+        if (depth > MAX_SENT_EVENTS_DEPTH) {
+            throw new WorkflowDefinitionException("Workflows sent events more than " + MAX_SENT_EVENTS_DEPTH
+                + " deep, the last one " + event.getName() + " to " + target.getPath()
+                + "; their definitions probably send events to each other in a loop");
+        }
+        final ResourceResolver resolver = target.getResourceResolver();
+        final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
+        PerformerCheck.verify(resolver, start, actor);
+        run(target, event, start, actor, depth);
+    }
+
+    /**
      * Performs one service task by dispatching to the handler its activity names. Reached from both walks: a
      * system workflow's own run, and a running instance's through {@link #performer}. Nothing here may assume
      * which.
      *
      * @param activity the activity node being executed
      * @param context what the handler gets to work with
+     * @param depth how many sent events deep the executing run is
      * @throws WorkflowException when the activity cannot be performed
      * @throws PersistenceException when the handler's repository writes fail immediately
      */
-    private void perform(final Activity activity, final WorkflowTaskContext context)
+    private void perform(final Activity activity, final WorkflowTaskContext context, final int depth)
         throws WorkflowException, PersistenceException
     {
         final String name = activity.getHandler();
@@ -251,6 +299,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
             // Built into the engine rather than registered: putting an entity under a workflow is the engine's
             // own business. Which entities get one stays a matter of content
             WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
+            return;
+        }
+        if (EventSender.HANDLER_NAME.equals(name)) {
+            EventSender.execute(context, (target, sent) -> chain(target, sent, context.getActor(), depth + 1));
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()
@@ -277,7 +329,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
+            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor), 0);
     }
 
     /**
