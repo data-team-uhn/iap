@@ -95,7 +95,8 @@ class ContentFieldsProcessorTest
 
         final JsonArray fields = json.getJsonArray("@fields");
         assertEquals(List.of("title", "note", "link", "weakLink", "related", "shape", "count", "ratio", "flag",
-            "keywords", "sizes"), fields.stream().map(field -> field.asJsonObject().getString("name")).toList());
+            "keywords", "sizes", "level", "weight", "visible", "colours"),
+            fields.stream().map(field -> field.asJsonObject().getString("name")).toList());
         assertEquals(field("title", "Title", "text", false, true, false).build(), fields.get(0));
         assertEquals(field("note", "Note", "text", false, false, true).build(), fields.get(1));
         assertEquals(field("link", "link", "reference", false, false, false).add("referenceType", "test/Item").build(),
@@ -115,6 +116,12 @@ class ContentFieldsProcessorTest
         assertEquals("double", fields.getJsonObject(7).getString("kind"));
         assertEquals("boolean", fields.getJsonObject(8).getString("kind"));
         assertTrue(fields.getJsonObject(9).getBoolean("multiple"));
+        // What new content starts with, as the field's kind
+        assertEquals(1, fields.getJsonObject(11).getInt("default"));
+        assertEquals(0.5, fields.getJsonObject(12).getJsonNumber("default").doubleValue());
+        assertTrue(fields.getJsonObject(13).getBoolean("default"));
+        assertEquals(Json.createArrayBuilder().add("red").add("blue").build(), fields.getJsonObject(14).get("default"));
+        assertFalse(fields.getJsonObject(0).containsKey("default"));
     }
 
     @Test

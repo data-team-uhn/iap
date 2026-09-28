@@ -287,6 +287,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `removeTag` | `tag` | Removes the tag |
 | `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`), `nameFrom` (optional) | Creates, in the target, content of the event's `type`, placed before the sibling the event names as `before`, or else last |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
@@ -310,7 +311,8 @@ text, a whole number, a number, true or false, or a reference, and the patch mus
 of any other type cannot be edited. So one activity can serve several types, each keeping to its own fields.
 
 What the activity says about a field is content too: a `label`, a short `help` text, whether it is `multiline`,
-the `referenceType` a reference must point at and the `referenceRoot` it must be under, and two rules the patch is held to:
+the `referenceType` a reference must point at and the `referenceRoot` it must be under, and two rules the patch is
+held to:
 
 - **`choices`**: the values the field may take, as child nodes, each named by its value (or giving it as `value`)
   with an optional `label`; any other value is refused.
@@ -335,9 +337,20 @@ the `referenceType` a reference must point at and the `referenceRoot` it must be
 
 The whole patch is checked before anything is written. The `fields` serialization adds `@fields` to content an
 update would change: the fields the requesting user's `update` event would accept there, with everything the
-activity says about them and what their declarations say (`kind`, `multiple`, `mandatory`), read from the activity
-of the workflow that would run, so an editor offers exactly what the update accepts, and can apply the same
-`appliesWhen` as the values change. `FieldsDialog` (`frontend-commons`) is that editor.
+activity says about them and what their declarations say (`kind`, `multiple`, `mandatory`, `default`), read from
+the activity of the workflow that would run, so an editor offers exactly what the update accepts, and can apply
+the same `appliesWhen` as the values change. `FieldsDialog` (`frontend-commons`) is that editor.
+
+`createContent` adds content inside the target: something of the `type` the event names, which must be one the
+activity lists and one the target's type declares it holds. A child definition says what a node holds only if the
+content model declares it and names a type (`+ * (sch:FormItem)`): the catch-alls every `sling:Folder` inherits from
+JCR, and definitions requiring no more than `nt:base`, merely tolerate children. The new content goes before the
+sibling named in `before`, or else last, and is named after the first words of the first field listed in `nameFrom`
+that the event's `patch` gives, or else after its type. It is created empty: an `updateContent` task that follows
+fills it in from the same patch, since it acts on what was created, and refuses to leave a mandatory field empty.
+The `creatable` serialization adds `@creatable` to content a `create` event would add to: each type the requesting
+user's workflow would create there, with its `label` and the `fields` it starts with, described as in `@fields`,
+including the `default` values new content of that type starts with.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a schema version from
 another. The copy is made with the `ContentCopier` service (`java-utils`), which copies any structure node by

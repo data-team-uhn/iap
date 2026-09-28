@@ -33,5 +33,19 @@
   - keywords (STRING) multiple
   - sizes (LONG) multiple
   - due (DATE)
+  - level (LONG) = '1' autocreated
+  - weight (DOUBLE) = '0.5' autocreated
+  - visible (BOOLEAN) = 'true' autocreated
+  - colours (STRING) = 'red', 'blue' multiple autocreated
   - * (UNDEFINED)
   + * (nt:base) = nt:unstructured
+
+// Containers of items: one keeping its items in order, one not
+[test:Box] > data:Content, mix:versionable
+  orderable
+  - sling:resourceType (STRING) = "test/Box" mandatory autocreated protected
+  + * (test:Item)
+
+[test:Shelf] > data:Content
+  - sling:resourceType (STRING) = "test/Shelf" mandatory autocreated protected
+  + * (test:Item)
