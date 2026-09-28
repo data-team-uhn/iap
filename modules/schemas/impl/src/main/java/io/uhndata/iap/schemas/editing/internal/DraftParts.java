@@ -23,6 +23,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.conditions.api.ConditionDependencies;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
@@ -79,12 +80,8 @@ final class DraftParts
      */
     static String describe(final Resource part, final Resource version)
     {
-        return Stream.of("text", "label", "title")
-            .map(property -> part.getValueMap().get(property, ""))
-            .filter(name -> !name.isBlank())
-            .findFirst()
-            .map(name -> "\"" + name + "\"")
-            .orElseGet(() -> part.getPath().substring(version.getPath().length() + 1));
+        return PartNames.of(name -> part.getValueMap().get(name, String.class),
+            PartNames.pathIn(part.getPath(), version.getPath()));
     }
 
     /**
@@ -97,7 +94,8 @@ final class DraftParts
     {
         Resource current = conditionPart;
         Resource parent = current.getParent();
-        while (parent != null && current.getValueMap().get(PRIMARY_TYPE, "").startsWith("cond:")) {
+        while (parent != null
+            && ConditionDependencies.isConditionPart(current.getValueMap().get(PRIMARY_TYPE, ""))) {
             current = parent;
             parent = current.getParent();
         }

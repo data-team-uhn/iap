@@ -23,12 +23,16 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } from "@mui/material";
 
+import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
+
 import { whenApplies } from "./conditionModel";
-import { type JcrNode, pathOf } from "./schemaModel";
-import SchemaNodeEditAction, { ReloadTree } from "./SchemaNodeEditAction";
+import { type JcrNode, nameIfAny, pathOf } from "./schemaModel";
+import SchemaNodeActions from "./SchemaNodeActions";
+import { AddAtEnd } from "./SchemaNodeCreateAction";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
+import { ReloadTree } from "./schemaTree";
 import {
-  conditionOf, detailOf, headingOf, indexQuestions, resourceTypeOf, partsOf, type QuestionIndex,
+  conditionOf, detailOf, headingOf, indexQuestions, optionsOf, resourceTypeOf, partsOf, type QuestionIndex,
 } from "./schemaVersionTreeModel";
 
 // One of a part's chips; a chip with content shows it in a popover when clicked
@@ -58,10 +62,18 @@ function FactChip({ chip }: { chip: SchemaPartChip }) {
   );
 }
 
+interface PartCardProps {
+  part: JcrNode;
+  // What holds it, and everything it holds, in order
+  parent: JcrNode;
+  siblings: JcrNode[];
+  index: QuestionIndex;
+}
+
 // One requirement, section or question, with what it contains nested inside. Containers start open and
 // questions closed, so the outline of a version reads first and the detail is a click away. When it
 // applies stays in view either way: it is what the outline is made of.
-function PartCard({ part, index }: { part: JcrNode; index: QuestionIndex }) {
+function PartCard({ part, parent, siblings, index }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);
   const condition = conditionOf(part);
@@ -70,7 +82,7 @@ function PartCard({ part, index }: { part: JcrNode; index: QuestionIndex }) {
   const details = type.details?.(part) ?? null;
   const [ open, setOpen ] = useState(children.length > 0);
   const { Icon } = type;
-  const hasMore = Boolean(description) || details !== null || children.length > 0;
+  const hasMore = Boolean(description) || details !== null || children.length > 0 || creatableOf(part).length > 0;
 
   return (
     <Box
@@ -121,23 +133,28 @@ function PartCard({ part, index }: { part: JcrNode; index: QuestionIndex }) {
             </Stack>
           ) }
         </Stack>
-        <SchemaNodeEditAction node={part} title={`Edit ${type.label.toLowerCase()}`} />
+        <Stack direction="row" sx={{ flexShrink: 0 }}>
+          <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
+        </Stack>
       </Stack>
       <Collapse in={open && hasMore} unmountOnExit>
         <Stack spacing={1} sx={{ pl: { xs: 1, sm: 5 }, pr: 1, pb: 1 }}>
           { description && <Typography variant="description">{description}</Typography> }
           {details}
-          { children.length > 0 && <PartList parts={children} index={index} /> }
+          { children.length > 0 && <PartList parent={part} parts={children} index={index} /> }
+          <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))} />
         </Stack>
       </Collapse>
     </Box>
   );
 }
 
-function PartList({ parts, index }: { parts: JcrNode[]; index: QuestionIndex }) {
+function PartList({ parent, parts, index }: { parent: JcrNode; parts: JcrNode[]; index: QuestionIndex }) {
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
-      { parts.map(part => <PartCard key={pathOf(part)} part={part} index={index} />) }
+      { parts.map(part => (
+        <PartCard key={pathOf(part)} part={part} parent={parent} siblings={parts} index={index} />
+      )) }
     </Box>
   );
 }
@@ -146,10 +163,16 @@ function PartList({ parts, index }: { parts: JcrNode[]; index: QuestionIndex }) 
 function SchemaVersionTree({ version, reload }: { version: JcrNode; reload: () => void }) {
   const index = useMemo(() => indexQuestions(version), [ version ]);
   const parts = partsOf(version);
-  if (parts.length === 0) {
-    return <Typography variant="placeholder">This version asks for nothing yet.</Typography>;
-  }
-  return <ReloadTree value={reload}><PartList parts={parts} index={index} /></ReloadTree>;
+  return (
+    <ReloadTree value={reload}>
+      <Stack spacing={1}>
+        { parts.length === 0
+          ? <Typography variant="placeholder">This version asks for nothing yet.</Typography>
+          : <PartList parent={version} parts={parts} index={index} /> }
+        <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} />
+      </Stack>
+    </ReloadTree>
+  );
 }
 
 export default SchemaVersionTree;

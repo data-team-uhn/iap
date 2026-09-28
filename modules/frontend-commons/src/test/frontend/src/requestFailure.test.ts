@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, isRefusal, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 // Every description is logged with the original, so the raw failure stays reachable in the console
 let logged: ReturnType<typeof vi.spyOn>;
@@ -38,6 +38,23 @@ describe("RequestError", () => {
     // HTTP/2 drops the reason phrase, so it is never part of what a user might be shown
     expect(error.message).toBe("HTTP 503");
     expect(error).toBeInstanceOf(Error);
+  });
+});
+
+describe("a refusal", () => {
+  it("is the server saying why it will not, which describing it passes on", () => {
+    const refusal = new RequestError(409, "Version 2.0 is already active");
+
+    expect(refusal.message).toBe("Version 2.0 is already active");
+    expect(refusal.reason).toBe("Version 2.0 is already active");
+    expect(describeRequestFailure(refusal)).toBe("Version 2.0 is already active");
+    expect(isRefusal(refusal)).toBe(true);
+  });
+
+  it("is not a failure without a reason, a server error, or anything else", () => {
+    expect(isRefusal(new RequestError(409))).toBe(false);
+    expect(isRefusal(new RequestError(500, "Cannot update it"))).toBe(false);
+    expect(isRefusal(new Error("Refused"))).toBe(false);
   });
 });
 

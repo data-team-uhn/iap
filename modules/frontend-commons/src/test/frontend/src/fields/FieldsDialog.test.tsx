@@ -58,11 +58,11 @@ const serve = (answer: () => Promise<Response>) => {
   return fetch;
 };
 
-const renderDialog = (node: SerializedNode, onSave = vi.fn().mockResolvedValue(undefined)) => {
+const renderDialog = (node: SerializedNode, onSave = vi.fn().mockResolvedValue(undefined), extra?: string) => {
   const onClose = vi.fn();
   const view = render(
     <ThemeProvider theme={appTheme} defaultMode="light">
-      <FieldsDialog title="Edit question" node={node} onSave={onSave} onClose={onClose} />
+      <FieldsDialog title="Edit question" node={node} onSave={onSave} onClose={onClose}>{extra}</FieldsDialog>
     </ThemeProvider>
   );
   return { onSave, onClose, dialog: screen.getByRole("dialog"), ...view };
@@ -91,6 +91,12 @@ describe("FieldsDialog", () => {
     expect(within(dialog).getByText("age")).toBeInTheDocument();
     expect(within(dialog).getByText("PDF")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("shows what the caller asks along with the fields", () => {
+    const { dialog } = renderDialog(QUESTION_NODE, undefined, "Where it goes");
+
+    expect(within(dialog).getByText("Where it goes")).toBeInTheDocument();
   });
 
   it("shows a field once what it depends on allows it", async () => {

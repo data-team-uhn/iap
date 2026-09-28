@@ -86,6 +86,14 @@ public interface DeletionVeto
      * this guard speaks about, and keeps that decision inside the guard, where a caller cannot get it wrong.
      * </p>
      *
+     * <p>
+     * The one exception is a guard that judges what is removed as a whole, because its answer depends on what goes
+     * together: "nothing that stays may depend on anything that goes", where a dependency inside the removed subtree
+     * leaves with it. Such a guard cannot answer one node at a time, so it returns {@code true} too, and reads the
+     * requested resource's whole subtree itself. It is still asked only about that resource: content removed along
+     * with it by a cascade, such as a linking resource deleted with what it links, is not offered to it.
+     * </p>
+     *
      * @return {@code true} to be asked once; {@code false}, the default, to be asked about every impacted resource
      */
     default boolean judgesWholeOperation()

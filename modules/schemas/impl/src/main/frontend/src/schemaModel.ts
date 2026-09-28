@@ -47,9 +47,14 @@ export const pathOf = (node: JcrNode): string => String(node["@path"]);
 
 export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
-export const titleOf = (schema: JcrNode): string => text(schema, "title") ?? String(schema["@name"]);
+export const nameOf = (node: JcrNode): string => String(node["@name"]);
 
-export const labelOf = (version: JcrNode): string => text(version, "version") ?? String(version["@name"]);
+// The name of a node that may not be there, such as the one after the last
+export const nameIfAny = (node?: JcrNode): string | undefined => node && nameOf(node);
+
+export const titleOf = (schema: JcrNode): string => text(schema, "title") ?? nameOf(schema);
+
+export const labelOf = (version: JcrNode): string => text(version, "version") ?? nameOf(version);
 
 export const descriptionOf = (version: JcrNode): string | undefined => text(version, "description");
 

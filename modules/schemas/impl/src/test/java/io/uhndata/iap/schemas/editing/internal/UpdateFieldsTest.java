@@ -22,6 +22,7 @@ import java.io.Reader;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Checks the fields the shipped update workflows list against the node types they target: the engine leaves out,
- * without a word, a listed field that no targeted type declares, so a misspelt one would never be offered.
+ * Checks the fields the shipped update workflows list against the node types they target, or create: the engine
+ * leaves out, without a word, a listed field that no such type declares, so a misspelt one would never be offered.
+ * And since the engine gives a create workflow no way to share a draft update's fields, it checks that the copies
+ * agree.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,6 +68,15 @@ class UpdateFieldsTest
         "sch/SchemaPart", List.of("sch:FormRequirement", "sch:DocumentRequirement", "sch:ApprovalRequirement",
             "sch:Section", "sch:Question"),
         "sch/AnswerOption", List.of("sch:AnswerOption"));
+
+    // The draft update of each type a create workflow makes, whose fields it must fill in alike
+    private static final Map<String, String> DRAFT_UPDATES = Map.of(
+        "sch:FormRequirement", "updateDraftSchemaPart.json",
+        "sch:DocumentRequirement", "updateDraftSchemaPart.json",
+        "sch:ApprovalRequirement", "updateDraftSchemaPart.json",
+        "sch:Section", "updateDraftSchemaPart.json",
+        "sch:Question", "updateDraftSchemaPart.json",
+        "sch:AnswerOption", "updateDraftAnswerOption.json");
 
     // The property types updateContent edits
     private static final Set<Integer> EDITABLE = Set.of(PropertyType.STRING, PropertyType.LONG, PropertyType.DOUBLE,
@@ -85,7 +97,10 @@ class UpdateFieldsTest
             if (fields == null) {
                 continue;
             }
-            final List<String> targeted = NODE_TYPES.get(version.getString("targetResourceType"));
+            final List<String> targeted = targetedTypes(version);
+            for (final String type : targeted) {
+                assertTrue(types.hasNodeType(type), path.getFileName() + ": " + type);
+            }
             for (final Map.Entry<String, JsonValue> field : fields.entrySet()) {
                 if (field.getValue().getValueType() != JsonValue.ValueType.OBJECT) {
                     continue;
@@ -99,7 +114,88 @@ class UpdateFieldsTest
                 checked++;
             }
         }
-        assertEquals(36, checked);
+        // The update workflows' fields, then those of the requirement and the part create workflows
+        assertEquals(36 + 6 + 15, checked);
+    }
+
+    @Test
+    void createsWithTheFieldsADraftsUpdateOffers() throws IOException, URISyntaxException, RepositoryException
+    {
+        final NodeTypeManager types =
+            this.context.resourceResolver().adaptTo(Session.class).getWorkspace().getNodeTypeManager();
+        int compared = 0;
+        for (final Path path : definitions()) {
+            final JsonObject version = read(path).getJsonObject("v1");
+            if (creating(version) == null) {
+                continue;
+            }
+            final JsonObject fields = version.getJsonObject("update").getJsonObject("fields");
+            for (final String created : targetedTypes(version)) {
+                final JsonObject draft = read(path.resolveSibling(DRAFT_UPDATES.get(created)))
+                    .getJsonObject("v1").getJsonObject("update").getJsonObject("fields");
+                assertEquals(declaredFields(types, created, draft), declaredFields(types, created, fields),
+                    path.getFileName() + ": " + created);
+                compared++;
+            }
+        }
+        assertEquals(6, compared);
+    }
+
+    /**
+     * The node types an update's fields are held to: what the workflow creates, when it creates something, and else
+     * what it targets.
+     *
+     * @param version a workflow version
+     * @return the node types
+     */
+    private static List<String> targetedTypes(final JsonObject version)
+    {
+        final JsonObject create = creating(version);
+        if (create == null) {
+            return NODE_TYPES.get(version.getString("targetResourceType"));
+        }
+        return create.getJsonObject("types").values().stream()
+            .filter(type -> type.getValueType() == JsonValue.ValueType.OBJECT)
+            .map(type -> type.asJsonObject().getString("nodeType"))
+            .toList();
+    }
+
+    /**
+     * The activity of a workflow that creates content, if it has one.
+     *
+     * @param version a workflow version
+     * @return its createContent activity, or {@code null}
+     */
+    private static JsonObject creating(final JsonObject version)
+    {
+        return version.values().stream()
+            .filter(node -> node.getValueType() == JsonValue.ValueType.OBJECT)
+            .map(JsonValue::asJsonObject)
+            .filter(node -> "createContent".equals(node.getString("handler", null)))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * The fields listed that a node type declares, in the listed order, with how they are listed.
+     *
+     * @param types the repository's node types
+     * @param type the node type
+     * @param fields the fields an activity lists
+     * @return the declared ones
+     * @throws RepositoryException when the type cannot be read
+     */
+    private static List<Map.Entry<String, JsonValue>> declaredFields(final NodeTypeManager types, final String type,
+        final JsonObject fields) throws RepositoryException
+    {
+        final List<Map.Entry<String, JsonValue>> declared = new ArrayList<>();
+        for (final Map.Entry<String, JsonValue> field : fields.entrySet()) {
+            if (field.getValue().getValueType() == JsonValue.ValueType.OBJECT
+                && declared(types, List.of(type), field.getKey())) {
+                declared.add(field);
+            }
+        }
+        return declared;
     }
 
     private static boolean declared(final NodeTypeManager types, final List<String> targeted, final String name)

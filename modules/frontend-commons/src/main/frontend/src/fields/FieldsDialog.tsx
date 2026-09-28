@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Alert, Autocomplete, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, MenuItem,
@@ -118,11 +118,13 @@ interface FieldsDialogProps {
   onClose: () => void;
   // Given only the fields that changed; an emptied one is null, which removes it
   onSave: (changes: Record<string, PatchValue>) => Promise<unknown>;
+  // Anything the caller asks along with the fields, shown above them
+  children?: ReactNode;
 }
 
 // Edits what an update event lets change on a node, as its `@fields` describe: each field with an input
 // for its kind, and only while it applies to what is being entered.
-function FieldsDialog({ title, node, onClose, onSave }: FieldsDialogProps) {
+function FieldsDialog({ title, node, onClose, onSave, children }: FieldsDialogProps) {
   const fields = fieldsOf(node);
   const [ values, setValues ] = useState(() => initialValues(node, fields));
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
@@ -134,6 +136,7 @@ function FieldsDialog({ title, node, onClose, onSave }: FieldsDialogProps) {
     <ResponsiveDialog title={title} withCloseButton open onClose={onClose} closeDisabled={working}>
       <DialogContent dividers>
         <Stack spacing={2}>
+          {children}
           { applicableFields(fields, values, node).map(field => (
             <FieldInput
               key={field.name}
