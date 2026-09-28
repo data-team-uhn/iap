@@ -79,7 +79,7 @@ import_node() {
     -F ":replace=true" \
     -F ":replaceProperties=true" \
     --form-string ":content=$3" \
-    "$URL$1")"
+    "$URL$1.import")"
   if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
     echo "Failed with HTTP $status while importing $1/$2" >&2
     exit 1

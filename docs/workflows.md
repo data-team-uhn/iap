@@ -234,6 +234,23 @@ inside yet — which is the main reason to doubt they should persist an instance
 trail**, if one is needed, wants to survive deletion and restore, so it would be its own tree rather than
 a child.
 
+### Events over HTTP
+
+A `POST` to a resource under workflow control is a domain event, sent to the engine with the request
+parameters as its payload (`:`-prefixed ones excluded). The event is the target's default — `create` on a
+homepage, `complete` on a user task — unless a selector names one: `POST /Schemas/x/1.0.activate.json`
+sends `activate`.
+
+The types under workflow control are the ones the definitions say: the `targetResourceType` of every system
+workflow version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to exactly those, with
+any extension, and `WorkflowEventServletRegistrar` binds it again whenever `/SystemWorkflows` changes. So a
+module brings a type under control by shipping a system workflow for it.
+
+The one way around the engine is the `.import` extension, which forwards the request untouched to the Sling POST
+servlet. The repository still decides who may write, and on content the engine manages only an administrator
+can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
+schema with `POST /Schemas.import`.
+
 ## Sling Models
 
 Everything above is reachable as Sling Models in `io.uhndata.iap.workflows.models`, so callers never touch
