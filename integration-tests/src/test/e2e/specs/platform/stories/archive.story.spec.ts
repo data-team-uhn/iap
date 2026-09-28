@@ -493,7 +493,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
     await test.step('nor is the archive itself, however she asks for it', async () => {
       // Each refusal paired with the same request as the administrator, so that it can never be a
       // request that was malformed, or a path that does not answer anybody
-      for (const url of [ '/Archive.entries.json', '/Archive.summary.json' ]) {
+      for (const url of [ '/Archive.entries.json', '/Archive.adminSummary.json' ]) {
         const hers = await request.get(url, { headers: basicAuth(NADIA), maxRedirects: 0 });
         expect(hers.status(), `${url} was served to somebody with no right to it`).not.toBe(200);
 

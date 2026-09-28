@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.deletion.internal;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.function.LongSupplier;
 
@@ -27,25 +26,31 @@ import javax.jcr.Session;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.Servlet;
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
-import org.apache.sling.api.SlingJakartaHttpServletResponse;
-import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import io.uhndata.iap.utils.summary.AdminSummaryServlet;
+import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
- * Counts the archive entries: {@code GET /Archive.summary.json} answers with how many deletions were recorded in
- * the last day, in the last week, and altogether.
+ * Counts the archive entries: {@code GET /Archive.adminSummary.json} answers with how many deletions were recorded
+ * in the last day, in the last week, and altogether.
  *
  * <p>
  * This is what the archive console widget shows, which is why it is a separate endpoint from the listing rather
  * than a field on it: the widget wants three numbers and no rows, and asking for a page of entries to read a count
  * off it would fetch what nothing displays.
  * </p>
+ *
+ * {@snippet lang=json :
+ * {
+ *   "last24Hours": {"label": "Archived in the last 24 hours", "value": 3},
+ *   "lastWeek": {"label": "Archived in the last 7 days", "value": 11},
+ *   "total": {"label": "Archived in total", "value": 10000, "approximate": true}
+ * }
+ * }
  *
  * <p>
  * Like the listing, it is reachable only by users who can see the archive, and it counts with the requester's own
@@ -57,16 +62,12 @@ import org.slf4j.LoggerFactory;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(resourceTypes = { ArchiveEntriesServlet.ARCHIVE_RESOURCE_TYPE }, methods = { "GET" },
-    selectors = { "summary" }, extensions = { "json" })
-public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
+    selectors = { AdminSummaryServlet.SELECTOR }, extensions = { "json" })
+public class ArchiveSummaryServlet extends AdminSummaryServlet
 {
     private static final long serialVersionUID = 1L;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveSummaryServlet.class);
-
-    /** The outcome word and wording used whichever way the query fails to run. */
-    private static final String FAILED = "failed";
-
+    /** The wording used whichever way the query fails to run. */
     private static final String UNQUERYABLE = "The archive cannot be queried";
 
     /** Reads the current instant. A field so that tests can pin the windows down instead of racing them. */
@@ -107,13 +108,12 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
     }
 
     @Override
-    protected void doGet(final SlingJakartaHttpServletRequest request,
-        final SlingJakartaHttpServletResponse response) throws IOException
+    protected JsonObjectBuilder summarize(final SlingJakartaHttpServletRequest request)
+        throws SummaryUnavailableException
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
-            return;
+            throw new SummaryUnavailableException(UNQUERYABLE);
         }
         final String root = request.getResource().getPath();
         final long now = this.clock.getAsLong();
@@ -121,15 +121,12 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
             final ArchiveSearch.Count day = this.countSince(session, root, now, Duration.ofDays(1));
             final ArchiveSearch.Count week = this.countSince(session, root, now, Duration.ofDays(7));
             final ArchiveSearch.Count total = ArchiveSearch.count(session, ArchiveQuery.all(root), this.cap);
-            final JsonObjectBuilder body = Json.createObjectBuilder()
-                .add("last24Hours", day.value())
-                .add("lastWeek", week.value())
-                .add("total", total.value())
-                .add("approximate", day.approximate() || week.approximate() || total.approximate());
-            JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+            return Json.createObjectBuilder()
+                .add("last24Hours", count("Archived in the last 24 hours", day.value(), day.approximate()))
+                .add("lastWeek", count("Archived in the last 7 days", week.value(), week.approximate()))
+                .add("total", count("Archived in total", total.value(), total.approximate()));
         } catch (final RepositoryException e) {
-            LOGGER.warn("Failed to count the archive entries: {}", e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            throw new SummaryUnavailableException(UNQUERYABLE, e);
         }
     }
 

@@ -603,10 +603,11 @@ lives, so the depth of a console URL is worked out without a request; a homepage
 after a reload. A failed ask is not kept: the default homepage stands in, the console says what failed and
 offers to retry, and the next ask goes to the server again.
 
-The dashboard widget asks the same question and shows only the answer's size: one count per homepage,
-fetched as a page of no rows at all (`.paginate.json?offset=0&limit=0`), with the frame's "Manage
-workflows" action leading to the page that lists them. A grid does not fit a dashboard frame; a count
-does.
+The dashboard widget shows only the answer's size: one count per homepage, read in a single request from
+`GET /Workflows.adminSummary.json` — the generic entity homepage summary, which answers for the homepage
+asked and every peer of its kind the caller can read, so the widget discovers nothing itself — with the
+frame's "Manage workflows" action leading to the page that lists them. A grid does not fit a dashboard
+frame; a count does.
 
 ## Sling Models
 

@@ -44,16 +44,6 @@ export interface WorkflowHomepage {
   title: string;
 }
 
-// One homepage and how many workflows it holds, as a summary displays it — capped at a lower bound
-// once the server is far enough past the requested page, rather than counting a very large collection
-// in full just for a widget.
-export interface WorkflowHomepageCount extends WorkflowHomepage {
-  // Absent when the count could not be read: that this homepage exists is worth reporting on its
-  // own, and is known independently of how many workflows are in it
-  count?: number;
-  atLeast: boolean;
-}
-
 // One version of a workflow definition, flattened for listing. The diagram itself is deliberately
 // absent: it is an nt:file child of the version node, fetched on its own path only when something
 // is about to render it.

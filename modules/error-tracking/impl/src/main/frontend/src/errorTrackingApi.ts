@@ -21,7 +21,6 @@
 // to use as its first argument rather than reaching for a hook, so this file stays free of React and
 // is testable as plain functions; components pass `useAuthenticatedFetch()` in.
 
-import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
 
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -94,14 +93,6 @@ export function resolutionLabel(name: string): string {
   return RESOLUTIONS.find(resolution => resolution.name === name)?.label ?? name;
 }
 
-/** How many recorded errors there are, and how many of them still need attention. */
-export interface TriageCounts {
-  needingAttention: number;
-  total: number;
-  /** Whether either count stopped at the server's bound, so both are lower bounds. */
-  approximate: boolean;
-}
-
 /** One decision somebody took about one error. */
 export interface Decision {
   name: string;
@@ -172,30 +163,6 @@ export function errorNameFromRoute(route: string): string | null {
 
 /** The repository path of one error. */
 const errorPath = (name: string): string => `${LOGGED_ERRORS_PATH}/${name}`;
-
-/**
- * Counts the recorded errors, and how many of them still need attention.
- *
- * Both come from the pagination servlet the errors' homepage already answers, asked for a single row
- * each: the count wanted is `totalrows`, and asking for no rows at all would still pay for the query
- * without proving it works. There is deliberately no dedicated summary endpoint — the homepage is an
- * data:EntityHomepage, so this needs no server-side code at all.
- */
-export async function fetchTriageCounts(fetchUtil: AuthenticatedFetch): Promise<TriageCounts> {
-  const [ needing, all ] = await Promise.all([
-    fetchEntityPage(fetchUtil, {
-      homepage: LOGGED_ERRORS_PATH,
-      limit: 1,
-      filters: [ { name: TRIAGE_PROPERTY, value: UNACKNOWLEDGED } ],
-    }),
-    fetchEntityPage(fetchUtil, { homepage: LOGGED_ERRORS_PATH, limit: 1 }),
-  ]);
-  return {
-    needingAttention: needing.totalrows,
-    total: all.totalrows,
-    approximate: needing.totalIsApproximate || all.totalIsApproximate,
-  };
-}
 
 /** A JSON node as IAP's serializer emits it: properties, plus children keyed by name. */
 type SerializedNode = Record<string, unknown>;

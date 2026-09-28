@@ -136,3 +136,6 @@ by path keeps that path, which now finds the copied question.
 The Schemas tool (`/admin/schemas`) lists every schema with its versions nested under it. Each
 schema has a page, `/admin/schemas/<schema>`, listing its versions, and each version a page of its
 own, `/admin/schemas/<schema>/<version>`, showing everything it asks of a submission.
+
+Its dashboard widget counts the active and draft versions and the retired schemas, from
+`GET /Schemas.adminSummary.json`: each figure counts what carries that lifecycle tag itself.

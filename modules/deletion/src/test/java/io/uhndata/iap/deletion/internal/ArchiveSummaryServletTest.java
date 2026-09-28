@@ -106,15 +106,36 @@ class ArchiveSummaryServletTest
         }
     }
 
+    /** How many one window counted. */
+    private static int count(final JsonObject body, final String window)
+    {
+        return body.getJsonObject(window).getInt("value");
+    }
+
+    /** Whether one window's count stopped at the bound. Absent means it did not. */
+    private static boolean approximate(final JsonObject body, final String window)
+    {
+        return body.getJsonObject(window).getBoolean("approximate", false);
+    }
+
     @Test
     void anEmptyArchiveCountsZeroEverywhere() throws Exception
     {
         final JsonObject body = this.answerAt(System.currentTimeMillis());
         assertEquals(200, this.response.getStatus());
-        assertEquals(0, body.getInt("last24Hours"));
-        assertEquals(0, body.getInt("lastWeek"));
-        assertEquals(0, body.getInt("total"));
-        assertFalse(body.getBoolean("approximate"));
+        assertEquals(0, count(body, "last24Hours"));
+        assertEquals(0, count(body, "lastWeek"));
+        assertEquals(0, count(body, "total"));
+        assertFalse(approximate(body, "total"));
+    }
+
+    @Test
+    void everyWindowSaysWhatItCounts() throws Exception
+    {
+        final JsonObject body = this.answerAt(System.currentTimeMillis());
+        assertEquals("Archived in the last 24 hours", body.getJsonObject("last24Hours").getString("label"));
+        assertEquals("Archived in the last 7 days", body.getJsonObject("lastWeek").getString("label"));
+        assertEquals("Archived in total", body.getJsonObject("total").getString("label"));
     }
 
     @Test
@@ -123,9 +144,9 @@ class ArchiveSummaryServletTest
         this.entry("one");
         this.entry("two");
         final JsonObject body = this.answerAt(System.currentTimeMillis());
-        assertEquals(2, body.getInt("last24Hours"));
-        assertEquals(2, body.getInt("lastWeek"));
-        assertEquals(2, body.getInt("total"));
+        assertEquals(2, count(body, "last24Hours"));
+        assertEquals(2, count(body, "lastWeek"));
+        assertEquals(2, count(body, "total"));
     }
 
     @Test
@@ -133,9 +154,9 @@ class ArchiveSummaryServletTest
     {
         this.entry("one");
         final JsonObject body = this.answerAt(System.currentTimeMillis() + Duration.ofDays(2).toMillis());
-        assertEquals(0, body.getInt("last24Hours"));
-        assertEquals(1, body.getInt("lastWeek"));
-        assertEquals(1, body.getInt("total"));
+        assertEquals(0, count(body, "last24Hours"));
+        assertEquals(1, count(body, "lastWeek"));
+        assertEquals(1, count(body, "total"));
     }
 
     @Test
@@ -143,9 +164,9 @@ class ArchiveSummaryServletTest
     {
         this.entry("one");
         final JsonObject body = this.answerAt(System.currentTimeMillis() + Duration.ofDays(30).toMillis());
-        assertEquals(0, body.getInt("last24Hours"));
-        assertEquals(0, body.getInt("lastWeek"));
-        assertEquals(1, body.getInt("total"));
+        assertEquals(0, count(body, "last24Hours"));
+        assertEquals(0, count(body, "lastWeek"));
+        assertEquals(1, count(body, "total"));
     }
 
     @Test
@@ -161,8 +182,8 @@ class ArchiveSummaryServletTest
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
             final JsonObject body = reader.readObject();
             // Two of the three were counted, and the answer says so rather than claiming there are two
-            assertEquals(2, body.getInt("total"));
-            assertTrue(body.getBoolean("approximate"));
+            assertEquals(2, count(body, "total"));
+            assertTrue(approximate(body, "total"));
         }
     }
 
@@ -173,7 +194,7 @@ class ArchiveSummaryServletTest
         this.entry("one");
         new ArchiveSummaryServlet().doGet(this.request(this.context.resourceResolver()), this.response);
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
-            assertEquals(1, reader.readObject().getInt("last24Hours"));
+            assertEquals(1, count(reader.readObject(), "last24Hours"));
         }
     }
 
@@ -192,7 +213,7 @@ class ArchiveSummaryServletTest
 
         assertEquals(500, this.response.getStatus());
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
-            assertEquals("failed", reader.readObject().getString("status"));
+            assertEquals("The archive cannot be queried", reader.readObject().getString("error"));
         }
     }
 
@@ -219,8 +240,8 @@ class ArchiveSummaryServletTest
         assertEquals(500, this.response.getStatus());
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
             final JsonObject body = reader.readObject();
-            assertEquals("failed", body.getString("status"));
-            assertFalse(body.getString("status.message").contains("on fire"));
+            assertEquals("The archive cannot be queried", body.getString("error"));
+            assertFalse(body.getString("error").contains("on fire"));
         }
     }
 }

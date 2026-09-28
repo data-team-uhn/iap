@@ -103,9 +103,14 @@ const asStrings = (node: SerializedNode, name: string): string[] => {
  * fact delivered.
  */
 export const parseCatcherStatus = (node: SerializedNode): CatcherStatus => ({
-  enabled: node.enabled === true,
-  total: typeof node.total === "number" ? node.total : 0,
+  enabled: figureValue(node, "enabled") === true,
+  total: typeof figureValue(node, "total") === "number" ? figureValue(node, "total") as number : 0,
 });
+
+const figureValue = (node: SerializedNode, name: string): unknown => {
+  const figure = node[name];
+  return typeof figure === "object" && figure !== null ? (figure as SerializedNode).value : undefined;
+};
 
 /**
  * One caught message, whole.

@@ -306,7 +306,10 @@ The one thing the grid cannot answer is whether mail is being caught **right now
 
 ```
 GET /CaughtMail.adminSummary.json
-→ { "enabled": true, "total": 12 }
+→ {
+    "enabled": { "label": "Catching mail", "value": true },
+    "total": { "label": "Caught so far", "value": 12 }
+  }
 ```
 
 `enabled` is the presence of a registered `MailService` carrying the catcher's own

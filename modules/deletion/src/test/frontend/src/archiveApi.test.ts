@@ -22,7 +22,6 @@ import {
   entryRoute,
   fetchArchiveEntries,
   fetchArchiveEntry,
-  fetchArchiveSummary,
   purgeEntry,
   restoreEntry,
 } from "@iap/deletion/archiveApi";
@@ -32,36 +31,10 @@ const jsonResponse = (status: number, body: unknown) => new Response(JSON.string
   headers: { "Content-Type": "application/json" },
 });
 
-const summary = { last24Hours: 1, lastWeek: 2, total: 3, approximate: false };
-
 const emptyPage = {
   rows: [], offset: 0, limit: 25, returnedrows: 0, totalrows: 0,
   totalIsApproximate: false, sortBy: "jcr:created", descending: true,
 };
-
-describe("fetchArchiveSummary", () => {
-  it("reads the three counts", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, summary));
-    await expect(fetchArchiveSummary(doFetch)).resolves.toEqual(summary);
-  });
-
-  it("asks the archive root for its summary", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, summary));
-    await fetchArchiveSummary(doFetch);
-    expect(doFetch.mock.calls[0][0]).toBe("/Archive.summary.json");
-  });
-
-  it("rejects when the archive is not readable, rather than reporting zeroes", async () => {
-    // Zeroes would be a claim that nothing has ever been deleted
-    const doFetch = vi.fn().mockResolvedValue(new Response("", { status: 404 }));
-    await expect(fetchArchiveSummary(doFetch)).rejects.toThrow("404");
-  });
-
-  it("rejects when the body is empty", async () => {
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, null));
-    await expect(fetchArchiveSummary(doFetch)).rejects.toThrow();
-  });
-});
 
 describe("fetchArchiveEntries", () => {
   it("asks for the default page when nothing is specified", async () => {
