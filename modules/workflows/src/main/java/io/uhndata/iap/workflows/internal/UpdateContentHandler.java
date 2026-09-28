@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 import javax.jcr.Node;
@@ -85,7 +84,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
                 + " must list the " + ContentFields.FIELDS + " a patch may change");
         }
         final Resource host = ExecutionHost.of(context);
-        final Node node = Objects.requireNonNull(host.adaptTo(Node.class), "Content is stored in a JCR repository");
+        final Node node = Nodes.of(host);
         try {
             final List<ContentFields.Field> editable = ContentFields.editable(described, node);
             final ValueFactory factory = node.getSession().getValueFactory();

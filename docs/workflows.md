@@ -323,6 +323,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `removeTag` | `tag` | Removes the tag |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
 | `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`), `nameFrom` (optional) | Creates, in the target, content of the event's `type`, placed before the sibling the event names as `before`, or else last |
+| `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
@@ -415,6 +416,18 @@ mandatory field empty. The `creatable` serialization adds `@creatable` to conten
 `create` event would add to: each type the requesting user's workflow could create
 there, with its `label` and the `fields` it starts with, described as in `@fields`,
 including the `default` values new content of that type starts with.
+
+`moveContent` moves the target, with everything under it, into the node the event names
+as `parent`, or within its own parent when it names none, before the sibling named in
+`before`, or else last: one task both reorders and moves. The new parent must hold the
+target's type, by the same rule as `createContent`; nothing moves into itself; and an
+activity naming a resource type as `within` keeps the target inside the same nearest
+ancestor of that type, such as the schema version a question belongs to. A name already
+taken at the destination is replaced by a free one. The move is made with the
+`ContentMover` service (`java-utils`), which lets the modules that name content by where
+it is prepare first, as `MoveParticipant`s: the conditions module makes `answer`
+operands naming a moved question by path name it by identifier. The new path is what
+later steps act on, and what the event is answered with.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service

@@ -16,6 +16,7 @@
     "{https://iap.uhndata.io/bpmn}sourceType=sourceType",
     "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
     "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
-    "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]"
+    "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]",
+    "{https://iap.uhndata.io/bpmn}within=within"
   ]
 }
