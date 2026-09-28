@@ -43,9 +43,10 @@ export type SchemaPartChip = string | { label: string; content: ReactNode };
 export interface SchemaPartType {
   label: string;
   Icon: ComponentType<SvgIconProps>;
-  // A palette key, for the card's edge and, unless iconColor says otherwise, its icon
+  // A palette key, for the card's edge and its icon
   accent: string;
-  iconColor?: string;
+  // How much its heading stands out, so that what holds reads above what it holds
+  weight?: "fontWeightMedium" | "fontWeightBold";
   chips?: (part: JcrNode) => SchemaPartChip[];
   // What else it says, or null when there is nothing more
   details?: (part: JcrNode) => ReactNode;
@@ -126,15 +127,20 @@ const documentChips = (part: JcrNode): string[] => [
 ];
 
 const PART_TYPES: Record<string, SchemaPartType> = {
-  "sch/FormRequirement": { label: "Form", Icon: AssignmentOutlinedIcon, accent: "text.secondary" },
+  "sch/FormRequirement": {
+    label: "Form", Icon: AssignmentOutlinedIcon, accent: "text.disabled", weight: "fontWeightBold",
+  },
   "sch/DocumentRequirement": {
-    label: "Document", Icon: DescriptionOutlinedIcon, accent: "info.main", chips: documentChips,
-    details: documentDetails,
+    label: "Document", Icon: DescriptionOutlinedIcon, accent: "info.main", weight: "fontWeightBold",
+    chips: documentChips, details: documentDetails,
   },
   "sch/ApprovalRequirement": {
-    label: "Approval", Icon: HowToRegOutlinedIcon, accent: "success.main", details: approvalDetails,
+    label: "Approval", Icon: HowToRegOutlinedIcon, accent: "success.main", weight: "fontWeightBold",
+    details: approvalDetails,
   },
-  "sch/Section": { label: "Section", Icon: ViewAgendaOutlinedIcon, accent: "divider", iconColor: "text.secondary" },
+  "sch/Section": {
+    label: "Section", Icon: ViewAgendaOutlinedIcon, accent: "divider", weight: "fontWeightMedium",
+  },
   "sch/Question": {
     label: "Question", Icon: HelpOutlineOutlinedIcon, accent: "primary.main", chips: questionChips,
     details: questionDetails,
