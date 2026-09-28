@@ -63,10 +63,11 @@ declare module "@mui/material/styles" {
   // Backgrounds besides `default` and `paper`: `muted` is a subtly tinted static surface for page
   // regions that should read as "background, but set apart"; `tinted` is paper with some of the
   // primary colour mixed in, for surfaces that carry the brand quietly (the frame bars, emphasised
-  // widgets).
+  // widgets); `tintedStrong` has more of it, for a tinted surface being pointed at.
   interface TypeBackground {
     muted: string;
     tinted: string;
+    tintedStrong: string;
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
@@ -116,6 +117,8 @@ const mutedColor = "var(--mui-palette-text-secondary)";
 
 // Mixed from the scheme's own CSS variables, so the same definition serves both colour schemes.
 const TINTED_SURFACE = "color-mix(in srgb, var(--mui-palette-primary-main) 16%, var(--mui-palette-background-paper))";
+const STRONGLY_TINTED_SURFACE =
+  "color-mix(in srgb, var(--mui-palette-primary-main) 28%, var(--mui-palette-background-paper))";
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
 // variants below, so they don't hardcode (and drift from) the library's values.
@@ -196,6 +199,7 @@ const appTheme = createTheme({
           paper: "#ffffff",
           muted: "rgba(0, 0, 0, 0.04)",
           tinted: TINTED_SURFACE,
+          tintedStrong: STRONGLY_TINTED_SURFACE,
         },
       },
     },
@@ -213,6 +217,7 @@ const appTheme = createTheme({
           paper: "#1a1a1a",
           muted: "rgba(255, 255, 255, 0.08)",
           tinted: TINTED_SURFACE,
+          tintedStrong: STRONGLY_TINTED_SURFACE,
         },
       },
     },
