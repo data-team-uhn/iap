@@ -72,17 +72,24 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip. An action that only goes somewhere is a link there.
-export function ActionIcon({ label, icon, onClick, to }: {
+// One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is. An
+// action that only goes somewhere is a link there.
+export function ActionIcon({ label, icon, onClick, pressed, to }: {
   label: string;
   icon: ReactNode;
   onClick?: (event: MouseEvent<HTMLElement>) => void;
+  pressed?: boolean;
   to?: string;
 }) {
   return (
     <Tooltip title={label}>
       { to === undefined
-        ? <IconButton size="small" aria-label={label} onClick={onClick}>{icon}</IconButton>
+        ? (
+          <IconButton size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : "default"}
+            onClick={onClick}>
+            {icon}
+          </IconButton>
+        )
         : <IconButton size="small" aria-label={label} component={RouterLink} to={to}>{icon}</IconButton> }
     </Tooltip>
   );
