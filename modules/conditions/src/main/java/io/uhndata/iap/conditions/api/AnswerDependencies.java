@@ -75,7 +75,8 @@ public final class AnswerDependencies
     }
 
     /**
-     * The {@code answer} operands elsewhere in a subtree's entity, outside the subtree, that name something in it.
+     * The {@code answer} operands elsewhere in a subtree's entity, outside the subtree, that name something in it:
+     * what would be left depending on it if it went.
      *
      * @param subtree the root of the subtree
      * @param names the names of what is in it, from {@link #namesOf}
@@ -86,36 +87,82 @@ public final class AnswerDependencies
     public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names)
         throws RepositoryException
     {
+        return operandsNaming(subtree, names, false);
+    }
+
+    /**
+     * The {@code answer} operands in a subtree's entity that name something in it, those in the subtree itself
+     * included when asked: what a path that changes would break.
+     *
+     * @param subtree the root of the subtree
+     * @param names the names of what is in it, from {@link #namesOf}
+     * @param inside whether operands in the subtree count too
+     * @return the operands, none when there are no names
+     * @throws RepositoryException when the entity cannot be searched
+     */
+    public static List<Node> operandsNaming(final Node subtree, final Set<String> names, final boolean inside)
+        throws RepositoryException
+    {
         final List<Node> naming = new ArrayList<>();
         final Node entity = entityOf(subtree);
         if (names.isEmpty() || entity == null) {
             return naming;
         }
-        collectOperands(entity, subtree, names, naming);
+        for (final Node operand : answerOperands(entity, inside ? null : subtree)) {
+            if (names(operand).stream().anyMatch(names::contains)) {
+                naming.add(operand);
+            }
+        }
         return naming;
     }
 
     /**
-     * Gathers the {@code answer} operands under a node that name something, walking the session's own view of the
-     * tree: a query would miss what the session has added and not saved yet.
+     * The {@code answer} operands in a subtree, such as those of the conditions moving with it.
      *
-     * @param node where to look
-     * @param skipped a subtree to leave out
-     * @param names the names to look for
-     * @param naming where to add the operands found
+     * @param subtree the root of the subtree
+     * @return the operands
+     * @throws RepositoryException when the subtree cannot be read
+     */
+    public static List<Node> operandsIn(final Node subtree) throws RepositoryException
+    {
+        return answerOperands(subtree, null);
+    }
+
+    /**
+     * The {@code answer} operands under one node, and not under another. The tree is walked rather than queried: a
+     * query would miss what the session has added and not saved yet.
+     *
+     * @param under where to look
+     * @param notUnder where not to, or {@code null} to look everywhere under the first
+     * @return the operands that name something
      * @throws RepositoryException when the tree cannot be read
      */
-    private static void collectOperands(final Node node, final Node skipped, final Set<String> names,
-        final List<Node> naming) throws RepositoryException
+    private static List<Node> answerOperands(final Node under, final Node notUnder) throws RepositoryException
     {
-        if (node.isSame(skipped)) {
+        final List<Node> operands = new ArrayList<>();
+        collectOperands(under, notUnder, operands);
+        return operands;
+    }
+
+    /**
+     * Gathers the {@code answer} operands under a node that name something.
+     *
+     * @param node where to look
+     * @param skipped a subtree to leave out, or {@code null}
+     * @param operands where to add the operands found
+     * @throws RepositoryException when the tree cannot be read
+     */
+    private static void collectOperands(final Node node, final Node skipped, final List<Node> operands)
+        throws RepositoryException
+    {
+        if (skipped != null && node.isSame(skipped)) {
             return;
         }
-        if (isAnswerOperand(node) && names(node).stream().anyMatch(names::contains)) {
-            naming.add(node);
+        if (isAnswerOperand(node)) {
+            operands.add(node);
         }
         for (final NodeIterator children = node.getNodes(); children.hasNext();) {
-            collectOperands(children.nextNode(), skipped, names, naming);
+            collectOperands(children.nextNode(), skipped, operands);
         }
     }
 

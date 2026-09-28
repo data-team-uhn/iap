@@ -101,7 +101,12 @@ class AnswerDependenciesTest
         // The form's own condition goes with it
         assertEquals(2, AnswerDependencies.operandsNaming(this.form,
             AnswerDependencies.namesOf(this.form).keySet()).size());
+        // Counting those that move along with it
+        assertEquals(3, AnswerDependencies.operandsNaming(this.form,
+            AnswerDependencies.namesOf(this.form).keySet(), true).size());
         assertTrue(AnswerDependencies.operandsNaming(this.age, Set.of()).isEmpty());
+        assertEquals(List.of("/study/form/cond:condition/operandA"),
+            paths(AnswerDependencies.operandsIn(this.form)));
         assertTrue(AnswerDependencies.operandsNaming(this.session.getRootNode(), Set.of(AGE)).isEmpty());
     }
 
