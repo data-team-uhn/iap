@@ -49,9 +49,10 @@ export async function sendEvent(
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-    throw new Error(typeof body.error === "string" && body.error
-      ? body.error
-      : describeRequestFailure(new RequestError(response.status)));
+    if (typeof body.error === "string" && body.error) {
+      throw new RequestError(response.status, body.error);
+    }
+    throw new Error(describeRequestFailure(new RequestError(response.status)));
   }
   return undefined;
 }

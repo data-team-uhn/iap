@@ -22,12 +22,21 @@
 export class RequestError extends Error {
   readonly status: number;
 
-  constructor(status: number) {
-    super(`HTTP ${status}`);
+  // Why the server refused, when it said
+  readonly reason?: string;
+
+  constructor(status: number, reason?: string) {
+    super(reason ?? `HTTP ${status}`);
     this.name = "RequestError";
     this.status = status;
+    this.reason = reason;
   }
 }
+
+// Whether the server refused and said why: asking again the same way is refused again, until something changes.
+// A server error may pass, and a failure it gave no reason for is described as one that can be retried.
+export const isRefusal = (error: unknown): boolean =>
+  error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
 // What a rejection has to say for itself. Anything can be thrown, so the many places that end up
 // having to display one need this, and none of them need to care that it is not always an Error.
@@ -50,6 +59,9 @@ const describe = (error: unknown): string => {
   }
   if (error instanceof SyntaxError) {
     return "The server's response could not be read.";
+  }
+  if (error instanceof RequestError && error.reason) {
+    return error.reason;
   }
   if (error instanceof RequestError) {
     switch (error.status) {

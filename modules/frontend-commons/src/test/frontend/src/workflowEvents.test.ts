@@ -16,7 +16,10 @@
  * limitations under the License.
  */
 
+import { isRefusal } from "@iap/frontend-commons/requestFailure";
 import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
+
+const failure = (sending: Promise<unknown>) => sending.then(() => undefined, (error: unknown) => error);
 
 const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
 
@@ -52,6 +55,17 @@ describe("sendEvent", () => {
 
     await expect(sendEvent(doFetch, "/Submissions/request", "save"))
       .rejects.toThrow("can no longer be changed");
+    expect(isRefusal(await failure(sendEvent(doFetch, "/Submissions/request", "save")))).toBe(true);
+  });
+
+  it("tells a server error, which may pass, from a refusal", async () => {
+    const doFetch = answer({ ok: false, status: 500, redirected: false,
+      json: () => Promise.resolve({ error: "Cannot update it" }) });
+
+    const error = await failure(sendEvent(doFetch, "/Submissions/request", "save"));
+
+    expect(error).toBeInstanceOf(Error);
+    expect(isRefusal(error)).toBe(false);
   });
 
   it("describes a refusal that gives no reason like any failed request", async () => {
@@ -60,12 +74,15 @@ describe("sendEvent", () => {
     });
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("You do not have permission");
+    // Without a reason, it is described as something that may be tried again
+    expect(isRefusal(await failure(sendEvent(doFetch, "/Workflows", "create")))).toBe(false);
   });
 
   it("describes a request that never completed", async () => {
     const doFetch = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("could not be reached");
+    expect(isRefusal(await failure(sendEvent(doFetch, "/Workflows", "create")))).toBe(false);
   });
 });
 

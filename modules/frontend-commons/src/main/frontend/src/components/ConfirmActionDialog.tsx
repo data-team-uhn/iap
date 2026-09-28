@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Alert, Button, DialogActions, DialogContent, type ButtonProps } from "@mui/material";
 
@@ -37,6 +37,9 @@ interface ConfirmActionDialogProps {
   // report, letting the caller turn a particular refusal into something other than an error - an
   // offer of an alternative, say.
   interceptFailure?: (error: unknown) => boolean;
+  // Whether a rejection is final, one that confirming again cannot change, such as a refusal: the confirm
+  // button then stays disabled under its report. Without it, every failure may be retried.
+  isFinal?: (error: unknown) => boolean;
   onClose: () => void;
 }
 
@@ -58,12 +61,21 @@ interface ConfirmActionDialogProps {
 // </ConfirmActionDialog>
 //
 function ConfirmActionDialog(
-  { title, children, confirmLabel, confirmColor, onConfirm, interceptFailure, onClose }: ConfirmActionDialogProps,
+  {
+    title, children, confirmLabel, confirmColor, onConfirm, interceptFailure, isFinal, onClose,
+  }: ConfirmActionDialogProps,
 ) {
+  const [ refused, setRefused ] = useState(false);
   const { working, failure, run } = useAsyncAction<string>({
     // A claimed rejection is discarded here because the caller has taken it over - turned it into an
     // offer of an alternative, say - and reporting it as a failure as well would contradict that
-    onFailure: error => interceptFailure?.(error) ? undefined : messageOf(error),
+    onFailure: error => {
+      if (interceptFailure?.(error)) {
+        return undefined;
+      }
+      setRefused(isFinal?.(error) ?? false);
+      return messageOf(error);
+    },
     onSuccess: onClose,
   });
 
@@ -75,7 +87,7 @@ function ConfirmActionDialog(
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" color={confirmColor} onClick={() => run(onConfirm)} disabled={working}>
+        <Button variant="contained" color={confirmColor} onClick={() => run(onConfirm)} disabled={working || refused}>
           {confirmLabel}
         </Button>
       </DialogActions>
