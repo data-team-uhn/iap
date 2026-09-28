@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -27,6 +28,7 @@ import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.TaskInstance;
 
@@ -54,6 +56,25 @@ final class TaskCompletion
 
     private TaskCompletion()
     {
+    }
+
+    /**
+     * The events the actor could send to the task right now: completing it, while it is open and its definition
+     * admits them.
+     *
+     * @param taskResource the task, resolved through the engine's session
+     * @param performers who is asking
+     * @return {@code complete}, or nothing
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    static Set<String> availableEvents(final Resource taskResource, final PerformerCheck performers)
+        throws WorkflowFailedException
+    {
+        final TaskInstance task = Objects.requireNonNull(taskResource.adaptTo(TaskInstance.class),
+            "A wf:TaskInstance resource always adapts to its model");
+        final Activity definition = task.getDefinition();
+        return OPEN_STATUS.equals(task.getStatus()) && definition != null && performers.admits(definition)
+            ? Set.of(COMPLETE_EVENT) : Set.of();
     }
 
     /**

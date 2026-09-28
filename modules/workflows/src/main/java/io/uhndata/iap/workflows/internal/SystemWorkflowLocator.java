@@ -18,6 +18,8 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -29,6 +31,7 @@ import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
@@ -63,21 +66,9 @@ final class SystemWorkflowLocator
     static StartEvent find(final ResourceResolver serviceResolver, final Resource target, final WorkflowEvent event,
         final ConditionEvaluator evaluator) throws WorkflowException
     {
-        final Content context = target.adaptTo(Content.class);
-        final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
-        final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
-        final List<StartEvent> matches = homepage == null ? List.of()
-            : homepage.getWorkflows().stream()
-                .filter(WorkflowDefinition::isActive)
-                .flatMap(definition -> definition.getVersions().stream())
-                .filter(WorkflowVersion::isActive)
-                .filter(version -> version.getTargetResourceType() != null
-                    && target.isResourceType(version.getTargetResourceType()))
-                .flatMap(version -> version.getStartEvents().stream())
-                .filter(start -> event.getName().equals(start.getMessageName()))
-                .filter(start -> start.getCondition() == null
-                    || context != null && evaluator.applies(start, context))
-                .collect(Collectors.toList());
+        final List<StartEvent> matches = waiting(serviceResolver, target, evaluator).stream()
+            .filter(start -> event.getName().equals(start.getMessageName()))
+            .collect(Collectors.toList());
         if (matches.isEmpty()) {
             throw new NoApplicableWorkflowException(
                 "Nothing accepts the event " + event.getName() + " on " + target.getPath());
@@ -88,5 +79,56 @@ final class SystemWorkflowLocator
                 + matches.stream().map(StartEvent::getPath).collect(Collectors.joining(", ")));
         }
         return matches.get(0);
+    }
+
+    /**
+     * The events an actor could send to this target right now: those caught by a start event waiting on it in its
+     * current state, and admitting the actor.
+     *
+     * @param serviceResolver the engine's own session, able to read the system workflows tree
+     * @param target the resource events would be aimed at, backed by the engine's own session
+     * @param evaluator decides whether a start event's guard holds
+     * @param performers who is asking
+     * @return the event names, in alphabetical order
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    static Set<String> availableEvents(final ResourceResolver serviceResolver, final Resource target,
+        final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowFailedException
+    {
+        final Set<String> events = new TreeSet<>();
+        for (final StartEvent start : waiting(serviceResolver, target, evaluator)) {
+            if (performers.admits(start)) {
+                events.add(start.getMessageName());
+            }
+        }
+        return events;
+    }
+
+    /**
+     * Every start event waiting on this target in its current state, whatever event it catches.
+     *
+     * @param serviceResolver the engine's own session, able to read the system workflows tree
+     * @param target the resource events would be aimed at, backed by the engine's own session
+     * @param evaluator decides whether a start event's guard holds
+     * @return the start events whose guard holds, backed by the service session
+     */
+    private static List<StartEvent> waiting(final ResourceResolver serviceResolver, final Resource target,
+        final ConditionEvaluator evaluator)
+    {
+        final Content context = target.adaptTo(Content.class);
+        final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
+        final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
+        return homepage == null ? List.of()
+            : homepage.getWorkflows().stream()
+                .filter(WorkflowDefinition::isActive)
+                .flatMap(definition -> definition.getVersions().stream())
+                .filter(WorkflowVersion::isActive)
+                .filter(version -> version.getTargetResourceType() != null
+                    && target.isResourceType(version.getTargetResourceType()))
+                .flatMap(version -> version.getStartEvents().stream())
+                .filter(start -> start.getMessageName() != null)
+                .filter(start -> start.getCondition() == null
+                    || context != null && evaluator.applies(start, context))
+                .collect(Collectors.toList());
     }
 }
