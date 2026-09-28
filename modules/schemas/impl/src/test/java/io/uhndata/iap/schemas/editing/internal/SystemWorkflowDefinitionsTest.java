@@ -95,6 +95,7 @@ class SystemWorkflowDefinitionsTest
             ConditionOperand.class);
         this.context.create().resource("/libs/cond/SingleCondition", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/cond/ConditionGroup", "sling:resourceSuperType", "cond/Condition");
+        this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
         final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
         resolvers.setAccessible(true);
         resolvers.set(this.evaluator,
@@ -110,7 +111,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(14, definitions.size());
+        assertEquals(16, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -173,6 +174,19 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
+    void theContentOfADraftIsEditedAndThatOfAPublishedVersionCorrected()
+    {
+        final String part = "sch/SchemaPart";
+        final String option = "sch/AnswerOption";
+        assertEquals(Set.of("updateDraftSchemaPart"), answeringPart(part, new String[] { "draft" }));
+        assertEquals(Set.of("updateDraftAnswerOption"), answeringPart(option, new String[] { "draft" }));
+        for (final String state : List.of("active", "retired")) {
+            assertEquals(Set.of("updatePublishedSchemaPart"), answeringPart(part, new String[] { state }));
+            assertEquals(Set.of("updatePublishedAnswerOption"), answeringPart(option, new String[] { state }));
+        }
+    }
+
+    @Test
     void aSchemaIsCreatedOnTheHomepage()
     {
         assertEquals(Set.of("createSchema"), answering("sch/SchemasHomepage", "create", NONE, NONE));
@@ -190,8 +204,35 @@ class SystemWorkflowDefinitionsTest
     private Set<String> answering(final String type, final String event, final String[] tags,
         final String[] inherited)
     {
-        final Content target = this.context.create().resource("/content/target" + this.targets++, Map.of(
-            "sling:resourceType", type, "tags", tags, "inheritedTags", inherited)).adaptTo(Content.class);
+        return answering(this.context.create().resource("/content/target" + this.targets++, Map.of(
+            "sling:resourceType", type, "tags", tags, "inheritedTags", inherited)).adaptTo(Content.class), event);
+    }
+
+    /**
+     * The shipped workflows that would take an update aimed at something inside a version in a given state.
+     *
+     * @param type the resource type of what is inside the version
+     * @param versionTags the tags placed on the version
+     * @return the names of the definitions whose start event catches it and whose guard holds
+     */
+    private Set<String> answeringPart(final String type, final String[] versionTags)
+    {
+        final String version = "/content/target" + this.targets++;
+        this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags", versionTags));
+        return answering(this.context.create().resource(version + "/section/question", "sling:resourceType", type)
+            .adaptTo(Content.class), "update");
+    }
+
+    /**
+     * The shipped workflows that would take an event aimed at some content.
+     *
+     * @param target the content
+     * @param event the event
+     * @return the names of the definitions whose start event catches it and whose guard holds
+     */
+    private Set<String> answering(final Content target, final String event)
+    {
+        final String type = target.getType();
         final Set<String> answering = new TreeSet<>();
         for (final Resource definition : this.context.resourceResolver().getResource("/SystemWorkflows")
             .getChildren()) {
