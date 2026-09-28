@@ -42,6 +42,8 @@ import io.uhndata.iap.workflows.models.Activity;
  */
 final class FieldsFixture
 {
+    private static final String UNSTRUCTURED = "nt:unstructured";
+
     private final Session session;
 
     private final Node item;
@@ -49,6 +51,8 @@ final class FieldsFixture
     private final Node other;
 
     private final Activity activity = Mockito.mock(Activity.class);
+
+    private final Activity creating = Mockito.mock(Activity.class);
 
     /**
      * Builds the content.
@@ -65,27 +69,47 @@ final class FieldsFixture
         final Node root = this.session.getRootNode();
         this.item = item(root, "item", "The item");
         this.other = item(root, "other", "Another item");
-        final Node fields = root.addNode("update", "nt:unstructured").addNode("fields", "nt:unstructured");
-        fields.addNode("title", "nt:unstructured").setProperty("label", "Title");
-        final Node note = fields.addNode("note", "nt:unstructured");
+        final Node fields = root.addNode("update", UNSTRUCTURED).addNode("fields", UNSTRUCTURED);
+        fields.addNode("title", UNSTRUCTURED).setProperty("label", "Title");
+        final Node note = fields.addNode("note", UNSTRUCTURED);
         note.setProperty("label", "Note");
         note.setProperty("multiline", true);
-        fields.addNode("link", "nt:unstructured").setProperty("referenceType", "test/Item");
-        fields.addNode("weakLink", "nt:unstructured").setProperty("referenceRoot", "/other");
-        fields.addNode("related", "nt:unstructured").setProperty("referenceRoot", "/");
-        final Node shape = fields.addNode("shape", "nt:unstructured");
+        fields.addNode("link", UNSTRUCTURED).setProperty("referenceType", "test/Item");
+        fields.addNode("weakLink", UNSTRUCTURED).setProperty("referenceRoot", "/other");
+        fields.addNode("related", UNSTRUCTURED).setProperty("referenceRoot", "/");
+        final Node shape = fields.addNode("shape", UNSTRUCTURED);
         shape.setProperty("help", "What it looks like.");
-        final Node shapes = shape.addNode("choices", "nt:unstructured");
-        shapes.addNode("round", "nt:unstructured").setProperty("label", "Round");
-        shapes.addNode("squareChoice", "nt:unstructured").setProperty("value", "square");
-        dependsOnShape(fields.addNode("count", "nt:unstructured"), "round", "square");
-        dependsOnShape(fields.addNode("ratio", "nt:unstructured"), "square");
-        fields.addNode("flag", "nt:unstructured");
-        fields.addNode("keywords", "nt:unstructured");
-        fields.addNode("sizes", "nt:unstructured");
-        fields.addNode("due", "nt:unstructured");
-        fields.addNode("extra", "nt:unstructured").setProperty("label", "Only allowed by a residual definition");
+        final Node shapes = shape.addNode("choices", UNSTRUCTURED);
+        shapes.addNode("round", UNSTRUCTURED).setProperty("label", "Round");
+        shapes.addNode("squareChoice", UNSTRUCTURED).setProperty("value", "square");
+        dependsOnShape(fields.addNode("count", UNSTRUCTURED), "round", "square");
+        dependsOnShape(fields.addNode("ratio", UNSTRUCTURED), "square");
+        fields.addNode("flag", UNSTRUCTURED);
+        fields.addNode("keywords", UNSTRUCTURED);
+        fields.addNode("sizes", UNSTRUCTURED);
+        fields.addNode("due", UNSTRUCTURED);
+        fields.addNode("level", UNSTRUCTURED);
+        fields.addNode("weight", UNSTRUCTURED);
+        fields.addNode("visible", UNSTRUCTURED);
+        fields.addNode("colours", UNSTRUCTURED);
+        fields.addNode("extra", UNSTRUCTURED).setProperty("label", "Only allowed by a residual definition");
+        root.addNode("box", "test:Box");
+        root.addNode("shelf", "test:Shelf");
+        final Node types = root.addNode("create", UNSTRUCTURED).addNode("types", UNSTRUCTURED);
+        final Node listedItem = types.addNode("item", UNSTRUCTURED);
+        listedItem.setProperty("nodeType", "test:Item");
+        listedItem.setProperty("label", "Item");
+        types.addNode("box", UNSTRUCTURED).setProperty("nodeType", "test:Box");
+        types.addNode("unnamed", UNSTRUCTURED).setProperty("label", "Names no type");
+        types.addNode("abstract", UNSTRUCTURED).setProperty("nodeType", "data:Content");
+        types.addNode("ghost", UNSTRUCTURED).setProperty("nodeType", "test:Ghost");
         this.session.save();
+        final Resource create = context.resourceResolver().getResource("/create");
+        Mockito.when(this.creating.getPath()).thenReturn("/create");
+        Mockito.when(this.creating.getChild("types", Content.class))
+            .thenAnswer(invocation -> create.getChild("types").adaptTo(Content.class));
+        Mockito.when(this.creating.get("nameFrom", String[].class)).thenReturn(new String[] { "note", "title" });
+        Mockito.when(this.creating.getHandler()).thenReturn(CreateContentHandler.HANDLER_NAME);
         final Resource update = context.resourceResolver().getResource("/update");
         Mockito.when(this.activity.getPath()).thenReturn("/update");
         Mockito.when(this.activity.getChild("fields", Content.class))
@@ -113,9 +137,14 @@ final class FieldsFixture
         return this.activity;
     }
 
+    Activity creating()
+    {
+        return this.creating;
+    }
+
     private static void dependsOnShape(final Node field, final String... shapes) throws RepositoryException
     {
-        final Node applicability = field.addNode("appliesWhen", "nt:unstructured");
+        final Node applicability = field.addNode("appliesWhen", UNSTRUCTURED);
         applicability.setProperty("property", "shape");
         applicability.setProperty("values", shapes);
     }

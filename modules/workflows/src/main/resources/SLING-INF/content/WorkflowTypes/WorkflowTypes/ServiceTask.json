@@ -17,6 +17,7 @@
     "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
     "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
     "{https://iap.uhndata.io/bpmn}editable=editable[]",
-    "{https://iap.uhndata.io/bpmn}required=required[]"
+    "{https://iap.uhndata.io/bpmn}required=required[]",
+    "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]"
   ]
 }

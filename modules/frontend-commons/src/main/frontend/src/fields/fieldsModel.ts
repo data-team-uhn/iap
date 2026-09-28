@@ -40,6 +40,15 @@ export interface ContentField {
   choices?: FieldChoice[];
   // Applies only while that property holds one of these values; an empty property applies nowhere
   appliesWhen?: { property: string; values: string[] };
+  // What content of its type starts with, which is what it holds when it is not set
+  default?: string | number | boolean | (string | number | boolean)[];
+}
+
+// A type of content a create event would add inside a node, as the `creatable` serialization describes it
+export interface CreatableType {
+  type: string;
+  label: string;
+  fields: ContentField[];
 }
 
 export type SerializedNode = Record<string, unknown>;
@@ -63,6 +72,18 @@ const isField = (value: unknown): value is ContentField =>
 export const fieldsOf = (node: SerializedNode): ContentField[] =>
   Array.isArray(node["@fields"]) ? node["@fields"].filter(isField) : [];
 
+const isCreatable = (value: unknown): value is Record<string, unknown> & { type: string; label: string } =>
+  isObject(value) && typeof value.type === "string" && typeof value.label === "string";
+
+export const creatableOf = (node: SerializedNode): CreatableType[] =>
+  Array.isArray(node["@creatable"])
+    ? node["@creatable"].filter(isCreatable)
+      .map(entry => ({ type: entry.type, label: entry.label, fields: fieldsOf({ "@fields": entry.fields }) }))
+    : [];
+
+// What FieldsDialog edits to fill in new content of a type: nothing yet, and the fields it starts with
+export const newContentOf = (type: CreatableType): SerializedNode => ({ "@fields": type.fields });
+
 const isSwitch = (field: ContentField): boolean => field.kind === "boolean" && !field.multiple;
 
 // A stored value as text: a reference is serialized as the node it points at, or as its path
@@ -76,17 +97,19 @@ function textOf(value: unknown): string | undefined {
   return isObject(value) && typeof value["@path"] === "string" ? value["@path"] : undefined;
 }
 
-const storedTexts = (node: SerializedNode, name: string): string[] => {
-  const value = node[name];
+const textsOf = (value: unknown): string[] => {
   const values: unknown[] = Array.isArray(value) ? value : [ value ];
   return values.map(textOf).filter((text): text is string => text !== undefined);
 };
 
+const storedTexts = (node: SerializedNode, name: string): string[] => textsOf(node[name]);
+
 export const initialValue = (node: SerializedNode, field: ContentField): FieldValue => {
+  const value = node[field.name] ?? field.default;
   if (isSwitch(field)) {
-    return node[field.name] === true;
+    return value === true;
   }
-  const stored = storedTexts(node, field.name);
+  const stored = textsOf(value);
   return field.multiple ? stored : stored[0] ?? "";
 };
 
