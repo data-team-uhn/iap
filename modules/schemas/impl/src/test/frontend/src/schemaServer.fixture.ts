@@ -116,8 +116,11 @@ export const CONTENT: Record<string, Record<string, unknown>> = {
         "title": "Design",
         "arms": question({
           "jcr:uuid": "uuid-arms", "text": "Which arms does it have?", "minAnswers": 1, "maxAnswers": 0,
-          "displayMode": "list",
-          "placebo": option("placebo", "Placebo"), "drug": option("drug"),
+          "displayMode": "list", "@events": [ "update" ],
+          "@fields": [ { name: "text", label: "Question", kind: "text", mandatory: true, multiline: true } ],
+          "placebo": { ...option("placebo", "Placebo"), "@events": [ "update" ],
+            "@fields": [ { name: "label", label: "Label", kind: "text", mandatory: false, multiline: false } ] },
+          "drug": option("drug"),
         }),
         "age": question({
           "text": "Minimum age", "dataType": "long", "minAnswers": 2, "maxAnswers": 3, "minValue": 18, "maxValue": 99,

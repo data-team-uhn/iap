@@ -97,11 +97,22 @@ runs. An event no guard admits is refused with a 409, and `@events` (see
 | a version | `activate` | `retired`, schema not retired | tag it `active` |
 | a version | `retire` | `active` | tag it `retired` |
 | a version | `discard` | | delete it |
+| a requirement, section or question | `update` (`patch`) | | correct what it says (see below) |
+| an answer option | `update` (`patch`) | | correct its `label` or `description` |
 
 A **patch** is one JSON object in the `patch` parameter: a key left out is left alone, `null`
 removes the property, anything else is the new value. The whole patch is checked before anything is
 written, and only the fields the workflow lists in its `fields` are accepted: a published version
 keeps everything submissions may depend on, and only its wording can change.
+
+Parts and answer options can be **corrected** on any version, published ones included, and a
+correction reaches the submissions already filed against that version at once. A correction may not
+change what a stored answer means, which answers are valid, or which parts apply: those take a new
+version. What can be corrected is what people read and what guides reading answers out of documents:
+a requirement's `label` and `description`, a section's `title` and `description`, a question's `text`,
+`description`, `patternMessage`, `purpose` and `extractionPrompt`, a document requirement's
+`aiCheckPrompt`, and an option's `label` and `description`. An option's `value`, a question's data type,
+answer counts, bounds, pattern and conditions, and what a requirement requires, cannot.
 
 An editor learns which fields it may offer from the `fields` serialization: `@fields` on each schema
 and version lists the fields the requesting user's `update` would change there, with a label, a
