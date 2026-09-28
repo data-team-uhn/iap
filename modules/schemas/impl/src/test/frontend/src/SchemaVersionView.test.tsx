@@ -31,6 +31,10 @@ vi.mock("@iap/frontend-commons/actionsManager", () => ({
   getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
 }));
 
+// Which the test environment does not lay out, so it cannot scroll either
+const scrollIntoView = vi.fn();
+Element.prototype.scrollIntoView = scrollIntoView;
+
 afterEach(() => {
   vi.unstubAllGlobals();
   clearTagDefinitionsCache();
@@ -48,7 +52,12 @@ const renderVersion = (schema: string, version: string) => render(
 );
 
 // The card of the part with the given heading
-const card = async (heading: string) => (await screen.findByText(heading)).closest("li") as HTMLElement;
+const card = async (heading: string) =>
+  (await screen.findByText(heading, { ignore: "script, style, button *" })).closest("li") as HTMLElement;
+
+// The places something may move to, by what they are called
+const spots = () => screen.getAllByRole("button", { name: /^Move (before|to the end)/ })
+  .map(spot => spot.getAttribute("aria-label"));
 
 const expand = async (heading: string) =>
   fireEvent.click(await screen.findByRole("button", { name: `Expand ${heading}` }));
@@ -252,6 +261,128 @@ describe("SchemaVersionView", () => {
       .getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(posted.map(event => event.url))
       .toEqual([ "/Schemas/study/v3/intake/age.discard.json", "/Schemas/study/v3/intake/name/short.discard.json" ]));
+  });
+
+  it("moves a part before another, where nothing else can be done meanwhile", async () => {
+    const posted = serveSchemas({ answers: {
+      "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
+    } });
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Move" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Choose where the question goes. Each move is saved at once.");
+    expect(within(await card("Your age")).getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(await card("Intake")).queryByRole("button", { name: /^Edit|^Add|^Remove/ }))
+      .not.toBeInTheDocument();
+    // Only where it would go somewhere new, and only into what holds questions
+    expect(spots()).toEqual([ "Move before Your name", "Move to the end of Follow-up" ]);
+    fireEvent.click(screen.getByRole("button", { name: "Move before Your name" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/age.move.json"));
+    expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake", before: "name" });
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    // What moved is shown, and the actions are back
+    expect(document.activeElement).toBe(await card("Your age"));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    expect(screen.getByText("“Your age” was moved")).toBeInTheDocument();
+    expect(within(await card("Your age")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("moves a part to the end of a closed part, which opens to show it", async () => {
+    const posted = serveSchemas({ answers: {
+      "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/followUp/age" },
+    } });
+    renderVersion("study", "v3");
+
+    expect(await screen.findByRole("button", { name: "Expand Follow-up" })).toBeInTheDocument();
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Move" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move to the end of Follow-up" }));
+
+    await waitFor(() => expect(posted[0]?.params.get("parent")).toBe("/Schemas/study/v3/followUp"));
+    expect(posted[0].params.has("before")).toBe(false);
+    expect(await screen.findByRole("button", { name: "Collapse Follow-up" })).toBeInTheDocument();
+  });
+
+  it("moves a requirement to the end of the version", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Intake")).getAllByRole("button", { name: "Move" })[0]);
+    expect(screen.getByRole("status")).toHaveTextContent("Choose where the form goes.");
+    expect(spots()).toEqual([ "Move to the end" ]);
+    fireEvent.click(screen.getByRole("button", { name: "Move to the end" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.move.json"));
+    expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3" });
+  });
+
+  it("moves an option among the options of its question", async () => {
+    const posted = serveSchemas({ answers: {
+      "/Schemas/study/v3/intake/name/short.move.json": { redirect: "/Schemas/study/v3/intake/name/short" },
+    } });
+    renderVersion("study", "v3");
+
+    await expand("Your name");
+    fireEvent.click(within(screen.getByText("Short").closest("li") as HTMLElement)
+      .getByRole("button", { name: "Move" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Choose where the option goes.");
+    expect(spots()).toEqual([ "Move to the end of Your name" ]);
+    fireEvent.click(screen.getByRole("button", { name: "Move to the end of Your name" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name/short.move.json"));
+    expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake/name" });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByText("Short").closest("li")));
+    expect(screen.getByText("“Short” was moved")).toBeInTheDocument();
+  });
+
+  it("stops moving on Cancel, on Escape, or on the same Move again, giving the focus back", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    const move = within(await card("Your age")).getByRole("button", { name: "Move" });
+    // Where the places to move to push it, the page follows, so it stays under the pointer
+    const scrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", scrollBy);
+    vi.spyOn(move, "getBoundingClientRect")
+      .mockReturnValueOnce(DOMRect.fromRect({ y: 100 }))
+      .mockReturnValueOnce(DOMRect.fromRect({ y: 160 }));
+    fireEvent.click(move);
+    expect(scrollBy).toHaveBeenCalledWith(0, 60);
+    fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(move);
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(move);
+    fireEvent.keyDown(document, { key: "Enter" });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    fireEvent.click(move);
+    fireEvent.click(within(await card("Your name")).getByRole("button", { name: "Move" }));
+    expect(within(await card("Your age")).getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(within(await card("Your name")).getByRole("button", { name: "Move" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(posted).toEqual([]);
+  });
+
+  it("says why a move was refused, and lets another place be chosen", async () => {
+    const posted = serveSchemas({ answers: {
+      "/Schemas/study/v3/intake/age.move.json": { status: 400, error: "Your age cannot move there." },
+    } });
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Move" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move before Your name" }));
+    expect(screen.getByRole("button", { name: "Move before Your name" })).toBeDisabled();
+
+    const said = await screen.findByText("Your age cannot move there.");
+    expect(screen.getByRole("button", { name: "Move before Your name" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move to the end of Follow-up" }));
+    await waitFor(() => expect(posted).toHaveLength(2));
+    // Said again, so a second refusal is noticed too
+    await waitFor(() => expect(screen.getByText("Your age cannot move there.")).not.toBe(said));
   });
 
   it("collapses what it contains", async () => {
