@@ -379,26 +379,10 @@ later one's:
 | `/admin/workflows/Workflows/review/2-0` | That version's diagram, read-only |
 | `/admin/workflows/Workflows/review/2-0.edit` | The same diagram, editable — drafts only |
 
-**The page is asked for by a suffix rather than by a path segment**, because the viewer and the editor are
-not one inside the other. They are the same version seen two ways, reached from the same listing, and
-neither reports anything the other does not — so the editor is a mode of one page rather than a page below
-it: the same URL, the same crumb, asked a second way. `.edit` is how every other view in the application
-asks for that mode (`/Submissions/name.edit`), and a segment would have been read as a version named
-`edit`, since no segment below a homepage is reserved. The server serves the shell for it — `edit.GET.html`
-beside the shell script of the resource type every application page carries — so the URL survives being
-opened, bookmarked or reloaded directly, and the client router takes the suffix off to find the version.
-
 Each screen offers the way to the others: a draft being looked at offers **Edit**, and the editor offers
 **Save**, **Save and view**, and **Save and close** — the same save, differing only in where it leaves the
 user afterwards. A save the engine refuses navigates nowhere, since leaving would take the only copy of
 what was drawn with it.
-
-**A listing belongs to a homepage, and `/admin/workflows` is not a page.** The shallowest thing the console
-shows is a homepage: the root addresses nothing, so it redirects to the listing of `/Workflows`, the
-homepage every deployment has. It is routed only to be redirected — a URL easy to type, and easy to trim a
-longer console URL down to, that otherwise renders a blank page — and it is not named, so it is a way in
-rather than a step in the trail. The dashboard widget's "Manage workflows" action leads to that same
-listing directly, and each homepage the widget counts links to its own listing beside it.
 
 **Every prefix down to the homepage is a page in its own right**, which is the whole point of the shape:
 dropping a segment moves up to the thing that contained what was being looked at, so a breadcrumb built by
