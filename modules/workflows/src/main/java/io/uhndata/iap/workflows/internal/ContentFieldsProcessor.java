@@ -125,12 +125,47 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
     private static JsonArrayBuilder describe(final List<ContentFields.Field> fields)
     {
         final JsonArrayBuilder described = Json.createArrayBuilder();
-        fields.forEach(field -> described.add(Json.createObjectBuilder()
-            .add("name", field.name())
-            .add("label", field.label())
-            .add("kind", field.reference() ? "reference" : "text")
-            .add("mandatory", field.mandatory())
-            .add("multiline", field.multiline())));
+        for (final ContentFields.Field field : fields) {
+            final ContentFields.Description description = field.description();
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add("name", field.name())
+                .add("label", description.label())
+                .add("kind", field.kind().getName())
+                .add("multiple", field.multiple())
+                .add("mandatory", field.mandatory())
+                .add("multiline", description.multiline());
+            addIfSet(json, "help", description.help());
+            addIfSet(json, "referenceType", description.referenceType());
+            addIfSet(json, "referenceRoot", description.referenceRoot());
+            if (!description.choices().isEmpty()) {
+                final JsonArrayBuilder choices = Json.createArrayBuilder();
+                description.choices().forEach(choice -> choices.add(Json.createObjectBuilder()
+                    .add("value", choice.value())
+                    .add("label", choice.label())));
+                json.add("choices", choices);
+            }
+            if (description.appliesWhen() != null) {
+                final ContentFields.Applicability applicability = description.appliesWhen();
+                json.add("appliesWhen", Json.createObjectBuilder()
+                    .add("property", Objects.requireNonNullElse(applicability.property(), ""))
+                    .add("values", Json.createArrayBuilder(applicability.values())));
+            }
+            described.add(json);
+        }
         return described;
+    }
+
+    /**
+     * Adds an optional text to a field's description.
+     *
+     * @param json the field's description
+     * @param name the key
+     * @param value the text, left out when not set
+     */
+    private static void addIfSet(final JsonObjectBuilder json, final String name, final String value)
+    {
+        if (value != null) {
+            json.add(name, value);
+        }
     }
 }

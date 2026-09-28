@@ -20,9 +20,10 @@ import { createContext, useContext, useState } from "react";
 
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
+import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
+import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import DetailsDialog, { editableText } from "./DetailsDialog";
 import { ActionIcon } from "./EventAction";
 import { patch, sendEvent } from "./schemaEvents";
 import { type JcrNode, offers, pathOf } from "./schemaModel";
@@ -36,14 +37,14 @@ function SchemaNodeEditAction({ node, title }: { node: JcrNode; title: string })
   const [ editing, setEditing ] = useState(false);
   const doFetch = useAuthenticatedFetch();
   const reload = useContext(ReloadTree);
-  if (!offers(node, "update") || editableText(node).length === 0) {
+  if (!offers(node, "update") || fieldsOf(node).length === 0) {
     return null;
   }
   return (
     <>
       <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
       { editing && (
-        <DetailsDialog
+        <FieldsDialog
           title={title}
           node={node}
           onSave={async changes => {

@@ -17,10 +17,14 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
+import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -43,6 +47,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link UpdateContentHandler}: a patch applied to the fields the activity lists and the content's
@@ -92,8 +97,127 @@ class UpdateContentHandlerTest
         update("{\"link\": \"/other\"}");
 
         assertEquals(this.fixture.other().getIdentifier(), this.fixture.item().getProperty("link").getString());
+        this.fixture.other().addNode("part", "test:Item").setProperty("title", "A part of another item");
+        this.fixture.session().save();
+        update("{\"weakLink\": \"/other/part\", \"link\": \"\"}");
+        assertEquals(PropertyType.WEAKREFERENCE, this.fixture.item().getProperty("weakLink").getType());
+        assertFalse(this.fixture.item().hasProperty("link"));
+        // Only what is under the field's root
+        assertThrows(InvalidPayloadException.class, () -> update("{\"weakLink\": \"/other\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"weakLink\": \"/item\"}"));
         assertThrows(InvalidPayloadException.class, () -> update("{\"link\": \"/nowhere\"}"));
         assertThrows(InvalidPayloadException.class, () -> update("{\"link\": \"/update\"}"));
+    }
+
+    @Test
+    void setsNumbersAndTruthValues() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        update("{\"shape\": \"square\", \"count\": 3, \"ratio\": 0.5, \"flag\": true}");
+
+        final Node item = this.fixture.item();
+        assertEquals(PropertyType.LONG, item.getProperty("count").getType());
+        assertEquals(3, item.getProperty("count").getLong());
+        assertEquals(0.5, item.getProperty("ratio").getDouble());
+        assertTrue(item.getProperty("flag").getBoolean());
+        update("{\"flag\": false, \"ratio\": 2}");
+        assertFalse(item.getProperty("flag").getBoolean());
+        assertEquals(2.0, item.getProperty("ratio").getDouble());
+    }
+
+    @Test
+    void refusesValuesOfTheWrongKind()
+    {
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"round\", \"count\": \"3\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"round\", \"count\": 1.5}"));
+        assertThrows(InvalidPayloadException.class,
+            () -> update("{\"shape\": \"round\", \"count\": 99999999999999999999}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"square\", \"ratio\": \"x\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"flag\": \"yes\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"note\": [\"x\"]}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"keywords\": \"x\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"sizes\": [\"x\"]}"));
+        // Declared, but of a kind no patch can set
+        assertThrows(InvalidPayloadException.class, () -> update("{\"due\": \"2026-09-27\"}"));
+    }
+
+    @Test
+    void keepsToTheChoices() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        update("{\"shape\": \"round\"}");
+        assertEquals("round", this.fixture.item().getProperty("shape").getString());
+        update("{\"shape\": \"square\"}");
+        assertEquals("square", this.fixture.item().getProperty("shape").getString());
+
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"squareChoice\"}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"triangle\"}"));
+    }
+
+    @Test
+    void setsOnlyTheFieldsThatApply() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        assertThrows(InvalidPayloadException.class, () -> update("{\"count\": 3}"));
+        assertThrows(InvalidPayloadException.class, () -> update("{\"shape\": \"round\", \"ratio\": 1}"));
+
+        update("{\"count\": 3, \"shape\": \"round\"}");
+        assertEquals(3, this.fixture.item().getProperty("count").getLong());
+        // Clearing a field that does not apply is not refused
+        update("{\"ratio\": null}");
+    }
+
+    @Test
+    void removesTheFieldsThatStopApplying() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        update("{\"shape\": \"square\", \"count\": 3, \"ratio\": 0.5}");
+
+        update("{\"shape\": \"round\"}");
+        assertTrue(this.fixture.item().hasProperty("count"));
+        assertFalse(this.fixture.item().hasProperty("ratio"));
+        update("{\"shape\": null}");
+        assertFalse(this.fixture.item().hasProperty("count"));
+    }
+
+    @Test
+    void keepsAMandatoryFieldThatStopsApplying() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        final Node applicability =
+            this.fixture.session().getNode("/update/fields/title").addNode("appliesWhen", "nt:unstructured");
+        applicability.setProperty("property", "keywords");
+        applicability.setProperty("values", new String[] { "titled" });
+        this.fixture.session().save();
+
+        update("{\"keywords\": [\"untitled\"]}");
+        update("{\"note\": \"x\"}");
+
+        assertEquals("The item", this.fixture.item().getProperty("title").getString());
+        assertThrows(InvalidPayloadException.class, () -> update("{\"title\": \"Renamed\"}"));
+        update("{\"keywords\": [\"untitled\", \"titled\"], \"title\": \"Renamed\"}");
+        assertEquals("Renamed", this.fixture.item().getProperty("title").getString());
+    }
+
+    @Test
+    void appliesNowhereWhenTheDependencyIsNotNamed() throws RepositoryException
+    {
+        this.fixture.session().getNode("/update/fields/note").addNode("appliesWhen", "nt:unstructured");
+        this.fixture.session().save();
+
+        assertThrows(InvalidPayloadException.class, () -> update("{\"note\": \"x\"}"));
+    }
+
+    @Test
+    void setsSeveralValues() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        update("{\"keywords\": [\" a \", \"\", \"b\"], \"sizes\": [2, 1],"
+            + " \"related\": [\"/other\", \"/item\"]}");
+
+        final Node item = this.fixture.item();
+        assertEquals(List.of("a", "b"), strings(item.getProperty("keywords").getValues()));
+        assertEquals(PropertyType.LONG, item.getProperty("sizes").getType());
+        assertEquals(List.of("2", "1"), strings(item.getProperty("sizes").getValues()));
+        assertEquals(List.of(this.fixture.other().getIdentifier(), item.getIdentifier()),
+            strings(item.getProperty("related").getValues()));
+        update("{\"keywords\": [], \"sizes\": null}");
+        assertFalse(item.hasProperty("keywords"));
+        assertFalse(item.hasProperty("sizes"));
     }
 
     @Test
@@ -146,6 +270,15 @@ class UpdateContentHandlerTest
         Mockito.when(task.getTarget()).thenReturn(host);
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
+    }
+
+    private static List<String> strings(final Value[] values) throws RepositoryException
+    {
+        final List<String> strings = new ArrayList<>();
+        for (final Value value : values) {
+            strings.add(value.getString());
+        }
+        return strings;
     }
 
     private void update(final String patch) throws WorkflowException, PersistenceException, RepositoryException

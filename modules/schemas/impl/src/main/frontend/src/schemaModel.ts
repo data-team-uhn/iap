@@ -22,15 +22,6 @@
 
 export type JcrNode = Record<string, unknown>;
 
-// A field an update would change, as the `fields` serialization describes it
-export interface EditableField {
-  name: string;
-  label: string;
-  kind: string;
-  mandatory: boolean;
-  multiline: boolean;
-}
-
 export const SCHEMAS_ROOT = "/Schemas";
 
 const isNode = (value: unknown, primaryType: string): value is JcrNode =>
@@ -78,13 +69,6 @@ export const schemasOf = (homepage: JcrNode): JcrNode[] =>
 
 // Whether the server would take this event on a schema or a version from the current user
 export const offers = (node: JcrNode, event: string): boolean => strings(node["@events"]).includes(event);
-
-const isField = (value: unknown): value is EditableField =>
-  typeof value === "object" && value !== null
-    && typeof (value as EditableField).name === "string" && typeof (value as EditableField).label === "string";
-
-export const fieldsOf = (node: JcrNode): EditableField[] =>
-  Array.isArray(node["@fields"]) ? (node["@fields"] as unknown[]).filter(isField) : [];
 
 export interface SchemaCounts {
   active: number;

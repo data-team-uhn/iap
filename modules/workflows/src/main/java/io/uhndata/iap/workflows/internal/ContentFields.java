@@ -33,11 +33,13 @@ import io.uhndata.iap.workflows.models.Activity;
 
 /**
  * The fields an update activity lets change on a node. The activity lists them, in the order they are edited, as
- * the children of its {@code fields} node, each with how it is presented: a {@code label}, whether it runs over
- * several lines ({@code multiline}), and for a reference the resource type it must point at
- * ({@code referenceType}). The node's own type decides the rest: a field applies only if the type declares it by
- * name, not through a residual definition, and the declaration says whether it is mandatory and whether it holds
- * text or a reference. So one activity may serve several types of content, each keeping to its own fields.
+ * the children of its {@code fields} node, each with how it is presented: a {@code label}, a short {@code help}
+ * text, whether it runs over several lines ({@code multiline}), for a reference the resource type it must point at
+ * ({@code referenceType}), the values it may take ({@code choices}), and the value of another property it depends
+ * on ({@code appliesWhen}). The node's own type decides the rest: a field applies only if the type declares it by
+ * name, not through a residual definition, and the declaration says whether it is mandatory, whether it holds one
+ * value or several, and of which kind. So one activity may serve several types of content, each keeping to its own
+ * fields.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,25 +50,82 @@ final class ContentFields
     static final String FIELDS = "fields";
 
     /**
-     * One field an update may change on a node.
+     * What a field holds, as told by the type of its declaration.
      *
-     * @param name the property name
-     * @param label what it is called where it is edited
-     * @param mandatory whether it may not be removed or left blank
-     * @param multiline whether its text runs over several lines
-     * @param reference whether it holds a reference to another node, given as that node's path
-     * @param referenceType for a reference, the resource type the referenced node must have, if any
      * @version $Id$
      * @since 0.1.0
      */
-    record Field(String name, String label, boolean mandatory, boolean multiline, boolean reference,
-        String referenceType)
+    enum Kind
+    {
+        /** Text. */
+        TEXT("text"),
+        /** A whole number. */
+        LONG("long"),
+        /** A number. */
+        DOUBLE("double"),
+        /** True or false. */
+        BOOLEAN("boolean"),
+        /** Another node, given as its path. */
+        REFERENCE("reference");
+
+        private final String name;
+
+        Kind(final String name)
+        {
+            this.name = name;
+        }
+
+        /**
+         * What the kind is called where fields are described.
+         *
+         * @return the name
+         */
+        String getName()
+        {
+            return this.name;
+        }
+
+        /**
+         * The kind of a property type.
+         *
+         * @param type a {@link PropertyType}
+         * @return the kind, empty for a type no field can be edited as
+         */
+        static Optional<Kind> of(final int type)
+        {
+            return Optional.ofNullable(switch (type) {
+                case PropertyType.STRING -> TEXT;
+                case PropertyType.LONG -> LONG;
+                case PropertyType.DOUBLE -> DOUBLE;
+                case PropertyType.BOOLEAN -> BOOLEAN;
+                case PropertyType.REFERENCE, PropertyType.WEAKREFERENCE -> REFERENCE;
+                default -> null;
+            });
+        }
+    }
+
+    /**
+     * One value a field may take.
+     *
+     * @param value the value, the choice's name unless it says otherwise
+     * @param label what it is called where it is picked, the value itself unless it says otherwise
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Choice(String value, String label)
     {
     }
 
-    private ContentFields()
+    /**
+     * When a field applies: while another property of the same node holds one of some values.
+     *
+     * @param property the property it depends on; without one, the field applies nowhere
+     * @param values the values of that property it applies with
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Applicability(String property, List<String> values)
     {
-        // Utility class
     }
 
     /**
@@ -74,13 +133,47 @@ final class ContentFields
      *
      * @param name the property name
      * @param label what it is called where it is edited
+     * @param help a short explanation shown where it is edited, if any
      * @param multiline whether its text runs over several lines
      * @param referenceType for a reference, the resource type the referenced node must have, if any
+     * @param referenceRoot for a reference, the path the referenced node must be under, if any
+     * @param choices the values it may take, or none when it may take any
+     * @param appliesWhen when it applies, or {@code null} when it always does
      * @version $Id$
      * @since 0.1.0
      */
-    record Description(String name, String label, boolean multiline, String referenceType)
+    record Description(String name, String label, String help, boolean multiline, String referenceType,
+        String referenceRoot, List<Choice> choices, Applicability appliesWhen)
     {
+    }
+
+    /**
+     * One field an update may change on a node.
+     *
+     * @param description how the activity presents it
+     * @param kind what it holds
+     * @param weak for a reference, whether it is a weak one
+     * @param multiple whether it holds several values
+     * @param mandatory whether it may not be removed or left blank
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Field(Description description, Kind kind, boolean weak, boolean multiple, boolean mandatory)
+    {
+        /**
+         * The property name.
+         *
+         * @return the name
+         */
+        String name()
+        {
+            return this.description.name();
+        }
+    }
+
+    private ContentFields()
+    {
+        // Utility class
     }
 
     /**
@@ -98,7 +191,9 @@ final class ContentFields
         return fields.getChildren(Content.class).stream()
             .map(field -> new Description(field.getName(),
                 Objects.requireNonNullElse(field.get("label", String.class), field.getName()),
-                Boolean.TRUE.equals(field.get("multiline", Boolean.class)), field.get("referenceType", String.class)))
+                field.get("help", String.class), Boolean.TRUE.equals(field.get("multiline", Boolean.class)),
+                field.get("referenceType", String.class), field.get("referenceRoot", String.class), choices(field),
+                applicability(field)))
             .toList();
     }
 
@@ -115,13 +210,64 @@ final class ContentFields
         final List<Field> editable = new ArrayList<>();
         for (final Description field : described) {
             final Optional<PropertyDefinition> declared = declaration(node, field.name());
-            if (declared.isPresent()) {
-                final int type = declared.get().getRequiredType();
-                editable.add(new Field(field.name(), field.label(), declared.get().isMandatory(), field.multiline(),
-                    type == PropertyType.REFERENCE || type == PropertyType.WEAKREFERENCE, field.referenceType()));
+            final Optional<Kind> kind = declared.flatMap(definition -> Kind.of(definition.getRequiredType()));
+            if (kind.isPresent()) {
+                editable.add(new Field(field, kind.get(),
+                    declared.get().getRequiredType() == PropertyType.WEAKREFERENCE, declared.get().isMultiple(),
+                    declared.get().isMandatory()));
             }
         }
         return editable;
+    }
+
+    /**
+     * Whether a field applies, given the values of the property it depends on.
+     *
+     * @param field the field
+     * @param values the values that property holds, as text
+     * @return whether it applies
+     */
+    static boolean applies(final Field field, final List<String> values)
+    {
+        final Applicability applicability = field.description().appliesWhen();
+        return applicability == null || applicability.property() != null
+            && values.stream().anyMatch(applicability.values()::contains);
+    }
+
+    /**
+     * The values a field description allows, from its {@code choices} children.
+     *
+     * @param field a field description
+     * @return the choices, in order, none when it allows any value
+     */
+    private static List<Choice> choices(final Content field)
+    {
+        final Content choices = field.getChild("choices", Content.class);
+        if (choices == null) {
+            return List.of();
+        }
+        return choices.getChildren(Content.class).stream()
+            .map(choice -> {
+                final String value = Objects.requireNonNullElse(choice.get("value", String.class), choice.getName());
+                return new Choice(value, Objects.requireNonNullElse(choice.get("label", String.class), value));
+            })
+            .toList();
+    }
+
+    /**
+     * When a field description says it applies, from its {@code appliesWhen} child.
+     *
+     * @param field a field description
+     * @return when it applies, or {@code null} when it always does
+     */
+    private static Applicability applicability(final Content field)
+    {
+        final Content applicability = field.getChild("appliesWhen", Content.class);
+        if (applicability == null) {
+            return null;
+        }
+        return new Applicability(applicability.get("property", String.class),
+            List.of(Objects.requireNonNullElse(applicability.get("values", String[].class), new String[0])));
     }
 
     /**
@@ -139,7 +285,7 @@ final class ContentFields
         types.add(0, node.getPrimaryNodeType());
         for (final NodeType type : types) {
             for (final PropertyDefinition definition : type.getPropertyDefinitions()) {
-                if (definition.getName().equals(name) && !definition.isMultiple() && !definition.isProtected()) {
+                if (definition.getName().equals(name) && !definition.isProtected()) {
                     return Optional.of(definition);
                 }
             }
