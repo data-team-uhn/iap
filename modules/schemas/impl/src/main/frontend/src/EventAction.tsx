@@ -27,7 +27,7 @@ import { sendEvent } from "./schemaEvents";
 
 interface EventActionProps {
   path: string;
-  reload: () => void;
+  reload: () => void | Promise<void>;
   report: (message: string) => void;
   label: string;
   event: string;
@@ -56,7 +56,7 @@ export function EventAction(props: EventActionProps) {
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
             report(done);
-            reload();
+            await reload();
           }}
           onClose={() => setConfirming(false)}
         >

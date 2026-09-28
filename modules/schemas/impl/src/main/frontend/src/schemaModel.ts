@@ -59,6 +59,20 @@ export const versionsOf = (schema: JcrNode): JcrNode[] => Object.values(schema)
   .filter(value => isNode(value, "sch:SchemaVersion"))
   .sort((one, other) => labelOf(one).localeCompare(labelOf(other), undefined, { numeric: true }));
 
+const createdOf = (version: JcrNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
+
+// The version made most recently, which a new version is most likely a revision of
+export const latestVersion = (schema: JcrNode): JcrNode | undefined => versionsOf(schema)
+  .reduce<JcrNode | undefined>((latest, version) =>
+    latest && createdOf(latest) > createdOf(version) ? latest : version, undefined);
+
+// The label a new version would most likely have: the next whole number after the highest numeric label
+export function nextVersionLabel(schema: JcrNode): string {
+  const versions = versionsOf(schema);
+  const numbers = versions.map(version => Number.parseFloat(labelOf(version))).filter(Number.isFinite);
+  return `${numbers.length > 0 ? Math.floor(Math.max(...numbers)) + 1 : versions.length + 1}.0`;
+}
+
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
 

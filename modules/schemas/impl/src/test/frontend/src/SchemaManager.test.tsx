@@ -188,6 +188,25 @@ describe("SchemaManager", () => {
     expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/trial");
     expect(posted[0].params.get("title")).toBe("Trial");
     expect(posted[0].params.get("version")).toBe("2026");
+    expect(posted[0].params.get("source")).toBeNull();
+  });
+
+  it("starts a schema as a copy of any schema's version", async () => {
+    const posted = serveSchemas({ answers: { "/Schemas.create.json": { redirect: "/Schemas/trial" } } });
+    renderManager();
+
+    const dialog = await fillNewSchema("Trial");
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "Start from" }));
+    // Grouped under their schemas
+    expect(await screen.findByRole("option", { name: /A copy of version 2\.0/ })).toBeInTheDocument();
+    expect(screen.getByText("Idea", { selector: "li" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: /A copy of version 2\.0/ }));
+    expect(within(dialog).getByRole("combobox", { name: "Start from" }))
+      .toHaveTextContent("A copy of version 2.0 of Clinical study");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/trial");
+    expect(posted[0].params.get("source")).toBe("/Schemas/study/v2");
   });
 
   it("keeps the dialog open with the engine's reason when creation is refused", async () => {
