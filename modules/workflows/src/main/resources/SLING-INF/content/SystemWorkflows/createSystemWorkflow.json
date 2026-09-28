@@ -30,12 +30,12 @@
       "toVersion": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toVersion",
-        "targetRef": "version"
+        "targetRef": "firstVersion"
       }
     },
-    "version": {
+    "firstVersion": {
       "jcr:primaryType": "wf:Activity",
-      "elementId": "version",
+      "elementId": "firstVersion",
       "label": "Create its first version",
       "handler": "createWorkflowVersion",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
