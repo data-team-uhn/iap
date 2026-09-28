@@ -32,5 +32,6 @@
   <modules>
     <module>token</module>
     <module>oidc</module>
+    <module>author</module>
   </modules>
 </project>
