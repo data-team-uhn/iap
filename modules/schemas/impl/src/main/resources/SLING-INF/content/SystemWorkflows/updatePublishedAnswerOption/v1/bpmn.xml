@@ -23,11 +23,26 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
                   xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
-                  id="updateAnswerOptionDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/updateAnswerOption">
+                  id="updatePublishedAnswerOptionDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/updatePublishedAnswerOption">
   <bpmn:message id="updateMessage" name="update" />
-  <bpmn:process id="updateAnswerOption" name="Correct an answer option" isExecutable="true">
+  <bpmn:process id="updatePublishedAnswerOption" name="Correct an answer option of a published schema version" isExecutable="true">
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+          <sv:property sv:name="comparator"><sv:value>excludes</sv:value></sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>tags</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:outgoing>toUpdate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
@@ -55,8 +70,8 @@
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="updateAnswerOptionDiagram">
-    <bpmndi:BPMNPlane id="updateAnswerOptionPlane" bpmnElement="updateAnswerOption">
+  <bpmndi:BPMNDiagram id="updatePublishedAnswerOptionDiagram">
+    <bpmndi:BPMNPlane id="updatePublishedAnswerOptionPlane" bpmnElement="updatePublishedAnswerOption">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
