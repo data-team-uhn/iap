@@ -286,6 +286,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 | `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
+| `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
 transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
@@ -298,6 +299,16 @@ own workflow creates the first version and tags it. The chained workflow runs in
 same session and the same commit, so either both happen or neither does. It is matched, guarded and authorized
 like any event, for the same user; the caller is still answered with what the first workflow created.
 Workflows sending events to each other more than ten deep are taken to be looping, and refused.
+
+`copyContent` is how a workflow starts something as a copy of something else, e.g. a schema version from
+another. The copy is made with the `ContentCopier` service (`java-utils`), which copies any structure node by
+node in the engine's commit: names, types, order and binaries are kept, references inside the copy point at the
+copies and references outside are kept, and protected properties and modification stamps are left out.
+`sourceType` refuses any other kind of source, `skipProperties` leaves out properties of the source node
+itself, such as a label the copy has its own of, and `dropTagCategories` leaves out its tags in those
+categories. What a module maintains rather than stores, it keeps out of copies, or adjusts in them, with a
+`CopyParticipant`: the tags module leaves out computed tags, the links module the links container, and the
+conditions module points `answer` operands at the copied questions.
 
 ## Sling Models
 

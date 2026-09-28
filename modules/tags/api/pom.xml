@@ -123,6 +123,12 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- Contributing to content copies -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
