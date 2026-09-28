@@ -25,6 +25,7 @@ import java.util.Optional;
 import javax.jcr.Node;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.PropertyDefinition;
 
@@ -155,10 +156,12 @@ final class ContentFields
      * @param weak for a reference, whether it is a weak one
      * @param multiple whether it holds several values
      * @param mandatory whether it may not be removed or left blank
+     * @param defaults the values new content starts with, none when it starts without
      * @version $Id$
      * @since 0.1.0
      */
-    record Field(Description description, Kind kind, boolean weak, boolean multiple, boolean mandatory)
+    record Field(Description description, Kind kind, boolean weak, boolean multiple, boolean mandatory,
+        List<Value> defaults)
     {
         /**
          * The property name.
@@ -207,14 +210,28 @@ final class ContentFields
      */
     static List<Field> editable(final List<Description> described, final Node node) throws RepositoryException
     {
+        final List<NodeType> types = new ArrayList<>(List.of(node.getMixinNodeTypes()));
+        types.add(0, node.getPrimaryNodeType());
+        return editable(described, types);
+    }
+
+    /**
+     * The fields listed that some node types declare, in the listed order.
+     *
+     * @param described the fields an activity lists
+     * @param types the types of a node an update would change, the primary one first
+     * @return the fields that apply to such a node
+     */
+    static List<Field> editable(final List<Description> described, final List<NodeType> types)
+    {
         final List<Field> editable = new ArrayList<>();
         for (final Description field : described) {
-            final Optional<PropertyDefinition> declared = declaration(node, field.name());
+            final Optional<PropertyDefinition> declared = declaration(types, field.name());
             final Optional<Kind> kind = declared.flatMap(definition -> Kind.of(definition.getRequiredType()));
             if (kind.isPresent()) {
-                editable.add(new Field(field, kind.get(),
-                    declared.get().getRequiredType() == PropertyType.WEAKREFERENCE, declared.get().isMultiple(),
-                    declared.get().isMandatory()));
+                final PropertyDefinition definition = declared.get();
+                editable.add(new Field(field, kind.get(), definition.getRequiredType() == PropertyType.WEAKREFERENCE,
+                    definition.isMultiple(), definition.isMandatory(), defaults(definition)));
             }
         }
         return editable;
@@ -271,18 +288,26 @@ final class ContentFields
     }
 
     /**
-     * How a node's type declares a property by name, if it does.
+     * The values a declaration gives new content.
      *
-     * @param node the node
+     * @param definition a property declaration
+     * @return its default values when it is autocreated, else none
+     */
+    private static List<Value> defaults(final PropertyDefinition definition)
+    {
+        final Value[] defaults = definition.isAutoCreated() ? definition.getDefaultValues() : null;
+        return defaults == null ? List.of() : List.of(defaults);
+    }
+
+    /**
+     * How some node types declare a property by name, if one does.
+     *
+     * @param types the node types, in the order they are consulted
      * @param name the property name
      * @return the declaration, empty when the property is only allowed by a residual definition or not at all
-     * @throws RepositoryException when the node's type cannot be read
      */
-    private static Optional<PropertyDefinition> declaration(final Node node, final String name)
-        throws RepositoryException
+    private static Optional<PropertyDefinition> declaration(final List<NodeType> types, final String name)
     {
-        final List<NodeType> types = new ArrayList<>(List.of(node.getMixinNodeTypes()));
-        types.add(0, node.getPrimaryNodeType());
         for (final NodeType type : types) {
             for (final PropertyDefinition definition : type.getPropertyDefinitions()) {
                 if (definition.getName().equals(name) && !definition.isProtected()) {
