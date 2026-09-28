@@ -125,7 +125,7 @@ describe("SchemaVersionActions", () => {
     expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ version: "3.1" });
   });
 
-  it("offers only the text fields the update would change", async () => {
+  it("offers only the fields the update would change", async () => {
     serveSchemas();
     renderActions("v2");
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
@@ -137,12 +137,17 @@ describe("SchemaVersionActions", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("leaves out the fields it cannot edit as text", async () => {
-    serveSchemas();
+  it("picks the workflow a draft follows among the workflows", async () => {
+    const posted = serveSchemas();
     renderActions("v3");
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     const draft = await screen.findByRole("dialog");
-    expect(within(draft).getByLabelText(/Label/)).toBeInTheDocument();
-    expect(within(draft).queryByLabelText(/Workflow/)).not.toBeInTheDocument();
+    fireEvent.mouseDown(within(draft).getByRole("combobox", { name: "Workflow" }));
+    // Named by their title, or else by where they are under the workflows
+    expect(await screen.findByRole("option", { name: "review/v1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Fast track" }));
+    fireEvent.click(within(draft).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ workflow: "/Workflows/fastTrack/v2" });
   });
 });

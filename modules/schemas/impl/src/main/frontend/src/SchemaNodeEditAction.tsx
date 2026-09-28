@@ -21,12 +21,12 @@ import { createContext, useContext, useState } from "react";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
+import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import DetailsDialog, { editableText } from "./DetailsDialog";
 import { type JcrNode, pathOf } from "./schemaModel";
-import { patch } from "./schemaPatch";
 
 // How a correction made anywhere in a version's tree re-reads the tree
 export const ReloadTree = createContext<() => void>(() => undefined);
@@ -37,14 +37,14 @@ function SchemaNodeEditAction({ node, title }: { node: JcrNode; title: string })
   const [ editing, setEditing ] = useState(false);
   const doFetch = useAuthenticatedFetch();
   const reload = useContext(ReloadTree);
-  if (!offers(node, "update") || editableText(node).length === 0) {
+  if (!offers(node, "update") || fieldsOf(node).length === 0) {
     return null;
   }
   return (
     <>
       <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
       { editing && (
-        <DetailsDialog
+        <FieldsDialog
           title={title}
           node={node}
           onSave={async changes => {

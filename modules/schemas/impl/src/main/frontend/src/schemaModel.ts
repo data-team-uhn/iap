@@ -24,15 +24,6 @@ import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNum
 
 export type JcrNode = Record<string, unknown>;
 
-// A field an update would change, as the `fields` serialization describes it
-export interface EditableField {
-  name: string;
-  label: string;
-  kind: string;
-  mandatory: boolean;
-  multiline: boolean;
-}
-
 export const SCHEMAS_ROOT = "/Schemas";
 
 // How listings read schemas and versions. `simple` drops the repository's bookkeeping, and with a
@@ -81,13 +72,6 @@ export const nextVersionLabel = (schema: JcrNode): string =>
 
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
-
-const isField = (value: unknown): value is EditableField =>
-  typeof value === "object" && value !== null
-    && typeof (value as EditableField).name === "string" && typeof (value as EditableField).label === "string";
-
-export const fieldsOf = (node: JcrNode): EditableField[] =>
-  Array.isArray(node["@fields"]) ? (node["@fields"] as unknown[]).filter(isField) : [];
 
 export interface SchemaCounts {
   active: number;

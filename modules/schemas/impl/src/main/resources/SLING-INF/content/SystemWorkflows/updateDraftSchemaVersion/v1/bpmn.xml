@@ -63,6 +63,7 @@
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Workflow</sv:value></sv:property>
             <sv:property sv:name="referenceType"><sv:value>wf/WorkflowVersion</sv:value></sv:property>
+            <sv:property sv:name="referenceRoot"><sv:value>/Workflows</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
