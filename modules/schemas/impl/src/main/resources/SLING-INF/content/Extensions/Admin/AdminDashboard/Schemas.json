@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:widgetGroup": "Configuration",
+  "ext:name": "Schemas",
+  "ext:subtitle": "Define what submissions are asked for, and publish or retire their versions",
+  "ext:targetURL": "/admin/schemas",
+  "ext:actionLabel": "Manage",
+  "ext:renderURL": "asset:iap-schemas.SchemasWidget.js",
+  "defaultOrder": 5
+}

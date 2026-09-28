@@ -49,7 +49,7 @@ The landing page arranges the tools into collapsible
 
 | Group | Order | For |
 |---|---|---|
-| `Configuration` | 10 | Setting up how the platform behaves: the categories, workflows and models it runs on |
+| `Configuration` | 10 | Setting up how the platform behaves: the schemas, categories, workflows and models it runs on |
 | `Operations` | 20 | Keeping an instance healthy day to day: faults to triage, archived items, caught mail |
 
 A tool names its group with `"ext:widgetGroup": "Configuration"`. Choose by what the
@@ -160,6 +160,7 @@ any repository content.
 
 | Tool | Path | Module | Group | `defaultOrder` |
 |---|---|---|---|---|
+| Schemas | `/admin/schemas` | `schemas/impl` | Configuration | 5 |
 | Submission categories | `/admin/categories` | `categories` | Configuration | 10 |
 | Workflows | `/admin/workflows` | `workflows` | Configuration | 20 |
 | LLM configuration | `/admin/llm` | `llm` | Configuration | 30 |
