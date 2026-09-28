@@ -17,20 +17,26 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.jcr.Node;
+import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * Content for the update tests, in an Oak-backed repository: an item of a type declaring a mandatory title, an
@@ -45,6 +51,8 @@ final class FieldsFixture
     private static final String UNSTRUCTURED = "nt:unstructured";
 
     private final Session session;
+
+    private final ResourceResolver resolver;
 
     private final Node item;
 
@@ -63,7 +71,8 @@ final class FieldsFixture
     FieldsFixture(final SlingContext context) throws RepositoryException
     {
         context.addModelsForClasses(Content.class);
-        this.session = context.resourceResolver().adaptTo(Session.class);
+        this.resolver = context.resourceResolver();
+        this.session = this.resolver.adaptTo(Session.class);
         NodeTypeDefinitionScanner.get().register(this.session, List.of("SLING-INF/nodetypes/fields-test.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
         final Node root = this.session.getRootNode();
@@ -140,6 +149,43 @@ final class FieldsFixture
     Activity creating()
     {
         return this.creating;
+    }
+
+    /**
+     * The context of a task running an activity for an event, with the variables it sets recorded.
+     *
+     * @param event the event's name
+     * @param activity the activity
+     * @param payload the event's payload
+     * @param variables where the variables the task sets go
+     * @return the context; its target is left for the test to set
+     */
+    WorkflowTaskContext task(final String event, final Activity activity, final Map<String, Object> payload,
+        final Map<String, Object> variables)
+    {
+        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
+        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent(event, payload));
+        Mockito.when(task.getActivity()).thenReturn(activity);
+        Mockito.when(task.getResourceResolver()).thenReturn(this.resolver);
+        Mockito.doAnswer(invocation -> variables.put(invocation.getArgument(0), invocation.getArgument(1)))
+            .when(task).setVariable(Mockito.anyString(), Mockito.any());
+        return task;
+    }
+
+    /**
+     * The names of a node's children, in order.
+     *
+     * @param path the node's path
+     * @return the names
+     * @throws RepositoryException when the node cannot be read
+     */
+    List<String> children(final String path) throws RepositoryException
+    {
+        final List<String> names = new ArrayList<>();
+        for (final NodeIterator nodes = this.session.getNode(path).getNodes(); nodes.hasNext();) {
+            names.add(nodes.nextNode().getName());
+        }
+        return names;
     }
 
     private static void dependsOnShape(final Node field, final String... shapes) throws RepositoryException
