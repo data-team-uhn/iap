@@ -143,9 +143,9 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
             <Property label="Title">{workflow.title}</Property>
             <Property label="Stored at">{workflow.path}</Property>
             <Property label="Runs">
-              { workflow.active
-                ? <Chip size="small" color="success" label="Enabled" />
-                : <Chip size="small" variant="outlined" label="Disabled" /> }
+              { workflow.active && <Chip size="small" color="success" label="Enabled" /> }
+              { workflow.retired && <Chip size="small" color="warning" variant="outlined" label="Retired" /> }
+              { !workflow.active && !workflow.retired && <Chip size="small" variant="outlined" label="Disabled" /> }
             </Property>
             { workflow.created !== "" && <Property label="Created">{formatDate(workflow.created)}</Property> }
             { workflow.lastModified !== ""

@@ -50,7 +50,8 @@ public class WorkflowVersion extends Entity
 
     /**
      * Where a version stands in its lifecycle: authored as a {@link #DRAFT}, optionally put on {@link #TRIAL},
-     * promoted to {@link #ACTIVE} once ready to run, and {@link #RETIRED} when a later version takes over.
+     * promoted to {@link #ACTIVE} once ready to run, and {@link #RETIRED} when a later version takes over or it is
+     * withdrawn. A retired version can be made {@link #ACTIVE} again.
      *
      * <p>
      * The diagram may only be edited in {@link #DRAFT}: every other state is one something may be following, or
@@ -71,7 +72,7 @@ public class WorkflowVersion extends Entity
         TRIAL,
         /** The version new instances are created from. At most one version of a definition is active at a time. */
         ACTIVE,
-        /** Superseded by a later version: existing instances keep running, no new ones are created. */
+        /** Superseded or withdrawn: existing instances keep running, no new ones are created until reactivated. */
         RETIRED
     }
 

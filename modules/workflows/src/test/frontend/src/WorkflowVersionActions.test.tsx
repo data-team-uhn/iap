@@ -33,6 +33,7 @@ import WorkflowVersionActivateAction from "@iap/workflows/WorkflowVersionActivat
 import WorkflowVersionDraftAction from "@iap/workflows/WorkflowVersionDraftAction";
 import WorkflowVersionEditAction from "@iap/workflows/WorkflowVersionEditAction";
 import WorkflowVersionRedraftAction from "@iap/workflows/WorkflowVersionRedraftAction";
+import WorkflowVersionRetireAction from "@iap/workflows/WorkflowVersionRetireAction";
 import WorkflowVersionTrialAction from "@iap/workflows/WorkflowVersionTrialAction";
 import WorkflowVersionViewAction from "@iap/workflows/WorkflowVersionViewAction";
 
@@ -57,6 +58,7 @@ const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
   name: "review",
   title: "Standard review",
   active: true,
+  retired: false,
   created: "",
   lastModified: "",
   versions,
@@ -293,8 +295,26 @@ describe("the activate action", () => {
     expect(moveAskedFor(fetchMock)).toBe("activate");
   });
 
-  it("is not offered for a version that is already active, is retired, or is in no state it knows", () => {
-    for (const state of [ "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
+  it("brings a retired version back, retiring the one that replaced it", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch();
+    const retired = version("1.0", "RETIRED");
+    const active = version("2.0", "ACTIVE");
+    const props = propsFor(retired, workflow(retired, active));
+    renderAction(WorkflowVersionActivateAction, props);
+
+    await user.click(screen.getByRole("button", { name: "Activate" }));
+    const dialog = await screen.findByRole("dialog", { name: "Activate version 1.0?" });
+    expect(dialog).toHaveTextContent("Version 2.0 is retired in the same step");
+    await user.click(within(dialog).getByRole("button", { name: "Activate" }));
+
+    await waitFor(() => expect(props.reload).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.activate.json",
+      expect.objectContaining({ method: "POST" }));
+  });
+
+  it("is not offered for a version that is already active, or is in no state it knows", () => {
+    for (const state of [ "ACTIVE", null ] as (WorkflowState | null)[]) {
       const target = version("1.0", state);
       const { unmount } = renderAction(WorkflowVersionActivateAction, propsFor(target, workflow(target)));
 
@@ -394,6 +414,53 @@ describe("the return-to-draft action", () => {
 
     await waitFor(() => expect(props.report)
       .toHaveBeenCalledWith(`Version ${unlabelled.name} of Standard review is a draft again`));
+  });
+});
+
+describe("the retire action", () => {
+  it("withdraws the active version once confirmed", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch();
+    const active = version("1.0", "ACTIVE");
+    const props = propsFor(active, workflow(active));
+    renderAction(WorkflowVersionRetireAction, props);
+
+    await user.click(screen.getByRole("button", { name: "Retire" }));
+    const dialog = await screen.findByRole("dialog", { name: "Retire version 1.0?" });
+    // What the confirmation is for: nothing can start the workflow afterwards
+    expect(dialog).toHaveTextContent("No new instances of Standard review can be started");
+    await user.click(within(dialog).getByRole("button", { name: "Retire" }));
+
+    await waitFor(() => expect(props.reload).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.retire.json",
+      expect.objectContaining({ method: "POST" }));
+    expect(moveAskedFor(fetchMock)).toBe("retire");
+    expect(props.report).toHaveBeenCalledWith("Version 1.0 is retired, and Standard review has no active version");
+  });
+
+  it("names a version without a label by its node name", async () => {
+    const user = userEvent.setup();
+    stubFetch();
+    const unlabelled = { ...version("1.0", "ACTIVE"), version: "" };
+    const props = propsFor(unlabelled, workflow(unlabelled));
+    renderAction(WorkflowVersionRetireAction, props);
+
+    await user.click(screen.getByRole("button", { name: "Retire" }));
+    const dialog = await screen.findByRole("dialog", { name: `Retire version ${unlabelled.name}?` });
+    await user.click(within(dialog).getByRole("button", { name: "Retire" }));
+
+    await waitFor(() => expect(props.report)
+      .toHaveBeenCalledWith(`Version ${unlabelled.name} is retired, and Standard review has no active version`));
+  });
+
+  it("is offered for the active version only", () => {
+    for (const state of [ "DRAFT", "TRIAL", "RETIRED", null ] as (WorkflowState | null)[]) {
+      const target = version("1.0", state);
+      const { unmount } = renderAction(WorkflowVersionRetireAction, propsFor(target, workflow(target)));
+
+      expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 });
 

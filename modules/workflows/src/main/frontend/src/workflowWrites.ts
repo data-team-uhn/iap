@@ -145,7 +145,7 @@ export async function saveDiagram(fetchUtil: AuthenticatedFetch, versionPath: st
 // Each move is its own system workflow, so which versions it applies to and who may perform it is
 // that definition's business — different moves can require different people, e.g. an author
 // redrafting their own trial but only an administrator activating one.
-export type VersionTransition = "activate" | "startTrial" | "returnToDraft";
+export type VersionTransition = "activate" | "startTrial" | "returnToDraft" | "retire";
 
 // Activation retires whichever version was current in the same commit, so the workflow is never
 // between the two.

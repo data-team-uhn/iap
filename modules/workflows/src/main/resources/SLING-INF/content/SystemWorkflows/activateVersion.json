@@ -6,7 +6,7 @@
     "version": "1.0",
     "state": "ACTIVE",
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when a version becomes the one new instances are created from: whichever version was current is retired, and then this one is promoted in its place. Two steps of one run, so the two writes are one commit and there is no moment at which two versions of a workflow both claim to be current. Which versions may be promoted is the `fromStates` of the promote step - a draft or a trial - rather than a table in code, and who may do it is this start event's performers, which is why activating is a definition of its own rather than a parameter of a general one: a deployment can let an author return their own trial to a draft while keeping promotion to administrators.",
+    "description": "What happens when a version becomes the one new instances are created from: whichever version was current is retired, and then this one is promoted in its place. Two steps of one run, so the two writes are one commit and there is no moment at which two versions of a workflow both claim to be current. Which versions may be promoted is the `fromStates` of the promote step - a draft, a trial, or a retired version being brought back - rather than a table in code, and who may do it is this start event's performers, which is why activating is a definition of its own rather than a parameter of a general one: a deployment can let an author return their own trial to a draft while keeping promotion to administrators.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -38,7 +38,7 @@
       "label": "Make this the active version",
       "handler": "setVersionState",
       "toState": "ACTIVE",
-      "fromStates": ["DRAFT", "TRIAL"],
+      "fromStates": ["DRAFT", "TRIAL", "RETIRED"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

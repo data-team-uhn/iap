@@ -29,8 +29,9 @@ import { RequestError } from "@iap/frontend-commons/requestFailure";
 export const WORKFLOWS_ROOT = "/Workflows";
 
 // The lifecycle of a workflow version, stored in its `state` property: authored as a DRAFT, optionally
-// trialled, promoted to ACTIVE to run, and RETIRED once a later version supersedes it — a retired
-// version's own running instances carry on, but no new ones start from it.
+// trialled, promoted to ACTIVE to run, and RETIRED once a later version supersedes it or it is withdrawn —
+// a retired version's own running instances carry on, but no new ones start from it until it is
+// activated again.
 //
 // Only a DRAFT may be edited: every later state may already be driving a running process, so a trial
 // that needs changes goes back to being a draft rather than being edited in place.
@@ -96,6 +97,9 @@ export interface WorkflowSummary {
   // Whether new instances may be created from this workflow — derived from whether one of its
   // versions is active, rather than stored separately, so the two can never disagree.
   active: boolean;
+  // Whether it has been taken out of use: a version is retired and none is active. A workflow that has
+  // only ever had drafts and trials is neither active nor retired.
+  retired: boolean;
   created: string;
   lastModified: string;
   versions: WorkflowVersionSummary[];
@@ -149,6 +153,8 @@ export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promi
         name: path.slice(path.lastIndexOf("/") + 1),
         title: text(definition.title) || path.slice(path.lastIndexOf("/") + 1),
         active: versions.some(version => version.state === "ACTIVE"),
+        retired: versions.some(version => version.state === "RETIRED")
+          && !versions.some(version => version.state === "ACTIVE"),
         created: text(definition["jcr:created"]),
         lastModified: text(definition["jcr:lastModified"]),
         versions,
