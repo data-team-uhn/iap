@@ -28,11 +28,8 @@ import { moveVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Promotes a draft, or a version that has been on trial, to the version new instances are created
-// from.
-//
-// Only those two are offered this: what is already active needs no promoting, and bringing a retired
-// version back is a decision to make deliberately, by drafting a copy of it.
+// Promotes a draft, a version that has been on trial, or a retired version being brought back, to the
+// version new instances are created from. What is already active needs no promoting.
 //
 // Confirmed, because the effect lands outside this page — on everything that starts a workflow from
 // now on — and because it retires the version that was current, which is not visible from the row
@@ -41,7 +38,7 @@ function WorkflowVersionActivateAction({ version, workflow, reload, report }: Wo
   const [ confirming, setConfirming ] = useState(false);
   const fetchUtil = useAuthenticatedFetch();
 
-  if (version.state !== "DRAFT" && version.state !== "TRIAL") {
+  if (version.state !== "DRAFT" && version.state !== "TRIAL" && version.state !== "RETIRED") {
     return null;
   }
 

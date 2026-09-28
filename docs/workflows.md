@@ -50,8 +50,8 @@ as a schema and its schema versions. Each version carries a `state`, which is it
 |---|---|---|---|
 | `DRAFT` | Still being authored, and never instantiated | yes | `TRIAL`, `ACTIVE` |
 | `TRIAL` | Being tried out before the workflow commits to it; still not what instances are created from | no | `DRAFT`, `ACTIVE` |
-| `ACTIVE` | The one version new instances are created from | no | — (retired by a promotion in its place) |
-| `RETIRED` | Superseded: the instances already running carry on, no new ones start | no | — (carried forward by drafting a copy) |
+| `ACTIVE` | The one version new instances are created from | no | `RETIRED` (withdrawn, or by a promotion in its place) |
+| `RETIRED` | Superseded or withdrawn: the instances already running carry on, no new ones start | no | `ACTIVE` (retiring whichever version is active) |
 
 Only a draft may be edited, and that is enforced rather than merely offered: the `saveWorkflowDiagram`
 handler refuses a diagram for anything else. Every later state is one something may be following, or about
@@ -73,7 +73,10 @@ moment at which two versions claim to be current.
 
 **A definition has no `active` flag of its own.** Whether a workflow may run is whether one of its versions
 is active, and `WorkflowDefinition.isActive()` computes exactly that. Stored as well, the two could
-disagree, and the stored one would be the side nothing enforces.
+disagree, and the stored one would be the side nothing enforces. Whether it is *retired* is computed the same
+way: `isRetired()` holds when a version is retired and none is active, which is where retiring the active
+version without a replacement leaves it. Activating any version brings it back; a workflow that has only had
+drafts and trials has never run, and is neither.
 
 A version keeps both representations of its graph: the `bpmn.xml` it
 was authored as, which the visual editor loads and saves, and the flow nodes that XML was parsed into,
@@ -475,15 +478,15 @@ under the things reading it. A trial is changed by being returned to a draft; an
 is carried forward by drafting a copy, which is offered next to it.
 
 The per-version buttons are contributed on the **`WorkflowVersionActions`** extension point rather than
-written into the manager page, the way `SubjectActions` works in the sibling `cards` project. Six ship
-with the module — view, edit, start-trial, activate, return-to-draft, and draft-a-copy — and each decides
+written into the manager page, the way `SubjectActions` works in the sibling `cards` project. Seven ship
+with the module — view, edit, start-trial, activate, return-to-draft, retire, and draft-a-copy — and each decides
 for itself which states it applies to; a seventh needs an `ext:Extension` and an asset, and no change to
 any existing file. The point is addressed by two names, as every extension point is: the page asks for the
 node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
 `ext:pointId` that node carries, `wf/workflowVersion/actions`.
 
 **Every one of these actions is a workflow, not a write.** Creating a workflow, opening a version of one,
-renaming it, saving a diagram, and each of the three lifecycle moves are domain events posted at the thing
+renaming it, saving a diagram, and each of the four lifecycle moves are domain events posted at the thing
 they concern, matched to a system workflow under `/SystemWorkflows` and run to an end event in one commit.
 Nothing in this UI writes a node.
 
@@ -497,6 +500,7 @@ Nothing in this UI writes a node.
 | `POST <version>.activate.json` | `activate` | `activateVersion` |
 | `POST <version>.startTrial.json` | `startTrial` | `startVersionTrial` |
 | `POST <version>.returnToDraft.json` | `returnToDraft` | `returnVersionToDraft` |
+| `POST <version>.retire.json` | `retire` | `retireVersion` |
 | `POST <version>.draft.json` | `draft` | `draftVersion` |
 
 A POST with no selector means the target's *default* event, which follows from what it is: `create` at an
@@ -529,7 +533,7 @@ to manage belongs in `resourceTypes` whether or not its definitions exist yet.
 Three things this buys, none of which an endpoint could:
 
 - **Who may do each of these is one property, in the file that says what it does.** `performers` on the
-  start event, editable per deployment. That is why there are three lifecycle definitions rather than one
+  start event, editable per deployment. That is why there are four lifecycle definitions rather than one
   `setState` — a single move endpoint could only ever say who may change state *at all*, where separate
   definitions can say that an author may return their own trial to a draft while only an administrator may
   activate one.
@@ -948,7 +952,7 @@ rather than being hardwired into the servlet.
 
 **Everything else that authors a workflow works the same way**, which is what makes that claim more than
 a demonstration: `createSystemWorkflow`, `createVersion`, `saveWorkflow`, `saveWorkflowDiagram`,
-`activateVersion`, `startVersionTrial`, `returnVersionToDraft` and `draftVersion` all ship beside it, over
+`activateVersion`, `startVersionTrial`, `returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over
 six handlers of their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram`,
 `setVersionState`, `retireActiveVersions` and `draftWorkflowVersion` — plus `createEntity`, shared with the
 bootstrap. The workflow module manages its own content the way it asks every other module to manage theirs,

@@ -138,6 +138,24 @@ describe("WorkflowManager", () => {
     expect(screen.getByText("Trial")).toBeInTheDocument();
   });
 
+  it("says a workflow is retired once its last active version is withdrawn", async () => {
+    // A draft beside the retired version does not make it run: only activating a version does
+    stubFetch({
+      "jcr:primaryType": "wf:WorkflowDefinition",
+      "title": "Standard review",
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "DRAFT" },
+    });
+
+    renderManager();
+
+    await screen.findByRole("heading", { name: "Standard review" });
+    // Once as the workflow's status, once as the version's state
+    expect(screen.getAllByText("Retired")).toHaveLength(2);
+    expect(screen.queryByText("Disabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("Enabled")).not.toBeInTheDocument();
+  });
+
   it("lists every version with its state", async () => {
     stubFetch();
 

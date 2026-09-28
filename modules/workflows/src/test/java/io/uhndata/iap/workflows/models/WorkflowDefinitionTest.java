@@ -88,6 +88,29 @@ class WorkflowDefinitionTest
     }
 
     @Test
+    void isRetiredOnceARetiredVersionIsLeftWithNoActiveOne()
+    {
+        // Drafts and trials beside it do not bring it back: only activating a version does
+        assertTrue(this.createDefinitionWithVersions("RETIRED", "DRAFT", "TRIAL")
+            .adaptTo(WorkflowDefinition.class).isRetired());
+    }
+
+    @Test
+    void isNotRetiredWhileOneOfItsVersionsIsActive()
+    {
+        assertFalse(this.createDefinitionWithVersions("RETIRED", "ACTIVE", "DRAFT")
+            .adaptTo(WorkflowDefinition.class).isRetired());
+    }
+
+    @Test
+    void isNotRetiredBeforeItHasEverRun()
+    {
+        // A workflow with only drafts and trials has nothing to retire: it is neither active nor retired
+        assertFalse(this.createDefinitionWithVersions("DRAFT", "TRIAL", "DRAFT")
+            .adaptTo(WorkflowDefinition.class).isRetired());
+    }
+
+    @Test
     void defaultsToInactive()
     {
         final Resource resource = this.context.create().resource(PATH, TYPE, WorkflowDefinition.RESOURCE_TYPE);

@@ -46,8 +46,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * state is a new definition rather than a new row here.</p>
  *
  * <p>Refusing when the version is not in one of {@code fromStates} is what keeps the moves that do not exist from
- * happening: an active version is retired by another being promoted in its place and a retired one is carried
- * forward by drafting a copy, so neither is listed as a state anything moves out of.</p>
+ * happening: nothing moves an active or retired version back to being edited, since instances may be following
+ * it, so neither is listed as a state a draft or a trial is made from.</p>
  *
  * @version $Id$
  * @since 0.1.0

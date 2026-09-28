@@ -121,6 +121,25 @@ describe("loadWorkflow", () => {
     expect(notRunning.active).toBe(false);
   });
 
+  it("reads a workflow as retired when a version is retired and none is active", async () => {
+    const running = await loadWorkflow(answering(definition), "/Workflows/review");
+    expect(running.retired).toBe(false);
+
+    const retired = await loadWorkflow(answering({
+      "jcr:primaryType": "wf:WorkflowDefinition",
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "TRIAL" },
+    }), "/Workflows/review");
+    expect(retired.retired).toBe(true);
+
+    // Never having run is not the same as having been retired
+    const unreleased = await loadWorkflow(answering({
+      "jcr:primaryType": "wf:WorkflowDefinition",
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "DRAFT" },
+    }), "/Workflows/review");
+    expect(unreleased.retired).toBe(false);
+  });
+
   it("ignores children that are not versions, and dangling nulls", async () => {
     // typeof null === "object", so the null entry is exactly the kind of thing a listing must not
     // trip over

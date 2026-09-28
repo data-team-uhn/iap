@@ -71,6 +71,22 @@ public class WorkflowDefinition extends Entity
     }
 
     /**
+     * Whether this workflow has been taken out of use: one of its {@link WorkflowVersion versions} is
+     * {@link WorkflowVersion.State#RETIRED retired} and none is {@link WorkflowVersion.State#ACTIVE active}. A
+     * workflow whose versions are all drafts or trials has never run, so it is neither active nor retired.
+     *
+     * <p>Computed on every call, like {@link #isActive()}; activating any version ends it.</p>
+     *
+     * @return {@code true} if this workflow is retired
+     */
+    public boolean isRetired()
+    {
+        final List<WorkflowVersion> versions = this.getVersions();
+        return versions.stream().noneMatch(WorkflowVersion::isActive)
+            && versions.stream().anyMatch(version -> version.getState() == WorkflowVersion.State.RETIRED);
+    }
+
+    /**
      * Every version of this workflow, whatever state each one is in.
      *
      * @return a list of versions, empty if none
