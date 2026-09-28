@@ -38,14 +38,14 @@ import WorkflowsView from "./WorkflowsView";
 // Everything the console shows below /admin/workflows, chosen by what the URL is about.
 //
 // One route rather than one per page, because the URL is a repository path of unknown length after a
-// fixed prefix — /admin/workflows/Workflows/review/2-0 — and a route may only end in a splat. The
+// fixed prefix — /admin/workflows/Workflows/review/v2 — and a route may only end in a splat. The
 // only route that can match these URLs is the one that matches all of them, and something has to
 // read the rest. That is the price of every prefix of a console URL being a page in its own right:
 // /admin/workflows/Workflows/review is the workflow, and dropping another segment is the homepage it
 // is stored in.
 //
 // The path is therefore the thing being looked at and nothing else; the one page that opens on top of
-// it is asked for by a suffix (/admin/workflows/Workflows/review/2-0.edit), so a version and its
+// it is asked for by a suffix (/admin/workflows/Workflows/review/v2.edit), so a version and its
 // editor are the same page asked two ways rather than one being read as a page below the other.
 //
 // Which of the three a path is takes the list of homepages, since a homepage sits at no predictable

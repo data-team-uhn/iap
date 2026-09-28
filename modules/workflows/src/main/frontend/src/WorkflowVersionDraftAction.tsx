@@ -27,7 +27,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-import { adminUrl } from "./workflowModel";
+import { adminUrl, nextVersionLabel } from "./workflowModel";
 import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
@@ -63,7 +63,10 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
 
   return (
     <>
-      <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => setNaming(true)}>
+      <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => {
+        setLabel(nextVersionLabel(workflow));
+        setNaming(true);
+      }}>
         New draft from this
       </Button>
       { naming && (

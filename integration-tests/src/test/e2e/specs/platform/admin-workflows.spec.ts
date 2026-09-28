@@ -87,11 +87,11 @@ test.describe('the workflow editor as an administrative tool', () => {
   });
 
   test("serves the application to a request for a version's editor", async ({ request }) => {
-    // The editor is asked for by extension - /admin/workflows/Workflows/review/1-0.edit - and `edit`
+    // The editor is asked for by extension - /admin/workflows/Workflows/review/v1.edit - and `edit`
     // is an extension Sling knows nothing about: without a script for it, a URL the console hands out
     // 404s the moment it is opened, bookmarked or reloaded, however well the client router reads it.
     // No workflow need exist for this: what is being checked is that the shell is served at all.
-    const served = await request.get('/admin/workflows/Workflows/review/1-0.edit', { headers: adminAuth });
+    const served = await request.get('/admin/workflows/Workflows/review/v1.edit', { headers: adminAuth });
 
     expect(served.status()).toBe(200);
     expect(await served.text()).toContain('main-container');

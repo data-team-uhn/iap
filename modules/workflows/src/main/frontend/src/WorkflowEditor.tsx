@@ -65,7 +65,7 @@ interface WorkflowEditorProps {
 // The diagram of one workflow version, viewed or edited.
 //
 // The version is addressed by its repository path, carried in the URL after the console's own prefix
-// (/admin/workflows/Workflows/review/1-0), with a .edit suffix asking for the editing mode — which is a
+// (/admin/workflows/Workflows/review/v1), with a .edit suffix asking for the editing mode — which is a
 // request rather than a grant: only a draft is editable, whatever the URL asks for. The page holds
 // the identity — which version this is, what state it is in — and the buttons that save it and move
 // on; the canvas below it holds the diagram.

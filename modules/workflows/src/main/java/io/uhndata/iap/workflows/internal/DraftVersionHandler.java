@@ -73,13 +73,12 @@ public class DraftVersionHandler implements ServiceTaskHandler
         final Resource sourceResource = context.getTarget();
         final WorkflowVersion source = VersionEdits.targetVersion(context);
         final Resource definition = VersionEdits.definitionOf(sourceResource);
-        final String label = Payloads.requireText(context.getEvent(), VersionEdits.VERSION,
-            "A version is required, naming the new version");
+        final String label = VersionEdits.newLabel(context, definition);
         if (VersionEdits.hasVersionLabelled(definition, label)) {
             throw new WorkflowConflictException("This workflow already has a version " + label);
         }
         final Resource draft = context.getResourceResolver().create(definition,
-            VersionEdits.availableName(definition, label),
+            VersionEdits.availableName(definition),
             draftProperties(source, label, Payloads.text(context.getEvent(), VersionEdits.DESCRIPTION)));
         VersionEdits.copyDiagram(source.getBpmnFile(), draft, context.getResourceResolver());
         if (!source.isBpmnAuthoritative()) {

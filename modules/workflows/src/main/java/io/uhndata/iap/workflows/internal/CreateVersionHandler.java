@@ -67,8 +67,7 @@ public class CreateVersionHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource definition = hostOf(context);
-        final String label = Payloads.requireText(context.getEvent(), VersionEdits.VERSION,
-            "A version is required, naming the new version");
+        final String label = VersionEdits.newLabel(context, definition);
         if (VersionEdits.hasVersionLabelled(definition, label)) {
             throw new WorkflowConflictException("This workflow already has a version " + label);
         }
@@ -82,7 +81,7 @@ public class CreateVersionHandler implements ServiceTaskHandler
             properties.put(VersionEdits.DESCRIPTION, description);
         }
         final Resource version = context.getResourceResolver().create(definition,
-            VersionEdits.availableName(definition, label), properties);
+            VersionEdits.availableName(definition), properties);
         final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);
         if (diagram != null) {
             VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());

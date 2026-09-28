@@ -105,6 +105,17 @@ export interface WorkflowSummary {
   versions: WorkflowVersionSummary[];
 }
 
+// The label a new version of a workflow is offered by default: the whole number after the highest
+// numeric label (3.0 after 2.1), or after the number of versions when none of them is numeric. The same
+// rule the server applies when a request names no label; the user can always type another.
+export function nextVersionLabel(workflow: WorkflowSummary): string {
+  const numbers = workflow.versions
+    // Number rather than parseFloat, so a label is numeric only as a whole: "2.0 (pilot)" is not 2
+    .map(version => (version.version.trim() === "" ? Number.NaN : Number(version.version)))
+    .filter(Number.isFinite);
+  return `${numbers.length > 0 ? Math.floor(Math.max(...numbers)) + 1 : workflow.versions.length + 1}.0`;
+}
+
 function isNode(value: unknown): value is JcrNode {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -293,7 +304,7 @@ export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 
 // Where a workflow, a version, or a version's editor lives in the console — the repository path rides
 // along in the URL, letting one page serve any homepage's workflows, e.g.
-// /admin/workflows/Workflows/review or /admin/workflows/SystemWorkflows/newEntity/1-0.
+// /admin/workflows/Workflows/review or /admin/workflows/SystemWorkflows/newEntity/v1.
 export const ADMIN_ROOT = "/admin/workflows";
 
 // The page a console URL opens on top of a repository path — only the editor names itself, since
@@ -308,7 +319,7 @@ export type WorkflowPage = "edit";
 export const EDIT_SUFFIX = ".edit";
 
 // The console URL opening a repository path, e.g. /Workflows/review -> /admin/workflows/Workflows/review,
-// and its editor -> /admin/workflows/Workflows/review/2-0.edit.
+// and its editor -> /admin/workflows/Workflows/review/v2.edit.
 export function adminUrl(repositoryPath: string, page?: WorkflowPage): string {
   const url = `${ADMIN_ROOT}${repositoryPath}`;
   return page === undefined ? url : `${url}${EDIT_SUFFIX}`;

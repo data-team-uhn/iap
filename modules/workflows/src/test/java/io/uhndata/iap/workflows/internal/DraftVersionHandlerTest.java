@@ -86,8 +86,8 @@ class DraftVersionHandlerTest
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), variables));
 
-        assertEquals(AuthoringFixture.path("2-0"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
-        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("2-0"));
+        assertEquals(AuthoringFixture.path("v2"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertEquals("2.0", draft.getValueMap().get("version"));
         assertEquals("DRAFT", draft.getValueMap().get("state"));
@@ -108,7 +108,7 @@ class DraftVersionHandlerTest
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0", "description", "  A fresh take  "),
             new HashMap<>()));
 
-        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("2-0"));
+        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertEquals("A fresh take", draft.getValueMap().get("description"));
         // A draft of a system workflow answers for the same events as the version it came from
@@ -123,7 +123,7 @@ class DraftVersionHandlerTest
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
-        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("2-0"));
+        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertNull(draft.getValueMap().get("description"));
         assertNull(draft.getValueMap().get("targetResourceType"));
@@ -145,7 +145,7 @@ class DraftVersionHandlerTest
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
-        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("2-0"));
+        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertNull(draft.getChild("start"));
         assertNotNull(draft.getChild("bpmn.xml"));
@@ -165,7 +165,7 @@ class DraftVersionHandlerTest
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
         final Resource copied =
-            this.context.resourceResolver().getResource(AuthoringFixture.path("2-0") + "/start");
+            this.context.resourceResolver().getResource(AuthoringFixture.path("v2") + "/start");
         assertNotNull(copied);
         assertEquals("create", copied.getValueMap().get("messageName"));
         // Nested as flow nodes nest: an arc is a child of the node it leaves
@@ -189,7 +189,7 @@ class DraftVersionHandlerTest
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
-        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("2-0"));
+        final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertNotNull(draft.getChild("start"));
         assertNull(draft.getChild("link:links"));
@@ -200,11 +200,12 @@ class DraftVersionHandlerTest
     void findsAFreeNodeNameWhenTheDerivedOneIsTaken() throws WorkflowException, PersistenceException
     {
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
-        AuthoringFixture.createVersion(this.context, "2-0", "2/0", WorkflowVersion.State.DRAFT, Map.of());
+        // Two versions so far, the second already stored under the name the third would get
+        AuthoringFixture.createVersion(this.context, "v3", "1.5", WorkflowVersion.State.DRAFT, Map.of());
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
-        assertNotNull(this.context.resourceResolver().getResource(AuthoringFixture.path("2-0-2")));
+        assertNotNull(this.context.resourceResolver().getResource(AuthoringFixture.path("v4")));
     }
 
     @Test
@@ -218,13 +219,24 @@ class DraftVersionHandlerTest
     }
 
     @Test
-    void requiresALabel()
+    void labelsTheDraftWithTheNextWholeNumberWhenNoLabelIsGiven() throws WorkflowException, PersistenceException
+    {
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+
+        this.handler.execute(this.draft(FIRST, Map.of(), new HashMap<>()));
+
+        assertEquals("2.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v2"))
+            .getValueMap().get("version"));
+    }
+
+    @Test
+    void refusesABlankLabel()
     {
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(this.draft(FIRST, Map.of(), new HashMap<>())));
-        assertTrue(refusal.getMessage().contains("version is required"));
+            () -> this.handler.execute(this.draft(FIRST, Map.of("version", "  "), new HashMap<>())));
+        assertTrue(refusal.getMessage().contains("cannot be blank"));
     }
 
     @Test

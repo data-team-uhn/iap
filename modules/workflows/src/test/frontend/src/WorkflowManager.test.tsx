@@ -285,6 +285,19 @@ describe("WorkflowManager", () => {
     });
   });
 
+  it("suggests the next whole number as the new version's label", async () => {
+    const user = userEvent.setup();
+    stubFetch();
+    renderManager();
+    await screen.findByRole("heading", { name: "Standard review" });
+
+    await user.click(screen.getByRole("button", { name: "New version" }));
+    const dialog = await screen.findByRole("dialog", { name: /New version/ });
+
+    // After 1.0, 2.0 and 3.0; a suggestion only, which the user may replace with any label
+    expect(within(dialog).getByRole("textbox", { name: /Version/ })).toHaveValue("4.0");
+  });
+
   it("creates a version and opens its editor", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
@@ -293,6 +306,7 @@ describe("WorkflowManager", () => {
 
     await user.click(screen.getByRole("button", { name: "New version" }));
     const dialog = await screen.findByRole("dialog", { name: /New version/ });
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "4.0");
     await user.type(within(dialog).getByRole("textbox", { name: /Description/ }), "With an escalation");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -329,6 +343,7 @@ describe("WorkflowManager", () => {
     await screen.findByRole("heading", { name: "Standard review" });
     await user.click(screen.getByRole("button", { name: "New version" }));
     const dialog = await screen.findByRole("dialog", { name: /New version/ });
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "4.0");
 
     stubFailingFetch(500);
@@ -345,6 +360,7 @@ describe("WorkflowManager", () => {
 
     await user.click(screen.getByRole("button", { name: "New version" }));
     const dialog = await screen.findByRole("dialog", { name: /New version/ });
+    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
     await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "2.0");
 
     expect(within(dialog).getByText("This workflow already has a version with that label")).toBeInTheDocument();

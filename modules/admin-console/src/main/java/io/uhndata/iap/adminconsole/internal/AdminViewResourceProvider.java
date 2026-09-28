@@ -100,7 +100,7 @@ public class AdminViewResourceProvider extends ResourceProvider<Object>
      * them instead would answer with a resource that has no extension, whose script includes
      * {@code .html} again, and so on until the request dies of recursion. Declining costs nothing
      * even where a view URL does carry a dot: a page asked for in a mode of its own, such as
-     * {@code /admin/workflows/Workflows/review/1-0.edit}, is served by the same falling back --
+     * {@code /admin/workflows/Workflows/review/v1.edit}, is served by the same falling back --
      * the dotless path is synthesized and the mode arrives as the extension, which is where the
      * script that renders it is registered.
      * </p>
