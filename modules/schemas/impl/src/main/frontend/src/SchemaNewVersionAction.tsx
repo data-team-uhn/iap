@@ -26,7 +26,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { ActionIcon } from "./EventAction";
 import NewSchemaVersionDialog from "./NewSchemaVersionDialog";
 import { sendEvent } from "./schemaEvents";
-import { offers, pathOf } from "./schemaModel";
+import { nameOf, offers, pathOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 import type { SchemaActionProps } from "./SchemaActions";
@@ -53,7 +53,7 @@ function SchemaNewVersionAction({ schema, reload, report }: SchemaActionProps) {
             report(`Version ${label} is created`);
             await reload();
             if (created) {
-              void navigate(versionPageUrl(String(schema["@name"]), created.slice(created.lastIndexOf("/") + 1)));
+              void navigate(versionPageUrl(nameOf(schema), created.slice(created.lastIndexOf("/") + 1)));
             }
           }}
           onClose={() => setCreating(false)}

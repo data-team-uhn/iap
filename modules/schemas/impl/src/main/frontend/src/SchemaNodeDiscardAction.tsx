@@ -16,31 +16,33 @@
  * limitations under the License.
  */
 
+import { useContext } from "react";
+
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 
 import { EventAction } from "./EventAction";
-import { offers, pathOf, titleOf } from "./schemaModel";
+import { type JcrNode, offers, pathOf } from "./schemaModel";
+import { ReloadTree } from "./schemaTree";
 
-import type { SchemaActionProps } from "./SchemaActions";
-
-// Deletes a schema with all its versions, unless something refers to them.
-function SchemaDiscardAction({ schema, reload, removed, report }: SchemaActionProps) {
-  if (!offers(schema, "discard")) {
+// Removes a part or an answer option from a draft, into the archive. What a condition elsewhere depends on
+// stays, and the refusal says whose conditions those are.
+function SchemaNodeDiscardAction({ node, what }: { node: JcrNode; what: string }) {
+  const reload = useContext(ReloadTree);
+  if (!offers(node, "discard")) {
     return null;
   }
   return (
     <EventAction
-      path={pathOf(schema)}
-      reload={removed ?? reload}
-      announce={{ report, message: `${titleOf(schema)} is discarded` }}
+      path={pathOf(node)}
+      reload={reload}
       icon={<DeleteOutlinedIcon fontSize="small" />}
-      label="Discard"
+      label="Remove"
       event="discard"
       color="error"
-      title={`Discard ${titleOf(schema)}`}
-      explanation="It will be deleted with all its versions, unless something refers to them."
+      title={`Remove this ${what}`}
+      explanation={`The ${what} goes to the archive, with everything in it.`}
     />
   );
 }
 
-export default SchemaDiscardAction;
+export default SchemaNodeDiscardAction;

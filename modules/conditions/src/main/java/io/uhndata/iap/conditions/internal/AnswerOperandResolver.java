@@ -24,6 +24,7 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.conditions.api.ConditionDependencies;
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
@@ -52,7 +53,7 @@ import io.uhndata.iap.entities.models.Entity;
 public class AnswerOperandResolver implements OperandResolver
 {
     /** The operand source this resolver serves. */
-    static final String SOURCE = "answer";
+    static final String SOURCE = ConditionDependencies.ANSWER_SOURCE;
 
     /** The property through which an answer node references its question. */
     private static final String QUESTION_PROPERTY = "question";

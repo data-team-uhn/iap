@@ -21,7 +21,7 @@ import { Stack, Typography } from "@mui/material";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
 import LifecycleChip from "./LifecycleChip";
-import { descriptionOf, type JcrNode, labelOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
+import { descriptionOf, type JcrNode, labelOf, nameOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
@@ -77,6 +77,6 @@ registerEntityType(SCHEMA_VERSION_TYPE, {
   homepage: SCHEMAS_ROOT,
   columns: COLUMNS,
   defaultSort: { field: "jcr:created", sort: "asc" },
-  rowLink: row => versionPageUrl(schemaNameOf(row), String(row["@name"])),
+  rowLink: row => versionPageUrl(schemaNameOf(row), nameOf(row)),
   listItem: row => <VersionCard row={row} />,
 });

@@ -32,14 +32,13 @@ function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
       <EventAction
         path={pathOf(schema)}
         reload={reload}
-        report={report}
+        announce={{ report, message: `${titleOf(schema)} is open again` }}
         icon={<RestoreOutlinedIcon fontSize="small" />}
         label="Reopen"
         event="activate"
         title={`Reopen ${titleOf(schema)}`}
         explanation={"Each version returns to the state it had before the schema was retired. Active "
           + "versions accept new submissions again, and drafts stay drafts."}
-        done={`${titleOf(schema)} is open again`}
       />
     );
   }
@@ -50,7 +49,7 @@ function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
     <EventAction
       path={pathOf(schema)}
       reload={reload}
-      report={report}
+      announce={{ report, message: `${titleOf(schema)} is retired` }}
       icon={<ArchiveOutlinedIcon fontSize="small" />}
       label="Retire"
       event="retire"
@@ -58,7 +57,6 @@ function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
       title={`Retire ${titleOf(schema)}`}
       explanation={"None of its versions will accept new submissions until it is reopened. Existing "
         + "submissions keep using them."}
-      done={`${titleOf(schema)} is retired`}
     />
   );
 }

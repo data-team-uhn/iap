@@ -34,6 +34,7 @@ import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.conditions.api.Aggregator;
+import io.uhndata.iap.conditions.api.ConditionDependencies;
 import io.uhndata.iap.conditions.api.Operator;
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.Question;
@@ -192,22 +193,17 @@ final class PublishCheck
     {
         Resource current = conditionPart;
         Resource parent = current.getParent();
-        while (parent != null && current.getValueMap().get(PRIMARY_TYPE, "").startsWith("cond:")) {
+        while (parent != null
+            && ConditionDependencies.isConditionPart(current.getValueMap().get(PRIMARY_TYPE, ""))) {
             current = parent;
             parent = current.getParent();
         }
         return current;
     }
 
-    // How to call a schema part in a message: by what the submitter reads, or by its path when that is blank
     private String where(final Resource resource)
     {
-        for (final String property : new String[] { "text", "label", "title" }) {
-            final String name = resource.getValueMap().get(property, "");
-            if (!name.isBlank()) {
-                return "\"" + name + "\"";
-            }
-        }
-        return resource.getPath().substring(this.version.getPath().length() + 1);
+        return PartNames.of(name -> resource.getValueMap().get(name, String.class),
+            PartNames.pathIn(resource.getPath(), this.version.getPath()));
     }
 }

@@ -33,14 +33,13 @@ function SchemaVersionDiscardAction(props: SchemaVersionActionProps) {
     <EventAction
       path={pathOf(version)}
       reload={props.removed ?? props.reload}
-      report={props.report}
+      announce={{ report: props.report, message: `Version ${labelOf(version)} is discarded` }}
       icon={<DeleteOutlinedIcon fontSize="small" />}
       label="Discard"
       event="discard"
       color="error"
       title={`Discard version ${labelOf(version)}`}
       explanation="This version and everything in it will be deleted, unless something refers to it."
-      done={`Version ${labelOf(version)} is discarded`}
     />
   );
 }

@@ -87,6 +87,7 @@ describe("SchemaVersionActions", () => {
     const dialog = await confirm("Activate");
 
     expect(await within(dialog).findByText("Not yet: bad pattern")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Activate" })).toBeDisabled();
     expect(reload).not.toHaveBeenCalled();
   });
 

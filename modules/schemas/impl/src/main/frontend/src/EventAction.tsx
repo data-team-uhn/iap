@@ -16,25 +16,25 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { DialogContentText, IconButton, Tooltip } from "@mui/material";
 
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { isRefusal } from "@iap/frontend-commons/requestFailure";
 
 import { sendEvent } from "./schemaEvents";
 
 interface EventActionProps {
   path: string;
   reload: () => void | Promise<void>;
-  report: (message: string) => void;
+  // What to say once it is done, and where, if anywhere
+  announce?: { report: (message: string) => void; message: string };
   label: string;
   event: string;
   title: string;
   explanation: ReactNode;
-  // What to report once done
-  done: string;
   color?: "primary" | "warning" | "error";
   icon: ReactNode;
 }
@@ -42,7 +42,7 @@ interface EventActionProps {
 // A lifecycle event on a schema or a version. It asks for confirmation first, because it changes what
 // submitters can do, not just what this page shows.
 export function EventAction(props: EventActionProps) {
-  const { path, reload, report, label, event, title, explanation, done, color } = props;
+  const { path, reload, announce, label, event, title, explanation, color } = props;
   const [ confirming, setConfirming ] = useState(false);
   const doFetch = useAuthenticatedFetch();
   return (
@@ -55,9 +55,10 @@ export function EventAction(props: EventActionProps) {
           confirmColor={color}
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
-            report(done);
+            announce?.report(announce.message);
             await reload();
           }}
+          isFinal={isRefusal}
           onClose={() => setConfirming(false)}
         >
           <DialogContentText>{explanation}</DialogContentText>
@@ -71,7 +72,7 @@ export function EventAction(props: EventActionProps) {
 export function ActionIcon({ label, icon, onClick }: {
   label: string;
   icon: ReactNode;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLElement>) => void;
 }) {
   return (
     <Tooltip title={label}>
