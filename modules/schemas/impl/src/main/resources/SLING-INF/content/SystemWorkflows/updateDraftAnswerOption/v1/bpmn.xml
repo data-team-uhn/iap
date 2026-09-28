@@ -23,54 +23,46 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
                   xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
-                  id="updateSchemaPartDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/updateSchemaPart">
+                  id="updateDraftAnswerOptionDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/updateDraftAnswerOption">
   <bpmn:message id="updateMessage" name="update" />
-  <bpmn:process id="updateSchemaPart" name="Correct a part of a schema version" isExecutable="true">
+  <bpmn:process id="updateDraftAnswerOption" name="Edit an answer option of a draft schema version" isExecutable="true">
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+          <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>tags</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:outgoing>toUpdate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Correct the part">
+    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Apply the changes">
       <bpmn:extensionElements>
         <sv:node sv:name="fields">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+          <sv:node sv:name="value">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Value</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against.</sv:value></sv:property>
+          </sv:node>
           <sv:node sv:name="label">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
           </sv:node>
-          <sv:node sv:name="title">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Title</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="text">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Question</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
           <sv:node sv:name="description">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="patternMessage">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Message when an answer does not match</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="purpose">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Purpose</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="extractionPrompt">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Extraction prompt</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="aiCheckPrompt">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>AI check prompt</sv:value></sv:property>
             <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -79,12 +71,12 @@
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toDone" sourceRef="update" targetRef="done" />
-    <bpmn:endEvent id="done" name="Corrected">
+    <bpmn:endEvent id="done" name="Edited">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="updateSchemaPartDiagram">
-    <bpmndi:BPMNPlane id="updateSchemaPartPlane" bpmnElement="updateSchemaPart">
+  <bpmndi:BPMNDiagram id="updateDraftAnswerOptionDiagram">
+    <bpmndi:BPMNPlane id="updateDraftAnswerOptionPlane" bpmnElement="updateDraftAnswerOption">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -97,7 +89,7 @@
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
         <dc:Bounds x="410" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="407" y="223" width="42" height="14" />
+          <dc:Bounds x="414" y="223" width="28" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toUpdateEdge" bpmnElement="toUpdate">

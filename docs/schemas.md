@@ -98,15 +98,25 @@ version inherits from its schema; where it matters whether the schema is retired
 | a version | `activate` | `retired`, schema not retired | tag it `active` |
 | a version | `retire` | `active` | tag it `retired` |
 | a version | `discard` | | delete it |
-| a requirement, section or question | `update` (`patch`) | | correct what it says (see below) |
-| an answer option | `update` (`patch`) | | correct its `label` or `description` |
+| a requirement, section or question | `update` (`patch`) | its version `draft` | edit anything it holds (see below) |
+| a requirement, section or question | `update` (`patch`) | its version not `draft` | correct what it says (see below) |
+| an answer option | `update` (`patch`) | its version `draft` | edit its `value`, `label` or `description` |
+| an answer option | `update` (`patch`) | its version not `draft` | correct its `label` or `description` |
 
 A **patch** is one JSON object in the `patch` parameter: a key left out is left alone, `null`
 removes the property, anything else is the new value. The whole patch is checked before anything is
 written, and only the fields the workflow lists in its `fields` are accepted: a published version
 keeps everything submissions may depend on, and only its wording can change.
 
-Parts and answer options can be **corrected** on any version, published ones included, and a
+While a version is a **draft**, its parts and answer options can change in anything they hold: a question's
+`dataType`, answer counts, bounds, pattern and `optionsFrom`, what a document requirement accepts and
+whether it is required, who approves an approval, an option's `value`, and all of their wording. Which
+fields a question offers follows its `dataType`: bounds only for numbers, a pattern only for text, and a
+field that stops applying when the `dataType` changes is removed. Conditions, adding, removing and moving
+parts, and templates come later. The guards read the version's own tags: a condition's `property` and
+`tags` operands resolve on the enclosing entity, which for a part or an option is its version.
+
+Parts and answer options of a published version can only be **corrected**, and a
 correction reaches the submissions already filed against that version at once. A correction may not
 change what a stored answer means, which answers are valid, or which parts apply: those take a new
 version. What can be corrected is what people read and what guides reading answers out of documents:
