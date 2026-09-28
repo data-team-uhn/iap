@@ -49,3 +49,9 @@
 [test:Shelf] > data:Content
   - sling:resourceType (STRING) = "test/Shelf" mandatory autocreated protected
   + * (test:Item)
+
+// What boxes are kept in, which moves can be kept within
+[test:Crate] > data:Content
+  orderable
+  - sling:resourceType (STRING) = "test/Crate" mandatory autocreated protected
+  + * (test:Box)

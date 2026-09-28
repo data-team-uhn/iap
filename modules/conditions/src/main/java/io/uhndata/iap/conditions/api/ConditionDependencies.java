@@ -74,7 +74,8 @@ public final class ConditionDependencies
     }
 
     /**
-     * The {@code answer} operands elsewhere in a subtree's entity, outside the subtree, that name something in it.
+     * The {@code answer} operands elsewhere in a subtree's entity, outside the subtree, that name something in it:
+     * what would be left depending on it if it went.
      *
      * @param subtree the root of the subtree
      * @param names the names of what is in it, from {@link #namesOf}
@@ -85,23 +86,71 @@ public final class ConditionDependencies
     public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names)
         throws RepositoryException
     {
+        return operandsNaming(subtree, names, false);
+    }
+
+    /**
+     * The {@code answer} operands in a subtree's entity that name something in it, those in the subtree itself
+     * included when asked: what a path that changes would break.
+     *
+     * @param subtree the root of the subtree
+     * @param names the names of what is in it, from {@link #namesOf}
+     * @param inside whether operands in the subtree count too
+     * @return the operands, none when there are no names
+     * @throws RepositoryException when the entity cannot be searched
+     */
+    public static List<Node> operandsNaming(final Node subtree, final Set<String> names, final boolean inside)
+        throws RepositoryException
+    {
         final List<Node> naming = new ArrayList<>();
         final Node entity = entityOf(subtree);
         if (names.isEmpty() || entity == null) {
             return naming;
         }
-        final NodeIterator operands = subtree.getSession().getWorkspace().getQueryManager().createQuery(
-            "SELECT * FROM [cond:ConditionOperand] AS o WHERE ISDESCENDANTNODE(o, '" + quoted(entity.getPath())
-                + "') AND NOT ISDESCENDANTNODE(o, '" + quoted(subtree.getPath()) + "') AND o.[source] = '"
-                + ANSWER_SOURCE + "'",
-            Query.JCR_SQL2).execute().getNodes();
-        while (operands.hasNext()) {
-            final Node operand = operands.nextNode();
-            if (operand.hasProperty(VALUE) && names(operand).stream().anyMatch(names::contains)) {
+        for (final Node operand : answerOperands(entity, inside ? null : subtree)) {
+            if (names(operand).stream().anyMatch(names::contains)) {
                 naming.add(operand);
             }
         }
         return naming;
+    }
+
+    /**
+     * The {@code answer} operands in a subtree, such as those of the conditions moving with it.
+     *
+     * @param subtree the root of the subtree
+     * @return the operands
+     * @throws RepositoryException when the subtree cannot be searched
+     */
+    public static List<Node> operandsIn(final Node subtree) throws RepositoryException
+    {
+        return answerOperands(subtree, null);
+    }
+
+    /**
+     * The {@code answer} operands under one node, and not under another.
+     *
+     * @param under where to look
+     * @param notUnder where not to, or {@code null} to look everywhere under the first
+     * @return the operands that name something
+     * @throws RepositoryException when the repository cannot be searched
+     */
+    private static List<Node> answerOperands(final Node under, final Node notUnder) throws RepositoryException
+    {
+        final String outside =
+            notUnder == null ? "" : " AND NOT ISDESCENDANTNODE(o, '" + quoted(notUnder.getPath()) + "')";
+        final NodeIterator found = under.getSession().getWorkspace().getQueryManager().createQuery(
+            "SELECT * FROM [cond:ConditionOperand] AS o WHERE ISDESCENDANTNODE(o, '" + quoted(under.getPath()) + "')"
+                + outside + " AND o.[source] = '" + ANSWER_SOURCE + "'",
+            Query.JCR_SQL2).execute().getNodes();
+        final List<Node> operands = new ArrayList<>();
+        while (found.hasNext()) {
+            final Node operand = found.nextNode();
+            if (operand.hasProperty(VALUE)) {
+                operands.add(operand);
+            }
+        }
+        return operands;
     }
 
     /**
