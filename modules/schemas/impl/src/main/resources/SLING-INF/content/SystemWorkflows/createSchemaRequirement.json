@@ -1,0 +1,100 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Add a requirement to a draft schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaVersion",
+    "description": "Adds a form, a document or an approval to a version while it is a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "create",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Add the requirement",
+      "handler": "createContent",
+      "nameFrom": ["label"],
+      "types": {
+        "jcr:primaryType": "nt:unstructured",
+        "form": {
+          "jcr:primaryType": "nt:unstructured",
+          "nodeType": "sch:FormRequirement",
+          "label": "Form"
+        },
+        "document": {
+          "jcr:primaryType": "nt:unstructured",
+          "nodeType": "sch:DocumentRequirement",
+          "label": "Document"
+        },
+        "approval": {
+          "jcr:primaryType": "nt:unstructured",
+          "nodeType": "sch:ApprovalRequirement",
+          "label": "Approval"
+        }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Fill it in",
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
+        "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true },
+        "required": { "jcr:primaryType": "nt:unstructured", "label": "Required" },
+        "acceptedFileTypes": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Accepted file types",
+          "help": "Media types, such as application/pdf. None means any."
+        },
+        "aiCheckPrompt": { "jcr:primaryType": "nt:unstructured", "label": "AI check prompt", "multiline": true },
+        "approverGroup": { "jcr:primaryType": "nt:unstructured", "label": "Approver group" }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Requirement added",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

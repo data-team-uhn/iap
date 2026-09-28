@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Remove a part of a draft schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaPart",
+    "description": "Deletes a requirement, section or question, with everything in it, into the archive, while its version is a draft, unless a condition elsewhere depends on it.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "discard",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toDelete": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDelete",
+        "targetRef": "delete"
+      }
+    },
+    "delete": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "delete",
+      "label": "Delete the part",
+      "handler": "delete",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Part removed",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

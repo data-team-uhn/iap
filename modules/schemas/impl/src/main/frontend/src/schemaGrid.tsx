@@ -21,7 +21,7 @@ import { Stack, Typography } from "@mui/material";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
 import LifecycleChip from "./LifecycleChip";
-import { type JcrNode, labelOf, pathOf, SCHEMAS_ROOT, tagsOf, titleOf, versionsOf } from "./schemaModel";
+import { type JcrNode, labelOf, nameOf, pathOf, SCHEMAS_ROOT, tagsOf, titleOf, versionsOf } from "./schemaModel";
 import { listing } from "./useNode";
 import { schemaPageUrl, versionPageUrl } from "./useSchemaList";
 
@@ -88,7 +88,7 @@ registerEntityType(SCHEMA_TYPE, {
   children: { selectors: listing(1), rows: versionRows, treeField: "title",
     countLabel: count => (count === 1 ? "1 version" : `${count} versions`) },
   rowLink: row => (isVersion(row)
-    ? versionPageUrl(String((row[SCHEMA_OF] as JcrNode)["@name"]), String(row["@name"]))
-    : schemaPageUrl(String(row["@name"]))),
+    ? versionPageUrl(nameOf(row[SCHEMA_OF] as JcrNode), nameOf(row))
+    : schemaPageUrl(nameOf(row))),
   listItem: row => <SchemaCard row={row} />,
 });

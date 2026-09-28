@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { DialogContentText, IconButton, Tooltip } from "@mui/material";
 
 import { useAuthenticatedFetch } from "../reLogin";
+import { isRefusal } from "../requestFailure";
 import { sendEvent } from "../workflowEvents";
 import ConfirmActionDialog from "./ConfirmActionDialog";
 import { useNotice } from "./NoticeSnackbar";
@@ -32,8 +33,8 @@ interface EventActionProps {
   event: string;
   title: string;
   explanation: ReactNode;
-  // The notice raised once the event is done
-  done: string;
+  // The notice raised once the event is done, if any
+  done?: string;
   color?: "primary" | "warning" | "error";
   icon: ReactNode;
 }
@@ -55,9 +56,12 @@ export function EventAction(props: EventActionProps) {
           confirmColor={color}
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
-            notify({ title: done, severity: "success" });
+            if (done) {
+              notify({ title: done, severity: "success" });
+            }
             await reload();
           }}
+          isFinal={isRefusal}
           onClose={() => setConfirming(false)}
         >
           <DialogContentText>{explanation}</DialogContentText>
@@ -71,7 +75,7 @@ export function EventAction(props: EventActionProps) {
 export function ActionIcon({ label, icon, onClick }: {
   label: string;
   icon: ReactNode;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLElement>) => void;
 }) {
   return (
     <Tooltip title={label}>
