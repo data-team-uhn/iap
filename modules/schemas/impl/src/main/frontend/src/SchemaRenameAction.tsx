@@ -21,26 +21,26 @@ import { useState } from "react";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
+import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import DetailsDialog, { editableText } from "./DetailsDialog";
 import { pathOf } from "./schemaModel";
-import { patch } from "./schemaPatch";
 
 import type { SchemaActionProps } from "./SchemaActions";
 
 function SchemaRenameAction({ schema, reload }: SchemaActionProps) {
   const [ editing, setEditing ] = useState(false);
   const doFetch = useAuthenticatedFetch();
-  if (!offers(schema, "update") || editableText(schema).length === 0) {
+  if (!offers(schema, "update") || fieldsOf(schema).length === 0) {
     return null;
   }
   return (
     <>
       <ActionIcon label="Rename" icon={<DriveFileRenameOutlineIcon fontSize="small" />} onClick={() => setEditing(true)} />
       { editing && (
-        <DetailsDialog
+        <FieldsDialog
           title="Rename schema"
           node={schema}
           onSave={async changes => {

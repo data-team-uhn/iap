@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
 
@@ -79,5 +79,16 @@ describe("offers", () => {
     expect(offers({}, "save")).toBe(false);
     expect(offers({ "@events": "save" }, "save")).toBe(false);
     expect(offers({ "@events": [ null, 3 ] }, "save")).toBe(false);
+  });
+});
+
+describe("patch", () => {
+  it("sends a patch as one JSON object", () => {
+    expect(patch({ title: "New", description: null })).toEqual({ patch: "{\"title\":\"New\",\"description\":null}" });
+  });
+
+  it("keeps numbers, truth values and lists as they are", () => {
+    expect(JSON.parse(patch({ minAnswers: 1, required: true, tags: [ "a", "b" ] }).patch))
+      .toEqual({ minAnswers: 1, required: true, tags: [ "a", "b" ] });
   });
 });
