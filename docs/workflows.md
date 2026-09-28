@@ -492,8 +492,8 @@ Nothing in this UI writes a node.
 
 | Request | Event | Definition |
 |---|---|---|
-| `POST /Workflows` | `create` | `createWorkflow` |
-| `POST /SystemWorkflows` | `create` | `createSystemWorkflow` |
+| `POST /Workflows.create.json` | `create` | `createWorkflow` |
+| `POST /SystemWorkflows.create.json` | `create` | `createSystemWorkflow` |
 | `POST <workflow>` | `save` | `saveWorkflow` |
 | `POST <workflow>.createVersion.json` | `createVersion` | `createVersion` |
 | `POST <version>` | `save` | `saveWorkflowDiagram` |
@@ -543,12 +543,15 @@ Three things this buys, none of which an endpoint could:
 - **What each action does can grow without touching the platform.** A validation step before a version is
   opened, a notification when one is activated: another service task on the definition.
 
-Two of them are more than one write, which is the reason the run commits once:
+Three of them are more than one write, which is the reason the run commits once:
 
 - **Activating** is `retireActiveVersions` then `setVersionState`. Retiring the outgoing version in a
   second request would leave a window in which two versions of one workflow both claim to be current, and
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
+- **Creating a workflow** is `createEntity` then `createWorkflowVersion`, the second acting on what the first
+  created, so a workflow and its first draft arrive together and a failure part-way leaves neither. The
+  request carries the title, the first version's label and description, and its starting diagram.
 - **Opening or drafting a version** stores its diagram in the same run — carried as a `bpmn.xml` payload
   part when a version is opened, copied from the source when one is drafted — so the version node and its
   diagram arrive together or neither does. Posting directly cannot do that: Sling creates the node a file
@@ -941,7 +944,8 @@ the created path in the `createdPath` variable — which is what the servlet tur
 ### The bootstrap: creating workflows is itself a workflow
 
 `/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message start event, a
-`createEntity` service task configured with `entityType = wf:WorkflowDefinition`, an end event. Its
+`createEntity` service task configured with `entityType = wf:WorkflowDefinition`, a `createWorkflowVersion`
+service task that opens its first draft, an end event. Its
 version declares `targetResourceType = wf/WorkflowsHomepage`, which is how the engine knows it answers
 for POSTs to `/Workflows`.
 

@@ -24,8 +24,8 @@
 // draft that arrives with its diagram — happens as one atomic run rather than two requests that could
 // half-complete.
 //
-// A POST with no selector fires the target's default event (`create` at a homepage, `save` at an
-// entity). A selector names any other event outright, e.g. `.activate.json`, `.draft.json`.
+// A selector names the event outright, e.g. `.create.json`, `.activate.json`. A POST with none fires
+// the target's default event (`save` at an entity).
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
@@ -79,22 +79,21 @@ export interface NewWorkflow {
   description: string;
 }
 
-// Fires two events, not one: a deployment may want createWorkflow and createVersion to behave
-// differently, so each can grow its own validation step or notification independently.
+// One event creates the workflow and its first draft version together, starting from the shipped
+// diagram, so a workflow with no version is never left behind by a request that failed halfway.
 //
 // Nothing marks the workflow as runnable directly. That's read off its versions, and the one this
 // creates starts as a draft, so the workflow runs nothing until a version is activated.
 //
 // @return the path of the created draft version
 export async function createWorkflow(fetchUtil: AuthenticatedFetch, fields: NewWorkflow): Promise<string> {
-  const requested = new URLSearchParams();
+  const requested = bpmnUpload(STARTING_BPMN);
   requested.set("title", fields.title);
-  const definitionPath = createdPath(await send(fetchUtil, fields.homepage, requested));
-
-  return createVersion(fetchUtil, definitionPath, {
-    version: fields.version,
-    description: fields.description,
-  });
+  requested.set("version", fields.version);
+  if (fields.description !== "") {
+    requested.set("description", fields.description);
+  }
+  return createdPath(await send(fetchUtil, `${fields.homepage}.create.json`, requested));
 }
 
 export interface NewVersion {

@@ -126,9 +126,11 @@ describe("NewWorkflowDialog", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Description/ }), "The first cut");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("/Workflows/created/created"));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("/Workflows/created"));
     expect(onClose).toHaveBeenCalled();
-    expect(fetchMock.mock.calls[0][0]).toBe("/Workflows");
+    // The workflow and its first draft are one event, so there is one request
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/Workflows.create.json");
   });
 
   it("offers the homepages a workflow may be stored in, when there is a choice", async () => {
@@ -141,7 +143,7 @@ describe("NewWorkflowDialog", () => {
     await user.click(await screen.findByRole("option", { name: "System workflows" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows"));
+    await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows.create.json"));
   });
 
   it("offers the homepage it was told is open ahead of the first discovered", async () => {
@@ -152,7 +154,7 @@ describe("NewWorkflowDialog", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows"));
+    await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows.create.json"));
   });
 
   it("does not ask where to store a workflow when there is only one place", () => {
