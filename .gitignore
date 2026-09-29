@@ -79,6 +79,8 @@ samlKeystore.p12
 .coverage
 .pytest_cache/
 __pycache__/
+# The virtualenv run_check.py provisions to run ruff and pytest in
+.venv/
 
 # Shared staging volume the Docling compose file bind-mounts
 /modules/documents/shared-docs/
