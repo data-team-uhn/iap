@@ -54,7 +54,8 @@
           <sv:node sv:name="value">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Value</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against.</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against. No two options of a question share one.</sv:value></sv:property>
+            <sv:property sv:name="unique" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
           </sv:node>
           <sv:node sv:name="label">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>

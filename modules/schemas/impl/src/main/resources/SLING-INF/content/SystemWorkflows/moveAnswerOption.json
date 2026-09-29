@@ -40,6 +40,7 @@
       "label": "Move the option",
       "handler": "moveContent",
       "within": "sch/SchemaVersion",
+      "orderProperty": "defaultOrder",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

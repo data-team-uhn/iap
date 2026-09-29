@@ -19,6 +19,7 @@
     "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]",
     "{https://iap.uhndata.io/bpmn}within=within",
     "{https://iap.uhndata.io/bpmn}namePattern=namePattern",
-    "{https://iap.uhndata.io/bpmn}nameHint=nameHint"
+    "{https://iap.uhndata.io/bpmn}nameHint=nameHint",
+    "{https://iap.uhndata.io/bpmn}orderProperty=orderProperty"
   ]
 }

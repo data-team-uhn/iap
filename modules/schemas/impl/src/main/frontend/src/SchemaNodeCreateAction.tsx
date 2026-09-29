@@ -125,14 +125,16 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
   );
 }
 
-// Adds what a container may hold, at its end or, once it holds something, at its start
-export function AddAtEnd({ parent, first }: { parent: JcrNode; first?: string }) {
+// Adds what a container may hold, at its end or, once it holds something, at its start, standing in by as much as
+// what it adds does, in theme spacing
+export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: string; indent: number }) {
   return (
     <SchemaNodeCreateAction
       parent={parent}
       first={first}
       trigger={(open, only) => (
-        <Button size="small" startIcon={<AddOutlinedIcon />} sx={{ alignSelf: "flex-start" }}
+        <Button size="small" startIcon={<AddOutlinedIcon />}
+          sx={{ alignSelf: "flex-start", ml: { sm: indent } }}
           onClick={event => open(event.currentTarget)}>
           { only ? `Add ${only.label.toLowerCase()}` : "Add" }
         </Button>
@@ -147,9 +149,9 @@ export function AddBelow({ parent, next }: { parent: JcrNode; next?: string }) {
     <SchemaNodeCreateAction
       parent={parent}
       before={next}
-      trigger={(open, only) => (
+      trigger={open => (
         <ActionIcon
-          label={only ? `Add ${only.label.toLowerCase()} below` : "Add below"}
+          label="Add below"
           icon={<AddBoxOutlinedIcon fontSize="small" />}
           onClick={event => open(event.currentTarget)}
         />
