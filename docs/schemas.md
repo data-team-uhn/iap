@@ -119,6 +119,10 @@ whether it is required, who approves an approval, an option's `value`, and all o
 fields a question offers follows its `dataType`: bounds only for numbers, a pattern only for text, and a
 field that stops applying when the `dataType` changes is removed. Conditions and templates come later.
 
+Each of a version's two update workflows says what it allows as its `notice` (see [workflows.md](workflows.md)),
+which the version's page shows under its title: that anything can change in a draft, or that only the wording of a
+published version can be corrected, the rest needing a new version.
+
 Parts and options are **added** with the engine's `createContent` task (see [workflows.md](workflows.md)), where
 the node types say they may go: requirements in a version, sections and questions in a form or a section, options
 in a question. The new part goes before the sibling named in `before`, or else last, and is filled in from the
