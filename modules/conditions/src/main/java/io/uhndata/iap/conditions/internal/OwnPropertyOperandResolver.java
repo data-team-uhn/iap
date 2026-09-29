@@ -17,34 +17,32 @@
  */
 package io.uhndata.iap.conditions.internal;
 
-import java.util.Optional;
-
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * Resolves {@code property} operands: an arbitrary metadata property of the enclosing entity, named by the operand
- * value — e.g. a submission's workflow-managed {@code status}, or repository-managed audit properties like
- * {@code jcr:createdBy}.
+ * Resolves {@code ownProperty} operands: a property of the content the condition is evaluated on itself, named by
+ * the operand value, where a {@code property} operand reads the enclosing entity's. A guard about a part of an
+ * entity, such as whether a question takes its options from elsewhere, needs the part's own properties.
  *
  * @version $Id$
  * @since 0.1.0
  */
 // Named, since the service is implemented through the shared base class, which DS would not look through
 @Component(service = OperandResolver.class)
-public class PropertyOperandResolver extends AbstractPropertyOperandResolver
+public class OwnPropertyOperandResolver extends AbstractPropertyOperandResolver
 {
     @Override
     public String getSource()
     {
-        return "property";
+        return "ownProperty";
     }
 
     @Override
     protected Content holder(final Content context)
     {
-        return Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);
+        return context;
     }
 }

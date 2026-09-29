@@ -90,6 +90,7 @@ mismatched is not comparable and fails closed with a warning.
 | `answer` | the recorded answer to the question named by `value` |
 | `tags` | the enclosing entity's effective tags — `tags` + `aggregatedTags` + `inheritedTags`; `value` ignored |
 | `property` | the enclosing entity's property named by `value` — e.g. `status`, `jcr:createdBy` |
+| `ownProperty` | the property named by `value` of the content the condition is evaluated on itself, not its entity — e.g. a question's `optionsFrom` |
 
 `answer` has two details worth knowing. The question is identified by UUID or by a
 path **relative to the entity holding the operand definition** (e.g. `form/age`
