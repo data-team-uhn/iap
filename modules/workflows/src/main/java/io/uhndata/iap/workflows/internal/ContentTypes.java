@@ -26,6 +26,7 @@ import java.util.Set;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.nodetype.NodeDefinition;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.NodeTypeManager;
 
@@ -52,8 +53,8 @@ final class ContentTypes
     /** The activity's child listing the types. */
     static final String TYPES = "types";
 
-    /** The name of a definition allowing children of any name. */
-    private static final String RESIDUAL = "*";
+    /** The name of a definition allowing children, or properties, of any name. */
+    static final String RESIDUAL = "*";
 
     /** The type every node is, which a definition accepting anything requires. */
     private static final String CATCH_ALL = "nt:base";
@@ -158,13 +159,48 @@ final class ContentTypes
     }
 
     /**
+     * Whether some node types let a child of a type go under a name, which is how content written whole is placed
+     * (see {@link ContentTree}): as the definitions naming it declare, when any does, or else as they allow a child of
+     * any name. Unlike {@link #holds(Node, NodeType)}, which says what a node is meant to hold of any name, this is
+     * about one name, so a catch-all accepting anything does allow a name no definition claims.
+     *
+     * @param parentTypes the types of the node the child goes in
+     * @param name the child's name
+     * @param child the child's type
+     * @return whether the child can go there
+     */
+    static boolean holdsAt(final List<NodeType> parentTypes, final String name, final NodeType child)
+    {
+        final List<NodeDefinition> named = parentTypes.stream()
+            .flatMap(parent -> Arrays.stream(parent.getChildNodeDefinitions()))
+            .filter(definition -> definition.getName().equals(name))
+            .toList();
+        if (named.isEmpty()) {
+            return parentTypes.stream().anyMatch(parent -> parent.canAddChildNode(name, child.getName()));
+        }
+        return concrete(child) && named.stream().anyMatch(definition -> !definition.isProtected()
+            && Arrays.stream(definition.getRequiredPrimaryTypeNames()).allMatch(child::isNodeType));
+    }
+
+    /**
+     * Whether nodes can be of a type: neither abstract nor a mixin.
+     *
+     * @param type a node type
+     * @return whether it can be a node's primary type
+     */
+    private static boolean concrete(final NodeType type)
+    {
+        return !type.isAbstract() && !type.isMixin();
+    }
+
+    /**
      * A node's types, the primary one first.
      *
      * @param node a node
      * @return its primary type and its mixins
      * @throws RepositoryException when they cannot be read
      */
-    private static List<NodeType> typesOf(final Node node) throws RepositoryException
+    static List<NodeType> typesOf(final Node node) throws RepositoryException
     {
         final List<NodeType> types = new ArrayList<>(List.of(node.getMixinNodeTypes()));
         types.add(0, node.getPrimaryNodeType());
@@ -181,7 +217,7 @@ final class ContentTypes
      */
     private static boolean holds(final List<NodeType> parentTypes, final NodeType child)
     {
-        if (child.isAbstract() || child.isMixin()) {
+        if (!concrete(child)) {
             return false;
         }
         return parentTypes.stream()
