@@ -39,7 +39,7 @@ function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsPr
   const next = siblings.at(siblings.indexOf(node) + 1);
   return (
     <>
-      { !moving && <SchemaNodeEditAction node={node} title={`Edit ${what}`} /> }
+      { !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} /> }
       <AddBelow parent={parent} next={nameIfAny(next)} />
       <SchemaNodeMoveAction node={node} what={what} />
       { !moving && <SchemaNodeDiscardAction node={node} what={what} /> }

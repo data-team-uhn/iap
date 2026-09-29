@@ -71,19 +71,21 @@ declare module "@mui/material/styles" {
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
-  // `description` is secondary explanatory prose, and `placeholder` stands in where content is
-  // missing.
+  // `description` is secondary explanatory prose, `placeholder` stands in where content is
+  // missing, and `code` is a name the machine goes by, such as an identifier.
   interface TypographyVariants {
     pageTitle: CSSProperties;
     subheading: CSSProperties;
     description: CSSProperties;
     placeholder: CSSProperties;
+    code: CSSProperties;
   }
   interface TypographyVariantsOptions {
     pageTitle?: CSSProperties;
     subheading?: CSSProperties;
     description?: CSSProperties;
     placeholder?: CSSProperties;
+    code?: CSSProperties;
   }
 }
 
@@ -93,6 +95,7 @@ declare module "@mui/material/Typography" {
     subheading: true;
     description: true;
     placeholder: true;
+    code: true;
   }
 }
 
@@ -170,6 +173,12 @@ const appTheme = createTheme({
       ...baseTypography.body2,
       color: mutedColor,
     },
+    // A name the machine goes by, set apart from the prose around it: an identifier, a path
+    code: {
+      ...baseTypography.caption,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      color: mutedColor,
+    },
     // No shouting buttons; set at the typography level (not as a MuiButton override) so
     // anything else using the button type style — e.g. Typography variant="button" labels —
     // matches the real buttons
@@ -240,6 +249,7 @@ const appTheme = createTheme({
           subheading: "h2",
           description: "p",
           placeholder: "p",
+          code: "code",
         },
       },
     },

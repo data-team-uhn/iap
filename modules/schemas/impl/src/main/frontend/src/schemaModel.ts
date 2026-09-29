@@ -35,11 +35,25 @@ const text = (node: JcrNode, key: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
+export const isObject = (value: unknown): value is JcrNode => typeof value === "object" && value !== null
+  && !Array.isArray(value);
+
 export const pathOf = (node: JcrNode): string => String(node["@path"]);
+
+// The last step of a path: the name of what it leads to
+export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+
+// Where a node would be, renamed where it stands
+export const renamedPath = (path: string, name: string): string => `${path.slice(0, path.lastIndexOf("/"))}/${name}`;
 
 export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
 export const nameOf = (node: JcrNode): string => String(node["@name"]);
+
+// The names of what a node holds
+export const childNamesOf = (node: JcrNode): string[] => Object.entries(node)
+  .filter(([ , value ]) => isObject(value))
+  .map(([ name ]) => name);
 
 // The name of a node that may not be there, such as the one after the last
 export const nameIfAny = (node?: JcrNode): string | undefined => node && nameOf(node);
@@ -97,5 +111,5 @@ export function countSchemas(schemas: JcrNode[]): SchemaCounts {
 // The name of a schema from the page it is shown on, e.g. /admin/schemas/clinicalStudy.
 export function schemaNameFromRoute(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, "");
-  return decodeURIComponent(trimmed.slice(trimmed.lastIndexOf("/") + 1));
+  return decodeURIComponent(lastSegmentOf(trimmed));
 }

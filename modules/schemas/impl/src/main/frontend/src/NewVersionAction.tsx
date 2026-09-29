@@ -26,7 +26,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { ActionIcon } from "./EventAction";
 import NewSchemaVersionDialog from "./NewSchemaVersionDialog";
 import { sendEvent } from "./schemaEvents";
-import { type JcrNode, latestVersion, nameOf, offers, pathOf } from "./schemaModel";
+import { type JcrNode, lastSegmentOf, latestVersion, nameOf, offers, pathOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 import type { SchemaActionProps } from "./SchemaActions";
@@ -60,7 +60,7 @@ function NewVersionAction({ schema, reload, report, label, source = latestVersio
             report(`Version ${versionLabel} is created`);
             await reload();
             if (created) {
-              void navigate(versionPageUrl(nameOf(schema), created.slice(created.lastIndexOf("/") + 1)));
+              void navigate(versionPageUrl(nameOf(schema), lastSegmentOf(created)));
             }
           }}
           onClose={() => setCreating(false)}
