@@ -31,7 +31,6 @@ import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -80,7 +79,7 @@ final class WorkflowStarter
                 + ": the reference chain leading to the workflow version");
         }
         final ResourceResolver resolver = context.getResourceResolver();
-        final Resource host = host(context, resolver);
+        final Resource host = ExecutionHost.of(context);
         final Resource versionResource = follow(resolver, host, (String) chain);
         if (versionResource == null || !versionResource.isResourceType(WorkflowVersion.RESOURCE_TYPE)) {
             // Nothing to run: an entity whose data names no workflow simply has none. Not an error
@@ -94,29 +93,6 @@ final class WorkflowStarter
         }
         new InstanceRunner(resolver, performer, context.getActor()).start(host, version);
         HostAccess.grantReaders(resolver, host, version, context.getActor());
-    }
-
-    /**
-     * The entity the workflow will drive: whatever this execution has just created. Failing that, the resource
-     * the event was aimed at.
-     *
-     * @param context the executing task's context
-     * @param resolver the engine's own session
-     * @return the host resource
-     * @throws WorkflowDefinitionException when the recorded path leads nowhere
-     */
-    private static Resource host(final WorkflowTaskContext context, final ResourceResolver resolver)
-        throws WorkflowDefinitionException
-    {
-        final Object created = context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (!(created instanceof String)) {
-            return context.getTarget();
-        }
-        final Resource host = resolver.getResource((String) created);
-        if (host == null) {
-            throw new WorkflowDefinitionException("Nothing was created at " + created + " to start a workflow on");
-        }
-        return host;
     }
 
     /**

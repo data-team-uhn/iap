@@ -27,6 +27,7 @@ import javax.jcr.InvalidItemStateException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -37,6 +38,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.ConditionOperand;
+import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -52,6 +59,7 @@ import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -75,6 +83,11 @@ class WorkflowEngineImplTest
 {
     private static final String ELEMENT_ID = "elementId";
 
+    private static final String SUPER_TYPE = "sling:resourceSuperType";
+
+    /** A second system workflow, for the tests where two of them catch the same event. */
+    private static final String OTHER_VERSION = "/SystemWorkflows/otherWorkflow/v1";
+
     private static final WorkflowEvent CREATE =
         new WorkflowEvent("create", Map.of("title", "My cool workflow"));
 
@@ -84,6 +97,10 @@ class WorkflowEngineImplTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
+        this.context.addModelsForClasses(SingleCondition.class, ConditionOperand.class);
+        this.context.create().resource("/libs/cond/Condition", Map.of(SUPER_TYPE, "data/EntityPart"));
+        this.context.create().resource("/libs/cond/SingleCondition", Map.of(SUPER_TYPE, Condition.RESOURCE_TYPE));
+        this.context.create().resource("/libs/cond/ConditionOperand", Map.of(SUPER_TYPE, "data/EntityPart"));
     }
 
     /**
@@ -120,6 +137,11 @@ class WorkflowEngineImplTest
         final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
         allHandlers.add(new CreateEntityHandler());
         inject(impl, "handlers", allHandlers);
+        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
+        resolvers.setAccessible(true);
+        resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
+        inject(impl, "conditionEvaluator", evaluator);
         return impl;
     }
 
@@ -134,7 +156,7 @@ class WorkflowEngineImplTest
     void executesTheBootstrapWorkflow() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowResult result = engine().receiveEvent(target, CREATE);
@@ -152,7 +174,7 @@ class WorkflowEngineImplTest
     void admitsAnActorTheStartEventNames() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
 
         final WorkflowResult result = engine().receiveEvent(target, CREATE);
@@ -168,7 +190,7 @@ class WorkflowEngineImplTest
     void tellsTheHandlerWhoItIsActingFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         createNoopGraph(EngineFixture.REQUESTERS);
         final ActorRecordingHandler handler = new ActorRecordingHandler();
 
@@ -184,7 +206,7 @@ class WorkflowEngineImplTest
     void refusesAnActorTheStartEventDoesNotName() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "some-other-group");
 
         final WorkflowEngine engine = engine();
@@ -198,7 +220,7 @@ class WorkflowEngineImplTest
     void refusesEveryoneWhenTheStartEventNamesNobody() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine();
@@ -231,7 +253,7 @@ class WorkflowEngineImplTest
     void skipsInactiveDefinitions() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, false, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, false, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine();
@@ -243,7 +265,7 @@ class WorkflowEngineImplTest
     void skipsInactiveVersions() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, false, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, false, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine();
@@ -279,7 +301,7 @@ class WorkflowEngineImplTest
     void skipsStartEventsCatchingOtherMessages() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine();
@@ -292,14 +314,14 @@ class WorkflowEngineImplTest
     void rejectsCompetingWorkflows() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         // A second definition catching the same event on the same target
         this.context.create().resource("/SystemWorkflows/other", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Competitor", "active", true));
         this.context.create().resource("/SystemWorkflows/other/v1", Map.of(
             TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true,
-            "targetResourceType", "wf/WorkflowsHomepage"));
+            "targetResourceType", WorkflowsHomepage.RESOURCE_TYPE));
         this.context.create().resource("/SystemWorkflows/other/v1/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
 
@@ -313,7 +335,7 @@ class WorkflowEngineImplTest
     void rejectsWaitingNodesInSystemWorkflows() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         // start -> a catching event that would have to wait -> end
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
@@ -332,7 +354,7 @@ class WorkflowEngineImplTest
     void rejectsActivitiesWithoutAHandler() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
         this.context.create().resource(VERSION + "/requested/toCreate", Map.of(
@@ -350,7 +372,7 @@ class WorkflowEngineImplTest
     void rejectsActivitiesNamingAnUnregisteredHandler() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
         this.context.create().resource(VERSION + "/requested/toCreate", Map.of(
@@ -368,7 +390,7 @@ class WorkflowEngineImplTest
     void rejectsNodesWithoutExactlyOneWayOut() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         // A start event with no outgoing flows at all
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
@@ -383,7 +405,7 @@ class WorkflowEngineImplTest
     void rejectsDanglingArcs() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
         this.context.create().resource(VERSION + "/requested/toNowhere", Map.of(
@@ -399,7 +421,7 @@ class WorkflowEngineImplTest
     void rejectsCyclesBackToTheStart() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         // start -> start: on the second visit the start event is no longer a legal place to be
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
@@ -416,7 +438,7 @@ class WorkflowEngineImplTest
     void rejectsEndlessActivityCycles() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         this.context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
         this.context.create().resource(VERSION + "/requested/toA", Map.of(
@@ -497,7 +519,7 @@ class WorkflowEngineImplTest
     private void runWithFailingCommit(final PersistenceException failure) throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine(failure);
@@ -508,6 +530,119 @@ class WorkflowEngineImplTest
             // session, and a session it never committed cannot have reached the repository anyway
             assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
         }
+    }
+
+    @Test
+    void startsAGuardedWorkflowWhenItsGuardHolds() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "open");
+
+        final WorkflowResult result = engine().receiveEvent(target, CREATE);
+
+        assertEquals("/Workflows/myCoolWorkflow", result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void rejectsTheEventWhenTheGuardDoesNotHold() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "closed");
+
+        final WorkflowEngine engine = engine();
+
+        assertThrows(NoApplicableWorkflowException.class, () -> engine.receiveEvent(target, CREATE));
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void startsTheWorkflowWhoseGuardHolds() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "closed");
+        createOtherNoopWorkflow();
+        guard(OTHER_VERSION + "/requested", "open");
+        final ActorRecordingHandler handler = new ActorRecordingHandler();
+
+        engine(handler).receiveEvent(target, CREATE);
+
+        assertEquals(EngineFixture.ADMIN, handler.seen);
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void rejectsSeveralWorkflowsWhoseGuardsHold() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "open");
+        createOtherNoopWorkflow();
+
+        final WorkflowEngine engine = engine(new NoopHandler());
+
+        assertThrows(WorkflowDefinitionException.class, () -> engine.receiveEvent(target, CREATE));
+    }
+
+    /**
+     * Places tags on the {@code /Workflows} target, which is what the tests' guards look at.
+     *
+     * @param tags the tags to place
+     */
+    private void tagTarget(final String... tags)
+    {
+        this.context.resourceResolver().getResource("/Workflows").adaptTo(ModifiableValueMap.class)
+            .put("tags", tags);
+    }
+
+    /**
+     * Guards a start event on the target carrying a tag.
+     *
+     * @param start the start event's path
+     * @param tag the tag the target must carry
+     */
+    private void guard(final String start, final String tag)
+    {
+        this.context.create().resource(start + "/cond:condition", Map.of(
+            TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "includes"));
+        this.context.create().resource(start + "/cond:condition/operandA", Map.of(
+            TYPE, ConditionOperand.RESOURCE_TYPE, "source", "tags"));
+        this.context.create().resource(start + "/cond:condition/operandB", Map.of(
+            TYPE, ConditionOperand.RESOURCE_TYPE, "value", new String[] { tag }));
+    }
+
+    /**
+     * Creates a second active system workflow catching {@code create} on the same homepage, running the
+     * {@code noop} handler.
+     */
+    private void createOtherNoopWorkflow()
+    {
+        this.context.create().resource("/SystemWorkflows/otherWorkflow", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Another", "active", true));
+        this.context.create().resource(OTHER_VERSION, Map.of(
+            TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true,
+            "targetResourceType", WorkflowsHomepage.RESOURCE_TYPE));
+        this.context.create().resource(OTHER_VERSION + "/requested", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create",
+            "performers", new String[] { EngineFixture.ADMIN }));
+        this.context.create().resource(OTHER_VERSION + "/requested/toNoop", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoop", "targetRef", "noop"));
+        this.context.create().resource(OTHER_VERSION + "/noop", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "noop", "handler", "noop"));
+        this.context.create().resource(OTHER_VERSION + "/noop/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
+        this.context.create().resource(OTHER_VERSION + "/done", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
     }
 
     /**
