@@ -77,10 +77,16 @@ that descends at all — so Sling-style URLs like `.1.json` work without naming 
 | `identify` | **on** | 10 | Adds `@path` and `@name` |
 | `dereference` | **on** | 10 | Replaces a `REFERENCE`, `WEAKREFERENCE` or `PATH` value with the serialization of the node it points at |
 | `deep` | on with a depth selector | 10 | Includes descendants |
+| `order` | off | 10 | Adds `@order` to a node that keeps its children in order: their names, in that order |
 | `simple` | off | 25 | Drops the properties that describe how content is *stored* rather than what it holds |
 | `events` | off | 50 | Adds `@events`, the workflow events the requesting user could send to the node (contributed by `workflows`, see [asking without sending](workflows.md#asking-without-sending)) |
 | `fields` | off | 50 | Adds `@fields`, the fields the requesting user's `update` event could change on the node (contributed by `workflows`, see `updateContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 | `creatable` | off | 50 | Adds `@creatable`, the types of content the requesting user's `create` event could add inside the node, each with the fields it starts with (contributed by `workflows`, see `createContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
+
+`order` is for readers that need children in their stored order, such as the options of a question. The keys of a
+JSON object are no way to carry it: nothing promises a reader keeps them in order, and JavaScript lists keys that
+look like whole numbers first, in numeric order, so an option named `2` would come before one named `10` whatever
+order they were stored in.
 
 `simple` is worth understanding before designing an endpoint. It removes every
 `sling:` property, which only say which scripts render the resource, and every `jcr:`
