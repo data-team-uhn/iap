@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.jcr.Node;
@@ -38,7 +39,9 @@ import io.uhndata.iap.workflows.models.Activity;
  * type. Definitions that merely tolerate children are not taken as saying what a node holds: those requiring no
  * more than {@code nt:base}, and those JCR's and Sling's own types declare, such as {@code nt:folder}'s, which every
  * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
- * offering only what it is meant to hold.
+ * offering only what it is meant to hold. How content of a type is named is the activity's to say, and a type
+ * listed can say otherwise: whether it takes a name of its own at all ({@code named}, true unless false), the
+ * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,10 +65,13 @@ final class ContentTypes
      *
      * @param nodeType the node type to create
      * @param label what it is offered under
+     * @param named whether content of this type may be given a name of its own
+     * @param namePattern the pattern such a name must match, or {@code null} for any a node can have
+     * @param nameHint what such a name may be, in words, or {@code null}
      * @version $Id$
      * @since 0.1.0
      */
-    record Type(String nodeType, String label)
+    record Type(String nodeType, String label, boolean named, String namePattern, String nameHint)
     {
         /**
          * What new content of this type is called when nothing better names it: the type's name without its
@@ -97,11 +103,16 @@ final class ContentTypes
         if (types == null) {
             return List.of();
         }
+        final String pattern = activity.get(ContentNames.NAME_PATTERN, String.class);
+        final String hint = activity.get(ContentNames.NAME_HINT, String.class);
         return types.getChildren(Content.class).stream()
             .filter(type -> type.get("nodeType", String.class) != null)
             .map(type -> {
                 final String nodeType = type.get("nodeType", String.class);
-                return new Type(nodeType, Objects.requireNonNullElse(type.get("label", String.class), nodeType));
+                return new Type(nodeType, Objects.requireNonNullElse(type.get("label", String.class), nodeType),
+                    !Boolean.FALSE.equals(type.get(ContentNames.NAMED, Boolean.class)),
+                    Optional.ofNullable(type.get(ContentNames.NAME_PATTERN, String.class)).orElse(pattern),
+                    Optional.ofNullable(type.get(ContentNames.NAME_HINT, String.class)).orElse(hint));
             })
             .toList();
     }
