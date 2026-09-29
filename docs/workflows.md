@@ -313,7 +313,7 @@ text, a whole number, a number, true or false, or a reference, and the patch mus
 of any other type cannot be edited. So one activity can serve several types, each keeping to its own fields.
 
 What the activity says about a field is content too: a `label`, a short `help` text, whether it is `multiline`,
-the `referenceType` a reference must point at and the `referenceRoot` it must be under, and two rules the patch is
+the `referenceType` a reference must point at and the `referenceRoot` it must be under, and the rules the patch is
 held to:
 
 - **`choices`**: the values the field may take, as child nodes, each named by its value (or giving it as `value`)
@@ -322,6 +322,8 @@ held to:
   other property of the node holds one of those values, as the patch leaves it. Setting a field that does not apply
   is refused, and a field that stops applying loses its value unless it is mandatory; one naming no property applies
   nowhere.
+- **`unique`**: `true`, no two contents of the same type side by side holding the same value in the field, such as
+  two answer options of a question with the same `value`; a patch repeating what a sibling holds is refused.
 
 ```json
 "fields": {

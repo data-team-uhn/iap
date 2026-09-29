@@ -153,9 +153,12 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
                 .add("multiple", field.multiple())
                 .add("mandatory", field.mandatory())
                 .add("multiline", description.multiline());
+            if (description.unique()) {
+                json.add("unique", true);
+            }
             addIfSet(json, "help", description.help());
-            addIfSet(json, "referenceType", description.referenceType());
-            addIfSet(json, "referenceRoot", description.referenceRoot());
+            addIfSet(json, "referenceType", description.target().type());
+            addIfSet(json, "referenceRoot", description.target().root());
             if (!field.defaults().isEmpty()) {
                 json.add("default", defaults(field));
             }

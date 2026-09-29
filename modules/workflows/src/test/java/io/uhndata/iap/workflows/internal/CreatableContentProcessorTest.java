@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -88,8 +87,7 @@ class CreatableContentProcessorTest
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
         Mockito.when(version.getFlowNodes()).thenReturn(
             List.of(Mockito.mock(FlowNode.class), this.fixture.creating(), this.fixture.activity()));
-        Mockito.when(this.engine.inspectWorkflow(Mockito.any(), Mockito.eq("create"), Mockito.any()))
-            .thenAnswer(invocation -> invocation.<Function<WorkflowVersion, Object>>getArgument(2).apply(version));
+        FieldsFixture.inspecting(this.engine, "create", version);
 
         final JsonArray creatable = serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable");
 
@@ -117,8 +115,7 @@ class CreatableContentProcessorTest
         Mockito.when(version.getFlowNodes()).thenReturn(List.of(other, this.fixture.creating()));
         Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
         Mockito.when(this.fixture.creating().get(ContentNames.NAME_HINT, String.class)).thenReturn("Small letters.");
-        Mockito.when(this.engine.inspectWorkflow(Mockito.any(), Mockito.eq("create"), Mockito.any()))
-            .thenAnswer(invocation -> invocation.<Function<WorkflowVersion, Object>>getArgument(2).apply(version));
+        FieldsFixture.inspecting(this.engine, "create", version);
 
         final JsonObject item =
             serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable").getJsonObject(0);
