@@ -22,13 +22,17 @@ import AddBoxOutlinedIcon from "@mui/icons-material/AddBoxOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import { Button, FormControlLabel, Menu, MenuItem, Radio, RadioGroup } from "@mui/material";
 
+import { suggestName } from "@iap/frontend-commons/fields/contentNames";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
-import { type CreatableType, creatableOf, newContentOf } from "@iap/frontend-commons/fields/fieldsModel";
+import {
+  type CreatableType, creatableOf, firstValueOf, newContentOf,
+} from "@iap/frontend-commons/fields/fieldsModel";
 
 import { ActionIcon } from "./EventAction";
 import { patch } from "./schemaEvents";
-import { type JcrNode } from "./schemaModel";
+import { childNamesOf, type JcrNode } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
+import { NewIdentifier } from "./SchemaNodeIdentifier";
 import { useTreeEvent } from "./schemaTree";
 
 interface SchemaNodeCreateActionProps {
@@ -43,26 +47,34 @@ interface SchemaNodeCreateActionProps {
 }
 
 // Adds a part or an answer option where the parent may hold one: every type it may create, with a dialog for
-// what the new content starts with. A single type needs no menu. Nothing is added while something is moving.
+// what the new content starts with, and for a part the identifier it is created with, suggested from what it says
+// until it is given one. A single type needs no menu. Nothing is added while something is moving.
 function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCreateActionProps) {
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
   const [ atStart, setAtStart ] = useState(false);
+  // The identifier asked for, once it is given one rather than the suggestion
+  const [ identifier, setIdentifier ] = useState<string>();
   const send = useTreeEvent();
   const { moving } = useMoveMode();
   const types = creatableOf(parent);
   if (types.length === 0 || moving) {
     return null;
   }
+  const choose = (type: CreatableType) => {
+    setIdentifier(undefined);
+    setChosen(type);
+  };
   const open = (anchor: HTMLElement) => {
     setAtStart(false);
     if (types.length === 1) {
-      setChosen(types[0]);
+      choose(types[0]);
     } else {
       setMenu(anchor);
     }
   };
   const placedBefore = atStart ? first : before;
+  const suggestionFor = (type: CreatableType, heading: unknown) => suggestName(heading, type, childNamesOf(parent));
 
   return (
     <>
@@ -73,7 +85,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
             key={type.type}
             onClick={() => {
               setMenu(null);
-              setChosen(type);
+              choose(type);
             }}
           >
             {type.label}
@@ -87,9 +99,14 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
           onSave={changes => send(parent, "create", {
             type: chosen.type,
             ...placedBefore ? { before: placedBefore } : {},
+            ...chosen.named ? { name: identifier ?? suggestionFor(chosen, firstValueOf(chosen.fields, changes)) } : {},
             ...patch(changes),
           })}
           onClose={() => setChosen(null)}
+          afterFirstField={chosen.named ? (heading, working) => (
+            <NewIdentifier value={identifier} suggestion={suggestionFor(chosen, heading)} hint={chosen.nameHint}
+              disabled={working} onChange={setIdentifier} />
+          ) : undefined}
         >
           { first && (
             <RadioGroup

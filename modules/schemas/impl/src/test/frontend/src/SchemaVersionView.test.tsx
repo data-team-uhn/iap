@@ -59,6 +59,30 @@ const card = async (heading: string) =>
 const spots = () => screen.getAllByRole("button", { name: /^Move (before|to the end)/ })
   .map(spot => spot.getAttribute("aria-label"));
 
+// Where renaming "Your name" is asked for
+const RENAME_NAME = "/Schemas/study/v3/intake/name.rename.json";
+
+// Opens the edit dialog of the part with the given heading
+const editPart = async (heading: string) => {
+  fireEvent.click(within(await card(heading)).getByRole("button", { name: "Edit" }));
+  return screen.findByRole("dialog");
+};
+
+// Turns the identifier of the part being edited into a field, and gives that field
+const startRenaming = (dialog: HTMLElement) => {
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rename" }));
+  return within(dialog).getByRole("textbox", { name: "Identifier" });
+};
+
+// Gives the identifier being changed a new name, and saves it
+const renameTo = (dialog: HTMLElement, name: string) => {
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Identifier" }), { target: { value: name } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save the identifier" }));
+};
+
+// How many times the draft's whole tree has been read
+const treeReads = () => vi.mocked(fetch).mock.calls.filter(([ url ]) => String(url).includes("/v3.deep")).length;
+
 const expand = async (heading: string) =>
   fireEvent.click(await screen.findByRole("button", { name: `Expand ${heading}` }));
 
@@ -172,6 +196,100 @@ describe("SchemaVersionView", () => {
     expect(screen.getByText("drug").closest("li")?.querySelector("button")).toBeNull();
   });
 
+  it("renames a part on its own, then saves the rest where it now is", async () => {
+    const posted = serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
+    renderVersion("study", "v3");
+
+    const dialog = await editPart("Your name");
+    // Right after what names the part
+    expect(within(dialog).getByLabelText(/Question/).compareDocumentPosition(within(dialog).getByText("name")))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const identifier = startRenaming(dialog);
+    expect(identifier).toHaveFocus();
+    expect(within(dialog).getByText("Letters, digits, - and _.")).toBeInTheDocument();
+    renameTo(dialog, " fullName ");
+
+    expect(await within(dialog).findByText("fullName")).toBeInTheDocument();
+    expect(posted[0].url).toBe(RENAME_NAME);
+    expect(posted[0].params.get("name")).toBe("fullName");
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your full name" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[1]?.url).toBe("/Schemas/study/v3/intake/fullName.update.json"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("says why a rename was refused, and reads nothing again when nothing was renamed", async () => {
+    const posted = serveSchemas({ answers: { [RENAME_NAME]: { status: 400, error: "2x is not a name this can take" } } });
+    renderVersion("study", "v3");
+
+    const dialog = await editPart("Your name");
+    startRenaming(dialog);
+    renameTo(dialog, "2x");
+    expect(await within(dialog).findByText("2x is not a name this can take")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel renaming" }));
+    expect(within(dialog).getByText("name")).toBeInTheDocument();
+
+    const before = treeReads();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(treeReads()).toBe(before);
+    expect(posted).toHaveLength(1);
+  });
+
+  it("renames from the keyboard, and keeps its name when confirmed as it is", async () => {
+    const posted = serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
+    renderVersion("study", "v3");
+
+    const dialog = await editPart("Your name");
+    fireEvent.keyDown(startRenaming(dialog), { key: "Enter" });
+    expect(within(dialog).getByText("name")).toBeInTheDocument();
+
+    const identifier = startRenaming(dialog);
+    fireEvent.keyDown(identifier, { key: "a" });
+    fireEvent.keyDown(identifier, { key: "Escape" });
+    // Only the renaming is cancelled
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "Identifier" })).not.toBeInTheDocument();
+
+    const again = startRenaming(dialog);
+    fireEvent.change(again, { target: { value: "fullName" } });
+    fireEvent.keyDown(again, { key: "Enter" });
+    expect(await within(dialog).findByText("fullName")).toBeInTheDocument();
+    expect(posted.map(event => event.url)).toEqual([ RENAME_NAME ]);
+  });
+
+  it("reads the tree again when closed after a rename", async () => {
+    serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
+    renderVersion("study", "v3");
+
+    const dialog = await editPart("Your name");
+    startRenaming(dialog);
+    renameTo(dialog, "fullName");
+    await within(dialog).findByText("fullName");
+
+    const before = treeReads();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(treeReads()).toBe(before + 1));
+  });
+
+  it("shows an identifier that cannot change, and none for an option", async () => {
+    serveSchemas();
+    renderVersion("study", "v2");
+
+    fireEvent.click(within(await card("Which arms does it have?")).getAllByRole("button", { name: "Edit" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("arms")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await expand("Which arms does it have?");
+    fireEvent.click(within(screen.getByText("Placebo").closest("li") as HTMLElement)
+      .getByRole("button", { name: "Edit" }));
+    expect(within(await screen.findByRole("dialog")).queryByText("Identifier")).not.toBeInTheDocument();
+  });
+
   it("adds a requirement at the end of a draft", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
@@ -216,6 +334,58 @@ describe("SchemaVersionView", () => {
     fireEvent.click(within(last).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1].params.has("before")).toBe(false);
+  });
+
+  it("creates a part with the identifier suggested from what it says, until it is given its own", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
+    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    const identifier = within(dialog).getByRole("textbox", { name: "Identifier" });
+    const question = within(dialog).getByLabelText(/Question/);
+    // Right after what names the part
+    expect(question.compareDocumentPosition(identifier)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(identifier).toHaveValue("question");
+    // Free among what the form holds already
+    fireEvent.change(question, { target: { value: "Name" } });
+    expect(identifier).toHaveValue("name2");
+    fireEvent.change(question, { target: { value: "Your e-mail address" } });
+    expect(identifier).toHaveValue("yourEMailAddress");
+
+    fireEvent.change(identifier, { target: { value: "email" } });
+    fireEvent.change(question, { target: { value: "Your e-mail" } });
+    expect(identifier).toHaveValue("email");
+    fireEvent.change(identifier, { target: { value: "" } });
+    expect(identifier).toHaveValue("yourEMail");
+    fireEvent.change(identifier, { target: { value: "contact" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
+    expect(posted[0].params.get("name")).toBe("contact");
+  });
+
+  it("sends the suggested identifier when none is given, and none for an option", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
+    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Where do you live?" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted[0]?.params.get("name")).toBe("whereDoYouLive"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await expand("Your name");
+    fireEvent.click(screen.getByRole("button", { name: "Add option" }));
+    const option = await screen.findByRole("dialog", { name: /New option/ });
+    expect(within(option).queryByRole("textbox", { name: "Identifier" })).not.toBeInTheDocument();
+    fireEvent.change(within(option).getByLabelText(/Value/), { target: { value: "long" } });
+    fireEvent.click(within(option).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted).toHaveLength(2));
+    expect(posted[1].params.has("name")).toBe(false);
   });
 
   it("adds a part at the start of what holds it", async () => {

@@ -26,13 +26,13 @@ import { type JcrNode, pathOf } from "./schemaModel";
 // How a change made anywhere in a version's tree re-reads the tree
 export const ReloadTree = createContext<() => void | Promise<void>>(() => undefined);
 
-// Sends an event to a node of the tree, then re-reads the tree. Resolves with where what the event created or
-// moved now is, once the tree shows it.
+// Sends an event to a node of the tree, or to where one is, then re-reads the tree. Resolves with where what the event
+// created or moved now is, once the tree shows it.
 export function useTreeEvent() {
   const doFetch = useAuthenticatedFetch();
   const reload = useContext(ReloadTree);
-  return useCallback(async (node: JcrNode, event: string, params?: Record<string, string>) => {
-    const path = await sendEvent(doFetch, pathOf(node), event, params);
+  return useCallback(async (node: JcrNode | string, event: string, params?: Record<string, string>) => {
+    const path = await sendEvent(doFetch, typeof node === "string" ? node : pathOf(node), event, params);
     await reload();
     return path;
   }, [ doFetch, reload ]);
