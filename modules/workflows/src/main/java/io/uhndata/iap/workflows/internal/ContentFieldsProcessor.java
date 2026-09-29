@@ -184,7 +184,7 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
      * @param name the key
      * @param value the text, left out when not set
      */
-    private static void addIfSet(final JsonObjectBuilder json, final String name, final String value)
+    static void addIfSet(final JsonObjectBuilder json, final String name, final String value)
     {
         if (value != null) {
             json.add(name, value);

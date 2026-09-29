@@ -48,9 +48,12 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 /**
  * Adds {@code @creatable} to content a create workflow would add to: each type of content the requesting user's
  * {@code create} event would make there, with its {@code type}, its {@code label}, and the {@code fields} it starts
- * with, described as {@code @fields} describes them. It is read from the {@link CreateContentHandler} and
+ * with, described as {@code @fields} describes them, the {@code defaultName} it takes when nothing it says makes a
+ * name, whether it is {@code named}, that is, takes a name of its own, and if so the {@code namePattern} such a name
+ * must match and the {@code nameHint} that says so, when the workflow has them. It is read from the
+ * {@link CreateContentHandler} and
  * {@link UpdateContentHandler} activities of the workflow that would run, so an editor offers exactly what the
- * workflow creates. The name of this processor is {@code creatable}.
+ * workflow creates, and can suggest a name the workflow would accept. The name of this processor is {@code creatable}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -109,7 +112,7 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
                 "A node being serialized is visible to the session serializing it");
             final Offer offer = this.engine.inspectWorkflow(resource, CREATE_EVENT, CreatableContentProcessor::offer);
             if (offer != null) {
-                json.add("@creatable", describe(ContentTypes.accepted(offer.types(), node), offer.fields(), node));
+                json.add("@creatable", describe(ContentTypes.accepted(offer.types(), node), offer, node));
             }
         } catch (final RepositoryException | WorkflowException e) {
             // Nothing creatable is the safe answer; the serialization itself must not fail over it
@@ -151,22 +154,29 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
      * The types as the serialization lists them.
      *
      * @param types the types that may be created
-     * @param fields the fields new content is filled in with
+     * @param offer what the workflow offers
      * @param parent the node they would be created in
      * @return their descriptions
      * @throws RepositoryException when a type cannot be read
      */
-    private static JsonArrayBuilder describe(final List<ContentTypes.Type> types,
-        final List<ContentFields.Description> fields, final Node parent) throws RepositoryException
+    private static JsonArrayBuilder describe(final List<ContentTypes.Type> types, final Offer offer,
+        final Node parent) throws RepositoryException
     {
         final NodeTypeManager nodeTypes = parent.getSession().getWorkspace().getNodeTypeManager();
         final JsonArrayBuilder described = Json.createArrayBuilder();
         for (final ContentTypes.Type type : types) {
-            described.add(Json.createObjectBuilder()
+            final JsonObjectBuilder json = Json.createObjectBuilder()
                 .add("type", type.nodeType())
                 .add("label", type.label())
+                .add("defaultName", type.defaultName())
+                .add(ContentNames.NAMED, type.named())
                 .add("fields", ContentFieldsProcessor.describe(
-                    ContentFields.editable(fields, List.of(nodeTypes.getNodeType(type.nodeType()))))));
+                    ContentFields.editable(offer.fields(), List.of(nodeTypes.getNodeType(type.nodeType())))));
+            if (type.named()) {
+                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_PATTERN, type.namePattern());
+                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_HINT, type.nameHint());
+            }
+            described.add(json);
         }
         return described;
     }
