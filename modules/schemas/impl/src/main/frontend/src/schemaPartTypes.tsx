@@ -24,13 +24,15 @@ import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
 import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
-import { Box, Typography, type SvgIconProps } from "@mui/material";
+import { Box, Stack, Typography, type SvgIconProps } from "@mui/material";
 
+import CodePill from "./CodePill";
 import { nameOf } from "./schemaModel";
 import { MoveSpot, useMoveHighlight } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
+import { ICON_COLUMN } from "./schemaTreeLayout";
 import {
-  answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings,
+  answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings, QUESTION_TYPE,
 } from "./schemaVersionTreeModel";
 
 
@@ -60,41 +62,52 @@ function Detail({ children }: { children: string }) {
 // What an option says: what the submitter reads, and what an answer stores when it differs
 function OptionText({ option }: { option: JcrNode }) {
   return (
-    <>
-      {optionLabelOf(option)}
-      { option.label !== undefined && option.label !== option.value && (
-        <Typography component="span" variant="description">
-          {` · stored as ${String(option.value)}`}
-        </Typography>
-      ) }
-    </>
+    <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+      <span>{optionLabelOf(option)}</span>
+      { option.label !== undefined && option.label !== option.value && <CodePill name={String(option.value)} /> }
+    </Stack>
   );
 }
 
 // One of a question's options in its details, with what may be done to it
 function OptionRow({ option, question, options }: { option: JcrNode; question: JcrNode; options: JcrNode[] }) {
   const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option, { bordered: false });
+  const description = detailOf(option, "description");
   return (
     <Typography
       component="li"
       variant="body2"
       ref={ref}
       tabIndex={-1}
-      sx={surface}
+      // One row of the list's grid, so that every row's actions stand in the same column
+      sx={[ { display: "grid", gridTemplateColumns: "subgrid", alignItems: "center", columnGap: 1 }, surface ]}
     >
-      <Box component="span" sx={content}>
+      <Box sx={{ minWidth: 0, ...content }}>
         <OptionText option={option} />
+        { description && <Typography variant="description">{description}</Typography> }
       </Box>
-      <SchemaNodeActions node={option} parent={question} siblings={options} what="option" />
+      <Stack direction="row">
+        <SchemaNodeActions node={option} parent={question} siblings={options} what="option" />
+      </Stack>
     </Typography>
   );
 }
 
-// A question's options. In the question's details each comes with what may be done to it, and, while an option
-// is moving, the places it may go, between them and after the last; in its chip, only what it says.
+// A question's options. In the question's details each comes with what it describes and what may be done to it,
+// the actions lined up just after the widest option, and, while an option is moving, the places it may go, between
+// them and after the last; in its chip, only what it says.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
-    <Box component="ul" sx={{ m: 0, pl: 3 }}>
+    <Box
+      component="ul"
+      sx={question
+        // Under the question's chips, on a screen wide enough to spare it
+        ? { mx: 0, my: 1, p: 0, pl: { sm: ICON_COLUMN }, display: "grid", rowGap: 1.5,
+          gridTemplateColumns: "minmax(0, max-content) max-content",
+          // Every row, an option or a place to move one to, spans the grid, spaced by it alone
+          "& > li": { gridColumn: "1 / -1", my: 0 } }
+        : { m: 0, pl: 3 }}
+    >
       { options.map(option => (question ? (
         <Fragment key={nameOf(option)}>
           <MoveSpot parent={question} before={option} item />
@@ -175,7 +188,7 @@ const PART_TYPES: Record<string, SchemaPartType> = {
   "sch/Section": {
     label: "Section", Icon: ViewAgendaOutlinedIcon, accent: "divider", weight: "fontWeightMedium",
   },
-  "sch/Question": {
+  [QUESTION_TYPE]: {
     label: "Question", Icon: HelpOutlineOutlinedIcon, accent: "primary.main", chips: questionChips,
     details: questionDetails,
   },

@@ -46,7 +46,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@link ContentTypes}); nothing moves into itself; and when the activity names a resource type as {@code within},
  * the target stays inside the same nearest ancestor of that type, such as the schema version a question belongs to.
  * The move is made with the {@link ContentMover}, which keeps what names the target by its path working, and the new
- * path is recorded as what later steps act on.
+ * path is recorded as what later steps act on. An activity naming an {@code orderProperty} has the target and its
+ * siblings of its type numbered by their places in it (see {@link Placement}).
  *
  * @version $Id$
  * @since 0.1.0
@@ -95,6 +96,8 @@ public class MoveContentHandler implements ServiceTaskHandler
             VersioningUtils.checkOut(parentNode);
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE,
                 this.mover.move(node, parentNode, name, before));
+            Placement.number(parentNode, node.getPrimaryNodeType().getName(),
+                context.getActivity().get(Placement.ORDER_PROPERTY, String.class));
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot move " + target.getPath() + ": " + e.getMessage(), e);
         }

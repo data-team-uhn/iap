@@ -47,7 +47,7 @@
       <bpmn:messageEventDefinition id="moveRequested" messageRef="moveMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="moveContent" iap:within="sch/SchemaVersion" name="Move the option">
+    <bpmn:serviceTask id="move" iap:handler="moveContent" iap:orderProperty="defaultOrder" iap:within="sch/SchemaVersion" name="Move the option">
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
