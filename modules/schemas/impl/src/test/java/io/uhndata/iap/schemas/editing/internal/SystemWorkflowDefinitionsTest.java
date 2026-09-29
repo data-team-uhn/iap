@@ -55,6 +55,7 @@ import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -215,6 +216,21 @@ class SystemWorkflowDefinitionsTest
             assertEquals(Set.of(), answeringPart(PART, "move", published));
             assertEquals(Set.of(), answeringPart(OPTION, "move", published));
         }
+    }
+
+    @Test
+    void theUpdatesOfAVersionSayWhatTheyAllow() throws IOException, URISyntaxException
+    {
+        int updates = 0;
+        for (final Path path : definitions()) {
+            final JsonObject version = read(path).getJsonObject("v1");
+            if (VERSION.equals(version.getString("targetResourceType"))
+                && UPDATE.equals(version.getJsonObject("requested").getString("messageName"))) {
+                assertFalse(version.getString("notice", "").isBlank(), path.getFileName().toString());
+                updates++;
+            }
+        }
+        assertEquals(2, updates);
     }
 
     @Test

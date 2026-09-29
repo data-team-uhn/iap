@@ -72,6 +72,9 @@ export function nextVersionLabel(schema: JcrNode): string {
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
 
+// What the update that would run says it allows, in words
+export const noticeOf = (node: JcrNode): string | undefined => text(node, "@notice");
+
 // Whether the server would take this event on a schema or a version from the current user
 export const offers = (node: JcrNode, event: string): boolean => strings(node["@events"]).includes(event);
 
