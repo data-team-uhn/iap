@@ -83,13 +83,14 @@ carry most of the load:
 - A **timer**, drawn with a small clock, fires when a deadline passes or a stretch of
   time goes by — "five days after the review started".
 - A **message**, drawn with an envelope, is how a process talks to the world outside it.
+  The envelope does not mean only email: it stands for any kind of message, be it an
+  actual email, an HTTP request to an external service, or an internal system message.
   A *throwing* message sends something — the email telling a reviewer they are needed —
   and the process carries straight on. A *catching* message waits for something to
   arrive before going any further.
 
 These markers are not only for the middle. A start event with an envelope begins a run
-because a message arrived, and an end event with one finishes by sending a notification —
-which is how every notification in this page's diagrams is drawn.
+because a message arrived, and an end event with one finishes by sending a notification.
 
 Either kind can also sit on the *edge* of a task:
 
