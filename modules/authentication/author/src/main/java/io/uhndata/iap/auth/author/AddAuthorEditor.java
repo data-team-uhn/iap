@@ -25,41 +25,49 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A commit editor responsible for adding an iap:lastAuthor field onto nodes.
+ * A commit editor responsible for adding an {@code auth:lastAuthor} field onto nodes whose type declares it, i.e.
+ * carries the {@code auth:Authored} mixin. See {@code author.cnd} for why the property exists alongside
+ * {@code jcr:lastModifiedBy} rather than in place of it.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public class AddAuthorEditor extends DefaultEditor
 {
-    private final CommitInfo commitInfo;
     private final NodeBuilder node;
 
-    AddAuthorEditor(final NodeBuilder node, final CommitInfo commitInfo)
+    private final CommitInfo commitInfo;
+
+    private final AuthoredTypeInspector types;
+
+    AddAuthorEditor(final NodeBuilder node, final CommitInfo commitInfo, final AuthoredTypeInspector types)
     {
         this.node = node;
         this.commitInfo = commitInfo;
+        this.types = types;
     }
 
     @Override
     public void enter(final NodeState before, final NodeState after)
     {
-        String userId = this.commitInfo.getUserId();
-        if (after.exists() && userId != null) {
-            // Node was not deleted -- tack on user information
-            this.node.setProperty("iap:lastAuthor", userId, Type.STRING);
+        final String userId = this.commitInfo.getUserId();
+        if (after.exists() && userId != null && this.types.canStoreAuthor(after)) {
+            // Node was not deleted, the commit names a user, and this node's type accepts the property
+            this.node.setProperty("auth:lastAuthor", userId, Type.STRING);
+            // Test: check to see if we can alter the usual jcr:lastModifiedBy if it exists on the same node
+            this.node.setProperty("jcr:lastModifiedBy", "overwritten", Type.STRING);
         }
     }
 
     @Override
     public Editor childNodeAdded(final String name, final NodeState after)
     {
-        return new AddAuthorEditor(this.node.getChildNode(name), this.commitInfo);
+        return new AddAuthorEditor(this.node.getChildNode(name), this.commitInfo, this.types);
     }
 
     @Override
     public Editor childNodeChanged(final String name, final NodeState before, final NodeState after)
     {
-        return new AddAuthorEditor(this.node.getChildNode(name), this.commitInfo);
+        return new AddAuthorEditor(this.node.getChildNode(name), this.commitInfo, this.types);
     }
 }

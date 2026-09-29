@@ -38,6 +38,7 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
+            <Sling-Nodetypes>SLING-INF/nodetypes/author.cnd</Sling-Nodetypes>
           </instructions>
         </configuration>
       </plugin>

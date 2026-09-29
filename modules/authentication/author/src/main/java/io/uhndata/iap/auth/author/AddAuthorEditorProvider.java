@@ -37,6 +37,6 @@ public class AddAuthorEditorProvider implements EditorProvider
     public Editor getRootEditor(final NodeState before, final NodeState after, final NodeBuilder builder,
         final CommitInfo info)
     {
-        return new AddAuthorEditor(builder, info);
+        return new AddAuthorEditor(builder, info, new AuthoredTypeInspector(after));
     }
 }
