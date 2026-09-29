@@ -24,21 +24,22 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-import { type JcrNode, latestVersion, nextVersionLabel, pathOf, titleOf } from "./schemaModel";
+import { type JcrNode, nextVersionLabel, titleOf } from "./schemaModel";
 import SchemaVersionPicker from "./SchemaVersionPicker";
 
 interface NewSchemaVersionDialogProps {
   schema: JcrNode;
+  // The path of the version it starts as a copy of, or nothing to start empty
+  source: string;
   onClose: () => void;
   onCreate: (label: string, source: string) => Promise<void>;
 }
 
 // A new version of a schema: its label, and whether it starts empty or as a copy of one of the schema's
-// versions, by default the one made last.
-function NewSchemaVersionDialog({ schema, onClose, onCreate }: NewSchemaVersionDialogProps) {
+// versions.
+function NewSchemaVersionDialog({ schema, source: initialSource, onClose, onCreate }: NewSchemaVersionDialogProps) {
   const [ label, setLabel ] = useState(nextVersionLabel(schema));
-  const latest = latestVersion(schema);
-  const [ source, setSource ] = useState(latest ? pathOf(latest) : "");
+  const [ source, setSource ] = useState(initialSource);
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf });
 
   return (

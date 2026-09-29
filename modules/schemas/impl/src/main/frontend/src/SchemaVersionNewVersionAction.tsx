@@ -18,11 +18,12 @@
 
 import NewVersionAction from "./NewVersionAction";
 
-import type { SchemaActionProps } from "./SchemaActions";
+import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Adds a version to a schema, by default a copy of the one made last, and opens it.
-function SchemaNewVersionAction(props: SchemaActionProps) {
-  return <NewVersionAction {...props} label="New version" />;
+// Starts a new version of the schema as a copy of this one, and opens it.
+function SchemaVersionNewVersionAction({ schema, version, reload, report }: SchemaVersionActionProps) {
+  return <NewVersionAction schema={schema} source={version} reload={reload} report={report}
+    label="New version from this one" />;
 }
 
-export default SchemaNewVersionAction;
+export default SchemaVersionNewVersionAction;
