@@ -190,6 +190,38 @@ A question shown only to submissions tagged `sensitive` with 10 or more particip
 No type is declared anywhere: the referenced question's `dataType` sets the
 comparison type, and the unquoted `10` is stored as a number regardless.
 
+## Editing in the browser
+
+The module's frontend (`@iap/conditions`) reads and builds conditions for any module that stores them.
+
+- `conditionModel.ts` is the pure half: the `COMPARATORS` and `AGGREGATES` catalogs, what an operand holds (an
+  `OperandShape`: its type, whether it holds several values, and the choices it can be compared with), a draft a
+  builder edits (`draftOf` a stored condition, always a group at the top), whether it can be written
+  (`isComplete`), the content a `replaceContent` event writes from it (`contentOf`, `null` for no condition), and
+  the words it reads as (`describeCondition`, `whenApplies`).
+- `ConditionBuilder` edits a draft: groups of which all or any must hold, each condition comparing what a source
+  reads, optionally folded by an aggregate, with values of the type it holds, or with what another source reads.
+  Comparators are offered by what the first operand holds: ordering ones for one value of a type with an order,
+  set ones for several values. `ConditionDialog` edits a stored condition whole and says, as it changes, when what
+  it guards will apply, in the `AppliesWhenLine` a module shows where it lists what the condition guards; given an
+  `onEdit`, that line is also what is pressed to change the condition.
+
+Operand sources are pluggable, as on the server. An `OperandSource` gives its `name` (the stored `source`), what
+choosing it reads as, what its `value` names if anything (`valueLabel`), the `shape` of what its operands hold,
+and how they read. The module ships `tagsSource` (given the tag choices `useTagChoices` loads),
+`PROPERTY_SOURCE` and `OWN_PROPERTY_SOURCE`; the schemas module adds its `answer` source, whose operands hold the
+answers to a question of the version, typed by its `dataType` and offering its options. A source whose operands
+name something picked rather than typed, such as a question, passes the builder a function rendering an editor for
+it.
+
+Each aggregate says which types it `accepts` and what it outputs, a fixed type or the one it folds (`"same"`),
+as the evaluator does; the builder offers one where an operand can hold several values of a type it accepts, and
+treats the operand as holding the output from then on. Only `count` is offered so far; `sum`, `avg`, `min` and
+`max` are one catalog entry each.
+
+A comparator, source or aggregate the model does not know is shown by its stored name and kept; a condition of a
+kind it does not know is shown and can be removed, but a draft holding one cannot be written.
+
 ## Future work
 
 The nearest-scope answer lookup is a fixed default. When repeatable sections land it
