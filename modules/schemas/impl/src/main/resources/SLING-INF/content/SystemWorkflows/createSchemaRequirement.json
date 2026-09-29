@@ -38,6 +38,8 @@
       "elementId": "create",
       "label": "Add the requirement",
       "handler": "createContent",
+      "namePattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "nameHint": "Letters, digits, - and _, starting with a letter or a digit.",
       "nameFrom": ["label"],
       "types": {
         "jcr:primaryType": "nt:unstructured",

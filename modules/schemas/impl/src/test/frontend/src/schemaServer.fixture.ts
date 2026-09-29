@@ -119,7 +119,13 @@ const single = (comparator: string, operandA: unknown, operandB?: unknown) => ({
   operandB,
 });
 
-const creatable = (type: string, label: string, ...fields: unknown[]) => ({ type, label, fields });
+const creatable = (type: string, label: string, ...fields: unknown[]) => ({
+  type, label, fields, defaultName: label.charAt(0).toLowerCase() + label.slice(1), named: true,
+  namePattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$", nameHint: "Letters, digits, - and _.",
+});
+
+// An option takes no name of its own
+const unnamed = (type: string, label: string, ...fields: unknown[]) => ({ type, label, fields, named: false });
 
 // What a form or a section of a draft may hold
 const FORM_ITEMS = [
@@ -136,12 +142,12 @@ export const CONTENT: Record<string, Record<string, unknown>> = {
       creatable("sch:DocumentRequirement", "Document", text("label", "Label", true)),
     ],
     "intake": requirement("FormRequirement", {
-      "label": "Intake", "@events": [ "create", "discard", "move", "update" ],
+      "label": "Intake", "@events": [ "create", "discard", "move", "rename", "update" ],
       "@creatable": FORM_ITEMS,
       "name": question({
-        "text": "Your name", "@events": [ "create", "discard", "move", "update" ],
+        "text": "Your name", "@events": [ "create", "discard", "move", "rename", "update" ],
         "@fields": [ text("text", "Question", true) ],
-        "@creatable": [ creatable("sch:AnswerOption", "Option", text("value", "Value", true)) ],
+        "@creatable": [ unnamed("sch:AnswerOption", "Option", text("value", "Value", true)) ],
         "short": { ...option("short", "Short"), "@events": [ "discard", "move", "update" ] },
         "full": { ...option("full", "Full"), "@events": [ "discard", "move", "update" ] },
       }),

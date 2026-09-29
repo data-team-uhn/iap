@@ -47,7 +47,7 @@
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="value,title,text,label" name="Add the part">
+    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="value,title,text,label" iap:nameHint="Letters, digits, - and _, starting with a letter or a digit." iap:namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" name="Add the part">
       <bpmn:extensionElements>
         <sv:node sv:name="types">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
@@ -65,6 +65,7 @@
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="nodeType"><sv:value>sch:AnswerOption</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Option</sv:value></sv:property>
+            <sv:property sv:name="named" sv:type="Boolean"><sv:value>false</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>

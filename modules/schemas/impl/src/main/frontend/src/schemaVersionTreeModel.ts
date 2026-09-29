@@ -20,14 +20,13 @@
 // its serialization. What counts as a part is what the server says: every requirement and form item
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
-import { type JcrNode, nameOf } from "./schemaModel";
+import { isObject, type JcrNode, nameOf } from "./schemaModel";
 
 const PART_SUPERTYPES = [ "sch/Requirement", "sch/FormItem" ];
 
 export const OPTION_TYPE = "sch/AnswerOption";
 
-const isObject = (value: unknown): value is JcrNode => typeof value === "object" && value !== null
-  && !Array.isArray(value);
+
 
 const text = (node: JcrNode, key: string): string | undefined => {
   const value = node[key];
@@ -45,9 +44,10 @@ export const strings = (value: unknown): string[] => (Array.isArray(value) ? val
 
 export const resourceTypeOf = (node: JcrNode): string => String(node["sling:resourceType"]);
 
-export const partsOf = (node: JcrNode): JcrNode[] => Object.values(node)
-  .filter(isObject)
-  .filter(child => PART_SUPERTYPES.includes(String(child["sling:resourceSuperType"])));
+// Whether a node is a requirement or a form item, which has an identifier, as an option does not
+export const isPart = (node: JcrNode): boolean => PART_SUPERTYPES.includes(String(node["sling:resourceSuperType"]));
+
+export const partsOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject).filter(isPart);
 
 export const optionsOf = (question: JcrNode): JcrNode[] => Object.values(question)
   .filter(isObject)
