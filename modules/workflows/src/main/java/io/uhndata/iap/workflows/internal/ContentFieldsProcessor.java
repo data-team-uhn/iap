@@ -44,6 +44,7 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Adds {@code @fields} to content an update workflow would change: the fields the requesting user's {@code update}
@@ -51,7 +52,8 @@ import io.uhndata.iap.workflows.models.Activity;
  * several values, is {@code mandatory} or {@code multiline}, the {@code default} new content starts with, and what
  * else the activity says about it (see {@link ContentFields}). It is read from the
  * {@link UpdateContentHandler} activity of the workflow that would run, so an editor offers exactly what the update
- * accepts and keeps no list of its own. The name of this processor is {@code fields}.
+ * accepts and keeps no list of its own. When that workflow has a {@link WorkflowVersion#getNotice notice}, it is added
+ * as {@code @notice}: what the update allows, in words. The name of this processor is {@code fields}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -96,15 +98,17 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
             }
             resource = Objects.requireNonNull(this.resolver.get().getResource(node.getPath()),
                 "A node being serialized is visible to the session serializing it");
-            final List<ContentFields.Description> described = this.engine.inspectWorkflow(resource, UPDATE_EVENT,
-                version -> version.getFlowNodes().stream()
+            final Update update = this.engine.inspectWorkflow(resource, UPDATE_EVENT, version -> new Update(
+                version.getFlowNodes().stream()
                     .filter(Activity.class::isInstance)
                     .map(Activity.class::cast)
                     .filter(activity -> UpdateContentHandler.HANDLER_NAME.equals(activity.getHandler()))
                     .flatMap(activity -> ContentFields.describedBy(activity).stream())
-                    .toList());
-            if (described != null) {
-                json.add("@fields", describe(ContentFields.editable(described, node)));
+                    .toList(),
+                version.getNotice()));
+            if (update != null) {
+                json.add("@fields", describe(ContentFields.editable(update.fields(), node)));
+                addIfSet(json, "@notice", update.notice());
             }
         } catch (final RepositoryException | WorkflowException e) {
             // Nothing editable is the safe answer; the serialization itself must not fail over it
@@ -117,6 +121,18 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
     public void end(final Resource resource)
     {
         this.resolver.remove();
+    }
+
+    /**
+     * What the update that would run says: the fields it lists, and its notice.
+     *
+     * @param fields the descriptions of the fields its activities list
+     * @param notice its notice, or {@code null} when it has none
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record Update(List<ContentFields.Description> fields, String notice)
+    {
     }
 
     /**
@@ -162,9 +178,9 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Adds an optional text to a field's description.
+     * Adds an optional text to a description.
      *
-     * @param json the field's description
+     * @param json the description
      * @param name the key
      * @param value the text, left out when not set
      */
