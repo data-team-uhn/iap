@@ -1,0 +1,47 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { useEffect, useState } from "react";
+
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { loadTagDefinitions } from "@iap/tags/tagDefinitions";
+
+import type { Choice } from "./conditionModel";
+
+// The defined tags, as the values a tags operand can be compared with: none until they are loaded, or if they
+// cannot be, when a tag is typed in by name instead
+export function useTagChoices(): Choice[] {
+  const fetchUtil = useAuthenticatedFetch();
+  const [ choices, setChoices ] = useState<Choice[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    // loadTagDefinitions cannot reject: fetch failures already resolve to an empty list
+    void loadTagDefinitions(undefined, fetchUtil).then(definitions => {
+      if (!cancelled) {
+        setChoices(definitions.map(definition => ({
+          value: definition.name,
+          label: definition.label ?? definition.name,
+        })));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ fetchUtil ]);
+  return choices;
+}

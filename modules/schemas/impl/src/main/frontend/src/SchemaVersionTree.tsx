@@ -18,15 +18,16 @@
 
 import { Fragment, useMemo, useState } from "react";
 
-import AltRouteOutlinedIcon from "@mui/icons-material/AltRouteOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } from "@mui/material";
 
+import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
+import { type OperandSource, whenApplies } from "@iap/conditions/conditionModel";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 
 import CodePill from "./CodePill";
-import { whenApplies } from "./conditionModel";
+import { schemaSources } from "./conditionModel";
 import { type JcrNode, nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
   MoveMode, MoveSpot, useMoveHighlight,
@@ -38,7 +39,6 @@ import { ReloadTree } from "./schemaTree";
 import { EXPANDER_COLUMN, ICON_COLUMN } from "./schemaTreeLayout";
 import {
   conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
-  type QuestionIndex,
 } from "./schemaVersionTreeModel";
 
 // One of a part's chips; a chip with content shows it in a popover when clicked
@@ -74,7 +74,8 @@ interface PartCardProps {
   parent: JcrNode;
   // Every part the parent holds, in order
   siblings: JcrNode[];
-  index: QuestionIndex;
+  // What the conditions of the version's parts read
+  sources: OperandSource[];
 }
 
 // One requirement, section or question, with what it contains nested inside. Containers start open and
@@ -82,11 +83,11 @@ interface PartCardProps {
 // applies stays in view either way: it is what the outline is made of. While something is moving, a closed part
 // offers a place at its end, under its heading. Choosing it opens the part to show what went there. Opening the part
 // shows the other places.
-function PartCard({ part, parent, siblings, index }: PartCardProps) {
+function PartCard({ part, parent, siblings, sources }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);
   const condition = conditionOf(part);
-  const when = condition && whenApplies(condition, index);
+  const when = condition && whenApplies(condition, sources);
   const description = detailOf(part, "description");
   const details = type.details?.(part) ?? null;
   const [ open, setOpen ] = useState(children.length > 0);
@@ -144,17 +145,7 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
                 )) }
               </Stack>
             ) }
-            { when && (
-              <Stack
-                direction="row"
-                spacing={0.75}
-                sx={{ alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "background.muted", borderRadius: 1,
-                  px: 1, py: 0.5 }}
-              >
-                <AltRouteOutlinedIcon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
-                <Typography variant="body2">{when}</Typography>
-              </Stack>
-            ) }
+            { when && <AppliesWhenLine>{when}</AppliesWhenLine> }
           </Stack>
           <Stack direction="row" sx={{ flexShrink: 0, ml: 1 }}>
             <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
@@ -167,7 +158,7 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
           { description && <Typography variant="description">{description}</Typography> }
           {details}
           { children.length > 0
-            ? <PartList parent={part} parts={children} index={index} />
+            ? <PartList parent={part} parts={children} sources={sources} />
             // An empty part offers one place; a question's options offer their own
             : optionsOf(part).length === 0 && <MoveSpot parent={part} /> }
           <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))}
@@ -181,17 +172,18 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
 interface PartListProps {
   parent: JcrNode;
   parts: JcrNode[];
-  index: QuestionIndex;
+  // What the conditions of the version's parts read
+  sources: OperandSource[];
 }
 
 // A list of parts. While something is moving, it also shows the places between and after them where it may go.
-function PartList({ parent, parts, index }: PartListProps) {
+function PartList({ parent, parts, sources }: PartListProps) {
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
       { parts.map(part => (
         <Fragment key={pathOf(part)}>
           <MoveSpot parent={parent} before={part} item />
-          <PartCard part={part} parent={parent} siblings={parts} index={index} />
+          <PartCard part={part} parent={parent} siblings={parts} sources={sources} />
         </Fragment>
       )) }
       <MoveSpot parent={parent} item />
@@ -206,7 +198,7 @@ interface SchemaVersionTreeProps {
 
 // Everything a version asks of a submission, in the order it asks it.
 function SchemaVersionTree({ version, reload }: SchemaVersionTreeProps) {
-  const index = useMemo(() => indexQuestions(version), [ version ]);
+  const sources = useMemo(() => schemaSources(indexQuestions(version)), [ version ]);
   const parts = partsOf(version);
   return (
     <ReloadTree value={reload}>
@@ -214,7 +206,7 @@ function SchemaVersionTree({ version, reload }: SchemaVersionTreeProps) {
         <Stack spacing={1}>
           { parts.length === 0
             ? <Typography variant="placeholder">This version asks for nothing yet.</Typography>
-            : <PartList parent={version} parts={parts} index={index} /> }
+            : <PartList parent={version} parts={parts} sources={sources} /> }
           <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} indent={0} />
         </Stack>
       </MoveMode>

@@ -111,7 +111,7 @@ describe("SchemaVersionView", () => {
     expect(screen.queryByText("Placebo")).not.toBeInTheDocument();
     // When a part applies shows without opening it
     expect(within(await card("Minimum age"))
-      .getByText("Only when the answer to “Which arms does it have?” includes all of “Placebo”")).toBeInTheDocument();
+      .getByText("Only when the answer to “Which arms does it have?” includes “Placebo”")).toBeInTheDocument();
     expect(screen.queryByText("Link")).not.toBeInTheDocument();
   });
 

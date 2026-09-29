@@ -17,6 +17,7 @@
  */
 
 import { escapeJQL } from "../escape";
+import { isNode, type SerializedNode } from "../serializedNode";
 
 // A field an update would change, as the `fields` serialization describes it (see updateContent in
 // docs/workflows.md). The server holds a patch to the same rules, so these only save a refused request.
@@ -57,7 +58,7 @@ export interface CreatableType {
   nameHint?: string;
 }
 
-export type SerializedNode = Record<string, unknown>;
+export type { SerializedNode };
 
 // What a field is edited as: text for one value, numbers as typed, a list for several, a switch for true or false
 export type FieldValue = string | string[] | boolean;
@@ -69,10 +70,9 @@ export type PatchValue = string | number | boolean | (string | number | boolean)
 
 const KINDS: readonly string[] = [ "text", "long", "double", "boolean", "reference" ];
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
 const isField = (value: unknown): value is ContentField =>
-  isObject(value) && typeof value.name === "string" && typeof value.label === "string"
+  isNode(value) && typeof value.name === "string" && typeof value.label === "string"
     && typeof value.kind === "string" && KINDS.includes(value.kind);
 
 export const fieldsOf = (node: SerializedNode): ContentField[] =>
@@ -81,7 +81,7 @@ export const fieldsOf = (node: SerializedNode): ContentField[] =>
 const optionalText = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
 
 const isCreatable = (value: unknown): value is Record<string, unknown> & { type: string; label: string } =>
-  isObject(value) && typeof value.type === "string" && typeof value.label === "string";
+  isNode(value) && typeof value.type === "string" && typeof value.label === "string";
 
 export const creatableOf = (node: SerializedNode): CreatableType[] =>
   Array.isArray(node["@creatable"])
@@ -116,7 +116,7 @@ function textOf(value: unknown): string | undefined {
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
-  return isObject(value) && typeof value["@path"] === "string" ? value["@path"] : undefined;
+  return isNode(value) && typeof value["@path"] === "string" ? value["@path"] : undefined;
 }
 
 const textsOf = (value: unknown): string[] => {
