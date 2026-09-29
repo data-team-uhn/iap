@@ -107,6 +107,7 @@ runs. An event no guard admits is refused with a 409, and `@events` (see
 | a requirement, section or question | `discard` | its version `draft` | delete it, with what it holds, unless a condition elsewhere depends on it |
 | a requirement, section or question | `move` (optional `parent`, `before`) | its version `draft` | move it, with what it holds, elsewhere in its version |
 | a requirement, section or question | `rename` (`name`) | its version `draft` | give it another identifier, where it stands |
+| a requirement, section or question | `condition` (`content`) | its version `draft` | set when it applies, or make it always apply with `null` |
 | an answer option | `update` (`patch`) | its version `draft` | edit its `value`, `label` or `description` |
 | an answer option | `discard` | its version `draft` | delete it |
 | an answer option | `move` (optional `parent`, `before`) | its version `draft` | move it before another option, or to the end of a question's options, in its version |
@@ -121,7 +122,7 @@ While a version is a **draft**, its parts and answer options can change in anyth
 `dataType`, answer counts, bounds, pattern and `optionsFrom`, what a document requirement accepts and
 whether it is required, who approves an approval, an option's `value`, and all of their wording. Which
 fields a question offers follows its `dataType`: bounds only for numbers, a pattern only for text, and a
-field that stops applying when the `dataType` changes is removed. Conditions and templates come later.
+field that stops applying when the `dataType` changes is removed. Templates come later.
 
 Each of a version's two update workflows says what it allows as its `notice` (see [workflows.md](workflows.md)),
 which the version's page shows under its title: that anything can change in a draft, or that only the wording of a
@@ -145,6 +146,10 @@ under the identifier, and a test holds the create and rename workflows to the sa
 suggests an identifier from what a new part says, as `@creatable` allows it, until one is given. An option has no
 identifier of its own, which `createSchemaPart` says by listing it as not `named`: its `value` is what answers store,
 and a draft can edit it.
+When a part applies is **set** with the engine's `replaceContent` task: the event's `content` is its whole new
+`cond:condition`, or `null` to remove it, and only condition node types may be written. The editor builds it with the
+conditions module's `ConditionDialog` (see [conditions.md](conditions.md)), comparing the answer to a question of the
+version, named by its identifier, the submission's tags or one of its properties, with values typed as they hold.
 A question either lists its options or takes them from elsewhere, as `optionsFrom`, not both: `createSchemaPart` adds
 no option to a question with an `optionsFrom` (its guard reads the question's own property, as an `ownProperty`
 operand, see [conditions.md](conditions.md)), and a draft that has both is not published. No two options of a

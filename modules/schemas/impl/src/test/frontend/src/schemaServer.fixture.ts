@@ -145,16 +145,17 @@ export const CONTENT: Record<string, Record<string, unknown>> = {
       "label": "Intake", "@events": [ "create", "discard", "move", "rename", "update" ],
       "@creatable": FORM_ITEMS,
       "name": question({
-        "text": "Your name", "@events": [ "create", "discard", "move", "rename", "update" ],
+        "jcr:uuid": "uuid-name", "text": "Your name", "@events": [ "create", "discard", "move", "rename", "update" ],
         "@fields": [ text("text", "Question", true) ],
         "@creatable": [ unnamed("sch:AnswerOption", "Option", text("value", "Value", true)) ],
         "short": { ...option("short", "Short"), "@events": [ "discard", "move", "update" ] },
         "full": { ...option("full", "Full"), "@events": [ "discard", "move", "update" ] },
       }),
-      "age": question({ "text": "Your age", "@events": [ "discard", "move" ] }),
+      "age": question({ "jcr:uuid": "uuid-age", "text": "Your age", "@events": [ "condition", "discard", "move" ] }),
     }),
     "followUp": requirement("FormRequirement", {
-      "label": "Follow-up", "@events": [ "create", "discard", "move", "update" ], "@creatable": FORM_ITEMS,
+      "label": "Follow-up", "@events": [ "condition", "create", "discard", "move", "update" ], "@creatable": FORM_ITEMS,
+      "cond:condition": single("includes", operand("tags"), operand("literal", "draft")),
     }),
   },
   "study/v2": {
