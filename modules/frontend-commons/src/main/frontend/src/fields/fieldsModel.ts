@@ -44,11 +44,17 @@ export interface ContentField {
   default?: string | number | boolean | (string | number | boolean)[];
 }
 
-// A type of content a create event would add inside a node, as the `creatable` serialization describes it
+// A type of content a create event would add inside a node, as the `creatable` serialization describes it: with
+// the name it takes when nothing it says makes one, whether it takes a name of its own, and if so the pattern such a
+// name must match and what that is, in words, if the workflow says
 export interface CreatableType {
   type: string;
   label: string;
   fields: ContentField[];
+  defaultName?: string;
+  named: boolean;
+  namePattern?: string;
+  nameHint?: string;
 }
 
 export type SerializedNode = Record<string, unknown>;
@@ -72,14 +78,30 @@ const isField = (value: unknown): value is ContentField =>
 export const fieldsOf = (node: SerializedNode): ContentField[] =>
   Array.isArray(node["@fields"]) ? node["@fields"].filter(isField) : [];
 
+const optionalText = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+
 const isCreatable = (value: unknown): value is Record<string, unknown> & { type: string; label: string } =>
   isObject(value) && typeof value.type === "string" && typeof value.label === "string";
 
 export const creatableOf = (node: SerializedNode): CreatableType[] =>
   Array.isArray(node["@creatable"])
     ? node["@creatable"].filter(isCreatable)
-      .map(entry => ({ type: entry.type, label: entry.label, fields: fieldsOf({ "@fields": entry.fields }) }))
+      .map(entry => ({
+        type: entry.type,
+        label: entry.label,
+        fields: fieldsOf({ "@fields": entry.fields }),
+        defaultName: optionalText(entry.defaultName),
+        named: entry.named !== false,
+        namePattern: optionalText(entry.namePattern),
+        nameHint: optionalText(entry.nameHint),
+      }))
     : [];
+
+// What the first of some fields holds among some values: for new content, what names it
+export function firstValueOf(fields: ContentField[], values: Record<string, unknown>): unknown {
+  const first = fields.at(0);
+  return first && values[first.name];
+}
 
 // What FieldsDialog edits to fill in new content of a type: nothing yet, and the fields it starts with
 export const newContentOf = (type: CreatableType): SerializedNode => ({ "@fields": type.fields });

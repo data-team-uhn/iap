@@ -60,6 +60,10 @@ class CreateContentHandlerTest
 
     private static final String TYPE = "type";
 
+    private static final String NAME = "name";
+
+    private static final String PATCH = "patch";
+
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private final CreateContentHandler handler = new CreateContentHandler();
@@ -100,6 +104,56 @@ class CreateContentHandlerTest
         create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Titled\"}"));
 
         assertEquals(List.of("titled", "noted", "item", "item2", "titled2", "item3"), this.fixture.children(BOX));
+    }
+
+    @Test
+    void takesTheNameAskedFor() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        create(BOX, Map.of(TYPE, ITEM, NAME, "chosen", PATCH, "{\"title\": \"Titled\"}"));
+        // A blank one is no name asked for
+        create(BOX, Map.of(TYPE, ITEM, NAME, " ", PATCH, "{\"title\": \"Titled\"}"));
+
+        assertEquals(List.of("chosen", "titled"), this.fixture.children(BOX));
+        // One asked for is taken as asked, or not at all
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, "chosen")));
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, "x/y")));
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, List.of("x"))));
+    }
+
+    @Test
+    void keepsToTheActivitysPattern() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class))
+            .thenReturn("^[A-Za-z][A-Za-z0-9]*$");
+
+        create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"Plain\"}"));
+        // What it says would not make a name the pattern allows, so it is named after its type
+        create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"2 things\"}"));
+        // Its accents go
+        create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"\u00c2ge\"}"));
+        create(BOX, Map.of(TYPE, ITEM, NAME, "second2"));
+
+        assertEquals(List.of("plain", "item", "age", "second2"), this.fixture.children(BOX));
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, "2nd")));
+    }
+
+    @Test
+    void followsWhatTheTypeSaysAboutItsName() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
+        final Node item = this.fixture.session().getNode("/create/types/item");
+        item.setProperty(ContentNames.NAME_PATTERN, "^[a-z0-9]+$");
+        this.fixture.session().save();
+
+        create(BOX, Map.of(TYPE, ITEM, NAME, "item2"));
+        assertEquals(List.of("item2"), this.fixture.children(BOX));
+
+        item.setProperty(ContentNames.NAMED, false);
+        this.fixture.session().save();
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, "chosen")));
+        // What it says still names it, within its pattern
+        create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"Titled\"}"));
+        assertEquals(List.of("item2", "titled"), this.fixture.children(BOX));
     }
 
     @Test

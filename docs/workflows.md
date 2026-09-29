@@ -322,8 +322,9 @@ A few handlers are the engine's own, because what they do is generic:
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
-| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`), `nameFrom` (optional) | Creates, in the target, content of the event's `type`, placed before the sibling the event names as `before`, or else last |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named`, `namePattern`, `nameHint`), `nameFrom`, `namePattern`, `nameHint` (all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
 | `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
+| `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
@@ -424,14 +425,25 @@ which must be one the activity lists and one the target's type declares it holds
 child definition says what a node holds only if the content model declares it and names
 a type (`+ * (sch:FormItem)`): the catch-alls every `sling:Folder` inherits from JCR,
 and definitions requiring no more than `nt:base`, merely tolerate children. The new
-content goes before the sibling named in `before`, or else last, and is named after the
-first words of the first field listed in `nameFrom` that the event's `patch` gives, or
-else after its type. It is created empty: an `updateContent` task that follows fills it
-in from the same patch, since it acts on what was created, and refuses to leave a
-mandatory field empty. The `creatable` serialization adds `@creatable` to content a
-`create` event would add to: each type the requesting user's workflow could create
-there, with its `label` and the `fields` it starts with, described as in `@fields`,
-including the `default` values new content of that type starts with.
+content goes before the sibling named in `before`, or else last. It takes the `name` the
+event asks for, which must be free and one its type allows, as for `renameContent`
+below; otherwise it is named after the first words, without accents, of the first field
+listed in `nameFrom` that the event's `patch` gives, when that makes a name its type
+allows, or else after its type. How a type is named is the activity's `namePattern` and
+`nameHint`, the rule and the same in words, unless the type listed gives its own; a type
+listed with `named` false takes no name of its own, and one asked for is refused. It is
+created empty: an `updateContent` task that follows fills it in from the same patch,
+since it acts on what was created, and refuses to leave a mandatory field empty.
+
+The `creatable` serialization adds `@creatable` to content a `create` event would add
+to: each type the requesting user's workflow could create there, with its `label` and
+the `fields` it starts with, described as in `@fields`, including the `default` values
+new content of that type starts with. It also gives the `defaultName` content of that
+type takes when nothing it says makes a name, whether it is `named`, and if so its
+`namePattern` and `nameHint`, so an editor can suggest a name the workflow would accept,
+checked against the workflow's own rule, and say what that rule is. The frontend's
+`suggestName` makes names from text as `createContent` does, and both are tested on the
+same examples.
 
 `moveContent` moves the target, with everything under it, into the node the event names
 as `parent`, or within its own parent when it names none, before the sibling named in
@@ -444,6 +456,13 @@ taken at the destination is replaced by a free one. The move is made with the
 it is prepare first, as `MoveParticipant`s: the conditions module makes `answer`
 operands naming a moved question by path name it by identifier. The new path is what
 later steps act on, and what the event is answered with.
+
+`renameContent` gives the target the `name` the event asks for, where it stands, through
+the same `ContentMover`, so the same participants prepare. The name must be one a node
+can have, and match the activity's `namePattern` when it has one. A name a sibling
+already has is refused, where a move would take a free one instead: a name asked for, in
+a rename or a create, is taken as asked or not at all. As after a move, the new path is
+what later steps act on.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service
