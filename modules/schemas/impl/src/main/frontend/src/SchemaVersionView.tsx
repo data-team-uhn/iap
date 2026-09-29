@@ -18,7 +18,7 @@
 
 import { type ReactNode } from "react";
 
-import { Stack, Typography } from "@mui/material";
+import { Alert, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
@@ -27,7 +27,9 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import TagChip from "@iap/tags/TagChip";
 
-import { descriptionOf, type JcrNode, labelOf, nameOf, pathOf, titleOf, versionsOf } from "./schemaModel";
+import {
+  descriptionOf, type JcrNode, labelOf, nameOf, noticeOf, pathOf, titleOf, versionsOf,
+} from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import SchemaVersionTree from "./SchemaVersionTree";
 import { schemaPageUrl } from "./useSchemaList";
@@ -37,13 +39,13 @@ interface SchemaVersionViewProps {
   schema: JcrNode;
   versionName: string;
   // What the schema's own page would say about it, such as that it is retired
-  notices: ReactNode;
+  pageNotices: ReactNode;
   reloadSchema: () => void;
 }
 
-// One version of a schema: where it stands, what can be done with it, and everything it asks of a
-// submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
-function SchemaVersionView({ schema, versionName, notices, reloadSchema }: SchemaVersionViewProps) {
+// One version of a schema: where it stands, what can be done with it and changed in it, and everything it
+// asks of a submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
+function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema }: SchemaVersionViewProps) {
   const navigate = useNavigate();
   const schemaPage = schemaPageUrl(nameOf(schema));
   usePageCrumbs([ { path: schemaPage, label: titleOf(schema) } ]);
@@ -57,6 +59,7 @@ function SchemaVersionView({ schema, versionName, notices, reloadSchema }: Schem
       </AdminScreen>
     );
   }
+  const notice = noticeOf(version);
 
   return (
     <AdminScreen
@@ -77,8 +80,12 @@ function SchemaVersionView({ schema, versionName, notices, reloadSchema }: Schem
       }
       disablePanel
     >
-      {notices}
+      {pageNotices}
       <Stack spacing={2}>
+        { notice && (
+          // Standing guidance rather than news, so it is read in place instead of interrupting
+          <Alert severity="info" role="note">{notice}</Alert>
+        ) }
         { loadError && <LoadError title="The version's content could not be loaded" message={loadError}
           onRetry={reload} /> }
         <LoadingOverlay open={loading} />
