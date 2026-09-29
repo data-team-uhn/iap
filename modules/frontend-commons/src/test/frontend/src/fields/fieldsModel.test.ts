@@ -18,6 +18,7 @@
 
 import {
   applicableFields, applies, blockingFields, candidateOf, changesOf, type ContentField, creatableOf, fieldsOf,
+  firstValueOf,
   initialValue, initialValues, isValid, newContentOf, patchValueOf, referenceQuery,
 } from "@iap/frontend-commons/fields/fieldsModel";
 
@@ -197,13 +198,32 @@ describe("references", () => {
   });
 });
 
+describe("firstValueOf", () => {
+  it("reads what the first field holds, if there is a first field", () => {
+    expect(firstValueOf([ TITLE, COUNT ], { title: "Age", maxAnswers: 2 })).toBe("Age");
+    expect(firstValueOf([], { title: "Age" })).toBeUndefined();
+  });
+});
+
 describe("creatableOf", () => {
   it("reads the types a create event would add, with the fields each starts with", () => {
     const question = { type: "sch:Question", label: "Question", fields: [ TITLE, { label: "No name" } ] };
     const creatable = creatableOf({ "@creatable": [ question, { type: "sch:Section" }, "sch:Question" ] });
 
-    expect(creatable).toEqual([ { type: "sch:Question", label: "Question", fields: [ TITLE ] } ]);
+    expect(creatable).toEqual([ { type: "sch:Question", label: "Question", fields: [ TITLE ], named: true } ]);
     expect(newContentOf(creatable[0])).toEqual({ "@fields": [ TITLE ] });
     expect(creatableOf({})).toEqual([]);
+  });
+
+  it("reads the name a type takes by default, and the pattern names must match", () => {
+    const [ question, option ] = creatableOf({ "@creatable": [
+      { type: "sch:Question", label: "Question", fields: [], defaultName: "question", named: true,
+        namePattern: "^[a-z]+$", nameHint: "Small letters." },
+      { type: "sch:AnswerOption", label: "Option", fields: [], named: false },
+    ] });
+
+    expect(question).toMatchObject({ defaultName: "question", named: true, namePattern: "^[a-z]+$",
+      nameHint: "Small letters." });
+    expect(option.named).toBe(false);
   });
 });

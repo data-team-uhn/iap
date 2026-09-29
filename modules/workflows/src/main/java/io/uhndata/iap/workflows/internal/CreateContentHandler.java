@@ -17,9 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -43,9 +41,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The built-in service task creating content inside the target: a child of the event's {@code type}, which must be
  * one the activity lists and the target's type accepts (see {@link ContentTypes}), placed ahead of the sibling the
- * event names as {@code before}, or else last. It is named after the first of the fields the activity names in
- * {@code nameFrom} that the event's {@code patch} gives, or else after its type, and it is empty: an
- * {@code updateContent} task that follows fills it in from the same patch, since it acts on what was created.
+ * event names as {@code before}, or else last. It takes the {@code name} the event asks for, when it asks, which
+ * must be free and one the activity allows (see {@link ContentNames}); otherwise it is named after the first of the
+ * fields the activity names in {@code nameFrom} that the event's {@code patch} gives, when that makes a name the
+ * activity allows, or else after its type. It is empty: an {@code updateContent} task that follows fills it in from
+ * the same patch, since it acts on what was created.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,9 +61,6 @@ public class CreateContentHandler implements ServiceTaskHandler
 
     /** The activity property naming, in order, the fields a name is taken from. */
     static final String NAME_FROM = "nameFrom";
-
-    /** How many words of a field make a name: enough to recognize, short enough to read in a path. */
-    private static final int NAME_WORDS = 5;
 
     @Override
     public String getName()
@@ -84,7 +81,7 @@ public class CreateContentHandler implements ServiceTaskHandler
         try {
             final ContentTypes.Type type = chosen(context, ContentTypes.accepted(listed, parent));
             final String before = Placement.before(context, parent);
-            final String name = NodeNameUtils.findFreeName(target, name(context, type));
+            final String name = name(context, parent, type);
             VersioningUtils.checkOut(parent);
             final Node created = parent.addNode(name, type.nodeType());
             if (before != null) {
@@ -118,15 +115,43 @@ public class CreateContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * What to name new content: the first words of the first field the activity names it from that the patch
-     * gives, or else its type.
+     * What to name new content: the name the event asks for, if it asks, which must be free; or else a free one after
+     * what it says, when that is a name the activity allows, or after its type.
+     *
+     * @param context the executing task's context
+     * @param parent where it is created
+     * @param type the type created
+     * @return a free name
+     * @throws InvalidPayloadException when the name asked for cannot be taken, or the patch is not a JSON object
+     * @throws RepositoryException when the parent cannot be read
+     */
+    private static String name(final WorkflowTaskContext context, final Node parent, final ContentTypes.Type type)
+        throws InvalidPayloadException, RepositoryException
+    {
+        final Object given = context.getEvent().get(ContentNames.NAME_PARAMETER);
+        if (!type.named() && given != null) {
+            throw new InvalidPayloadException(type.label() + " takes no name of its own");
+        }
+        final String requested = ContentNames.requested(given, type.namePattern());
+        if (requested != null) {
+            ContentNames.checkFree(parent, requested);
+            return requested;
+        }
+        final String derived = derivedName(context, type);
+        return NodeNameUtils.findFreeName(context.getTarget(),
+            ContentNames.allowed(derived, type.namePattern()) ? derived : type.defaultName());
+    }
+
+    /**
+     * The name new content would take after what it says: the first words of the first field the activity names it
+     * from that the patch gives, or else its type.
      *
      * @param context the executing task's context
      * @param type the type created
      * @return a name, maybe already taken
      * @throws InvalidPayloadException when the patch is not a JSON object
      */
-    private static String name(final WorkflowTaskContext context, final ContentTypes.Type type)
+    private static String derivedName(final WorkflowTaskContext context, final ContentTypes.Type type)
         throws InvalidPayloadException
     {
         final String[] nameFrom = context.getActivity().get(NAME_FROM, String[].class);
@@ -135,25 +160,12 @@ public class CreateContentHandler implements ServiceTaskHandler
         }
         final JsonObject patch = UpdateContentHandler.patch(context);
         for (final String field : nameFrom) {
-            final String name = patch.get(field) instanceof JsonString ? firstWords(patch.getString(field)) : "";
+            final String name =
+                patch.get(field) instanceof JsonString ? ContentNames.fromText(patch.getString(field)) : "";
             if (!name.isEmpty()) {
                 return name;
             }
         }
         return type.defaultName();
-    }
-
-    /**
-     * A name made of the first few words of a text.
-     *
-     * @param text any text
-     * @return its first words, camel-cased, empty when it has none
-     */
-    private static String firstWords(final String text)
-    {
-        return NodeNameUtils.camelCase(Arrays.stream(text.split("[^\\p{L}\\p{N}]+"))
-            .filter(word -> !word.isEmpty())
-            .limit(NAME_WORDS)
-            .collect(Collectors.joining(" ")));
     }
 }
