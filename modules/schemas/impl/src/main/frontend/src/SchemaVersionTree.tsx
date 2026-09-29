@@ -26,12 +26,13 @@ import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 
 import { whenApplies } from "./conditionModel";
-import { type JcrNode, nameIfAny, pathOf } from "./schemaModel";
+import { type JcrNode, nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
   MoveMode, MoveSpot, useMoveHighlight,
 } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
 import { AddAtEnd } from "./SchemaNodeCreateAction";
+import { IdentifierPill } from "./SchemaNodeIdentifier";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import { ReloadTree } from "./schemaTree";
 import {
@@ -130,7 +131,10 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
               sx={{ color: type.accent, mt: 0.75, ...content }} />
           </Tooltip>
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
-            <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>{headingOf(part)}</Typography>
+            <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+              <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>{headingOf(part)}</Typography>
+              <IdentifierPill name={nameOf(part)} />
+            </Stack>
             { type.chips && (
               <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
                 { type.chips(part).map(chip => (
