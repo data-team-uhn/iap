@@ -432,6 +432,43 @@ describe("SchemaVersionView", () => {
     expect(await screen.findByText("The version's content could not be loaded")).toBeInTheDocument();
   });
 
+  it("starts a new version as a copy of this one, and opens it", async () => {
+    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { redirect: "/Schemas/study/v4" } } });
+    renderVersion("study", "v2");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New version from this one" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Label/)).toHaveValue("4.0");
+    expect(within(dialog).getByRole("combobox", { name: "Start from" })).toHaveTextContent("A copy of version 2.0");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    // Where it opens: a version this stand-in server does not have
+    expect(await screen.findByText("This schema has no version v4.")).toBeInTheDocument();
+    expect(posted[0].params.get("source")).toBe("/Schemas/study/v2");
+    expect(screen.getByText("Version 4.0 is created")).toBeInTheDocument();
+  });
+
+  it("says in its dialog why a new version was refused", async () => {
+    serveSchemas({ answers: { "/Schemas/study.createVersion.json": {
+      status: 400, error: "There is already a version 4.0.",
+    } } });
+    renderVersion("study", "v2");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New version from this one" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(await within(dialog).findByText("There is already a version 4.0.")).toBeInTheDocument();
+  });
+
+  it("starts no new version of a retired schema", async () => {
+    serveSchemas();
+    renderVersion("legacy", "v1");
+
+    expect(await screen.findByRole("button", { name: "Retire" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New version from this one" })).not.toBeInTheDocument();
+  });
+
   it("acts on the version, and goes back to the schema once it is discarded", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
