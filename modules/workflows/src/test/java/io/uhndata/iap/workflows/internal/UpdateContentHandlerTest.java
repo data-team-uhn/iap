@@ -153,6 +153,27 @@ class UpdateContentHandlerTest
     }
 
     @Test
+    void keepsAUniqueFieldApartFromItsSiblings() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        final Node fields = this.fixture.session().getNode("/update/fields");
+        fields.getNode("title").setProperty("unique", true);
+        fields.getNode("keywords").setProperty("unique", true);
+        this.fixture.other().setProperty("keywords", new String[] { "red", "blue" });
+        this.fixture.session().save();
+
+        // What the other item is called already
+        assertThrows(InvalidPayloadException.class, () -> update("{\"title\": \"Another item\"}"));
+        // Only what is taken is said to be
+        assertEquals("Something else here already has blue as its keywords", assertThrows(
+            InvalidPayloadException.class, () -> update("{\"keywords\": [\"green\", \"blue\"]}")).getMessage());
+        update("{\"title\": \"A third item\", \"keywords\": [\"green\"]}");
+        assertEquals("A third item", this.fixture.item().getProperty("title").getString());
+        // Its own value, and none at all, repeat nothing
+        update("{\"title\": \"A third item\", \"keywords\": null}");
+        assertFalse(this.fixture.item().hasProperty("keywords"));
+    }
+
+    @Test
     void setsOnlyTheFieldsThatApply() throws WorkflowException, PersistenceException, RepositoryException
     {
         assertThrows(InvalidPayloadException.class, () -> update("{\"count\": 3}"));
