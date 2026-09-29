@@ -18,22 +18,38 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 280" width="860" height="280" role="img">
   <style>
-    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
-    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
-    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
-    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #5f6368; }
-    .task { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; }
-    .svc  { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
-    .gw   { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
-    .ev-s { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
-    .ev-e { fill: #fce8e6; stroke: #c5221f; stroke-width: 3; }
-    .ev-i { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
-    .flow { stroke: #5f6368; stroke-width: 1.6; fill: none; marker-end: url(#a); }
-    .tok  { fill: #d93025; stroke: #fff; stroke-width: 2; }
+    /* Every colour is one of these, so that a dark page gets the dark set */
+    :root {
+      --ink: #202124; --ink-soft: #3c4043; --muted: #5f6368; --rule: #dadce0;
+      --paper: #fff; --blue: #1a73e8; --blue-bg: #e8f0fe; --green: #188038;
+      --green-bg: #e6f4ea; --amber: #ea8600; --amber-bg: #fef7e0; --red: #c5221f;
+      --red-bg: #fce8e6; --token: #d93025;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #e8eaed; --ink-soft: #bdc1c6; --muted: #9aa0a6; --rule: #3c4043;
+        --paper: #0d1117; --blue: #8ab4f8; --blue-bg: rgba(138, 180, 248, 0.16);
+        --green: #81c995; --green-bg: rgba(129, 201, 149, 0.16); --amber: #fcad70;
+        --amber-bg: rgba(252, 173, 112, 0.16); --red: #f28b82;
+        --red-bg: rgba(242, 139, 130, 0.16); --token: #ee675c;
+      }
+    }
+    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--ink-soft); }
+    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--ink); }
+    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--muted); }
+    .task { fill: var(--blue-bg); stroke: var(--blue); stroke-width: 2; }
+    .svc  { fill: var(--green-bg); stroke: var(--green); stroke-width: 2; }
+    .gw   { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 2; }
+    .ev-s { fill: var(--green-bg); stroke: var(--green); stroke-width: 2; }
+    .ev-e { fill: var(--red-bg); stroke: var(--red); stroke-width: 3; }
+    .ev-i { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 2; }
+    .flow { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .tok  { fill: var(--token); stroke: var(--paper); stroke-width: 2; }
   </style>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+      <path d="M 0 0 L 10 5 L 0 10 z" style="fill: var(--muted)"/>
     </marker>
   </defs>
 
