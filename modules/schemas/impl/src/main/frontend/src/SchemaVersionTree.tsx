@@ -25,6 +25,7 @@ import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } 
 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 
+import CodePill from "./CodePill";
 import { whenApplies } from "./conditionModel";
 import { type JcrNode, nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
@@ -32,11 +33,12 @@ import {
 } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
 import { AddAtEnd } from "./SchemaNodeCreateAction";
-import { IdentifierPill } from "./SchemaNodeIdentifier";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import { ReloadTree } from "./schemaTree";
+import { EXPANDER_COLUMN, ICON_COLUMN } from "./schemaTreeLayout";
 import {
-  conditionOf, detailOf, headingOf, indexQuestions, optionsOf, resourceTypeOf, partsOf, type QuestionIndex,
+  conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
+  type QuestionIndex,
 } from "./schemaVersionTreeModel";
 
 // One of a part's chips; a chip with content shows it in a popover when clicked
@@ -65,10 +67,6 @@ function FactChip({ chip }: { chip: SchemaPartChip }) {
     </>
   );
 }
-
-// The width, in theme spacing, of the column a part's expand button stands in. On a wide screen, what the part holds
-// is indented by as much, and by the card's padding, so its icon lines up with what is under it.
-const EXPANDER_COLUMN = 4;
 
 interface PartCardProps {
   part: JcrNode;
@@ -125,15 +123,17 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
             </IconButton>
           ) }
         </Box>
-        <Stack direction="row" spacing={1} sx={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
-          <Tooltip title={type.label}>
-            <Icon fontSize="small" titleAccess={type.label}
-              sx={{ color: type.accent, mt: 0.75, ...content }} />
-          </Tooltip>
+        <Stack direction="row" sx={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
+          <Box sx={{ width: theme => theme.spacing(ICON_COLUMN), flexShrink: 0 }}>
+            <Tooltip title={type.label}>
+              <Icon fontSize="small" titleAccess={type.label}
+                sx={{ color: type.accent, mt: 0.75, ...content }} />
+            </Tooltip>
+          </Box>
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
             <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
               <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>{headingOf(part)}</Typography>
-              <IdentifierPill name={nameOf(part)} />
+              <CodePill name={nameOf(part)} />
             </Stack>
             { type.chips && (
               <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
@@ -154,7 +154,7 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
               </Stack>
             ) }
           </Stack>
-          <Stack direction="row" sx={{ flexShrink: 0 }}>
+          <Stack direction="row" sx={{ flexShrink: 0, ml: 1 }}>
             <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
           </Stack>
         </Stack>
@@ -168,7 +168,8 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
             ? <PartList parent={part} parts={children} index={index} />
             // A question's options end with a place of their own
             : optionsOf(part).length === 0 && <MoveSpot parent={part} /> }
-          <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))} />
+          <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))}
+            indent={isQuestion(part) ? ICON_COLUMN : 0} />
         </Stack>
       </Collapse>
     </Box>
@@ -214,7 +215,7 @@ function SchemaVersionTree({ version, reload, report }: SchemaVersionTreeProps) 
           { parts.length === 0
             ? <Typography variant="placeholder">This version asks for nothing yet.</Typography>
             : <PartList parent={version} parts={parts} index={index} /> }
-          <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} />
+          <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} indent={0} />
         </Stack>
       </MoveMode>
     </ReloadTree>

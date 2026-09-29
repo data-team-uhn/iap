@@ -16,15 +16,16 @@
  * limitations under the License.
  */
 
-import { useNode } from "./useNode";
+import { Typography } from "@mui/material";
 
-import type { JcrNode } from "./schemaModel";
-
-const asNode = (node: JcrNode): JcrNode => node;
-
-// One version with everything in it, in order, and what may be changed, added and removed in each part. The workflow
-// reference stays an identifier: the version's content is what is shown, not the workflow's.
-export function useSchemaVersionTree(path: string) {
-  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable.order", asNode);
-  return { tree: value, loading, loadError, reload };
+// A name the machine goes by, such as a part's identifier or the value an option stores, set apart from the words
+// around it
+function CodePill({ name }: { name: string }) {
+  return (
+    <Typography variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1, overflowWrap: "anywhere" }}>
+      {name}
+    </Typography>
+  );
 }
+
+export default CodePill;

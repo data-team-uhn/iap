@@ -20,13 +20,13 @@
 // its serialization. What counts as a part is what the server says: every requirement and form item
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
-import { isObject, type JcrNode, nameOf } from "./schemaModel";
+import { childrenOf, isObject, type JcrNode, nameOf } from "./schemaModel";
 
 const PART_SUPERTYPES = [ "sch/Requirement", "sch/FormItem" ];
 
 export const OPTION_TYPE = "sch/AnswerOption";
 
-
+export const QUESTION_TYPE = "sch/Question";
 
 const text = (node: JcrNode, key: string): string | undefined => {
   const value = node[key];
@@ -47,10 +47,11 @@ export const resourceTypeOf = (node: JcrNode): string => String(node["sling:reso
 // Whether a node is a requirement or a form item, which has an identifier, as an option does not
 export const isPart = (node: JcrNode): boolean => PART_SUPERTYPES.includes(String(node["sling:resourceSuperType"]));
 
-export const partsOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject).filter(isPart);
+export const partsOf = (node: JcrNode): JcrNode[] => childrenOf(node).filter(isPart);
 
-export const optionsOf = (question: JcrNode): JcrNode[] => Object.values(question)
-  .filter(isObject)
+export const isQuestion = (node: JcrNode): boolean => resourceTypeOf(node) === QUESTION_TYPE;
+
+export const optionsOf = (question: JcrNode): JcrNode[] => childrenOf(question)
   .filter(child => resourceTypeOf(child) === OPTION_TYPE);
 
 export const conditionOf = (part: JcrNode): JcrNode | undefined => {
@@ -124,7 +125,7 @@ export function indexQuestions(version: JcrNode): QuestionIndex {
   const root = `${String(version["@path"])}/`;
   const byReference = new Map<string, JcrNode>();
   const visit = (node: JcrNode) => partsOf(node).forEach(part => {
-    if (resourceTypeOf(part) === "sch/Question") {
+    if (isQuestion(part)) {
       byReference.set(String(part["jcr:uuid"]), part);
       byReference.set(String(part["@path"]).replace(root, ""), part);
     }

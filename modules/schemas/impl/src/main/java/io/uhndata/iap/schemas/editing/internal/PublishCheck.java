@@ -127,6 +127,9 @@ final class PublishCheck
 
     private void checkOptions(final Question question, final String where)
     {
+        if (question.getOptionsFrom() != null && !question.getOptions().isEmpty()) {
+            this.problems.add(where + " both lists its options and takes them from " + question.getOptionsFrom());
+        }
         final Set<String> values = new HashSet<>();
         for (final AnswerOption option : question.getOptions()) {
             final String value = option.getValue();

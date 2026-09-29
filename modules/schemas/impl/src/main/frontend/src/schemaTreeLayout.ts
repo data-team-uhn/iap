@@ -16,15 +16,12 @@
  * limitations under the License.
  */
 
-import { useNode } from "./useNode";
+// How a version's tree is laid out, in theme spacing, for what has to line up across its pieces.
 
-import type { JcrNode } from "./schemaModel";
+// The column a part's expand button stands in. On a wide screen, what the part holds is indented by as much, and by
+// the card's padding, so the part's icon lines up with what is under it.
+export const EXPANDER_COLUMN = 4;
 
-const asNode = (node: JcrNode): JcrNode => node;
-
-// One version with everything in it, in order, and what may be changed, added and removed in each part. The workflow
-// reference stays an identifier: the version's content is what is shown, not the workflow's.
-export function useSchemaVersionTree(path: string) {
-  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable.order", asNode);
-  return { tree: value, loading, loadError, reload };
-}
+// The column a part's icon stands in, with the space after it: its heading and chips start after it, and so do a
+// question's options
+export const ICON_COLUMN = 3.5;

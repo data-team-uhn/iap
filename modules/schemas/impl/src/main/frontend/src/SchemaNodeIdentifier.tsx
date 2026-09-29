@@ -26,6 +26,7 @@ import { InputAdornment, Stack, TextField, Typography } from "@mui/material";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
+import CodePill from "./CodePill";
 import { ActionIcon } from "./EventAction";
 
 interface SchemaNodeIdentifierProps {
@@ -98,15 +99,6 @@ export function NewIdentifier({ value, suggestion, hint, disabled, onChange }: {
   );
 }
 
-// A part's identifier, set apart from the words around it
-export function IdentifierPill({ name }: { name: string }) {
-  return (
-    <Typography variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1, overflowWrap: "anywhere" }}>
-      {name}
-    </Typography>
-  );
-}
-
 // What names a part, shown as it is and, where the part can be renamed, changed as a step of its own, with its own
 // outcome, apart from the fields saved with the rest.
 function SchemaNodeIdentifier({ name, rename, hint }: SchemaNodeIdentifierProps) {
@@ -117,7 +109,7 @@ function SchemaNodeIdentifier({ name, rename, hint }: SchemaNodeIdentifierProps)
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
       <Typography variant="description">Identifier</Typography>
-      <IdentifierPill name={name} />
+      <CodePill name={name} />
       { rename && (
         <ActionIcon label="Rename" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
       ) }

@@ -7,7 +7,7 @@
     "version": "1.0",
     "active": true,
     "targetResourceType": "sch/SchemaPart",
-    "description": "Adds a section or a question to a form or a section, or an answer option to a question, while its version is a draft.",
+    "description": "Adds a section or a question to a form or a section, or an answer option to a question, while its version is a draft, unless that question takes its options from elsewhere.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -16,16 +16,29 @@
       "performers": ["iap-administrators"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "includes",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "property",
-          "value": ["tags"]
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "draft": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": ["tags"]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["draft"]
+          }
         },
-        "operandB": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "value": ["draft"]
+        "ownOptions": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "is empty",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "ownProperty",
+            "value": ["optionsFrom"]
+          }
         }
       },
       "toCreate": {
@@ -65,7 +78,8 @@
         "value": {
           "jcr:primaryType": "nt:unstructured",
           "label": "Value",
-          "help": "What answers store and conditions compare against."
+          "help": "What answers store and conditions compare against. No two options of a question share one.",
+          "unique": true
         },
         "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
         "title": { "jcr:primaryType": "nt:unstructured", "label": "Title" },
