@@ -280,6 +280,19 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
+    void optionsAreNumberedByTheirPlacesWhereverTheyArePlaced() throws IOException, URISyntaxException
+    {
+        final Path create = definitions().get(0).resolveSibling("createSchemaPart.json");
+        final JsonObject types = read(create).getJsonObject("v1").getJsonObject("create").getJsonObject("types");
+        assertEquals("defaultOrder", types.getJsonObject("option").getString("orderProperty"));
+        assertFalse(types.getJsonObject("question").containsKey("orderProperty"));
+        assertEquals("defaultOrder", read(create.resolveSibling("moveAnswerOption.json")).getJsonObject("v1")
+            .getJsonObject("move").getString("orderProperty"));
+        assertFalse(read(create.resolveSibling("moveSchemaPart.json")).getJsonObject("v1").getJsonObject("move")
+            .containsKey("orderProperty"));
+    }
+
+    @Test
     void theUpdatesOfAVersionSayWhatTheyAllow() throws IOException, URISyntaxException
     {
         int updates = 0;

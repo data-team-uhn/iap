@@ -24,8 +24,11 @@ is only a container, and its content lives in versions.
 ```
 
 Requirements, sections and questions are `orderable`: the order they are stored in is the order
-they are presented in. A schema's versions are not, so they are listed by label, in numeric order
-(`1.0`, `2.0`, `10.0`). Every requirement and form item is `cond:Conditionable`, so it
+they are presented in. A question's answer options are presented by their `defaultOrder`, as UI
+extensions are: options are named after their values, often numbers, and a JavaScript object lists keys
+that look like whole numbers first, whatever order they were stored in. The workflows adding and moving
+options keep it (`orderProperty` in [workflows.md](workflows.md)). A schema's versions are not ordered,
+so they are listed by label, in numeric order (`1.0`, `2.0`, `10.0`). Every requirement and form item is `cond:Conditionable`, so it
 may carry one condition deciding whether it applies (see [conditions.md](conditions.md)).
 Questions and requirements are referenceable, because answers, documents and reviews point back
 at them.

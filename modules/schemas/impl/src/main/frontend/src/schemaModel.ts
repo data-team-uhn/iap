@@ -50,13 +50,8 @@ export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
 export const nameOf = (node: JcrNode): string => String(node["@name"]);
 
-// What a node holds, in the order it keeps them when the serialization says so (the `order` selector), else as its
-// keys come: a JavaScript object lists keys that look like whole numbers first, whatever order they were written in
-export function childrenOf(node: JcrNode): JcrNode[] {
-  const order = node["@order"];
-  const children = Array.isArray(order) ? order.map(name => node[String(name)]) : Object.values(node);
-  return children.filter(isObject);
-}
+// What a node holds, as its keys come
+export const childrenOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject);
 
 // The names of what a node holds
 export const childNamesOf = (node: JcrNode): string[] => childrenOf(node).map(nameOf);

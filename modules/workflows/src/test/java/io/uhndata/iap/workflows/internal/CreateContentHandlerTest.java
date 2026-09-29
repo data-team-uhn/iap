@@ -168,6 +168,26 @@ class CreateContentHandlerTest
     }
 
     @Test
+    void numbersWhatItCreatesByItsPlaceWhenAsked()
+        throws WorkflowException, PersistenceException, RepositoryException
+    {
+        // Asked for by the activity, unless the type says otherwise
+        Mockito.when(this.fixture.creating().get(Placement.ORDER_PROPERTY, String.class)).thenReturn("rank");
+        create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Last\"}"));
+        assertEquals(10L, this.fixture.session().getProperty("/box/last/rank").getLong());
+
+        this.fixture.session().getNode("/create/types/item").setProperty(Placement.ORDER_PROPERTY, "position");
+        this.fixture.session().save();
+        create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Last\"}"));
+        create(BOX, Map.of(TYPE, ITEM, "before", "last", "patch", "{\"title\": \"First\"}"));
+
+        assertEquals(List.of("first", "last", "last2"), this.fixture.children(BOX));
+        assertEquals(10L, this.fixture.session().getProperty("/box/first/position").getLong());
+        assertEquals(20L, this.fixture.session().getProperty("/box/last/position").getLong());
+        assertEquals(30L, this.fixture.session().getProperty("/box/last2/position").getLong());
+    }
+
+    @Test
     void refusesWhatCannotBeCreatedHere() throws WorkflowException, PersistenceException, RepositoryException
     {
         create("/shelf", Map.of(TYPE, ITEM, "patch", "{\"title\": \"Loose\"}"));

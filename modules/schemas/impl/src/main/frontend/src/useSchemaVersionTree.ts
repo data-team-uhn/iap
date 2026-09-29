@@ -22,9 +22,9 @@ import type { JcrNode } from "./schemaModel";
 
 const asNode = (node: JcrNode): JcrNode => node;
 
-// One version with everything in it, in order, and what may be changed, added and removed in each part. The workflow
+// One version with everything in it, and what may be changed, added and removed in each part. The workflow
 // reference stays an identifier: the version's content is what is shown, not the workflow's.
 export function useSchemaVersionTree(path: string) {
-  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable.order", asNode);
+  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable", asNode);
   return { tree: value, loading, loadError, reload };
 }

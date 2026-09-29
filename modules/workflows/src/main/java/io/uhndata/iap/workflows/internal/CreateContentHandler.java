@@ -44,7 +44,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * must be free and one the activity allows (see {@link ContentNames}); otherwise it is named after the first of the
  * fields the activity names in {@code nameFrom} that the event's {@code patch} gives, when that makes a name the
  * activity allows, or else after its type. It is empty: an {@code updateContent} task that follows fills it in from
- * the same patch, since it acts on what was created.
+ * the same patch, since it acts on what was created. A type with an {@code orderProperty} has the new content and its
+ * siblings of its type numbered by their places in it (see {@link Placement}).
  *
  * @version $Id$
  * @since 0.1.0
@@ -86,6 +87,7 @@ public class CreateContentHandler implements ServiceTaskHandler
             if (before != null) {
                 parent.orderBefore(name, before);
             }
+            Placement.number(parent, type.nodeType(), type.orderProperty());
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot create content in " + target.getPath() + ": " + e.getMessage(), e);

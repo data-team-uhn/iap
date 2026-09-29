@@ -287,8 +287,8 @@ A few handlers are the engine's own, because what they do is generic:
 | `removeTag` | `tag` | Removes the tag |
 | `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
-| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named`, `namePattern`, `nameHint`), `nameFrom`, `namePattern`, `nameHint` (all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
-| `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named`, `namePattern`, `nameHint`, `orderProperty`), `nameFrom`, `namePattern`, `nameHint`, `orderProperty` (all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
+| `moveContent` | `within` (optional: a resource type the content must stay inside), `orderProperty` (optional) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
@@ -386,6 +386,12 @@ the schema version a question belongs to. A name already taken at the destinatio
 is made with the `ContentMover` service (`java-utils`), which lets the modules that name content by where it is
 prepare first, as `MoveParticipant`s: the conditions module makes `answer` operands naming a moved question by path
 name it by identifier. The new path is what later steps act on, and what the event is answered with.
+
+Both can also number content by its place, for what reads it in the order a property gives rather than the order it
+is stored in, as UI extensions are read by their `defaultOrder`: with an `orderProperty` (on `moveContent`'s activity,
+or on `createContent`'s, or on one of the types it lists), the content placed and its siblings of its type are
+numbered in that property by their places, 10 apart. Readers then need not rely on the order of a JSON object's keys,
+which a JavaScript object does not keep for keys that look like whole numbers.
 
 `renameContent` gives the target the `name` the event asks for, where it stands, through the same `ContentMover`, so
 the same participants prepare. The name must be one a node can have, and match the activity's `namePattern` when it

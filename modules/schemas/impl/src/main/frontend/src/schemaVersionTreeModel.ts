@@ -51,8 +51,14 @@ export const partsOf = (node: JcrNode): JcrNode[] => childrenOf(node).filter(isP
 
 export const isQuestion = (node: JcrNode): boolean => resourceTypeOf(node) === QUESTION_TYPE;
 
+// Where an option stands among its question's, as the workflows placing options number it
+const placeOf = (option: JcrNode): number => (typeof option.defaultOrder === "number" ? option.defaultOrder : 0);
+
+// A question's options, by their places: not in the order of its keys, since a JavaScript object lists keys that
+// look like whole numbers first, whatever order they were written in, and options are named after their values
 export const optionsOf = (question: JcrNode): JcrNode[] => childrenOf(question)
-  .filter(child => resourceTypeOf(child) === OPTION_TYPE);
+  .filter(child => resourceTypeOf(child) === OPTION_TYPE)
+  .sort((first, second) => placeOf(first) - placeOf(second));
 
 export const conditionOf = (part: JcrNode): JcrNode | undefined => {
   const condition = part["cond:condition"];

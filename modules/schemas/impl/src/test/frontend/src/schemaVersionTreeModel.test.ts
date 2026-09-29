@@ -37,17 +37,17 @@ describe("schemaVersionTreeModel", () => {
     expect(headingOf({ "@name": "unnamed", "label": " " })).toBe("unnamed");
   });
 
-  it("keeps what a node holds in the order the server says, even under names that look like numbers", () => {
+  it("reads a question's options by their places, even under names that look like numbers", () => {
     const question = withPaths("/q", {
-      "@order": [ "10", "2", "yes", "cond:condition" ],
-      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2" },
-      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10" },
-      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes" },
+      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2", "defaultOrder": 20 },
+      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10", "defaultOrder": 10 },
+      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes", "defaultOrder": 30 },
       "cond:condition": { "jcr:primaryType": "cond:SingleCondition" },
     });
     expect(optionsOf(question).map(option => option.value)).toEqual([ "10", "2", "yes" ]);
-    // Without it, keys that look like numbers come first, in numeric order
-    expect(optionsOf({ ...question, "@order": undefined }).map(option => option.value)).toEqual([ "2", "10", "yes" ]);
+    // Before the ones numbered, when read without a place
+    expect(optionsOf({ ...question, yes: { "sling:resourceType": "sch/AnswerOption", "value": "yes" } })
+      .map(option => option.value)).toEqual([ "yes", "10", "2" ]);
   });
 
   it("reads a question's options and condition", () => {
