@@ -308,6 +308,38 @@ class SubmissionTest
     }
 
     @Test
+    void reportsDraftWhenTaggedDraft()
+    {
+        Tagging.enable(this.context);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertTrue(submission.isDraft());
+    }
+
+    @Test
+    void reportsNotDraftForOtherTags()
+    {
+        Tagging.enable(this.context);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "in-review" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertFalse(submission.isDraft());
+    }
+
+    @Test
+    void reportsNotDraftWithoutTheTagsService()
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertFalse(submission.isDraft());
+    }
+
+    @Test
     void aggregatesUnresolvedCommentsAcrossReviews()
     {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,

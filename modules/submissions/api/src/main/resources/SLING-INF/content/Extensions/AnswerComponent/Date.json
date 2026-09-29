@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "Date",
+  "ext:subtitle": "A calendar day",
+  "ext:renderURL": "asset:iap-submissions.DateAnswer.js",
+  "defaultOrder": 3
+}

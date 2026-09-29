@@ -65,8 +65,8 @@ function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
         && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
-// An empty string is not a value here: `title` is mandatory in the CND and Oak still permits "",
-// so a caller's `?? fallback` has to fire on it.
+// An empty string is not a value here. `title` is mandatory in the CND and Oak still permits it,
+// so a caller's `?? fallback` has to fire on one.
 function text(node: JsonNode, key: string): string | undefined {
   const value = node[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -75,8 +75,11 @@ function text(node: JsonNode, key: string): string | undefined {
 /**
  * The schemas a submission may be raised against: those marked active, each paired with its active
  * version. Both halves have to be active: a retired version of a live schema is no more open than a
- * live version of a retired one. That is the rule the server enforces when the submission is
- * actually raised, checked here only so that unusable choices are not offered.
+ * live version of a retired one.
+ *
+ * The server already leaves retired ones out, so this normally has nothing to do. It is checked
+ * again because that filtering is a serialization default, switchable off per request. Reading the
+ * flag we were given beats assuming which processors ran.
  *
  * @param tree a `/Schemas` listing, serialized to the depth `SCHEMAS_URL` asks for
  * @returns what may be picked, in the order the schemas were served

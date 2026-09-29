@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "Boolean",
+  "ext:subtitle": "Yes or no",
+  "ext:renderURL": "asset:iap-submissions.BooleanAnswer.js",
+  "defaultOrder": 2
+}

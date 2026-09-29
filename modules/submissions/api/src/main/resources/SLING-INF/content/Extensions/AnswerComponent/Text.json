@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submissions/answerComponent",
+  "ext:name": "Text",
+  "ext:subtitle": "Typed-in text, one value per line where several are allowed",
+  "ext:renderURL": "asset:iap-submissions.TextAnswer.js",
+  "defaultOrder": 6
+}
