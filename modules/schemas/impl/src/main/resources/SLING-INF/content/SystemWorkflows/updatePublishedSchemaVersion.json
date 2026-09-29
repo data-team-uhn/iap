@@ -8,6 +8,7 @@
     "active": true,
     "targetResourceType": "sch/SchemaVersion",
     "description": "Changes only the wording of a version that has been published, since submissions may depend on the rest.",
+    "notice": "Only the wording of this version can be corrected. Anything else needs a new version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
