@@ -115,7 +115,7 @@ class TestPipelineOptionNames:
             assert name in HeadingHierarchyOptions.model_fields, name
 
     def test_heading_hierarchy_is_on_without_the_style_pass(self):
-        # The layout model gives every PDF heading the same level, which leaves the chunker
+        # The layout model gives every PDF heading the same level, which leaves the Markdown
         # nothing to cut on below the top. Bookmarks and numbering fix that for free; the style
         # pass would need generate_parsed_pages=True and every parsed page held in memory.
         options = docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options
@@ -125,16 +125,10 @@ class TestPipelineOptionNames:
         assert options.use_style is False
         assert docling_config.PDF_PIPELINE_OPTIONS.generate_parsed_pages is False
 
-    def test_the_heading_level_ceiling_matches_the_markdown_one(self):
-        # Anything deeper than MAX_HEADING_LEVEL would come back as markdown our HEADING regex
-        # rejects.
-        from markdown_markers import HEADING, MAX_HEADING_LEVEL
-
-        assert HEADING.match("#" * MAX_HEADING_LEVEL + " Deep") is not None
-        assert HEADING.match("#" * (MAX_HEADING_LEVEL + 1) + " Deeper") is None
+    def test_the_heading_level_ceiling_is_the_markdown_one(self):
+        # Markdown has six ATX levels; anything deeper would come back as text, not a heading.
         assert (
-            docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options.max_level
-            == MAX_HEADING_LEVEL
+            docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options.max_level == 6
         )
 
     def test_a_conversion_is_time_bounded(self):

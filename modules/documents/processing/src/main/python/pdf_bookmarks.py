@@ -21,8 +21,8 @@ Extract a PDF's embedded bookmark outline.
 Uses ``pypdf``, already a parser dependency. ``reader.outline`` is a nested list -- a child
 group follows its parent as a sub-list -- flattened here into ordered
 ``{"title", "level", "page"}`` bookmarks with 1-based pages. ``pypdf`` is imported lazily so
-importing this module does not need it: tests use a fake reader, and the chunker gets here for
-documents with no sibling PDF.
+importing this module does not need it: tests use a fake reader, and a document with no PDF
+beside it never gets here.
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ from markdown_markers import MAX_HEADING_LEVEL
 MAX_OUTLINE_DEPTH = 32
 
 # How many bookmarks are worth taking from one document. Nesting is capped above; siblings
-# per level are not, and every one of them is matched against the document and listed in
-# outline.json. Far past any real protocol's table of contents.
+# per level are not, and every one of them is matched against the document. Far past any real
+# protocol's table of contents.
 MAX_BOOKMARKS = 2000
 
 

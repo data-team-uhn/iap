@@ -37,8 +37,6 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from shared_docs import ParseRequestError
-
 # Optional shared secret for the mutating endpoints. When set, /parse and /shutdown require
 # "Authorization: Bearer <token>". Left unset the port is the only boundary, which is fine for
 # a loopback-only deployment and not fine for anything else — hence the warning at startup.
@@ -159,10 +157,6 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
     return False
 
 
-# Query values that mean "no" for a boolean flag; anything else is true.
-FALSE_VALUES = ("false", "0", "no")
-
-
 def parse_query(path: str) -> dict[str, list[str]]:
     """The query string of a request path, decoded.
 
@@ -170,34 +164,3 @@ def parse_query(path: str) -> dict[str, list[str]]:
     to reach ``?path=`` percent-encoded (see :func:`shared_docs.resolve_parse_path`).
     """
     return parse_qs(urlsplit(path).query)
-
-
-def parse_chunk_flag(query: dict[str, list[str]]) -> bool:
-    """Whether ``?chunk=`` asks for chunking. Absent or empty means yes."""
-    return (query.get("chunk", ["true"])[0] or "true").lower() not in FALSE_VALUES
-
-
-def parse_token_options(query: dict[str, list[str]]) -> dict[str, int]:
-    """The ``max_tokens`` / ``min_structure_tokens`` overrides a request carries.
-
-    Absent or empty means "use the default", so they are left out of the result rather than
-    guessed at. A value that is not a positive integer is the caller's mistake, not a reason to
-    fall back silently — a 0 budget would split a document into a chunk per paragraph.
-
-    @param query: the decoded query (see :func:`parse_query`)
-    @return: only the options actually supplied, ready to pass as keyword arguments
-    @raise ParseRequestError: when a supplied value is not an integer of 1 or more
-    """
-    options: dict[str, int] = {}
-    for name in ("max_tokens", "min_structure_tokens"):
-        raw = query.get(name, [None])[0]
-        if not raw:
-            continue
-        try:
-            parsed = int(raw)
-        except ValueError:
-            raise ParseRequestError(f"{name} must be an integer; got {raw!r}") from None
-        if parsed < 1:
-            raise ParseRequestError(f"{name} must be 1 or greater; got {parsed}")
-        options[name] = parsed
-    return options

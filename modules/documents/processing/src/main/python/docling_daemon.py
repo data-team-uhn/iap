@@ -23,9 +23,8 @@ Java calls this over HTTP instead of spawning docling_parser.py per file.
 
 Endpoints:
     GET  /health   -> {"status": "ok", "workers": N, "ready": true}
-    POST /parse    -> ?path=/shared-docs/.../file.pdf[&chunk=true][&max_tokens=]
-                      [&min_structure_tokens=]
-                     -> {"ok", "markdown_path", "chunked", "chunks_dir", "logs", "filename"}
+    POST /parse    -> ?path=/shared-docs/.../file.pdf
+                     -> {"ok", "markdown_path", "tokens", "logs", "filename"}
     POST /shutdown -> graceful stop; served only with ``--enable-shutdown``
 
 The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
@@ -61,17 +60,10 @@ from daemon_utils import (
     is_token_ascii,
     drain_request_body,
     send_json_response,
-    parse_chunk_flag,
     parse_query,
-    parse_token_options,
     refuse_unauthorized,
 )
 
-from chunker import (
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_MIN_STRUCTURE_TOKENS,
-    sweep_scratch_directories,
-)
 from docling_batch_sizing import add_workers_argument, calc_workers
 from docling.datamodel.base_models import InputFormat
 
@@ -171,21 +163,12 @@ def _get_health_status() -> str:
     return "ok"
 
 
-def _run_parse(
-    input_path: Path,
-    *,
-    chunk: bool,
-    max_tokens: int,
-    min_structure_tokens: int,
-) -> dict[str, Any]:
-    """LibreOffice + Docling + chunk_file on a shared-docs path."""
+def _run_parse(input_path: Path) -> dict[str, Any]:
+    """LibreOffice + Docling on a shared-docs path."""
     assert _STATE is not None
     try:
         return parse_document(
             input_path,
-            chunk=chunk,
-            max_tokens=max_tokens,
-            min_structure_tokens=min_structure_tokens,
             pdf_executor=_STATE.pdf_executor,
             pdf_workers=_STATE.worker_count,
             docx_lock=_STATE.docx_lock,
@@ -305,8 +288,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
     def _handle_parse(self) -> None:
         """Parse a document already on the shared volume.
 
-        Query: ``?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000``
-        ``&min_structure_tokens=20000``.
+        Query: ``?path=/shared-docs/.../file.pdf``.
         """
         if self._refuse_unauthorized("/parse"):
             return
@@ -328,8 +310,6 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             else:
                 query = parse_query(self.path)
                 input_path = resolve_parse_path(query.get("path", [""])[0] or "")
-                chunk = parse_chunk_flag(query)
-                options = parse_token_options(query)
 
                 if not _STATE.parse_slots.acquire(blocking=False):
                     # Refused rather than queued: a conversion takes minutes, and holding the
@@ -346,27 +326,17 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                         # Inside the slot: reading the document to measure it is real work, and
                         # the RAM budget covers one conversion, not one per concurrent caller.
                         refuse_oversized_input(input_path)
-                        reply = (
-                            HTTPStatus.OK,
-                            _run_parse(
-                                input_path,
-                                chunk=chunk,
-                                max_tokens=options.get("max_tokens", DEFAULT_MAX_TOKENS),
-                                min_structure_tokens=options.get(
-                                    "min_structure_tokens", DEFAULT_MIN_STRUCTURE_TOKENS
-                                ),
-                            ),
-                        )
+                        reply = (HTTPStatus.OK, _run_parse(input_path))
                     finally:
                         _STATE.parse_slots.release()
         except ParseRequestError as exc:
             reply = (HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception:
-            # Everything else is a server-side failure, including the ValueErrors Docling,
-            # pypdf and the chunker raise on a malformed document. Their messages are built
-            # from internals -- soffice's raw output, a Docling error quoting the shared-docs
-            # path -- so the traceback goes to the log under a reference and the caller gets
-            # the reference. Same rule as JdkHttpRequests (#104) and EmailTestEndpoint (#107).
+            # Everything else is a server-side failure, including the ValueErrors Docling and
+            # pypdf raise on a malformed document. Their messages are built from internals --
+            # soffice's raw output, a Docling error quoting the shared-docs path -- so the
+            # traceback goes to the log under a reference and the caller gets the reference.
+            # Same rule as JdkHttpRequests (#104) and EmailTestEndpoint (#107).
             reference = uuid.uuid4().hex[:12]
             print(f"Parse failure {reference}:", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
@@ -490,13 +460,6 @@ def main() -> None:
     except Exception as e:
         print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
-
-    try:
-        # Whatever an earlier run was killed in the middle of writing. Nothing else removes it:
-        # the rollback in chunker._swap_into_place only covers failures the process survives.
-        sweep_scratch_directories(get_shared_docs_root(), log=_log_stderr)
-    except Exception as e:  # noqa: BLE001 -- tidying up is not worth refusing to start over
-        _log_stderr(f"WARNING: could not sweep leftover chunk staging directories: {e}")
 
     # Build the server before installing the handlers. The other order leaves a window where a
     # signal finds _SERVER still None, so nothing stops the accept loop and serve_forever runs

@@ -282,7 +282,7 @@ class Docling(unittest.TestCase):
 
     It binds 0.0.0.0 because Docker forwards a published port no other way, so on the Compose
     network the bearer token is the only thing between another container and every staged
-    upload: re-parse one, overwrite its Markdown, replace its whole Chunks tree.
+    upload: re-parse one and overwrite its Markdown.
     """
 
     def test_the_parser_token_is_generated_into_the_env_file(self):

@@ -29,6 +29,7 @@ request guards were moved to :mod:`daemon_utils` for exactly that reason; see
 """
 
 import json
+import pathlib
 import sys
 import threading
 import time
@@ -277,15 +278,8 @@ class TestParseErrorStatus:
         daemon.DoclingDaemonHandler._handle_parse(handler)
         assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
 
-    def test_unparseable_max_tokens_is_400(self, monkeypatch, tmp_path):
-        self._ready(monkeypatch)
-        pdf = self._staged_pdf(monkeypatch, tmp_path)
-        handler = self._handler({"path": str(pdf), "max_tokens": "abc"})
-        daemon.DoclingDaemonHandler._handle_parse(handler)
-        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
-
     def test_a_value_error_from_conversion_is_500(self, monkeypatch, tmp_path):
-        # pypdf, Docling and the chunker all raise plain ValueErrors on a malformed
+        # pypdf and Docling both raise plain ValueErrors on a malformed
         # document. Reporting those as 400 tells a caller not to retry a document that
         # may well parse next time.
         self._ready(monkeypatch)
@@ -304,7 +298,7 @@ class TestConcurrentParsesAreBounded:
     """Only one conversion at a time; the rest are refused, not queued.
 
     Regression: ThreadingHTTPServer starts a thread per request, so N simultaneous callers ran
-    N conversions, each holding a full assembled document and chunk tree — against a RAM
+    N conversions, each holding a full assembled document — against a RAM
     budget calculated for exactly one. The cgroup OOM killer took a worker and the
     BrokenProcessPool that followed marked the daemon permanently broken.
     """
@@ -504,40 +498,58 @@ class TestMutatingEndpointsAreGuarded:
         assert handler.header_value("status") == HTTPStatus.OK
 
 
-class TestTheChunkFlagReachesTheChunker:
-    """``?chunk=false`` goes through the same stage-and-swap as everything else.
+class TestParseDocumentWritesTheMarkdown:
+    """The whole document is the output, so ``{stem}.md`` is all a parse writes."""
 
-    It used to create the directory and overwrite ``outline.json``, leaving the rest: a
-    re-parse left the previous run's ``catalog.json`` and Chunk files beside an outline saying
-    the document was never chunked, and ``catalog.json`` is documented as the marker that the
-    set beside it is complete.
-    """
-
-    def _parse(self, monkeypatch, tmp_path, *, chunk):
+    def _parse(self, monkeypatch, tmp_path):
         import parse_document as module
 
-        seen = {}
-
-        def capture(path, **options):
-            seen.update(options)
-            return {"chunks": 0, "chunked": False, "chunks_dir": None, "logs": ""}
-
-        monkeypatch.setattr(module, "chunk_file", capture)
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
         monkeypatch.setattr(module, "convert_pdf_to_markdown", lambda *a, **k: "# Doc\n")
         monkeypatch.setattr(module, "prepare_office_document", lambda source, **k: source)
-        module.parse_document(write_pdf(tmp_path / "doc.pdf"), chunk=chunk)
-        return seen
+        return module.parse_document(write_pdf(tmp_path / "doc.pdf"))
 
-    def test_not_chunking_is_passed_on_rather_than_handled_here(self, monkeypatch, tmp_path):
-        assert self._parse(monkeypatch, tmp_path, chunk=False)["chunk"] is False
+    def test_the_markdown_lands_beside_the_source(self, monkeypatch, tmp_path):
+        summary = self._parse(monkeypatch, tmp_path)
+        assert pathlib.Path(summary["markdown_path"]) == (tmp_path / "doc.md").resolve()
+        assert (tmp_path / "doc.md").read_text(encoding="utf-8") == "# Doc\n"
 
-    def test_chunking_is_passed_on_too(self, monkeypatch, tmp_path):
-        assert self._parse(monkeypatch, tmp_path, chunk=True)["chunk"] is True
+    def test_the_summary_reports_the_token_count(self, monkeypatch, tmp_path):
+        assert self._parse(monkeypatch, tmp_path)["tokens"] == len("# Doc\n") // 4
 
-    def test_nothing_writes_an_outline_behind_the_chunker(self, monkeypatch, tmp_path):
+    def test_the_write_leaves_no_scratch_file(self, monkeypatch, tmp_path):
+        # write_atomically renames a temp file into place; a leftover means it did not finish.
+        self._parse(monkeypatch, tmp_path)
+        assert [p.name for p in tmp_path.glob(".*.tmp")] == []
+
+
+class TestParseDocumentCorrectsHeadingLevels:
+    """The bookmark pass is wired in before the write, so the ``.md`` on disk carries the
+    document-wide levels rather than the per-batch ones. The pass itself is unit-tested in
+    ``test_heading_levels.py``; only the wiring needs Docling to be importable.
+    """
+
+    def _parse(self, monkeypatch, tmp_path, markdown):
+        import heading_levels
         import parse_document as module
 
-        assert not hasattr(module, "write_unchunked_outline")
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        monkeypatch.setattr(module, "convert_pdf_to_markdown", lambda *a, **k: markdown)
+        monkeypatch.setattr(module, "prepare_office_document", lambda source, **k: source)
+        monkeypatch.setattr(
+            heading_levels, "extract_bookmarks",
+            lambda source: [{"title": "Study Design", "level": 2, "page": 1}],
+        )
+        module.parse_document(write_pdf(tmp_path / "doc.pdf"))
+        return (tmp_path / "doc.md").read_text(encoding="utf-8")
+
+    def test_the_written_markdown_carries_the_bookmark_level(self, monkeypatch, tmp_path):
+        written = self._parse(monkeypatch, tmp_path, "<!-- page: 1 -->\n# Study Design\n")
+        assert written == "<!-- page: 1 -->\n## Study Design\n"
+
+    def test_a_heading_with_no_bookmark_is_left_alone(self, monkeypatch, tmp_path):
+        written = self._parse(monkeypatch, tmp_path, "<!-- page: 1 -->\n# Other Section\n")
+        assert written == "<!-- page: 1 -->\n# Other Section\n"
 
 
 class TestCliBatchPagesFlag:
@@ -552,7 +564,7 @@ class TestCliBatchPagesFlag:
 
         def capture(_input_path, **kwargs):
             seen.update(kwargs)
-            return {"markdown_path": str(tmp_path / "doc.md"), "chunked": False, "logs": ""}
+            return {"markdown_path": str(tmp_path / "doc.md"), "tokens": 0, "logs": ""}
 
         monkeypatch.setattr(docling_parser, "parse_document", capture)
         monkeypatch.setattr(sys, "argv", ["docling_parser.py", str(pdf), *flags])
@@ -688,7 +700,7 @@ class TestBrokenPoolShutsDown:
         pdf.write_bytes(b"%PDF-1.4")
 
         with pytest.raises(RuntimeError, match="PDF worker pool is broken"):
-            daemon._run_parse(pdf, chunk=True, max_tokens=2000, min_structure_tokens=20000)
+            daemon._run_parse(pdf)
 
         assert state.pdf_executor_broken is True
         assert state.shutdown_requested is True
@@ -704,9 +716,6 @@ class TestPathBasedParseContract:
     def test_legacy_byte_upload_helpers_are_gone(self):
         for name in ("_spool_upload", "_safe_suffix", "MAX_UPLOAD_BYTES", "MIN_GZIP_BYTES"):
             assert not hasattr(daemon, name), name
-
-    def test_chunk_handler_is_gone(self):
-        assert not hasattr(daemon.DoclingDaemonHandler, "_handle_chunk")
 
     def test_no_parse_output_dir_argument(self):
         parser_source = daemon.parse_args.__code__.co_consts

@@ -1,8 +1,8 @@
-# Parsing Pipeline — How an upload becomes Markdown + chunks
+# Parsing Pipeline — How an upload becomes Markdown
 
-A file (PDF / DOCX / DOC) is turned into one `<stem>.md` plus a `Chunks/` tree
-(`outline.json`, and when the document is large enough `catalog.json` + `Chunk-*.md`).
-Everything runs in Python: LibreOffice prep, Docling conversion, and all derived-file writes.
+A file (PDF / DOCX / DOC) is turned into one `<stem>.md`. The whole document goes downstream:
+nothing here splits it. Everything runs in Python: LibreOffice prep, Docling conversion, and
+all derived-file writes.
 
 - **Source**: `modules/documents/processing/src/main/python/`
 
@@ -22,22 +22,22 @@ flowchart TB
         DAEMON["docling_daemon.py HTTP"]
         LO["libreoffice_convert.py"]
         GEN["docling_pdf / docling_docx"]
-        WCF["chunk_file"]
+        WRITE["write_atomically"]
     end
 
-    ART[("/shared-docs/uuid/stem.md + pdf + Chunks/")]
+    ART[("/shared-docs/uuid/stem.md + pdf")]
 
     U -->|"POST /parse?path=..."| DAEMON
     DAEMON --> LO
     LO -->|save docx/pdf| ART
     DAEMON --> GEN
-    DAEMON --> WCF
-    WCF -->|stem.md + Chunks| ART
+    DAEMON --> WRITE
+    WRITE -->|stem.md| ART
 ```
 
 **Path-based round trip:** the caller stages the upload under `/shared-docs/{uuid}/`, then
-`POST /parse?path=...`. Python runs LibreOffice (DOC/DOCX), Docling, and `chunk_file`
-(the sole writer of `{stem}.md` + `Chunks/`). The HTTP reply is a small summary only.
+`POST /parse?path=...`. Python runs LibreOffice (DOC/DOCX) and Docling, and writes
+`{stem}.md`. The HTTP reply is a small summary only.
 
 ---
 
@@ -51,7 +51,6 @@ sequenceDiagram
     participant D as docling_daemon.py
     participant LO as libreoffice_convert
     participant P as Docling
-    participant W as chunk_file
 
     Note over C: upload arrives (PDF/DOCX/DOC)
     C->>FS: stage /shared-docs/uuid/file.ext
@@ -59,9 +58,8 @@ sequenceDiagram
     D->>LO: prepare_office_document
     LO->>FS: save stem.docx / stem.pdf when needed
     D->>P: convert to Markdown
-    D->>W: chunk_file
-    W->>FS: stem.md + Chunks/
-    D-->>C: summary ok markdown_path chunked logs
+    D->>FS: stem.md
+    D-->>C: summary ok markdown_path tokens logs
 ```
 
 **There is no fallback processor.** Docling (daemon or CLI) is the only one. If Docling fails,
@@ -70,13 +68,12 @@ the parse fails.
 ### The `/parse` request
 
 ```
-POST /parse?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000&min_structure_tokens=20000
+POST /parse?path=/shared-docs/.../file.pdf
 ```
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
-request body is ignored. `chunk` defaults to true; `max_tokens` and `min_structure_tokens`
-default to the constants below. The daemon also serves `GET /health`, and `POST /shutdown`
-when started with `--enable-shutdown`.
+request body is ignored. The daemon also serves `GET /health`, and `POST /shutdown` when
+started with `--enable-shutdown`.
 
 `/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
 header — nothing that legitimately drives the daemon is a web page, and loopback binding is
@@ -87,8 +84,8 @@ probes need no credential.
 **Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a
 container the entrypoint has to bind `0.0.0.0`, because Docker forwards a published port no
 other way, so every other container on the Compose network can reach the port — and reaching
-it is authority to re-parse any staged upload and overwrite its Markdown and its whole `Chunks`
-tree. `generate_compose.py --docling` generates one into `.env`. The daemon says so at startup
+it is authority to re-parse any staged upload and overwrite its Markdown.
+`generate_compose.py --docling` generates one into `.env`. The daemon says so at startup
 when it is unset, unless `IAP_DOCLING_TRUSTED_NETWORK` is set to say the port has been confined
 some other way, which the daemon itself cannot see.
 
@@ -109,7 +106,7 @@ invites client timeouts. Callers retry.
 | Module | Role |
 |---|---|
 | `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
-| `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → `chunk_file` |
+| `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → bookmark heading levels → write `{stem}.md` |
 | `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
 | `docling_parser.py` | CLI entry via `parse_document` |
 | `docling_pdf_parser.py` | `convert_pdf_to_markdown` — page-sharded parallel Docling |
@@ -117,9 +114,10 @@ invites client timeouts. Callers retry.
 | `docling_batch_sizing.py` | Worker-count / page-batch sizing from RAM + cores |
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
 | `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
-| **`chunker.py`** | `chunk_file` — **sole** writer of `{stem}.md` + `Chunks/`; `build_chunk_tree` is in-memory only. Leaf splitting is [chunkweaver](https://github.com/metawake/chunkweaver) |
-| `heading_helpers.py` | Identify ATX headings, match them to PDF bookmarks |
+| `markdown_markers.py` | The `<!-- page: N -->` format, the ATX heading rules, the accepted suffixes, and the `len//4` token estimate |
+| `heading_levels.py` | `correct_heading_levels` — set the assembled Markdown's heading levels from the PDF's bookmarks |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
+| `shared_docs.py` | The shared-docs allowlist, the input size ceilings, and every write to disk |
 
 ---
 
@@ -128,113 +126,50 @@ invites client timeouts. Callers retry.
 - **PDF (Docling)** — `convert_pdf_to_markdown` reads the page count with `pypdf`,
   splits the pages into batches, and converts each batch in a **separate worker process**
   (`ProcessPoolExecutor`), exporting Markdown **per page** with a `<!-- page: N -->` marker
-  before each. Fragments are concatenated in page order. (This per-page-range sharding is why
-  bookmark/outline inference cannot run inside Docling — no single process sees the whole
-  document; it runs later, in the chunker, over the assembled `.md` + sibling PDF.)
+  before each. Fragments are concatenated in page order. Those page-range batches are an
+  internal parallelism detail — one document still produces one `.md`.
 - **DOCX** — LibreOffice writes `{stem}.pdf`, then Docling converts the DOCX. No physical pages
   ⇒ no `<!-- page: N -->` markers (so `evidence.page` is null downstream).
 - **DOC** — LibreOffice writes `{stem}.docx` and `{stem}.pdf`, then Docling converts the DOCX.
 
-Every path ends the same way: `chunk_file` writes `<answerDir>/<stem>.md` and
-`Chunks/` beside the staged source under `/shared-docs`.
+Every path ends the same way: `parse_document` corrects the heading levels, writes
+`<answerDir>/<stem>.md` beside the staged source under `/shared-docs`, and reports its
+`len//4` token estimate in the summary.
 
 ---
 
-## Chunking (`chunker.py`)
+## Heading levels (`heading_levels.py`)
 
-Pure regex/string work over the already-produced Markdown — **no LLM, no ML tokenizer, no
-Docling re-convert** (milliseconds). Token counts are the cheap `len(text) // 4`.
+Docling's heading-hierarchy pass runs with `use_bookmarks` and `use_numbering` on (see
+`docling_config.py`), but a PDF is converted as page-range batches in separate worker
+processes, so that pass only ever sees one batch. No single process sees the whole document,
+and the same section comes back `#` in one batch and `##` in another. Downstream that means a
+quote is cited under the wrong section.
 
-The chunker does **not** clean. `clean_markdown` runs exactly once per document, in the
-converter that produced the `.md`, and everything below takes that text as-is.
+So the levels are settled after the batches are concatenated, from the one view of the whole
+document there is: the PDF's bookmark outline.
 
 ```
-chunk_file(<stem>.md)                                        # md is already cleaned
-  └─ build_chunk_tree(md, markdown_path, max_tokens, min_structure_tokens)
-       │                                     # pure: no writes, returns the whole tree
-       ├─ extract_bookmarks(<stem>.pdf)  # sibling PDF; titles taken as given
-       │                                  # → outline.bookmarks, tokens
-       │                                  # no bookmarks → bookmarks []
-       │
-       ├─ size gate:  tokens = len(md)//4  vs  DEFAULT_MIN_STRUCTURE_TOKENS (20000)
-       │    ├─ below → outline only {chunked:false}; STOP (whole-doc used downstream)
-       │    └─ at/above ↓
-       │
-       ├─ if bookmarks: rewrite heading lines to bookmark level/title
-       ├─ _split_into_chunks: one chunkweaver pass to DEFAULT_MAX_TOKENS (2000) --
-       │       top heading level always, deeper levels where over budget, then paragraphs,
-       │       then sentences
-       └─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
-  │
-  └─ write Chunks/ : Chunk-*.md, catalog.json, outline.json
+correct_heading_levels(markdown, <stem>.md)
+  ├─ find_sibling_pdf         # {stem}.pdf beside the .md -- the staged PDF itself, or
+  │                           # LibreOffice's rendition of a DOC/DOCX. Suffix case is ignored
+  │                           # (PROTOCOL.PDF is routine from Windows).
+  │                           # none → the Markdown is returned as parsed
+  ├─ extract_bookmarks        # pypdf outline → ordered {title, level, page}
+  │                           # none, or unreadable → returned as parsed
+  └─ apply_bookmark_heading_levels
+         # one pass over the document indexed by normalized title (casefolded letters and
+         # digits, section numbers kept), then one lookup per bookmark. ATX, bold and
+         # ALL-CAPS lines can match; table rows and captions cannot. Closest page wins, ties
+         # go to the later line. The line keeps its text; only its '#' count is set.
 ```
 
-Disk writing lives in `chunk_file` (analysis in `build_chunk_tree`). Callers:
+Pure regex/string work — no LLM, no Docling re-convert. It is linear in
+lines × bookmarks and runs while the daemon still holds its only parse slot, so both are
+capped (`MAX_BOOKMARKS`, `MAX_OUTLINE_DEPTH`).
 
-- `parse_document(...)` — daemon / `docling_parser.py` CLI: LibreOffice → Docling → `chunk_file` with the Markdown already in hand.
-- `python chunker.py <file>` — re-chunk an already-parsed `.md`.
-
-There is one `Chunks/` per folder, and writing it replaces whatever is there. That is safe
-because the caller owns the directory's lifecycle: each upload is staged under
-`/shared-docs/{uuid}/` on its own, and once a parse finishes the caller reads the outputs out
-and wipes the directory. **No parse ever meets files left by an earlier one**, so nothing here
-checks for them — see "Staleness" below.
-
----
-
-### What chunkweaver does, and what it does not
-
-All the cutting happens in **one** `Chunker` call, in `_split_into_chunks`. It gets the real
-budget, so the strongest heading level always cuts, deeper levels cut only where a section is
-over budget, and a section too big for its own sub-headings falls through to paragraphs and
-then sentences. That last fallback is why the library is here at all: Docling emits a table as
-a run of `|` lines with no blank line, so a 700-row schedule of assessments is a single
-paragraph, and the hand-written splitter returned it whole -- one chunk 6.4x over budget.
-
-It cuts on the heading lines, which the bookmark rewrite has already set to the bookmark
-levels, so cutting on them is cutting on the outline -- and a heading the outline missed still
-starts a chunk, which cutting only at bookmark-matched lines did not do.
-
-Two settings are not optional. `overlap=0`, because the default is 2 sentences of RAG
-retrieval overlap, which repeats text across chunk files and inflated a test document by 43%.
-And `min_size` has to stay under `target_size`: it wins when the two disagree, so a floor
-above the budget puts every part over budget.
-
-`MARKDOWN_LEVELED` is used without its `^---` spec (see `HEADING_BOUNDARIES`). Docling emits
-horizontal rules inside sections, and cutting on them opens a chunk with a bare rule.
-
-What it does **not** do:
-
-- **The post-cut pass**: trailing page markers moved to the next chunk, small text tails
-  folded back, pageStart/pageEnd in the catalog.
-
-## The outline subsystem
-
-The document **outline** is PDF bookmark **titles** (strings) from
-``extract_bookmarks``, held in memory with level/page for heading rewrite and written to
-`Chunks/outline.json` as ``bookmarks: ["…", …]``. They come from a sibling PDF,
-and from nothing else. A document with no PDF bookmarks reports an empty `bookmarks` list.
-
-```mermaid
-flowchart TD
-    A["chunk_file / daemon POST /parse"] --> B["build_chunk_tree"]
-    B --> C{"sibling stem.pdf with bookmarks?"}
-    C -->|yes| D["extract_bookmarks pypdf"]
-    C -->|no| E["bookmarks empty"]
-    D --> F["outline.bookmarks = title strings"]
-```
-
-Key behaviours:
-
-- **Heading-level ceiling** — `bookmarks` keeps entries at level 1–`MAX_HEADING_LEVEL` (6). Deeper nesting is still walked (up to `MAX_OUTLINE_DEPTH`) so a crafted outline cannot exhaust the stack.
-- **Bookmark levels drive chunking** — when bookmarks exist, each Markdown heading line is matched to a PDF bookmark by normalized title only (dest page is ignored). The line is rewritten to that bookmark's level and title before any split, so a `###` that the bookmarks call level 1 is cut as `#`.
-- **Catalog heading** — each chunk's `heading` is the text of its first non-neutral line when that line is ATX; otherwise empty. Bookmarks rewrite heading lines in the Markdown before splitting.
-- **No page rewrite** — matching is by normalized title only. The `<!-- page: N -->` markers
-  are not consulted, and the titles are taken as the PDF gives them.
-- **Sub-chunk boundaries** — chunkweaver cuts on any ATX sub-heading (after the bookmark rewrite, when an outline exists), then paragraphs, then sentences. Bold/ALL-CAPS lines are not cuts on their own.
-
-The source PDF reaches the chunker as a sibling of the `.md`: either the native upload staged
-beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_office_document`.
+A DOCX has no page markers, so every match sits at the same missing-page distance and the
+later line wins. Levels are still corrected; only the tie-break weakens.
 
 ---
 
@@ -242,48 +177,33 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
 
 ```
 <answerDir>/
-    <stem>.md                 # the parsed Markdown (written by chunk_file)
+    <stem>.md                 # the parsed Markdown
     <stem>.pdf                # the staged source, or the LibreOffice rendition, which is
-                              # written unconditionally -- nothing checks the name first
-    Chunks/
-        outline.json          # ALWAYS written: tokens, chunked, bookmarks (+ unchunkedReason whenever chunked is false)
-        catalog.json          # only when chunked: one slim entry per Chunk-*.md
-        Chunk-0.md            # content before the first heading (if any)
-        Chunk-1.md
-        Chunk-2.md
+                              # written unconditionally -- nothing checks the name first.
+                              # Read back for its bookmark outline (see Heading levels).
 ```
-
-``extract_bookmarks`` reaches disk as title strings in ``bookmarks`` in `Chunks/outline.json`.
 
 ### Staleness
 
 A parse starts from a directory holding one staged upload and nothing else: the caller reads
 every output into its own storage as soon as the parse finishes, then wipes the directory. So
-this code only ever writes its own outputs, and `chunk_file` replaces `Chunks/` wholesale
-every time — including the `chunk=false` path, which writes an outline recording
-`unchunkedReason: chunking_not_requested` and no chunk files. A re-parse therefore cannot
-leave one revision's `catalog.json` beside another's Markdown.
+this code only ever writes its own outputs, and nothing here checks for files an earlier run
+left behind.
 
-**Publication is all-or-nothing.** The chunk tree is written into `Chunks.new-<key>/` and
-moved into place with a rename, and the `.md` goes through a temporary file of its own — so a
-crash, a full disk or a kill can never leave a half-written chunk set that looks finished.
-The chunks are swapped in *before* the Markdown, which makes the `.md` the commit marker: a
-new `.md` guarantees the chunks beside it are the matching new set. Nothing locks the
-directory, because nothing else is writing to it: one parse owns one `/shared-docs/{uuid}/`,
-and the daemon runs one conversion at a time.
-
-The key in `Chunks.new-<key>` and `Chunks.old-<key>` is a uuid, and it has to be: it was the
-process id, which is 1 in this container, so the same two names came back after every restart
-rather than merely sometimes. What a killed process leaves behind is removed by
-`sweep_scratch_directories`, which the daemon runs over the shared root at startup, because
-the rollback in `_swap_into_place` only covers failures the process survives.
+**The Markdown is written all-or-nothing.** `write_atomically` writes a temporary file in the
+same directory and renames it into place, so an exception, a full disk or a kill can never
+leave a half-written `.md` that looks finished — the previous file stays until the whole new
+one is ready. A host crash is not covered: nothing is fsynced, so the rename can reach the
+disk before the data. That is the process dying, not the machine. Nothing locks the directory,
+because nothing else is
+writing to it: one parse owns one `/shared-docs/{uuid}/`, and the daemon runs one conversion
+at a time.
 
 ### LibreOffice renditions
 
 `prepare_office_document` writes `{stem}.docx` (for a `.doc`) and a best-effort `{stem}.pdf`
-beside the source, and `build_chunk_tree` picks the PDF up as the `.md`'s sibling. That works
-because a parse owns its directory: the only `{stem}.pdf` there is the one this run rendered,
-or the staged PDF itself when the upload was already a PDF.
+beside the source. That works because a parse owns its directory: the only `{stem}.pdf` there
+is the one this run rendered, or the staged PDF itself when the upload was already a PDF.
 
 `convert()` requires the expected file to exist afterwards, because `soffice` exits 0 having
 converted nothing often enough to be worth checking.
@@ -294,11 +214,10 @@ converted nothing often enough to be worth checking.
 
 | | Daemon | CLI / inline |
 |---|---|---|
-| Convert + chunk | Caller stages path under `/shared-docs`, `POST /parse?path=…` → `parse_document` → `chunk_file` | `docling_parser.py <file>` same path, or `python chunker.py <file>` re-chunks an existing `.md` |
-| Files owned by | Python on the shared volume | Python (writes `.md` + `Chunks/` itself) |
-| Source PDF for outline | Sibling `<stem>.pdf` beside the staged file (native or LibreOffice) | same, when a sibling `<stem>.pdf` exists |
+| Convert | Caller stages path under `/shared-docs`, `POST /parse?path=…` → `parse_document` | `docling_parser.py <file>` — same path |
+| Files owned by | Python on the shared volume | Python (writes the `.md` itself) |
 
-Both modes share `chunker.py`, so the outline + chunk logic is identical.
+Both modes go through `parse_document`, so the conversion is identical.
 
 ---
 
@@ -306,11 +225,6 @@ Both modes share `chunker.py`, so the outline + chunk logic is identical.
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `DEFAULT_MIN_STRUCTURE_TOKENS` | 20000 | Size gate: below this the doc is left unchunked (whole-document downstream) |
-| `DEFAULT_MAX_TOKENS` | 2000 | Target max tokens per chunk file before an over-budget piece is split |
-| `MIN_TAIL_TOKENS` | 500 | A text-only tail smaller than this is folded back into the previous part |
-| `MAX_HEADING_LEVEL` | 6 | Deepest heading / bookmark level extracted into the outline TOC (Markdown ATX ceiling) |
-| `MAX_HEADING_WORDS` / `MAX_WORD_CHARS` / `MIN_HEADING_CHARS` | 10 / 100 / 5 | Heading-validity filters (reject run-ons, garbage, `Table …` captions) |
 | `DEFAULT_MAX_INPUT_PAGES` | 1500 | Largest PDF accepted; over it is a 400, raised *after* the parse slot is taken (counting pages means reading the document). Override with `IAP_MAX_INPUT_PAGES`, 0 to disable |
 | `DEFAULT_MAX_INPUT_BYTES` | 64 MiB | The same ceiling by size, for every accepted type — a `.docx` has no pages to count. Override with `IAP_MAX_INPUT_BYTES` |
 | `DEFAULT_MAX_EXPANDED_BYTES` | 512 MiB | And again after decompression, for a `.docx`, which is a zip: 64 MiB of repeated bytes expands to gigabytes, and Docling parses DOCX in the daemon's own process rather than a pool worker, so that memory is the daemon's. Override with `IAP_MAX_EXPANDED_BYTES`, 0 to disable |
@@ -318,7 +232,4 @@ Both modes share `chunker.py`, so the outline + chunk logic is identical.
 | `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` | 600 | Seconds one Docling conversion may take, which is one page batch (at most `MAX_BATCH_PAGES`), not the whole document. Docling checks it between batches and stops with `PARTIAL_SUCCESS` plus a `TIMEOUT` error item, which `ensure_conversion_ok` already fails on, so a runaway document fails its batch rather than holding the daemon's only parse slot while `/health` still reports ready. Bounds a slow conversion, not one wedged inside a single page. Override with `IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS`, 0 to disable |
 | `DEFAULT_PARSE_TIMEOUT_SECONDS` | 900 | Seconds the *whole* conversion may take, which is what a caller waits on: `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` covers one batch of at most `MAX_BATCH_PAGES`, and a 1500-page document is up to 375 of them. A quarter of an hour, because somebody uploaded the document and is still there. Past it the remaining batches are abandoned; one that will not stop within `ABANDON_TIMEOUT_SECONDS` is reported as a broken pool, so `/health` starts failing and the container is restarted. Override with `IAP_DOCLING_PARSE_TIMEOUT_SECONDS`, 0 to disable |
 | `ABANDON_TIMEOUT_SECONDS` | 120 | Seconds an abandoned page batch is given to stop before its worker is called wedged |
-| `MAX_OUTLINE_DEPTH` | 32 | Deepest PDF outline nesting walked, so a crafted one cannot exhaust the stack |
-| `MAX_BOOKMARKS` | 2000 | Most bookmarks taken from one PDF. Nesting is capped above; siblings at one level were not, and each one is matched against the document and listed in `outline.json` |
-| `SCRATCH_GRACE_SECONDS` | 3600 | How old a leftover `Chunks.new-…` has to be before the startup sweep removes it — nothing can tell this daemon's staging directory from another's |
 | `DEFAULT_PORT` | 18765 | Daemon HTTP port |

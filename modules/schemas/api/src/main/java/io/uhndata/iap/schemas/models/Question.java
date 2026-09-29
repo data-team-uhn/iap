@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.List;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -65,9 +63,6 @@ public class Question extends FormItem
 
     @ValueMapValue
     private String responseShape;
-
-    @ValueMapValue
-    private String[] rubricTags;
 
     /**
      * The question text shown to the submitter.
@@ -164,17 +159,5 @@ public class Question extends FormItem
     public String getResponseShape()
     {
         return this.responseShape;
-    }
-
-    /**
-     * The tags of the schema sections that may contain the answer. Chunk selection for extraction is tag-driven:
-     * the union of the extracted questions' tags decides which chunks a model is given.
-     *
-     * @return a list of tags, empty if none were assigned
-     */
-    @NotNull
-    public List<String> getRubricTags()
-    {
-        return this.rubricTags == null ? List.of() : List.of(this.rubricTags);
     }
 }
