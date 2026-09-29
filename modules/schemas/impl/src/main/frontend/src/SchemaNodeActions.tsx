@@ -22,6 +22,7 @@ import { AddBelow } from "./SchemaNodeCreateAction";
 import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
+import { isPart } from "./schemaVersionTreeModel";
 
 interface SchemaNodeActionsProps {
   node: JcrNode;
@@ -32,15 +33,16 @@ interface SchemaNodeActionsProps {
   what: string;
 }
 
-// What may be done to a part or an answer option where it stands: correct it, add after it, move it, remove it.
-// While something is moving, only moving is.
+// What may be done to a part or an answer option where it stands: correct it, add a part after it, move it, remove
+// it. An option is added at the end of its question's, and moved from there. While something is moving, only moving
+// is.
 function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
   const next = siblings.at(siblings.indexOf(node) + 1);
   return (
     <>
       { !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} /> }
-      <AddBelow parent={parent} next={nameIfAny(next)} />
+      { isPart(node) && <AddBelow parent={parent} next={nameIfAny(next)} /> }
       <SchemaNodeMoveAction node={node} what={what} />
       { !moving && <SchemaNodeDiscardAction node={node} what={what} /> }
     </>

@@ -41,7 +41,8 @@ import io.uhndata.iap.workflows.models.Activity;
  * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
  * offering only what it is meant to hold. How content of a type is named is the activity's to say, and a type
  * listed can say otherwise: whether it takes a name of its own at all ({@code named}, true unless false), the
- * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words.
+ * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words; likewise the
+ * {@code orderProperty} that numbers content of the type by its place among its siblings (see {@link Placement}).
  *
  * @version $Id$
  * @since 0.1.0
@@ -68,10 +69,12 @@ final class ContentTypes
      * @param named whether content of this type may be given a name of its own
      * @param namePattern the pattern such a name must match, or {@code null} for any a node can have
      * @param nameHint what such a name may be, in words, or {@code null}
+     * @param orderProperty the property numbering content of this type by its place, or {@code null} for none
      * @version $Id$
      * @since 0.1.0
      */
-    record Type(String nodeType, String label, boolean named, String namePattern, String nameHint)
+    record Type(String nodeType, String label, boolean named, String namePattern, String nameHint,
+        String orderProperty)
     {
         /**
          * What new content of this type is called when nothing better names it: the type's name without its
@@ -105,6 +108,7 @@ final class ContentTypes
         }
         final String pattern = activity.get(ContentNames.NAME_PATTERN, String.class);
         final String hint = activity.get(ContentNames.NAME_HINT, String.class);
+        final String order = activity.get(Placement.ORDER_PROPERTY, String.class);
         return types.getChildren(Content.class).stream()
             .filter(type -> type.get("nodeType", String.class) != null)
             .map(type -> {
@@ -112,7 +116,8 @@ final class ContentTypes
                 return new Type(nodeType, Objects.requireNonNullElse(type.get("label", String.class), nodeType),
                     !Boolean.FALSE.equals(type.get(ContentNames.NAMED, Boolean.class)),
                     Optional.ofNullable(type.get(ContentNames.NAME_PATTERN, String.class)).orElse(pattern),
-                    Optional.ofNullable(type.get(ContentNames.NAME_HINT, String.class)).orElse(hint));
+                    Optional.ofNullable(type.get(ContentNames.NAME_HINT, String.class)).orElse(hint),
+                    Optional.ofNullable(type.get(Placement.ORDER_PROPERTY, String.class)).orElse(order));
             })
             .toList();
     }

@@ -58,10 +58,11 @@ export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
 export const nameOf = (node: JcrNode): string => String(node["@name"]);
 
+// What a node holds, as its keys come
+export const childrenOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject);
+
 // The names of what a node holds
-export const childNamesOf = (node: JcrNode): string[] => Object.entries(node)
-  .filter(([ , value ]) => isObject(value))
-  .map(([ name ]) => name);
+export const childNamesOf = (node: JcrNode): string[] => childrenOf(node).map(nameOf);
 
 // The name of a node that may not be there, such as the one after the last
 export const nameIfAny = (node?: JcrNode): string | undefined => node && nameOf(node);
