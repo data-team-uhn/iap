@@ -28,10 +28,9 @@
     @media (prefers-color-scheme: dark) {
       :root {
         --ink: #e8eaed; --ink-soft: #bdc1c6; --muted: #9aa0a6; --rule: #3c4043;
-        --paper: #0d1117; --blue: #8ab4f8; --blue-bg: rgba(138, 180, 248, 0.16);
-        --green: #81c995; --green-bg: rgba(129, 201, 149, 0.16); --amber: #fcad70;
-        --amber-bg: rgba(252, 173, 112, 0.16); --red: #f28b82;
-        --red-bg: rgba(242, 139, 130, 0.16); --token: #ee675c;
+        --paper: #0d1117; --blue: #8ab4f8; --blue-bg: #212b3b; --green: #81c995;
+        --green-bg: #202e2b; --amber: #fcad70; --amber-bg: #332a25; --red: #f28b82;
+        --red-bg: #322528; --token: #ee675c;
       }
     }
     .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--ink); }
@@ -67,7 +66,7 @@
   <text x="310" y="81" class="lbl" text-anchor="middle">Simple review</text>
   <rect x="250" y="181" width="120" height="46" rx="10" class="task"/>
   <text x="310" y="209" class="lbl" text-anchor="middle">Detailed review</text>
-  <text x="20" y="262" class="cap">Exactly one path is taken. The crossed arrow is the</text>
+  <text x="20" y="262" class="cap">Exactly one path is taken. The slashed arrow is the</text>
   <text x="20" y="280" class="cap">default flow used when no other condition holds.</text>
 
   <text x="450" y="26" class="lbl-b">Parallel — every path, at once</text>
