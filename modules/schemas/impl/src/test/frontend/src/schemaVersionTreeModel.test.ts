@@ -37,6 +37,19 @@ describe("schemaVersionTreeModel", () => {
     expect(headingOf({ "@name": "unnamed", "label": " " })).toBe("unnamed");
   });
 
+  it("reads a question's options by their places, even under names that look like numbers", () => {
+    const question = withPaths("/q", {
+      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2", "defaultOrder": 20 },
+      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10", "defaultOrder": 10 },
+      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes", "defaultOrder": 30 },
+      "cond:condition": { "jcr:primaryType": "cond:SingleCondition" },
+    });
+    expect(optionsOf(question).map(option => option.value)).toEqual([ "10", "2", "yes" ]);
+    // Before the ones numbered, when read without a place
+    expect(optionsOf({ ...question, yes: { "sling:resourceType": "sch/AnswerOption", "value": "yes" } })
+      .map(option => option.value)).toEqual([ "yes", "10", "2" ]);
+  });
+
   it("reads a question's options and condition", () => {
     expect(optionsOf(arms).map(optionLabelOf)).toEqual([ "Placebo", "drug" ]);
     expect(optionLabelOf({})).toBe("");

@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +103,30 @@ class MoveContentHandlerTest
 
         move("/box/c", Map.of());
         assertEquals(List.of("a", "b", "c"), this.fixture.children(BOX));
+    }
+
+    @Test
+    void numbersItAndItsSiblingsByTheirPlacesWhenAsked()
+        throws WorkflowException, PersistenceException, RepositoryException
+    {
+        Mockito.when(this.activity.get(Placement.ORDER_PROPERTY, String.class)).thenReturn("position");
+
+        move("/box/c", Map.of(BEFORE, "a"));
+        assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "a", "b")));
+
+        // Where nothing changes place, nothing is numbered again
+        move("/box/c", Map.of(BEFORE, "a"));
+        move("/box/a", Map.of());
+        assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "b", "a")));
+    }
+
+    private List<Long> positions(final List<String> names) throws RepositoryException
+    {
+        final List<Long> positions = new ArrayList<>();
+        for (final String name : names) {
+            positions.add(this.fixture.session().getNode(BOX + "/" + name).getProperty("position").getLong());
+        }
+        return positions;
     }
 
     @Test

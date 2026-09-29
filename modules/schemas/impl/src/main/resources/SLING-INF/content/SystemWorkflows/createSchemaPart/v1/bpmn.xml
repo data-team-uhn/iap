@@ -30,16 +30,29 @@
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
-          <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
-          <sv:node sv:name="operandA">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>tags</sv:value></sv:property>
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionGroup</sv:value></sv:property>
+          <sv:property sv:name="requireAll" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          <sv:node sv:name="draft">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>tags</sv:value></sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+            </sv:node>
           </sv:node>
-          <sv:node sv:name="operandB">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+          <sv:node sv:name="ownOptions">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>is empty</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>ownProperty</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>optionsFrom</sv:value></sv:property>
+            </sv:node>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
@@ -66,6 +79,7 @@
             <sv:property sv:name="nodeType"><sv:value>sch:AnswerOption</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Option</sv:value></sv:property>
             <sv:property sv:name="named" sv:type="Boolean"><sv:value>false</sv:value></sv:property>
+            <sv:property sv:name="orderProperty"><sv:value>defaultOrder</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
@@ -80,7 +94,8 @@
           <sv:node sv:name="value">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Value</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against.</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against. No two options of a question share one.</sv:value></sv:property>
+            <sv:property sv:name="unique" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
           </sv:node>
           <sv:node sv:name="label">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>

@@ -26,10 +26,12 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.AnswerOption;
+import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
 
 /**
- * Check that every answer option has a value, and no two options of a question use the same value.
+ * Check that every answer option has a value, no two options of a question use the same value, and a question
+ * takes its options either from its own list or from elsewhere, not both.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,14 +43,17 @@ public class AnswerOptionsCheck implements SchemaValidityCheck
     public List<String> check(final Resource version)
     {
         return DraftParts.ofType(version, DraftParts.QUESTION)
-            .flatMap(part -> problems(DraftParts.asQuestion(part).getOptions(), DraftParts.describe(part, version))
-                .stream())
+            .flatMap(part -> problems(DraftParts.asQuestion(part), DraftParts.describe(part, version)).stream())
             .toList();
     }
 
-    private static List<String> problems(final List<AnswerOption> options, final String where)
+    private static List<String> problems(final Question question, final String where)
     {
         final List<String> problems = new ArrayList<>();
+        final List<AnswerOption> options = question.getOptions();
+        if (question.getOptionsFrom() != null && !options.isEmpty()) {
+            problems.add(where + " both lists its options and takes them from " + question.getOptionsFrom());
+        }
         final Set<String> values = new HashSet<>();
         for (final AnswerOption option : options) {
             final String value = option.getValue();
