@@ -43,7 +43,7 @@ DEFAULT_SHARED_DOCS = "/shared-docs"
 # refusal is a 400, raised after the slot is taken because counting pages means reading the
 # document -- so one arriving mid-conversion hears 503 first and 400 on retry. 0 turns it off.
 PAGE_LIMIT_VARIABLE = "IAP_MAX_INPUT_PAGES"
-DEFAULT_MAX_INPUT_PAGES = 1500
+DEFAULT_MAX_INPUT_PAGES = 500
 
 # The same ceiling by size, covering every accepted type. Only a PDF has pages to count, so a
 # .doc/.docx walks past the page limit and can still render to an arbitrarily long PDF -- a hole
@@ -98,7 +98,7 @@ def read_positive_number_from_env(variable, default, cast=int, expected="an inte
     """A positive numeric setting from the environment, or ``None`` when it is switched off.
 
     Shared by every numeric knob so they all warn on an unreadable value instead of silently
-    using the default -- a typo like "150O" for "1500" gave the operator no sign it was ignored.
+    using the default -- a typo like "50O" for "500" gave the operator no sign it was ignored.
 
     @param variable: the environment variable to read
     @param default: the value to use when it is unset or unreadable

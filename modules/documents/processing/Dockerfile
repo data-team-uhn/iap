@@ -110,7 +110,7 @@ USER docling
 # option back on in docling_config means turning its model back on here, or the conversion
 # fails offline at runtime. with_layout has no such flag: it always fetches every engine
 # variant, so the 171 MB ONNX copy of the layout model comes along unused either way.
-RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']), with_tableformer_v2=True, with_code_formula=False, with_picture_classifier=False, with_rapidocr=False)" \
+RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']), with_tableformer=True, with_tableformer_v2=False, with_code_formula=False, with_picture_classifier=False, with_rapidocr=False)" \
     && find /opt/models -type d -name '.locks' -prune -exec rm -rf {} +
 
 # Now that we have the models downloaded, we can turn HF offline.
