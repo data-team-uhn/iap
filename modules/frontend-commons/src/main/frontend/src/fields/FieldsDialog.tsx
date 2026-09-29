@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 
 import {
   Alert, Autocomplete, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, MenuItem,
@@ -120,11 +120,14 @@ interface FieldsDialogProps {
   onSave: (changes: Record<string, PatchValue>) => Promise<unknown>;
   // Anything the caller asks along with the fields, shown above them
   children?: ReactNode;
+  // Anything that belongs with the first field, which names what is edited, shown right after it and given what it
+  // holds as it is entered, and whether a save is under way
+  afterFirstField?: (value: FieldValue, working: boolean) => ReactNode;
 }
 
 // Edits what an update event lets change on a node, as its `@fields` describe: each field with an input
 // for its kind, and only while it applies to what is being entered.
-function FieldsDialog({ title, node, onClose, onSave, children }: FieldsDialogProps) {
+function FieldsDialog({ title, node, onClose, onSave, children, afterFirstField }: FieldsDialogProps) {
   const fields = fieldsOf(node);
   const [ values, setValues ] = useState(() => initialValues(node, fields));
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
@@ -137,14 +140,16 @@ function FieldsDialog({ title, node, onClose, onSave, children }: FieldsDialogPr
       <DialogContent dividers>
         <Stack spacing={2}>
           {children}
-          { applicableFields(fields, values, node).map(field => (
-            <FieldInput
-              key={field.name}
-              field={field}
-              value={values[field.name]}
-              disabled={working}
-              onChange={value => setValues(current => ({ ...current, [field.name]: value }))}
-            />
+          { applicableFields(fields, values, node).map((field, at) => (
+            <Fragment key={field.name}>
+              <FieldInput
+                field={field}
+                value={values[field.name]}
+                disabled={working}
+                onChange={value => setValues(current => ({ ...current, [field.name]: value }))}
+              />
+              { at === 0 && afterFirstField?.(values[field.name], working) }
+            </Fragment>
           )) }
           { failure && <Alert severity="error">{failure}</Alert> }
         </Stack>
