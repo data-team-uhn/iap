@@ -138,8 +138,8 @@ An **inclusive gateway** (a diamond marked with a circle) is the one in between:
 path whose condition holds is taken, which may be one of them, several, or all.
 
 Every exclusive and inclusive gateway should carry a **default flow**, the outgoing arrow
-drawn with a small cross near its start. It is the path taken when none of the other
-conditions are satisfied so the process can always continue.
+drawn with a short diagonal slash across it near its start. It is the path taken when
+none of the other conditions are satisfied so the process can always continue.
 
 An exclusive split needs no join at all: only one branch can be taken, so there is never
 more than one token to bring back together. However,
@@ -173,7 +173,7 @@ Read it as: a request is filed. A manager has to decide, and only managers can. 
 days pass without a decision, the dashed timer fires, the manager is reminded, and that
 little branch finishes on its own — the request is still sitting with the manager. Once
 the decision comes, the path splits: approved requests get booked, and everything else
-takes the default flow — the arrow with the cross — and ends with the requester being
+takes the default flow — the arrow with the slash — and ends with the requester being
 told why. Either way the run ends.
 
 Notice how much of the process is in the *labels*, not the nodes. "After 5 days",
@@ -242,7 +242,7 @@ If a change has to apply to them, that is a conversation to have before you make
 | **Exclusive gateway** (×) | One path only, chosen by a condition. An unmarked diamond means the same |
 | **Parallel gateway** (+) | Every path, at once — and a matching one to rejoin them |
 | **Inclusive gateway** (○) | Every path whose condition holds — one, several or all |
-| **Default flow** | The arrow marked with a cross, taken when no other condition is satisfied |
+| **Default flow** | The arrow with a slash across its start, taken when no other condition is satisfied |
 | **Sequence flow** | An arrow. What happens next |
 | **Performers** | Who is allowed to act on a task |
 

@@ -66,7 +66,7 @@
   <text x="310" y="81" class="lbl" text-anchor="middle">Simple review</text>
   <rect x="250" y="181" width="120" height="46" rx="10" class="task"/>
   <text x="310" y="209" class="lbl" text-anchor="middle">Detailed review</text>
-  <text x="20" y="262" class="cap">Exactly one path is taken. The crossed arrow is the</text>
+  <text x="20" y="262" class="cap">Exactly one path is taken. The slashed arrow is the</text>
   <text x="20" y="280" class="cap">default flow used when no other condition holds.</text>
 
   <text x="450" y="26" class="lbl-b">Parallel — every path, at once</text>
