@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,8 +88,8 @@ class SystemWorkflowDefinitionsTest
         Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, OPTION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "callActivity", "addTag", "removeTag", "delete",
-        "copyContent", "updateContent", "createContent", "moveContent", CreateSchemaVersionHandler.HANDLER_NAME,
-        CheckPublishableHandler.HANDLER_NAME);
+        "copyContent", "updateContent", "createContent", "moveContent", "renameContent",
+        CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
 
@@ -119,7 +120,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(22, definitions.size());
+        assertEquals(23, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -220,6 +221,49 @@ class SystemWorkflowDefinitionsTest
             assertEquals(Set.of(), answeringPart(PART, "move", published));
             assertEquals(Set.of(), answeringPart(OPTION, "move", published));
         }
+    }
+
+    @Test
+    void partsAreRenamedInDraftsOnly()
+    {
+        assertEquals(Set.of("renameSchemaPart"), answeringPart(PART, "rename", new String[] { "draft" }));
+        for (final String state : List.of("active", "retired")) {
+            assertEquals(Set.of(), answeringPart(PART, "rename", new String[] { state }));
+        }
+        assertEquals(Set.of(), answeringPart(OPTION, "rename", new String[] { "draft" }));
+    }
+
+    @Test
+    void partsAreCreatedWithTheNamesTheyCanBeRenamedTo() throws IOException, URISyntaxException
+    {
+        final List<String> patterns = new ArrayList<>();
+        final List<String> hints = new ArrayList<>();
+        for (final Path path : definitions()) {
+            read(path).getJsonObject("v1").values().stream()
+                .filter(node -> node.getValueType() == JsonValue.ValueType.OBJECT)
+                .map(JsonValue::asJsonObject)
+                .filter(node -> Set.of("createContent", "renameContent").contains(node.getString("handler", "")))
+                .forEach(activity -> {
+                    patterns.add(activity.getString("namePattern", ""));
+                    if ("createContent".equals(activity.getString("handler"))) {
+                        hints.add(activity.getString("nameHint", ""));
+                    }
+                });
+        }
+        assertEquals(3, patterns.size());
+        assertEquals(Set.of("^[A-Za-z0-9][A-Za-z0-9_-]*$"), Set.copyOf(patterns));
+        // What editors say a name may be, for creating and for renaming alike
+        assertEquals(2, hints.size());
+        assertEquals(Set.of("Letters, digits, - and _, starting with a letter or a digit."), Set.copyOf(hints));
+    }
+
+    @Test
+    void anOptionTakesNoNameOfItsOwn() throws IOException, URISyntaxException
+    {
+        final JsonObject types = read(definitions().get(0).resolveSibling("createSchemaPart.json"))
+            .getJsonObject("v1").getJsonObject("create").getJsonObject("types");
+        assertFalse(types.getJsonObject("option").getBoolean("named"));
+        assertFalse(types.getJsonObject("question").containsKey("named"));
     }
 
     @Test
