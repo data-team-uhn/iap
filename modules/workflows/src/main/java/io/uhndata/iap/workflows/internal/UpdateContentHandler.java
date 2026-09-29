@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.jcr.Node;
+import javax.jcr.NodeIterator;
 import javax.jcr.Property;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
@@ -55,7 +56,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * node a reference points at, or a list of those for a field holding several values. Only the fields the activity
  * lists, and the node's type declares, may change (see {@link ContentFields}). A field whose {@code appliesWhen}
  * does not hold once the patch is applied cannot be set, and loses the value it had; a mandatory one that applies
- * must have a value, which content just created only has if the patch gives one. The whole patch is checked
+ * must have a value, which content just created only has if the patch gives one. A field listed as {@code unique}
+ * cannot be given a value that content of the same type beside it already holds there. The whole patch is checked
  * before anything is written, so a refused patch changes nothing.
  *
  * @version $Id$
@@ -98,6 +100,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
                 changes.put(field, PatchValues.of(context, factory, field, entry.getValue()));
             }
             holdToApplicability(node, editable, changes);
+            holdToUniqueness(node, changes);
             VersioningUtils.checkOut(node);
             for (final Map.Entry<ContentFields.Field, List<Value>> change : changes.entrySet()) {
                 write(node, change.getKey(), change.getValue());
@@ -156,6 +159,66 @@ public class UpdateContentHandler implements ServiceTaskHandler
     }
 
     /**
+     * Refuses a value a field must hold alone when a sibling of the same type holds it already.
+     *
+     * @param node the node changed
+     * @param changes the changes the patch makes
+     * @throws InvalidPayloadException when one of them repeats what a sibling holds
+     * @throws RepositoryException when the siblings cannot be read
+     */
+    private static void holdToUniqueness(final Node node, final Map<ContentFields.Field, List<Value>> changes)
+        throws InvalidPayloadException, RepositoryException
+    {
+        for (final Map.Entry<ContentFields.Field, List<Value>> change : changes.entrySet()) {
+            final String name = change.getKey().name();
+            if (!change.getKey().description().unique() || change.getValue().isEmpty()) {
+                continue;
+            }
+            final List<String> values = texts(change.getValue());
+            for (final NodeIterator siblings = node.getParent().getNodes(); siblings.hasNext();) {
+                final Node sibling = siblings.nextNode();
+                if (!sibling.isSame(node) && sibling.isNodeType(node.getPrimaryNodeType().getName())
+                    && sibling.hasProperty(name)) {
+                    final List<String> taken = new ArrayList<>(values);
+                    taken.retainAll(texts(sibling.getProperty(name)));
+                    if (!taken.isEmpty()) {
+                        throw new InvalidPayloadException("Something else here already has "
+                            + String.join(", ", taken) + " as its " + change.getKey().description().label());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Values as text.
+     *
+     * @param values some values
+     * @return their text
+     * @throws RepositoryException when one cannot be read as text
+     */
+    private static List<String> texts(final List<Value> values) throws RepositoryException
+    {
+        final List<String> texts = new ArrayList<>();
+        for (final Value value : values) {
+            texts.add(value.getString());
+        }
+        return texts;
+    }
+
+    /**
+     * The values of a property as text.
+     *
+     * @param property a property
+     * @return their text
+     * @throws RepositoryException when it cannot be read
+     */
+    private static List<String> texts(final Property property) throws RepositoryException
+    {
+        return texts(property.isMultiple() ? List.of(property.getValues()) : List.of(property.getValue()));
+    }
+
+    /**
      * The values, as text, of the property a field depends on, once the patch is applied.
      *
      * @param node the node changed
@@ -176,18 +239,10 @@ public class UpdateContentHandler implements ServiceTaskHandler
             .filter(change -> change.getKey().name().equals(name))
             .map(Map.Entry::getValue)
             .findFirst();
-        final List<Value> values = new ArrayList<>();
         if (changed.isPresent()) {
-            values.addAll(changed.get());
-        } else if (node.hasProperty(name)) {
-            final Property stored = node.getProperty(name);
-            values.addAll(stored.isMultiple() ? List.of(stored.getValues()) : List.of(stored.getValue()));
+            return texts(changed.get());
         }
-        final List<String> texts = new ArrayList<>();
-        for (final Value value : values) {
-            texts.add(value.getString());
-        }
-        return texts;
+        return node.hasProperty(name) ? texts(node.getProperty(name)) : List.of();
     }
 
     /**
