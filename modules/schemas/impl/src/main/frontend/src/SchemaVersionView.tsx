@@ -84,7 +84,7 @@ function SchemaVersionView({ schema, versionName, notices, reloadSchema, report 
         { loadError && <LoadError title="The version's content could not be loaded" message={loadError}
           onRetry={reload} /> }
         <LoadingOverlay open={loading} />
-        { tree && <SchemaVersionTree version={tree} reload={() => void reload()} /> }
+        { tree && <SchemaVersionTree version={tree} reload={reload} report={report} /> }
       </Stack>
     </AdminScreen>
   );
