@@ -20,6 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -34,8 +35,11 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
@@ -149,6 +153,21 @@ final class FieldsFixture
     Activity creating()
     {
         return this.creating;
+    }
+
+    /**
+     * Makes a mocked engine hand a workflow version to whatever inspects the workflow that would take an event.
+     *
+     * @param engine the mocked engine
+     * @param event the event's name
+     * @param version the version it hands over
+     * @throws WorkflowException never, the engine being a mock
+     */
+    static void inspecting(final WorkflowEngine engine, final String event, final WorkflowVersion version)
+        throws WorkflowException
+    {
+        Mockito.when(engine.inspectWorkflow(Mockito.any(), Mockito.eq(event), Mockito.any()))
+            .thenAnswer(invocation -> invocation.<Function<WorkflowVersion, Object>>getArgument(2).apply(version));
     }
 
     /**
