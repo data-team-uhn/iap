@@ -50,7 +50,7 @@
 # against Debian's archive at build time, so LibreOffice, the JRE and the imaging libraries
 # still float even with the base image fixed. Freezing those means pinning versions in the
 # install list, or a snapshot.debian.org source.
-FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6 AS base
+FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS base
 
 # Docling's PDF pipeline needs native imaging/OpenMP; LibreOffice handles DOC/DOCX→PDF/DOCX.
 RUN apt-get update \
