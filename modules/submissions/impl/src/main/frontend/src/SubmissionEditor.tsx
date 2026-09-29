@@ -18,8 +18,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Box, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 
+import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
@@ -81,19 +82,14 @@ function Items({ items, disabled, states, onAnswered }: {
 // One requirement. One that holds no questions, a document to provide or an approval to obtain, is
 // still shown. It is something the submitter has to do, and leaving it out would say the request
 // asks less than it does.
-function RequirementCard({ requirement, disabled, states, onAnswered }: {
+function RequirementPanel({ requirement, disabled, states, onAnswered }: {
   requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="h6">{requirement.label || requirement.name}</Typography>
-      { requirement.description && (
-        <Typography variant="description">{requirement.description}</Typography>
-      ) }
-      <Divider sx={{ my: 2 }} />
+    <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
       { isFormRequirement(requirement)
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
         : (
@@ -101,7 +97,7 @@ function RequirementCard({ requirement, disabled, states, onAnswered }: {
             This part of the request cannot be completed here yet.
           </Typography>
         ) }
-    </Paper>
+    </Panel>
   );
 }
 
@@ -171,7 +167,7 @@ function SubmissionEditor({ path }: { path: string }) {
         </Alert>
       ) }
       { form.requirements.map(requirement => (
-        <RequirementCard
+        <RequirementPanel
           key={requirement.name}
           requirement={requirement}
           disabled={!form.editable}
