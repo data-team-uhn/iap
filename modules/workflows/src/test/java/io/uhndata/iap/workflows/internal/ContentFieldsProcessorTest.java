@@ -122,12 +122,27 @@ class ContentFieldsProcessorTest
         assertTrue(fields.getJsonObject(13).getBoolean("default"));
         assertEquals(Json.createArrayBuilder().add("red").add("blue").build(), fields.getJsonObject(14).get("default"));
         assertFalse(fields.getJsonObject(0).containsKey("default"));
+        assertFalse(json.containsKey("@notice"));
+    }
+
+    @Test
+    void saysWhatTheUpdateAllowsWhenItsWorkflowSays() throws Exception
+    {
+        final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
+        Mockito.when(version.getFlowNodes()).thenReturn(List.of(this.fixture.activity()));
+        Mockito.when(version.getNotice()).thenReturn("Only the wording can change.");
+        Mockito.when(this.engine.inspectWorkflow(Mockito.any(), Mockito.eq("update"), Mockito.any()))
+            .thenAnswer(invocation -> invocation.<Function<WorkflowVersion, Object>>getArgument(2).apply(version));
+
+        assertEquals("Only the wording can change.", serialize(this.fixture.item()).getString("@notice"));
     }
 
     @Test
     void listsNothingWhereNoUpdateWouldRun() throws Exception
     {
-        assertFalse(serialize(this.fixture.item()).containsKey("@fields"));
+        final JsonObject json = serialize(this.fixture.item());
+        assertFalse(json.containsKey("@fields"));
+        assertFalse(json.containsKey("@notice"));
         assertFalse(serialize(this.fixture.session().getNode("/update")).containsKey("@fields"));
     }
 

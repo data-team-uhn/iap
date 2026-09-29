@@ -55,6 +55,9 @@ public class WorkflowVersion extends Entity
     private String description;
 
     @ValueMapValue
+    private String notice;
+
+    @ValueMapValue
     private boolean active;
 
     @ValueMapValue
@@ -83,6 +86,18 @@ public class WorkflowVersion extends Entity
     public String getDescription()
     {
         return this.description;
+    }
+
+    /**
+     * What the people this version serves should know while it is the one that would take their event, such as
+     * what an update lets them change. Unlike the {@link #getDescription description}, it is written for them.
+     *
+     * @return a notice, or {@code null} if not set
+     */
+    @Nullable
+    public String getNotice()
+    {
+        return this.notice;
     }
 
     /**

@@ -342,6 +342,20 @@ activity says about them and what their declarations say (`kind`, `multiple`, `m
 the activity of the workflow that would run, so an editor offers exactly what the update accepts, and can apply
 the same `appliesWhen` as the values change. `FieldsDialog` (`frontend-commons`) is that editor.
 
+A workflow version may also carry a `notice`: words for the people it serves, while it is the workflow that would
+take their event. Unlike its `description`, which says what it does for whoever maintains it, a notice is written
+for its users. The `fields` serialization adds the update's as `@notice`, next to `@fields`: what the update allows,
+in words. Where guarded updates split a lifecycle, each says what it allows, so a page can show whichever applies
+without knowing the states, and the words change with the rule, in the same file.
+
+```json
+"v1": {
+  "jcr:primaryType": "wf:WorkflowVersion",
+  "notice": "Only the wording of this version can be corrected. Anything else needs a new version.",
+  ...
+}
+```
+
 `createContent` adds content inside the target: something of the `type` the event names, which must be one the
 activity lists and one the target's type declares it holds. A child definition says what a node holds only if the
 content model declares it and names a type (`+ * (sch:FormItem)`): the catch-alls every `sling:Folder` inherits from
