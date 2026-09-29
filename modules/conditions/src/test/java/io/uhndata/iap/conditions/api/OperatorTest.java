@@ -57,6 +57,8 @@ class OperatorTest
     {
         assertTrue(Operator.NOT_EQUALS.evaluate(text(A), text(B)));
         assertFalse(Operator.NOT_EQUALS.evaluate(text(A), text(A)));
+        // The same picks, stored in another order, are no different
+        assertFalse(Operator.NOT_EQUALS.evaluate(text(A, B), text(B, A)));
     }
 
     @Test

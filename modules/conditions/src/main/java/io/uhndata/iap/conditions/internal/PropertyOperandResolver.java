@@ -20,11 +20,7 @@ package io.uhndata.iap.conditions.internal;
 import java.util.Optional;
 
 import org.osgi.service.component.annotations.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.conditions.api.Operand;
-import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
 
@@ -36,11 +32,10 @@ import io.uhndata.iap.content.models.Content;
  * @version $Id$
  * @since 0.1.0
  */
-@Component
-public class PropertyOperandResolver implements OperandResolver
+// Named, since the service is implemented through the shared base class, which DS would not look through
+@Component(service = OperandResolver.class)
+public class PropertyOperandResolver extends AbstractPropertyOperandResolver
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(PropertyOperandResolver.class);
-
     @Override
     public String getSource()
     {
@@ -48,15 +43,8 @@ public class PropertyOperandResolver implements OperandResolver
     }
 
     @Override
-    public Operand resolve(final ConditionOperand operand, final Content context)
+    protected Content holder(final Content context)
     {
-        final String[] value = operand.getValue();
-        if (value == null || value.length == 0) {
-            LOGGER.warn("Property operand at {} does not name a property", operand.getPath());
-            return Operand.EMPTY;
-        }
-        final Content entity = Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);
-        // Raw, undeclared: the stored JCR type of the property speaks for itself in the type unification
-        return Operand.of(entity.get(value[0]));
+        return Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);
     }
 }
