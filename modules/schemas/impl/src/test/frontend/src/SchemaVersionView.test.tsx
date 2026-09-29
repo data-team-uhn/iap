@@ -129,13 +129,16 @@ describe("SchemaVersionView", () => {
     fireEvent.click(within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" }));
     const options = await screen.findByRole("presentation");
     expect(within(options).getByText("Placebo")).toBeInTheDocument();
-    expect(within(options).getByText(/stored as placebo/)).toBeInTheDocument();
+    // What an answer stores, where it differs from what the submitter reads
+    expect(within(options).getByText("placebo")).toBeInTheDocument();
     expect(within(options).getByText("drug")).toBeInTheDocument();
     fireEvent.keyDown(options, { key: "Escape" });
     await waitFor(() => expect(screen.queryByText("Placebo")).not.toBeInTheDocument());
     // And listed once the question is open
     await expand("Which arms does it have?");
-    expect(await within(await card("Which arms does it have?")).findByText("Placebo")).toBeInTheDocument();
+    const arms = await card("Which arms does it have?");
+    expect(await within(arms).findByText("Placebo")).toBeInTheDocument();
+    expect(within(arms).getByText("A substance with no effect")).toBeInTheDocument();
     await expand("Minimum age");
     expect(await screen.findByText("Between 18 and 99.")).toBeInTheDocument();
     await expand("Study code");

@@ -142,6 +142,11 @@ under the identifier, and a test holds the create and rename workflows to the sa
 suggests an identifier from what a new part says, as `@creatable` allows it, until one is given. An option has no
 identifier of its own, which `createSchemaPart` says by listing it as not `named`: its `value` is what answers store,
 and a draft can edit it.
+A question either lists its options or takes them from elsewhere, as `optionsFrom`, not both: `createSchemaPart` adds
+no option to a question with an `optionsFrom` (its guard reads the question's own property, as an `ownProperty`
+operand, see [conditions.md](conditions.md)), and a draft that has both is not published. No two options of a
+question share a `value`: the option workflows list it as `unique`, so a repeated value is refused as it is entered,
+and the publish check still refuses one that came another way.
 The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
 entity, which for a part or an option is its version.
 

@@ -48,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
 import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionGroup;
@@ -106,7 +107,8 @@ class SystemWorkflowDefinitionsTest
         this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
         final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
         resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver()));
+        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver(),
+            new OwnPropertyOperandResolver()));
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();
             this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),
@@ -204,6 +206,21 @@ class SystemWorkflowDefinitionsTest
             assertEquals(Set.of(), answeringPart(PART, "discard", published));
             assertEquals(Set.of(), answeringPart(OPTION, "discard", published));
         }
+    }
+
+    @Test
+    void aQuestionTakingItsOptionsFromElsewhereGainsNoneOfItsOwn()
+    {
+        final String version = "/content/target" + this.targets++;
+        this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags",
+            new String[] { "draft" }));
+        final Content listing = this.context.create().resource(version + "/listing", "sling:resourceType", PART)
+            .adaptTo(Content.class);
+        final Content elsewhere = this.context.create().resource(version + "/elsewhere",
+            Map.of("sling:resourceType", PART, "optionsFrom", "/Vocabularies/sites")).adaptTo(Content.class);
+
+        assertEquals(Set.of("createSchemaPart"), answering(listing, "create"));
+        assertEquals(Set.of(), answering(elsewhere, "create"));
     }
 
     @Test

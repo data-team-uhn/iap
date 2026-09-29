@@ -37,6 +37,19 @@ describe("schemaVersionTreeModel", () => {
     expect(headingOf({ "@name": "unnamed", "label": " " })).toBe("unnamed");
   });
 
+  it("keeps what a node holds in the order the server says, even under names that look like numbers", () => {
+    const question = withPaths("/q", {
+      "@order": [ "10", "2", "yes", "cond:condition" ],
+      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2" },
+      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10" },
+      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes" },
+      "cond:condition": { "jcr:primaryType": "cond:SingleCondition" },
+    });
+    expect(optionsOf(question).map(option => option.value)).toEqual([ "10", "2", "yes" ]);
+    // Without it, keys that look like numbers come first, in numeric order
+    expect(optionsOf({ ...question, "@order": undefined }).map(option => option.value)).toEqual([ "2", "10", "yes" ]);
+  });
+
   it("reads a question's options and condition", () => {
     expect(optionsOf(arms).map(optionLabelOf)).toEqual([ "Placebo", "drug" ]);
     expect(optionLabelOf({})).toBe("");
