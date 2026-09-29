@@ -52,7 +52,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * several values, is {@code mandatory} or {@code multiline}, the {@code default} new content starts with, and what
  * else the activity says about it (see {@link ContentFields}). It is read from the
  * {@link UpdateContentHandler} activity of the workflow that would run, so an editor offers exactly what the update
- * accepts and keeps no list of its own. The name of this processor is {@code fields}; it is off by default.
+ * accepts and keeps no list of its own. When that workflow has a {@link WorkflowVersion#getNotice notice}, it is added
+ * as {@code @notice}: what the update allows, in words. The name of this processor is {@code fields}; it is off by
+ * default.
  *
  * @version $Id$
  * @since 0.1.0
@@ -106,6 +108,7 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
                     .flatMap(activity -> ContentFields.describedBy(activity).stream())
                     .toList();
                 json.add("@fields", describe(ContentFields.editable(described, node)));
+                addIfSet(json, "@notice", update.getNotice());
             }
         } catch (final RepositoryException | WorkflowException e) {
             // Nothing editable is the safe answer; the serialization itself must not fail over it
@@ -163,9 +166,9 @@ public class ContentFieldsProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Adds an optional text to a field's description.
+     * Adds an optional text to a description.
      *
-     * @param json the field's description
+     * @param json the description
      * @param name the key
      * @param value the text, left out when not set
      */
