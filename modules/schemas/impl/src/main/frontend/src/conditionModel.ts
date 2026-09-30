@@ -24,7 +24,7 @@ import {
   type ValueType,
 } from "@iap/conditions/conditionModel";
 
-import { type JcrNode, pathOf } from "./schemaModel";
+import { isObject, type JcrNode, pathOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
 // The comparison types of the question data types; a file compares as nothing in particular
@@ -37,11 +37,25 @@ const VALUE_TYPES: Record<string, ValueType | undefined> = {
 };
 
 // What the answers to a question hold: its type, one or several of them, and its options when it lists some
-export function answerShapeOf(question: JcrNode): OperandShape {
-  const options = optionsOf(question).map(option => ({
+// The items a question's options come from, by the path it takes them from
+export type ItemChoices = Record<string, Choice[]>;
+
+// The items under a node, as its deep serialization gives them: each by its path, called by its title or label
+export function itemChoicesOf(node: JcrNode): Choice[] {
+  return Object.entries(node)
+    .filter((entry): entry is [ string, JcrNode ] => isObject(entry[1]) && !entry[0].includes(":"))
+    .flatMap(([ name, item ]) => [
+      { value: String(item["@path"]), label: strings(item.title ?? item.label).at(0) ?? name },
+      ...itemChoicesOf(item),
+    ]);
+}
+
+export function answerShapeOf(question: JcrNode, items: ItemChoices = {}): OperandShape {
+  const listed = optionsOf(question).map(option => ({
     value: strings(option.value).at(0) ?? "",
     label: optionLabelOf(option),
   }));
+  const options = listed.length > 0 ? listed : items[strings(question.optionsFrom).at(0) ?? ""] ?? [];
   const maxAnswers = typeof question.maxAnswers === "number" ? question.maxAnswers : 1;
   return {
     type: VALUE_TYPES[strings(question.dataType).at(0) ?? "text"],
@@ -50,13 +64,13 @@ export function answerShapeOf(question: JcrNode): OperandShape {
   };
 }
 
-export const answerSource = (index: QuestionIndex): OperandSource => ({
+export const answerSource = (index: QuestionIndex, items: ItemChoices = {}): OperandSource => ({
   name: "answer",
   label: "The answer to a question",
   valueLabel: "Question",
   shape: value => {
     const question = index.find(value.at(0) ?? "");
-    return question ? answerShapeOf(question) : {};
+    return question ? answerShapeOf(question, items) : {};
   },
   describe: value => {
     const question = index.find(value.at(0) ?? "");
@@ -67,8 +81,9 @@ export const answerSource = (index: QuestionIndex): OperandSource => ({
 });
 
 // Every source a schema's conditions may use, with the labels of the tags when they are known
-export const schemaSources = (index: QuestionIndex, tags: Choice[] = []): OperandSource[] =>
-  [ answerSource(index), tagsSource(tags, "submission"), propertySource("submission"), ownPropertySource("part") ];
+export const schemaSources = (index: QuestionIndex, tags: Choice[] = [], items: ItemChoices = {}): OperandSource[] =>
+  [ answerSource(index, items), tagsSource(tags, "submission"), propertySource("submission"),
+    ownPropertySource("part") ];
 
 // The sources the editor offers, of all a schema's conditions may use: what a submission answers, how it is tagged,
 // and its properties

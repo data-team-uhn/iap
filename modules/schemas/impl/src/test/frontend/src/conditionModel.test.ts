@@ -17,7 +17,7 @@
  */
 
 import { describeCondition as describeWith, whenApplies as appliesWith } from "@iap/conditions/conditionModel";
-import { answerShapeOf, answerSource, schemaSources } from "@iap/schemas/conditionModel";
+import { answerShapeOf, answerSource, itemChoicesOf, schemaSources } from "@iap/schemas/conditionModel";
 import { conditionOf, indexQuestions, partsOf } from "@iap/schemas/schemaVersionTreeModel";
 
 import { CONTENT, HOMEPAGE, withPaths } from "./schemaServer.fixture";
@@ -94,5 +94,18 @@ describe("conditionModel", () => {
     expect(answerShapeOf({})).toEqual({ type: "text", multiple: false });
     expect(answerSource(index).shape([ "nowhere" ])).toEqual({});
     expect(answerSource(index).shape([])).toEqual({});
+  });
+
+  it("offers the items a question takes its options from, by their titles or labels", () => {
+    const items = itemChoicesOf({
+      "@path": "/Categories",
+      "a": { "@path": "/Categories/a", "label": "A", "b": { "@path": "/Categories/a/b", "title": "B" },
+        "link:links": { "@path": "/Categories/a/link:links" } },
+      "plain": { "@path": "/Categories/plain" },
+    });
+    expect(items).toEqual([ { value: "/Categories/a", label: "A" }, { value: "/Categories/a/b", label: "B" },
+      { value: "/Categories/plain", label: "plain" } ]);
+    expect(answerShapeOf({ optionsFrom: "/Categories" }, { "/Categories": items })).toMatchObject({ choices: items });
+    expect(answerShapeOf({ optionsFrom: "/Elsewhere" }, { "/Categories": items })).not.toHaveProperty("choices");
   });
 });

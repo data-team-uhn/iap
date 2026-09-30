@@ -33,7 +33,8 @@ const renderPicker = (value: string[]) => {
   const sources = schemaSources(index);
   render(
     <VersionConditionsContext value={{ index, sources, offered: sources }}>
-      <QuestionPicker label="Question" value={value} disabled={false} onChange={onChange} questions={index.questions} />
+      <QuestionPicker label="Question" value={value} disabled={false} required onChange={onChange}
+        questions={index.questions} />
     </VersionConditionsContext>
   );
   return { onChange, input: screen.getByRole("combobox", { name: "Question" }) };
