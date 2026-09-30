@@ -101,6 +101,16 @@ class PerformerCheckTest
     }
 
     @Test
+    void looksNoGroupsUpForANodeNamingNobody() throws Exception
+    {
+        final User actor = user(REQUESTER, false, REQUESTERS);
+
+        assertThrows(NotAuthorizedException.class,
+            () -> PerformerCheck.verify(repositoryWith(actor), node(), REQUESTER));
+        Mockito.verify(actor, Mockito.never()).memberOf();
+    }
+
+    @Test
     void refusesAnActorTheRepositoryHasNeverHeardOf() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> PerformerCheck.verify(

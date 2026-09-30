@@ -59,7 +59,7 @@ final class PerformerCheck
     /** The actor, or {@code null} when the repository does not know them. */
     private final Authorizable authorizable;
 
-    /** The actor's own id and the groups they belong to, read the first time a node names anyone. */
+    /** The actor's own id and the groups they belong to, read the first time a node names anyone but everyone. */
     private Set<String> identities;
 
     private PerformerCheck(final Authorizable authorizable)
@@ -119,7 +119,8 @@ final class PerformerCheck
         final List<String> performers = node.getPerformers();
         // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
         // not necessarily report belonging to it
-        return performers.contains(EVERYONE_GROUP) || performers.stream().anyMatch(identities()::contains);
+        return performers.contains(EVERYONE_GROUP)
+            || !performers.isEmpty() && performers.stream().anyMatch(identities()::contains);
     }
 
     /**
