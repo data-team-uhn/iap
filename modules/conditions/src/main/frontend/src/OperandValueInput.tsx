@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { useState } from "react";
+
 import { Autocomplete, MenuItem, TextField } from "@mui/material";
 
 import { choicesOf, type OperandShape, type ValueType, valueProblem, withCurrent } from "./conditionModel";
@@ -31,6 +33,9 @@ interface OperandValueInputProps {
   // What the values are compared with holds, which decides what they can be
   shape: OperandShape;
   several: boolean;
+  required?: boolean;
+  // Whether its choices are offered as it appears
+  open?: boolean;
   value: string[];
   disabled: boolean;
   onChange: (value: string[]) => void;
@@ -38,16 +43,21 @@ interface OperandValueInputProps {
 
 // The values an operand is compared with: picked among the choices when there are some, or else entered as the
 // type compared calls for, one or several
-function OperandValueInput({ label, shape, several, value, disabled, onChange }: OperandValueInputProps) {
+function OperandValueInput(props: OperandValueInputProps) {
+  const { label, shape, several, required, open, value, disabled, onChange } = props;
+  const [ listed, setListed ] = useState(open === true);
   const choices = choicesOf(shape);
   const problem = value.map(item => valueProblem(item, shape.type)).find(found => found !== undefined);
-  const common = { label, disabled, error: problem !== undefined, helperText: problem, fullWidth: true };
+  const common = { label, disabled, required, error: problem !== undefined, helperText: problem, fullWidth: true };
 
   if (several) {
     const labelOf = (option: string) => choices.find(choice => choice.value === option)?.label ?? option;
     return (
       <Autocomplete<string, true, false, boolean>
         multiple
+        open={listed}
+        onOpen={() => setListed(true)}
+        onClose={() => setListed(false)}
         freeSolo={choices.length === 0}
         autoSelect={choices.length === 0}
         options={choices.map(choice => choice.value)}
@@ -63,7 +73,8 @@ function OperandValueInput({ label, shape, several, value, disabled, onChange }:
   if (choices.length > 0) {
     const offered = withCurrent(choices, current);
     return (
-      <TextField select {...common} value={current} onChange={event => onChange([ event.target.value ])}>
+      <TextField select {...common} value={current} slotProps={{ select: { defaultOpen: open } }}
+        onChange={event => onChange([ event.target.value ])}>
         { offered.map(choice => <MenuItem key={choice.value} value={choice.value}>{choice.label}</MenuItem>) }
       </TextField>
     );

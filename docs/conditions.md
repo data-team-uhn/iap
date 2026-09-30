@@ -202,14 +202,17 @@ The module's frontend (`@iap/conditions`) reads and builds conditions for any mo
 - `ConditionBuilder` edits a draft: groups of which all or any must hold, each condition comparing what a source
   reads, optionally folded by an aggregate, with values of the type it holds, or with what another source reads.
   Comparators are offered by what the first operand holds: ordering ones for one value of a type with an order,
-  set ones for several values. `ConditionDialog` edits a stored condition whole and says, as it changes, when what
-  it guards will apply, in the `AppliesWhenLine` a module shows where it lists what the condition guards; given an
+  set ones for several values; a new condition starts from the first source, "is" and a value, and what a
+  condition still needs is marked required. Groups nest as deep as needed, each shaded a step deeper than the one
+  holding it, its conditions joined along a line by "And" or "Or", and each can be collapsed to what it says.
+  `ConditionDialog` edits a stored condition whole and says, once it is complete, when what it guards will apply, in the `AppliesWhenLine` a module shows where it lists what the condition guards; given an
   `onEdit`, that line is also what is pressed to change the condition.
 
 Operand sources are pluggable, as on the server. An `OperandSource` gives its `name` (the stored `source`), what
 choosing it reads as, what its `value` names if anything (`valueLabel`), the `shape` of what its operands hold,
-and how they read. The module ships `tagsSource` (given the tag choices `useTagChoices` loads),
-`PROPERTY_SOURCE` and `OWN_PROPERTY_SOURCE`; the schemas module adds its `answer` source, whose operands hold the
+and how they read. The module ships `tagsSource` (given the tag choices `useTagChoices` loads), `propertySource` and
+`ownPropertySource`, each given what the using module calls what a condition is evaluated for ("submission"), so
+that they read "The submission's tags" rather than "its"; the schemas module adds its `answer` source, whose operands hold the
 answers to a question of the version, typed by its `dataType` and offering its options. A source whose operands
 name something picked rather than typed, such as a question, passes the builder a function rendering an editor for
 it.
