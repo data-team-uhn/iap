@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import { Alert, Box, Button, DialogActions, DialogContent, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, DialogActions, DialogContent, Stack } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -51,25 +51,24 @@ function ConditionDialog({ title, condition, sources, editors, onClose, onSave }
   const complete = isComplete(draft, sources);
   const content = contentOf(draft, sources);
   const changed = fingerprintOf(draft) !== initial;
+  const line = complete ? whenDraftApplies(draft, sources) : undefined;
 
   return (
     <ResponsiveDialog title={title} width="md" withCloseButton open onClose={onClose} closeDisabled={working}>
       <DialogContent dividers>
         <Stack spacing={2}>
           <Box aria-live="polite">
-            <AppliesWhenLine>{whenDraftApplies(draft, sources) ?? "Always applies."}</AppliesWhenLine>
+            { line && <AppliesWhenLine>{line}</AppliesWhenLine> }
           </Box>
           <ConditionBuilder draft={draft} onChange={setDraft} sources={sources} editors={editors} disabled={working} />
-          { !complete && (
-            <Typography variant="description">Complete each condition to save.</Typography>
-          ) }
           { failure && <Alert severity="error">{failure}</Alert> }
         </Stack>
       </DialogContent>
       <DialogActions>
         { condition && (
-          <Button disabled={working} onClick={() => run(() => onSave(null))} sx={{ mr: "auto" }}>
-            Remove the condition
+          <Button variant="text" color="error" disabled={working} onClick={() => run(() => onSave(null))}
+            sx={{ mr: "auto" }}>
+            Clear all conditions
           </Button>
         ) }
         <Button onClick={onClose} disabled={working}>Cancel</Button>

@@ -89,7 +89,7 @@ export interface Aggregate {
 }
 
 export const AGGREGATES: Aggregate[] = [
-  { name: "count", label: "How many there are", phrase: "the number of values in", accepts: "any", output: "long" },
+  { name: "count", label: "The number of values", phrase: "the number of values in", accepts: "any", output: "long" },
 ];
 
 export const LITERAL = "literal";
@@ -118,7 +118,7 @@ export const comparatorsFor = (shape: OperandShape): Comparator[] => COMPARATORS
   && (!comparator.sets || shape.multiple !== false));
 
 // The aggregates that can fold an operand of this shape
-export const aggregatesFor = (shape: OperandShape): Aggregate[] => (shape.multiple === false ? [] : AGGREGATES
+export const aggregatesFor = (shape: OperandShape): Aggregate[] => (shape.multiple !== true ? [] : AGGREGATES
   .filter(aggregate => aggregate.accepts === "any"
     || (shape.type !== undefined && aggregate.accepts.includes(shape.type))));
 
@@ -132,13 +132,17 @@ export function aggregated(shape: OperandShape, aggregate?: Aggregate): OperandS
 
 // How many values the second operand gives a comparator: none, one, or any number
 export function valuesTaken(comparator: Comparator | undefined, shape: OperandShape): "none" | "one" | "several" {
-  if (comparator?.unary) {
+  // One this model does not know takes whatever it was given
+  if (!comparator) {
+    return "several";
+  }
+  if (comparator.unary) {
     return "none";
   }
-  if (comparator?.ordering) {
+  if (comparator.ordering) {
     return "one";
   }
-  return comparator?.sets || shape.multiple !== false ? "several" : "one";
+  return comparator.sets || shape.multiple === true ? "several" : "one";
 }
 
 // Why a value entered is not one of a type, if it is not
@@ -259,6 +263,10 @@ export const secondShapeOf = (condition: DraftSingle, sources: OperandSource[]):
 const named = (operand: DraftOperand, sources: OperandSource[]): boolean =>
   operand.source !== LITERAL && sourceOf(sources, operand.source)?.valueLabel !== undefined;
 
+// Whether what an operand reads has been chosen: a source, and what it names, if it names something
+export const isChosen = (operand: DraftOperand, sources: OperandSource[]): boolean =>
+  operand.source !== LITERAL && (!named(operand, sources) || operand.value.length > 0);
+
 function secondIsComplete(condition: DraftSingle, sources: OperandSource[]): boolean {
   const taken = valuesTaken(comparatorOf(condition.comparator), shapeOf(condition.a, sources));
   if (taken === "none") {
@@ -275,8 +283,7 @@ function secondIsComplete(condition: DraftSingle, sources: OperandSource[]): boo
 function isCompleteCondition(condition: DraftCondition, sources: OperandSource[]): boolean {
   switch (condition.kind) {
     case "single":
-      return condition.a.source !== LITERAL && (!named(condition.a, sources) || condition.a.value.length > 0)
-        && secondIsComplete(condition, sources);
+      return isChosen(condition.a, sources) && secondIsComplete(condition, sources);
     case "group":
       return condition.conditions.length > 0
         && condition.conditions.every(child => isCompleteCondition(child, sources));
@@ -417,22 +424,32 @@ export const whenApplies = (condition: SerializedNode, sources: OperandSource[])
 
 // ---- Built-in sources
 
-export const tagsSource = (choices: Choice[] = []): OperandSource => ({
+// Built-in sources, reading what a condition is evaluated for as the module using them names it ("submission")
+
+export const tagsSource = (choices: Choice[] = [], of?: string): OperandSource => ({
   name: "tags",
-  label: "Its tags",
+  label: of ? `The ${of}'s tags` : "The tags",
   shape: () => ({ type: "text", multiple: true, ...choices.length > 0 && { choices } }),
-  describe: () => "its tag list",
+  describe: () => (of ? `the ${of}'s tag list` : "the tag list"),
 });
 
-// A property of the entity a condition is evaluated for, or of what it is evaluated on itself
-const propertySource = (own: boolean): OperandSource => ({
-  name: own ? "ownProperty" : "property",
-  label: own ? "One of its own properties" : "One of its properties",
+export const propertySource = (of?: string): OperandSource => ({
+  name: "property",
+  label: of ? `A property of the ${of}` : "A property",
   valueLabel: "Property",
   shape: () => ({}),
-  describe: value => `its ${own ? "own " : ""}${value.at(0) ?? "property"}`,
+  describe: value => `the ${of ? `${of}'s ` : ""}${value.at(0) ?? "property"}`,
 });
 
-export const PROPERTY_SOURCE = propertySource(false);
+// A property of what the condition is on itself, such as a question, rather than of what it is evaluated for
+export const ownPropertySource = (of?: string): OperandSource => ({
+  name: "ownProperty",
+  label: of ? `A property of this ${of}` : "One of its own properties",
+  valueLabel: "Property",
+  shape: () => ({}),
+  describe: value => `${of ? `this ${of}'s` : "its own"} ${value.at(0) ?? "property"}`,
+});
 
-export const OWN_PROPERTY_SOURCE = propertySource(true);
+export const PROPERTY_SOURCE = propertySource();
+
+export const OWN_PROPERTY_SOURCE = ownPropertySource();
