@@ -53,7 +53,7 @@
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -67,7 +67,6 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Nullability annotations for the exported API -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -87,19 +86,16 @@
       <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A start event guards the workflow it starts with a condition on the target -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The built-in addTag and removeTag service tasks -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The /WorkflowTypes vocabulary documents itself through this -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-autodoc</artifactId>

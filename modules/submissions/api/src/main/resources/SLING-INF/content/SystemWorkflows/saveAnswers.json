@@ -1,43 +1,30 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
-  "title": "Create a submission",
+  "title": "Save a submission's answers",
   "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "targetResourceType": "sub/SubmissionsHomepage",
+    "targetResourceType": "sub/Submission",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
-      "label": "Submission requested",
-      "messageName": "create",
+      "label": "Answers submitted",
+      "messageName": "save",
       "performers": ["everyone"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
-      "toCreate": {
+      "toSave": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toCreate",
-        "targetRef": "create"
+        "elementId": "toSave",
+        "targetRef": "save"
       }
     },
-    "create": {
+    "save": {
       "jcr:primaryType": "wf:Activity",
-      "elementId": "create",
-      "label": "Create the submission",
-      "handler": "createSubmission",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toStart": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toStart",
-        "targetRef": "start"
-      }
-    },
-    "start": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "start",
-      "label": "Put it under its workflow",
-      "handler": "startWorkflow",
-      "workflowFrom": "schemaVersion/workflow",
+      "elementId": "save",
+      "label": "Record the answers",
+      "handler": "saveAnswers",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -48,7 +35,7 @@
     "done": {
       "jcr:primaryType": "wf:EndEvent",
       "elementId": "done",
-      "label": "Submission created",
+      "label": "Answers saved",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     }
   }

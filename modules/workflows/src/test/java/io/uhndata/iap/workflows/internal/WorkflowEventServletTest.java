@@ -38,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -217,6 +218,12 @@ class WorkflowEventServletTest
     void mapsNotAuthorizedToForbidden() throws WorkflowException, IOException, ServletException
     {
         assertEquals(403, statusFor(new NotAuthorizedException("not allowed")));
+    }
+
+    @Test
+    void mapsInvalidStateToConflict() throws WorkflowException, IOException, ServletException
+    {
+        assertEquals(409, statusFor(new InvalidStateException("already submitted")));
     }
 
     @Test

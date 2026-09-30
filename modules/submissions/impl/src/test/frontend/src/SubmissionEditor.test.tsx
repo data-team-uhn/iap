@@ -130,7 +130,7 @@ describe("SubmissionEditor", () => {
 
     expect(await screen.findByLabelText(/Which day are you back/)).toBeInTheDocument();
     const posted = fetchMock.mock.calls.find(([ , options ]) => (options as { method?: string })?.method === "POST");
-    expect(posted?.[0]).toBe(PATH);
+    expect(posted?.[0]).toBe(`${PATH}.save.json`);
   });
 
   it("reports a refused save on the field it belongs to", async () => {

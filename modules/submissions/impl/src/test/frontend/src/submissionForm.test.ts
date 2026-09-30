@@ -61,14 +61,14 @@ describe("fetchForm", () => {
 });
 
 describe("saveAnswer", () => {
-  it("posts the answer to the submission itself", async () => {
+  it("posts the answer to the submission as its save event", async () => {
     const fetchMock = vi.fn(() => response({}));
 
     await saveAnswer(fetchMock, PATH, "details/startDate", [ "2026-10-06" ]);
 
     const [ url, options ] = fetchMock.mock.calls[0] as unknown as
       [ string, { method: string; body: URLSearchParams } ];
-    expect(url).toBe(PATH);
+    expect(url).toBe(`${PATH}.save.json`);
     expect(options.method).toBe("POST");
     expect(options.body.getAll("details/startDate")).toEqual([ "2026-10-06" ]);
   });
@@ -83,12 +83,23 @@ describe("saveAnswer", () => {
     expect(options.body.getAll("details/days")).toEqual([ "Monday", "Tuesday" ]);
   });
 
+  it("names the question even when it is being cleared", async () => {
+    // The handler walks the questions the payload mentions, so an emptied field that sent nothing at
+    // all would leave its old answer in place -- and the request would go on counting as complete
+    const fetchMock = vi.fn(() => response({}));
+
+    await saveAnswer(fetchMock, PATH, "details/startDate", []);
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.getAll("details/startDate")).toEqual([ "" ]);
+  });
+
   it("reports the engine's own reason for refusing", async () => {
     // A refusal carries why: not the submitter's request, or no longer a draft. Repeating that
     // verbatim beats inventing a message over the top of it
     const fetchMock = vi.fn(() => response(
       { error: "This request has been submitted and can no longer be changed" },
-      { ok: false, status: 403 }));
+      { ok: false, status: 409 }));
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow("This request has been submitted and can no longer be changed");

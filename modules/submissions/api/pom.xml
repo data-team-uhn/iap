@@ -46,7 +46,7 @@
               SLING-INF/content/apps/iap/ExtensionPoints/;path:=/apps/iap/ExtensionPoints/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>

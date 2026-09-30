@@ -106,16 +106,24 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
   return (await response.json()) as SubmissionForm;
 }
 
-// Records one answer, by posting it to the submission itself. The POST is a `save` event, because
-// filling a request in is a workflow event and not a write, so a refusal arrives as the engine's own
-// reason rather than as a repository error.
+// Records one answer, by posting it to the submission as a `save` event: filling a request in is a
+// workflow event and not a write, so a refusal arrives as the engine's own reason rather than as a
+// repository error. The selector is what names the event; a bare POST would be read as `create`.
 export async function saveAnswer(
   doFetch: AuthenticatedFetch, path: string, question: string, values: string[]): Promise<void> {
   const body = new URLSearchParams();
   // A question that may hold several values is answered by repeating it, which is what the handler
   // reads back as a multi-valued answer
   values.forEach(value => body.append(question, value));
-  const response = await doFetch(path, { method: "POST", body });
+  if (values.length === 0) {
+    // Clearing an answer still has to name the question, with one empty value: the handler walks the
+    // questions the payload mentions, so a question left out of it is not cleared but *untouched*.
+    // The widgets report no values at all for a blank field, which without this reads as "nothing to
+    // say about this question" -- the old answer survives, and the request goes on counting as
+    // complete when it no longer is.
+    body.append(question, "");
+  }
+  const response = await doFetch(`${path}.save.json`, { method: "POST", body });
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);

@@ -40,11 +40,12 @@ class WorkflowExceptionsTest
         final List<WorkflowException> plain = List.of(
             new NoApplicableWorkflowException("nothing waiting"),
             new NotAuthorizedException("not allowed"),
+            new InvalidStateException("already submitted"),
             new InvalidPayloadException("bad data"),
             new WorkflowDefinitionException("broken definition"),
             new WorkflowFailedException("machinery failure"));
 
-        assertEquals(List.of("nothing waiting", "not allowed", "bad data", "broken definition",
+        assertEquals(List.of("nothing waiting", "not allowed", "already submitted", "bad data", "broken definition",
             "machinery failure"), plain.stream().map(WorkflowException::getMessage).toList());
         plain.forEach(exception -> assertNull(exception.getCause()));
     }
@@ -56,6 +57,7 @@ class WorkflowExceptionsTest
 
         final List<WorkflowException> chained = List.of(
             new NotAuthorizedException("not allowed", cause),
+            new InvalidStateException("already submitted", cause),
             new InvalidPayloadException("bad data", cause),
             new WorkflowFailedException("machinery failure", cause));
 

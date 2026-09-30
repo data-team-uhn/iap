@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -108,7 +109,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             } else {
                 reply(response, HttpServletResponse.SC_OK, "status", "completed");
             }
-        } catch (final NoApplicableWorkflowException e) {
+        } catch (final NoApplicableWorkflowException | InvalidStateException e) {
             reply(response, HttpServletResponse.SC_CONFLICT, "error", e.getMessage());
         } catch (final NotAuthorizedException e) {
             reply(response, HttpServletResponse.SC_FORBIDDEN, "error", e.getMessage());
