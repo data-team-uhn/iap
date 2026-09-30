@@ -19,7 +19,9 @@
 //-----------------------------------------------------------------------------
 //
 // Authored: marks content whose last-writing user is tracked in
-// auth:lastAuthor. Functionality will be expanded on later.
+// jcr:lastModified at the time indicated by jcr:lastModifiedBy.
+// These are like mix:versionable except they propagate upwards to all nodes
+// with the mixin.
 //
 //-----------------------------------------------------------------------------
 [auth:Authored]
@@ -27,4 +29,5 @@
 
   // The user attributed with the commit that last touched this node.
   // System-maintained, do not write manually.
-  - auth:lastAuthor (STRING) IGNORE
+  - jcr:lastModified (DATE) IGNORE
+  - jcr:lastModifiedBy (STRING) IGNORE

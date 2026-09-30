@@ -31,7 +31,7 @@
 //-----------------------------------------------------------------------------
 
 // The link:Linkable supertype brings the link:links container for links to other entities.
-[data:Entity] > data:Content, link:Linkable, mix:referenceable, mix:versionable, mix:lastModified, auth:Authored
+[data:Entity] > data:Content, link:Linkable, mix:referenceable, mix:versionable, auth:Authored
   // Attributes:
 
   // This is an abstract node type, specific entity types must be defined.

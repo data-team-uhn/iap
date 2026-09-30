@@ -37,8 +37,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  */
 final class AuthoredTypeInspector
 {
-    /** The property {@link AddAuthorEditor} writes; a type declares it by carrying {@code auth:Authored}. */
-    private static final String LAST_AUTHOR_PROPERTY = "auth:lastAuthor";
+    /** The property {@link AddAuthorEditor} writes; a type declares it by carrying {@code jcr:lastModifiedBy}. */
+    private static final String LAST_AUTHOR_PROPERTY = "jcr:lastModifiedBy";
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
