@@ -29,7 +29,7 @@ interface AppliesWhenLineProps {
 }
 
 const LINE = {
-  alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "background.muted", borderRadius: 1, px: 1, py: 0.5,
+  alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "condition.surface", borderRadius: 1, px: 1, py: 0.5,
   gap: 0.75, textAlign: "start",
 } as const;
 
@@ -38,7 +38,7 @@ function AppliesWhenLine({ children, onEdit }: AppliesWhenLineProps) {
   const id = useId();
   const content = (
     <>
-      <AltRouteOutlinedIcon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
+      <AltRouteOutlinedIcon fontSize="small" sx={{ color: "condition.main", mt: 0.25 }} />
       <Typography id={id} variant="body2">{children}</Typography>
     </>
   );
@@ -47,9 +47,9 @@ function AppliesWhenLine({ children, onEdit }: AppliesWhenLineProps) {
   }
   return (
     <ButtonBase aria-label="Change when it applies" aria-describedby={id} onClick={onEdit}
-      sx={{ ...LINE, "&:hover": { bgcolor: "action.hover" } }}>
+      sx={{ ...LINE, "&:hover": { outline: "1px solid", outlineColor: "condition.main" } }}>
       {content}
-      <EditOutlinedIcon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
+      <EditOutlinedIcon fontSize="small" sx={{ color: "condition.main", mt: 0.25 }} />
     </ButtonBase>
   );
 }

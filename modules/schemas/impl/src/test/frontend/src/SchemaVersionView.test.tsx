@@ -161,7 +161,7 @@ describe("SchemaVersionView", () => {
     expect(within(consent).getByText("Template provided")).toBeInTheDocument();
     await expand("Consent form");
     expect(await screen.findByText("Accepts application/pdf.")).toBeInTheDocument();
-    expect(within(consent).getByText(/^Only when its tag list is/)).toBeInTheDocument();
+    expect(within(consent).getByText(/^Only when the submission's tag list is/)).toBeInTheDocument();
     expect(within(await card("Protocol")).getByText("Required")).toBeInTheDocument();
     await expand("Ethics approval");
     expect(await screen.findByText("Approved by reb-members.")).toBeInTheDocument();

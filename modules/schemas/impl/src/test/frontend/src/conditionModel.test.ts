@@ -52,8 +52,8 @@ describe("conditionModel", () => {
   });
 
   it("joins a group, bracketing the groups inside it, and shows what it does not know as it is stored", () => {
-    expect(described(consent)).toBe("its tag list is “urgent”, 7 and "
-      + "(its size is at least 10 or the answer to nowhere sounds like nothing)");
+    expect(described(consent)).toBe("the submission's tag list is “urgent”, 7 and "
+      + "(the submission's size is at least 10 or the answer to nowhere sounds like nothing)");
   });
 
   it("reads an empty group as what it evaluates to", () => {
@@ -78,7 +78,7 @@ describe("conditionModel", () => {
       "operandB": { source: "literal", value: [ "x" ] },
     });
     expect(bare({ source: "answer" })).toBe("the answer to a missing question is “x”");
-    expect(bare({ source: "property" })).toBe("its property is “x”");
+    expect(bare({ source: "property" })).toBe("the submission's property is “x”");
     expect(bare(undefined)).toBe("nothing is “x”");
   });
 

@@ -18,9 +18,9 @@
 
 import {
   AGGREGATES, aggregated, aggregatesFor, COMPARATORS, comparatorsFor, contentOf, describeCondition, describeDraft,
-  draftOf, type DraftGroup, type DraftSingle, isComplete, newGroup, newSingle, type OperandSource,
-  OWN_PROPERTY_SOURCE, PROPERTY_SOURCE, shapeOf, tagsSource, valueProblem, valuesTaken, whenApplies,
-  whenDraftApplies, withCurrent,
+  draftOf, type DraftGroup, type DraftSingle, isChosen, isComplete, newGroup, newSingle, type OperandSource,
+  OWN_PROPERTY_SOURCE, ownPropertySource, PROPERTY_SOURCE, propertySource, shapeOf, tagsSource, valueProblem,
+  valuesTaken, whenApplies, whenDraftApplies, withCurrent,
 } from "@iap/conditions/conditionModel";
 
 // A source whose operands name a field of a known type, as a module offering one would declare it
@@ -82,7 +82,8 @@ describe("conditionModel", () => {
     it("folds several values into one of the type the aggregate outputs, as the evaluator does", () => {
       expect(aggregatesFor({ type: "text", multiple: false })).toEqual([]);
       expect(aggregatesFor({ type: "text", multiple: true })).toEqual(AGGREGATES);
-      expect(aggregatesFor({})).toEqual(AGGREGATES);
+      // Only where several values are known to be held
+      expect(aggregatesFor({})).toEqual([]);
       // count's output is fixed: a whole number, whatever it counts
       expect(aggregated({ type: "date", multiple: true, choices: [] }, AGGREGATES[0]))
         .toEqual({ type: "long", multiple: false });
@@ -112,6 +113,8 @@ describe("conditionModel", () => {
       expect(valuesTaken(of("includes"), { multiple: false })).toBe("several");
       expect(valuesTaken(of("equals"), { multiple: false })).toBe("one");
       expect(valuesTaken(of("equals"), { multiple: true })).toBe("several");
+      // Unknown until it is known, one
+      expect(valuesTaken(of("equals"), {})).toBe("one");
       expect(valuesTaken(undefined, {})).toBe("several");
     });
 
@@ -246,20 +249,20 @@ describe("conditionModel", () => {
     it("reads operands as their sources say, and literals by the labels of what they are compared with", () => {
       const described = (condition: Record<string, unknown>) => describeCondition(condition, SOURCES);
       expect(described(single("includes", { source: "tags" }, { value: [ "urgent", "other" ] })))
-        .toBe("its tag list includes all of “Urgent”, “other”");
+        .toBe("the tag list includes all of “Urgent”, “other”");
       expect(described(single("equals", field("colours"), { value: [ "red" ] })))
         .toBe("the field colours is “Red”");
       // One value, as plainly as it reads
       expect(described(single("includes any", { source: "tags" }, { value: [ "urgent" ] })))
-        .toBe("its tag list includes “Urgent”");
+        .toBe("the tag list includes “Urgent”");
       expect(described(single("excludes any", { source: "tags" }, { source: "tags" })))
-        .toBe("its tag list does not include all of its tag list");
+        .toBe("the tag list does not include all of the tag list");
       expect(described(single("greater or equal", { ...field("colours"), aggregate: "count" }, { value: [ 2 ] })))
         .toBe("the number of values in the field colours is at least 2");
       expect(described(single("equals", { source: "ownProperty", value: [ "optionsFrom" ] }, { value: [] })))
         .toBe("its own optionsFrom is nothing");
       expect(described(single("equals", { source: "ownProperty" }, { source: "property" })))
-        .toBe("its own property is its property");
+        .toBe("its own property is the property");
       expect(described(single("sounds like", { source: "elsewhere", value: [ "x" ] }, { value: [ "y" ] })))
         .toBe("“x” sounds like “y”");
     });
@@ -295,6 +298,24 @@ describe("conditionModel", () => {
       expect(withCurrent(choices, "b")).toEqual([ ...choices, { value: "b", label: "b" } ]);
       expect(withCurrent(choices, "b", value => value.toUpperCase()))
         .toEqual([ ...choices, { value: "b", label: "B" } ]);
+    });
+
+    it("names what the built-in sources read, as the module using them calls it", () => {
+      expect([ tagsSource([], "submission").label, propertySource("submission").label,
+        ownPropertySource("part").label ]).toEqual([ "The submission's tags", "A property of the submission",
+        "A property of this part" ]);
+      expect([ tagsSource([], "submission").describe([]), propertySource("submission").describe([ "status" ]),
+        ownPropertySource("part").describe([ "optionsFrom" ]) ]).toEqual([ "the submission's tag list",
+        "the submission's status", "this part's optionsFrom" ]);
+      expect([ tagsSource().label, PROPERTY_SOURCE.label, OWN_PROPERTY_SOURCE.label ])
+        .toEqual([ "The tags", "A property", "One of its own properties" ]);
+    });
+
+    it("knows when what an operand reads has been chosen", () => {
+      expect(isChosen({ source: "field", value: [] }, SOURCES)).toBe(false);
+      expect(isChosen({ source: "field", value: [ "age" ] }, SOURCES)).toBe(true);
+      expect(isChosen({ source: "tags", value: [] }, SOURCES)).toBe(true);
+      expect(isChosen({ source: "literal", value: [ "x" ] }, SOURCES)).toBe(false);
     });
 
     it("offers tags as text, with their labels when they are known", () => {

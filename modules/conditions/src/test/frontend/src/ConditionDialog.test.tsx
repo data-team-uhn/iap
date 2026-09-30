@@ -47,9 +47,9 @@ const FIELD_SOURCE: OperandSource = {
 const SOURCES = [ FIELD_SOURCE, tagsSource([ { value: "urgent", label: "Urgent" } ]), PROPERTY_SOURCE ];
 
 // A field picked from a list, as a module offering a source may ask for what its operands name
-function FieldPicker({ label, value, disabled, onChange }: OperandEditorProps) {
+function FieldPicker({ label, value, disabled, required, onChange }: OperandEditorProps) {
   return (
-    <TextField select label={label} value={value.at(0) ?? ""} disabled={disabled}
+    <TextField select label={label} value={value.at(0) ?? ""} disabled={disabled} required={required}
       onChange={event => onChange([ event.target.value ])}>
       { Object.keys(FIELDS).map(name => <MenuItem key={name} value={name}>{name}</MenuItem>) }
     </TextField>
@@ -89,33 +89,43 @@ const ANY_OF_TWO = {
   "second": single("includes", { source: "tags" }, { value: [ "urgent" ] }),
 };
 
+// The summary above the conditions, if there is one
+const summary = (dialog: HTMLElement) => within(dialog).queryByText(/^Only when/)?.textContent;
+
 describe("ConditionDialog", () => {
   it("starts with no condition, which always applies", () => {
     const { dialog } = renderDialog();
 
     expect(within(dialog).getByText("No condition. It always applies.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Always applies.")).toBeInTheDocument();
+    expect(summary(dialog)).toBeUndefined();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(within(dialog).queryByRole("button", { name: "Remove the condition" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Clear all conditions" })).not.toBeInTheDocument();
   });
 
-  it("builds a condition, checking its values against what they are compared with", async () => {
+  it("builds a condition from sensible defaults, summing it up only once it is complete", async () => {
     const { dialog, onSave, onClose } = renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
     expect(within(condition).getByRole("combobox", { name: "Compare" })).toHaveTextContent("A field");
+    expect(within(condition).getByRole("combobox", { name: "Comparison" })).toHaveTextContent("is");
+    expect(within(condition).getByRole("combobox", { name: "Compared with" })).toHaveTextContent("A specific value");
+    // A value waits for what it is compared with
+    expect(within(condition).getByRole("textbox", { name: "Value" })).toBeDisabled();
+    expect(summary(dialog)).toBeUndefined();
+
     await pick(condition, "Field", "age");
     await pick(condition, "Comparison", "is at least");
     const value = within(condition).getByRole("textbox", { name: "Value" });
+    expect(value).toBeRequired();
     expect(value).toHaveAttribute("inputmode", "numeric");
     fireEvent.change(value, { target: { value: "adult" } });
     expect(within(condition).getByText("Enter a whole number.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Complete each condition to save.")).toBeInTheDocument();
+    expect(summary(dialog)).toBeUndefined();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
 
     fireEvent.change(value, { target: { value: "18" } });
-    expect(within(dialog).getByText("Only when the field age is at least 18")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field age is at least 18");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({
@@ -129,22 +139,22 @@ describe("ConditionDialog", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it("edits a stored condition: which must hold, and what it holds", async () => {
+  it("edits a stored condition: which must be true, how they are joined, and what they hold", async () => {
     const { dialog, onSave } = renderDialog({ condition: ANY_OF_TWO });
 
-    expect(within(dialog).getByText("Only when the field age is empty or its tag list includes “Urgent”"))
-      .toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field age is empty or the tag list includes “Urgent”");
     expect(within(dialog).getByRole("button", { name: "Any" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(dialog).getByText("Or")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "All" }));
     // Choosing what is already chosen changes nothing
     fireEvent.click(within(dialog).getByRole("button", { name: "All" }));
-    expect(within(dialog).getByText(/is empty and its tag list/)).toBeInTheDocument();
+    expect(within(dialog).getByText("And")).toBeInTheDocument();
+    expect(summary(dialog)).toMatch(/is empty and the tag list/);
 
     await pick(conditions(dialog)[1], "Comparison", "includes any of");
-    expect(within(conditions(dialog)[1]).getByRole("combobox", { name: "Comparison" }))
-      .toHaveTextContent("includes any of");
     fireEvent.click(within(conditions(dialog)[0]).getByRole("button", { name: "Remove this condition" }));
     expect(within(dialog).queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("And")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -160,33 +170,34 @@ describe("ConditionDialog", () => {
     expect(within(dialog).getByText("Choose yes or no.")).toBeInTheDocument();
   });
 
-  it("removes the condition", async () => {
+  it("clears all conditions", async () => {
     const { dialog, onSave } = renderDialog({ condition: ANY_OF_TWO });
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Remove the condition" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Clear all conditions" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(null));
   });
 
-  it("picks values among the choices, and counts several values", async () => {
+  it("offers the choices as soon as what is compared has some, and counts several values", async () => {
     const { dialog, onSave } = renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
+    expect(within(condition).queryByRole("combobox", { name: "Using" })).not.toBeInTheDocument();
     await pick(condition, "Field", "colours");
+    // Already open, on the choices
+    fireEvent.click(await screen.findByRole("option", { name: "Red" }));
     await pick(condition, "Comparison", "includes any of");
-    await pick(condition, "Values", "Red");
     await pick(condition, "Values", "Blue");
-    expect(within(dialog).getByText("Only when the field colours includes any of “Red”, “Blue”")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field colours includes any of “Red”, “Blue”");
     // Down to one value, for a comparison taking one
     await pick(condition, "Comparison", "is not");
-    expect(within(dialog).getByText("Only when the field colours is not “Red”, “Blue”")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field colours is not “Red”, “Blue”");
 
-    await pick(condition, "Using", "How many there are");
+    await pick(condition, "Using", "The number of values");
     await pick(condition, "Comparison", "is more than");
     fireEvent.change(within(condition).getByRole("textbox", { name: "Value" }), { target: { value: "1" } });
-    expect(within(dialog).getByText("Only when the number of values in the field colours is more than 1"))
-      .toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the number of values in the field colours is more than 1");
     await pick(condition, "Using", "The values");
     expect(within(condition).getByRole("combobox", { name: "Comparison" })).toHaveTextContent("is");
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
@@ -201,28 +212,32 @@ describe("ConditionDialog", () => {
     const [ condition ] = conditions(dialog);
     await pick(condition, "Field", "notes");
     await pick(condition, "Comparison", "includes all of");
+    expect(within(condition).getByRole("combobox", { name: "Compared with" })).toHaveTextContent("Specific values");
     const values = within(condition).getByRole("combobox", { name: "Values" });
     fireEvent.change(values, { target: { value: "late" } });
     fireEvent.keyDown(values, { key: "Enter" });
 
-    expect(within(dialog).getByText("Only when the field notes includes “late”")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field notes includes “late”");
   });
 
-  it("asks for a single value as its type calls for, or for none", async () => {
+  it("asks for a single value as its type calls for, starting from yes, or for none", async () => {
     const { dialog } = renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
     await pick(condition, "Field", "consent");
-    await pick(condition, "Value", "No");
-    expect(within(dialog).getByText("Only when the field consent is “No”")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the field consent is “Yes”");
+    // Its choices are offered at once
+    fireEvent.click(await screen.findByRole("option", { name: "No" }));
+    expect(summary(dialog)).toBe("Only when the field consent is “No”");
 
     await pick(condition, "Field", "due");
-    const date = within(condition).getByLabelText("Value");
+    const date = within(condition).getByLabelText(/Value/);
     expect(date).toHaveAttribute("type", "date");
     fireEvent.change(date, { target: { value: "2026-09-29" } });
+    expect(summary(dialog)).toBe("Only when the field due is “2026-09-29”");
     fireEvent.change(date, { target: { value: "" } });
-    expect(within(dialog).getByText("Only when the field due is nothing")).toBeInTheDocument();
+    expect(summary(dialog)).toBeUndefined();
 
     await pick(condition, "Field", "free");
     expect(within(condition).getByRole("textbox", { name: "Value" })).toHaveAttribute("inputmode", "text");
@@ -236,21 +251,23 @@ describe("ConditionDialog", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
-    await pick(condition, "Compare", "One of its properties");
-    fireEvent.change(within(condition).getByRole("textbox", { name: "Property" }), { target: { value: "status" } });
-    fireEvent.change(within(condition).getByRole("textbox", { name: "Property" }), { target: { value: "" } });
-    fireEvent.change(within(condition).getByRole("textbox", { name: "Property" }), { target: { value: "status" } });
-    await pick(condition, "Compared with", "Its tags");
-    expect(within(dialog).getByText("Only when its status is its tag list")).toBeInTheDocument();
+    await pick(condition, "Compare", "A property");
+    const property = within(condition).getByRole("textbox", { name: "Property" });
+    expect(property).toBeRequired();
+    fireEvent.change(property, { target: { value: "status" } });
+    fireEvent.change(property, { target: { value: "" } });
+    fireEvent.change(property, { target: { value: "status" } });
+    await pick(condition, "Compared with", "The tags");
+    expect(summary(dialog)).toBe("Only when the status is the tag list");
     await pick(condition, "Compared with", "A field");
     await pick(condition, "Field", "age");
-    expect(within(dialog).getByText("Only when its status is the field age")).toBeInTheDocument();
+    expect(summary(dialog)).toBe("Only when the status is the field age");
     // Once what is compared changes, what it is compared with stays when it is not a value
-    await pick(condition, "Compare", "Its tags");
-    expect(within(dialog).getByText("Only when its tag list is the field age")).toBeInTheDocument();
+    await pick(condition, "Compare", "The tags");
+    expect(summary(dialog)).toBe("Only when the tag list is the field age");
   });
 
-  it("keeps groups inside groups", async () => {
+  it("keeps groups inside groups, each of which closes to what it says", async () => {
     const { dialog } = renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a group" }));
@@ -258,12 +275,39 @@ describe("ConditionDialog", () => {
     fireEvent.click(within(nested).getByRole("button", { name: "Add a condition" }));
     expect(within(nested).getAllByRole("group", { name: "Condition" })).toHaveLength(2);
     fireEvent.click(within(nested).getByRole("button", { name: "Any" }));
+    expect(within(nested).getByText("Or")).toBeInTheDocument();
+
+    fireEvent.click(within(nested).getAllByRole("button", { name: "Collapse this group" })[0]);
+    expect(within(nested).getByText("Some of these are not complete yet.")).toBeInTheDocument();
+    expect(within(nested).queryByRole("group", { name: "Condition" })).not.toBeInTheDocument();
+    fireEvent.click(within(nested).getByRole("button", { name: "Expand this group" }));
     fireEvent.click(within(nested).getAllByRole("button", { name: "Remove this condition" })[0]);
+    fireEvent.click(within(nested).getAllByRole("button", { name: "Remove this condition" })[0]);
+    fireEvent.click(within(nested).getByRole("button", { name: "Collapse this group" }));
+    expect(within(nested).getByText("No condition yet.")).toBeInTheDocument();
+    fireEvent.click(within(nested).getByRole("button", { name: "Expand this group" }));
+
     fireEvent.click(within(nested).getByRole("button", { name: "Add a group" }));
     expect(within(nested).getAllByRole("group", { name: "Group of conditions" })).toHaveLength(1);
-
-    fireEvent.click(within(nested).getAllByRole("button", { name: "Remove this group" }).at(-1)!);
+    fireEvent.click(within(nested).getAllByRole("button", { name: "Remove this group" })[0]);
     expect(within(dialog).queryByRole("group", { name: "Group of conditions" })).not.toBeInTheDocument();
+  });
+
+  it("closes a complete group to what it says, and the top to nothing more than the summary", async () => {
+    const { dialog } = renderDialog({ condition: {
+      ...ANY_OF_TWO,
+      "third": { "jcr:primaryType": "cond:ConditionGroup", "sling:resourceSuperType": "cond/Condition",
+        "requireAll": true, "only": single("is empty", field("due")) },
+    } });
+
+    const nested = within(dialog).getByRole("group", { name: "Group of conditions" });
+    fireEvent.click(within(nested).getByRole("button", { name: "Collapse this group" }));
+    expect(within(nested).getByText("the field due is empty")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Collapse this group" })[0]);
+    expect(within(dialog).queryByRole("group", { name: "Condition" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/not complete yet/)).not.toBeInTheDocument();
+    expect(summary(dialog)).toMatch(/^Only when/);
   });
 
   it("keeps what it does not know, and saves only once it is gone", async () => {

@@ -20,7 +20,7 @@
 // an `answer` operand holds the answers to the version's question it names. No React, no fetch.
 
 import {
-  type Choice, type OperandShape, type OperandSource, OWN_PROPERTY_SOURCE, PROPERTY_SOURCE, tagsSource,
+  type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
   type ValueType,
 } from "@iap/conditions/conditionModel";
 
@@ -69,4 +69,4 @@ export const answerSource = (index: QuestionIndex): OperandSource => ({
 
 // Every source a schema's conditions may use, with the labels of the tags when they are known
 export const schemaSources = (index: QuestionIndex, tags: Choice[] = []): OperandSource[] =>
-  [ answerSource(index), tagsSource(tags), PROPERTY_SOURCE, OWN_PROPERTY_SOURCE ];
+  [ answerSource(index), tagsSource(tags, "submission"), propertySource("submission"), ownPropertySource("part") ];
