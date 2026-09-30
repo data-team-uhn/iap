@@ -10,6 +10,8 @@
     "{https://iap.uhndata.io/bpmn}handler=handler",
     "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
     "{https://iap.uhndata.io/bpmn}entityType=entityType",
-    "{https://iap.uhndata.io/bpmn}workflowFrom=workflowFrom"
+    "{https://iap.uhndata.io/bpmn}workflowFrom=workflowFrom",
+    "{https://iap.uhndata.io/bpmn}tag=tag",
+    "{https://iap.uhndata.io/bpmn}replaceExisting=replaceExisting"
   ]
 }
