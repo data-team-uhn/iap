@@ -17,16 +17,11 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.Map;
-
 import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -77,23 +72,5 @@ final class RepositoryFailures
             }
         }
         return new WorkflowFailedException("The workflow could not be executed: " + failure.getMessage(), failure);
-    }
-
-    /**
-     * Opens a service session, a missing service user being a failure of the machinery.
-     *
-     * @param factory the resolver factory
-     * @param subservice the subservice name the service user is mapped under
-     * @return a service resource resolver, to be closed by the caller
-     * @throws WorkflowFailedException when the service user is not available
-     */
-    static ResourceResolver serviceResolver(final ResourceResolverFactory factory, final String subservice)
-        throws WorkflowFailedException
-    {
-        try {
-            return factory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, subservice));
-        } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
-        }
     }
 }
