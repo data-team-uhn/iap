@@ -60,9 +60,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
  * {@link InstanceRunner} owns the other half, where a workflow persists and waits. Both perform their service
  * tasks through {@link ServiceTaskDispatcher}.</p>
  *
- * <p>Everything happens through the engine's own service user. Matching reads {@code /SystemWorkflows}, which
- * ordinary users cannot see, and execution writes content they hold no rights on. Authorization cannot be left to
- * the repository. It is decided here, before the first step, by asking the start event which principals it
+ * <p>Everything happens through the engine's own service user. Matching has to see all of a target's content,
+ * whatever the user may read of it, and execution writes content they hold no rights on. Authorization cannot be
+ * left to the repository. It is decided here, before the first step, by asking the start event which principals it
  * admits. What a user may do is what the workflows say, not what an access control list on the data happens to
  * allow.</p>
  *

@@ -64,8 +64,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * </p>
  * <ul>
  * <li>{@code query}, a full query in the JCR-SQL2 syntax</li>
- * <li>{@code fulltext}, a text to look for anywhere in the content, Oak's own {@code /jcr:system} bookkeeping
- * excepted</li>
+ * <li>{@code fulltext}, a text to look for anywhere in the content, Oak's own {@code /jcr:system} bookkeeping and
+ * the {@code /SystemWorkflows} excepted</li>
  * <li>{@code quick}, a text to be matched by the registered
  * {@link QuickSearchEngine quick search engines}</li>
  * </ul>
@@ -133,13 +133,18 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private static final String SYSTEM_TREE = "/jcr:system";
 
     /**
-     * Keeps a generated statement out of the {@link #SYSTEM_TREE}. The tree's own node is named separately from its
-     * descendants: {@code isdescendantnode} does not match the node itself, and {@code /jcr:system} carries a primary
-     * type that answers a search for "system".
+     * The tree the platform keeps its own behaviour in, also left out of a generated search. Everyone may read the
+     * system workflows, since a user interface offers actions from them, but they are machinery rather than content:
+     * their labels, such as "Create the workflow", would answer searches for the words people look for content by.
      */
-    private static final String OUTSIDE_SYSTEM_TREE =
-        " and not issamenode(" + SELECTOR + ", '" + SYSTEM_TREE + "')"
-            + " and not isdescendantnode(" + SELECTOR + ", '" + SYSTEM_TREE + "')";
+    private static final String SYSTEM_WORKFLOWS = "/SystemWorkflows";
+
+    /**
+     * Keeps a generated statement out of the {@link #SYSTEM_TREE} and the {@link #SYSTEM_WORKFLOWS}. Each tree's own
+     * node is named separately from its descendants: {@code isdescendantnode} does not match the node itself, and
+     * {@code /jcr:system} carries a primary type that answers a search for "system".
+     */
+    private static final String OUTSIDE_MACHINERY = outside(SYSTEM_TREE) + outside(SYSTEM_WORKFLOWS);
 
     /**
      * The characters that mean something other than themselves in a full-text expression. The apostrophe is one of
@@ -326,9 +331,9 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      *
      * <p>
      * This is the only statement in the endpoint that spans every node type, and the only one that reaches Oak's own
-     * {@link #SYSTEM_TREE bookkeeping}, which it is kept out of. A typed query cannot get there on its own: a frozen
-     * node stores the type it was a copy of in a property and takes {@code nt:frozenNode} as its own, so it never
-     * matches the type its original would.
+     * {@link #SYSTEM_TREE bookkeeping} and the {@link #SYSTEM_WORKFLOWS system workflows}, which it is kept out of.
+     * A typed query cannot get to the bookkeeping on its own: a frozen node stores the type it was a copy of in a
+     * property and takes {@code nt:frozenNode} as its own, so it never matches the type its original would.
      * </p>
      *
      * @param request the current request
@@ -347,8 +352,20 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
         return new BoundStatement(
             String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, $%2$s)%3$s", SELECTOR,
-                FULL_TEXT_VARIABLE, OUTSIDE_SYSTEM_TREE),
+                FULL_TEXT_VARIABLE, OUTSIDE_MACHINERY),
             Map.of(FULL_TEXT_VARIABLE, expression));
+    }
+
+    /**
+     * The condition keeping the matched node out of a tree, the tree's own node included.
+     *
+     * @param tree the path of the tree's root
+     * @return a condition to append to a statement's {@code where} clause
+     */
+    private static String outside(final String tree)
+    {
+        return " and not issamenode(" + SELECTOR + ", '" + tree + "')"
+            + " and not isdescendantnode(" + SELECTOR + ", '" + tree + "')";
     }
 
     /**

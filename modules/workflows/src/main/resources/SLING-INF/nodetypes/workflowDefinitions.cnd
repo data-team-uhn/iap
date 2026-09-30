@@ -55,8 +55,8 @@
 // new entity. Deliberately a separate tree rather than a flag on /Workflows:
 // being under /SystemWorkflows is what makes a workflow a system one, the two
 // audiences get separate ACLs wholesale, and user-facing listings need no
-// filtering. The engine reads this tree through its service user, so ordinary
-// users need no access to it at all.
+// filtering. Everyone may read this tree, since its definitions are what a user
+// interface offers actions from; the engine still decides every event itself.
 [wf:SystemWorkflowsHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "wf/SystemWorkflowsHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected

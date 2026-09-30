@@ -192,6 +192,8 @@ plan it already reports on.
 ```sql
 select n.* from [nt:base] as n where contains(n.*, $text)
   and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')
+  and not issamenode(n, '/SystemWorkflows')
+  and not isdescendantnode(n, '/SystemWorkflows')
 ```
 
 The text is **bound to `$text`** rather than written into the statement, so the statement
@@ -222,8 +224,8 @@ Input handling in both modes:
 ### What a full-text search does not look at
 
 This is the only mode spanning every node type, so it is the only one that reaches
-`/jcr:system`, and it is kept out. Two things there would otherwise crowd out the
-results:
+`/jcr:system` and `/SystemWorkflows`, and both are kept out. Two things in `/jcr:system`
+would otherwise crowd out the results:
 
 - **Version storage.** `data:Entity` is `mix:versionable` and the Sling POST servlet
   checks versionable nodes in automatically, so every edit leaves a frozen copy of all
@@ -239,9 +241,14 @@ The `/jcr:system` node itself is excluded alongside its descendants: `isdescenda
 is strictly about descendants, and the node carries a `rep:system` primary type that
 answers a search for `system`.
 
-**The exclusion costs nothing.** Measured on Oak 2.4.0 with a Lucene full-text index,
-the query plan is byte for byte the same with it and without — Oak picks the same index
-and applies the path restriction to the rows it returns.
+`/SystemWorkflows` is readable by everyone, because a user interface offers actions from
+it ([workflows](workflows.md)), but it is how the platform behaves rather than content:
+its labels, like "Create the workflow", would answer searches for the words people look
+for content by. Its own node is excluded alongside its descendants too.
+
+**The `/jcr:system` exclusion costs nothing.** Measured on Oak 2.4.0 with a Lucene
+full-text index, the query plan is byte for byte the same with it and without — Oak
+picks the same index and applies the path restriction to the rows it returns.
 
 Neither other mode needs this. A `query` runs exactly as sent, version storage and all: a
 client writing its own JCR-SQL2 asked for what it asked for. A `quick` search is whatever

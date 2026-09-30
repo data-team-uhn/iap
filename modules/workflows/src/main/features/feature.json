@@ -39,9 +39,11 @@
         // has to be visible or the servlet is never reached and the refusal would be a 404 rather than the
         // engine's own answer. Restricting by node type rather than by path grants exactly the homepage: the
         // definitions below it are wf:WorkflowDefinition nodes, and stay invisible.
-        // /SystemWorkflows gets no such grant: it is the engine's own tree, read through the service user, and
-        // nothing is ever posted to it.
-        "set ACL on /Workflows \n allow jcr:read for everyone restriction(rep:ntNames,wf:WorkflowsHomepage) \n end"
+        "set ACL on /Workflows \n allow jcr:read for everyone restriction(rep:ntNames,wf:WorkflowsHomepage) \n end",
+        // /SystemWorkflows, by contrast, can be read in full. Its definitions say what each act on the platform
+        // does and who may perform it, which is what a user interface offers actions from, and reading one grants
+        // nothing: the engine still decides every event itself, through its own session, before a step runs.
+        "set ACL on /SystemWorkflows \n allow jcr:read for everyone \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~workflows": {

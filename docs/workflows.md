@@ -353,6 +353,11 @@ workflow content — the same node types, the same models — stored under
 platform does on its own behalf, like turning "someone POSTed to /Workflows" into a new
 workflow definition.
 
+Unlike the definitions under `/Workflows`, anyone signed in may read them. What a system
+workflow does, and whom its `performers` admit, is what a user interface offers actions
+from, and reading a definition grants nothing: the engine decides every event itself,
+through its own session. Full-text search leaves the tree out ([search](search.md)).
+
 ```
 HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)
                           (a deliberately dumb        │  find the one system workflow whose message
