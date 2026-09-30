@@ -72,8 +72,10 @@ public interface WorkflowEngine
      *
      * @param target the resource events would be aimed at, resolved through the asking user's own session
      * @return the event names, in alphabetical order; empty when nothing is available
+     * @throws WorkflowDefinitionException when several system workflows would take one of the events, which
+     *             receiving it would refuse
      * @throws WorkflowFailedException when the engine cannot establish who is asking
-     * @throws WorkflowException never directly, only as the above
+     * @throws WorkflowException never directly, only as one of the above
      */
     @NotNull
     Set<String> getAvailableEvents(@NotNull Resource target) throws WorkflowException;

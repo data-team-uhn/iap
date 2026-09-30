@@ -63,7 +63,8 @@ final class WorkflowQueries
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
      * @param evaluator decides whether guards hold
      * @return the event names, in alphabetical order
-     * @throws WorkflowException when the engine's session cannot be opened, or the user cannot be looked up
+     * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, or several
+     *             workflows would take one of the events
      */
     static Set<String> availableEvents(final Resource target, final ServiceLogin login,
         final ConditionEvaluator evaluator) throws WorkflowException

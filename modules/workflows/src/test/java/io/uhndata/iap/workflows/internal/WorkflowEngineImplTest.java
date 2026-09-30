@@ -699,6 +699,19 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void refusesToListAnEventWorkflowsCompeteFor() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        createOtherNoopWorkflow(CREATE.getName());
+        final WorkflowEngine engine = engine();
+
+        // Receiving the event would refuse it as contradictory definitions, so offering it would be a lie
+        assertThrows(WorkflowDefinitionException.class, () -> engine.getAvailableEvents(target));
+    }
+
+    @Test
     void offersNothingWhenNoSystemWorkflowsExist() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);

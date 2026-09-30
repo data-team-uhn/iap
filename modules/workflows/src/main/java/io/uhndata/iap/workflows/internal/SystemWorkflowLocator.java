@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -74,9 +75,7 @@ final class SystemWorkflowLocator
                 "Nothing accepts the event " + event.getName() + " on " + target.getPath());
         }
         if (matches.size() > 1) {
-            throw new WorkflowDefinitionException("The event " + event.getName() + " on " + target.getPath()
-                + " is caught by several system workflows: "
-                + matches.stream().map(StartEvent::getPath).collect(Collectors.joining(", ")));
+            throw contested(target, event.getName(), matches);
         }
         return matches.get(0);
     }
@@ -90,18 +89,42 @@ final class SystemWorkflowLocator
      * @param evaluator decides whether a start event's guard holds
      * @param performers who is asking
      * @return the event names, in alphabetical order
+     * @throws WorkflowDefinitionException when several start events wait for one event, which receiving it would
+     *             refuse
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
     static Set<String> availableEvents(final ResourceResolver serviceResolver, final Resource target,
-        final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowFailedException
+        final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowException
     {
+        final Map<String, List<StartEvent>> byEvent = waiting(serviceResolver, target, evaluator).stream()
+            .collect(Collectors.groupingBy(StartEvent::getMessageName));
         final Set<String> events = new TreeSet<>();
-        for (final StartEvent start : waiting(serviceResolver, target, evaluator)) {
-            if (performers.admits(start)) {
-                events.add(start.getMessageName());
+        for (final Map.Entry<String, List<StartEvent>> waitingFor : byEvent.entrySet()) {
+            // Not available but broken: the engine would refuse it, whoever sent it
+            if (waitingFor.getValue().size() > 1) {
+                throw contested(target, waitingFor.getKey(), waitingFor.getValue());
+            }
+            if (performers.admits(waitingFor.getValue().get(0))) {
+                events.add(waitingFor.getKey());
             }
         }
         return events;
+    }
+
+    /**
+     * The refusal of an event several system workflows wait for: the installed definitions contradict each other.
+     *
+     * @param target the resource the event is aimed at
+     * @param event the event's name
+     * @param starts the start events all waiting for it
+     * @return the failure to throw
+     */
+    private static WorkflowDefinitionException contested(final Resource target, final String event,
+        final List<StartEvent> starts)
+    {
+        return new WorkflowDefinitionException("The event " + event + " on " + target.getPath()
+            + " is caught by several system workflows: "
+            + starts.stream().map(StartEvent::getPath).collect(Collectors.joining(", ")));
     }
 
     /**

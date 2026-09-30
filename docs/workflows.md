@@ -298,7 +298,8 @@ and whose `performers` admit them.
 
 Available means the engine would take the event, not that it will succeed: the payload
 can still be invalid, and a step can still refuse, as a publish check refusing an
-incomplete schema would.
+incomplete schema would. An event two system workflows both wait for is not available
+but broken, so asking fails with the `WorkflowDefinitionException` sending it would.
 
 Over HTTP it is the `events` serialization processor, off by default:
 `GET /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema,
