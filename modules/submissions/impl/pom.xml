@@ -70,7 +70,6 @@
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A raised submission starts as a draft, and the lifecycle is a tag -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
