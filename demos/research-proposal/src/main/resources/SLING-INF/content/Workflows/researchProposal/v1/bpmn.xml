@@ -27,23 +27,9 @@
                   targetNamespace="https://iap.uhndata.io/demos/researchProposal">
   <bpmn:process id="researchProposal" name="Research proposal" isExecutable="true">
     <bpmn:startEvent id="created" name="Proposal started">
-      <bpmn:outgoing>toUpload</bpmn:outgoing>
-    </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toUpload" sourceRef="created" targetRef="upload" />
-    <!-- The first thing a researcher does is attach the document; the form is filled in from it afterwards -->
-    <bpmn:userTask id="upload" iap:performers="@creator" iap:hostTag="draft" iap:requirement="proposal"
-        name="Extract data">
-      <bpmn:incoming>toUpload</bpmn:incoming>
-      <bpmn:outgoing>toParse</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="toParse" sourceRef="upload" targetRef="parse" />
-    <!-- Stages the uploads for the document daemon and queues their parse. The reading happens later, through
-         the platform's documentParsed and extractAnswers system workflows, and lands while the next step is open -->
-    <bpmn:serviceTask id="parse" iap:handler="parseDocuments" name="Send the document to be read">
-      <bpmn:incoming>toParse</bpmn:incoming>
       <bpmn:outgoing>toComplete</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toComplete" sourceRef="parse" targetRef="complete" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toComplete" sourceRef="created" targetRef="complete" />
     <bpmn:userTask id="complete" iap:performers="@creator" iap:hostTag="draft"
         name="Send for review">
       <bpmn:incoming>toComplete</bpmn:incoming>
@@ -114,12 +100,6 @@
           <dc:Bounds x="139" y="223" width="79" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="uploadShape" bpmnElement="upload">
-        <dc:Bounds x="250" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="parseShape" bpmnElement="parse">
-        <dc:Bounds x="400" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="completeShape" bpmnElement="complete">
         <dc:Bounds x="550" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -147,16 +127,8 @@
           <dc:Bounds x="1098" y="303" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toUploadEdge" bpmnElement="toUpload">
-        <di:waypoint x="196" y="198" />
-        <di:waypoint x="250" y="198" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toParseEdge" bpmnElement="toParse">
-        <di:waypoint x="350" y="198" />
-        <di:waypoint x="400" y="198" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toCompleteEdge" bpmnElement="toComplete">
-        <di:waypoint x="500" y="198" />
+        <di:waypoint x="196" y="198" />
         <di:waypoint x="550" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">

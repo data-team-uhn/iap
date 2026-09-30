@@ -27,6 +27,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -52,6 +53,8 @@ final class ExtractedAnswers
 
     private static final String SOURCES = "sources";
 
+    private static final String VALUE = "value";
+
     private ExtractedAnswers()
     {
         // Utility
@@ -62,13 +65,14 @@ final class ExtractedAnswers
      *
      * @param resolver the session to write through
      * @param target the submission
+     * @param existing an empty answer to the same question to fill, or {@code null} to create one
      * @param question the question being answered
      * @param result what the model found
      * @param files the files it was read from, all of them when several were sent as one text
      * @throws PersistenceException if anything cannot be written
      */
-    static void write(final ResourceResolver resolver, final Resource target, final Question question,
-        final FieldResult result, final List<File> files) throws PersistenceException
+    static void write(final ResourceResolver resolver, final Resource target, final Resource existing,
+        final Question question, final FieldResult result, final List<File> files) throws PersistenceException
     {
         // Everything the answer points at is looked up before anything is written, so a missing one leaves no
         // half-made answer behind for the engine's commit to refuse or a later reading to skip
@@ -85,25 +89,69 @@ final class ExtractedAnswers
             }
             versions.add(fileResource.getParent());
         }
+        final String[] values = readValues(question, result.value());
+        if (existing != null) {
+            fill(resolver, existing, values, result, versions);
+            return;
+        }
         final Resource answer = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Answer", "value", readValues(question, result.value())));
+            Map.of(PRIMARY_TYPE, "sub:Answer", VALUE, values));
         try {
             reference(answer, QUESTION, questionResource);
-            final Map<String, Object> extraction = new HashMap<>();
-            extraction.put(PRIMARY_TYPE, "sub:Extraction");
-            extraction.put("extractedAnswer", result.value());
-            extraction.put("confidence", result.confidence());
-            if (result.reasoning() != null) {
-                extraction.put("reasoning", result.reasoning());
+            writeExtraction(resolver, answer, result, versions);
+        } catch (final PersistenceException e) {
+            resolver.delete(answer);
+            throw e;
+        }
+    }
+
+    /**
+     * Put the answer into an empty one the form already saved for the question, putting it back as it was if
+     * the extraction under it cannot be written.
+     */
+    private static void fill(final ResourceResolver resolver, final Resource existing, final String[] values,
+        final FieldResult result, final List<Resource> versions) throws PersistenceException
+    {
+        final ModifiableValueMap properties = existing.adaptTo(ModifiableValueMap.class);
+        if (properties == null) {
+            throw new PersistenceException("Not allowed to fill the answer " + existing.getPath());
+        }
+        final Object before = properties.get(VALUE);
+        properties.put(VALUE, values);
+        try {
+            writeExtraction(resolver, existing, result, versions);
+        } catch (final PersistenceException e) {
+            if (before == null) {
+                properties.remove(VALUE);
+            } else {
+                properties.put(VALUE, before);
             }
-            final Resource extracted = resolver.create(answer, UUID.randomUUID().toString(), extraction);
+            throw e;
+        }
+    }
+
+    /**
+     * Write the extraction under an answer, with its evidence, removing it again if any of it cannot be written.
+     */
+    private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
+        final FieldResult result, final List<Resource> versions) throws PersistenceException
+    {
+        final Map<String, Object> extraction = new HashMap<>();
+        extraction.put(PRIMARY_TYPE, "sub:Extraction");
+        extraction.put("extractedAnswer", result.value());
+        extraction.put("confidence", result.confidence());
+        if (result.reasoning() != null) {
+            extraction.put("reasoning", result.reasoning());
+        }
+        final Resource extracted = resolver.create(answer, UUID.randomUUID().toString(), extraction);
+        try {
             referenceSources(extracted, versions);
             for (final FieldResult.Passage passage : result.passages()) {
                 writeEvidence(resolver, extracted, passage,
                     passage.part() >= 0 && passage.part() < versions.size() ? versions.get(passage.part()) : null);
             }
         } catch (final PersistenceException e) {
-            resolver.delete(answer);
+            resolver.delete(extracted);
             throw e;
         }
     }

@@ -19,7 +19,6 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -30,7 +29,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -58,6 +61,9 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     /** Where a file records the parse job it was queued under. */
     static final String PARSE_JOB_ID = "parseJobId";
 
+    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    static final String READING_WORKFLOW = "readingWorkflow";
+
     /** Where a file records where its upload was staged for the daemon. */
     static final String SHARED_PATH = "sharedPath";
 
@@ -77,11 +83,17 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     }
 
     @Override
-    public void execute(final WorkflowTaskContext context) throws PersistenceException
+    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
+        final Submission submission = SubmissionFiles.submission(target);
+        SubmitterAccess.checkMayChange(submission, context.getActor());
+        // Every upload runs this step, so a schema that never reads its documents is left alone
+        if (submission.getSchemaVersion().get(READING_WORKFLOW, String.class) == null) {
+            return;
+        }
         int queued = 0;
-        for (final File file : SubmissionFiles.currentFiles(SubmissionFiles.submission(target))) {
+        for (final File file : SubmissionFiles.currentFiles(submission)) {
             if (!isParseWanted(file)) {
                 continue;
             }
@@ -93,7 +105,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         if (queued > 0) {
             ExtractionStatus.record(target, ExtractionStatus.RUNNING, null);
             // A new document is a new reading to be had, so whoever took the last one no longer holds it
-            releaseReading(target);
+            ExtractionStatus.releaseClaim(target);
             LOGGER.info("Reading started: submission={} parsesQueued={}", target.getPath(), queued);
         }
     }
@@ -115,18 +127,6 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     }
 
     /**
-     * Take down the claim a previous reading left, so the jobs these parses queue can take it.
-     *
-     * @param target the submission, which recording the status has just shown can be written
-     */
-    private static void releaseReading(final Resource target)
-    {
-        Objects.requireNonNull(target.adaptTo(ModifiableValueMap.class),
-            "Recording the status has already shown the submission can be written")
-            .remove(ExtractionStatus.READING_CLAIMED);
-    }
-
-    /**
      * Stage one upload and queue its parse, recording on the file where it went.
      *
      * <p>This step is the one place in the reading that reaches outside the engine's transaction: staging writes
@@ -144,6 +144,9 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final InputStream bytes = content == null ? null : content.getValueMap().get(JCR_DATA, InputStream.class);
         if (bytes == null) {
             LOGGER.warn("{} holds no upload to parse", file.getPath());
+            // An upload with no content is damaged data, and it is silently left unread
+            ErrorLogger.logProblem("An uploaded file holds no content to parse",
+                ErrorContext.of(ParseDocumentsHandler.class, "queue").about(file.getPath()));
             return false;
         }
         final ModifiableValueMap properties = resource.adaptTo(ModifiableValueMap.class);

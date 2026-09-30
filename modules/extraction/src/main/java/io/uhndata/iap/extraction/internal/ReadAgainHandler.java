@@ -18,9 +18,7 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
-import java.util.Objects;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.event.jobs.JobManager;
@@ -71,9 +69,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
         }
         ExtractionStatus.record(target, ExtractionStatus.RUNNING, null);
         // The last reading's claim would turn the job away
-        Objects.requireNonNull(target.adaptTo(ModifiableValueMap.class),
-            "Recording the status has already shown the submission can be written")
-            .remove(ExtractionStatus.READING_CLAIMED);
+        ExtractionStatus.releaseClaim(target);
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.TOPIC,
             Map.of(ExtractAnswersJobConsumer.SUBMISSION, target.getPath())) == null) {
             throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");

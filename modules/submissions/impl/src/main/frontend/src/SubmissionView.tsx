@@ -43,7 +43,7 @@ import TagChip from "@iap/tags/TagChip";
 import QuestionText from "./answers/QuestionText";
 import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
-import { PHASE_LABEL, READING_PHASES, failedPhase, phaseFor, type ReadingPhase } from "./readingProgress";
+import { PHASE_LABEL, READING_PHASES, getFailedPhase, getPhase, type ReadingPhase } from "./readingProgress";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type ApprovalRequirement,
@@ -225,7 +225,7 @@ function AbortProcessing(
 // ending, and a job taking the reading. Past that, extraction and validation share one call.
 function ReadingBar({ extraction }: { extraction: ExtractionState }) {
   const live = useReadingPhase(extraction);
-  const failed = failedPhase(extraction);
+  const failed = getFailedPhase(extraction);
   const error = failed === undefined
     ? undefined
     : { message: extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it." };
@@ -236,12 +236,17 @@ function ReadingBar({ extraction }: { extraction: ExtractionState }) {
 // reading the active step walks from one to the other on a clock.
 function useReadingPhase(extraction: ExtractionState): ReadingPhase {
   const [tick, setTick] = useState(0);
+  // A failed reading shows a still bar, so nothing has to tick
+  const running = extraction.status === "running";
   useEffect(() => {
+    if (!running) {
+      return undefined;
+    }
     const timer = setInterval(() => setTick(current => current + 1), READING_TICK_MS);
     return () => clearInterval(timer);
-  }, []);
+  }, [running]);
   const sinceReadingMs = useTicksSince(extraction.reading === true, tick) * READING_TICK_MS;
-  return phaseFor(extraction, sinceReadingMs);
+  return getPhase(extraction, sinceReadingMs);
 }
 
 // How many ticks the current key has been the current one. Remembered on the render that the key
@@ -274,7 +279,8 @@ function ExtractionProgress(
     return <ReadingBar extraction={extraction} />;
   }
   if (extraction.status === "done") {
-    return null;
+    // A reading that paused for the submitter says so; one that finished says nothing
+    return extraction.message ? <Alert severity="info">{extraction.message}</Alert> : null;
   }
   // Only `failed` is left. The step that stopped carries the message.
   return <ReadingBar extraction={extraction} />;

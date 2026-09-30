@@ -30,6 +30,7 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
+  CLASSIFICATION_REQUIREMENT,
   DOCUMENT_REQUIREMENT,
   type DocumentRequirement,
   FORM_REQUIREMENT,
@@ -380,6 +381,25 @@ describe("SubmissionEditor", () => {
       expect(await screen.findByRole("button", { name: "Remove" })).toBeDisabled();
     });
 
+    // Removed mid-reading, the reading would wait for a parse that lands on nothing
+    it("does not offer to remove a file while the documents are being read", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.doc" ] }, { extraction: { status: "running" } })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      const remove = await screen.findByRole("button", { name: "Remove" });
+      expect(remove).toBeDisabled();
+      expect(remove).toHaveAttribute("title", expect.stringMatching(/Wait until the document has been read/));
+    });
+
+    it("names a requirement with no label by its name", async () => {
+      vi.stubGlobal("fetch", serving(asked({ label: "" })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file for "doctorsNote"/)).toBeInTheDocument();
+    });
+
     it("says why a file could not be removed", async () => {
       let refusal: unknown = { error: "This request is already sent" };
       vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
@@ -674,10 +694,14 @@ describe("SubmissionEditor", () => {
     expect(screen.getByText("Newest")).toBeInTheDocument();
   });
 
-  it("starts the reading from Next and opens only the answers the model fills in", async () => {
+  it("turns to the classification, then the answers the model fills in, with Next, and starts nothing", async () => {
     const proposal = {
       name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
       required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    const classification = {
+      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: true, items: [ duration([ "Yes" ]) ],
     };
     const study = {
       name: "common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
@@ -687,28 +711,13 @@ describe("SubmissionEditor", () => {
       name: "administrative", type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
       items: [ { ...endDate(), value: [ "2026-10-06" ] } ],
     };
-    const taskPath = `${PATH}/wf:instances/proposal/upload`;
-    const instances = {
-      proposal: {
-        "@path": `${PATH}/wf:instances/proposal`,
-        "sling:resourceType": "wf/WorkflowInstance",
-        "upload": {
-          "sling:resourceType": "wf/TaskInstance",
-          "@path": taskPath,
-          "label": "Extract data",
-          "status": "created",
-          "@mine": true,
-          "requirement": "proposal",
-        },
-      },
-    };
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
       if (options?.method === "POST") {
         return json({}, { url });
       }
-      return json(url.includes("wf:instances") ? instances : form({
+      return json(url.includes("wf:instances") ? {} : form({
         readsDocuments: true,
-        requirements: [ proposal, admin, study ],
+        requirements: [ proposal, admin, classification, study ],
       }), { url });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -717,50 +726,64 @@ describe("SubmissionEditor", () => {
 
     expect(await screen.findByText("Research proposal")).toBeInTheDocument();
     expect(screen.getByText("Administrative information")).toBeInTheDocument();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
     expect(screen.queryByText("The study")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Extract data" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("Research proposal")).toBeNull();
+    expect(screen.queryByText("The study")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByText("The study")).toBeInTheDocument();
-    expect(screen.queryByText("Research proposal")).toBeNull();
-    expect(screen.queryByText("Administrative information")).toBeNull();
-    expect(fetchMock.mock.calls.some(([ url, options ]) =>
-      url === taskPath && (options as { method?: string })?.method === "POST")).toBe(true);
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
+    expect(fetchMock.mock.calls.some(([ , options ]) => options?.method === "POST")).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("The study")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByText("Research proposal")).toBeInTheDocument();
-    expect(screen.queryByText("The study")).toBeNull();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
   });
 
-  it("holds Next back until the document it would send is attached", async () => {
+  it("holds Next back until a required document is attached", async () => {
     const proposal = {
       name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
       required: true, acceptedFileTypes: [ "application/pdf" ], attached: [] as string[],
     };
-    const instances = {
-      proposal: {
-        "@path": `${PATH}/wf:instances/proposal`,
-        "sling:resourceType": "wf/WorkflowInstance",
-        "upload": {
-          "sling:resourceType": "wf/TaskInstance",
-          "@path": `${PATH}/wf:instances/proposal/upload`,
-          "label": "Extract data",
-          "status": "created",
-          "@mine": true,
-          "requirement": "proposal",
-        },
-      },
-    };
-    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? instances : form({
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
       readsDocuments: true,
       requirements: [ proposal ],
-    }))));
+    }), { url })));
 
     render(<SubmissionEditor path={PATH} />);
 
-    // The button is drawn before the waiting step has been read, and only then knows it cannot go on
-    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeDisabled());
+    expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("asks a classification on the first page, and holds Next back until it is answered", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    const classification = {
+      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: false, items: [ duration() ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal, classification ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 
   it("holds Next back until every required question on the page is answered", async () => {

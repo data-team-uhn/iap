@@ -20,9 +20,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import NewSubmissionDialog from "@iap/submissions/NewSubmissionDialog";
-import { SCHEMAS_URL } from "@iap/submissions/schemaModel";
+import { CATEGORIES_URL, SCHEMAS_URL } from "@iap/submissions/schemaModel";
 
-import { SCHEMAS } from "./schemas.fixture";
+import { CATEGORIES, SCHEMAS } from "./schemas.fixture";
 
 function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}) {
   return {
@@ -59,6 +59,29 @@ describe("NewSubmissionDialog", () => {
     expect(fetchMock.mock.calls.map(call => call[0])).toContain(SCHEMAS_URL);
   });
 
+  it("offers the top categories that name an open schema, and raises against that schema", async () => {
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+      ? { ...jsonResponse({}), redirected: true, url: "http://localhost/Submissions/aLongWeekend" }
+      : jsonResponse(url === CATEGORIES_URL ? CATEGORIES : SCHEMAS)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+
+    expect(await screen.findByText("Time away")).toBeInTheDocument();
+    expect(screen.getByText("Any request to be away from work")).toBeInTheDocument();
+    expect(screen.queryByText("Time off request 1.0")).toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("radio"));
+    await userEvent.type(screen.getByLabelText(/Title/), "A long weekend");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([ url ]) => url === "/Submissions")).toBe(true));
+    const [ , options ] = fetchMock.mock.calls.find(([ url ]) => url === "/Submissions") as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
+    expect(options.body.get("schemaVersion")).toBe("/Schemas/timeOffRequest/v1");
+  });
+
   it("says when nothing is open for submissions, rather than showing an empty dialog", async () => {
     // Indistinguishable from a dialog that failed to load if it is left blank
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}))));
@@ -89,7 +112,8 @@ describe("NewSubmissionDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(created).toHaveBeenCalledWith("/Submissions/aLongWeekend"));
-    const [ , options ] = fetchMock.mock.calls[1] as unknown as [ string, { method: string; body: URLSearchParams } ];
+    const [ , options ] = fetchMock.mock.calls.find(([ url ]) => url === "/Submissions") as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
     expect(options.method).toBe("POST");
     // The two things the system workflow that raises a submission asks for, and nothing else
     expect(options.body.get("title")).toBe("A long weekend");
@@ -157,6 +181,28 @@ describe("NewSubmissionDialog", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled());
     release(jsonResponse({}));
+  });
+
+  // A session gone with nobody able to sign in again is not a network problem
+  it("says so when the session is gone while raising the submission", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+      ? jsonResponse({}, { ok: false, status: 401 })
+      : jsonResponse(SCHEMAS))));
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+    await userEvent.click(await screen.findByRole("radio"));
+    await userEvent.type(screen.getByLabelText(/Title/), "Something");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText(/no longer signed in, so the submission was not raised/)).toBeInTheDocument();
+  });
+
+  it("says so when the session is gone while listing what can be raised", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, { ok: false, status: 401 }))));
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+
+    expect(await screen.findByText("You are no longer signed in. Sign in and try again.")).toBeInTheDocument();
   });
 
   it("shows the engine's own reason for refusing", async () => {

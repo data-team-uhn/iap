@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -39,6 +40,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -61,6 +63,9 @@ class IntakeAnswersHandlerTest
     private static final String AIMS = "study/aims";
 
     private static final String TITLE = "study/title";
+
+    /** A prompt file only the test classpath carries, so a step naming two prompts has two to name. */
+    private static final String REFERENCE_PROMPT = "test_reference.md";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -178,6 +183,52 @@ class IntakeAnswersHandlerTest
             fields.getValue().stream().map(ExtractionField::name).sorted().toList());
     }
 
+    // A proposal is read once for what every proposal is asked and what its study type adds, in one call: the
+    // document is the expensive part
+    @Test
+    void asksSeveralRequirementsInOneCall() throws Exception
+    {
+        createExtraRequirement();
+        modelFinds();
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
+            Map.of(IntakeAnswersHandler.REQUIREMENT, new String[] { "study", "extra" })));
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
+        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
+            fields.getValue().stream().map(ExtractionField::name).toList(), "in the order the requirements are named");
+    }
+
+    // A diagram writes a list into this attribute as one comma-separated string
+    @Test
+    void readsSeveralRequirementsFromACommaList() throws Exception
+    {
+        createExtraRequirement();
+        modelFinds();
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
+            Map.of(IntakeAnswersHandler.REQUIREMENT, "study, ,extra")));
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
+        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
+            fields.getValue().stream().map(ExtractionField::name).toList());
+    }
+
+    /** A second requirement, holding one question, to name beside {@code study}. */
+    private void createExtraRequirement()
+    {
+        this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra", Map.of(
+            "sling:resourceType", "sch/FormRequirement", "sling:resourceSuperType", "sch/Requirement",
+            "label", "Extra"));
+        this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra/sites", Map.of(
+            "sling:resourceType", "sch/Question", "sling:resourceSuperType", "sch/FormItem",
+            "text", "Which sites?", "dataType", "text", "extractionPrompt", "List the sites."));
+    }
+
     /** A step that writes only when one named field came back as a given value. */
     private WorkflowTaskContext taskRecordingWhen(final String gate)
     {
@@ -231,14 +282,43 @@ class IntakeAnswersHandlerTest
     @Test
     void doesNotRecordWhenTheWriteGateCannotBeRead()
     {
-        assertTrue(IntakeAnswersHandler.shouldRecord(null, Map.of()));
-        assertTrue(IntakeAnswersHandler.shouldRecord(" ", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord("no-equals", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord("=proposal", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "= ", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord(" =proposal", Map.of()));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=proposal", Map.of()));
+        final Submission read = this.submission.adaptTo(Submission.class);
+        final ResourceResolver resolver = this.context.resourceResolver();
+        assertTrue(IntakeAnswersHandler.shouldRecord(null, Map.of(), read, resolver));
+        assertTrue(IntakeAnswersHandler.shouldRecord(" ", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord("no-equals", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord("=proposal", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "= ", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord(" =proposal", Map.of(), read, resolver));
+        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=proposal", Map.of(), read, resolver));
+    }
+
+    // A model names an option the way a person reads it; what counts is the value it stands for
+    @Test
+    void recordsWhenTheGatedAnswerNamesTheValueDifferently() throws Exception
+    {
+        modelFinds(new FieldResult(AIMS, true, 0.9, "Proposal", "", List.of()),
+            new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
+
+        this.handler.execute(taskRecordingWhen(AIMS + "=proposal"));
+
+        assertEquals(2, answers().size());
+    }
+
+    // Reading again does not ask an answered question, so the gate is read from the answer it already has
+    @Test
+    void readsTheGateFromAnAnswerItNoLongerAsks() throws Exception
+    {
+        final Resource gate = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                "value", new String[] { "proposal" }));
+        SubmissionTree.reference(gate, "question", this.aims);
+        modelFinds(new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
+
+        this.handler.execute(taskRecordingWhen(AIMS + "=proposal"));
+
+        assertEquals(2, answers().size(), "the gate answer it had, and the title it read");
     }
 
     // A step whose requirement is not being asked has nothing to do, and must not say the schema asks
@@ -285,6 +365,20 @@ class IntakeAnswersHandlerTest
 
     // A question that takes several answers is asked for them as one comma-separated string, so storing
     // that string whole would leave the answer as one value nobody asked for
+    // The gate earlier in the same reading failed; the intake finishing must not hide that
+    @Test
+    void keepsAFailureAnEarlierStepRecorded() throws Exception
+    {
+        ExtractionStatus.record(this.submission, ExtractionStatus.FAILED, "The model could not be reached");
+        modelFinds(new FieldResult(AIMS, true, 0.85, "To reduce readmissions", "", List.of()));
+
+        this.handler.execute(task());
+
+        assertEquals(1, answers().size());
+        assertEquals(ExtractionStatus.FAILED,
+            this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+    }
+
     @Test
     void storesAMultiValuedAnswerAsOneValuePerName() throws Exception
     {
@@ -338,6 +432,62 @@ class IntakeAnswersHandlerTest
         assertEquals(1, answers().size());
         assertArrayEquals(new String[] { "What the person said" },
             answers().get(0).getValueMap().get("value", String[].class));
+    }
+
+    // The form saves a field when it loses focus, so an empty answer is often just a field somebody clicked through
+    @Test
+    void fillsAFieldTheFormSavedEmpty() throws Exception
+    {
+        final Resource empty = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value", new String[] { "" }));
+        SubmissionTree.reference(empty, "question", this.aims);
+        modelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
+
+        this.handler.execute(task());
+
+        assertEquals(1, answers().size(), "the empty answer is filled, not joined by a second one");
+        assertArrayEquals(new String[] { "What the model read" },
+            answers().get(0).getValueMap().get("value", String[].class));
+        assertEquals("What the model read",
+            onlyChild(answers().get(0)).getValueMap().get("extractedAnswer", String.class));
+    }
+
+    // The submitter emptied what the model suggested, which says they do not want it back
+    @Test
+    void leavesASuggestionTheSubmitterClearedEmpty() throws Exception
+    {
+        final Resource cleared = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value", new String[] { "" }));
+        SubmissionTree.reference(cleared, "question", this.aims);
+        this.context.create().resource(cleared.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
+            "sling:resourceType", "sub/Extraction", "extractedAnswer", "What the model read before"));
+        modelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
+
+        this.handler.execute(task());
+
+        assertEquals(1, answers().size());
+        assertArrayEquals(new String[] { "" }, answers().get(0).getValueMap().get("value", String[].class));
+    }
+
+    // Reading again fills the gaps, so a question already answered is not paid for a second time
+    @Test
+    void asksTheModelNothingWhenEveryQuestionIsAnswered() throws Exception
+    {
+        final Resource theirs = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                "value", new String[] { "What the person said" }));
+        SubmissionTree.reference(theirs, "question", this.aims);
+        final Resource title = this.context.create().resource(this.submission.getPath() + "/a2",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                "value", new String[] { "A title" }));
+        SubmissionTree.reference(title, "question",
+            this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"));
+
+        this.handler.execute(task());
+
+        Mockito.verifyNoInteractions(this.intake);
+        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
     }
 
     // A reading workflow need not gate: a schema whose document is only ever the one kind it asks for has
@@ -465,7 +615,7 @@ class IntakeAnswersHandlerTest
         this.context.resourceResolver().delete(this.file);
 
         assertThrows(PersistenceException.class, () -> ExtractedAnswers.write(this.context.resourceResolver(),
-            this.submission, this.aims.adaptTo(Question.class),
+            this.submission, null, this.aims.adaptTo(Question.class),
             new FieldResult(AIMS, true, 0.9, "Care", null, List.of()), List.of(gone)));
     }
 
@@ -514,15 +664,38 @@ class IntakeAnswersHandlerTest
     // Throwing would revert the whole reading and leave the committed `running` behind, with no step left
     // to move it on: the submission would wait for a reading that had already given up
     @Test
-    void recordsAnUnreadableDocumentAsAFailedReading() throws Exception
+    void recordsAnUnreachableModelAsAFailedReading() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenThrow(new IOException("no content"));
+            .thenThrow(new IOException("connection refused"));
 
         this.handler.execute(task());
 
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+        assertEquals(IntakeResult.UNREACHABLE,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
         assertTrue(answers().isEmpty());
+    }
+
+    @Test
+    void recordsTextItCannotReadBackAsAFailedReading() throws Exception
+    {
+        final Field documents = IntakeAnswersHandler.class.getDeclaredField("documents");
+        documents.setAccessible(true);
+        documents.set(this.handler, new ParsedDocuments()
+        {
+            @Override
+            public DocumentScan scan(final File file) throws IOException
+            {
+                throw new IOException("the binary is gone");
+            }
+        });
+
+        this.handler.execute(task());
+
+        assertEquals(IntakeResult.TEXT_UNREADABLE,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+        Mockito.verifyNoInteractions(this.intake);
     }
 
     @Test
@@ -556,7 +729,7 @@ class IntakeAnswersHandlerTest
     }
 
     @Test
-    void refusesToRecordAnAnswerWhoseQuestionCannotBeReferenced() throws Exception
+    void leavesNoAnswerWhenItsQuestionIsGoneByTheTimeItIsWritten() throws Exception
     {
         modelFinds(new FieldResult(AIMS, true, 0.9, "Something", "", List.of()));
         // The question is read into the field list first, then gone by the time the answer is written
@@ -567,7 +740,9 @@ class IntakeAnswersHandlerTest
                     false);
             });
 
-        assertThrows(PersistenceException.class, () -> this.handler.execute(task()));
+        this.handler.execute(task());
+
+        assertTrue(answers().isEmpty(), "nothing half made is left for the commit to refuse");
     }
 
     // Domain knowledge that is only worth sending for one schema sits on the step, not on every reading
@@ -587,20 +762,21 @@ class IntakeAnswersHandlerTest
     @Test
     void concatenatesEveryPromptTheStepNames()
     {
-        final String extra = IntakeAnswersHandler.extraSystem(TaskContexts.of(this.submission, Map.of(),
+        final String extra = IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(),
             this.variables, Map.of(IntakeAnswersHandler.PROMPT_FROM,
-                new String[] { Prompts.PROTOCOL_STRUCTURE, " ", Prompts.INTAKE_SYSTEM })));
+                new String[] { REFERENCE_PROMPT, " ", Prompts.INTAKE_SYSTEM })));
 
-        assertTrue(extra.contains("B.1 General information"), extra);
+        assertTrue(extra.contains("A reference only the tests carry"), extra);
         assertTrue(extra.contains("intake extraction engine"), extra);
-        assertTrue(extra.indexOf("B.1 General information") < extra.indexOf("intake extraction engine"), extra);
+        assertTrue(extra.indexOf("A reference only the tests carry") < extra.indexOf("intake extraction engine"),
+            extra);
     }
 
     @Test
     void addsNoExtraPromptWhenTheStepNamesNone()
     {
-        assertNull(IntakeAnswersHandler.extraSystem(task()));
-        assertNull(IntakeAnswersHandler.extraSystem(TaskContexts.of(this.submission, Map.of(), this.variables,
+        assertNull(IntakeAnswersHandler.getExtraSystem(task()));
+        assertNull(IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.PROMPT_FROM, " "))));
     }
 }

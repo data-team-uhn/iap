@@ -31,10 +31,8 @@ import io.uhndata.iap.llm.LLMRequestOptions;
 /**
  * Asking a model once, and once more when the first answer was not the shape it had to be.
  *
- * <p>All three stages ask the same way: send the system prompt and one user message, try to read the reply, and
- * on failure send the same message again with a correction appended saying what was wrong. Written out three
- * times it was three chances for the stages to drift apart on how many attempts they make, whether the second
- * attempt keeps the schema, and what a second unreadable answer means.</p>
+ * <p>Send the system prompt and one user message, try to read the reply, and on failure send the same message
+ * again with a correction appended saying what was wrong.</p>
  *
  * <p>Two attempts, not more. Each one re-sends the whole document, so a third would pay for the document a
  * third time to ask a model that has now failed twice.</p>

@@ -84,8 +84,22 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
      */
     static ExtractionField of(final Question question, final String name)
     {
+        return of(question, name, question.getExtractionPrompt());
+    }
+
+    /**
+     * The same, asked with a prompt from elsewhere: a classification keeps its prompt on the requirement, not on
+     * the question the answer is stored under.
+     *
+     * @param question the question the answer is stored under
+     * @param name what to call the field, and so its answer
+     * @param prompt what the model is told to decide
+     * @return the field to put to a model
+     */
+    static ExtractionField of(final Question question, final String name, final String prompt)
+    {
         return new ExtractionField(name, question.getText(), question.getPurpose(),
-            getPrompt(question), question.getResponseShape(), question.isMultiple(),
+            getPrompt(question, prompt), question.getResponseShape(), question.isMultiple(),
             question.getOfferedOptions());
     }
 
@@ -94,16 +108,16 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
      * the model answers in its own words, and a reply that names no option cannot be ticked. A description
      * goes with the label when the option has one, so a category tree can tell the model what belongs where.
      */
-    private static String getPrompt(final Question question)
+    private static String getPrompt(final Question question, final String prompt)
     {
         final List<OfferedOption> options = question.getOfferedOptions();
         if (options.isEmpty()) {
-            return question.getExtractionPrompt();
+            return prompt;
         }
         final String offered = options.stream()
             .map(ExtractionField::describe)
             .collect(Collectors.joining(", "));
-        return question.getExtractionPrompt() + (question.isMultiple()
+        return prompt + (question.isMultiple()
             ? " Answer with one or more of these values, separated by commas: "
             : " Answer with exactly one of these values: ") + offered + (offered.endsWith(".") ? "" : ".");
     }
@@ -117,7 +131,7 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
     }
 
     /** The values the answer may take, for the reply schema. */
-    List<String> allowedValues()
+    List<String> getAllowedValues()
     {
         return this.options.stream().map(OfferedOption::value).toList();
     }

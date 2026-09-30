@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { schemaChoices } from "@iap/submissions/schemaModel";
+import { categoryChoices, schemaChoices, submissionChoices } from "@iap/submissions/schemaModel";
 
-import { SCHEMAS } from "./schemas.fixture";
+import { CATEGORIES, SCHEMAS } from "./schemas.fixture";
 
 describe("schemaChoices", () => {
   it("offers the active version of each active schema", () => {
@@ -106,5 +106,48 @@ describe("schemaChoices", () => {
     const unlabelled = { s: { ...SCHEMAS.timeOffRequest, v1: { ...SCHEMAS.timeOffRequest.v1, version: undefined } } };
 
     expect(schemaChoices(unlabelled)[0]).toMatchObject({ version: "" });
+  });
+});
+
+describe("categoryChoices", () => {
+  it("offers each open top category under its own name, raising against its schema's active version", () => {
+    expect(categoryChoices(CATEGORIES, schemaChoices(SCHEMAS))).toEqual([ {
+      path: "/Schemas/timeOffRequest/v1",
+      version: "",
+      title: "Time away",
+      description: "Any request to be away from work",
+    } ]);
+  });
+
+  it("falls back to the schema's name and description when the category has none", () => {
+    const bare = { away: { "jcr:primaryType": "cat:Category", "schemaVersion": CATEGORIES.away.schemaVersion } };
+    expect(categoryChoices(bare, schemaChoices(SCHEMAS))).toEqual([ {
+      path: "/Schemas/timeOffRequest/v1",
+      version: "",
+      title: "Time off request",
+      description: "Asking for a day off",
+    } ]);
+  });
+
+  it("offers nothing when no top category names a schema", () => {
+    const unbound = { away: { "jcr:primaryType": "cat:Category", "label": "Time away", "schemaVersion": "a-uuid" } };
+    expect(categoryChoices(unbound, schemaChoices(SCHEMAS))).toEqual([]);
+    expect(categoryChoices({ away: { "jcr:primaryType": "cat:Category" } }, schemaChoices(SCHEMAS))).toEqual([]);
+  });
+});
+
+describe("submissionChoices", () => {
+  const unbound = {
+    "jcr:primaryType": "sch:Schema", "@path": "/Schemas/leave", "@name": "leave", "title": "Leave", "active": true,
+    "v2": { "jcr:primaryType": "sch:SchemaVersion", "@path": "/Schemas/leave/v2", "version": "2.0", "active": true },
+  };
+
+  it("offers the top categories first, then the open schemas no category offers", () => {
+    expect(submissionChoices(CATEGORIES, { ...SCHEMAS, leave: unbound }).map(choice => choice.title))
+      .toEqual([ "Time away", "Leave" ]);
+  });
+
+  it("offers the open schemas as they are when there are no categories", () => {
+    expect(submissionChoices({}, SCHEMAS)).toEqual(schemaChoices(SCHEMAS));
   });
 });

@@ -737,6 +737,20 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(`Extraction stopped. ${message}`);
     });
 
+    it("keeps no reading clock going once the reading failed", async () => {
+      const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      try {
+        vi.stubGlobal("fetch", serving(projection([], { extraction: { status: "failed" } })));
+
+        renderAt("/Submissions/demo-1");
+
+        expect(await screen.findByRole("alert")).toBeInTheDocument();
+        expect(setIntervalSpy.mock.calls.filter(([, ms]) => ms === 400)).toHaveLength(0);
+      } finally {
+        setIntervalSpy.mockRestore();
+      }
+    });
+
     it("falls back on a plain explanation when the reading failed without one", async () => {
       vi.stubGlobal("fetch", serving(projection([], { extraction: { status: "failed" } })));
 
@@ -823,6 +837,16 @@ describe("SubmissionView", () => {
       await act(() => Promise.resolve());
       expect(screen.queryByRole("status")).toBeNull();
       expect(screen.queryByText(/could not be read/)).toBeNull();
+    });
+
+    it("says when a reading waits for the submitter", async () => {
+      vi.stubGlobal("fetch", serving(projection([], {
+        extraction: { status: "done", message: "The reading waits for you to confirm the study type." },
+      })));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("The reading waits for you to confirm the study type.")).toBeInTheDocument();
     });
 
     // One approval requirement, with whatever the projection is saying about it

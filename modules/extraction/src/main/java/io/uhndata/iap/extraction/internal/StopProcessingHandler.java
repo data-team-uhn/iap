@@ -19,7 +19,6 @@ package io.uhndata.iap.extraction.internal;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -100,7 +99,7 @@ public class StopProcessingHandler implements ServiceTaskHandler
             stopFile(context.getResourceResolver(), file, consumed);
         }
         ExtractionStatus.record(target, ExtractionStatus.FAILED, ExtractionStatus.STOPPED);
-        releaseClaim(target);
+        ExtractionStatus.releaseClaim(target);
         this.documents.forget();
         LOGGER.info("Reading stopped: submission={} modelCall={}", path, reading);
     }
@@ -190,17 +189,5 @@ public class StopProcessingHandler implements ServiceTaskHandler
         properties.remove(ParseDocumentsHandler.PARSE_JOB_ID);
         properties.remove(ParseDocumentsHandler.SHARED_PATH);
         properties.remove(ParsePropertyNames.TOKENS);
-    }
-
-    /**
-     * Let the next reading take the claim this one held.
-     *
-     * @param target the submission, which recording the status has just shown can be written
-     */
-    private static void releaseClaim(final Resource target)
-    {
-        Objects.requireNonNull(target.adaptTo(ModifiableValueMap.class),
-            "Recording the status has already shown the submission can be written")
-            .remove(ExtractionStatus.READING_CLAIMED);
     }
 }

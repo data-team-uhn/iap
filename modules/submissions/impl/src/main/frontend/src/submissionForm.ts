@@ -31,6 +31,8 @@ import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 // The resource types the projection reports. It names the schema's own types rather than a
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
 export const FORM_REQUIREMENT = "sch/FormRequirement";
+// A form requirement whose one question the model answers about an uploaded document
+export const CLASSIFICATION_REQUIREMENT = "sch/ClassificationRequirement";
 export const DOCUMENT_REQUIREMENT = "sch/DocumentRequirement";
 export const APPROVAL_REQUIREMENT = "sch/ApprovalRequirement";
 export const SECTION = "sch/Section";
@@ -194,8 +196,10 @@ export function isQuestion(item: FormItem): item is FormQuestion {
   return item.type === QUESTION;
 }
 
+// Whether a requirement holds questions to answer. A classification is one of those, with a single
+// question, which is why it is not a kind of its own here.
 export function isFormRequirement(requirement: Requirement): requirement is FormRequirement {
-  return requirement.type === FORM_REQUIREMENT;
+  return requirement.type === FORM_REQUIREMENT || requirement.type === CLASSIFICATION_REQUIREMENT;
 }
 
 export function isDocumentRequirement(requirement: Requirement): requirement is DocumentRequirement {

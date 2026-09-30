@@ -6,28 +6,23 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "Once the document is parsed, one model call asks whether it is a proposal, what kind of study it is, and the questions every study is asked. A non-proposal writes nothing; otherwise the category decides which questions are read next, or the researcher chooses a category if the model could not.",
+    "description": "What the platform does with an uploaded proposal once the daemon has parsed it. The two classifications go first, in one model call: is it a research proposal, and what kind of study is it. The picks are stored as answers, pre-filled for the researcher, and the reading acts on them only once they are settled - confirmed, changed, or picked by a model sure enough of them. A settled no ends the reading without reading the questions. A settled study type reads what every proposal is asked and what that type adds, in one more call. An unsettled pick pauses the reading on a task the researcher completes after confirming it. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "started",
       "label": "The document is readable",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
-      "toAsk": {
+      "toClassify": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toAsk",
-        "targetRef": "askTheModel"
+        "elementId": "toClassify",
+        "targetRef": "classify"
       }
     },
-    // One call. The document is the expensive part of any question about it. recordWhen means a
-    // document that is not a proposal has none of those answers written, then the reading ends.
-    "askTheModel": {
+    "classify": {
       "jcr:primaryType": "wf:Activity",
-      "elementId": "askTheModel",
-      "label": "Read the document once",
-      "handler": "intakeAnswers",
-      "requirement": "common",
-      "recordWhen": "common/isProposal=proposal",
-      "promptFrom": [ "protocol_structure.md", "is_proposal_system.md" ],
+      "elementId": "classify",
+      "label": "Classify the document",
+      "handler": "classifyDocument",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toProposalCheck": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -35,8 +30,6 @@
         "targetRef": "isProposal"
       }
     },
-    // The same pattern as a PFQ whose measureType is neither: the verdict is an ordinary answer,
-    // and a gateway on that answer decides whether there is anything left to ask.
     "isProposal": {
       "jcr:primaryType": "wf:ExclusiveGateway",
       "elementId": "isProposal",
@@ -52,40 +45,50 @@
           "comparator": "equals",
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "source": "answer",
-            "value": [ "common/isProposal" ]
+            "source": "decision",
+            "value": [
+              "is_proposal/decision"
+            ]
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "proposal" ]
+            "value": [
+              "yes"
+            ]
           }
         }
       },
-      "toFinishNotAProposal": {
+      "toMarkNotAProposal": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toFinishNotAProposal",
+        "elementId": "toMarkNotAProposal",
         "label": "No",
-        "targetRef": "finishNotAProposal",
+        "targetRef": "markNotAProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "decision",
+            "value": [
+              "is_proposal/decision"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "no"
+            ]
+          }
+        }
+      },
+      "toMarkProposalUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkProposalUnsettled",
+        "label": "Not settled",
+        "targetRef": "markProposalUnsettled",
         "isDefault": true
       }
     },
-    // Nothing was written, so there is nothing to mark complete. End the reading so the view
-    // does not keep spinning.
-    "finishNotAProposal": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "finishNotAProposal",
-      "label": "The reading is over",
-      "handler": "finishReading",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toNotAProposal": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toNotAProposal",
-        "targetRef": "notAProposal"
-      }
-    },
-    // The classification decides which questions are asked next. Exactly one arc is taken. There is
-    // no safe guess between prospective and retrospective, so the default waits for the submitter
-    // to answer the category, then comes back here.
     "studyType": {
       "jcr:primaryType": "wf:ExclusiveGateway",
       "elementId": "studyType",
@@ -101,20 +104,22 @@
           "comparator": "includes any",
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "source": "answer",
-            "value": [ "common/category" ]
+            "source": "decision",
+            "value": [
+              "proposal_category/decision"
+            ]
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
-              "/Categories/Prospective",
-              "/Categories/Prospective/Observational",
-              "/Categories/Prospective/Observational/SurveysEducation",
-              "/Categories/Prospective/Observational/SensitiveDataClinical",
-              "/Categories/Prospective/Interventional",
-              "/Categories/Prospective/Interventional/Behavioral",
-              "/Categories/Prospective/Interventional/SocTrials",
-              "/Categories/Prospective/Interventional/ClinicalTrials"
+              "/Categories/Proposal/Prospective",
+              "/Categories/Proposal/Prospective/Observational",
+              "/Categories/Proposal/Prospective/Observational/SurveysEducation",
+              "/Categories/Proposal/Prospective/Observational/SensitiveDataClinical",
+              "/Categories/Proposal/Prospective/Interventional",
+              "/Categories/Proposal/Prospective/Interventional/Behavioral",
+              "/Categories/Proposal/Prospective/Interventional/SocTrials",
+              "/Categories/Proposal/Prospective/Interventional/ClinicalTrials"
             ]
           }
         }
@@ -129,62 +134,38 @@
           "comparator": "includes any",
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "source": "answer",
-            "value": [ "common/category" ]
+            "source": "decision",
+            "value": [
+              "proposal_category/decision"
+            ]
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
-              "/Categories/Retrospective",
-              "/Categories/Retrospective/RetrospectiveData",
-              "/Categories/Retrospective/RetrospectiveBiospecimen"
+              "/Categories/Proposal/Retrospective",
+              "/Categories/Proposal/Retrospective/RetrospectiveData",
+              "/Categories/Proposal/Retrospective/RetrospectiveBiospecimen"
             ]
           }
         }
       },
-      "toFinishUnclassified": {
+      "toMarkCategoryUnsettled": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toFinishUnclassified",
-        "targetRef": "finishUnclassified",
+        "elementId": "toMarkCategoryUnsettled",
+        "label": "Not settled",
+        "targetRef": "markCategoryUnsettled",
         "isDefault": true
-      }
-    },
-    // Category is still empty, so incomplete cannot come off. Pause the reading so the view
-    // does not spin while the submitter picks a category.
-    "finishUnclassified": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "finishUnclassified",
-      "label": "The reading is paused",
-      "handler": "finishReading",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toChooseCategory": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toChooseCategory",
-        "targetRef": "chooseCategory"
-      }
-    },
-    // Offered under the common questions, where the category is answered. Completing it re-reads the
-    // answer at studyType; still unanswered comes back here.
-    "chooseCategory": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "chooseCategory",
-      "label": "Choose what kind of study this is",
-      "performers": [ "@creator" ],
-      "requirement": "common",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
-      "categoryToStudyType": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "categoryToStudyType",
-        "label": "Category answered",
-        "targetRef": "studyType"
       }
     },
     "askProspective": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "askProspective",
-      "label": "Ask what only prospective studies are asked",
+      "label": "Read what prospective studies are asked",
       "handler": "intakeAnswers",
-      "requirement": "prospective",
+      "requirement": [
+        "common",
+        "prospective"
+      ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "prospectiveToMark": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -195,9 +176,12 @@
     "askRetrospective": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "askRetrospective",
-      "label": "Ask what only retrospective studies are asked",
+      "label": "Read what retrospective studies are asked",
       "handler": "intakeAnswers",
-      "requirement": "retrospective",
+      "requirement": [
+        "common",
+        "retrospective"
+      ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "retrospectiveToMark": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -232,14 +216,118 @@
     "done": {
       "jcr:primaryType": "wf:EndEvent",
       "elementId": "done",
-      "label": "The document has been read",
+      "label": "The proposal has been read",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     },
-    "notAProposal": {
+    "markNotAProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markNotAProposal",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinishNotAProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishNotAProposal",
+        "targetRef": "finishNotAProposal"
+      }
+    },
+    "finishNotAProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishNotAProposal",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toEndNotAProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEndNotAProposal",
+        "targetRef": "endNotAProposal"
+      }
+    },
+    "endNotAProposal": {
       "jcr:primaryType": "wf:EndEvent",
-      "elementId": "notAProposal",
+      "elementId": "endNotAProposal",
       "label": "Not a research proposal",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "markProposalUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markProposalUnsettled",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinishProposalUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishProposalUnsettled",
+        "targetRef": "finishProposalUnsettled"
+      }
+    },
+    "finishProposalUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishProposalUnsettled",
+      "label": "The reading is paused",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toConfirmProposalUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toConfirmProposalUnsettled",
+        "targetRef": "confirmProposalUnsettled"
+      }
+    },
+    "confirmProposalUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "confirmProposalUnsettled",
+      "label": "Continue once this is confirmed",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "is_proposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "confirmedToIsProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "confirmedToIsProposal",
+        "label": "Confirmed",
+        "targetRef": "isProposal"
+      }
+    },
+    "markCategoryUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markCategoryUnsettled",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinishCategoryUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishCategoryUnsettled",
+        "targetRef": "finishCategoryUnsettled"
+      }
+    },
+    "finishCategoryUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishCategoryUnsettled",
+      "label": "The reading is paused",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toConfirmCategoryUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toConfirmCategoryUnsettled",
+        "targetRef": "confirmCategoryUnsettled"
+      }
+    },
+    "confirmCategoryUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "confirmCategoryUnsettled",
+      "label": "Continue once the study type is confirmed",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "proposal_category",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "confirmedToStudyType": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "confirmedToStudyType",
+        "label": "Confirmed",
+        "targetRef": "studyType"
+      }
     }
   }
 }

@@ -18,6 +18,11 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -32,9 +37,12 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Runs the reading of a submission's answers in the background: fires the {@code extractAnswers} event on the
@@ -63,6 +71,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     /** The event the reading is. */
     static final String EVENT = "extractAnswers";
 
+    /** What the submitter is told when the schema names no reading workflow that exists. */
+    static final String NOTHING_READS = "Nothing is set up to read this request's documents";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtractAnswersJobConsumer.class);
 
     @Reference
@@ -89,6 +100,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 return runReading(resolver, path);
             } finally {
                 this.runs.end(path);
+                // A stop that came after the last model call has nothing left to stop. Left set, it would stop
+                // whatever job this pooled thread runs next
+                Thread.interrupted();
             }
         } catch (final ReadingRuns.Stopped e) {
             Thread.interrupted();
@@ -97,6 +111,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             return JobResult.CANCEL;
         } catch (final LoginException e) {
             LOGGER.error("Cannot read submissions to extract answers from {}: {}", path, e.getMessage(), e);
+            // The service user is missing: no reading can run until a deployment fault is fixed
+            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "openSession").about(path));
             return JobResult.CANCEL;
         } catch (final WorkflowException | RuntimeException e) {
             // Not retried: a second attempt would ask the model the same questions again, at the same cost.
@@ -104,6 +120,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             // throws rather than returning - and letting that out would leave the job to Sling's own retry, which
             // meets the claim below and cancels anyway, with nothing said about why.
             LOGGER.error("Extracting answers from {} failed: {}", path, e.getMessage(), e);
+            // The submitter only sees that the document could not be read; the cause is for an administrator
+            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "read").about(path));
             return JobResult.CANCEL;
         }
     }
@@ -136,6 +154,15 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             LOGGER.info("A parse of {} is still going, or has not been committed yet; looking again shortly",
                 path);
             return JobResult.FAILED;
+        }
+        if (!hasReadingWorkflow(resolver, submission)) {
+            // Fired anyway, the reading would start nothing and leave `running` behind for good
+            LOGGER.warn("The schema of {} names no reading workflow that exists", path);
+            // A schema set up to parse its documents but with nothing to read them
+            ErrorLogger.logProblem("The schema version names no reading workflow that exists",
+                ErrorContext.of(ExtractAnswersJobConsumer.class, "findReadingWorkflow").about(path));
+            giveUp(resolver, submission, NOTHING_READS);
+            return JobResult.CANCEL;
         }
         if (!claimReading(resolver, submission)) {
             LOGGER.debug("The reading of {} is already somebody else's", path);
@@ -182,16 +209,21 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
             LOGGER.error("The reading of {} failed and its claim cannot be taken back down", submission.getPath());
+            // The submission now spins for good: only the service user's rights can explain it
+            ErrorLogger.logProblem("The extraction service user cannot write the submission",
+                ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             return;
         }
         properties.put(ExtractionStatus.PROPERTY, ExtractionStatus.FAILED);
         properties.put(ExtractionStatus.MESSAGE, reason);
-        properties.remove(ExtractionStatus.READING_CLAIMED);
+        ExtractionStatus.releaseClaim(properties);
         try {
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),
                 e.getMessage(), e);
+            // The submission now spins for good, and nothing else will say why
+            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             resolver.revert();
         }
     }
@@ -212,6 +244,31 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             }
         } catch (final LoginException e) {
             LOGGER.error("Cannot record that the reading of {} was stopped: {}", path, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "recordStop").about(path));
+        }
+    }
+
+    /**
+     * Whether the submission's schema version names a reading workflow that is really there.
+     *
+     * @param resolver the job's session
+     * @param submission the submission to read
+     * @return {@code true} when {@code readingWorkflow} points at a workflow version
+     */
+    private static boolean hasReadingWorkflow(final ResourceResolver resolver, final Resource submission)
+    {
+        final String identifier = SubmissionFiles.submission(submission).getSchemaVersion()
+            .get(ParseDocumentsHandler.READING_WORKFLOW, String.class);
+        if (identifier == null) {
+            return false;
+        }
+        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
+            "A service session is always JCR-backed");
+        try {
+            final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
+            return reading != null && reading.isResourceType(WorkflowVersion.RESOURCE_TYPE);
+        } catch (final RepositoryException e) {
+            return false;
         }
     }
 
@@ -231,12 +288,16 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
             LOGGER.warn("Not allowed to claim the reading of {}", submission.getPath());
+            // No reading can ever start: the service user's rights are a deployment fault
+            ErrorLogger.logProblem("The extraction service user cannot write the submission",
+                ErrorContext.of(ExtractAnswersJobConsumer.class, "claim").about(submission));
             return false;
         }
         if (properties.get(ExtractionStatus.READING_CLAIMED, Boolean.FALSE).booleanValue()) {
             return false;
         }
         properties.put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
+        properties.put(ExtractionStatus.READING_CLAIMED_BY, UUID.randomUUID().toString());
         try {
             resolver.commit();
             return true;

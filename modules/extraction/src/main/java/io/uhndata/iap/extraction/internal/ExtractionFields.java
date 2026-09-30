@@ -18,6 +18,8 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,6 +32,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
@@ -103,22 +107,33 @@ final class ExtractionFields
         final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files)
     {
         final Set<String> answered = getAnswered(submission);
+        final Map<String, Answer> empty = getEmpty(submission);
         for (final Map.Entry<String, FieldResult> entry : results.entrySet()) {
             final Question question = questions.get(entry.getKey());
             if (entry.getValue().found() && question != null && !answered.contains(question.getPath())) {
+                final Answer existing = empty.get(question.getPath());
                 // Isolated per field: one field's evidence failing to write (e.g. a source file that stopped
                 // resolving mid-transaction) must not cost every other, unrelated field its answer too.
                 try {
-                    ExtractedAnswers.write(resolver, target, question, entry.getValue(), files);
+                    ExtractedAnswers.write(resolver, target,
+                        existing == null ? null : resolver.getResource(existing.getPath()), question,
+                        entry.getValue(), files);
                 } catch (final PersistenceException e) {
                     LOGGER.warn("Could not record the answer for {}: {}", question.getPath(), e.getMessage(), e);
+                    // The reading still says done, so a lost answer would go unnoticed
+                    ErrorLogger.logError(e, ErrorContext.of(ExtractionFields.class, "write").about(target)
+                        .with("question", question.getPath()));
                 }
             }
         }
     }
 
     /**
-     * The paths of the questions the submission already holds an answer for.
+     * The paths of the questions a reading must leave alone: ones that hold a value, and ones the model already
+     * suggested an answer for, even if the submitter then cleared it.
+     *
+     * <p>An empty answer with no extraction is not one of them. The form saves a field when it loses focus, so
+     * clicking through a field leaves an empty answer behind, and that must not stop a reading from filling it.</p>
      *
      * @param submission the submission
      * @return the question paths
@@ -128,10 +143,36 @@ final class ExtractionFields
         final Set<String> answered = new HashSet<>();
         for (final Answer answer : submission.getAnswers()) {
             final Question question = answer.getQuestion();
-            if (question != null) {
+            if (question != null && !isEmpty(answer)) {
                 answered.add(question.getPath());
             }
         }
         return answered;
+    }
+
+    /**
+     * The empty answers a reading may fill, by the path of the question they answer.
+     *
+     * @param submission the submission
+     * @return the answers holding no value and no extraction
+     */
+    static Map<String, Answer> getEmpty(final Submission submission)
+    {
+        final Map<String, Answer> empty = new HashMap<>();
+        for (final Answer answer : submission.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question != null && isEmpty(answer)) {
+                empty.putIfAbsent(question.getPath(), answer);
+            }
+        }
+        return empty;
+    }
+
+    /** Whether an answer holds no value and the model never suggested one for it. */
+    private static boolean isEmpty(final Answer answer)
+    {
+        final String[] values = answer.getValue();
+        final boolean hasValue = values != null && Arrays.stream(values).anyMatch(value -> !value.isBlank());
+        return !hasValue && answer.getExtractions().isEmpty();
     }
 }

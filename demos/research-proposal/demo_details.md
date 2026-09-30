@@ -2,6 +2,8 @@
 
 Every POST into a submission goes through one door. After that the engine either runs a **system workflow** straight through (no instance, no wait) or **resumes / starts** a user workflow that can park on a user task and branch at a gateway.
 
+The code below is trimmed to the lines that matter, so it does not match the files line for line.
+
 ```mermaid
 flowchart TD
   UI["Browser POST"] --> Servlet["WorkflowEventServlet.doPost"]
@@ -21,7 +23,9 @@ flowchart TD
 
 The UI never calls a handler. It POSTs a path. Sling routes that to `WorkflowEventServlet`.
 
-```102:108:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEventServlet.java
+`modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEventServlet.java`:
+
+```java
     @Override
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
@@ -34,7 +38,9 @@ The UI never calls a handler. It POSTs a path. Sling routes that to `WorkflowEve
 
 The event name is decided here:
 
-```150:164:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEventServlet.java
+`modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEventServlet.java`:
+
+```java
     private String eventName(final SlingJakartaHttpServletRequest request)
     {
         final String named = request.getRequestPathInfo().getSelectorString();
@@ -59,7 +65,9 @@ The event name is decided here:
 
 The engine then forks:
 
-```92:110:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEngineImpl.java
+`modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEngineImpl.java`:
+
+```java
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
     {
         // ...
@@ -76,7 +84,9 @@ The engine then forks:
 
 `startWorkflow` is special-cased inside `perform` — it is the engine itself, not a registered handler:
 
-```228:251:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEngineImpl.java
+`modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEngineImpl.java`:
+
+```java
     private void perform(final Activity activity, final WorkflowTaskContext context)
     {
         final String name = activity.getHandler();
@@ -94,7 +104,9 @@ The engine then forks:
 
 **UI** `NewSubmissionDialog` POSTs title + schema version to `/Submissions`:
 
-```65:71:modules/submissions/impl/src/main/frontend/src/NewSubmissionDialog.tsx
+`modules/submissions/impl/src/main/frontend/src/NewSubmissionDialog.tsx`:
+
+```tsx
   const submit = useCallback(() => {
     setSubmitting(true);
     setSubmitError(undefined);
@@ -106,7 +118,9 @@ The engine then forks:
 
 That is `create`. The definition that answers it is `createSubmission`:
 
-```11:58:modules/submissions/api/src/main/resources/SLING-INF/content/SystemWorkflows/createSubmission.json
+`modules/submissions/api/src/main/resources/SLING-INF/content/SystemWorkflows/createSubmission.json`:
+
+```json
     "requested": { "messageName": "create", ... "targetRef": "create" },
     "create":           { "handler": "createSubmission" },
     "markCompleteness": { "handler": "markCompleteness" },
@@ -117,20 +131,24 @@ Straight-through walk:
 
 1. **`createSubmission`** → `CreateSubmissionHandler` makes a `sub:Submission` under `/Submissions`, tags it `draft`, points it at the schema version, stores the new path as `CREATED_PATH`:
 
-```85:101:modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/CreateSubmissionHandler.java
+`modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/CreateSubmissionHandler.java`:
+
+```java
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         // ... title required ...
         final Resource created = context.getResourceResolver().create(bucketFor(context, name),
             name, Map.of("jcr:primaryType", "sub:Submission", TITLE, title, "tags", new String[] {DRAFT}));
-        reference(created, version);
+        setSchemaVersion(created, version);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
     }
 ```
 
 2. **`markCompleteness`** → `MarkCompletenessHandler` puts or removes the `incomplete` tag from required forms/documents the author still owes:
 
-```77:91:modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/MarkCompletenessHandler.java
+`modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/MarkCompletenessHandler.java`:
+
+```java
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         // ...
@@ -144,8 +162,10 @@ Straight-through walk:
 
 3. **`startWorkflow`** → `WorkflowStarter` follows `schemaVersion/workflow` (for the research-proposal demo that is `researchProposal`) and `InstanceRunner.start`s it on the new submission:
 
-```87:101:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowStarter.java
-        final Resource host = host(context, resolver);
+`modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowStarter.java`:
+
+```java
+        final Resource host = ExecutionHost.of(context);
         final Resource versionResource = follow(resolver, host, (String) chain);
         if (versionResource == null || !versionResource.isResourceType(WorkflowVersion.RESOURCE_TYPE)) {
             return;
@@ -159,28 +179,30 @@ The servlet then redirects the browser to that created path.
 
 ---
 
-## 2. `researchProposal` parks on “Extract data”
+## 2. `researchProposal` parks on “Send for review”
+
+The *New submission* dialog lists the top categories (`/Categories/Proposal`, `/Categories/PFQ`). Each
+names the schema version its submissions answer, and that path is what the dialog POSTs.
 
 `researchProposal` is a **user** workflow (it has an instance):
 
-```11:67:demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/researchProposal.json
-    "created" → "upload"   // user task, @creator, requirement=proposal
-    "upload"  → "parse"    // after complete
-    "parse"   → "complete" // parseDocuments, then park again
-    "complete"→ "review"
+```
+demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/researchProposal.json
+    "created"  → "complete" // user task, @creator: send for review
+    "complete" → "review"
 ```
 
-`InstanceRunner.start` walks from `created` and **stops at `upload`**. That is the “Extract data” button under the proposal upload (`requirement: "proposal"`). The instance sits there until someone completes that task.
-
-While it sits, two other POSTs can happen on the submission itself. They do **not** move `researchProposal`.
+`InstanceRunner.start` walks from `created` and **stops at `complete`**. There is no upload step: uploading
+is what starts the reading, in the `attachDocument` system workflow.
 
 ---
 
-## 3. Attach a file (does not leave `upload`)
+## 3. Attach a file → send it to Docling
 
 **UI** `attachDocument`:
 
-```264:268:modules/submissions/impl/src/main/frontend/src/submissionForm.ts
+```ts
+// modules/submissions/impl/src/main/frontend/src/submissionForm.ts
 export async function attachDocument(path: string, requirement: string, file: File): Promise<void> {
   const body = new FormData();
   body.append("requirement", requirement);
@@ -188,60 +210,26 @@ export async function attachDocument(path: string, requirement: string, file: Fi
   const response = await fetch(`${path}.attachDocument.json`, { method: "POST", body });
 ```
 
-Event `attachDocument` → system workflow → `AttachDocumentHandler`:
+Event `attachDocument` → system workflow `attachDocument`:
 
-```110:122:modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/AttachDocumentHandler.java
-    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
-    {
-        // may attach? right requirement? type? size?
-        write(documentFor(submission, target, requirement, file), file);
-    }
+```
+modules/submissions/api/src/main/resources/SLING-INF/content/SystemWorkflows/attachDocument.json
+    "requested" → "attach" // attachDocument: store the document
+    "attach"    → "mark"   // markCompleteness
+    "mark"      → "parse"  // parseDocuments, from the extraction module
 ```
 
-Branch: refuse (403/400) if not the creator, not a draft, wrong MIME, or over 50 MB. Otherwise a document version is written. The `researchProposal` token is still on `upload`.
+**`attach`** — `AttachDocumentHandler` refuses (403/400) if the actor is not the creator, the submission is
+not a draft, the MIME type is wrong, or the file is over 50 MB. Otherwise a document version is written.
 
-Saving answers is the same pattern: `POST <submission>` (no selector) → event `save` → `SaveAnswersHandler`.
+**`parse`** — `ParseDocumentsHandler`:
 
-```85:97:modules/submissions/impl/src/main/java/io/uhndata/iap/submissions/internal/SaveAnswersHandler.java
-    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
-    {
-        checkMayEdit(submission, context.getActor());
-        // write each named question from the payload
-    }
-```
-
----
-
-## 4. Complete “Extract data” → send the file to Docling
-
-**UI** `SubmissionTasks` → `completeTask` POSTs to the **task node** (no selector → `complete`):
-
-```104:119:modules/submissions/impl/src/main/frontend/src/openTasks.ts
-export async function completeTask(...) {
-  const response = await post(task.path, { method: "POST", body });
-```
-
-```127:135:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/WorkflowEngineImpl.java
-    private WorkflowResult resume(...)
-    {
-        TaskCompletion.apply(resolver, task, event, actor, performer(...), this.conditions, this.principals);
-        resolver.commit();
-```
-
-```83:115:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/TaskCompletion.java
-    static void apply(...)
-    {
-        // must be complete (or timeout); task must still be open; actor must be a performer
-        new InstanceRunner(...)
-            .complete(task, outcome, note);
-    }
-```
-
-`researchProposal` leaves `upload` and hits `parse` (`handler: parseDocuments`).
-
-```80:98:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ParseDocumentsHandler.java
+```java
     public void execute(final WorkflowTaskContext context) throws PersistenceException
     {
+        if (submission.getSchemaVersion().get(READING_WORKFLOW, String.class) == null) {
+            return;   // a schema that reads nothing is left alone
+        }
         for (final File file : SubmissionFiles.currentFiles(...)) {
             if (!isParseWanted(file)) { continue; }
             if (resource != null && queue(resource, file)) { queued++; }
@@ -253,21 +241,13 @@ export async function completeTask(...) {
     }
 ```
 
-**Branch in `isParseWanted`:** only files never parsed, or last parse **failed**, are sent. Already queued / already read are left alone.
+**Branch in `isParseWanted`:** only files never parsed, or whose last parse **failed**, are sent. Already
+queued or already read are left alone, so every upload can run this step.
 
-```111:115:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ParseDocumentsHandler.java
-        final String status = file.getParseStatus();
-        return status == null || ParsePropertyNames.STATUS_FAILED.equals(status);
-```
+`queue` stages the bytes on the shared volume and asks `ParseService` to enqueue a Sling job. The daemon is
+not waited on.
 
-`queue` stages the bytes on the shared volume and asks `ParseService` to enqueue a Sling job:
-
-```154:156:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ParseDocumentsHandler.java
-            staged = this.parseService.stage(properties.get(FILE_NAME, String.class), in);
-            final String jobId = this.parseService.queue(staged, file.getPath());
-```
-
-`researchProposal` then walks on to `complete` (“Send for review”) and **parks again**. The daemon is not waited on here.
+Saving answers is the same pattern: `POST <submission>` (no selector) → event `save` → `SaveAnswersHandler`.
 
 ---
 
@@ -279,7 +259,9 @@ When Docling finishes it POSTs `/system/documents/parseCallback`. `ParseCallback
 
 For a submission file that is `ParseCompletionHandler`:
 
-```99:117:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ParseCompletionHandler.java
+`modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ParseCompletionHandler.java`:
+
+```java
     public boolean handle(final ParseOutcome outcome)
     {
         // ...
@@ -298,7 +280,9 @@ For a submission file that is `ParseCompletionHandler`:
 
 System workflow `documentParsed`:
 
-```11:46:modules/extraction/src/main/resources/SLING-INF/content/SystemWorkflows/documentParsed.json
+`modules/extraction/src/main/resources/SLING-INF/content/SystemWorkflows/documentParsed.json`:
+
+```json
     "parsed" → "ingest"   // ingestParse
     "ingest" → "queue"    // queueExtraction
     "queue"  → "done"
@@ -306,7 +290,9 @@ System workflow `documentParsed`:
 
 **`ingestParse`** — `IngestParseHandler`:
 
-```60:72:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/IngestParseHandler.java
+`modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/IngestParseHandler.java`:
+
+```java
         if (Boolean.TRUE.equals(event.get(ParseCompletionHandler.SUCCEEDED))) {
             ingest(file, event);   // Markdown + PDF + tokens onto the file
         } else {
@@ -317,7 +303,9 @@ System workflow `documentParsed`:
 
 **`queueExtraction`** always queues a Sling job, success or fail:
 
-```64:71:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/QueueExtractionHandler.java
+`modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/QueueExtractionHandler.java`:
+
+```java
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.TOPIC,
             Map.of(ExtractAnswersJobConsumer.SUBMISSION, target.getPath())) == null) {
             throw new PersistenceException(...);
@@ -330,7 +318,9 @@ System workflow `documentParsed`:
 
 `ExtractAnswersJobConsumer.process`:
 
-```107:147:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ExtractAnswersJobConsumer.java
+`modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/ExtractAnswersJobConsumer.java`:
+
+```java
     private JobResult runReading(...)
     {
         if (submission == null) { return CANCEL; }
@@ -352,7 +342,9 @@ System workflow `documentParsed`:
 
 A successful `extractAnswers` event runs this system workflow:
 
-```11:35:modules/extraction/src/main/resources/SLING-INF/content/SystemWorkflows/extractAnswers.json
+`modules/extraction/src/main/resources/SLING-INF/content/SystemWorkflows/extractAnswers.json`:
+
+```json
     "requested": { "messageName": "extractAnswers" },
     "read": { "handler": "startWorkflow", "workflowFrom": "schemaVersion/readingWorkflow" },
 ```
@@ -363,125 +355,82 @@ The same event can be fired from the UI (`readAgain` → `POST <path>.extractAns
 
 ---
 
-## 8. `readProposal` — one LLM call, then the gates
+## 8. `readProposal` — classify, then read
 
 `InstanceRunner.start` walks `readProposal` from `started`.
 
-### 8a. `askTheModel` → `IntakeAnswersHandler`
+### 8a. `classify` → `ClassifyDocumentHandler`
 
-```23:36:demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/readProposal.json
-    "askTheModel": {
-      "handler": "intakeAnswers",
-      "requirement": "common",
-      "recordWhen": "common/isProposal=proposal",
-      "promptFrom": [ "protocol_structure.md", "is_proposal_system.md" ]
-    }
+A classification requirement (`sch:ClassificationRequirement`) is a form requirement with one question,
+`decision`, whose options are the categories. It names the document requirement it classifies
+(`document`), a `prompt`, an optional `template.md` reference, and a `confidenceThreshold`.
+
+```
+demos/research-proposal/src/main/resources/SLING-INF/content/Schemas/researchProposal.json
+    "is_proposal":       document "proposal", options yes / no, template.md = the protocol structure
+    "proposal_category": document "proposal", optionsFrom "/Categories/Proposal"
 ```
 
-```100:138:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/IntakeAnswersHandler.java
-        final List<Part> parts = partsToRead(...);
-        if (parts == null) { return; }                    // nothing to read; status already set
-        final Map<String, Question> questions = ExtractionFields.extractable(submission, requirement);
-        if (questions.isEmpty()) { /* maybe DONE; return */ }
-        final IntakeResult result = ask(parts, questions, extraSystem(context));
-        if (result == null || result.degraded()) {
-            ExtractionStatus.record(..., FAILED, ...);
-            return;
-        }
-        if (!shouldRecord(..., result.fields())) {
-            ExtractionStatus.record(..., DONE, null);     // write 0 answers
-            return;
-        }
-        ExtractionFields.write(...);
-        ExtractionStatus.record(..., DONE, null);
-```
-
-`shouldRecord` is the write gate. `recordWhen` is `common/isProposal=proposal`:
-
-```216:232:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/IntakeAnswersHandler.java
-    static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields)
-    {
-        if (gate == null || gate.isBlank()) { return true; }
-        // parse "path=value"
-        final FieldResult field = fields.get(name);
-        return field != null && field.found() && expected.equals(field.value());
-    }
-```
-
-**Branches inside this one step:**
+`classifyDocument` groups the classification requirements that apply and are not answered yet by the
+document they point at, and makes **one call per document** with all their prompts and options. The
+templates go into the system prompt as references.
 
 | Condition | What is written | Status |
 | --- | --- | --- |
-| No parsed document / named file failed | nothing | failed (or skip) |
-| Schema asks nothing for `common` | nothing | done only if no requirement was named |
+| Every classification already answered | nothing | unchanged |
+| Document not uploaded or still parsing | nothing | unchanged |
+| Parse failed | nothing | **failed**, with why |
 | Model unreadable / degraded | nothing | **failed** |
-| Model answered, but `isProposal` is not `proposal` (or unanswered) | **nothing** | **done** |
-| `isProposal=proposal` | all common fields | done |
+| Model answered | the picks, as pre-filled answers | unchanged |
 
-The walk continues either way. The gateway then reads **what is on the submission**, not what the model just said.
+A question the submitter already answered is never overwritten.
 
 ### 8b. Gateway `isProposal`
 
-`FlowRouting.choose`: first arc whose condition holds, else the default.
+`FlowRouting.choose`: first arc whose condition holds, else the default. The conditions use the
+`decision` source, which reads the answer to `is_proposal/decision` only once it is **settled**:
 
-```274:283:modules/workflows/src/main/java/io/uhndata/iap/workflows/internal/FlowRouting.java
-    private SequenceFlow choose(...)
-    {
-        return flows.stream()
-            .filter(flow -> flow.getCondition() != null
-                && this.conditions.isSatisfied(flow.getCondition(), instance))
-            .findFirst()
-            .or(() -> flows.stream().filter(SequenceFlow::isDefault).findFirst())
-            .orElseThrow(...);
-    }
-```
+- confirmed or changed by the submitter, or typed by them, or
+- picked by the model with a confidence at or above the requirement's `confidenceThreshold`.
 
-From `readProposal.json`:
+An unsettled answer reads as no answer. Arcs:
 
-- **Yes** if answer `common/isProposal` equals `proposal` → `studyType`.
-- **No** (default) → `finishNotAProposal`.
-
-Because a non-proposal wrote nothing, `common/isProposal` is empty → default **No**.
-
-**No path:** `finishReading` (stop the spinner) → end `notAProposal`. Completeness is **not** run.
-
-```52:57:modules/extraction/src/main/java/io/uhndata/iap/extraction/internal/FinishReadingHandler.java
-        if (ExtractionStatus.RUNNING.equals(...)) {
-            ExtractionStatus.record(target, ExtractionStatus.DONE, null);
-        }
-```
+- **Yes** (`equals yes`) → `studyType`.
+- **No** (`equals no`) → `markCompleteness` → `finishReading` → end *Not a research proposal*.
+- **Not settled** (default) → `markCompleteness` → `finishReading` (paused) → user task
+  *Continue once this is confirmed* (`@creator`, `requirement=is_proposal`) → back to `isProposal`.
 
 ### 8c. Gateway `studyType`
 
-Reads answer `common/category`:
+Reads `proposal_category/decision` the same way:
 
-- **Prospective** (includes any of the Prospective category paths) → `askProspective`.
-- **Retrospective** → `askRetrospective`.
-- **Default** (empty / unknown) → `finishUnclassified` → user task `chooseCategory`.
+- **Prospective** (includes any of the `/Categories/Proposal/Prospective` paths) → `askProspective`
+  (`intakeAnswers`, requirement `[common, prospective]`).
+- **Retrospective** → `askRetrospective` (requirement `[common, retrospective]`).
+- **Not settled** (default) → pause on *Continue once the study type is confirmed*
+  (`requirement=proposal_category`) → back to `studyType`.
 
-Unclassified: `finishReading` pauses the spinner, then the instance **waits** on `chooseCategory` (`@creator`, `requirement=common`). Completeness is **not** run — category is still empty, so `incomplete` is already on from create.
-
-When the creator picks a category (`save` writes the answer) and completes that task:
-
-```175:179:demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/readProposal.json
-      "categoryToStudyType": { "targetRef": "studyType", "label": "Category answered" }
-```
-
-Back to `studyType`. Still empty → default again → same wait. Prospective or retrospective → the matching `intakeAnswers` (no `recordWhen` → write everything for that requirement) → `markCompleteness` → `finishReading` → `done`.
+`intakeAnswers` asks the questions of every requirement it names in one call, and writes only questions
+that are still unanswered. Then `markCompleteness` → `finishReading` → `done`.
 
 ```mermaid
 flowchart TD
-  ask["askTheModel / intakeAnswers"] --> gate1{"isProposal?"}
-  gate1 -->|"answer = proposal"| gate2{"studyType?"}
-  gate1 -->|"default No"| finNo["finishReading → notAProposal"]
-  gate2 -->|Prospective| askP["intakeAnswers prospective"]
-  gate2 -->|Retrospective| askR["intakeAnswers retrospective"]
-  gate2 -->|default| pause["finishReading → chooseCategory"]
-  pause -->|"complete after save"| gate2
+  classify["classify / classifyDocument"] --> gate1{"isProposal?"}
+  gate1 -->|"settled yes"| gate2{"studyType?"}
+  gate1 -->|"settled no"| finNo["finishReading → notAProposal"]
+  gate1 -->|"not settled"| pause1["finishReading → confirm is_proposal"]
+  pause1 -->|"complete"| gate1
+  gate2 -->|Prospective| askP["intakeAnswers common + prospective"]
+  gate2 -->|Retrospective| askR["intakeAnswers common + retrospective"]
+  gate2 -->|"not settled"| pause2["finishReading → confirm proposal_category"]
+  pause2 -->|"complete"| gate2
   askP --> mark["markCompleteness"]
   askR --> mark
   mark --> fin["finishReading → done"]
 ```
+
+`readPfq` is the same shape with one classification, `is_questionnaire`: settled yes reads the
+`extracted` requirement out of the preamble and the questionnaire; settled no ends the reading.
 
 ---
 
@@ -496,7 +445,9 @@ A reviewer POSTs to that task with `outcome`. `InstanceRunner.complete` records 
 - `recordReview` writes the decision.
 - Gateway `decision`: `variable outcome == approved` → end `approved`; default → end `rejected`.
 
-```106:129:demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/researchProposal.json
+`demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/researchProposal.json`:
+
+```json
       "toApproved": { "operandA": { "source": "variable", "value": ["outcome"] }, "value": ["approved"] }
       "toRejected": { "isDefault": true }
 ```
@@ -513,19 +464,19 @@ A reviewer POSTs to that task with `outcome`. `InstanceRunner.complete` records 
 | Create | `execute` | `CreateSubmissionHandler` | `CreateSubmissionHandler.java` 85 |
 | First completeness | `execute` | `MarkCompletenessHandler` | `MarkCompletenessHandler.java` 77 |
 | Start process | `perform` | `WorkflowStarter` → `InstanceRunner.start` | `WorkflowStarter.java` 77, `InstanceRunner.java` 152 |
-| Upload file | UI `attachDocument` | `AttachDocumentHandler` | `submissionForm.ts` 264, `AttachDocumentHandler.java` 110 |
+| Upload file | UI `attachDocument` | `AttachDocumentHandler`, then `ParseDocumentsHandler` | `submissionForm.ts`, `attachDocument.json` |
 | Save answers | UI `POST path` | `SaveAnswersHandler` | `SaveAnswersHandler.java` 85 |
-| Press Extract data | UI `completeTask` | `TaskCompletion` → `InstanceRunner.complete` | `openTasks.ts` 104, `TaskCompletion.java` 83 |
-| Parse step | instance | `ParseDocumentsHandler` → `ParseService.queue` | `ParseDocumentsHandler.java` 80 |
+| Parse step | `attachDocument` | `ParseDocumentsHandler` → `ParseService.queue` | `ParseDocumentsHandler.java` |
 | Daemon | `ParseJobConsumer` | Docling `POST /parse` | `ParseJobConsumer.java` |
 | Callback | daemon | `ParseCallbackServlet` → `ParseCompletionHandler` | `ParseCallbackServlet.java` 110, `ParseCompletionHandler.java` 99 |
 | Ingest | engine `documentParsed` | `IngestParseHandler` then `QueueExtractionHandler` | `IngestParseHandler.java` 60, `QueueExtractionHandler.java` 64 |
 | Read answers | Sling job | `ExtractAnswersJobConsumer` → event `extractAnswers` | `ExtractAnswersJobConsumer.java` 76 |
 | Start reading | `startWorkflow` | `readProposal` instance | `extractAnswers.json` 24 |
-| LLM | instance | `IntakeAnswersHandler` | `IntakeAnswersHandler.java` 100 |
-| Write or not | handler | `shouldRecord` | same file 216 |
+| Classify | instance | `ClassifyDocumentHandler` | `ClassifyDocumentHandler.java` |
+| Settled? | gateway | `DecisionOperandResolver` | `DecisionOperandResolver.java` |
+| LLM | instance | `IntakeAnswersHandler` | `IntakeAnswersHandler.java` |
 | Branch | instance | `FlowRouting.choose` | `FlowRouting.java` 274 |
 | Stop spinner | instance | `FinishReadingHandler` | `FinishReadingHandler.java` 52 |
 | Review | `completeTask` | `recordReview` then `decision` gateway | `researchProposal.json` 88 |
 
-Two instances live on the same submission at once after a successful parse: **`researchProposal`** (human: upload → send → review) and **`readProposal`** (machine, then maybe “Choose what kind of study this is”). They only share the submission node and its answers. Completing one never advances the other.
+Two instances live on the same submission at once after a successful parse: **`researchProposal`** (human: send → review) and **`readProposal`** (machine, then maybe a pause to confirm a classification). They only share the submission node and its answers. Completing one never advances the other.

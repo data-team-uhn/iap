@@ -7,15 +7,14 @@
     "version": "1.0",
     "active": true,
     "jcr:reference:workflow": "/Workflows/pfq/v1",
-    // What reads the uploaded questionnaire once the daemon has parsed it. Unlike the proposal, there is no
-    // gate: a submission against this schema is a questionnaire because the submitter said so, and there is
-    // nothing to decide before reading it.
+    // What reads the uploaded questionnaire once the daemon has parsed it. Like the proposal, it first
+    // checks that the upload is a patient facing questionnaire (is_questionnaire below).
     "jcr:reference:readingWorkflow": "/Workflows/readPfq/v1",
     "description": "Ask the PFQ Council to authorize a patient facing questionnaire. Answer the screening questions and upload the questionnaire; what it says about itself is read out of it and filled in below for you to check.",
     "screening": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "About this questionnaire",
-      "description": "Answered by hand. Nothing here is read from the document, and the reading does not start until these are answered.",
+      "description": "Answered by hand. Nothing here is read from the document.",
       "authorized": {
         "jcr:primaryType": "sch:Question",
         "text": "Has this questionnaire already been authorized for use at UHN?",
@@ -54,28 +53,11 @@
         "minAnswers": 1,
         "purpose": "Whether an instrument validated for one population and purpose still holds for the new one"
       },
-      "documentAvailable": {
-        "jcr:primaryType": "sch:Question",
-        "text": "Is a copy of the questionnaire available to upload?",
-        "dataType": "text",
-        "minAnswers": 1,
-        "purpose": "Whether there is a document to read: without one the questions below it are not asked and nothing is read",
-        "yes": {
-          "jcr:primaryType": "sch:AnswerOption",
-          "value": "yes",
-          "label": "Yes"
-        },
-        "no": {
-          "jcr:primaryType": "sch:AnswerOption",
-          "value": "no",
-          "label": "No - it is still being developed"
-        }
-      },
       "outline": {
         "jcr:primaryType": "sch:Question",
         "text": "Provide an outline, or the intent of what data you are hoping to collect.",
         "dataType": "text",
-        "purpose": "What the questionnaire is for, when there is no document yet to say so"
+        "purpose": "What the questionnaire is for, in the requester's own words"
       }
     },
     "questionnaire": {
@@ -87,23 +69,7 @@
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword"
       ],
-      "required": true,
-      // Asked only when the submitter said there is a copy. A questionnaire still being developed has
-      // nothing to upload, nothing to parse and so nothing to read: the reading never starts, because no
-      // parse ever finishes to start it.
-      "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "equals",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "screening/documentAvailable" ]
-        },
-        "operandB": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "value": [ "yes" ]
-        }
-      }
+      "required": true
     },
     "preamble": {
       "jcr:primaryType": "sch:DocumentRequirement",
@@ -114,18 +80,32 @@
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword"
       ],
-      "required": false,
-      "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "equals",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "screening/documentAvailable" ]
+      "required": false
+    },
+    // Decided by the model from the uploaded questionnaire before anything is read out of it, and shown
+    // pre-filled to confirm or change. Only a settled yes lets the reading fill in the questions below.
+    "is_questionnaire": {
+      "jcr:primaryType": "sch:ClassificationRequirement",
+      "label": "Is this a patient facing questionnaire?",
+      "description": "Decided from the uploaded questionnaire. Confirm it, or change it if it is wrong.",
+      "document": "questionnaire",
+      "confidenceThreshold": 0.7,
+      "prompt": "Decide whether this document is a patient facing questionnaire: a set of questions or items that a patient, or someone answering for them, fills in, with the answer choices, rating scales or spaces to write that go with them. Instructions, a preamble or a consent statement may come with it. Surveys, symptom scales, quality-of-life instruments and experience surveys count, on paper or online. It is not a questionnaire when it only describes one without its items - a study protocol, a report of results, a summary or a letter - or when it is another kind of document altogether, such as a consent form on its own, a clinical note, a policy or a slide deck. Judge what the document IS, not what it mentions. Do not guess: if you cannot tell safely, report that the answer was not found.",
+      "decision": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is this a patient facing questionnaire?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "maxAnswers": 1,
+        "yes": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "yes",
+          "label": "Yes, a questionnaire"
         },
-        "operandB": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "value": [ "yes" ]
+        "no": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "no",
+          "label": "No, not a questionnaire"
         }
       }
     },
@@ -133,8 +113,8 @@
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Read from the questionnaire",
       "description": "Read out of the uploaded document. Check every answer: each one carries the words it came from.",
-      // Shown from the moment a reading is asked for, and not before: the status is unset until the
-      // submitter presses the button, and is set to running by the step that queues the parse.
+      // Shown from the moment a reading starts, and not before: the status is unset until the
+      // questionnaire is uploaded, and is set to running by the step that queues its parse.
       //
       // running has to be in this list, not only done and failed. The reading reads the questions it is to
       // ask through this same condition, and while it runs the status is running - so leaving it out hid the

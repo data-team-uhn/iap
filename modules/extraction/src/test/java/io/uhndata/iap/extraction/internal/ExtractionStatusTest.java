@@ -67,6 +67,75 @@ class ExtractionStatusTest
         assertNull(submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
     }
 
+    // A later step finishing must not hide that an earlier one failed
+    @Test
+    void keepsAFailureAnEarlierStepRecorded() throws PersistenceException
+    {
+        final Resource submission = this.context.create().resource("/Submissions/s1", Map.of(
+            ExtractionStatus.PROPERTY, ExtractionStatus.FAILED,
+            ExtractionStatus.MESSAGE, "The model could not be reached"));
+
+        ExtractionStatus.recordDone(submission, null);
+
+        assertEquals("failed", submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+        assertEquals("The model could not be reached",
+            submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+    }
+
+    @Test
+    void recordsDoneOverARunningReading() throws PersistenceException
+    {
+        final Resource submission = this.context.create().resource("/Submissions/s1",
+            Map.of(ExtractionStatus.PROPERTY, ExtractionStatus.RUNNING));
+
+        ExtractionStatus.recordDone(submission, "Waiting for you");
+
+        assertEquals("done", submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+        assertEquals("Waiting for you", submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+    }
+
+    @Test
+    void refusesToRecordDoneOnASubmissionItCannotWrite()
+    {
+        final Resource readOnly = new ResourceWrapper(this.context.create().resource("/Submissions/s1", Map.of()))
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return ModifiableValueMap.class.equals(type) ? null : super.adaptTo(type);
+            }
+        };
+
+        assertThrows(PersistenceException.class, () -> ExtractionStatus.recordDone(readOnly, null));
+    }
+
+    @Test
+    void takesTheWholeClaimDown() throws PersistenceException
+    {
+        final Resource submission = this.context.create().resource("/Submissions/s1", Map.of(
+            ExtractionStatus.READING_CLAIMED, true, ExtractionStatus.READING_CLAIMED_BY, "job-1"));
+
+        ExtractionStatus.releaseClaim(submission);
+
+        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
+        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+    }
+
+    @Test
+    void refusesToReleaseAClaimItCannotWrite()
+    {
+        final Resource readOnly = new ResourceWrapper(this.context.create().resource("/Submissions/s1", Map.of()))
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return ModifiableValueMap.class.equals(type) ? null : super.adaptTo(type);
+            }
+        };
+
+        assertThrows(PersistenceException.class, () -> ExtractionStatus.releaseClaim(readOnly));
+    }
+
     @Test
     void refusesASubmissionItCannotWrite()
     {

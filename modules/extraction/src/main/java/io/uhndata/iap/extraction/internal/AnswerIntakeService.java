@@ -34,6 +34,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.CallBudget;
 import io.uhndata.iap.llm.LLMClientFactory;
 import io.uhndata.iap.llm.LLMConfigurationService;
@@ -98,6 +100,12 @@ public class AnswerIntakeService
         /** What the model's answer could not be read gives the submitter. */
         static final String UNREADABLE = "The model's answer could not be read";
 
+        /** What the submitter is told when the model could not be asked at all. */
+        static final String UNREACHABLE = "The model could not be reached";
+
+        /** What the submitter is told when the parsed text could not be read back out of the repository. */
+        static final String TEXT_UNREADABLE = "The document's text could not be read";
+
         /**
          * A result with no reason of its own.
          *
@@ -134,12 +142,12 @@ public class AnswerIntakeService
         }
 
         /**
-         * The result when there was nothing the model could be asked about, so it was not asked.
+         * The result when the model was not asked, or could not be, with what to tell the submitter.
          *
          * @param reason what to tell the submitter
          * @return a degraded result carrying the reason
          */
-        static IntakeResult nothingToRead(final String reason)
+        static IntakeResult notAsked(final String reason)
         {
             return new IntakeResult(Map.of(), true, reason);
         }
@@ -188,7 +196,7 @@ public class AnswerIntakeService
         }
         if (document.isBlank()) {
             LOGGER.warn("There is nothing to read for {}", file.getPath());
-            return IntakeResult.nothingToRead("The document has no text that can be read");
+            return IntakeResult.notAsked("The document has no text that can be read");
         }
         final String system = buildSystemPrompt(extraSystem);
         final String questions = IntakePayload.buildQuestionBlock(fields);
@@ -199,7 +207,10 @@ public class AnswerIntakeService
         if (text.isEmpty()) {
             // Asking every field over no document at all is a call that can only invent, so it is not made
             LOGGER.warn("No room was left to show the intake any of {}", file.getPath());
-            return IntakeResult.nothingToRead("The questions leave no room to show the model the document");
+            // The active model's window is too small for the questions: a setting only an administrator can change
+            ErrorLogger.logProblem("The questions leave no room for the document in the model's context window",
+                ErrorContext.of(AnswerIntakeService.class, "intake").about(file.getPath()));
+            return IntakeResult.notAsked("The questions leave no room to show the model the document");
         }
         final JsonObject answer = ask(IntakePayload.build(questions, text), fields, system, maxOutputTokens);
         if (answer == null) {

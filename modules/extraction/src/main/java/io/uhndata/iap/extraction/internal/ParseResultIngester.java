@@ -34,6 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Reads a finished parse into the repository.
@@ -111,6 +113,9 @@ public class ParseResultIngester
             // The daemon named a file outside the volume it shares with us. Whatever is there, it is not what
             // this parse produced, and reading it would be opening a file of somebody else's choosing.
             LOGGER.warn("The parse for {} named {}, which is not on the shared volume", file.getPath(), markdown);
+            // The daemon named a file it should not know about: misconfigured, or not the daemon it should be
+            ErrorLogger.logProblem("The document daemon named a file outside the shared volume",
+                ErrorContext.of(ParseResultIngester.class, "ingest").about(file).with("named", markdown));
             recordLostParse(file, markdown);
             return;
         }
@@ -198,6 +203,8 @@ public class ParseResultIngester
             // Same rule as the Markdown: a rendition named off the volume is not one this parse wrote
             LOGGER.warn("The parse for {} named a PDF at {}, which is not on the shared volume", file.getPath(),
                 pdf);
+            ErrorLogger.logProblem("The document daemon named a file outside the shared volume",
+                ErrorContext.of(ParseResultIngester.class, "ingest").about(file).with("named", pdf));
             return 0;
         }
         if (isUploadAPdf(file)) {

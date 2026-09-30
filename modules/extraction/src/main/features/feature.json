@@ -31,11 +31,11 @@
         // The engine decides from the definitions whether this user may fire the events it fires, which is why
         // the documentParsed start event names it and nobody else.
         //
-        // It writes two things of its own, both on the submission: the claim that stops two jobs reading the
-        // same document twice, and the record of how a reading ended when it could not be handed on. Read
-        // alone left both silently undone - the claim could not be taken, so no reading ever started, and the
-        // submission sat at running for good.
-        "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read on /Submissions \n allow rep:write on /Submissions \n end"
+        // It writes only properties of the submission: the claim that stops two jobs reading the same document
+        // twice, and the record of how a reading ended when it could not be handed on. Everything else is
+        // written by the workflow engine as its own user. It reads /Workflows to check that the reading
+        // workflow a schema names is there before asking for a reading that would start nothing.
+        "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read,jcr:modifyProperties on /Submissions \n allow jcr:read on /Workflows \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapextraction":{

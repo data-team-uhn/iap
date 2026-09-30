@@ -44,6 +44,8 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseControl;
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Stops a parse that has not finished: asks the daemon to drop it, wipes the staging folder, and deletes the job
@@ -108,6 +110,8 @@ public class ParseAbandonment implements ParseControl
             LOGGER.info("Parse stopped: job={}", jobId);
         } catch (final LoginException | PersistenceException e) {
             LOGGER.error("Cannot stop parse job {}: {}", jobId, e.getMessage(), e);
+            // Its record and staging folder stay behind until the sweep, and nobody asked would know why
+            ErrorLogger.logError(e, ErrorContext.of(ParseAbandonment.class, "abandon").with("job", jobId));
         }
         return true;
     }
@@ -136,6 +140,10 @@ public class ParseAbandonment implements ParseControl
             if (response.statusCode() != HttpURLConnection.HTTP_OK) {
                 LOGGER.warn("The daemon refused to stop parse job {}: {} {}", jobId, response.statusCode(),
                     response.body());
+                // Usually a token the two sides disagree on, which only an administrator can fix
+                ErrorLogger.logProblem("The document daemon refused to stop a parse",
+                    ErrorContext.of(ParseAbandonment.class, "cancel").with("job", jobId)
+                        .with("status", response.statusCode()));
             }
         } catch (final IOException e) {
             LOGGER.warn("The daemon could not be asked to stop parse job {}: {}", jobId, e.getMessage());

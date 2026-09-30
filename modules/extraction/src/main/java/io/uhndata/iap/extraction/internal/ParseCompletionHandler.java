@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.spi.ParseOutcomeHandler;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -127,10 +129,15 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             return true;
         } catch (final LoginException e) {
             LOGGER.error("Cannot read submissions to record parse job {}: {}", outcome.jobId(), e.getMessage(), e);
+            // The service user is missing: no parse can be read in until a deployment fault is fixed
+            ErrorLogger.logError(e, ErrorContext.of(ParseCompletionHandler.class, "openSession")
+                .about(outcome.target()).with("job", outcome.jobId()));
             return false;
         } catch (final WorkflowException e) {
             LOGGER.error("Recording parse job {} on {} failed: {}", outcome.jobId(), outcome.target(),
                 e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(ParseCompletionHandler.class, "recordParse")
+                .about(outcome.target()).with("job", outcome.jobId()));
             return false;
         }
     }

@@ -19,18 +19,25 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -55,9 +62,9 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     public static final String NAME = "intakeAnswers";
 
     /**
-     * The activity property naming the requirement to ask about. Absent means the whole schema version, which
-     * is one call for everything; naming one asks only what that requirement holds, so a schema can be read in
-     * stages and each stage is a step on the diagram.
+     * The activity property naming the requirement to ask about, or a list of them asked in one call. Absent
+     * means the whole schema version; naming some asks only what those requirements hold, so a schema can be
+     * read in stages and each stage is a step on the diagram.
      */
     static final String REQUIREMENT = "requirement";
 
@@ -77,7 +84,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
 
     /**
      * The activity property that decides whether this step writes what the model found. {@code path=value},
-     * for example {@code common/isProposal=proposal}. The model is still asked every question; if that field
+     * for example {@code screening/kind=questionnaire}. The model is still asked every question; if that field
      * did not come back as the value, nothing is recorded and the reading is marked done.
      */
     static final String RECORD_WHEN = "recordWhen";
@@ -130,26 +137,27 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         if (parts == null) {
             return;
         }
-        final String requirement = context.getActivity().get(REQUIREMENT, String.class);
-        final Map<String, Question> questions = ExtractionFields.extractable(submission, requirement);
+        final String[] named = context.getActivity().get(REQUIREMENT, String[].class);
+        final String requirement = named == null ? null : String.join(",", named);
+        final Map<String, Question> questions = getQuestions(submission, requirement);
         if (questions.isEmpty()) {
-            // A named requirement that asks nothing is a step whose turn did not come - the condition that
-            // would have brought it in did not hold - and saying the schema asks nothing would be wrong.
-            if (requirement == null || requirement.isBlank()) {
-                ExtractionStatus.record(target, ExtractionStatus.DONE, "The schema asks nothing of the document");
-            }
+            recordNothingToAsk(target, submission, requirement);
             return;
         }
+        this.runs.setFiles(target.getPath(),
+            parts.stream().map(part -> part.file().getPath()).collect(Collectors.toSet()));
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading step started: step=intake submission={} requirement={} questions={}",
             target.getPath(), requirement, questions.size());
-        final IntakeResult result = ask(parts, questions, extraSystem(context));
-        if (result == null || result.degraded()) {
-            ExtractionStatus.record(target, ExtractionStatus.FAILED, "The model's answer could not be read");
+        final IntakeResult result = ask(parts, questions, getExtraSystem(context));
+        if (result.degraded()) {
+            ExtractionStatus.record(target, ExtractionStatus.FAILED,
+                result.getMessage());
             return;
         }
-        if (!shouldRecord(context.getActivity().get(RECORD_WHEN, String.class), result.fields())) {
-            ExtractionStatus.record(target, ExtractionStatus.DONE, null);
+        if (!shouldRecord(context.getActivity().get(RECORD_WHEN, String.class), result.fields(), submission,
+            context.getResourceResolver())) {
+            ExtractionStatus.recordDone(target, null);
             LOGGER.info("Reading step done: step=intake submission={} recorded=0 of={} ms={}",
                 target.getPath(), questions.size(), (System.nanoTime() - startedAt) / 1_000_000L);
             return;
@@ -157,10 +165,65 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final List<File> files = parts.stream().map(Part::file).toList();
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
             files);
-        ExtractionStatus.record(target, ExtractionStatus.DONE, null);
+        ExtractionStatus.recordDone(target, null);
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
             (System.nanoTime() - startedAt) / 1_000_000L);
+    }
+
+    /**
+     * The questions this step asks, by path within the schema version, leaving out the ones already answered:
+     * reading again fills the gaps.
+     *
+     * @param submission the submission being read
+     * @param requirement the requirements the step names, comma-separated, or {@code null} for every one
+     * @return the questions to ask, in the order the schema asks them
+     */
+    private static Map<String, Question> getQuestions(final Submission submission, final String requirement)
+    {
+        final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
+        final Set<String> answered = ExtractionFields.getAnswered(submission);
+        questions.values().removeIf(question -> answered.contains(question.getPath()));
+        return questions;
+    }
+
+    /**
+     * Say why a step asked the model nothing.
+     *
+     * @param target the submission's resource
+     * @param submission the submission
+     * @param requirement the requirements the step names, or {@code null}
+     * @throws PersistenceException if the status cannot be written
+     */
+    private static void recordNothingToAsk(final Resource target, final Submission submission,
+        final String requirement) throws PersistenceException
+    {
+        if (!getQuestionsIncludingAnswered(submission, requirement).isEmpty()) {
+            // Everything it asks is answered already
+            ExtractionStatus.recordDone(target, null);
+        } else if (requirement == null || requirement.isBlank()) {
+            // A named requirement that asks nothing is a step whose turn did not come - the condition that
+            // would have brought it in did not hold - and saying the schema asks nothing would be wrong.
+            ExtractionStatus.recordDone(target, "The schema asks nothing of the document");
+        }
+    }
+
+    /** Every question the step names, answered or not. Several requirements are asked in one call, in order. */
+    private static Map<String, Question> getQuestionsIncludingAnswered(final Submission submission,
+        final String requirement)
+    {
+        final Map<String, Question> questions = new LinkedHashMap<>();
+        if (requirement == null || requirement.isBlank()) {
+            questions.putAll(ExtractionFields.getExtractable(submission, null));
+            return questions;
+        }
+        // Split on commas too, since that is how a diagram writes a list into this single-valued attribute
+        for (final String name : requirement.split(",")) {
+            if (!name.isBlank()) {
+                questions.putAll(ExtractionFields.getExtractable(submission, name.trim()));
+            }
+        }
+        return questions;
     }
 
     /**
@@ -237,8 +300,12 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     /**
      * Whether the model's answers should be written. No gate means yes. A gate that does not hold, or that
      * cannot be read, means write nothing: a document that is not a proposal must not leave other facts behind.
+     *
+     * <p>The gate field is compared as it would be stored, matched to the question's options, and ignoring case.
+     * When this step did not ask it, because it already holds an answer, that answer is what is compared.</p>
      */
-    static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields)
+    static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields,
+        final Submission submission, final ResourceResolver resolver)
     {
         if (gate == null || gate.isBlank()) {
             return true;
@@ -252,15 +319,30 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         if (name.isEmpty() || expected.isEmpty()) {
             return false;
         }
+        return getGateValues(name, fields, submission, resolver).stream().anyMatch(expected::equalsIgnoreCase);
+    }
+
+    /** What the gate field holds: what the model just read for it, or the answer it already had. */
+    private static List<String> getGateValues(final String name, final Map<String, FieldResult> fields,
+        final Submission submission, final ResourceResolver resolver)
+    {
+        final String path = submission.getSchemaVersion().getPath() + "/" + name;
         final FieldResult field = fields.get(name);
-        return field != null && field.found() && expected.equals(field.value());
+        if (field == null) {
+            return submission.getAnswersByQuestion().getOrDefault(path, List.of());
+        }
+        if (!field.found()) {
+            return List.of();
+        }
+        final Resource question = resolver.getResource(path);
+        return Answer.readAnswer(field.value(), question == null ? null : question.adaptTo(Question.class));
     }
 
     /**
      * Extra system instructions this step names, concatenated in the order named. A single name reads as a
      * list of one. Blank names add nothing.
      */
-    static String extraSystem(final WorkflowTaskContext context)
+    static String getExtraSystem(final WorkflowTaskContext context)
     {
         final String[] named = context.getActivity().get(PROMPT_FROM, String[].class);
         final StringBuilder extra = new StringBuilder();
@@ -275,14 +357,23 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     /**
      * Put the questions to the model and write down the answers it read.
      *
-     * @return what the model read out, {@code null} when it could not be asked at all
+     * @return what the model read out, degraded with the reason when it could not be asked
      */
     private IntakeResult ask(final List<Part> parts, final Map<String, Question> questions,
         final String extraSystem)
     {
         final File first = parts.get(0).file();
+        final DocumentScan scan;
         try {
-            return this.intake.run(first, scanOf(parts), ExtractionFields.toFields(questions), extraSystem);
+            scan = getScan(parts);
+        } catch (final IOException e) {
+            LOGGER.warn("The text of {} could not be read: {}", first.getPath(), e.getMessage());
+            // A repository fault: the submitter is told the text could not be read, not why
+            ErrorLogger.logError(e, ErrorContext.of(IntakeAnswersHandler.class, "readText").about(first.getPath()));
+            return IntakeResult.notAsked(IntakeResult.TEXT_UNREADABLE);
+        }
+        try {
+            return this.intake.run(first, scan, ExtractionFields.toFields(questions), extraSystem);
         } catch (final ReadingRuns.Stopped e) {
             throw e;
         } catch (final IOException e) {
@@ -292,7 +383,9 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             // Not a failure of the walk. Throwing here reverts everything the reading has written so far and
             // leaves the committed `running` behind, with no step left to move it on
             LOGGER.warn("The intake could not be asked about {}: {}", first.getPath(), e.getMessage());
-            return null;
+            // An outage of the model, which an administrator has to see to fix
+            ErrorLogger.logError(e, ErrorContext.of(IntakeAnswersHandler.class, "askModel").about(first.getPath()));
+            return IntakeResult.notAsked(IntakeResult.UNREACHABLE);
         }
     }
 
@@ -302,16 +395,18 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * <p>Quotes are checked against this same text, so a passage quoted from either document is found, and the
      * joined text remembers where each document starts, so each passage is stored with the one it came from.</p>
      */
-    private DocumentScan scanOf(final List<Part> parts) throws IOException
+    private DocumentScan getScan(final List<Part> parts) throws IOException
     {
         if (parts.size() == 1 && parts.get(0).heading() == null) {
             return this.documents.scan(parts.get(0).file());
         }
+        // Read straight from the repository: the joined text is scanned once as a whole, so scanning each part
+        // first would be wasted work, and each would push the other out of the one-document cache
         final List<String> headings = new ArrayList<>();
         final List<String> texts = new ArrayList<>();
         for (final Part part : parts) {
             headings.add(part.heading());
-            texts.add(this.documents.scan(part.file()).getText());
+            texts.add(DocumentText.readText(part.file().getFileMarkdown()));
         }
         return DocumentScan.joined(headings, texts);
     }

@@ -31,6 +31,9 @@ import org.osgi.service.component.annotations.Component;
  * intake step — so the registration is counted. The thread stays registered until the outermost one leaves,
  * which is what a stop in the middle of a step still finds.</p>
  *
+ * <p>Registering, leaving and stopping are synchronized, so a stop cannot interrupt a thread that has already
+ * left the reading and gone back to the pool.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -65,7 +68,7 @@ public class ReadingRuns
      * @param submission the submission's path
      * @throws Stopped when this thread was already told to stop
      */
-    void begin(final String submission) throws Stopped
+    synchronized void begin(final String submission) throws Stopped
     {
         if (Thread.currentThread().isInterrupted()) {
             throw new Stopped();
@@ -79,7 +82,7 @@ public class ReadingRuns
      *
      * @param submission the submission's path
      */
-    void end(final String submission)
+    synchronized void end(final String submission)
     {
         final AtomicInteger count = this.depth.get(submission);
         if (count != null && count.decrementAndGet() <= 0) {
@@ -95,7 +98,7 @@ public class ReadingRuns
      * @param submission the submission's path
      * @return {@code true} when a thread was interrupted
      */
-    boolean stop(final String submission)
+    synchronized boolean stop(final String submission)
     {
         final Thread thread = this.running.get(submission);
         if (thread == null) {

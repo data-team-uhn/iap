@@ -45,6 +45,7 @@ import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -106,6 +107,63 @@ class ExtractAnswersJobConsumerTest
         assertEquals(this.submission.getPath(), target.getValue().getPath());
         assertEquals("extractAnswers", event.getValue().getName());
         assertTrue(event.getValue().getPayload().isEmpty());
+        // A value of this job's own, so a racing job's write differs and one of the two commits is refused
+        assertNotNull(this.context.resourceResolver().getResource(this.submission.getPath()).getValueMap()
+            .get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+    }
+
+    // Fired anyway, the reading would start nothing and the submission would show `running` for good
+    @Test
+    void givesUpWhenTheSchemaNamesNoReadingWorkflow() throws Exception
+    {
+        schemaVersion().remove(ParseDocumentsHandler.READING_WORKFLOW);
+        this.context.resourceResolver().commit();
+        jobFor(this.submission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertGaveUpBeforeReading();
+    }
+
+    @Test
+    void givesUpWhenTheReadingWorkflowIsNotAWorkflow() throws Exception
+    {
+        SubmissionTree.reference(this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH),
+            ParseDocumentsHandler.READING_WORKFLOW,
+            this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH));
+        jobFor(this.submission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertGaveUpBeforeReading();
+    }
+
+    @Test
+    void givesUpWhenTheReadingWorkflowLeadsNowhere() throws Exception
+    {
+        schemaVersion().put(ParseDocumentsHandler.READING_WORKFLOW, "1e17e5b1-0000-0000-0000-000000000000");
+        this.context.resourceResolver().commit();
+        jobFor(this.submission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertGaveUpBeforeReading();
+    }
+
+    private ModifiableValueMap schemaVersion()
+    {
+        return this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH)
+            .adaptTo(ModifiableValueMap.class);
+    }
+
+    private void assertGaveUpBeforeReading()
+    {
+        Mockito.verifyNoInteractions(this.engine);
+        final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
+            .getValueMap();
+        assertEquals(ExtractionStatus.FAILED, properties.get(ExtractionStatus.PROPERTY, String.class));
+        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS, properties.get(ExtractionStatus.MESSAGE, String.class));
+        assertNull(properties.get(ExtractionStatus.READING_CLAIMED, Boolean.class));
     }
 
     @Test
@@ -152,6 +210,7 @@ class ExtractAnswersJobConsumerTest
         assertNotNull(properties.get(ExtractionStatus.MESSAGE, String.class), "and the person is told why");
         assertNull(properties.get(ExtractionStatus.READING_CLAIMED, Boolean.class),
             "so a later parse, or somebody asking again, can take the reading");
+        assertNull(properties.get(ExtractionStatus.READING_CLAIMED_BY, String.class));
     }
 
     // A walk through a malformed definition asserts its way out rather than returning, and that must not escape
@@ -167,6 +226,25 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(ExtractionStatus.FAILED,
             this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+    }
+
+    // A stop that lands once the last model call is over has nothing to stop, and must not stay on the pooled
+    // thread for the next job to trip over
+    @Test
+    void clearsAStopThatCameAfterTheLastModelCall() throws Exception
+    {
+        jobFor(this.submission.getPath());
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            return null;
+        });
+
+        try {
+            assertEquals(JobResult.OK, this.consumer.process(this.job));
+            assertFalse(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

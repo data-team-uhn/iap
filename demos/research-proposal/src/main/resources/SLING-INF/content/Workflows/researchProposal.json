@@ -13,44 +13,14 @@
       "elementId": "created",
       "label": "Proposal started",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
-      "toUpload": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toUpload",
-        "targetRef": "upload"
-      }
-    },
-    "upload": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "upload",
-      "label": "Extract data",
-      "performers": [
-        "@creator"
-      ],
-      "hostTag": "draft",
-      // Offered under the proposal upload rather than among the actions on the page: pressing it reads
-      // the file that is right above it.
-      "requirement": "proposal",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
-      "toParse": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toParse",
-        "targetRef": "parse"
-      }
-    },
-    "parse": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "parse",
-      "label": "Send the document to be read",
-      "handler": "parseDocuments",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toComplete": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toComplete",
         "targetRef": "complete"
       }
     },
-    // The daemon takes as long as it takes. The ingest fires extractAnswers when the parse has landed on
-    // the file, which is the first moment there is anything to read.
+    // Uploading the proposal starts its parse, classification and reading, which land while this step is
+    // open. The researcher checks what was read, answers the rest, and sends it.
     "complete": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "complete",

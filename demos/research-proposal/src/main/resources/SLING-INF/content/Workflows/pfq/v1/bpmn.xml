@@ -27,27 +27,9 @@
                   targetNamespace="https://iap.uhndata.io/demos/pfq">
   <bpmn:process id="pfq" name="Patient facing questionnaire" isExecutable="true">
     <bpmn:startEvent id="created" name="Request started">
-      <bpmn:outgoing>toFill</bpmn:outgoing>
-    </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toFill" sourceRef="created" targetRef="fill" />
-    <!-- The screening questions and the uploads are one step, and the questions come first. One of them asks
-         whether there is a copy to upload, and that answer is what the two upload requirements are conditioned
-         on: a condition can only be met by an answer already given. Completing this task is what sets the
-         reading going. -->
-    <bpmn:userTask id="fill" iap:performers="@creator" iap:hostTag="draft" iap:requirement="questionnaire"
-        name="Extract data">
-      <bpmn:incoming>toFill</bpmn:incoming>
-      <bpmn:outgoing>toParse</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="toParse" sourceRef="fill" targetRef="parse" />
-    <!-- Stages whatever was uploaded and queues its parse. Answering that there is no copy leaves the upload
-         requirements out of the form, so there is nothing to stage, nothing is queued, and the reading is
-         never asked for. That is the whole of the skip: it needs no branch here. -->
-    <bpmn:serviceTask id="parse" iap:handler="parseDocuments" name="Send the questionnaire to be read">
-      <bpmn:incoming>toParse</bpmn:incoming>
       <bpmn:outgoing>toCheck</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toCheck" sourceRef="parse" targetRef="check" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toCheck" sourceRef="created" targetRef="check" />
     <!-- Where the requester waits while the reading runs, and then checks it. An instance cannot be in two
          places, so the reading is /Workflows/readPfq and this task is what this one does meanwhile. -->
     <bpmn:userTask id="check" iap:performers="@creator" iap:hostTag="draft"
@@ -121,12 +103,6 @@
           <dc:Bounds x="140" y="223" width="76" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="fillShape" bpmnElement="fill">
-        <dc:Bounds x="250" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="parseShape" bpmnElement="parse">
-        <dc:Bounds x="400" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="checkShape" bpmnElement="check">
         <dc:Bounds x="550" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -154,16 +130,8 @@
           <dc:Bounds x="1204" y="303" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toFillEdge" bpmnElement="toFill">
-        <di:waypoint x="196" y="198" />
-        <di:waypoint x="250" y="198" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toParseEdge" bpmnElement="toParse">
-        <di:waypoint x="350" y="198" />
-        <di:waypoint x="400" y="198" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
-        <di:waypoint x="500" y="198" />
+        <di:waypoint x="196" y="198" />
         <di:waypoint x="550" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">

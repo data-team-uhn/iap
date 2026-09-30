@@ -8,8 +8,9 @@ the schema asks for. Everything after parsing runs in Java, in this module.
 - **Upload** -- the submitter attaches the file through the submissions module's `attachDocument`
   system workflow. It lands as `sub:Document` -> `v1` (`sub:DocumentVersion`) -> `file` (`sub:File`)
   -> `uploadedFile`; a replacement is the next version of the same document, not a new one.
-- **Send to parse** -- the process's `parseDocuments` service task, right after the upload step:
-  every latest upload not parsed yet is staged on the volume shared with the Docling daemon and
+- **Send to parse** -- the `parseDocuments` service task, the last step of `attachDocument`, so an
+  upload starts its own reading. A schema version that names no `readingWorkflow` is left alone.
+  Every latest upload not parsed yet is staged on the volume shared with the Docling daemon and
   queued as a parse job naming the `sub:File` it is for. The file records `parseStatus: queued`,
   `parseJobId` and `sharedPath`; the submission records `extractionStatus: running`, which is what
   the submission view shows a spinner for.
@@ -39,38 +40,43 @@ the schema asks for. Everything after parsing runs in Java, in this module.
   `schemaVersion/readingWorkflow` and puts the submission through the workflow its schema names.
   A schema version naming none simply has none. The steps below are that workflow's, and the
   demo's is `/Workflows/readProposal`:
-  - **One call for the common questions** (`intakeAnswers`, `requirement: common`) -- the whole
-    document goes once. "Is this a research proposal?" (`common/isProposal`) and "What kind of study
-    is this?" (`common/category`) are ordinary choice questions in that requirement, asked with the
-    rest. `promptFrom` adds `protocol_structure.md` and `is_proposal_system.md` to the system prompt
-    for this step only.
-  - **Not a proposal writes nothing** -- the same call still asks every common question.
-    `recordWhen: common/isProposal=proposal` means those answers are stored only when the verdict
-    is `proposal`. Anything else, an unanswered verdict included, leaves the form untouched and
-    ends the reading. Completeness is not judged: nothing was written.
-  - **Then the questions the category brought in** -- an exclusive gateway on the `common/category`
-    answer routes to one `intakeAnswers` step naming the prospective or the retrospective requirement.
+  - **Classify the upload first** (`classifyDocument`) -- a `sch:ClassificationRequirement` is a
+    form requirement with one question, `decision`, whose options are the categories to pick from.
+    It names the document requirement it classifies (`document`), a `prompt`, an optional
+    `template.md` shown to the model as reference, and a `confidenceThreshold` (0.7 when unset). The
+    step groups the classifications that apply and are still unanswered by their document, and makes
+    one call per document with all of their prompts and options. The picks are stored as ordinary
+    pre-filled answers, so the submitter sees, confirms or changes them like any other. A document not
+    parsed yet is skipped; a failed parse or an unreadable reply records `failed`.
+  - **Go on only on a settled pick** -- the gateways test the classification with the `decision`
+    condition source. It reads the answer to a question of the submission's schema, by its path in
+    the schema, but only once it is settled: confirmed, changed or typed by the submitter, or picked
+    by the model at or above the threshold. An unsettled answer reads as no answer. The `answer`
+    source cannot be used here: it resolves question paths against the entity holding the condition,
+    which in a gateway is the workflow, not the submission.
+  - **Not a proposal reads nothing more** -- a settled `no` on `is_proposal` ends the reading.
+  - **Then the questions, in one call** -- a gateway on `proposal_category/decision` routes to one
+    `intakeAnswers` step naming `[common, prospective]` or `[common, retrospective]`. Every
+    requirement named is asked in the same call, their questions in the order named.
     Each answer found becomes a `sub:Answer` with a `sub:Extraction` (value, confidence,
     reasoning, source version) and `sub:Evidence` children (quote, page, heading). A question that
     takes more than one answer is asked for them as one comma-separated string and stored as one
     value per name; the extraction keeps the model's answer as it came, and the form splits it the
     same way when it asks whether the submitter has changed anything (`Answer.splitAnswer`, one rule
     so the two lists cannot disagree). A question that already carries an answer is left alone.
-  - **A person answers when the model could not** -- the default arc. A category the model was not
-    sure of comes back `found_answer: false` and is not guessed at. Completeness is not judged:
-    category is still empty, so `incomplete` cannot come off. The reading is marked finished, so
-    the view stops spinning, then waits at `chooseCategory`, a plain user task offered under the
-    common questions. The submitter answers the category in the form and completes the task, and
-    execution comes back to the gateway. Still unanswered means it waits again.
+  - **A person settles what the model could not** -- the default arc of either gateway. The reading
+    is marked finished, so the view stops spinning, then waits at a plain user task offered under
+    that classification. The submitter confirms or picks the answer and completes the task, and
+    execution comes back to the gateway. Still not settled means it waits again.
   - **Completeness** (`markCompleteness`, from the submissions module) -- the `incomplete` tag is
-    judged again after the study-type answers have landed. The not-a-proposal and unclassified
-    paths skip this.
+    judged again at the end of every path, since the classification answers were written either way.
   - **The end** (`finishReading`) -- moves a still-`running` submission to `done`. A reading can get
-    this far having asked nothing, and one waiting for the category passes it too. Without this the
+    this far having asked nothing, and one waiting for a classification passes it too. Without this the
     view would spin for good. A status that already says how the reading ended is left alone.
   - `extractionStatus` ends `done` or `failed`, with a message beside a failure; the view stops the
     spinner and shows the message.
-- The reading can be asked for again at any time: `POST <submission>.extractAnswers.json`.
+- The submitter can ask for the reading again with `POST <submission>.readAgain.json`, which queues
+  the same reading job a parse does. A failed parse is sent again with `retryParse`.
 - **Why the reading is a workflow of its own, not steps in the submission's.** A system workflow
   runs straight through with no instance behind it, so it cannot branch, wait or fork. The
   submission's own instance could hold all of that, but it is parked at a user task while the
@@ -83,20 +89,20 @@ the schema asks for. Everything after parsing runs in Java, in this module.
 ## Rules worth knowing
 
 - **Nothing is guessed.** An unreachable model or an unreadable reply records `failed`, and the
-  view offers to try again. A question the model is not sure of comes back unanswered, which is
-  what the verdict and the category do too: the reading does not pick the likeliest.
+  view offers to try again. A question the model is not sure of comes back unanswered. A
+  classification it picks with low confidence is shown, but the reading waits for the submitter.
 - **Options can come from a content path.** A choice question with `optionsFrom` (for example
   `/Categories`) offers what that path holds today instead of child `sch:AnswerOption` nodes. A path
   that documents itself (`AutoDocumentable`) gives its live items, each with a label and a
   description; any other path gives its labeled leaves. The form, the model prompt and the answer
   matching all read the same list, through `Question.getOfferedOptions()`.
-- **The category is decided in the common call, not in a call of its own.** It is the same kind
-  of judgement as the verdict, from the same material. Each option goes to the model as
+- **Every classification of a document is decided in one call.** The verdict and the category are
+  the same kind of judgement, from the same material. Each option goes to the model as
   `value (label) -- description`, and a second call would re-pay the whole prefill of the document.
-- **Domain knowledge goes only where it is needed.** `promptFrom` on an `intakeAnswers` step names
-  extra prompt files from this bundle's `prompts/` folder, put in the system prompt of that step only.
-  The ~4k tokens of ICH-GCP reference in `protocol_structure.md` go with the proposal's common call
-  and nowhere else.
+- **Domain knowledge lives in the schema.** A classification's `template.md` goes into the system
+  prompt of its own call only: the ICH-GCP protocol structure goes with `is_proposal` and nowhere
+  else. `promptFrom` on an `intakeAnswers` step still names extra prompt files from this bundle's
+  `prompts/` folder, for a schema that wants them.
 - **A document too long for one call is cut in the middle, not at the end.** How much text fits is
   worked out per call by `CallBudget`, from the active model's `contextLimitTokens`: the window, less
   a 15% safety margin, less the room the answer is given, less the tokens the prompt itself takes.
@@ -181,11 +187,13 @@ the schema asks for. Everything after parsing runs in Java, in this module.
 - **Extraction is content, not code.** `documentParsed` and `extractAnswers` are `/SystemWorkflows`
   definitions shipped by this module, and the handlers are the engine's extension point: a
   deployment adds a step or drops one by editing the definition. Branching on what was read
-  happens in the reading workflow, with gateways on the answers (`source: answer`).
+  happens in the reading workflow, with gateways on settled answers (`source: decision`).
 - **Who may fire what.** `documentParsed` names this module's service user, `iap-extraction`, as
   its only performer: its payload is paths on the shared volume, and reading files from there
-  into the repository is nobody else's to ask for. `extractAnswers` admits `everyone`; it reads
-  nothing but the repository, and a submitter may well want to ask for it again.
+  into the repository is nobody else's to ask for. `extractAnswers` names it too: only the reading
+  job, which holds the claim, starts a reading. `readAgain`, `retryParse`, `reviewExtraction` and
+  `stopProcessing` admit `everyone` at the door, and their handlers then refuse anybody but the
+  person who raised the request, and any request already sent.
 - **Nothing here commits, with one exception.** The ingester and every handler write through the
   engine's session, and the engine commits the whole run at once, so a submission never shows half a
   parse or half a reading. The exception is `parseDocuments`: staging writes to the shared volume and
@@ -221,7 +229,7 @@ without instrumenting anything. In order, for one submission:
 | `Parse completed` / `Parse failed` | documents | `parseMs` measured from the dispatch, and `tokens` |
 | `Parse came back` | `ParseCompletionHandler` | the job, the file, the submission, the size |
 | `Parse read in` | `ParseResultIngester` | the bytes stored and the milliseconds to store them |
-| `Reading queued` | `QueueExtractionHandler` | the submission, once every parse has settled |
+| `Reading queued` | `QueueExtractionHandler` | the submission, once per parse that lands; the job waits until every parse has settled |
 | `Reading run started` / `Reading run done` | `ExtractAnswersJobConsumer` | brackets the whole reading |
 | `Reading step started` / `done` | each handler | `step=intake` and the requirement, with `ms` |
 | `Document cut to fit` | `DocumentBudget` | the stage, the file, and how much of it went and did not |
@@ -327,8 +335,6 @@ Stage 1 is complete. What is left is Stage 2 and a few things Stage 1 decided no
 | `ModelReplies` | Reads a JSON object out of a model reply and its fields, tolerantly. |
 | `ModelCall` | Ask once, and once more with a correction when the answer could not be read. |
 | `Prompts` | Loads prompts from the bundle, cached. |
-| `prompts/is_proposal_system.md` | Extra system prompt, named by `promptFrom`, for judging what a research proposal is and what kind of study it describes. |
-| `prompts/protocol_structure.md` | The ICH-GCP rubrics B.1-B.17 a proposal's sections map onto. Named by `promptFrom` on the proposal's common call, about 16k characters of it. |
 
 ### Choosing what to ask, and where
 
@@ -354,18 +360,23 @@ Stage 1 is complete. What is left is Stage 2 and a few things Stage 1 decided no
 | `ParseDocumentsHandler` | Service task `parseDocuments`: stage every unparsed upload for the daemon and queue its parse. |
 | `ParseCompletionHandler` | Takes a finished parse from the documents module and fires `documentParsed` on the submission. |
 | `IngestParseHandler` | Service task `ingestParse`: read the parse onto the file, or record that it failed. |
-| `QueueExtractionHandler` | Service task `queueExtraction`: once every parse has settled, queue the reading. |
+| `QueueExtractionHandler` | Service task `queueExtraction`: queue the reading job; the job reads once every parse has settled. |
+| `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job. |
 | `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers`. |
 | `FinishReadingHandler` | Service task `finishReading`: moves a still-`running` submission to `done`. |
 | `ReviewExtractionHandler` | Service task `reviewExtraction`: the submitter's verdict on a suggestion. |
-| `IntakeAnswersHandler` | Service task `intakeAnswers`: the intake for one requirement (`requirement`), over the named documents (`documents`), with extra system prompt files (`promptFrom`). `recordWhen` (`path=value`) writes the answers only when that field came back as the value. |
+| `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it, written as pre-filled answers. |
+| `IntakeAnswersHandler` | Service task `intakeAnswers`: the intake for one or more requirements (`requirement`), over the named documents (`documents`), with extra system prompt files (`promptFrom`). `recordWhen` (`path=value`) writes the answers only when that field came back as the value. |
 | `ExtractionStatus` | The `extractionStatus` / `extractionMessage` the view reads, and the states they take. |
 | `SubmissionFiles` | A submission's latest uploads, the first one parsed, and whether every parse has settled. |
 | `ExtractedAnswers` | Writes an answer, its extraction and its evidence. |
 | `SystemWorkflows/documentParsed(.json, bpmn.xml)` | Read a finished parse in, then queue the reading. Performer: `iap-extraction` only. |
-| `SystemWorkflows/extractAnswers(.json, bpmn.xml)` | Start the reading workflow the schema names. Performer: `everyone`. |
+| `SystemWorkflows/extractAnswers(.json, bpmn.xml)` | Start the reading workflow the schema names, ending an earlier one still open. Performer: `iap-extraction` only. |
+| `SystemWorkflows/readAgain.json` | Queue the reading again for the submitter. |
+| `SystemWorkflows/retryParse(.json, bpmn.xml)` | Send the uploads whose parse failed again. |
+| `SystemWorkflows/stopProcessing.json` | Stop a parse or a reading that is still going. |
 | `SystemWorkflows/reviewExtraction(.json, bpmn.xml)` | Record what the submitter made of a pre-filled answer. |
-| `src/main/features/feature.json` | Also creates the `iap-extraction` service user, with read on `/Submissions`, and runs the extraction job queue one submission at a time. |
+| `src/main/features/feature.json` | Also creates the `iap-extraction` service user, which reads `/Submissions` and `/Workflows` and sets properties on submissions, and runs the extraction job queue one submission at a time. |
 
 Outside this module: the documents module's `ParseService` (stage and queue a parse for a repository
 node) and `ParseOutcomeHandler` (be told how it ended), and the submissions module's

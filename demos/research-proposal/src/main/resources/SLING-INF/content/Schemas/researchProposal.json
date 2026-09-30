@@ -21,40 +21,54 @@
       ],
       "required": true
     },
-    "common": {
-      "jcr:primaryType": "sch:FormRequirement",
-      "label": "The study",
-      "description": "What every proposal is asked, whatever kind of study it turns out to be. Filled in from the document where it could be; check and complete it.",
-      // Named by the askTheModel step of the reading workflow. Verdict and category ride with the
-      // other questions in that one call, so the long protocol is sent once. A gateway then
-      // branches on the answers.
-      "isProposal": {
+    // Decided by the model from the uploaded proposal before anything is read out of it: one call for
+    // both, with the protocol structure as reference. Shown pre-filled for the submitter to confirm or
+    // change. The reading goes on only once each is settled, which is what the decision source tests.
+    "is_proposal": {
+      "jcr:primaryType": "sch:ClassificationRequirement",
+      "label": "Is this a research proposal?",
+      "description": "Decided from the uploaded document. Confirm it, or change it if it is wrong.",
+      "document": "proposal",
+      "confidenceThreshold": 0.7,
+      "prompt": "Decide whether this document is a research study protocol or research proposal. Use the protocol structure reference given above these instructions as domain knowledge. A protocol describes a study that is planned or underway; its structure covers a substantial part of that reference: background or rationale, objectives, design or methods, participants or data sources, and usually safety, statistics, ethics or consent, references. Order and naming vary; a document does not need every section to qualify, and abbreviated protocols and protocol synopses count. Judge the outline - the table of contents, or else the headings in the text - by how well it maps onto the reference, and the text as evidence of what the document actually contains. Not protocols: informed-consent forms, blank questionnaires or surveys, budgets, contracts and agreements, CVs, ethics-board letters or approvals, administrative letters, operating manuals, and published papers (Results or Findings, journal headers, past-tense reporting of completed work). Judge what the document IS, not what it mentions: a consent form that refers to the study protocol is still a consent form. Do not guess: if you cannot tell safely, report that the answer was not found.",
+      "decision": {
         "jcr:primaryType": "sch:Question",
         "text": "Is this a research proposal?",
         "dataType": "text",
         "minAnswers": 1,
-        "purpose": "Whether the document is a study the platform can take forward, or something else that should be turned away",
-        "extractionPrompt": "Decide whether this document is a research study protocol or research proposal. A protocol describes a study that is planned or underway; its structure covers a substantial part of the ICH-GCP protocol content reference: background or rationale, objectives, design or methods, participants or data sources, and usually safety, statistics, ethics or consent, references. Abbreviated protocols and protocol synopses count. Not protocols: informed-consent forms, blank questionnaires, budgets, contracts, CVs, ethics-board letters, administrative letters, operating manuals, and published papers (Results or Findings, journal headers, past-tense reporting of completed work). Judge what the document IS, not what it mentions. Do not guess: if you cannot tell safely, report that the answer was not found.",
-        "proposal": {
+        "maxAnswers": 1,
+        "yes": {
           "jcr:primaryType": "sch:AnswerOption",
-          "value": "proposal",
+          "value": "yes",
           "label": "Yes, a research proposal"
         },
-        "not-proposal": {
+        "no": {
           "jcr:primaryType": "sch:AnswerOption",
-          "value": "not-proposal",
+          "value": "no",
           "label": "No, not a research proposal"
         }
-      },
-      "category": {
+      }
+    },
+    "proposal_category": {
+      "jcr:primaryType": "sch:ClassificationRequirement",
+      "label": "What kind of study is this?",
+      "description": "Decided from the uploaded document. It sets which questions are asked next.",
+      "document": "proposal",
+      "confidenceThreshold": 0.7,
+      "prompt": "Pick the one category whose description best fits what the study actually does: what data or specimens it collects and whether they already exist when the study starts, whether participants are assigned to an intervention, what kind of product or procedure is involved, and who takes part. Judge by the descriptions, not by how closely a label resembles the document. If the document is not a research proposal, if no category fits, or if you are not sure, report that the answer was not found. Do not guess.",
+      "decision": {
         "jcr:primaryType": "sch:Question",
         "text": "What kind of study is this?",
         "dataType": "text",
         "minAnswers": 1,
-        "optionsFrom": "/Categories",
-        "purpose": "Which questions the study is asked next, and which review path it takes",
-        "extractionPrompt": "Pick the one category whose description best fits what the study actually does: what data or specimens it collects and whether they already exist when the study starts, whether participants are assigned to an intervention, what kind of product or procedure is involved, and who takes part. Judge by the descriptions, not by how closely a label resembles the document. If no category fits, or you are not sure, report that the answer was not found. Do not guess."
-      },
+        "maxAnswers": 1,
+        "optionsFrom": "/Categories/Proposal"
+      }
+    },
+    "common": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The study",
+      "description": "What every proposal is asked, whatever kind of study it turns out to be. Filled in from the document where it could be; check and complete it.",
       "title": {
         "jcr:primaryType": "sch:Question",
         "text": "What is the title of the study?",
@@ -166,27 +180,27 @@
       "label": "Working with participants",
       "description": "Asked only of prospective studies: those that meet participants or collect something new from them.",
       // Named by the askProspective and askRetrospective steps, which ask whichever of these two
-      // the category let through. Both conditions name every category path that should trigger them: the
+      // the settled category let through. Both conditions name every category path that should trigger them: the
       // condition vocabulary compares against a list of values, and has no way to test a path prefix.
       "cond:condition": {
         "jcr:primaryType": "cond:SingleCondition",
         "comparator": "includes any",
         "operandA": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "common/category" ]
+          "source": "decision",
+          "value": [ "proposal_category/decision" ]
         },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
-              "/Categories/Prospective",
-              "/Categories/Prospective/Observational",
-              "/Categories/Prospective/Observational/SurveysEducation",
-              "/Categories/Prospective/Observational/SensitiveDataClinical",
-              "/Categories/Prospective/Interventional",
-              "/Categories/Prospective/Interventional/Behavioral",
-              "/Categories/Prospective/Interventional/SocTrials",
-              "/Categories/Prospective/Interventional/ClinicalTrials"
+              "/Categories/Proposal/Prospective",
+              "/Categories/Proposal/Prospective/Observational",
+              "/Categories/Proposal/Prospective/Observational/SurveysEducation",
+              "/Categories/Proposal/Prospective/Observational/SensitiveDataClinical",
+              "/Categories/Proposal/Prospective/Interventional",
+              "/Categories/Proposal/Prospective/Interventional/Behavioral",
+              "/Categories/Proposal/Prospective/Interventional/SocTrials",
+              "/Categories/Proposal/Prospective/Interventional/ClinicalTrials"
             ]
           }
       },
@@ -207,15 +221,15 @@
         "comparator": "includes any",
         "operandA": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "common/category" ]
+          "source": "decision",
+          "value": [ "proposal_category/decision" ]
         },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
-              "/Categories/Retrospective",
-              "/Categories/Retrospective/RetrospectiveData",
-              "/Categories/Retrospective/RetrospectiveBiospecimen"
+              "/Categories/Proposal/Retrospective",
+              "/Categories/Proposal/Retrospective/RetrospectiveData",
+              "/Categories/Proposal/Retrospective/RetrospectiveBiospecimen"
             ]
           }
       },

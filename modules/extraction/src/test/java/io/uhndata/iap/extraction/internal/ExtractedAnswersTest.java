@@ -17,11 +17,14 @@
  */
 package io.uhndata.iap.extraction.internal;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -38,8 +41,11 @@ import org.mockito.Mockito;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.File;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ExtractedAnswers}: an answer whose references cannot all be written leaves nothing behind.
@@ -77,8 +83,25 @@ class ExtractedAnswersTest
 
     private void write(final ResourceResolver resolver) throws PersistenceException
     {
-        ExtractedAnswers.write(resolver, this.submission, this.question.adaptTo(Question.class), found(),
+        ExtractedAnswers.write(resolver, this.submission, null, this.question.adaptTo(Question.class), found(),
             List.of(this.file.adaptTo(File.class)));
+    }
+
+    /** An empty answer to the question, as the form saves one, holding the given properties besides. */
+    private Resource emptyAnswer(final Map<String, Object> properties)
+    {
+        final Map<String, Object> all = new HashMap<>(properties);
+        all.put("jcr:primaryType", "sub:Answer");
+        all.put("sling:resourceType", "sub/Answer");
+        final Resource answer = this.context.create().resource(this.submission.getPath() + "/empty", all);
+        SubmissionTree.reference(answer, "question", this.question);
+        return answer;
+    }
+
+    private void fill(final ResourceResolver resolver, final Resource existing) throws PersistenceException
+    {
+        ExtractedAnswers.write(resolver, this.submission, existing, this.question.adaptTo(Question.class),
+            found(), List.of(this.file.adaptTo(File.class)));
     }
 
     private boolean hasAnswers()
@@ -156,6 +179,55 @@ class ExtractedAnswersTest
     {
         assertThrows(PersistenceException.class, () -> write(swapping(this.file.getPath(), null, true)));
         assertFalse(hasAnswers());
+    }
+
+    @Test
+    void fillsAnEmptyAnswer() throws Exception
+    {
+        final Resource existing = emptyAnswer(Map.of("value", new String[] { "" }));
+
+        fill(this.context.resourceResolver(), existing);
+
+        assertArrayEquals(new String[] { "Care" }, existing.getValueMap().get("value", String[].class));
+        assertTrue(existing.getChildren().iterator().hasNext(), "the extraction goes under it");
+    }
+
+    @Test
+    void putsAnEmptyAnswerBackWhenItsExtractionCannotBeWritten()
+    {
+        final Resource existing = emptyAnswer(Map.of("value", new String[] { "" }));
+
+        assertThrows(PersistenceException.class,
+            () -> fill(swapping(this.file.getPath(), null, true), existing));
+
+        assertArrayEquals(new String[] { "" }, existing.getValueMap().get("value", String[].class));
+        assertFalse(existing.getChildren().iterator().hasNext(), "and nothing is left under it");
+    }
+
+    @Test
+    void putsAValuelessAnswerBackWhenItsExtractionCannotBeWritten()
+    {
+        final Resource existing = emptyAnswer(Map.of());
+
+        assertThrows(PersistenceException.class,
+            () -> fill(swapping(this.file.getPath(), null, true), existing));
+
+        assertNull(existing.getValueMap().get("value", String[].class));
+    }
+
+    @Test
+    void refusesToFillAnAnswerItCannotWrite()
+    {
+        final Resource existing = new ResourceWrapper(emptyAnswer(Map.of()))
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return type == ModifiableValueMap.class ? null : super.adaptTo(type);
+            }
+        };
+
+        assertThrows(PersistenceException.class, () -> fill(this.context.resourceResolver(), existing));
     }
 
     @Test

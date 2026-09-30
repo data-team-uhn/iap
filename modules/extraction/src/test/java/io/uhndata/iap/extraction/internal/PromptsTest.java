@@ -35,18 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PromptsTest
 {
     @Test
-    void carriesTheFullRubricReference()
-    {
-        final String reference = Prompts.read(Prompts.PROTOCOL_STRUCTURE);
-
-        assertTrue(reference.contains("B.1 General information"), "it opens at the first rubric");
-        assertTrue(reference.contains("B.17 References and appendix"), "and runs to the last");
-    }
-
-    @Test
     void readsAPromptOnlyOnce()
     {
-        assertEquals(Prompts.read(Prompts.IS_PROPOSAL_SYSTEM), Prompts.read(Prompts.IS_PROPOSAL_SYSTEM));
+        assertEquals(Prompts.read(Prompts.INTAKE_SYSTEM), Prompts.read(Prompts.INTAKE_SYSTEM));
     }
 
     @Test

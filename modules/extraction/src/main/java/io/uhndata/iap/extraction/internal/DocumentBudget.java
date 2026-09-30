@@ -25,13 +25,9 @@ import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * How much of a document one stage sends, and saying so when it is not all of it.
+ * How much of a document one model call sends, and saying so when it is not all of it.
  *
- * <p>The three stages ask the same question - what is left of the active model's window once the prompt and the
- * answer have their room - and answer a document that does not fit the same way. Written out three times, one of
- * them checked whether anything was left to send and two did not, and none of them said in the log that a document
- * had been cut. The limit is real and worth knowing about: what is left out is not read, and the confidence says
- * nothing about it.</p>
+ * <p>What is left out is not read, and the confidence says nothing about it, so a cut is always logged.</p>
  *
  * @version $Id$
  * @since 0.1.0

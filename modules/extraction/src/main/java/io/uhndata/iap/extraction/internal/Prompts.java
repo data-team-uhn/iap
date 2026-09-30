@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The prompts and response schemas the extraction stages send, read from the bundle.
+ * The prompts the extraction sends, read from the bundle.
  *
  * <p>They are files rather than string constants because they are written and revised as prose by people
  * reasoning about what the model should be told, and reading them as text beats reading them as escaped Java.
@@ -37,12 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class Prompts
 {
-    /** Domain knowledge for reading a research proposal: what one is, judged against ICH-GCP. */
-    static final String IS_PROPOSAL_SYSTEM = "is_proposal_system.md";
-
-    /** The ICH-GCP protocol content reference, rubrics B.1 to B.17. */
-    static final String PROTOCOL_STRUCTURE = "protocol_structure.md";
-
     /** What the intake pass is told about reading every field out of a document at once. */
     static final String INTAKE_SYSTEM = "intake_system.md";
 
@@ -56,7 +50,7 @@ final class Prompts
     }
 
     /**
-     * Read one prompt or schema.
+     * Read one prompt.
      *
      * @param name the file name, one of the constants on this class
      * @return its content

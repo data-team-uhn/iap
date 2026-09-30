@@ -27,6 +27,9 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+
 /**
  * Where the document daemon listens and how to reach it, read from a component's configuration. Shared by every
  * component that calls the daemon, so they cannot read the same settings differently.
@@ -78,6 +81,8 @@ final class DaemonConnection
                 seconds = Long.parseLong(String.valueOf(timeout));
             } catch (final NumberFormatException e) {
                 LOGGER.warn("Ignoring non-numeric responseTimeout: {}", timeout);
+                ErrorLogger.logProblem("Ignoring a non-numeric responseTimeout for the document daemon",
+                    ErrorContext.of(DaemonConnection.class, "read").with("responseTimeout", timeout));
             }
         }
         final String token = getToken(configuration, environment);
