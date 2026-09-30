@@ -227,7 +227,7 @@ public interface ResourceJsonProcessor
 
     /**
      * Called at the end of the serialization process, in case the current processor needs to clean up any temporary
-     * state.
+     * state. It is called even when serializing failed, so whatever {@link #start} set up can always be released.
      *
      * @param resource the resource that was serialized
      */

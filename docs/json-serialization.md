@@ -142,7 +142,7 @@ The chain is called around a depth-first walk of the node tree:
 | `processPropertyName(node, property, input)` | Per property. Rename it, or `null` to drop it |
 | `processChild(node, child, input, serializeNode)` | Per child. Replace or drop its serialization |
 | `leave(node, json, serializeNode)` | On leaving each node, after its children — add computed fields here |
-| `end(resource)` | Once, after everything. Tear down state |
+| `end(resource)` | Once, after everything, even when serializing failed. Tear down state |
 
 Three rules follow from the shape:
 
@@ -156,7 +156,8 @@ Three rules follow from the shape:
 
 State belongs in the processor between `start` and `end`, and nowhere else: a
 processor instance is a shared OSGi service, so anything held across serializations is
-a race.
+a race. `end` runs however the serialization ended, so what `start` set up is always
+released, a `ThreadLocal` on a pooled thread included.
 
 ### Adding fields versus replacing them
 

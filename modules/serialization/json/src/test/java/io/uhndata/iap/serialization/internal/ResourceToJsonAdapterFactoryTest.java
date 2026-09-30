@@ -19,6 +19,7 @@
 package io.uhndata.iap.serialization.internal;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -311,6 +312,46 @@ public class ResourceToJsonAdapterFactoryTest
         Assertions.assertEquals("/parent", result.getString("fromLeave"));
         // The property whose name was nulled is skipped
         Assertions.assertFalse(result.containsKey("secret"));
+    }
+
+    @Test
+    public void testProcessorsAreEndedWhenTheSerializationFails()
+        throws Exception
+    {
+        final List<Resource> ended = new ArrayList<>();
+        final ResourceJsonProcessor failing = new ResourceJsonProcessor()
+        {
+            @Override
+            public String getName()
+            {
+                return "failing";
+            }
+
+            @Override
+            public int getPriority()
+            {
+                return 20;
+            }
+
+            @Override
+            public void leave(final Node node, final JsonObjectBuilder json,
+                final Function<Node, JsonValue> serializeNode)
+            {
+                throw new IllegalStateException("The processor broke");
+            }
+
+            @Override
+            public void end(final Resource resource)
+            {
+                ended.add(resource);
+            }
+        };
+        injectProcessors(new PropertiesProcessor(), failing);
+        final Resource resource = mockResource(mockNode("/parent", "parent"), ".failing.json");
+
+        Assertions.assertThrows(IllegalStateException.class,
+            () -> this.factory.getAdapter(resource, JsonObject.class));
+        Assertions.assertEquals(List.of(resource), ended);
     }
 
     @Test
