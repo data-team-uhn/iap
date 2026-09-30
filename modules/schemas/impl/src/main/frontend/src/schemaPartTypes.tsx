@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ComponentType, Fragment, type ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -28,7 +28,7 @@ import { Box, Stack, Typography, type SvgIconProps } from "@mui/material";
 
 import CodePill from "./CodePill";
 import { nameOf } from "./schemaModel";
-import { MoveSpot, useMoveHighlight } from "./schemaMove";
+import { useMoveHighlight } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
 import { ICON_COLUMN } from "./schemaTreeLayout";
 import {
@@ -71,7 +71,7 @@ function OptionText({ option }: { option: JcrNode }) {
 
 // One of a question's options in its details, with what may be done to it
 function OptionRow({ option, question, options }: { option: JcrNode; question: JcrNode; options: JcrNode[] }) {
-  const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option, { bordered: false });
+  const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option);
   const description = detailOf(option, "description");
   return (
     <Typography
@@ -94,8 +94,7 @@ function OptionRow({ option, question, options }: { option: JcrNode; question: J
 }
 
 // A question's options. In the question's details each comes with what it describes and what may be done to it,
-// the actions lined up just after the widest option, and, while an option is moving, the places it may go, between
-// them and after the last; in its chip, only what it says.
+// the actions lined up just after the widest option; in its chip, only what it says.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box
@@ -104,21 +103,17 @@ function OptionList({ options, question }: { options: JcrNode[]; question?: JcrN
         // Under the question's chips, on a screen wide enough to spare it
         ? { mx: 0, my: 1, p: 0, pl: { sm: ICON_COLUMN }, display: "grid", rowGap: 1.5,
           gridTemplateColumns: "minmax(0, max-content) max-content",
-          // Every row, an option or a place to move one to, spans the grid, spaced by it alone
+          // Every row spans the grid, spaced by it alone
           "& > li": { gridColumn: "1 / -1", my: 0 } }
         : { m: 0, pl: 3 }}
     >
       { options.map(option => (question ? (
-        <Fragment key={nameOf(option)}>
-          <MoveSpot parent={question} before={option} item />
-          <OptionRow option={option} question={question} options={options} />
-        </Fragment>
+        <OptionRow key={nameOf(option)} option={option} question={question} options={options} />
       ) : (
         <Typography component="li" variant="body2" key={nameOf(option)}>
           <OptionText option={option} />
         </Typography>
       ))) }
-      { question && <MoveSpot parent={question} item /> }
     </Box>
   );
 }
