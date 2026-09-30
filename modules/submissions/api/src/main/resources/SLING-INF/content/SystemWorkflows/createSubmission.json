@@ -7,7 +7,6 @@
     "version": "1.0",
     "active": true,
     "targetResourceType": "sub/SubmissionsHomepage",
-    "description": "What happens when a new submission is raised: check the schema version it answers, create the submission, put it under the workflow that schema version names, and send the submitter to it.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
