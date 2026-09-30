@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert, AlertTitle, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
 
@@ -78,12 +78,23 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     onSuccess: onClose,
   });
 
-  // Only leaf categories may carry a schema version; a category that already has subcategories
-  // does not get the picker at all
+  // A top-level category carries the schema a new submission under it follows, and a leaf may carry
+  // one too. A category in between, with subcategories, does not get the picker at all
   const isLeaf = !node || node.children.length === 0;
+  const isTop = parent === CATEGORIES_ROOT;
+  const showSchemaVersion = isLeaf || isTop;
   const duplicateLabel = label.trim() !== ""
     && hasDuplicateLabel(childrenOf(tree, parent), label, node?.path);
   const valid = label.trim() !== "" && !duplicateLabel;
+
+  // Changing the parent can hide the picker (moving a category with subcategories out of the top
+  // level), and the node type forbids a schema version on anything that is neither: a selection left
+  // over from before the move is not visible to clear by hand, so it is cleared here instead
+  useEffect(() => {
+    if (!showSchemaVersion) {
+      setSchemaVersion("");
+    }
+  }, [ showSchemaVersion ]);
 
   // Filing a category under another - by creating it there, or by moving it there - is what ends
   // that parent's days as a leaf, and only leaves may carry a schema version. The binding therefore
@@ -92,7 +103,9 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
   const gainingChild = mode === "create" || parent !== parentPath
     ? findNode(tree, parent)
     : undefined;
-  const unbindParent = gainingChild?.schemaVersion !== undefined;
+  // A top-level category keeps its schema when it gains a child: it is what the submitter picks
+  const unbindParent = gainingChild?.schemaVersion !== undefined
+    && gainingChild.path.slice(0, gainingChild.path.lastIndexOf("/")) !== CATEGORIES_ROOT;
 
   const parentOptions = [
     { path: CATEGORIES_ROOT, label: "— Top level —", depth: -1 },
@@ -174,7 +187,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
             helperText={"Shown to submitters as guidance, and used as an AI prompt — describe "
               + "what belongs in this category"}
           />
-          { isLeaf && <SchemaVersionSelect value={schemaVersion} onChange={setSchemaVersion} /> }
+          { showSchemaVersion && <SchemaVersionSelect value={schemaVersion} onChange={setSchemaVersion} /> }
           { mode === "edit"
             && (
               <TextField

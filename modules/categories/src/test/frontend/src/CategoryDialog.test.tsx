@@ -168,6 +168,158 @@ describe("CategoryDialog", () => {
     expect(onSave.mock.calls[0][0].unbindParent).toBe(true);
   });
 
+  // A top-level category names the schema a new submission under it follows, and keeps it whatever grows
+  // underneath: its subcategories are what a classification picks from, not places to file submissions
+  const topTree = parseCategoryTree({
+    "jcr:primaryType": "cat:CategoriesHomepage",
+    "Proposal": {
+      "jcr:primaryType": "cat:Category",
+      "label": "Research proposal",
+      "schemaVersion": {
+        "jcr:primaryType": "sch:SchemaVersion",
+        "jcr:uuid": "uuid-sv1",
+        "version": "1.0",
+        "@path": "/Schemas/basic/1.0",
+      },
+      "Prospective": { "jcr:primaryType": "cat:Category", "label": "Prospective studies" },
+    },
+  });
+
+  it("keeps the schema of a top-level category that gains a subcategory", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    render(
+      <CategoryDialog
+        mode="create"
+        parentPath="/Categories/Proposal"
+        tree={topTree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Retrospective studies" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].unbindParent).toBe(false);
+    expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
+  });
+
+  it("offers the schema picker on a top-level category that has subcategories", async () => {
+    stubSchemasEndpoint();
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={topTree[0]}
+        parentPath="/Categories"
+        tree={topTree}
+        onClose={vi.fn()}
+        onSave={onSaveMock()}
+      />
+    );
+
+    expect(await screen.findByLabelText(/Schema version/)).toBeInTheDocument();
+  });
+
+  // Moving a top-level category out of the top level hides the picker, so the binding the admin can
+  // no longer see or clear by hand is cleared for them
+  it("clears the schema version of a top-level category moved out from the top level", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    const movableTree = parseCategoryTree({
+      "jcr:primaryType": "cat:CategoriesHomepage",
+      "Proposal": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Research proposal",
+        "schemaVersion": {
+          "jcr:primaryType": "sch:SchemaVersion",
+          "jcr:uuid": "uuid-sv1",
+          "version": "1.0",
+          "@path": "/Schemas/basic/1.0",
+        },
+        "Prospective": { "jcr:primaryType": "cat:Category", "label": "Prospective studies" },
+      },
+      "Other": { "jcr:primaryType": "cat:Category", "label": "Other" },
+    });
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={movableTree[0]}
+        parentPath="/Categories"
+        tree={movableTree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    expect(await screen.findByLabelText(/Schema version/)).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByLabelText(/Parent category/));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByText("Other"));
+
+    expect(screen.queryByLabelText(/Schema version/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].fields.schemaVersion).toBeNull();
+  });
+
+  it("brings the schema version back when a category is moved back to the top level", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    const movableTree = parseCategoryTree({
+      "jcr:primaryType": "cat:CategoriesHomepage",
+      "Proposal": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Research proposal",
+        "schemaVersion": {
+          "jcr:primaryType": "sch:SchemaVersion",
+          "jcr:uuid": "uuid-sv1",
+          "version": "1.0",
+          "@path": "/Schemas/basic/1.0",
+        },
+      },
+      "Other": { "jcr:primaryType": "cat:Category", "label": "Other" },
+    });
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={movableTree[0]}
+        parentPath="/Categories"
+        tree={movableTree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByLabelText(/Parent category/));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByText("Other"));
+    await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Parent category/ }));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByText(/Top level/));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].fields.schemaVersion).toBe("uuid-sv1");
+  });
+
+  it("offers no schema picker below the top level", async () => {
+    stubSchemasEndpoint();
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[0].children[0]}
+        parentPath="/Categories/Retrospective"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSaveMock()}
+      />
+    );
+
+    expect(await screen.findByLabelText(/Parent category/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Schema version/)).not.toBeInTheDocument();
+  });
+
   it("does not offer to unbind the parent a category already sits under", async () => {
     stubSchemasEndpoint();
     const onSave = onSaveMock();
@@ -216,13 +368,12 @@ describe("CategoryDialog", () => {
   it("explicitly unbinds the schema version when None is selected on a bound category", async () => {
     stubSchemasEndpoint();
     const onSave = onSaveMock();
-    const node = tree[0].children[0];
     render(
       <CategoryDialog
         mode="edit"
-        node={node}
-        parentPath="/Categories/Retrospective"
-        tree={tree}
+        node={topTree[0]}
+        parentPath="/Categories"
+        tree={topTree}
         onClose={vi.fn()}
         onSave={onSave}
       />

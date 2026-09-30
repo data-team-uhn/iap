@@ -19,8 +19,11 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -55,9 +58,9 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     public static final String NAME = "intakeAnswers";
 
     /**
-     * The activity property naming the requirement to ask about. Absent means the whole schema version, which
-     * is one call for everything; naming one asks only what that requirement holds, so a schema can be read in
-     * stages and each stage is a step on the diagram.
+     * The activity property naming the requirement to ask about, or a list of them asked in one call. Absent
+     * means the whole schema version; naming some asks only what those requirements hold, so a schema can be
+     * read in stages and each stage is a step on the diagram.
      */
     static final String REQUIREMENT = "requirement";
 
@@ -77,7 +80,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
 
     /**
      * The activity property that decides whether this step writes what the model found. {@code path=value},
-     * for example {@code common/isProposal=proposal}. The model is still asked every question; if that field
+     * for example {@code screening/kind=questionnaire}. The model is still asked every question; if that field
      * did not come back as the value, nothing is recorded and the reading is marked done.
      */
     static final String RECORD_WHEN = "recordWhen";
@@ -130,22 +133,22 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         if (parts == null) {
             return;
         }
-        final String requirement = context.getActivity().get(REQUIREMENT, String.class);
-        final Map<String, Question> questions = ExtractionFields.extractable(submission, requirement);
+        final String[] named = context.getActivity().get(REQUIREMENT, String[].class);
+        final String requirement = named == null ? null : String.join(",", named);
+        final Map<String, Question> questions = getQuestions(submission, requirement);
         if (questions.isEmpty()) {
-            // A named requirement that asks nothing is a step whose turn did not come - the condition that
-            // would have brought it in did not hold - and saying the schema asks nothing would be wrong.
-            if (requirement == null || requirement.isBlank()) {
-                ExtractionStatus.record(target, ExtractionStatus.DONE, "The schema asks nothing of the document");
-            }
+            recordNothingToAsk(target, submission, requirement);
             return;
         }
+        this.runs.setFiles(target.getPath(),
+            parts.stream().map(part -> part.file().getPath()).collect(Collectors.toSet()));
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading step started: step=intake submission={} requirement={} questions={}",
             target.getPath(), requirement, questions.size());
-        final IntakeResult result = ask(parts, questions, extraSystem(context));
+        final IntakeResult result = ask(parts, questions, getExtraSystem(context));
         if (result == null || result.degraded()) {
-            ExtractionStatus.record(target, ExtractionStatus.FAILED, "The model's answer could not be read");
+            ExtractionStatus.record(target, ExtractionStatus.FAILED,
+                result == null ? IntakeResult.UNREADABLE : result.getMessage());
             return;
         }
         if (!shouldRecord(context.getActivity().get(RECORD_WHEN, String.class), result.fields())) {
@@ -161,6 +164,61 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
             (System.nanoTime() - startedAt) / 1_000_000L);
+    }
+
+    /**
+     * The questions this step asks, by path within the schema version, leaving out the ones already answered:
+     * reading again fills the gaps.
+     *
+     * @param submission the submission being read
+     * @param requirement the requirements the step names, comma-separated, or {@code null} for every one
+     * @return the questions to ask, in the order the schema asks them
+     */
+    private static Map<String, Question> getQuestions(final Submission submission, final String requirement)
+    {
+        final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
+        final Set<String> answered = ExtractionFields.getAnswered(submission);
+        questions.values().removeIf(question -> answered.contains(question.getPath()));
+        return questions;
+    }
+
+    /**
+     * Say why a step asked the model nothing.
+     *
+     * @param target the submission's resource
+     * @param submission the submission
+     * @param requirement the requirements the step names, or {@code null}
+     * @throws PersistenceException if the status cannot be written
+     */
+    private static void recordNothingToAsk(final Resource target, final Submission submission,
+        final String requirement) throws PersistenceException
+    {
+        if (!getQuestionsIncludingAnswered(submission, requirement).isEmpty()) {
+            // Everything it asks is answered already
+            ExtractionStatus.record(target, ExtractionStatus.DONE, null);
+        } else if (requirement == null || requirement.isBlank()) {
+            // A named requirement that asks nothing is a step whose turn did not come - the condition that
+            // would have brought it in did not hold - and saying the schema asks nothing would be wrong.
+            ExtractionStatus.record(target, ExtractionStatus.DONE, "The schema asks nothing of the document");
+        }
+    }
+
+    /** Every question the step names, answered or not. Several requirements are asked in one call, in order. */
+    private static Map<String, Question> getQuestionsIncludingAnswered(final Submission submission,
+        final String requirement)
+    {
+        final Map<String, Question> questions = new LinkedHashMap<>();
+        if (requirement == null || requirement.isBlank()) {
+            questions.putAll(ExtractionFields.getExtractable(submission, null));
+            return questions;
+        }
+        // Split on commas too, since that is how a diagram writes a list into this single-valued attribute
+        for (final String name : requirement.split(",")) {
+            if (!name.isBlank()) {
+                questions.putAll(ExtractionFields.getExtractable(submission, name.trim()));
+            }
+        }
+        return questions;
     }
 
     /**
@@ -260,7 +318,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * Extra system instructions this step names, concatenated in the order named. A single name reads as a
      * list of one. Blank names add nothing.
      */
-    static String extraSystem(final WorkflowTaskContext context)
+    static String getExtraSystem(final WorkflowTaskContext context)
     {
         final String[] named = context.getActivity().get(PROMPT_FROM, String[].class);
         final StringBuilder extra = new StringBuilder();
@@ -282,7 +340,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     {
         final File first = parts.get(0).file();
         try {
-            return this.intake.run(first, scanOf(parts), ExtractionFields.toFields(questions), extraSystem);
+            return this.intake.run(first, getScan(parts), ExtractionFields.toFields(questions), extraSystem);
         } catch (final ReadingRuns.Stopped e) {
             throw e;
         } catch (final IOException e) {
@@ -302,7 +360,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * <p>Quotes are checked against this same text, so a passage quoted from either document is found, and the
      * joined text remembers where each document starts, so each passage is stored with the one it came from.</p>
      */
-    private DocumentScan scanOf(final List<Part> parts) throws IOException
+    private DocumentScan getScan(final List<Part> parts) throws IOException
     {
         if (parts.size() == 1 && parts.get(0).heading() == null) {
             return this.documents.scan(parts.get(0).file());

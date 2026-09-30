@@ -33,6 +33,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>Only {@code running} is moved on. A step that already said the reading failed has said something this one
  * does not know, and overwriting it with "done" would lose it.</p>
  *
+ * <p>A step that pauses names a {@code message}, so the view can say the reading waits for the submitter.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -41,6 +43,9 @@ public class FinishReadingHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
     public static final String NAME = "finishReading";
+
+    /** The activity property holding what to tell the submitter, if anything. */
+    static final String MESSAGE = "message";
 
     @Override
     public String getName()
@@ -53,7 +58,7 @@ public class FinishReadingHandler implements ServiceTaskHandler
     {
         final Resource target = context.getTarget();
         if (ExtractionStatus.RUNNING.equals(target.getValueMap().get(ExtractionStatus.PROPERTY, String.class))) {
-            ExtractionStatus.record(target, ExtractionStatus.DONE, null);
+            ExtractionStatus.record(target, ExtractionStatus.DONE, context.getActivity().get(MESSAGE, String.class));
         }
     }
 }

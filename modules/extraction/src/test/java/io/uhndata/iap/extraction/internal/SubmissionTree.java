@@ -19,8 +19,10 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -28,6 +30,10 @@ import javax.jcr.RepositoryException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
+
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * Builds the repository a handler test needs: a schema version with questions, a submission answering it, and
@@ -57,14 +63,24 @@ final class SubmissionTree
     SubmissionTree(final SlingContext context)
     {
         this.context = context;
+        // The tags service does not run under sling-mock; a draft is read off the node's own tags
+        context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
+            final Taggable taggable = Mockito.mock(Taggable.class);
+            final Answer<Boolean> isTagged = invocation -> Arrays.asList(
+                resource.getValueMap().get("tags", new String[0])).contains(invocation.<String>getArgument(0));
+            Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(isTagged);
+            Mockito.when(taggable.hasTag(Mockito.anyString())).thenAnswer(isTagged);
+            return taggable;
+        });
     }
 
     /** The schema version, with one form to hold questions. */
     Resource schemaVersion()
     {
         this.context.create().resource("/Schemas/proposal", Map.of(TYPE, "sch/Schema", "title", "Proposal"));
-        final Resource version = this.context.create().resource(VERSION_PATH,
-            Map.of(TYPE, "sch/SchemaVersion", "version", "1.0", "active", true));
+        // Names a reading workflow, since only a schema that reads its documents has them parsed
+        final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
+            "version", "1.0", "active", true, ParseDocumentsHandler.READING_WORKFLOW, "the-reading-workflow"));
         // A mock repository has no /libs/sch hierarchy to inherit from, so each item carries its super type
         this.context.create().resource(FORM_PATH,
             Map.of(TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Study"));
@@ -159,7 +175,34 @@ final class SubmissionTree
         return this.context.create().resource(document + "/v1", Map.of(TYPE, "sub/DocumentVersion"));
     }
 
-    /** The Markdown a parse produced for a file, which is what every call reads. */
+    /**
+     * A yes/no classification requirement reading one document requirement, with its one question.
+     *
+     * @param name the requirement's name
+     * @param document the name of the document requirement it reads
+     * @param prompt what the model is asked to decide
+     * @return the question the pick is stored under
+     */
+    Resource classification(final String name, final String document, final String prompt)
+    {
+        final String path = VERSION_PATH + "/" + name;
+        this.context.create().resource(path, Map.of(TYPE, "sch/ClassificationRequirement", SUPER_TYPE,
+            "sch/Requirement", "label", "Is it one?", "prompt", prompt, "document", document));
+        final Resource question = this.context.create().resource(path + "/decision", Map.of(TYPE, "sch/Question",
+            SUPER_TYPE, "sch/FormItem", "text", "Is it one?", "dataType", "text", "maxAnswers", 1L));
+        this.context.create().resource(path + "/decision/yes", Map.of(TYPE, "sch/AnswerOption", "value", "yes",
+            "label", "Yes"));
+        this.context.create().resource(path + "/decision/no", Map.of(TYPE, "sch/AnswerOption", "value", "no",
+            "label", "No"));
+        return question;
+    }
+
+    /** The reference text a classification requirement shows the model. */
+    void template(final String requirement, final String text)
+    {
+        storeText(VERSION_PATH + "/" + requirement + "/template", text);
+    }
+
     void markdown(final Resource file, final String text)
     {
         storeText(file.getPath() + "/markdownFile", text);

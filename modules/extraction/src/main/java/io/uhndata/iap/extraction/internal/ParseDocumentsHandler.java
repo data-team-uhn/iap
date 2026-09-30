@@ -31,6 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseService;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -58,6 +60,9 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     /** Where a file records the parse job it was queued under. */
     static final String PARSE_JOB_ID = "parseJobId";
 
+    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    static final String READING_WORKFLOW = "readingWorkflow";
+
     /** Where a file records where its upload was staged for the daemon. */
     static final String SHARED_PATH = "sharedPath";
 
@@ -77,11 +82,17 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     }
 
     @Override
-    public void execute(final WorkflowTaskContext context) throws PersistenceException
+    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
+        final Submission submission = SubmissionFiles.submission(target);
+        SubmitterAccess.checkMayChange(submission, context.getActor());
+        // Every upload runs this step, so a schema that never reads its documents is left alone
+        if (submission.getSchemaVersion().get(READING_WORKFLOW, String.class) == null) {
+            return;
+        }
         int queued = 0;
-        for (final File file : SubmissionFiles.currentFiles(SubmissionFiles.submission(target))) {
+        for (final File file : SubmissionFiles.currentFiles(submission)) {
             if (!isParseWanted(file)) {
                 continue;
             }

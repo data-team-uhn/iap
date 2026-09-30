@@ -62,6 +62,9 @@ class IntakeAnswersHandlerTest
 
     private static final String TITLE = "study/title";
 
+    /** A prompt file only the test classpath carries, so a step naming two prompts has two to name. */
+    private static final String REFERENCE_PROMPT = "test_reference.md";
+
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final AnswerIntakeService intake = Mockito.mock(AnswerIntakeService.class);
@@ -176,6 +179,52 @@ class IntakeAnswersHandlerTest
         Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
         assertEquals(List.of(AIMS, TITLE),
             fields.getValue().stream().map(ExtractionField::name).sorted().toList());
+    }
+
+    // A proposal is read once for what every proposal is asked and what its study type adds, in one call: the
+    // document is the expensive part
+    @Test
+    void asksSeveralRequirementsInOneCall() throws Exception
+    {
+        createExtraRequirement();
+        modelFinds();
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
+            Map.of(IntakeAnswersHandler.REQUIREMENT, new String[] { "study", "extra" })));
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
+        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
+            fields.getValue().stream().map(ExtractionField::name).toList(), "in the order the requirements are named");
+    }
+
+    // A diagram writes a list into this attribute as one comma-separated string
+    @Test
+    void readsSeveralRequirementsFromACommaList() throws Exception
+    {
+        createExtraRequirement();
+        modelFinds();
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
+            Map.of(IntakeAnswersHandler.REQUIREMENT, "study, ,extra")));
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
+        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
+            fields.getValue().stream().map(ExtractionField::name).toList());
+    }
+
+    /** A second requirement, holding one question, to name beside {@code study}. */
+    private void createExtraRequirement()
+    {
+        this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra", Map.of(
+            "sling:resourceType", "sch/FormRequirement", "sling:resourceSuperType", "sch/Requirement",
+            "label", "Extra"));
+        this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra/sites", Map.of(
+            "sling:resourceType", "sch/Question", "sling:resourceSuperType", "sch/FormItem",
+            "text", "Which sites?", "dataType", "text", "extractionPrompt", "List the sites."));
     }
 
     /** A step that writes only when one named field came back as a given value. */
@@ -338,6 +387,27 @@ class IntakeAnswersHandlerTest
         assertEquals(1, answers().size());
         assertArrayEquals(new String[] { "What the person said" },
             answers().get(0).getValueMap().get("value", String[].class));
+    }
+
+    // Reading again fills the gaps, so a question already answered is not paid for a second time
+    @Test
+    void asksTheModelNothingWhenEveryQuestionIsAnswered() throws Exception
+    {
+        final Resource theirs = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                "value", new String[] { "What the person said" }));
+        SubmissionTree.reference(theirs, "question", this.aims);
+        final Resource title = this.context.create().resource(this.submission.getPath() + "/a2",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                "value", new String[] { "A title" }));
+        SubmissionTree.reference(title, "question",
+            this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"));
+
+        this.handler.execute(task());
+
+        Mockito.verifyNoInteractions(this.intake);
+        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
     }
 
     // A reading workflow need not gate: a schema whose document is only ever the one kind it asks for has
@@ -556,7 +626,7 @@ class IntakeAnswersHandlerTest
     }
 
     @Test
-    void refusesToRecordAnAnswerWhoseQuestionCannotBeReferenced() throws Exception
+    void leavesNoAnswerWhenItsQuestionIsGoneByTheTimeItIsWritten() throws Exception
     {
         modelFinds(new FieldResult(AIMS, true, 0.9, "Something", "", List.of()));
         // The question is read into the field list first, then gone by the time the answer is written
@@ -567,7 +637,9 @@ class IntakeAnswersHandlerTest
                     false);
             });
 
-        assertThrows(PersistenceException.class, () -> this.handler.execute(task()));
+        this.handler.execute(task());
+
+        assertTrue(answers().isEmpty(), "nothing half made is left for the commit to refuse");
     }
 
     // Domain knowledge that is only worth sending for one schema sits on the step, not on every reading
@@ -587,20 +659,21 @@ class IntakeAnswersHandlerTest
     @Test
     void concatenatesEveryPromptTheStepNames()
     {
-        final String extra = IntakeAnswersHandler.extraSystem(TaskContexts.of(this.submission, Map.of(),
+        final String extra = IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(),
             this.variables, Map.of(IntakeAnswersHandler.PROMPT_FROM,
-                new String[] { Prompts.PROTOCOL_STRUCTURE, " ", Prompts.INTAKE_SYSTEM })));
+                new String[] { REFERENCE_PROMPT, " ", Prompts.INTAKE_SYSTEM })));
 
-        assertTrue(extra.contains("B.1 General information"), extra);
+        assertTrue(extra.contains("A reference only the tests carry"), extra);
         assertTrue(extra.contains("intake extraction engine"), extra);
-        assertTrue(extra.indexOf("B.1 General information") < extra.indexOf("intake extraction engine"), extra);
+        assertTrue(extra.indexOf("A reference only the tests carry") < extra.indexOf("intake extraction engine"),
+            extra);
     }
 
     @Test
     void addsNoExtraPromptWhenTheStepNamesNone()
     {
-        assertNull(IntakeAnswersHandler.extraSystem(task()));
-        assertNull(IntakeAnswersHandler.extraSystem(TaskContexts.of(this.submission, Map.of(), this.variables,
+        assertNull(IntakeAnswersHandler.getExtraSystem(task()));
+        assertNull(IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.PROMPT_FROM, " "))));
     }
 }

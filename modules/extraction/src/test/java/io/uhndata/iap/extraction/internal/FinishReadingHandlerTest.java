@@ -87,6 +87,18 @@ class FinishReadingHandlerTest
         assertNull(property(ExtractionStatus.MESSAGE));
     }
 
+    @Test
+    void saysTheReadingWaitsWhenTheStepNamesAMessage() throws Exception
+    {
+        statusIs(ExtractionStatus.RUNNING, null);
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of(),
+            Map.of("message", "Confirm the classification to go on")));
+
+        assertEquals("done", property(ExtractionStatus.PROPERTY));
+        assertEquals("Confirm the classification to go on", property(ExtractionStatus.MESSAGE));
+    }
+
     // A step that already said how the reading ended knew something this one does not
     @Test
     void leavesAReadingThatAlreadyFailedAlone() throws Exception

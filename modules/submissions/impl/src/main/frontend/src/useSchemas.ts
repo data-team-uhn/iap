@@ -21,9 +21,14 @@ import { useEffect, useState } from "react";
 import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
-import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
+import {
+  CATEGORIES_URL, type JsonNode, type SchemaChoice, SCHEMAS_URL, submissionChoices,
+} from "./schemaModel";
 
 // Reading what a submission may be raised against, once. The parsing is in schemaModel.
+//
+// The top categories are offered first, then the open schemas no category offers. When the
+// categories cannot be read, the open schemas are offered as they are.
 
 export interface SchemasOnOffer {
   /** What may be picked, empty until the read has settled and whenever it failed. */
@@ -52,21 +57,21 @@ export function useSchemas(): SchemasOnOffer {
 
   useEffect(() => {
     let cancelled = false;
-    doFetch(SCHEMAS_URL)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
+    const readTree = (url: string) => doFetch(url).then(response => {
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      return response.json().then(body => {
+        if (typeof body !== "object" || body === null) {
+          throw new SyntaxError(`${url} is not a node`);
         }
-        return response.json().then(body => {
-          if (typeof body !== "object" || body === null) {
-            throw new SyntaxError("The list of schemas is not a node");
-          }
-          return body as JsonNode;
-        });
-      })
-      .then(tree => {
+        return body as JsonNode;
+      });
+    });
+    Promise.all([ readTree(SCHEMAS_URL), readTree(CATEGORIES_URL).catch(() => ({})) ])
+      .then(([ schemas, categories ]) => {
         if (!cancelled) {
-          setChoices(schemaChoices(tree));
+          setChoices(submissionChoices(categories, schemas));
         }
       })
       .catch((failure: unknown) => {

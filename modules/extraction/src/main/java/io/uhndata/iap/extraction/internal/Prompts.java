@@ -37,12 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class Prompts
 {
-    /** Domain knowledge for reading a research proposal: what one is, judged against ICH-GCP. */
-    static final String IS_PROPOSAL_SYSTEM = "is_proposal_system.md";
-
-    /** The ICH-GCP protocol content reference, rubrics B.1 to B.17. */
-    static final String PROTOCOL_STRUCTURE = "protocol_structure.md";
-
     /** What the intake pass is told about reading every field out of a document at once. */
     static final String INTAKE_SYSTEM = "intake_system.md";
 

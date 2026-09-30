@@ -37,6 +37,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.workflows.api.InvalidStateException;
+import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,6 +94,26 @@ class ParseDocumentsHandlerTest
     }
 
     @Test
+    void refusesAnybodyButTheSubmitter()
+    {
+        this.tree.file(null);
+        this.submission.adaptTo(ModifiableValueMap.class).put("createdBy", "a-reviewer");
+
+        assertThrows(NotAuthorizedException.class, () -> this.handler.execute(task(this.submission)));
+        Mockito.verifyNoInteractions(this.parseService);
+    }
+
+    @Test
+    void refusesARequestAlreadySent()
+    {
+        this.tree.file(null);
+        this.submission.adaptTo(ModifiableValueMap.class).put("tags", new String[0]);
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(task(this.submission)));
+        Mockito.verifyNoInteractions(this.parseService);
+    }
+
+    @Test
     void stagesAndQueuesEveryUploadNotParsedYet() throws Exception
     {
         final Resource file = this.tree.file(null);
@@ -104,6 +126,19 @@ class ParseDocumentsHandlerTest
         assertEquals(STAGED, file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class));
         assertEquals("running", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class),
             "the submission is now being read");
+    }
+
+    // Every upload runs this step, and a schema that never reads its documents has no use for a parse
+    @Test
+    void leavesTheUploadsOfASchemaThatReadsNothingAlone() throws Exception
+    {
+        this.tree.file(null);
+        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
+            .remove(ParseDocumentsHandler.READING_WORKFLOW);
+
+        this.handler.execute(task(this.submission));
+
+        Mockito.verifyNoInteractions(this.parseService);
     }
 
     @Test

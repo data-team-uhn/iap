@@ -38,9 +38,16 @@
     <bpmn:sequenceFlow id="toMark" sourceRef="attach" targetRef="mark" />
     <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
       <bpmn:incoming>toMark</bpmn:incoming>
+      <bpmn:outgoing>toParse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toParse" sourceRef="mark" targetRef="parse" />
+    <!-- Provided by the extraction module. It does nothing for a schema that names no reading workflow, and
+         sends only uploads not yet parsed, so a schema that reads its documents starts reading on upload. -->
+    <bpmn:serviceTask id="parse" iap:handler="parseDocuments" name="Start reading the document">
+      <bpmn:incoming>toParse</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toDone" sourceRef="mark" targetRef="done" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="parse" targetRef="done" />
     <bpmn:endEvent id="done" name="Document attached">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
@@ -59,10 +66,13 @@
       <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
         <dc:Bounds x="410" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="parseShape" bpmnElement="parse">
+        <dc:Bounds x="570" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="730" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="547" y="223" width="83" height="14" />
+          <dc:Bounds x="707" y="223" width="83" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toAttachEdge" bpmnElement="toAttach">
@@ -73,9 +83,13 @@
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toParseEdge" bpmnElement="toParse">
         <di:waypoint x="510" y="198" />
         <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="670" y="198" />
+        <di:waypoint x="730" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
