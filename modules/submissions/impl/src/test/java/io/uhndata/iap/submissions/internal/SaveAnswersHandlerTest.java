@@ -48,6 +48,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -196,7 +197,7 @@ class SaveAnswersHandlerTest
     {
         modify(this.target, "tags", new String[] {"submitted"});
 
-        final NotAuthorizedException refusal = assertThrows(NotAuthorizedException.class,
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
 
         assertTrue(refusal.getMessage().contains("can no longer be changed"));

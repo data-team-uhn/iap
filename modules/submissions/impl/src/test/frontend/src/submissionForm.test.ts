@@ -99,7 +99,7 @@ describe("saveAnswer", () => {
     // verbatim beats inventing a message over the top of it
     const fetchMock = vi.fn(() => response(
       { error: "This request has been submitted and can no longer be changed" },
-      { ok: false, status: 403 }));
+      { ok: false, status: 409 }));
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow("This request has been submitted and can no longer be changed");

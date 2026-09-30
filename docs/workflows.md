@@ -352,19 +352,20 @@ and inbound email or firing timers will feed the same door:
     throws WorkflowException;
 ```
 
-Receiving an event answers three questions in order, and each failure is its own
-exception, which the servlet maps to its own status:
+Receiving an event answers four questions in order, and each failure is its own
+exception, which the servlet maps to a status:
 
 | Question | Failure | Status |
 |---|---|---|
 | Is anything waiting for this event here? | `NoApplicableWorkflowException` | **409** |
 | May this user fire it? | `NotAuthorizedException` | **403** |
+| Does the target's state allow it now? | `InvalidStateException` | **409** |
 | Is what it carries usable? | `InvalidPayloadException` | **400** |
 | — | `WorkflowDefinitionException`, `WorkflowFailedException` | **500** |
 
 ### Who is allowed: the workflow decides
 
-The middle question is the one the whole design turns on. **Nobody holds rights on the
+The second question is the one the whole design turns on. **Nobody holds rights on the
 content workflows manage.** There is no ACL granting users write access to `/Workflows`
 or `/Submissions`, and none is coming: the engine reads and writes everything as its own
 service user. What a user may do is therefore not what an access control list says about

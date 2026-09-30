@@ -36,6 +36,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -64,9 +65,9 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String NAME = "saveAnswers";
 
-    private static final String QUESTION = "question";
+    private static final String QUESTION_PROPERTY = "question";
 
-    private static final String VALUE = "value";
+    private static final String VALUE_PROPERTY = "value";
 
     @Override
     public String getName()
@@ -85,10 +86,10 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
             "A submission resource always reads as a submission");
         checkMayEdit(submission, context.getActor());
-        final Resource version = versionOf(submission, target);
+        final Resource schemaVersion = schemaVersionOf(submission, target);
         final Map<Resource, String[]> answers = new LinkedHashMap<>();
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
-            answers.put(question(version, entry.getKey()), values(entry.getKey(), entry.getValue()));
+            answers.put(question(schemaVersion, entry.getKey()), values(entry.getKey(), entry.getValue()));
         }
         final Map<String, String> existing = answersByQuestion(submission);
         for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
@@ -101,9 +102,11 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      *
      * @param submission the submission being edited
      * @param actor the user whose action this is
-     * @throws NotAuthorizedException when somebody else is editing it, or it is no longer a draft
+     * @throws NotAuthorizedException when somebody else is editing it
+     * @throws InvalidStateException when it is no longer a draft
      */
-    private void checkMayEdit(final Submission submission, final String actor) throws NotAuthorizedException
+    private void checkMayEdit(final Submission submission, final String actor)
+        throws NotAuthorizedException, InvalidStateException
     {
         // getCreatedBy prefers what the engine recorded over jcr:createdBy, which names the engine's own service
         // user for everything it writes
@@ -111,7 +114,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             throw new NotAuthorizedException("Only the person who raised a request may answer it");
         }
         if (!submission.isDraft()) {
-            throw new NotAuthorizedException("This request has been submitted and can no longer be changed");
+            throw new InvalidStateException("This request has been submitted and can no longer be changed");
         }
     }
 
@@ -120,21 +123,22 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      *
      * @param submission the submission being edited
      * @param target the submission's own resource, read through the session everything else uses
-     * @return the version's resource
+     * @return the schema version's resource
      * @throws InvalidPayloadException when the submission answers nothing readable
      */
-    private Resource versionOf(final Submission submission, final Resource target) throws InvalidPayloadException
+    private Resource schemaVersionOf(final Submission submission, final Resource target)
+        throws InvalidPayloadException
     {
         // The node type makes the reference mandatory, which is a rule about the content and not a promise to
         // every reader: a version that has gone, or one this session may not read, resolves to nothing
-        final SchemaVersion version = submission.findSchemaVersion();
-        if (version == null) {
+        final SchemaVersion schemaVersion = submission.findSchemaVersion();
+        if (schemaVersion == null) {
             throw new InvalidPayloadException("Cannot identify the schema of this submission");
         }
         // Resolved again on the session everything else uses. The model reads through the same resolver in
         // production, but not in every harness, and a version that adapts without resolving here is still a
         // submission that cannot say what it is answering
-        final Resource resource = target.getResourceResolver().getResource(version.getPath());
+        final Resource resource = target.getResourceResolver().getResource(schemaVersion.getPath());
         if (resource == null) {
             throw new InvalidPayloadException("Cannot access the schema of this submission");
         }
@@ -144,20 +148,20 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /**
      * Resolves one payload key into the question it names.
      *
-     * @param version the schema version the paths are relative to
+     * @param schemaVersion the schema version the paths are relative to
      * @param path the question's path relative to that version
      * @return the question's resource
      * @throws InvalidPayloadException when nothing of that name is a question of this schema version
      */
-    private Resource question(final Resource version, final String path) throws InvalidPayloadException
+    private Resource question(final Resource schemaVersion, final String path) throws InvalidPayloadException
     {
-        final Resource question = version.getChild(path);
+        final Resource question = schemaVersion.getChild(path);
         // Containment is checked on what the path resolved to, not on the path as written. `getChild` hands an
         // absolute path straight to the resolver and normalises `..` out of a relative one, so a key can name a
         // question of some other schema -- one the caller may not even be able to read, since the engine's
         // session can. The answer would then hold a REFERENCE that makes that question undeletable.
         if (question == null || !question.isResourceType(Question.RESOURCE_TYPE)
-            || !question.getPath().startsWith(version.getPath() + "/")) {
+            || !question.getPath().startsWith(schemaVersion.getPath() + "/")) {
             throw new InvalidPayloadException("There is no question " + path + " to answer in this request");
         }
         return question;
@@ -218,11 +222,11 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         }
         if (existing != null) {
             modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE, values);
+                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
-            Map.of("jcr:primaryType", "sub:Answer", VALUE, values));
+            Map.of("jcr:primaryType", "sub:Answer", VALUE_PROPERTY, values));
         reference(answer, question);
     }
 
@@ -259,7 +263,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         final Node questionNode = Objects.requireNonNull(question.adaptTo(Node.class),
             "A question read from the schema is always backed by a JCR node");
         try {
-            answerNode.setProperty(QUESTION, questionNode);
+            answerNode.setProperty(QUESTION_PROPERTY, questionNode);
         } catch (final RepositoryException e) {
             throw new PersistenceException("Could not reference the question", e);
         }
