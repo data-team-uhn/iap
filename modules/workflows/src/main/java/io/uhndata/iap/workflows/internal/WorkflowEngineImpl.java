@@ -100,7 +100,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
         try (ResourceResolver serviceResolver = serviceResolver()) {
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
-            final Resource privilegedTarget = privileged(serviceResolver, target);
+            final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
+                "A target the caller could reach is always visible to the engine");
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
@@ -114,19 +115,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        try (ResourceResolver serviceResolver = serviceResolver()) {
-            return WorkflowQueries.availableEvents(serviceResolver, privileged(serviceResolver, target),
-                UserIds.canonical(target.getResourceResolver()), this.conditionEvaluator);
-        }
+        return WorkflowQueries.availableEvents(target, this::serviceResolver, this.conditionEvaluator);
     }
 
     @Override
     public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
-        try (ResourceResolver serviceResolver = serviceResolver()) {
-            return WorkflowQueries.applicableWorkflow(serviceResolver, privileged(serviceResolver, target),
-                target.getResourceResolver(), this.conditionEvaluator, event);
-        }
+        return WorkflowQueries.applicableWorkflow(target, event, this::serviceResolver, this.conditionEvaluator);
     }
 
     /**
@@ -143,19 +138,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
         } catch (final LoginException e) {
             throw new WorkflowFailedException("The workflow engine's service user is not available", e);
         }
-    }
-
-    /**
-     * The target as the engine sees it.
-     *
-     * @param serviceResolver the engine's own session
-     * @param target the target as the caller sees it
-     * @return the same resource, backed by the engine's session
-     */
-    private Resource privileged(final ResourceResolver serviceResolver, final Resource target)
-    {
-        return Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
-            "A target the caller could reach is always visible to the engine");
     }
 
     /**

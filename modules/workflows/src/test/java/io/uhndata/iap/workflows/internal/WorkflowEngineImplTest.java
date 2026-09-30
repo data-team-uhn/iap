@@ -72,6 +72,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import static io.uhndata.iap.workflows.internal.EngineFixture.VERSION;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -149,6 +150,29 @@ class WorkflowEngineImplTest
         resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
         inject(impl, "conditionEvaluator", evaluator);
         return impl;
+    }
+
+    /**
+     * Builds an engine whose service sessions are recorded as they are opened, so that a test can count them and
+     * see them closed.
+     *
+     * @param opened where to record them
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngine recording(final List<OpenedSession> opened) throws Exception
+    {
+        final WorkflowEngine engine = engine();
+        final ResourceResolverFactory serviceUsers = EngineFixture.serviceUsers(this.context, null);
+        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
+            final OpenedSession session =
+                new OpenedSession(serviceUsers.getServiceResourceResolver(invocation.getArgument(0)));
+            opened.add(session);
+            return session;
+        });
+        inject(engine, "resolverFactory", factory);
+        return engine;
     }
 
     private static void inject(final Object target, final String field, final Object value) throws Exception
@@ -757,6 +781,69 @@ class WorkflowEngineImplTest
             () -> engine.findApplicableWorkflow(target, CREATE.getName()));
     }
 
+    @Test
+    void answersEverythingAskedThroughOneResolverFromOneSession() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        final List<OpenedSession> opened = new ArrayList<>();
+        final WorkflowEngine engine = recording(opened);
+
+        engine.getAvailableEvents(target);
+        engine.getAvailableEvents(target);
+        engine.findApplicableWorkflow(target, CREATE.getName());
+
+        assertEquals(1, opened.size());
+    }
+
+    @Test
+    void closesItsSessionWithTheResolverAskedThrough() throws Exception
+    {
+        final Resource homepage = EngineFixture.createTarget(this.context);
+        final List<OpenedSession> opened = new ArrayList<>();
+        final WorkflowEngine engine = recording(opened);
+        final ResourceResolver asking = EngineFixture.actingAs(
+            this.context.getService(ResourceResolverFactory.class).getResourceResolver(null), EngineFixture.ADMIN);
+        final Resource target = new ResourceWrapper(asking.getResource(homepage.getPath()))
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return asking;
+            }
+        };
+
+        engine.getAvailableEvents(target);
+        assertFalse(opened.get(0).closed);
+        asking.close();
+
+        assertTrue(opened.get(0).closed);
+    }
+
+    @Test
+    void keepsASessionForEachUserAskingThroughOneResolver() throws Exception
+    {
+        final Resource administrator = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "some-other-group");
+        final ResourceResolver asRequester =
+            EngineFixture.actingAs(this.context.resourceResolver(), EngineFixture.REQUESTER);
+        final Resource requester = new ResourceWrapper(administrator)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return asRequester;
+            }
+        };
+        final WorkflowEngine engine = engine();
+
+        // Both wrap the test's own resolver and share its property map, so only the user tells them apart
+        assertEquals(Set.of(), engine.getAvailableEvents(requester));
+        assertEquals(Set.of(CREATE.getName()), engine.getAvailableEvents(administrator));
+    }
+
     /**
      * Places tags on the {@code /Workflows} target, which is what the tests' guards look at.
      *
@@ -865,6 +952,27 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             // Nothing to do
+        }
+    }
+
+    /**
+     * A service session handed to the engine, remembering whether the engine closed it. The mock resolver always
+     * reports itself live, so closing has to be watched for rather than asked about.
+     */
+    private static final class OpenedSession extends ResourceResolverWrapper
+    {
+        private boolean closed;
+
+        OpenedSession(final ResourceResolver resolver)
+        {
+            super(resolver);
+        }
+
+        @Override
+        public void close()
+        {
+            this.closed = true;
+            super.close();
         }
     }
 }

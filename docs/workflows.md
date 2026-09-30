@@ -312,6 +312,12 @@ user cannot read. The version it returns is read through the user's own session.
 means nothing would take the event from this user, and two workflows competing for it
 are a `WorkflowDefinitionException`, as they are on receiving it.
 
+Both are cheap to ask of every node a serialization writes. Everything asked through one
+resolver is answered from one engine session, opened by the first question and closed
+with the resolver, so the one a request resolved through lasts until the request ends.
+Keeping it open is safe because nothing it can reach is ever handed out: only event
+names, and versions read through the user's own session.
+
 ### Built-in service tasks
 
 A few handlers are the engine's own, because what they do is generic:
