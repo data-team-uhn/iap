@@ -370,12 +370,12 @@ class UserWorkflowTest
     }
 
     @Test
-    void readsNoSystemWorkflowForATask() throws Exception
+    void findsNoSystemWorkflowForATask() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
         final WorkflowEngine engine = started();
 
-        assertNull(engine.inspectWorkflow(as(TASK, EngineFixture.REQUESTER), "complete", version -> version));
+        assertNull(engine.findApplicableWorkflow(as(TASK, EngineFixture.REQUESTER), "complete"));
     }
 
     @Test

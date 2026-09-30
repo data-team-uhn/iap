@@ -18,17 +18,18 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -67,20 +68,21 @@ final class WorkflowQueries
     }
 
     /**
-     * Reads the system workflow that would handle an event from an actor, if any.
+     * The system workflow that would handle an event from the asking user, as their own session reads it. Which one
+     * is decided through the engine's session, as receiving the event would decide it, since a guard may look at
+     * content the user cannot read. Only the answer is handed over to the user's session.
      *
-     * @param <T> what the reader makes of it
      * @param serviceResolver the engine's own session
      * @param target the target, backed by the engine's session
-     * @param actor the asking user
+     * @param asking the asking user's own session, which the workflow is read through
      * @param evaluator decides whether guards hold
      * @param event the event's name
-     * @param reader what to read from the workflow version
-     * @return what the reader returned, or {@code null} when no system workflow would take the event
-     * @throws WorkflowException when the actor cannot be looked up
+     * @return the workflow version, or {@code null} when no system workflow would take the event from the user
+     * @throws WorkflowException when the user cannot be looked up, several workflows would take the event, or the
+     *             user's session cannot read the one that would
      */
-    static <T> T inspect(final ResourceResolver serviceResolver, final Resource target, final String actor,
-        final ConditionEvaluator evaluator, final String event, final Function<WorkflowVersion, T> reader)
+    static WorkflowVersion applicableWorkflow(final ResourceResolver serviceResolver, final Resource target,
+        final ResourceResolver asking, final ConditionEvaluator evaluator, final String event)
         throws WorkflowException
     {
         if (target.isResourceType(TaskInstance.RESOURCE_TYPE)) {
@@ -89,10 +91,21 @@ final class WorkflowQueries
         final StartEvent start;
         try {
             start = SystemWorkflowLocator.find(serviceResolver, target, new WorkflowEvent(event, Map.of()), evaluator);
-        } catch (final NoApplicableWorkflowException | WorkflowDefinitionException e) {
+        } catch (final NoApplicableWorkflowException e) {
             return null;
         }
-        return PerformerCheck.of(serviceResolver, actor).admits(start)
-            ? reader.apply(start.getWorkflowVersion()) : null;
+        if (!PerformerCheck.of(serviceResolver, UserIds.canonical(asking)).admits(start)) {
+            return null;
+        }
+        final String path = Objects.requireNonNull(start.getWorkflowVersion(),
+            "A start event found in a workflow version belongs to it").getPath();
+        final Resource version = asking.getResource(path);
+        if (version == null) {
+            throw new WorkflowFailedException("The system workflow " + path + " is not readable by "
+                + UserIds.canonical(asking)
+                + "; the repository lacks the grant that lets everyone read /SystemWorkflows");
+        }
+        return Objects.requireNonNull(version.adaptTo(WorkflowVersion.class),
+            "A wf:WorkflowVersion resource always adapts to its model");
     }
 }

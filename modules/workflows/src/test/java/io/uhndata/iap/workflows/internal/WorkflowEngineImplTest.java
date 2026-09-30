@@ -34,6 +34,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
@@ -511,6 +513,7 @@ class WorkflowEngineImplTest
 
         assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
         assertThrows(WorkflowFailedException.class, () -> engine.getAvailableEvents(target));
+        assertThrows(WorkflowFailedException.class, () -> engine.findApplicableWorkflow(target, CREATE.getName()));
     }
 
     /**
@@ -680,17 +683,51 @@ class WorkflowEngineImplTest
     }
 
     @Test
-    void readsTheDefinitionThatWouldHandleAnEvent() throws Exception
+    void findsTheWorkflowThatWouldHandleAnEvent() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
         EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
-        assertEquals(VERSION, engine().inspectWorkflow(target, CREATE.getName(), WorkflowVersion::getPath));
+        final WorkflowVersion version = engine().findApplicableWorkflow(target, CREATE.getName());
+
+        assertEquals(VERSION, version.getPath());
+        assertEquals(List.of(VERSION + "/requested"),
+            version.getStartEvents().stream().map(StartEvent::getPath).toList());
     }
 
     @Test
-    void readsNothingWhenNoWorkflowWouldTakeTheEventFromTheUser() throws Exception
+    void handsTheWorkflowOverThroughTheAskingUsersOwnSession() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        // What a session sees without the grant that lets everyone read the system workflows
+        final ResourceResolver blind = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                return path.startsWith(SystemWorkflowsHomepage.PATH) ? null : super.getResource(path);
+            }
+        };
+        final Resource unseen = new ResourceWrapper(target)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return blind;
+            }
+        };
+        final WorkflowEngine engine = engine();
+
+        assertNotNull(engine.findApplicableWorkflow(target, CREATE.getName()));
+        // The engine's own session reads the workflow either way, so only handing it over can fail here
+        assertThrows(WorkflowFailedException.class, () -> engine.findApplicableWorkflow(unseen, CREATE.getName()));
+    }
+
+    @Test
+    void findsNothingWhenNoWorkflowWouldTakeTheEventFromTheUser() throws Exception
     {
         final Resource requester = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
         tagTarget("open");
@@ -701,9 +738,23 @@ class WorkflowEngineImplTest
         final WorkflowEngine engine = engine();
 
         // Not a performer, a guard that does not hold, and nothing waiting at all
-        assertNull(engine.inspectWorkflow(requester, CREATE.getName(), WorkflowVersion::getPath));
-        assertNull(engine.inspectWorkflow(requester, "archive", WorkflowVersion::getPath));
-        assertNull(engine.inspectWorkflow(requester, "unknown", WorkflowVersion::getPath));
+        assertNull(engine.findApplicableWorkflow(requester, CREATE.getName()));
+        assertNull(engine.findApplicableWorkflow(requester, "archive"));
+        assertNull(engine.findApplicableWorkflow(requester, "unknown"));
+    }
+
+    @Test
+    void refusesToChooseBetweenWorkflowsCompetingForAnEvent() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        createOtherNoopWorkflow(CREATE.getName());
+        final WorkflowEngine engine = engine();
+
+        // Receiving the event would refuse it as contradictory definitions, and so does asking which would run
+        assertThrows(WorkflowDefinitionException.class,
+            () -> engine.findApplicableWorkflow(target, CREATE.getName()));
     }
 
     /**

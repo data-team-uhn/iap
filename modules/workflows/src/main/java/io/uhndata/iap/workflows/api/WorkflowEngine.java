@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.api;
 
 import java.util.Set;
-import java.util.function.Function;
 
 import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
@@ -80,20 +79,21 @@ public interface WorkflowEngine
     Set<String> getAvailableEvents(@NotNull Resource target) throws WorkflowException;
 
     /**
-     * Reads the definition of the system workflow that would handle an event the asking user sent to one
-     * resource right now, e.g. to find out how it is configured. Definitions can only be read through the engine's
-     * own session, which is open only during this call, so the definition is handed to a function instead of
-     * returned.
+     * The system workflow that would handle an event the asking user sent to one resource right now: the one whose
+     * start event catches it, whose guard holds in the resource's current state, and whose definition admits that
+     * user, found as {@link #receiveEvent} would find it but without sending anything. Reading it tells what sending
+     * the event would do, e.g. what a create would make. Everyone may read the system workflows, so the version
+     * comes back as the asking user's own session reads it, and lasts as long as that session.
      *
-     * @param <T> what the function makes of the definition
      * @param target the resource the event would be aimed at, resolved through the asking user's own session
      * @param event the event's name
-     * @param reader what to read from the workflow version that would run
-     * @return what the reader returned, or {@code null} if no workflow would take the event from this user
-     * @throws WorkflowFailedException when the engine cannot establish who is asking
-     * @throws WorkflowException never directly, only as the above
+     * @return the workflow version, or {@code null} if no system workflow would take the event from this user;
+     *         always {@code null} for a task, whose events carry its instance on instead
+     * @throws WorkflowDefinitionException when several system workflows would take the event, as receiving it would
+     * @throws WorkflowFailedException when the engine cannot establish who is asking, or the asking session cannot
+     *             read the system workflows
+     * @throws WorkflowException never directly, only as one of the above
      */
     @Nullable
-    <T> T inspectWorkflow(@NotNull Resource target, @NotNull String event,
-        @NotNull Function<WorkflowVersion, T> reader) throws WorkflowException;
+    WorkflowVersion findApplicableWorkflow(@NotNull Resource target, @NotNull String event) throws WorkflowException;
 }

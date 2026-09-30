@@ -283,23 +283,34 @@ servlet. The repository still decides who may write, and on content the engine m
 can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
 schema with `POST /Schemas.import`.
 
-### Available events
+### Asking without sending
 
-`WorkflowEngine.getAvailableEvents(resource)` answers what the asking user could send to a resource right now:
-on a task, `complete` while it is open and its activity names them; anywhere else, the message of every system
-start event for the resource's type whose guard holds and whose `performers` admit them. It is the same
-matching and the same performer check an event goes through, asked without sending one, so a frontend decides
-what to offer from the workflows rather than from a copy of their rules.
+Two questions about an event can be asked without sending it: which events a user could
+send to a resource, and which workflow would handle one. The engine answers both with
+the matching and the performer check an event goes through, so a frontend decides what
+to offer, and what an action will do, from the workflows rather than from a copy of
+their rules.
 
-Available means the engine would take the event, not that it will succeed: the payload can still be invalid,
-and a step can still refuse, as a publish check refusing an incomplete schema would.
+`WorkflowEngine.getAvailableEvents(resource)` answers the first, for the asking user and
+right now: on a task, `complete` while it is open and its activity names them; anywhere
+else, the message of every system start event for the resource's type whose guard holds
+and whose `performers` admit them.
 
-`WorkflowEngine.inspectWorkflow(resource, event, reader)` goes one step further and reads the definition that
-would handle an event, e.g. how its steps are configured. Definitions are only readable through the engine's
-own session, open only during the call, so the definition is handed to `reader` rather than returned.
+Available means the engine would take the event, not that it will succeed: the payload
+can still be invalid, and a step can still refuse, as a publish check refusing an
+incomplete schema would.
 
-Over HTTP it is the `events` serialization processor, off by default: `GET /Schemas.1.simple.events.json` adds
-`@events` to the homepage and to each schema, which is how a listing learns its rows' actions in one request.
+Over HTTP it is the `events` serialization processor, off by default:
+`GET /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema,
+which is how a listing learns its rows' actions in one request.
+
+`WorkflowEngine.findApplicableWorkflow(resource, event)` answers the second: it returns
+the system workflow that would handle an event, to read what sending it would do, e.g.
+how its steps are configured. The engine decides which one exactly as it would on
+receiving the event, through its own session, since a guard may look at content the
+user cannot read. The version it returns is read through the user's own session. `null`
+means nothing would take the event from this user, and two workflows competing for it
+are a `WorkflowDefinitionException`, as they are on receiving it.
 
 ### Built-in service tasks
 

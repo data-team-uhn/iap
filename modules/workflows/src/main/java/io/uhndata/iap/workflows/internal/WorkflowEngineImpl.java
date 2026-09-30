@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -122,12 +121,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     @Override
-    public <T> T inspectWorkflow(final Resource target, final String event, final Function<WorkflowVersion, T> reader)
-        throws WorkflowException
+    public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
         try (ResourceResolver serviceResolver = serviceResolver()) {
-            return WorkflowQueries.inspect(serviceResolver, privileged(serviceResolver, target),
-                UserIds.canonical(target.getResourceResolver()), this.conditionEvaluator, event, reader);
+            return WorkflowQueries.applicableWorkflow(serviceResolver, privileged(serviceResolver, target),
+                target.getResourceResolver(), this.conditionEvaluator, event);
         }
     }
 
