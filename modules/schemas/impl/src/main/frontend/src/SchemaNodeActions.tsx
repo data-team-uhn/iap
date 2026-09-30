@@ -50,7 +50,8 @@ function SchemaNodeActions({ node, parent, siblings, what, editCondition }: Sche
     <>
       { !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} /> }
       { editCondition && (
-        <ActionIcon label="When it applies" icon={<AltRouteOutlinedIcon fontSize="small" />} onClick={editCondition} />
+        <ActionIcon label="When it applies" onClick={editCondition}
+          icon={<AltRouteOutlinedIcon fontSize="small" sx={{ color: "condition.main" }} />} />
       ) }
       { isPart(node) && <AddBelow parent={parent} next={nameIfAny(next)} /> }
       { isPart(node)
