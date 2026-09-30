@@ -27,6 +27,7 @@ categories. Delete `.iap-data` before the first demo run.
 | `/Workflows/readProposal`      | The reading: classify the upload, stop if it is not a proposal, then the common questions and those of its study type, in one call |
 | `/Workflows/pfq`, `/Workflows/readPfq` | The same for a questionnaire: classify, then read the questions only if it is one |
 | `/Categories/Proposal`, `/Categories/PFQ` | The top categories a submission is raised under, each naming its schema, with the study types (and PROM/PREM) below |
+| `/Schemas/ethicsReviewDemo`, `/Workflows/ethicsReviewDemo`, `/Categories/EthicsReview` | A study document checked against TCPS2 on its own, with no classification first |
 | `demo-researcher`              | Raises proposals. Member of `proposal-researchers`                     |
 | `demo-reviewer`                | Decides. Member of `proposal-reviewers`, which the schema routes review to |
 
