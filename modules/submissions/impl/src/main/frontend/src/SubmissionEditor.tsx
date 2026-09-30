@@ -26,8 +26,8 @@ import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
 
 import AnswerField, { type SaveState } from "./AnswerField";
 import DocumentUpload from "./DocumentUpload";
-import { completeTask, fetchOpenTasks, type SubmissionTask } from "./openTasks";
 import {
+  CLASSIFICATION_REQUIREMENT,
   type FormItem,
   type FormQuestion,
   type Requirement,
@@ -98,11 +98,12 @@ function Items({ items, disabled, states, onAnswered, onReviewed }: {
 // One requirement. A requirement that holds no questions is still shown, and where it can be
 // answered it is answered here: a document is uploaded, and an approval says where it stands
 // because it is somebody else who grants it.
-function RequirementPanel({ path, requirement, disabled, states, onAnswered, onReviewed, onAttached,
-  blockedReason, onTaskCompleted, refreshToken, offerStep }: {
+function RequirementPanel({ path, requirement, disabled, reading, states, onAnswered, onReviewed, onAttached,
+  blockedReason, onTaskCompleted, refreshToken }: {
   path: string;
   requirement: Requirement;
   disabled: boolean;
+  reading: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
   onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
@@ -110,8 +111,6 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onR
   blockedReason?: string;
   onTaskCompleted?: () => void;
   refreshToken?: number;
-  // A document step that starts the reading is the Next button's job, so it is not also offered here.
-  offerStep: boolean;
 }) {
   return (
     <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
@@ -131,6 +130,7 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onR
               path={path}
               requirement={requirement}
               disabled={disabled}
+              reading={reading}
               onAttached={onAttached}
             />
           )
@@ -139,43 +139,34 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onR
               This part of the request cannot be completed here yet.
             </Typography>
           ) }
-      {/* The step this requirement is about, when its definition named one. A document step that
-          starts the reading is the Next button's job, so it is not also offered here. A step under
-          a form is how those questions get answered, so it must not wait on the page's reason. */}
-      { offerStep
-        ? (
-          <SubmissionTasks
-            path={path}
-            requirement={requirement.name}
-            blockedReason={isFormRequirement(requirement) ? undefined : blockedReason}
-            onCompleted={onTaskCompleted}
-            refreshToken={refreshToken}
-          />
-        )
-        : null }
+      {/* The step this requirement is about, when its definition named one. A step under a form is
+          how those questions get answered, so it must not wait on the page's reason. */}
+      <SubmissionTasks
+        path={path}
+        requirement={requirement.name}
+        blockedReason={isFormRequirement(requirement) ? undefined : blockedReason}
+        onCompleted={onTaskCompleted}
+        refreshToken={refreshToken}
+      />
     </Panel>
   );
 }
 
-// What this page of the editor shows. A schema that reads its documents is two pages: the upload and
-// the questions answered by hand, then only the sections the model fills in. Anything else is one page.
-function shown(form: SubmissionForm, page: 1 | 2): Requirement[] {
+// What this page of the editor shows. A schema that reads its documents is three pages: the upload and
+// the questions answered by hand; the classification the model decides about the document; then only
+// the other sections the model fills in, once that classification is settled. Anything else is one page.
+function shown(form: SubmissionForm, page: 1 | 2 | 3): Requirement[] {
   const asked = form.requirements.filter(requirement => !isApprovalRequirement(requirement));
   if (!form.readsDocuments) {
     return asked;
   }
+  if (page === 1) {
+    return asked.filter(requirement => requirement.extracted !== true);
+  }
+  const extracted = asked.filter(requirement => requirement.extracted === true);
   return page === 2
-    ? asked.filter(requirement => requirement.extracted === true)
-    : asked.filter(requirement => requirement.extracted !== true);
-}
-
-// The step that sends an uploaded document to be read, when one is waiting. It is the task whose
-// requirement names a document, which used to be a button under that upload.
-function readingTask(tasks: SubmissionTask[], requirements: Requirement[]): SubmissionTask | undefined {
-  const documents = new Set(
-    requirements.filter(isDocumentRequirement).map(requirement => requirement.name),
-  );
-  return tasks.find(task => task.requirement !== undefined && documents.has(task.requirement));
+    ? extracted.filter(requirement => requirement.type === CLASSIFICATION_REQUIREMENT)
+    : extracted.filter(requirement => requirement.type !== CLASSIFICATION_REQUIREMENT);
 }
 
 // A required question on this page that still has nothing in it. Sections are walked so a question
@@ -197,75 +188,35 @@ function unanswered(items: FormItem[] | undefined): FormQuestion | undefined {
   return undefined;
 }
 
-// Why Next cannot start the reading yet. The document it would send has to be attached, and every
-// required question on this page has to be answered. Questions the model fills in are on the next
-// page, so they do not hold this one back.
-function whyNextWaits(task: SubmissionTask | undefined, requirements: Requirement[]): string | undefined {
-  if (task?.requirement !== undefined) {
-    const document = requirements.find(requirement => requirement.name === task.requirement);
-    if (document?.required === true && (document.attached ?? []).length === 0) {
-      return `Attach the ${document.label || document.name} before going on.`;
-    }
+// Why Next cannot turn the page yet: a required document on this page is not attached, or a required
+// question on it is not answered. Uploading is what starts the reading, so Next only turns the page.
+function whyNextWaits(requirements: Requirement[]): string | undefined {
+  const missing = requirements.filter(isDocumentRequirement)
+    .find(requirement => requirement.required && requirement.attached.length === 0);
+  if (missing) {
+    return `Attach the ${missing.label || missing.name} before going on.`;
   }
   const open = requirements
     .filter(isFormRequirement)
-    .filter(requirement => requirement.extracted !== true)
     .map(requirement => unanswered(requirement.items))
     .find(question => question !== undefined);
   return open ? "Answer every required question before going on." : undefined;
 }
 
-// Starts the reading, then opens the page of answers the model fills in. When the reading was
-// already started, it only turns the page.
-function NextPage({ path, requirements, refreshToken, onOpened }: {
-  path: string;
+// Turns to the next page. Uploading is what starts the reading.
+function NextButton({ requirements, onOpened }: {
   requirements: Requirement[];
-  refreshToken?: number;
   onOpened: () => void;
 }) {
-  const authenticatedFetch = useAuthenticatedFetch();
-  const [ task, setTask ] = useState<SubmissionTask>();
-  const [ error, setError ] = useState<string>();
-  const [ busy, setBusy ] = useState(false);
-
-  const load = useCallback(() => fetchOpenTasks(path).then(
-    tasks => setTask(readingTask(tasks, requirements)),
-    () => setTask(undefined),
-  ), [ path, requirements ]);
-
-  useEffect(() => {
-    void load();
-  }, [ load, refreshToken ]);
-
-  const waiting = whyNextWaits(task, requirements);
-
-  const go = () => {
-    if (waiting) {
-      return;
-    }
-    if (!task) {
-      onOpened();
-      return;
-    }
-    setBusy(true);
-    setError(undefined);
-    completeTask(authenticatedFetch, task)
-      .then(() => onOpened())
-      .catch((e: unknown) => setError(describeRequestFailure(e)))
-      .finally(() => setBusy(false));
-  };
-
+  const waiting = whyNextWaits(requirements);
   return (
-    <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
-      <Tooltip title={waiting ?? ""}>
-        <span>
-          <Button variant="contained" disabled={busy || waiting !== undefined} onClick={go}>
-            Next
-          </Button>
-        </span>
-      </Tooltip>
-      { error ? <Alert severity="error" onClose={() => setError(undefined)}>{error}</Alert> : null }
-    </Stack>
+    <Tooltip title={waiting ?? ""}>
+      <span>
+        <Button variant="contained" disabled={waiting !== undefined} onClick={onOpened}>
+          Next
+        </Button>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -293,8 +244,9 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
   const [ states, setStates ] = useState<Record<string, FieldState | undefined>>({});
-  // 1 is the upload and the questions answered by hand. 2 is the answers read out of the document.
-  const [ page, setPage ] = useState<1 | 2>(1);
+  // 1 is the upload and the questions answered by hand. 2 is the classification the model decides
+  // about the document. 3 is the rest of the answers read out of it.
+  const [ page, setPage ] = useState<1 | 2 | 3>(1);
   // Which read is the current one. Answers finished in quick succession are saved in the order they
   // were given, but their reads can land out of order. An older form would put back what was just
   // replaced.
@@ -360,16 +312,14 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
         { ...current, [question.path]: { state: "reviewFailed", error: describeRequestFailure(e) } })));
   }, [ doFetch, path, reload ]);
 
-  if (error) {
-    return <Alert severity="error">{error}</Alert>;
-  }
   if (!form) {
-    return <CircularProgress aria-label="Loading the request" />;
+    return error ? <Alert severity="error">{error}</Alert> : <CircularProgress aria-label="Loading the request" />;
   }
 
   return (
     <Stack spacing={2}>
       <Typography variant="h5">{form.title}</Typography>
+      { error ? <Alert severity="error" onClose={() => setError(undefined)}>{error}</Alert> : null }
       { !form.editable && (
         <Alert severity="info">
           This request can no longer be changed. It is shown as it was submitted.
@@ -383,36 +333,35 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
           path={path}
           requirement={requirement}
           disabled={!form.editable}
+          reading={form.extraction?.status === "running"}
           states={states}
           onAnswered={answered}
           onReviewed={reviewed}
           blockedReason={blockedReason}
           onTaskCompleted={onTaskCompleted}
           refreshToken={refreshToken}
-          // The reading is started from Next, below, rather than from a button under the upload.
-          offerStep={!(form.readsDocuments && isDocumentRequirement(requirement))}
           onAttached={attached}
         />
       )) }
-      { form.readsDocuments && page === 1
-        ? (
-          <NextPage
-            path={path}
-            requirements={form.requirements}
-            refreshToken={refreshToken}
-            onOpened={() => {
-              setPage(2);
-              onTaskCompleted?.();
-            }}
-          />
-        )
-        : null }
-      { form.readsDocuments && page === 2 && shown(form, 2).length === 0
-        ? <Typography variant="placeholder">The answers read from the document will appear here.</Typography>
-        : null }
-      { form.readsDocuments && page === 2
-        ? <Button onClick={() => setPage(1)}>Back</Button>
-        : null }
+      { form.readsDocuments && page === 1 && (
+        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+          <NextButton requirements={shown(form, 1)} onOpened={() => setPage(2)} />
+        </Box>
+      ) }
+      { form.readsDocuments && page === 2 && (
+        <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+          <Button onClick={() => setPage(1)}>Back</Button>
+          <NextButton requirements={shown(form, 2)} onOpened={() => setPage(3)} />
+        </Stack>
+      ) }
+      { form.readsDocuments && page === 3 && shown(form, 3).length === 0 && (
+        <Typography variant="placeholder">The answers read from the document will appear here.</Typography>
+      ) }
+      { form.readsDocuments && page === 3 && (
+        <Box>
+          <Button onClick={() => setPage(2)}>Back</Button>
+        </Box>
+      ) }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>
       ) }

@@ -22,11 +22,12 @@ import { LoginPage } from '../../pages/login.page';
 import { ADMIN, adminAuth } from '../../support/auth';
 
 /**
- * The sample taxonomy of study types, which only this instance carries, and the two things that can
- * only be asserted against real categories: that the tree endpoints return them, and that the
- * administration console shows them. The endpoints' behaviour on an empty tree is the platform suite's.
+ * The research-proposal demo's categories: a top category per kind of submission, naming the schema it
+ * is raised against, with the study types below. Also the two things that can only be asserted against
+ * real categories: that the tree endpoints return them, and that the administration console shows them.
+ * The endpoints' behaviour on an empty tree is the platform suite's.
  */
-test.describe('the sample category taxonomy', () => {
+test.describe('the demo category taxonomy', () => {
   const signIn = async (page: Page): Promise<void> => {
     const login = new LoginPage(page);
     await login.open();
@@ -35,7 +36,7 @@ test.describe('the sample category taxonomy', () => {
     await expect(login.signIn).toHaveCount(0);
   };
 
-  test('installs the sample taxonomy under /Categories', async ({ request }) => {
+  test('installs the demo taxonomy under /Categories', async ({ request }) => {
     const response = await request.get('/Categories.deep.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
@@ -43,24 +44,36 @@ test.describe('the sample category taxonomy', () => {
     // subcategory is serialized as a child object named after its node.
     const tree = (await response.json()) as {
       'jcr:primaryType'?: string;
-      Retrospective?: { label?: string };
-      Prospective?: { label?: string; Observational?: { SurveysEducation?: { label?: string } } };
+      PFQ?: { label?: string; schemaVersion?: { '@path'?: string }; PROM?: { label?: string } };
+      Proposal?: {
+        label?: string;
+        schemaVersion?: { '@path'?: string };
+        Retrospective?: { label?: string };
+        Prospective?: { label?: string; Observational?: { SurveysEducation?: { label?: string } } };
+      };
     };
     expect(tree['jcr:primaryType']).toBe('cat:CategoriesHomepage');
-    expect(tree.Retrospective?.label).toBe('Retrospective studies');
-    expect(tree.Prospective?.label).toBe('Prospective studies');
-    // The sample is a hierarchy, not a flat list: this one sits three levels down, so it also pins that
+    expect(tree.Proposal?.label).toBe('Research proposal');
+    expect(tree.PFQ?.label).toBe('Patient facing questionnaire');
+    expect(tree.PFQ?.PROM?.label).toBeTruthy();
+    // A top category names the schema its submissions are raised against. The reference resolves only
+    // because the demo loads its schemas before its categories.
+    expect(tree.Proposal?.schemaVersion?.['@path']).toBe('/Schemas/researchProposal/v1');
+    expect(tree.PFQ?.schemaVersion?.['@path']).toBe('/Schemas/pfq/v1');
+    expect(tree.Proposal?.Retrospective?.label).toBe('Retrospective studies');
+    expect(tree.Proposal?.Prospective?.label).toBe('Prospective studies');
+    // The sample is a hierarchy, not a flat list: this one sits four levels down, so it also pins that
     // `deep` really does descend the whole subtree rather than stopping at the first generation.
-    expect(tree.Prospective?.Observational?.SurveysEducation?.label).toBe('Surveys Education');
+    expect(tree.Proposal?.Prospective?.Observational?.SurveysEducation?.label).toBe('Surveys Education');
   });
 
   test('checks the loaded categories in', async ({ request }) => {
     // Categories are versionable, and content loaded into the repository by a bundle is checked out
-    // unless the descriptor asks otherwise — leaving every sample category permanently without a base
+    // unless the descriptor asks otherwise — leaving every demo category permanently without a base
     // version. The `checkin:=true` directive on the initial content is what puts them in a committed
     // state; edits from the administration UI check them out and back in again through the Sling POST
     // servlet, which is configured to do so automatically.
-    const response = await request.get('/Categories/Retrospective.json', { headers: adminAuth });
+    const response = await request.get('/Categories/Proposal/Retrospective.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
     const category = (await response.json()) as { 'jcr:isCheckedOut'?: boolean };
@@ -72,7 +85,7 @@ test.describe('the sample category taxonomy', () => {
     // a category makes Oak materialize it onto the whole subtree at commit time, into a separate
     // property. A mock enforces no node types and runs no commit editors, so this behaviour - the whole
     // reason retirement is a tag rather than a boolean - is invisible to the unit tests.
-    const branch = '/Categories/Prospective/Observational';
+    const branch = '/Categories/Proposal/Prospective/Observational';
     const leaf = `${branch}/SurveysEducation`;
     const patch = (value: string) => request.post(branch, {
       headers: adminAuth,
@@ -104,8 +117,8 @@ test.describe('the sample category taxonomy', () => {
     const page = (await response.json()) as { totalrows: number; rows: { label?: string }[] };
     expect(page.totalrows).toBeGreaterThan(0);
     const labels = page.rows.map(row => row.label);
-    expect(labels).toContain('Retrospective studies');
-    expect(labels).toContain('Prospective studies');
+    expect(labels).toContain('Research proposal');
+    expect(labels).toContain('Patient facing questionnaire');
   });
 
   test('summarises the sample categories on the administration console', async ({ page }) => {
@@ -113,8 +126,8 @@ test.describe('the sample category taxonomy', () => {
     await page.goto('/admin');
 
     // Top-level categories start collapsed, so only these two labels are on screen.
-    await expect(page.getByText('Retrospective studies')).toBeVisible();
-    await expect(page.getByText('Prospective studies')).toBeVisible();
+    await expect(page.getByText('Research proposal')).toBeVisible();
+    await expect(page.getByText('Patient facing questionnaire')).toBeVisible();
   });
 
   test('opens the category manager on the sample tree', async ({ page }) => {
@@ -124,6 +137,6 @@ test.describe('the sample category taxonomy', () => {
 
     await expect(page).toHaveURL(/\/admin\/categories$/);
     await expect(page.getByRole('button', { name: 'New category' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Edit Retrospective studies' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit Research proposal' })).toBeVisible();
   });
 });

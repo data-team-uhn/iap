@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 import { loadAnswerComponents } from "@iap/submissions/answers";
@@ -32,6 +33,7 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
+  CLASSIFICATION_REQUIREMENT,
   DOCUMENT_REQUIREMENT,
   type DocumentRequirement,
   FORM_REQUIREMENT,
@@ -140,7 +142,7 @@ describe("SubmissionEditor", () => {
   it("shows what the request asks and what it already answers", async () => {
     vi.stubGlobal("fetch", serving(form()));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText("A long weekend")).toBeInTheDocument();
     expect(screen.getByText("Request details")).toBeInTheDocument();
@@ -156,7 +158,7 @@ describe("SubmissionEditor", () => {
     const fetchMock = serving(form(), withEndDate);
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
     await userEvent.tab();
 
@@ -169,7 +171,7 @@ describe("SubmissionEditor", () => {
     const withProvenance = form({ requirements: [ details([ suggested() ]) ] });
     const fetchMock = serving(withProvenance);
     vi.stubGlobal("fetch", fetchMock);
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await screen.findByText("AI found:");
 
     await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
@@ -189,7 +191,7 @@ describe("SubmissionEditor", () => {
       ? json({ error: "Nothing was extracted for that" }, { ok: false, status: 400 })
       : json(withProvenance));
     vi.stubGlobal("fetch", fetchMock);
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await screen.findByText("AI found:");
 
     await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
@@ -206,7 +208,7 @@ describe("SubmissionEditor", () => {
       : json(form()));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
@@ -220,7 +222,7 @@ describe("SubmissionEditor", () => {
     const changed = vi.fn();
     vi.stubGlobal("fetch", serving(form()));
 
-    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    render(<SubmissionEditor path={PATH} onChanged={changed} />, { wrapper: NoticeProvider });
     // Finished, not merely typed into: an answer is saved when the field is left
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
     await userEvent.tab();
@@ -233,7 +235,7 @@ describe("SubmissionEditor", () => {
     // nothing to re-read
     vi.stubGlobal("fetch", serving(form()));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
     await userEvent.tab();
 
@@ -243,7 +245,7 @@ describe("SubmissionEditor", () => {
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
     vi.stubGlobal("fetch", serving(form({ editable: false })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText(/can no longer be changed/)).toBeInTheDocument();
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
@@ -259,17 +261,12 @@ describe("SubmissionEditor", () => {
       } ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText("A long weekend")).toBeInTheDocument();
     expect(screen.queryByText("Approval")).toBeNull();
     expect(screen.queryByText(/Waiting for approval/)).toBeNull();
   });
-
-  // One approval requirement, with whatever the projection is saying about it
-  function approval(state: Record<string, unknown>) {
-    return { name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...state };
-  }
 
   describe("answering a document requirement", () => {
     const NOTE: DocumentRequirement = {
@@ -302,10 +299,10 @@ describe("SubmissionEditor", () => {
     it("offers to attach a file, with the types it takes and nothing else", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
-      expect(input).toHaveAttribute("accept", "application/pdf,image/png");
+      expect(input).toHaveAttribute("accept", ".doc,application/pdf");
       expect(screen.queryByText(/Nothing attached yet/)).toBeNull();
       expect(screen.queryByRole("link")).toBeNull();
     });
@@ -313,7 +310,7 @@ describe("SubmissionEditor", () => {
     it("says nothing about types where the requirement names none", async () => {
       vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
     });
@@ -321,7 +318,7 @@ describe("SubmissionEditor", () => {
     it("names what is already there, so a form reopened later does not look untouched", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       const link = await screen.findByRole("link", { name: "note.pdf" });
       expect(link).toHaveAttribute("href", NOTE_FILE.path);
@@ -332,7 +329,7 @@ describe("SubmissionEditor", () => {
     it("names an attachment with no file yet without linking it", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ { title: "note.pdf" } ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByText(/note\.pdf/)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
@@ -341,7 +338,7 @@ describe("SubmissionEditor", () => {
     it("offers only removal while a file is attached", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByRole("button", { name: "Remove" })).toBeInTheDocument();
       expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
@@ -353,12 +350,12 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked());
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [ pick("note.txt") ] } });
 
       expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
       expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
-        expect.any(File), [ "application/pdf", "image/png" ], {}, expect.any(AbortSignal));
+        expect.any(File), [ ".doc", "application/pdf" ], {}, expect.any(AbortSignal));
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
     });
 
@@ -366,11 +363,11 @@ describe("SubmissionEditor", () => {
       vi.mocked(fetchUploadLimits).mockResolvedValueOnce({ maxFileSize: 1024 });
       vi.stubGlobal("fetch", serving(asked()));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
-        expect.any(File), [ "application/pdf", "image/png" ], { maxFileSize: 1024 }, expect.any(AbortSignal)));
+        expect.any(File), [ ".doc", "application/pdf" ], { maxFileSize: 1024 }, expect.any(AbortSignal)));
       // The limits are read under the same time limit as the check itself
       const [ , limitsSignal ] = vi.mocked(fetchUploadLimits).mock.lastCall ?? [];
       expect(limitsSignal).toBe(vi.mocked(validateUpload).mock.lastCall?.[3]);
@@ -382,7 +379,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
@@ -393,7 +390,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
@@ -413,7 +410,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked());
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
 
       const detach = fetchMock.mock.calls.find(call => call[0] === `${PATH}.detachDocument.json`);
@@ -428,9 +425,29 @@ describe("SubmissionEditor", () => {
     it("does not offer to remove a file from a request that can no longer be changed", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] }, { editable: false })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByRole("button", { name: "Remove" })).toBeDisabled();
+    });
+
+    // Removed mid-reading, the reading would wait for a parse that lands on nothing
+    it("does not offer to remove a file while the documents are being read", async () => {
+      vi.stubGlobal("fetch", serving(asked(
+        { attached: [ { title: "note.doc" } ] }, { extraction: { status: "running" } })));
+
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+      const remove = await screen.findByRole("button", { name: "Remove" });
+      expect(remove).toBeDisabled();
+      expect(remove).toHaveAttribute("title", expect.stringMatching(/Wait until the document has been read/));
+    });
+
+    it("names a requirement with no label by its name", async () => {
+      vi.stubGlobal("fetch", serving(asked({ label: "" })));
+
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+      expect(await screen.findByLabelText(/Attach a file for "doctorsNote"/)).toBeInTheDocument();
     });
 
     it("says why a file could not be removed", async () => {
@@ -440,7 +457,7 @@ describe("SubmissionEditor", () => {
           ? json(refusal, { ok: false, status: 409 })
           : json(asked({ attached: [ NOTE_FILE ] }))));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
       expect(await screen.findByText("This request is already sent")).toBeInTheDocument();
 
@@ -458,25 +475,10 @@ describe("SubmissionEditor", () => {
           ? json({ error: "This request no longer takes documents" }, { ok: false, status: 400 })
           : json(asked({ acceptedFileTypes: [] }))));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByText("This request no longer takes documents")).toBeInTheDocument();
-    });
-
-    // The browser-side check, which is there so a person finds out at once rather than after a slow
-    // upload. The server checks again; this only saves the wait.
-    it("refuses a file it can see is wrong before sending it", async () => {
-      const fetchMock = serving(asked({ acceptedFileTypes: undefined }));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<SubmissionEditor path={PATH} />);
-      await userEvent.upload(await screen.findByLabelText(/Attach a file/),
-        new File([ "not a document" ], "scan.gif", { type: "image/gif" }));
-
-      expect(await screen.findByText(/scan.gif is not a/)).toBeInTheDocument();
-      expect(fetchMock.mock.calls.some(([ , options ]) =>
-        (options as { method?: string })?.method === "POST")).toBe(false);
     });
 
     it("falls back on its own words when the refusal carries none", async () => {
@@ -490,7 +492,7 @@ describe("SubmissionEditor", () => {
           } as unknown as Response)
           : json(asked())));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByText(/This file could not be attached \(502\)/)).toBeInTheDocument();
@@ -502,7 +504,7 @@ describe("SubmissionEditor", () => {
           ? Promise.reject("the network went away")
           : json(asked())));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByText("the network went away")).toBeInTheDocument();
@@ -521,7 +523,7 @@ describe("SubmissionEditor", () => {
         return json(asked());
       }));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       const input = await screen.findByLabelText(/Attach a file/);
       await userEvent.upload(input, pick());
       await screen.findByText("The server was busy");
@@ -549,7 +551,7 @@ describe("SubmissionEditor", () => {
         return event.defaultPrevented;
       };
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       const input = await screen.findByLabelText(/Attach a file/);
       expect(leave()).toBe(false);
 
@@ -564,7 +566,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked());
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
       // What a cancelled dialog looks like to the change handler, which `userEvent.upload` cannot
       // express: it always has a file to give
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
@@ -576,9 +578,9 @@ describe("SubmissionEditor", () => {
       // Attaching the last thing a request was waiting for makes it ready to send, which is the same
       // chain a saved answer walks
       const changed = vi.fn();
-      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.doc" ] })));
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ { title: "note.doc" } ] })));
 
-      render(<SubmissionEditor path={PATH} onChanged={changed} />);
+      render(<SubmissionEditor path={PATH} onChanged={changed} />, { wrapper: NoticeProvider });
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       await waitFor(() => expect(changed).toHaveBeenCalled());
@@ -588,7 +590,7 @@ describe("SubmissionEditor", () => {
       // The same field that disables the questions, so the control cannot outlive the permission
       vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByLabelText(/Attach a file/)).toBeDisabled();
     });
@@ -600,7 +602,7 @@ describe("SubmissionEditor", () => {
         description: "When you are away", items: [ endDate() ] } ]) ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("When you are away")).toBeInTheDocument();
@@ -619,7 +621,7 @@ describe("SubmissionEditor", () => {
           "@path": `${PATH}/wf:instances/reading/task`,
           "label": "Read the questions for this kind of study",
           "status": "created",
-          "@mine": true,
+          "@events": [ "complete" ],
           "requirement": "details",
         },
       },
@@ -627,7 +629,8 @@ describe("SubmissionEditor", () => {
     vi.stubGlobal("fetch", vi.fn((url: string) =>
       json(url.includes("wf:instances") ? instances : form())));
 
-    render(<SubmissionEditor path={PATH} blockedReason="Answer everything this request asks for before sending it." />);
+    render(<SubmissionEditor path={PATH} blockedReason="Answer everything this request asks for before sending it." />,
+      { wrapper: NoticeProvider });
 
     expect(await screen.findByRole("button", { name: /Read the questions for this kind of study/ }))
       .toBeEnabled();
@@ -642,7 +645,7 @@ describe("SubmissionEditor", () => {
         [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ], { label: "" }) ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText("details")).toBeInTheDocument();
     expect(screen.getByText("when")).toBeInTheDocument();
@@ -656,7 +659,7 @@ describe("SubmissionEditor", () => {
       : json(form()));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
@@ -668,7 +671,7 @@ describe("SubmissionEditor", () => {
   it("says so when the request asks nothing", async () => {
     vi.stubGlobal("fetch", serving(form({ requirements: [] })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText(/asks nothing yet/)).toBeInTheDocument();
   });
@@ -676,7 +679,7 @@ describe("SubmissionEditor", () => {
   it("reports a form that would not load", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json({}, { ok: false, status: 404 })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText(/could not be found on the server/)).toBeInTheDocument();
   });
@@ -691,7 +694,7 @@ describe("SubmissionEditor", () => {
       json: () => Promise.reject(new SyntaxError("Unexpected token '<', \"<!doctype \"... is not valid JSON")),
     } as unknown as Response)));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText(/sent a page instead of data/)).toBeInTheDocument();
     expect(screen.queryByText(/Unexpected token/)).toBeNull();
@@ -713,7 +716,7 @@ describe("SubmissionEditor", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
     await userEvent.type(screen.getByLabelText(/several days/), " really");
@@ -727,99 +730,105 @@ describe("SubmissionEditor", () => {
     expect(screen.getByText("Newest")).toBeInTheDocument();
   });
 
-  it("starts the reading from Next and opens only the answers the model fills in", async () => {
+  it("turns to the classification, then the answers the model fills in, with Next, and starts nothing", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
+    };
+    const classification = {
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: true, items: [ duration([ "Yes" ]) ],
     };
     const study = {
-      name: "common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
+      name: "common", path: "/Schemas/proposal/v1/common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
       items: [ duration() ],
     };
     const admin = {
-      name: "administrative", type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
+      name: "administrative", path: "/Schemas/proposal/v1/administrative",
+      type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
       items: [ { ...endDate(), value: [ "2026-10-06" ] } ],
-    };
-    const taskPath = `${PATH}/wf:instances/proposal/upload`;
-    const instances = {
-      proposal: {
-        "@path": `${PATH}/wf:instances/proposal`,
-        "sling:resourceType": "wf/WorkflowInstance",
-        "upload": {
-          "sling:resourceType": "wf/TaskInstance",
-          "@path": taskPath,
-          "label": "Extract data",
-          "status": "created",
-          "@mine": true,
-          "requirement": "proposal",
-        },
-      },
     };
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
       if (options?.method === "POST") {
         return json({}, { url });
       }
-      return json(url.includes("wf:instances") ? instances : form({
+      return json(url.includes("wf:instances") ? {} : form({
         readsDocuments: true,
-        requirements: [ proposal, admin, study ],
+        requirements: [ proposal, admin, classification, study ],
       }), { url });
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByText("Research proposal")).toBeInTheDocument();
     expect(screen.getByText("Administrative information")).toBeInTheDocument();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
     expect(screen.queryByText("The study")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Extract data" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("Research proposal")).toBeNull();
+    expect(screen.queryByText("The study")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(await screen.findByText("The study")).toBeInTheDocument();
-    expect(screen.queryByText("Research proposal")).toBeNull();
-    expect(screen.queryByText("Administrative information")).toBeNull();
-    expect(fetchMock.mock.calls.some(([ url, options ]) =>
-      url === taskPath && (options as { method?: string })?.method === "POST")).toBe(true);
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
+    expect(fetchMock.mock.calls.some(([ , options ]) => options?.method === "POST")).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("The study")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByText("Research proposal")).toBeInTheDocument();
-    expect(screen.queryByText("The study")).toBeNull();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
   });
 
-  it("holds Next back until the document it would send is attached", async () => {
+  it("holds Next back until a required document is attached", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [] as string[],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [],
     };
-    const instances = {
-      proposal: {
-        "@path": `${PATH}/wf:instances/proposal`,
-        "sling:resourceType": "wf/WorkflowInstance",
-        "upload": {
-          "sling:resourceType": "wf/TaskInstance",
-          "@path": `${PATH}/wf:instances/proposal/upload`,
-          "label": "Extract data",
-          "status": "created",
-          "@mine": true,
-          "requirement": "proposal",
-        },
-      },
-    };
-    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? instances : form({
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
       readsDocuments: true,
       requirements: [ proposal ],
-    }))));
+    }), { url })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
-    // The button is drawn before the waiting step has been read, and only then knows it cannot go on
-    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeDisabled());
+    expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("asks a classification on the first page, and holds Next back until it is answered", async () => {
+    const proposal = {
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
+    };
+    const classification = {
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: false, items: [ duration() ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal, classification ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 
   it("holds Next back until every required question on the page is answered", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
     };
     vi.stubGlobal("fetch", vi.fn((url: string) => json(form({
       readsDocuments: true,
@@ -827,7 +836,7 @@ describe("SubmissionEditor", () => {
         details([ duration() ], { name: "screening", label: "About this questionnaire", extracted: false }) ],
     }), { url })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
     expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
   });
