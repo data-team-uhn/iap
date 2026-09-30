@@ -33,7 +33,7 @@ interface QuestionPickerProps extends OperandEditorProps {
 
 // Picks the question an answer operand reads, found by what it asks and named by its identifier, which is how
 // the condition keeps naming it wherever it moves. One named otherwise, as by hand, is shown as the question it is.
-function QuestionPicker({ label, value, disabled, onChange, questions }: QuestionPickerProps) {
+function QuestionPicker({ label, value, disabled, required, onChange, questions }: QuestionPickerProps) {
   const { index } = useVersionConditions();
   const current = value.at(0);
   const headingFor = (reference: string) => {
@@ -60,7 +60,7 @@ function QuestionPicker({ label, value, disabled, onChange, questions }: Questio
           </Box>
         );
       }}
-      renderInput={params => <TextField {...params} label={label} />}
+      renderInput={params => <TextField {...params} label={label} required={required} />}
     />
   );
 }

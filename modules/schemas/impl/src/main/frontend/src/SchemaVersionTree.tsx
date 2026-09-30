@@ -42,6 +42,7 @@ import {
   conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
 } from "./schemaVersionTreeModel";
 import { useConditionEditor } from "./useConditionEditor";
+import { useOptionsFrom } from "./useOptionsFrom";
 import { useVersionConditions, VersionConditionsContext } from "./versionConditions";
 
 // One of a part's chips; a chip with content shows it in a popover when clicked
@@ -201,11 +202,12 @@ interface SchemaVersionTreeProps {
 // Everything a version asks of a submission, in the order it asks it.
 function SchemaVersionTree({ version, reload, report }: SchemaVersionTreeProps) {
   const tags = useTagChoices();
+  const index = useMemo(() => indexQuestions(version), [ version ]);
+  const items = useOptionsFrom(index);
   const conditions = useMemo(() => {
-    const index = indexQuestions(version);
-    const sources = schemaSources(index, tags);
+    const sources = schemaSources(index, tags, items);
     return { index, sources, offered: offeredOf(sources) };
-  }, [ version, tags ]);
+  }, [ index, tags, items ]);
   const parts = partsOf(version);
   return (
     <ReloadTree value={reload}>

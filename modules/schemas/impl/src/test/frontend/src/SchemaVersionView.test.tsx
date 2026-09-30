@@ -469,6 +469,9 @@ describe("SchemaVersionView", () => {
     expect(within(only).getByText("Your name")).toBeInTheDocument();
     expect(within(only).getByText("name")).toBeInTheDocument();
     fireEvent.click(only);
+    // Its options are offered at once
+    expect(await screen.findByRole("option", { name: "Short" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
     await pick(dialog, "Comparison", "is not empty");
     expect(within(dialog).getByText("Only when the answer to “Your name” is not empty")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -488,11 +491,11 @@ describe("SchemaVersionView", () => {
     const followUp = await card("Follow-up");
     // The line saying when it applies is what changes it
     const line = await within(followUp).findByRole("button", { name: "Change when it applies" });
-    expect(line).toHaveAccessibleDescription("Only when its tag list includes “Draft”");
+    expect(line).toHaveAccessibleDescription("Only when the submission's tag list includes “Draft”");
     fireEvent.click(line);
     const dialog = await screen.findByRole("dialog", { name: /When this .* applies/ });
     expect(within(dialog).getByText("Draft")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Remove the condition" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Clear all conditions" }));
 
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/followUp.condition.json"));
     expect(posted[0].params.get("content")).toBe("null");
