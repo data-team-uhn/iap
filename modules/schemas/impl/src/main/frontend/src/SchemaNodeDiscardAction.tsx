@@ -39,6 +39,7 @@ function SchemaNodeDiscardAction({ node, what }: { node: JcrNode; what: string }
       reload={reload}
       icon={<DeleteOutlinedIcon fontSize="small" />}
       label="Remove"
+      workingLabel="Removing…"
       event="discard"
       color="error"
       title={`Remove this ${what}`}

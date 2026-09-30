@@ -16,17 +16,13 @@
  * limitations under the License.
  */
 
-// Where a part or an answer option may move to in a draft: where what it would be moved into may hold what it
+// Where a part may move to in a draft: where what it would be moved into may hold what it
 // is, outside itself, and somewhere other than where it already stands. No React, no fetch.
 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 
 import { type JcrNode, pathOf } from "./schemaModel";
-import { OPTION_TYPE, optionsOf, partsOf, resourceTypeOf } from "./schemaVersionTreeModel";
-
-// What a container holds of the same kind as the moving node, in order
-const siblingsFor = (moving: JcrNode, parent: JcrNode): JcrNode[] =>
-  resourceTypeOf(moving) === OPTION_TYPE ? optionsOf(parent) : partsOf(parent);
+import { partsOf } from "./schemaVersionTreeModel";
 
 // Whether moving a node into a parent, before one of its children or else last, would put it somewhere new
 export function isMoveSpot(moving: JcrNode, parent: JcrNode, before?: JcrNode): boolean {
@@ -36,7 +32,7 @@ export function isMoveSpot(moving: JcrNode, parent: JcrNode, before?: JcrNode): 
     || !creatableOf(parent).some(type => type.type === moving["jcr:primaryType"])) {
     return false;
   }
-  const siblings = siblingsFor(moving, parent).map(pathOf);
+  const siblings = partsOf(parent).map(pathOf);
   const at = siblings.indexOf(path);
   const placedAt = before ? siblings.indexOf(pathOf(before)) : siblings.length;
   return at < 0 || (placedAt !== at && placedAt !== at + 1);

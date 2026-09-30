@@ -22,6 +22,7 @@ import { AddBelow } from "./SchemaNodeCreateAction";
 import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
+import SchemaOptionStepActions from "./SchemaOptionStepActions";
 import { isPart } from "./schemaVersionTreeModel";
 
 interface SchemaNodeActionsProps {
@@ -34,8 +35,8 @@ interface SchemaNodeActionsProps {
 }
 
 // What may be done to a part or an answer option where it stands: correct it, add a part after it, move it, remove
-// it. An option is added at the end of its question's, and moved from there. While something is moving, only moving
-// is.
+// it. An option is added at the end of its question's, and moved up or down from there. While a part is moving, only
+// moving is.
 function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
   const next = siblings.at(siblings.indexOf(node) + 1);
@@ -43,7 +44,9 @@ function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsPr
     <>
       { !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} /> }
       { isPart(node) && <AddBelow parent={parent} next={nameIfAny(next)} /> }
-      <SchemaNodeMoveAction node={node} what={what} />
+      { isPart(node)
+        ? <SchemaNodeMoveAction node={node} what={what} />
+        : !moving && <SchemaOptionStepActions option={node} question={parent} options={siblings} /> }
       { !moving && <SchemaNodeDiscardAction node={node} what={what} /> }
     </>
   );

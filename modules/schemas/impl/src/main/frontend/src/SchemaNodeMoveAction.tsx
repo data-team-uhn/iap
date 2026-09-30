@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import OpenWithIcon from "@mui/icons-material/OpenWith";
+import SwapVertIcon from "@mui/icons-material/SwapVert";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -24,7 +24,7 @@ import { offers } from "@iap/frontend-commons/workflowEvents";
 import { type JcrNode } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 
-// Starts moving a part or an answer option of a draft, or, while it is the one moving, stops.
+// Starts moving a part of a draft, or, while it is the one moving, stops.
 function SchemaNodeMoveAction({ node, what }: { node: JcrNode; what: string }) {
   const { isMoving, start, cancel } = useMoveMode();
   if (!offers(node, "move")) {
@@ -34,7 +34,7 @@ function SchemaNodeMoveAction({ node, what }: { node: JcrNode; what: string }) {
   return (
     <ActionIcon
       label="Move"
-      icon={<OpenWithIcon fontSize="small" />}
+      icon={<SwapVertIcon fontSize="small" />}
       pressed={pressed}
       onClick={event => (pressed ? cancel() : start({ node, what, trigger: event.currentTarget }))}
     />
