@@ -45,7 +45,6 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     dataType: "text",
     required: false,
     multiple: false,
-    options: [],
     value: [],
     ...overrides,
   };
@@ -88,6 +87,10 @@ describe("the answer components that ship with this module", () => {
       dataType: "text",
       options: [ { value: "half-day", label: "Half day" } ],
     }))).toBe(ChoiceAnswer);
+  });
+
+  it("answers a question offering an empty list of options by its data type", () => {
+    expect(getAnswerComponent(question({ dataType: "date", options: [] }))).toBe(DateAnswer);
   });
 
   // A deployment whose schema declares a type nothing here answers must hear about it rather than

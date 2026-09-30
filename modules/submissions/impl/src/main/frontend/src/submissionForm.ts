@@ -50,9 +50,9 @@ export interface FormQuestion {
   dataType: string;
   required: boolean;
   multiple: boolean;
-  // The answers this question offers, empty when it is answered freely. Always present, so that
-  // "answered freely" is something the form states rather than something a reader infers.
-  options: FormAnswerOption[];
+  // The answers this question offers. Absent, or empty, when it is answered freely, which is how
+  // most question types are answered.
+  options?: FormAnswerOption[];
   value: string[];
 }
 
