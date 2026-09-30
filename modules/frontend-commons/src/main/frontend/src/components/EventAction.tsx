@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode, type Ref } from "react";
 
-import { DialogContentText, IconButton, Tooltip } from "@mui/material";
+import { Box, DialogContentText, IconButton, Tooltip } from "@mui/material";
 
 import { useAuthenticatedFetch } from "../reLogin";
 import { isRefusal } from "../requestFailure";
@@ -30,6 +30,8 @@ interface EventActionProps {
   path: string;
   reload: () => void | Promise<void>;
   label: string;
+  // What its confirmation says while the event is sent, such as "Removing…"
+  workingLabel?: string;
   event: string;
   title: string;
   explanation: ReactNode;
@@ -42,7 +44,7 @@ interface EventActionProps {
 // A workflow event sent to a node from an icon button. It asks for confirmation first, because the
 // event changes the node itself, not just what this page shows.
 export function EventAction(props: EventActionProps) {
-  const { path, reload, label, event, title, explanation, done, color } = props;
+  const { path, reload, label, workingLabel, event, title, explanation, done, color } = props;
   const [ confirming, setConfirming ] = useState(false);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
@@ -53,6 +55,7 @@ export function EventAction(props: EventActionProps) {
         <ConfirmActionDialog
           title={title}
           confirmLabel={label}
+          workingLabel={workingLabel}
           confirmColor={color}
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
@@ -72,19 +75,25 @@ export function EventAction(props: EventActionProps) {
 }
 
 // One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is.
-export function ActionIcon({ label, icon, onClick, pressed, color = "default" }: {
+export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref }: {
   label: string;
   icon: ReactNode;
   onClick: (event: MouseEvent<HTMLElement>) => void;
   pressed?: boolean;
   color?: "default" | "primary";
+  disabled?: boolean;
+  loading?: boolean;
+  ref?: Ref<HTMLButtonElement>;
 }) {
   return (
     <Tooltip title={label}>
-      <IconButton size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : color}
-        onClick={onClick}>
-        {icon}
-      </IconButton>
+      {/* A disabled button fires no events, so the tooltip listens on what holds it */}
+      <Box component="span" sx={{ display: "inline-flex" }}>
+        <IconButton ref={ref} size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : color}
+          disabled={disabled} loading={loading} onClick={onClick}>
+          {icon}
+        </IconButton>
+      </Box>
     </Tooltip>
   );
 }

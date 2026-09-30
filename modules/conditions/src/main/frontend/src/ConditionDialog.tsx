@@ -47,18 +47,20 @@ function ConditionDialog({ title, condition, sources, editors, onClose, onSave }
   const [ draft, setDraft ] = useState(() => draftOf(condition));
   const [ initial ] = useState(() => fingerprintOf(draft));
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
+  const [ clearing, setClearing ] = useState(false);
 
   const complete = isComplete(draft, sources);
   const content = contentOf(draft, sources);
   const changed = fingerprintOf(draft) !== initial;
-  const line = complete ? whenDraftApplies(draft, sources) : undefined;
 
   return (
     <ResponsiveDialog title={title} width="md" withCloseButton open onClose={onClose} closeDisabled={working}>
       <DialogContent dividers>
         <Stack spacing={2}>
           <Box aria-live="polite">
-            { line && <AppliesWhenLine>{line}</AppliesWhenLine> }
+            { complete && draft.conditions.length > 0 && (
+              <AppliesWhenLine>{whenDraftApplies(draft, sources) ?? "Always applies."}</AppliesWhenLine>
+            ) }
           </Box>
           <ConditionBuilder draft={draft} onChange={setDraft} sources={sources} editors={editors} disabled={working} />
           { failure && <Alert severity="error">{failure}</Alert> }
@@ -66,15 +68,21 @@ function ConditionDialog({ title, condition, sources, editors, onClose, onSave }
       </DialogContent>
       <DialogActions>
         { condition && (
-          <Button variant="text" color="error" disabled={working} onClick={() => run(() => onSave(null))}
-            sx={{ mr: "auto" }}>
-            Clear all conditions
+          <Button variant="text" color="error" disabled={working} loading={working && clearing} sx={{ mr: "auto" }}
+            onClick={() => {
+              setClearing(true);
+              run(() => onSave(null));
+            }}>
+            { working && clearing ? "Clearing…" : "Clear all conditions" }
           </Button>
         ) }
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" disabled={working || !complete || !changed}
-          onClick={() => run(() => onSave(content))}>
-          Save
+        <Button variant="contained" disabled={working || !complete || !changed} loading={working && !clearing}
+          onClick={() => {
+            setClearing(false);
+            run(() => onSave(content));
+          }}>
+          { working && !clearing ? "Saving…" : "Save" }
         </Button>
       </DialogActions>
     </ResponsiveDialog>

@@ -158,10 +158,11 @@ function FieldsDialog({ title, node, onClose, onSave, children, afterFirstField 
         <Button onClick={onClose} disabled={working}>Cancel</Button>
         <Button
           variant="contained"
+          loading={working}
           disabled={working || blocked || Object.keys(changes).length === 0}
           onClick={() => run(() => onSave(changes))}
         >
-          Save
+          { working ? "Saving…" : "Save" }
         </Button>
       </DialogActions>
     </ResponsiveDialog>
