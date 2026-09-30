@@ -286,20 +286,17 @@ schema with `POST /Schemas.import`.
 ### Asking without sending
 
 Two questions about an event can be asked without sending it: which events a user could
-send to a resource, and which workflow would handle one. The engine answers both with
-the matching and the performer check an event goes through, so a frontend decides what
-to offer, and what an action will do, from the workflows rather than from a copy of
-their rules.
+send to a resource, and which workflow would handle an event. The engine answers both,
+based on the target resource and current performer, exactly as performing would behave.
 
 `WorkflowEngine.getAvailableEvents(resource)` answers the first, for the asking user and
-right now: on a task, `complete` while it is open and its activity names them; anywhere
-else, the message of every system start event for the resource's type whose guard holds
-and whose `performers` admit them.
+on the current state of the resource: on a task, `complete` while it is open and its
+activity names them; anywhere else, the message of every system start event for the
+resource's type whose guard holds and whose `performers` admit them.
 
 Available means the engine would take the event, not that it will succeed: the payload
-can still be invalid, and a step can still refuse, as a publish check refusing an
-incomplete schema would. An event two system workflows both wait for is not available
-but broken, so asking fails with the `WorkflowDefinitionException` sending it would.
+can still be invalid, and a step can still refuse. An event two system workflows both
+wait for is not available but broken, so asking fails with a `WorkflowDefinitionException`.
 
 Over HTTP it is the `events` serialization processor, off by default:
 `GET /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema,
@@ -311,13 +308,7 @@ how its steps are configured. The engine decides which one exactly as it would o
 receiving the event, through its own session, since a guard may look at content the
 user cannot read. The version it returns is read through the user's own session. `null`
 means nothing would take the event from this user, and two workflows competing for it
-are a `WorkflowDefinitionException`, as they are on receiving it.
-
-Both are cheap to ask of every node a serialization writes. Everything asked through one
-resolver is answered from one engine session, opened by the first question and closed
-with the resolver, so the one a request resolved through lasts until the request ends.
-Keeping it open is safe because nothing it can reach is ever handed out: only event
-names, and versions read through the user's own session.
+are a `WorkflowDefinitionException`.
 
 ### Built-in service tasks
 
@@ -370,11 +361,6 @@ workflow content — the same node types, the same models — stored under
 `/SystemWorkflows`, and that location is what makes it one: it describes something the
 platform does on its own behalf, like turning "someone POSTed to /Workflows" into a new
 workflow definition.
-
-Unlike the definitions under `/Workflows`, anyone signed in may read them. What a system
-workflow does, and whom its `performers` admit, is what a user interface offers actions
-from, and reading a definition grants nothing: the engine decides every event itself,
-through its own session. Full-text search leaves the tree out ([search](search.md)).
 
 ```
 HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)

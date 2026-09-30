@@ -157,7 +157,7 @@ Three rules follow from the shape:
 State belongs in the processor between `start` and `end`, and nowhere else: a
 processor instance is a shared OSGi service, so anything held across serializations is
 a race. `end` runs however the serialization ended, so what `start` set up is always
-released, a `ThreadLocal` on a pooled thread included.
+released.
 
 ### Adding fields versus replacing them
 

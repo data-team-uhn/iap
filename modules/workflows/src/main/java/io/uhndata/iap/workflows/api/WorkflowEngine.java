@@ -91,7 +91,7 @@ public interface WorkflowEngine
      * @param event the event's name
      * @return the workflow version, or {@code null} if no system workflow would take the event from this user;
      *         always {@code null} for a task, whose events carry its instance on instead
-     * @throws WorkflowDefinitionException when several system workflows would take the event, as receiving it would
+     * @throws WorkflowDefinitionException when several system workflows would take the event
      * @throws WorkflowFailedException when the engine cannot establish who is asking, or the asking session cannot
      *             read the system workflows
      * @throws WorkflowException never directly, only as one of the above

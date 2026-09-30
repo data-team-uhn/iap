@@ -96,7 +96,6 @@
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The events processor adds what a user could send to each serialized node -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-serialization-json</artifactId>
