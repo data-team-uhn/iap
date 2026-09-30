@@ -36,13 +36,14 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   const label = questionLabel(question);
   const help = question.description;
+  const options = question.options ?? [];
 
   if (question.multiple) {
     const toggle = (value: string, checked: boolean) =>
       onAnswered(checked
         // Kept in the offered order rather than the order they were clicked, so that two people
         // answering the same way store the same thing
-        ? question.options.filter(option => option.value === value || values.includes(option.value))
+        ? options.filter(option => option.value === value || values.includes(option.value))
           .map(option => option.value)
         : values.filter(current => current !== value));
 
@@ -50,7 +51,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
       <FormControl component="fieldset" disabled={disabled} required={question.required}>
         <FormLabel component="legend">{label}</FormLabel>
         <FormGroup>
-          {question.options.map(option => (
+          {options.map(option => (
             <FormControlLabel
               key={option.value}
               label={option.label}
@@ -76,7 +77,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
         value={values[0] ?? ""}
         onChange={event => onAnswered([ event.target.value ])}
       >
-        {question.options.map(option => (
+        {options.map(option => (
           <FormControlLabel
             key={option.value}
             value={option.value}
@@ -93,7 +94,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
 // Offering a fixed set of answers says more about a question than its data type does, so this
 // outbids the component that would otherwise type the answer in
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
-  question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
+  (question.options ?? []).length > 0 ? [ ChoiceAnswer, 60 ] : null;
 
 registerAnswerComponent(choiceAnswerCandidate);
 
