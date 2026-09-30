@@ -1,0 +1,66 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read for ethics review only",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "description": "A minimal reading workflow that demos the ethicsReview requirement on its own: no proposal/category classification, just the TCPS2 check against the uploaded document. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
+    "started": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "started",
+      "label": "The document is readable",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toEthicsReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEthicsReview",
+        "targetRef": "askEthicsReview"
+      }
+    },
+    "askEthicsReview": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askEthicsReview",
+      "label": "Check the document against TCPS2",
+      "handler": "intakeAnswers",
+      "requirement": "ethicsReview",
+      "promptFrom": "tcps2_reference.md",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "markCompleteness": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markCompleteness",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinish": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinish",
+        "targetRef": "finishReading"
+      }
+    },
+    "finishReading": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishReading",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "The document has been read",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
