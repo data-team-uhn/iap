@@ -100,6 +100,15 @@ class AvailableEventsProcessorTest
     }
 
     @Test
+    void listsNothingWhenTheEngineFailsUnexpectedly() throws Exception
+    {
+        Mockito.when(this.engine.getAvailableEvents(this.resource))
+            .thenThrow(new IllegalStateException("the engine's session was closed"));
+
+        assertFalse(serialize().containsKey("@events"));
+    }
+
+    @Test
     void leavesOutWhatIsNotContent() throws Exception
     {
         Mockito.when(this.node.isNodeType("data:Content")).thenReturn(false);

@@ -91,7 +91,7 @@ public class AvailableEventsProcessor implements ResourceJsonProcessor
             resource = Objects.requireNonNull(this.resolver.get().getResource(node.getPath()),
                 "A node being serialized is visible to the session serializing it");
             json.add("@events", Json.createArrayBuilder(this.engine.getAvailableEvents(resource)));
-        } catch (final RepositoryException | WorkflowException e) {
+        } catch (final RepositoryException | WorkflowException | RuntimeException e) {
             // Nothing offered is the safe answer; the serialization itself must not fail over it
             LOGGER.error("Could not list the events available on {}: {}", node, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave").about(resource));
