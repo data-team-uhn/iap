@@ -17,8 +17,13 @@
  */
 package io.uhndata.iap.workflows.api;
 
+import java.util.Set;
+
 import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * The one door into the workflow machinery. Every domain event is handed to {@link #receiveEvent}, and nothing
@@ -58,4 +63,39 @@ public interface WorkflowEngine
      */
     @NotNull
     WorkflowResult receiveEvent(@NotNull Resource target, @NotNull WorkflowEvent event) throws WorkflowException;
+
+    /**
+     * The events the asking user could send to one resource right now: those a workflow waits for in the
+     * resource's current state, and whose definition admits that user. What the frontend offers is decided by
+     * this rather than by a copy of the workflows' rules. An available event is one the engine would accept, not
+     * one guaranteed to succeed: its payload and the steps it runs may still refuse it.
+     *
+     * @param target the resource events would be aimed at, resolved through the asking user's own session
+     * @return the event names, in alphabetical order; empty when nothing is available
+     * @throws WorkflowDefinitionException when several system workflows would take one of the events, which
+     *             receiving it would refuse
+     * @throws WorkflowFailedException when the engine cannot establish who is asking
+     * @throws WorkflowException never directly, only as one of the above
+     */
+    @NotNull
+    Set<String> getAvailableEvents(@NotNull Resource target) throws WorkflowException;
+
+    /**
+     * The system workflow that would handle an event the asking user sent to one resource right now: the one whose
+     * start event catches it, whose guard holds in the resource's current state, and whose definition admits that
+     * user, found as {@link #receiveEvent} would find it but without sending anything. Reading it tells what sending
+     * the event would do, e.g. what a create would make. Everyone may read the system workflows, so the version
+     * comes back as the asking user's own session reads it, and lasts as long as that session.
+     *
+     * @param target the resource the event would be aimed at, resolved through the asking user's own session
+     * @param event the event's name
+     * @return the workflow version, or {@code null} if no system workflow would take the event from this user;
+     *         always {@code null} for a task, whose events carry its instance on instead
+     * @throws WorkflowDefinitionException when several system workflows would take the event
+     * @throws WorkflowFailedException when the engine cannot establish who is asking, or the asking session cannot
+     *             read the system workflows
+     * @throws WorkflowException never directly, only as one of the above
+     */
+    @Nullable
+    WorkflowVersion findApplicableWorkflow(@NotNull Resource target, @NotNull String event) throws WorkflowException;
 }

@@ -283,6 +283,33 @@ servlet. The repository still decides who may write, and on content the engine m
 can, so it is a tool for importing content by hand: `tools/dev/test-data/generate-test-data.sh` imports the demo
 schema with `POST /Schemas.import`.
 
+### Asking without sending
+
+Two questions about an event can be asked without sending it: which events a user could
+send to a resource, and which workflow would handle an event. The engine answers both,
+based on the target resource and current performer, exactly as performing would behave.
+
+`WorkflowEngine.getAvailableEvents(resource)` answers the first, for the asking user and
+on the current state of the resource: on a task, `complete` while it is open and its
+activity names them; anywhere else, the message of every system start event for the
+resource's type whose guard holds and whose `performers` admit them.
+
+Available means the engine would take the event, not that it will succeed: the payload
+can still be invalid, and a step can still refuse. An event two system workflows both
+wait for is not available but broken, so asking fails with a `WorkflowDefinitionException`.
+
+Over HTTP it is the `events` serialization processor, off by default:
+`GET /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema,
+which is how a listing learns its rows' actions in one request.
+
+`WorkflowEngine.findApplicableWorkflow(resource, event)` answers the second: it returns
+the system workflow that would handle an event, to read what sending it would do, e.g.
+how its steps are configured. The engine decides which one exactly as it would on
+receiving the event, through its own session, since a guard may look at content the
+user cannot read. The version it returns is read through the user's own session. `null`
+means nothing would take the event from this user, and two workflows competing for it
+are a `WorkflowDefinitionException`.
+
 ### Built-in service tasks
 
 A few handlers are the engine's own, because what they do is generic:

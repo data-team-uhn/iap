@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -47,19 +48,20 @@ import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The engine, and the one door a domain event comes in through. An event either runs the system workflow that
  * matches it, or carries on the instance whose task it was aimed at.
  *
  * <p>A system workflow runs straight through, inside the request, and leaves no instance behind.
- * {@link InstanceRunner} owns the other half, where a workflow persists and waits.</p>
+ * {@link InstanceRunner} owns the other half, where a workflow persists and waits. Both perform their service
+ * tasks through {@link ServiceTaskDispatcher}.</p>
  *
- * <p>Everything happens through the engine's own service user. Matching reads {@code /SystemWorkflows}, which
- * ordinary users cannot see, and execution writes content they hold no rights on. Authorization cannot be left to
- * the repository. It is decided here, before the first step, by asking the start event which principals it
+ * <p>Everything happens through the engine's own service user. Matching has to see all of a target's content,
+ * whatever the user may read of it, and execution writes content they hold no rights on. Authorization cannot be
+ * left to the repository. It is decided here, before the first step, by asking the start event which principals it
  * admits. What a user may do is what the workflows say, not what an access control list on the data happens to
  * allow.</p>
  *
@@ -95,8 +97,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
         // is recorded here, and would otherwise refuse the person who raised the request
         final String actor = UserIds.canonical(target.getResourceResolver());
-        try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
+        try (ResourceResolver serviceResolver = serviceResolver()) {
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
             final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
@@ -108,6 +109,32 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
             PerformerCheck.verify(serviceResolver, start, actor);
             return execute(privilegedTarget, event, start, actor);
+        }
+    }
+
+    @Override
+    public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
+    {
+        return WorkflowQueries.availableEvents(target, this::serviceResolver, this.conditionEvaluator);
+    }
+
+    @Override
+    public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
+    {
+        return WorkflowQueries.applicableWorkflow(target, event, this::serviceResolver, this.conditionEvaluator);
+    }
+
+    /**
+     * Opens the engine's own session.
+     *
+     * @return a service resource resolver, to be closed by the caller
+     * @throws WorkflowFailedException when the service user is not available
+     */
+    private ResourceResolver serviceResolver() throws WorkflowFailedException
+    {
+        try {
+            return this.resolverFactory
+                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
         } catch (final LoginException e) {
             throw new WorkflowFailedException("The workflow engine's service user is not available", e);
         }
@@ -129,7 +156,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor));
+            TaskCompletion.apply(resolver, task, event, actor,
+                new ServiceTaskDispatcher(this.handlers).performer(event, actor));
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -158,6 +186,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final String actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
+        final ServiceTaskDispatcher dispatcher = new ServiceTaskDispatcher(this.handlers);
         final Map<String, Object> variables = new LinkedHashMap<>();
         try {
             FlowNode node = start;
@@ -168,7 +197,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                     return new WorkflowResult(variables);
                 }
                 if (node instanceof Activity) {
-                    perform((Activity) node,
+                    dispatcher.perform((Activity) node,
                         new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor));
                 } else if (!(node instanceof StartEvent) || step > 0) {
                     // A system workflow cannot contain this node: there is no persisted instance whose token
@@ -187,57 +216,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-    }
-
-    /**
-     * Performs one service task by dispatching to the handler its activity names. Reached from both walks: a
-     * system workflow's own run, and a running instance's through {@link #performer}. Nothing here may assume
-     * which.
-     *
-     * @param activity the activity node being executed
-     * @param context what the handler gets to work with
-     * @throws WorkflowException when the activity cannot be performed
-     * @throws PersistenceException when the handler's repository writes fail immediately
-     */
-    private void perform(final Activity activity, final WorkflowTaskContext context)
-        throws WorkflowException, PersistenceException
-    {
-        final String name = activity.getHandler();
-        if (name == null) {
-            throw new WorkflowDefinitionException("The activity " + activity.getPath()
-                + " names no handler to perform it automatically");
-        }
-        if (WorkflowStarter.HANDLER_NAME.equals(name)) {
-            // Built into the engine rather than registered: putting an entity under a workflow is the engine's
-            // own business. Which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
-            return;
-        }
-        final ServiceTaskHandler handler = this.handlers.stream()
-            .filter(candidate -> name.equals(candidate.getName()))
-            .findFirst()
-            .orElse(null);
-        if (handler == null) {
-            throw new WorkflowDefinitionException(
-                "The activity " + activity.getPath() + " names the handler " + name + ", but none is registered");
-        }
-        handler.execute(context);
-    }
-
-    /**
-     * How an instance performs a service task it meets, through the same dispatch a system workflow uses. A
-     * handler behaves identically whichever kind of workflow reached it. The variables belong to this delivery;
-     * an instance's persisted variables are not yet exposed to handlers.
-     *
-     * @param event the event being delivered
-     * @param actor the user the instance is being moved for
-     * @return a performer bound to this delivery
-     */
-    private InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
-    {
-        final Map<String, Object> variables = new LinkedHashMap<>();
-        return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
     }
 
     /**
@@ -283,18 +261,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 + " points at " + flows.get(0).getTargetRef() + ", which does not exist in this workflow");
         }
         return next;
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**

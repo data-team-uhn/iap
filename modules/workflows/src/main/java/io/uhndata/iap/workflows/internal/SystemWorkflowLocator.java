@@ -18,6 +18,10 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -29,6 +33,7 @@ import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
@@ -63,10 +68,82 @@ final class SystemWorkflowLocator
     static StartEvent find(final ResourceResolver serviceResolver, final Resource target, final WorkflowEvent event,
         final ConditionEvaluator evaluator) throws WorkflowException
     {
+        final List<StartEvent> matches = waiting(serviceResolver, target, evaluator, event.getName()::equals);
+        if (matches.isEmpty()) {
+            throw new NoApplicableWorkflowException(
+                "Nothing accepts the event " + event.getName() + " on " + target.getPath());
+        }
+        if (matches.size() > 1) {
+            throw contested(target, event.getName(), matches);
+        }
+        return matches.get(0);
+    }
+
+    /**
+     * The events an actor could send to this target right now: those caught by a start event waiting on it in its
+     * current state, and admitting the actor.
+     *
+     * @param serviceResolver the engine's own session, able to read the system workflows tree
+     * @param target the resource events would be aimed at, backed by the engine's own session
+     * @param evaluator decides whether a start event's guard holds
+     * @param performers who is asking
+     * @return the event names, in alphabetical order
+     * @throws WorkflowDefinitionException when several start events wait for one event, which receiving it would
+     *             refuse
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    static Set<String> availableEvents(final ResourceResolver serviceResolver, final Resource target,
+        final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowException
+    {
+        final Map<String, List<StartEvent>> byEvent = waiting(serviceResolver, target, evaluator, event -> true)
+            .stream()
+            .collect(Collectors.groupingBy(StartEvent::getMessageName));
+        final Set<String> events = new TreeSet<>();
+        for (final Map.Entry<String, List<StartEvent>> waitingFor : byEvent.entrySet()) {
+            // Not available but broken: the engine would refuse it, whoever sent it
+            if (waitingFor.getValue().size() > 1) {
+                throw contested(target, waitingFor.getKey(), waitingFor.getValue());
+            }
+            if (performers.admits(waitingFor.getValue().get(0))) {
+                events.add(waitingFor.getKey());
+            }
+        }
+        return events;
+    }
+
+    /**
+     * The refusal of an event several system workflows wait for: the installed definitions contradict each other.
+     *
+     * @param target the resource the event is aimed at
+     * @param event the event's name
+     * @param starts the start events all waiting for it
+     * @return the failure to throw
+     */
+    private static WorkflowDefinitionException contested(final Resource target, final String event,
+        final List<StartEvent> starts)
+    {
+        return new WorkflowDefinitionException("The event " + event + " on " + target.getPath()
+            + " is caught by several system workflows: "
+            + starts.stream().map(StartEvent::getPath).collect(Collectors.joining(", ")));
+    }
+
+    /**
+     * The start events waiting on this target in its current state, among those catching the events asked about.
+     * Guards are evaluated last, and only for those, since evaluating one reads the target's content.
+     *
+     * @param serviceResolver the engine's own session, able to read the system workflows tree
+     * @param target the resource events would be aimed at, backed by the engine's own session
+     * @param evaluator decides whether a start event's guard holds
+     * @param asked which event names are asked about
+     * @return the start events catching one of them whose guard holds, backed by the service session
+     */
+    private static List<StartEvent> waiting(final ResourceResolver serviceResolver, final Resource target,
+        final ConditionEvaluator evaluator, final Predicate<String> asked)
+    {
         final Content context = target.adaptTo(Content.class);
         final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
         final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
-        final List<StartEvent> matches = homepage == null ? List.of()
+        return homepage == null ? List.of()
             : homepage.getWorkflows().stream()
                 .filter(WorkflowDefinition::isActive)
                 .flatMap(definition -> definition.getVersions().stream())
@@ -74,19 +151,9 @@ final class SystemWorkflowLocator
                 .filter(version -> version.getTargetResourceType() != null
                     && target.isResourceType(version.getTargetResourceType()))
                 .flatMap(version -> version.getStartEvents().stream())
-                .filter(start -> event.getName().equals(start.getMessageName()))
+                .filter(start -> start.getMessageName() != null && asked.test(start.getMessageName()))
                 .filter(start -> start.getCondition() == null
                     || context != null && evaluator.applies(start, context))
                 .collect(Collectors.toList());
-        if (matches.isEmpty()) {
-            throw new NoApplicableWorkflowException(
-                "Nothing accepts the event " + event.getName() + " on " + target.getPath());
-        }
-        if (matches.size() > 1) {
-            throw new WorkflowDefinitionException("The event " + event.getName() + " on " + target.getPath()
-                + " is caught by several system workflows: "
-                + matches.stream().map(StartEvent::getPath).collect(Collectors.joining(", ")));
-        }
-        return matches.get(0);
     }
 }

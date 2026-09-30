@@ -104,9 +104,14 @@ public class ResourceToJsonAdapterFactory
         final SerializationContext context = new SerializationContext(resource, setupProcessors(resource));
 
         start(resource, context);
-        final Node node = resource.adaptTo(Node.class);
-        JsonValue result = serializeNode(node, context);
-        end(resource, context);
+        final JsonValue result;
+        try {
+            final Node node = resource.adaptTo(Node.class);
+            result = serializeNode(node, context);
+        } finally {
+            // Processors clean up in end whatever they set up in start, so a failing processor must not skip it
+            end(resource, context);
+        }
         if (result != null) {
             return type.cast(result);
         }

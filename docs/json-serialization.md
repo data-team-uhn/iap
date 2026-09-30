@@ -78,6 +78,7 @@ that descends at all — so Sling-style URLs like `.1.json` work without naming 
 | `dereference` | **on** | 10 | Replaces a `REFERENCE`, `WEAKREFERENCE` or `PATH` value with the serialization of the node it points at |
 | `deep` | on with a depth selector | 10 | Includes descendants |
 | `simple` | off | 25 | Drops the properties that describe how content is *stored* rather than what it holds |
+| `events` | off | 50 | Adds `@events`, the workflow events the requesting user could send to the node (contributed by `workflows`, see [asking without sending](workflows.md#asking-without-sending)) |
 
 `simple` is worth understanding before designing an endpoint. It removes every
 `sling:` property, which only say which scripts render the resource, and every `jcr:`
@@ -141,7 +142,7 @@ The chain is called around a depth-first walk of the node tree:
 | `processPropertyName(node, property, input)` | Per property. Rename it, or `null` to drop it |
 | `processChild(node, child, input, serializeNode)` | Per child. Replace or drop its serialization |
 | `leave(node, json, serializeNode)` | On leaving each node, after its children — add computed fields here |
-| `end(resource)` | Once, after everything. Tear down state |
+| `end(resource)` | Once, after everything, even when serializing failed. Tear down state |
 
 Three rules follow from the shape:
 
@@ -155,7 +156,8 @@ Three rules follow from the shape:
 
 State belongs in the processor between `start` and `end`, and nowhere else: a
 processor instance is a shared OSGi service, so anything held across serializations is
-a race.
+a race. `end` runs however the serialization ended, so what `start` set up is always
+released.
 
 ### Adding fields versus replacing them
 

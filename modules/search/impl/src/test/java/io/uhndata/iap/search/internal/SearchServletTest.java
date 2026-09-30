@@ -109,11 +109,12 @@ public class SearchServletTest
         "select n.* from [nt:base] as n where contains(n.*, $text)";
 
     /**
-     * The exclusion every generated full-text statement carries.
-     * {@link #aFullTextSearchStaysOutOfTheRepositorysBookkeeping()} spells it out in full instead of using this.
+     * The exclusions every generated full-text statement carries.
+     * {@link #aFullTextSearchStaysOutOfTheMachinery()} spells them out in full instead of using this.
      */
-    private static final String OUTSIDE_SYSTEM =
-        " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')";
+    private static final String OUTSIDE_MACHINERY =
+        " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')"
+            + " and not issamenode(n, '/SystemWorkflows') and not isdescendantnode(n, '/SystemWorkflows')";
 
     private SearchServlet servlet;
 
@@ -429,21 +430,23 @@ public class SearchServletTest
         withParameter("fulltext", TERM);
         mockNodeResults(SUBMISSION_PATH);
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_MACHINERY, executedStatement());
         // The text the user typed is bound, not written into the statement
         Assertions.assertEquals(Map.of("text", "diabetes"), this.boundValues);
     }
 
     @Test
-    public void aFullTextSearchStaysOutOfTheRepositorysBookkeeping() throws Exception
+    public void aFullTextSearchStaysOutOfTheMachinery() throws Exception
     {
         // /jcr:system holds the frozen copies left by checking a versionable node in, and the node type registry,
-        // which answers an ordinary word with every property definition declaring it
+        // which answers an ordinary word with every property definition declaring it. /SystemWorkflows is readable
+        // by everyone, but it is how the platform behaves, not content anybody searches for
         withParameter("fulltext", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(FULL_TEXT_QUERY
-            + " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')",
+            + " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')"
+            + " and not issamenode(n, '/SystemWorkflows') and not isdescendantnode(n, '/SystemWorkflows')",
             executedStatement());
     }
 
@@ -487,7 +490,7 @@ public class SearchServletTest
         withParameter("fulltext", "a-b OR c*");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_MACHINERY, executedStatement());
         Assertions.assertEquals(Map.of("text", "a\\-b OR c\\*"), this.boundValues);
     }
 
@@ -498,7 +501,7 @@ public class SearchServletTest
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_MACHINERY, executedStatement());
         Assertions.assertEquals(Map.of("text", "a-b OR c*"), this.boundValues);
     }
 
@@ -511,7 +514,7 @@ public class SearchServletTest
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_MACHINERY, executedStatement());
         Assertions.assertEquals(Map.of("text", "it's"), this.boundValues);
     }
 
@@ -882,7 +885,7 @@ public class SearchServletTest
         withParameter("fulltext", "'tis");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_MACHINERY, executedStatement());
         Assertions.assertEquals(Map.of("text", "\\'tis"), this.boundValues);
     }
 

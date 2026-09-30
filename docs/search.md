@@ -192,6 +192,8 @@ plan it already reports on.
 ```sql
 select n.* from [nt:base] as n where contains(n.*, $text)
   and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')
+  and not issamenode(n, '/SystemWorkflows')
+  and not isdescendantnode(n, '/SystemWorkflows')
 ```
 
 The text is **bound to `$text`** rather than written into the statement, so the statement
@@ -222,11 +224,10 @@ Input handling in both modes:
 ### What a full-text search does not look at
 
 This is the only mode spanning every node type, so it is the only one that reaches
-`/jcr:system`, and it is kept out. Two things there would otherwise crowd out the
-results:
+`/jcr:system` and other system nodes, so they are explicitly kept out. Two things in `/jcr:system`
+would otherwise crowd out the results:
 
-- **Version storage.** `data:Entity` is `mix:versionable` and the Sling POST servlet
-  checks versionable nodes in automatically, so every edit leaves a frozen copy of all
+- **Version storage.** `data:Entity` is `mix:versionable`, so every edit leaves a frozen copy of all
   the node's properties under `/jcr:system/jcr:versionStorage`. A submission edited
   twenty times would answer a search for its own text twenty-one times over, on paths the
   client can do nothing with.
@@ -239,13 +240,9 @@ The `/jcr:system` node itself is excluded alongside its descendants: `isdescenda
 is strictly about descendants, and the node carries a `rep:system` primary type that
 answers a search for `system`.
 
-**The exclusion costs nothing.** Measured on Oak 2.4.0 with a Lucene full-text index,
-the query plan is byte for byte the same with it and without — Oak picks the same index
-and applies the path restriction to the rows it returns.
-
-Neither other mode needs this. A `query` runs exactly as sent, version storage and all: a
+No other mode needs this. A `query` runs exactly as sent, version storage and all: a
 client writing its own JCR-SQL2 asked for what it asked for. A `quick` search is whatever
-its engines make it, and a typed query cannot reach version storage by accident — a
+its engines make it, and a typed query cannot reach version storage by accident, since a
 frozen node takes `nt:frozenNode` as its own primary type and records the original's in a
 property, so it never matches the type its original would.
 
