@@ -29,6 +29,8 @@ interface ConfirmActionDialogProps {
   // Explains what the action does; the failure report, if any, appears underneath.
   children: ReactNode;
   confirmLabel: string;
+  // What the confirm button says while the action is under way, such as "Removing…"; its label otherwise
+  workingLabel?: string;
   confirmColor?: ButtonProps["color"];
   // Performs the action. Resolving closes the dialog; rejecting keeps it open and reports the
   // failure in place, next to the explanation of what was being attempted.
@@ -62,7 +64,7 @@ interface ConfirmActionDialogProps {
 //
 function ConfirmActionDialog(
   {
-    title, children, confirmLabel, confirmColor, onConfirm, interceptFailure, isFinal, onClose,
+    title, children, confirmLabel, workingLabel, confirmColor, onConfirm, interceptFailure, isFinal, onClose,
   }: ConfirmActionDialogProps,
 ) {
   const [ refused, setRefused ] = useState(false);
@@ -87,8 +89,9 @@ function ConfirmActionDialog(
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" color={confirmColor} onClick={() => run(onConfirm)} disabled={working || refused}>
-          {confirmLabel}
+        <Button variant="contained" color={confirmColor} onClick={() => run(onConfirm)} disabled={working || refused}
+          loading={working}>
+          {working ? workingLabel ?? confirmLabel : confirmLabel}
         </Button>
       </DialogActions>
     </ResponsiveDialog>
