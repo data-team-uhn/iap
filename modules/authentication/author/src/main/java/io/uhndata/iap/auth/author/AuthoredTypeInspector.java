@@ -27,18 +27,17 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * Answers whether a node's type declares {@code auth:lastAuthor}, i.e. whether its primary type, one of its mixins,
- * or one of their supertypes carries the {@code auth:Authored} mixin. Verdicts are cached per type name against the
- * node type registry materialized at {@code /jcr:system/jcr:nodeTypes}, so one instance must not outlive the commit
- * it was created for.
+ * Answers whether a node's primary type, one of its mixins, or one of their supertypes is {@code auth:Authored}.
+ * Verdicts are cached per type name against the node type registry materialized at {@code /jcr:system/jcr:nodeTypes},
+ * so one instance must not outlive the commit it was created for.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class AuthoredTypeInspector
 {
-    /** The property {@link AddAuthorEditor} writes; a type declares it by carrying {@code jcr:lastModifiedBy}. */
-    private static final String LAST_AUTHOR_PROPERTY = "jcr:lastModifiedBy";
+    /** The mixin a type must carry for {@link AddAuthorEditor} to write to it. */
+    private static final String AUTHORED_MIXIN = "auth:Authored";
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
@@ -62,10 +61,10 @@ final class AuthoredTypeInspector
     }
 
     /**
-     * Checks whether {@code auth:lastAuthor} may be stored on the given node.
+     * Checks whether the given node carries {@code auth:Authored}, directly or through a supertype.
      *
      * @param node the node to check
-     * @return {@code true} if one of the node's types declares the property
+     * @return {@code true} if one of the node's types is {@code auth:Authored}
      */
     boolean canStoreAuthor(final NodeState node)
     {
@@ -91,20 +90,11 @@ final class AuthoredTypeInspector
 
     private boolean computeWritableType(final String type)
     {
-        final NodeState definition = this.registry.getChildNode(type);
-        if (!definition.exists()) {
-            return false;
-        }
-        if (accepts(definition)) {
+        if (AUTHORED_MIXIN.equals(type)) {
             return true;
         }
-        final PropertyState supertypes = definition.getProperty(SUPERTYPES);
+        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES);
         return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
-            .anyMatch(supertype -> accepts(this.registry.getChildNode(supertype)));
-    }
-
-    private boolean accepts(final NodeState definition)
-    {
-        return definition.getChildNode("rep:namedPropertyDefinitions").hasChildNode(LAST_AUTHOR_PROPERTY);
+            .anyMatch(AUTHORED_MIXIN::equals);
     }
 }
