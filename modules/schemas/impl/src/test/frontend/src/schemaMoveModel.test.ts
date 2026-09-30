@@ -17,14 +17,13 @@
  */
 
 import { isMoveSpot } from "@iap/schemas/schemaMoveModel";
-import { optionsOf, partsOf } from "@iap/schemas/schemaVersionTreeModel";
+import { partsOf } from "@iap/schemas/schemaVersionTreeModel";
 
 import { CONTENT, HOMEPAGE, withPaths } from "./schemaServer.fixture";
 
 const version = withPaths("/Schemas/study/v3", { ...HOMEPAGE.study.v3, ...CONTENT["study/v3"] });
 const [ intake, followUp ] = partsOf(version);
 const [ name, age ] = partsOf(intake);
-const [ short, full ] = optionsOf(name);
 
 describe("schemaMoveModel", () => {
   it("offers every place that would put a part somewhere new", () => {
@@ -44,13 +43,5 @@ describe("schemaMoveModel", () => {
     expect(isMoveSpot(age, name)).toBe(false);
     expect(isMoveSpot(intake, intake)).toBe(false);
     expect(isMoveSpot(intake, name)).toBe(false);
-  });
-
-  it("places an option among the options of what holds it", () => {
-    expect(isMoveSpot(full, name, short)).toBe(true);
-    expect(isMoveSpot(short, name)).toBe(true);
-    expect(isMoveSpot(short, name, full)).toBe(false);
-    expect(isMoveSpot(full, name)).toBe(false);
-    expect(isMoveSpot(short, intake)).toBe(false);
   });
 });

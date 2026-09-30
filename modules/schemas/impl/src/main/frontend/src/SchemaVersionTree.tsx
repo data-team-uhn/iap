@@ -91,7 +91,7 @@ function PartCard({ part, parent, siblings, sources }: PartCardProps) {
   const description = detailOf(part, "description");
   const details = type.details?.(part) ?? null;
   const [ open, setOpen ] = useState(children.length > 0);
-  const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(part, { bordered: true });
+  const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(part);
   const { Icon } = type;
   const hasMore = Boolean(description) || details !== null || children.length > 0 || creatableOf(part).length > 0;
 
@@ -159,8 +159,7 @@ function PartCard({ part, parent, siblings, sources }: PartCardProps) {
           {details}
           { children.length > 0
             ? <PartList parent={part} parts={children} sources={sources} />
-            // An empty part offers one place; a question's options offer their own
-            : optionsOf(part).length === 0 && <MoveSpot parent={part} /> }
+            : <MoveSpot parent={part} /> }
           <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))}
             indent={isQuestion(part) ? ICON_COLUMN : 0} />
         </Stack>
