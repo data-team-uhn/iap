@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
@@ -696,6 +697,26 @@ class WorkflowEngineImplTest
         this.context.resourceResolver().commit();
 
         assertEquals(Set.of(), engine.getAvailableEvents(target));
+    }
+
+    @Test
+    void evaluatesOnlyTheGuardsOfTheEventAskedAbout() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        createOtherNoopWorkflow("archive");
+        guard(OTHER_VERSION + "/requested", "open");
+        final WorkflowEngine engine = engine();
+        final Field injected = WorkflowEngineImpl.class.getDeclaredField("conditionEvaluator");
+        injected.setAccessible(true);
+        final ConditionEvaluator evaluator = Mockito.spy((ConditionEvaluator) injected.get(engine));
+        inject(engine, "conditionEvaluator", evaluator);
+
+        assertNotNull(engine.findApplicableWorkflow(target, CREATE.getName()));
+
+        // The create workflow has no guard, and the archive workflow's is no business of a create event
+        Mockito.verify(evaluator, Mockito.never()).applies(Mockito.any(), Mockito.any());
     }
 
     @Test

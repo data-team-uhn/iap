@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -67,9 +68,7 @@ final class SystemWorkflowLocator
     static StartEvent find(final ResourceResolver serviceResolver, final Resource target, final WorkflowEvent event,
         final ConditionEvaluator evaluator) throws WorkflowException
     {
-        final List<StartEvent> matches = waiting(serviceResolver, target, evaluator).stream()
-            .filter(start -> event.getName().equals(start.getMessageName()))
-            .collect(Collectors.toList());
+        final List<StartEvent> matches = waiting(serviceResolver, target, evaluator, event.getName()::equals);
         if (matches.isEmpty()) {
             throw new NoApplicableWorkflowException(
                 "Nothing accepts the event " + event.getName() + " on " + target.getPath());
@@ -96,7 +95,8 @@ final class SystemWorkflowLocator
     static Set<String> availableEvents(final ResourceResolver serviceResolver, final Resource target,
         final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowException
     {
-        final Map<String, List<StartEvent>> byEvent = waiting(serviceResolver, target, evaluator).stream()
+        final Map<String, List<StartEvent>> byEvent = waiting(serviceResolver, target, evaluator, event -> true)
+            .stream()
             .collect(Collectors.groupingBy(StartEvent::getMessageName));
         final Set<String> events = new TreeSet<>();
         for (final Map.Entry<String, List<StartEvent>> waitingFor : byEvent.entrySet()) {
@@ -128,15 +128,17 @@ final class SystemWorkflowLocator
     }
 
     /**
-     * Every start event waiting on this target in its current state, whatever event it catches.
+     * The start events waiting on this target in its current state, among those catching the events asked about.
+     * Guards are evaluated last, and only for those, since evaluating one reads the target's content.
      *
      * @param serviceResolver the engine's own session, able to read the system workflows tree
      * @param target the resource events would be aimed at, backed by the engine's own session
      * @param evaluator decides whether a start event's guard holds
-     * @return the start events whose guard holds, backed by the service session
+     * @param asked which event names are asked about
+     * @return the start events catching one of them whose guard holds, backed by the service session
      */
     private static List<StartEvent> waiting(final ResourceResolver serviceResolver, final Resource target,
-        final ConditionEvaluator evaluator)
+        final ConditionEvaluator evaluator, final Predicate<String> asked)
     {
         final Content context = target.adaptTo(Content.class);
         final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
@@ -149,7 +151,7 @@ final class SystemWorkflowLocator
                 .filter(version -> version.getTargetResourceType() != null
                     && target.isResourceType(version.getTargetResourceType()))
                 .flatMap(version -> version.getStartEvents().stream())
-                .filter(start -> start.getMessageName() != null)
+                .filter(start -> start.getMessageName() != null && asked.test(start.getMessageName()))
                 .filter(start -> start.getCondition() == null
                     || context != null && evaluator.applies(start, context))
                 .collect(Collectors.toList());
