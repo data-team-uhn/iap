@@ -360,7 +360,7 @@ def convert_pdf_to_markdown(
     markdown_content = clean_markdown("".join(all_markdown))
     total_end = perf_counter()
 
-    log_fn("\n=== Timing ===")
+    log_fn("=== Timing ===")
     log_fn(f"Parallel processing:  {parallel_end - t0:.2f}s")
     log_fn(f"Cleanup and assembly: {total_end - parallel_end:.2f}s")
     log_fn(f"Total:                {total_end - t0:.2f}s")
