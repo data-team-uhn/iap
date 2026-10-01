@@ -84,14 +84,14 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The domain event a POST to an entity that is editable through a workflow translates to. */
     public static final String SAVE_EVENT = "save";
 
+    /** The extension that bypasses the engine, for the Sling POST servlet. */
+    static final String IMPORT_EXTENSION = "import";
+
     /**
      * The supertype every entity homepage carries, which is how a POST that means "make me one of these" is told
      * from one that means "change this one" without naming a single homepage type.
      */
     private static final String HOMEPAGE_RESOURCE_TYPE = "data/EntityHomepage";
-
-    /** The extension that bypasses the engine, for the Sling POST servlet. */
-    static final String IMPORT_EXTENSION = "import";
 
     /** The resource type for the default Sling POST servlet. */
     private static final String SLING_DEFAULT_TYPE = "sling/servlet/default";

@@ -50,6 +50,15 @@ async function sendEvent(request: APIRequestContext, form?: Record<string, strin
   return (await request.post(`${TARGET}.create.json`, { headers: adminAuth, form })).status();
 }
 
+/**
+ * Removes the system workflow the way any content is deleted. A definition's own type is under workflow
+ * control, so a POST to it is an event for the engine and never a Sling operation; and permanently, so that
+ * no copy waits in the archive for the next run.
+ */
+async function removeWorkflow(request: APIRequestContext): Promise<number> {
+  return (await request.delete(`${WORKFLOW}?permanent=true`, { headers: adminAuth })).status();
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('a resource type comes under workflow control while the instance runs', () => {
@@ -58,9 +67,8 @@ test.describe('a resource type comes under workflow control while the instance r
   test.afterAll(async ({ playwright, baseURL }) => {
     // Leave the instance as it was found, whichever step failed
     const request = await playwright.request.newContext({ baseURL });
-    for (const path of [WORKFLOW, HOLDER]) {
-      await request.post(path, { headers: adminAuth, form: { ':operation': 'delete' } });
-    }
+    await removeWorkflow(request);
+    await request.post(HOLDER, { headers: adminAuth, form: { ':operation': 'delete' } });
     await request.dispose();
   });
 
@@ -97,8 +105,7 @@ test.describe('a resource type comes under workflow control while the instance r
   });
 
   test('and leaves it when that workflow is removed', async ({ request }) => {
-    const removed = await request.post(WORKFLOW, { headers: adminAuth, form: { ':operation': 'delete' } });
-    expect(removed.status(), 'the system workflow should have been removed').toBeLessThan(300);
+    expect(await removeWorkflow(request), 'the system workflow should have been removed').toBeLessThan(300);
 
     await expect.poll(() => sendEvent(request), {
       message: 'the type never left workflow control',

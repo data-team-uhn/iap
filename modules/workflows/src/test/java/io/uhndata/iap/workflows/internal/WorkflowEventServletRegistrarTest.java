@@ -72,7 +72,7 @@ class WorkflowEventServletRegistrarTest
     @Test
     void bindsTheTypesTheSystemWorkflowsTarget() throws Exception
     {
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         // An inactive version still keeps its type out of the Sling POST servlet's reach
         this.context.create().resource("/SystemWorkflows/editSchema", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Edit", "active", false));
@@ -92,7 +92,7 @@ class WorkflowEventServletRegistrarTest
         assertArrayEquals(new String[] { "wf/TaskInstance" }, boundTypes());
         final Object first = servlet().getProperty(Constants.SERVICE_ID);
 
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         this.context.resourceResolver().commit();
         this.registrar.onChange(List.of());
 
@@ -111,7 +111,7 @@ class WorkflowEventServletRegistrarTest
     @Test
     void bindsTheTypesWhileSlingModelsRestarts() throws Exception
     {
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         this.context.resourceResolver().commit();
         final Resource home = this.context.resourceResolver().getResource(SystemWorkflowsHomepage.PATH);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);

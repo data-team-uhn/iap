@@ -596,7 +596,7 @@ class WorkflowEngineImplTest
     {
         final Resource target = EngineFixture.createTarget(this.context);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         guard(VERSION + "/requested", "open");
 
@@ -610,7 +610,7 @@ class WorkflowEngineImplTest
     {
         final Resource target = EngineFixture.createTarget(this.context);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         guard(VERSION + "/requested", "closed");
 
@@ -625,7 +625,7 @@ class WorkflowEngineImplTest
     {
         final Resource target = EngineFixture.createTarget(this.context);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         guard(VERSION + "/requested", "closed");
         createOtherNoopWorkflow("create");
@@ -643,7 +643,7 @@ class WorkflowEngineImplTest
     {
         final Resource target = EngineFixture.createTarget(this.context);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         guard(VERSION + "/requested", "open");
         createOtherNoopWorkflow("create");
@@ -657,7 +657,7 @@ class WorkflowEngineImplTest
     void offersTheEventsWhoseDefinitionAdmitsTheActor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
         createOtherNoopWorkflow("archive");
 
@@ -668,7 +668,7 @@ class WorkflowEngineImplTest
     void offersEveryWaitingEventInAlphabeticalOrder() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow("archive");
 
@@ -680,7 +680,7 @@ class WorkflowEngineImplTest
     {
         final Resource target = EngineFixture.createTarget(this.context);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         guard(VERSION + "/requested", "closed");
         createOtherNoopWorkflow("archive");
@@ -693,7 +693,7 @@ class WorkflowEngineImplTest
     void ignoresStartEventsCatchingNoMessage() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         this.context.create().resource(VERSION + "/plain", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "plain"));
@@ -714,7 +714,7 @@ class WorkflowEngineImplTest
                 return admin;
             }
         };
-        EngineFixture.createSystemWorkflow(this.context, true, true, "test/Plain");
+        EngineFixture.createSystemWorkflow(this.context, "test/Plain");
         EngineFixture.createBootstrapGraph(this.context);
         final WorkflowEngine engine = engine();
         assertEquals(Set.of("create"), engine.getAvailableEvents(target));
@@ -729,7 +729,7 @@ class WorkflowEngineImplTest
     void evaluatesOnlyTheGuardsOfTheEventAskedAbout() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow("archive");
         guard(OTHER_START, "open");
@@ -749,7 +749,7 @@ class WorkflowEngineImplTest
     void refusesToListAnEventWorkflowsCompeteFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow(CREATE.getName());
         final WorkflowEngine engine = engine();
@@ -770,7 +770,7 @@ class WorkflowEngineImplTest
     void findsTheWorkflowThatWouldHandleAnEvent() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowVersion version = engine().findApplicableWorkflow(target, CREATE.getName());
@@ -784,7 +784,7 @@ class WorkflowEngineImplTest
     void handsTheWorkflowOverThroughTheAskingUsersOwnSession() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         // What a session sees without the grant that lets everyone read the system workflows
         final ResourceResolver blind = new ResourceResolverWrapper(target.getResourceResolver())
@@ -815,7 +815,7 @@ class WorkflowEngineImplTest
     {
         final Resource requester = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
         tagTarget("open");
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "some-other-group");
         createOtherNoopWorkflow("archive");
         guard(OTHER_START, "closed");
@@ -831,7 +831,7 @@ class WorkflowEngineImplTest
     void refusesToChooseBetweenWorkflowsCompetingForAnEvent() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow(CREATE.getName());
         final WorkflowEngine engine = engine();
@@ -845,7 +845,7 @@ class WorkflowEngineImplTest
     void answersEverythingAskedThroughOneResolverFromOneSession() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         final List<OpenedSession> opened = new ArrayList<>();
         final WorkflowEngine engine = recording(opened);
@@ -885,7 +885,7 @@ class WorkflowEngineImplTest
     void keepsASessionForEachUserAskingThroughOneResolver() throws Exception
     {
         final Resource administrator = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "some-other-group");
         final ResourceResolver asRequester =
             EngineFixture.actingAs(this.context.resourceResolver(), EngineFixture.REQUESTER);
@@ -1080,9 +1080,9 @@ class WorkflowEngineImplTest
     private void createOtherNoopWorkflow(final String message)
     {
         this.context.create().resource("/SystemWorkflows/otherWorkflow", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Another", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Another"));
         this.context.create().resource(OTHER_VERSION, Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true,
+            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, ACTIVE,
             "targetResourceType", WorkflowsHomepage.RESOURCE_TYPE));
         this.context.create().resource(OTHER_START, Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", message,
