@@ -171,7 +171,7 @@ function Failure({ steps, step, error, labelHidden = false, variant = "body2" }:
 function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
   orientation: "horizontal" | "vertical";
 }) {
-  const stepClass = (index: number) => {
+  const getStepClass = (index: number) => {
     if (ended === undefined) {
       return undefined;
     }
@@ -185,7 +185,7 @@ function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
       <Stepper activeStep={shown} orientation={orientation}>
         {steps.map((label, index) => (
           // Positions identify steps; labels need not be unique.
-          <Step key={index} className={stepClass(index)}>
+          <Step key={index} className={getStepClass(index)}>
             <StepLabel
               error={error !== undefined && index === shown}
               optional={orientation === "vertical" && error !== undefined && index === shown
