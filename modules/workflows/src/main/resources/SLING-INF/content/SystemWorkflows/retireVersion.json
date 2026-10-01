@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retire a workflow version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when the active version is withdrawn without a replacement: the instances already running against it carry on, but no new ones start, so the workflow is retired until one of its versions is activated again. Only the active version can be, which is what this move's `fromStates` says - a draft or a trial has nothing following it to stop.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Retirement requested",
+      "messageName": "retire",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toMove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMove",
+        "targetRef": "move"
+      }
+    },
+    "move": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "move",
+      "label": "Retire the version",
+      "handler": "setVersionState",
+      "toState": "RETIRED",
+      "fromStates": ["ACTIVE"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

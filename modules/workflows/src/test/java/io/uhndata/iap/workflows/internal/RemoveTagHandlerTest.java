@@ -61,7 +61,7 @@ class RemoveTagHandlerTest
         WorkflowFixture.setUp(this.context);
         TaggingFixture.enable(this.context);
         this.target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
     }
 
     @Test

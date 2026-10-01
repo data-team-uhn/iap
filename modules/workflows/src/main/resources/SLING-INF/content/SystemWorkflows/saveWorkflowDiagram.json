@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Save a workflow version's diagram",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when the editor saves a diagram: it replaces the one the version held, and the commit editor parses it into the flow nodes the engine runs. This is also where 'only a draft may be edited' is enforced rather than merely offered - the handler refuses a diagram for a version anything could be following. Going through a workflow is what makes that refusal reachable at all: a diagram used to arrive as a plain write to the version's bpmn.xml, which nothing guarded by state.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Diagram saved",
+      "messageName": "save",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toSave": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSave",
+        "targetRef": "save"
+      }
+    },
+    "save": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "save",
+      "label": "Store the diagram",
+      "handler": "saveWorkflowDiagram",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Diagram saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

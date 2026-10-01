@@ -22,15 +22,15 @@ import { act, render, screen } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import PropertiesPanel from "@iap/workflows/PropertiesPanel";
 
+import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
-import type Modeler from "bpmn-js/lib/Modeler";
 
-// The panel only uses the modeler as an event bus (plus `get`, which ElementProperties needs to
+// The panel only uses the canvas as an event bus (plus `get`, which ElementProperties needs to
 // rename an element), so a recording stand-in is enough to drive it.
-const createModeler = () => {
+const createViewer = () => {
   const handlers: Record<string, ((event: never) => void)[]> = {};
   const updateLabel = vi.fn();
-  const modeler = {
+  const viewer = {
     on: vi.fn((event: string, handler: (event: never) => void) => {
       (handlers[event] ??= []).push(handler);
     }),
@@ -43,42 +43,42 @@ const createModeler = () => {
   const fire = (event: string, payload: unknown) => act(async () => {
     handlers[event].forEach(handler => (handler as (e: unknown) => void)(payload));
   });
-  return { modeler: modeler as unknown as Modeler, fire, updateLabel };
+  return { viewer: viewer as unknown as BaseViewer, fire, updateLabel };
 };
 
 const element = (id: string, name?: string) => ({ id, businessObject: name ? { name } : {} }) as unknown as Element;
 
-const renderPanel = (modeler: Modeler | null) => render(
+const renderPanel = (viewer: BaseViewer | null, readOnly = false) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
-    <PropertiesPanel modeler={modeler} />
+    <PropertiesPanel viewer={viewer} readOnly={readOnly} />
   </ThemeProvider>
 );
 
 describe("PropertiesPanel", () => {
   it("prompts for a selection when nothing is selected", () => {
-    renderPanel(createModeler().modeler);
+    renderPanel(createViewer().viewer);
 
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();
   });
 
-  it("does not subscribe until there is a modeler", () => {
+  it("does not subscribe until there is a canvas", () => {
     renderPanel(null);
 
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();
   });
 
-  it("subscribes to the modeler's selection and change events", () => {
-    const { modeler } = createModeler();
+  it("subscribes to the canvas's selection and change events", () => {
+    const { viewer } = createViewer();
 
-    renderPanel(modeler);
+    renderPanel(viewer);
 
-    expect(modeler.on).toHaveBeenCalledWith("selection.changed", expect.any(Function));
-    expect(modeler.on).toHaveBeenCalledWith("elements.changed", expect.any(Function));
+    expect(viewer.on).toHaveBeenCalledWith("selection.changed", expect.any(Function));
+    expect(viewer.on).toHaveBeenCalledWith("elements.changed", expect.any(Function));
   });
 
   it("shows the properties of a single selected element", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
 
     await fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
 
@@ -88,8 +88,8 @@ describe("PropertiesPanel", () => {
   });
 
   it("refuses to edit more than one element at a time", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
 
     await fire("selection.changed", { newSelection: [element("A"), element("B")] });
 
@@ -98,8 +98,8 @@ describe("PropertiesPanel", () => {
   });
 
   it("goes back to prompting once the selection is cleared", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
 
     await fire("selection.changed", { newSelection: [element("A", "First")] });
     await fire("selection.changed", { newSelection: [] });
@@ -108,8 +108,8 @@ describe("PropertiesPanel", () => {
   });
 
   it("picks up changes made to the selected element elsewhere", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
     await fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
 
     await fire("elements.changed", { elements: [element("Other_1", "Untouched"), element("Task_1", "After")] });
@@ -118,8 +118,8 @@ describe("PropertiesPanel", () => {
   });
 
   it("ignores changes to other elements", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
     await fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
 
     await fire("elements.changed", { elements: [element("Other_1", "Untouched")] });
@@ -127,9 +127,21 @@ describe("PropertiesPanel", () => {
     expect(screen.getByRole("textbox")).toHaveValue("Before");
   });
 
+  it("shows a selected element's properties as text when they are read-only", async () => {
+    // Read-only renders plain text. There is no field at all.
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer, true);
+
+    await fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
+
+    expect(screen.getByText("Identifier: StartEvent_1")).toBeInTheDocument();
+    expect(screen.getByText("Name: Kick off")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("ignores changes when nothing is selected, or when nothing changed", async () => {
-    const { modeler, fire } = createModeler();
-    renderPanel(modeler);
+    const { viewer, fire } = createViewer();
+    renderPanel(viewer);
 
     await fire("elements.changed", { elements: [element("Task_1", "After")] });
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();

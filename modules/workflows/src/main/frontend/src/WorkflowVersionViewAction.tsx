@@ -16,19 +16,27 @@
  * limitations under the License.
  */
 
-import AdminScreen from "@iap/admin-console/AdminScreen";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { Button } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
-import BpmnEditor from "./BpmnEditor";
+import { adminUrl } from "./workflowModel";
 
-// The "Workflows" administrative tool: the visual BPMN editor for creating and editing workflow
-// definitions, wrapped in the shared administration chrome (routed at /admin/workflows, see the
-// extension node under Extensions/Admin/Views).
-function WorkflowsManager() {
+import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
+
+// Opens a version's diagram in the editor's read-only mode. Offered for every state, since viewing a
+// workflow is never a change to it.
+function WorkflowVersionViewAction({ version }: WorkflowVersionActionProps) {
   return (
-    <AdminScreen title="Workflows">
-      <BpmnEditor />
-    </AdminScreen>
+    <Button
+      size="small"
+      startIcon={<VisibilityIcon />}
+      component={RouterLink}
+      to={adminUrl(version.path)}
+    >
+      View
+    </Button>
   );
 }
 
-export default WorkflowsManager;
+export default WorkflowVersionViewAction;
