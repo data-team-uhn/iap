@@ -136,7 +136,7 @@ function IconSlot({ children }: { children: ReactNode }) {
 
 function Ring() {
   return (
-    <Box className={classes.ring} sx={{ position: "absolute", inset: 0, display: "flex", color: ACCENT }}>
+    <Box className={classes.ring} aria-hidden sx={{ position: "absolute", inset: 0, display: "flex", color: ACCENT }}>
       <CircularProgress color="inherit" size={ICON_SIZE} sx={{ opacity: 0.5 }} />
     </Box>
   );
