@@ -20,7 +20,7 @@ import { useState, type ReactNode } from "react";
 
 import AddBoxOutlinedIcon from "@mui/icons-material/AddBoxOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
-import { Button, FormControlLabel, Menu, MenuItem, Radio, RadioGroup } from "@mui/material";
+import { Button, Menu, MenuItem, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 
 import { suggestName } from "@iap/frontend-commons/fields/contentNames";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
@@ -35,6 +35,7 @@ import { childNamesOf, type JcrNode } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { NewIdentifier } from "./SchemaNodeIdentifier";
 import { useTreeEvent } from "./schemaTree";
+import { headingOf, resourceTypeOf } from "./schemaVersionTreeModel";
 
 interface SchemaNodeCreateActionProps {
   // What new content is created in, serialized with what may be created there
@@ -43,6 +44,8 @@ interface SchemaNodeCreateActionProps {
   before?: string;
   // When given, the name of what the parent holds first, which new content may then go ahead of instead
   first?: string;
+  // When given, the heading of the part new content goes right after
+  after?: string;
   // The control that offers it, given what it may offer
   trigger: (offer: Offer) => ReactNode;
 }
@@ -60,7 +63,7 @@ interface Offer {
 // Adds a part or an answer option where the parent may hold one: every type it may create, with a dialog for
 // what the new content starts with, and for a part the identifier it is created with, suggested from what it says
 // until it is given one. A single type needs no menu. Nothing is added while something is moving.
-function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCreateActionProps) {
+function SchemaNodeCreateAction({ parent, before, first, after, trigger }: SchemaNodeCreateActionProps) {
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
   const [ atStart, setAtStart ] = useState(false);
@@ -90,6 +93,25 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
   };
   const placedBefore = atStart ? first : before;
   const suggestionFor = (type: CreatableType, heading: unknown) => suggestName(heading, type, childNamesOf(parent));
+  const holder = resourceTypeOf(parent) === "sch/SchemaVersion" ? "this version" : `“${headingOf(parent)}”`;
+  // Where it goes, going on from the title as one sentence, with the choice in it when there is one
+  const choice = (
+    <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, rowGap: 1, flexWrap: "wrap" }}>
+      <ToggleButtonGroup size="small" color="primary" exclusive value={atStart ? "start" : "end"}
+        aria-label="Where it goes"
+        onChange={(_event, value: string | null) => {
+          if (value !== null) {
+            setAtStart(value === "start");
+          }
+        }}>
+        <ToggleButton value="start">at the start</ToggleButton>
+        <ToggleButton value="end">at the end</ToggleButton>
+      </ToggleButtonGroup>
+      <Typography variant="description">{`of ${holder}`}</Typography>
+    </Stack>
+  );
+  const placement = after !== undefined ? <Typography variant="description">{`after “${after}”`}</Typography>
+    : first ? choice : <Typography variant="description">{`in ${holder}`}</Typography>;
 
   return (
     <>
@@ -109,7 +131,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
       </Menu>
       { chosen && (
         <FieldsDialog
-          title={`New ${chosen.label.toLowerCase()}`}
+          title={`Add ${chosen.label.toLowerCase()}`}
           node={newContentOf(chosen)}
           onSave={changes => send(parent, "create", {
             type: chosen.type,
@@ -123,17 +145,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
               disabled={working} onChange={setIdentifier} />
           ) : undefined}
         >
-          { first && (
-            <RadioGroup
-              row
-              aria-label="Where it goes"
-              value={atStart ? "start" : "end"}
-              onChange={event => setAtStart(event.target.value === "start")}
-            >
-              <FormControlLabel value="end" control={<Radio />} label="At the end" />
-              <FormControlLabel value="start" control={<Radio />} label="At the start" />
-            </RadioGroup>
-          ) }
+          {placement}
         </FieldsDialog>
       ) }
     </>
@@ -160,12 +172,13 @@ export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: s
 
 // Adds what the parent may hold right after one of its children, ahead of the next one if there is one. In a menu,
 // each type it may add is a line of its own.
-export function AddBelow({ parent, next }: { parent: JcrNode; next?: string }) {
+export function AddBelow({ parent, after, next }: { parent: JcrNode; after: string; next?: string }) {
   const inMenu = useInActionsMenu();
   return (
     <SchemaNodeCreateAction
       parent={parent}
       before={next}
+      after={after}
       trigger={({ open, types, add }) => (inMenu
         ? types.map(type => (
           <ActionIcon key={type.type} label={`Add ${type.label.toLowerCase()} below`}

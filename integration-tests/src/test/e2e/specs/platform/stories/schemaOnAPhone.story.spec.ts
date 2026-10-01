@@ -64,7 +64,7 @@ test.describe('stories: a schema set up from a phone', () => {
   const add = async (page: Page, scope: Locator, type: string, field: RegExp, text: string) => {
     await scope.getByRole('button', { name: 'Add', exact: true }).last().click();
     await page.getByRole('menuitem', { name: type, exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: `New ${type.toLowerCase()}` });
+    const dialog = page.getByRole('dialog', { name: `Add ${type.toLowerCase()}` });
     await dialog.getByLabel(field).fill(text);
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog).toBeHidden();
