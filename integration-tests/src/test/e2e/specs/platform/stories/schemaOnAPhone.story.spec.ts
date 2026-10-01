@@ -35,8 +35,9 @@ import { ADMIN, signInAs } from '../../../support/auth';
 test.describe('stories: a schema set up from a phone', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
-  // A small phone's width, the narrowest a deployment is expected to work at
-  test.use({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+  // A small phone's screen, the narrowest a deployment is expected to work on
+  const PHONE = { width: 360, height: 740 };
+  test.use({ viewport: PHONE, isMobile: true, hasTouch: true });
   test.skip(({ browserName }) => browserName === 'firefox', 'Firefox cannot emulate a phone');
 
   const SCHEMA = 'Equipment request';
@@ -45,14 +46,17 @@ test.describe('stories: a schema set up from a phone', () => {
 
   const WHY = 'Why do you need it?';
 
-  // What reaches past the right edge of the screen inside the given element, by what it says
-  const pastTheEdge = (scope: Locator) => scope.evaluate(root => Array.from(root.querySelectorAll<HTMLElement>('*'))
-    .filter(element => element.getBoundingClientRect().right > window.innerWidth + 0.5)
-    .map(element => element.innerText.slice(0, 40) || element.tagName));
+  // What reaches past the right edge of the screen inside the given element, by what it says. Measured against the
+  // phone's width: a phone's browser widens its layout to whatever is too wide, so the window's own width says nothing.
+  const pastTheEdge = (scope: Locator) => scope.evaluate((root, width) =>
+    Array.from(root.querySelectorAll<HTMLElement>('*'))
+      .filter(element => element.getBoundingClientRect().right > width + 0.5)
+      .map(element => element.innerText.slice(0, 40) || element.tagName), PHONE.width);
 
+  // Once everything the page loads is in, the application bar's entries among them
   const fitsTheScreen = async (page: Page) => {
-    const wider = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    expect(wider).toBeLessThanOrEqual(0);
+    await page.waitForLoadState('networkidle');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(PHONE.width);
     expect(await pastTheEdge(page.locator('body'))).toEqual([]);
   };
 
