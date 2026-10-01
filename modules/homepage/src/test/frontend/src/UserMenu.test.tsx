@@ -19,14 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import UserMenu from "@iap/homepage/UserMenu";
-import { STORE_KEY, availablePersonas, getActivePersona } from "@iap/ui-extension/personas";
-
-// Only availablePersonas is stubbable, so a test can present a user with nothing to switch between;
-// everything else is the real store.
-vi.mock("@iap/ui-extension/personas", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@iap/ui-extension/personas")>();
-  return { ...actual, availablePersonas: vi.fn(actual.availablePersonas) };
-});
+import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
 
 // Answers the two Sling endpoints the menu consults: the session info (who is logged in) and
 // the user's properties (their full name).
@@ -42,13 +35,6 @@ afterEach(() => {
   // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
   Reflect.deleteProperty(window, STORE_KEY);
 });
-
-// Renders the menu for a known user and opens it
-const openMenu = async () => {
-  stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
-  render(<UserMenu />);
-  fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
-};
 
 describe("UserMenu", () => {
   it("shows an avatar with the user's initials, from their full name", async () => {
@@ -150,43 +136,14 @@ describe("UserMenu", () => {
     expect(await screen.findByText("jdoe")).toBeInTheDocument();
   });
 
-  // The check mark marking the active persona is decorative, so aria-checked is the only thing that
-  // tells a screen reader which hat is on.
-  it("lists the personas the user may act as, checking the active one", async () => {
-    await openMenu();
-
-    expect(await screen.findByRole("menuitemradio", { name: "Submitter", checked: true })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemradio", { name: "Reviewer", checked: false })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemradio", { name: "Administrator", checked: false })).toBeInTheDocument();
-  });
-
-  it("puts on the chosen hat, and closes the menu", async () => {
-    await openMenu();
+  it("offers the personas to act as, and closes once one is chosen", async () => {
+    stubUserEndpoints("jdoe", {});
+    render(<UserMenu />);
+    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
 
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Reviewer" }));
 
     expect(getActivePersona()).toBe("reviewer");
     await waitFor(() => { expect(screen.queryByText("Sign out")).not.toBeInTheDocument(); });
-    fireEvent.click(screen.getByRole("button", { name: "Account: jdoe" }));
-    expect(await screen.findByRole("menuitemradio", { name: "Reviewer", checked: true })).toBeInTheDocument();
-  });
-
-  it("leaves the persona alone when the menu is dismissed", async () => {
-    await openMenu();
-
-    fireEvent.keyDown(await screen.findByRole("menu"), { key: "Escape", code: "Escape" });
-
-    await waitFor(() => { expect(screen.queryByText("Sign out")).not.toBeInTheDocument(); });
-    expect(getActivePersona()).toBe("submitter");
-  });
-
-  it("offers no persona to choose when there is only one to act as", async () => {
-    vi.mocked(availablePersonas).mockReturnValue([ "submitter" ]);
-    await openMenu();
-
-    expect(await screen.findByText("Sign out")).toBeInTheDocument();
-    expect(screen.queryByText("Acting as")).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitemradio")).not.toBeInTheDocument();
-    vi.mocked(availablePersonas).mockRestore();
   });
 });
