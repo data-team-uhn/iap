@@ -6,7 +6,7 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "What the platform does with an uploaded questionnaire once the daemon has parsed it. It is classified first: is it a patient facing questionnaire. The pick is stored as an answer, pre-filled for the requester, and acted on only once it is settled - confirmed, changed, or picked by a model sure enough of it. A settled yes reads the questions about it out of the questionnaire and its preamble in one call. A settled no ends the reading, leaving the questions to be answered by hand. An unsettled pick pauses the reading on a task the requester completes after confirming it. Started by the extractAnswers system workflow when a parse lands, so a preamble uploaded later reads again, and fills only what is still unanswered.",
+    "description": "Classifies an uploaded document as a patient facing questionnaire or not, then reads it only once that pick is settled: a settled yes reads the questionnaire and preamble together, a settled no skips reading, and an unsettled pick pauses for the requester to confirm. Started by the extractAnswers system workflow whenever a parse lands, so a preamble uploaded later triggers a re-read that fills only what is still unanswered.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "started",
@@ -35,6 +35,29 @@
       "elementId": "isQuestionnaire",
       "label": "A patient facing questionnaire?",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toEndReadingFailed": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEndReadingFailed",
+        "label": "Could not classify",
+        "targetRef": "endReadingFailed",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [
+              "extractionStatus"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "failed"
+            ]
+          }
+        }
+      },
       "toAsk": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toAsk",
@@ -166,6 +189,12 @@
       "label": "Not a patient facing questionnaire",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     },
+    "endReadingFailed": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "endReadingFailed",
+      "label": "The document could not be classified",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
     "markUnsettled": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "markUnsettled",
@@ -183,6 +212,7 @@
       "elementId": "finishUnsettled",
       "label": "The reading is paused",
       "handler": "finishReading",
+      "message": "The reading waits for you to confirm whether this is a patient facing questionnaire.",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toConfirmUnsettled": {
         "jcr:primaryType": "wf:SequenceFlow",
