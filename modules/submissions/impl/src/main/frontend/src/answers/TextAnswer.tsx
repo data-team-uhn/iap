@@ -42,8 +42,8 @@ function TextAnswer(
         <TextField
           required={isRequired(question)}
           disabled={disabled}
-          multiline={many}
-          minRows={many ? 2 : undefined}
+          multiline
+          minRows={many ? 2 : 1}
           fullWidth
           sx={getInputFrame(suggested === true)}
           value={many ? values.join("\n") : values[0] ?? ""}
