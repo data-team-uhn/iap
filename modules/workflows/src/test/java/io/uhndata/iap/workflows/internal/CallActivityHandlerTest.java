@@ -17,7 +17,14 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.io.InputStream;
+import java.io.StringReader;
 import java.util.Map;
+import java.util.Objects;
+
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -37,17 +44,17 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link SendEventHandler}: what it sends, and to where. Running the workflow waiting for the event
+ * Unit tests for {@link CallActivityHandler}: what it sends, and to where. Running the workflow waiting for the event
  * is the engine's, and is tested through the engine.
  *
  * @version $Id$
  * @since 0.1.0
  */
-class SendEventHandlerTest
+class CallActivityHandlerTest
 {
     private static final String MESSAGE = "message";
 
-    private final SendEventHandler handler = new SendEventHandler();
+    private final CallActivityHandler handler = new CallActivityHandler();
 
     private final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
 
@@ -67,7 +74,23 @@ class SendEventHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(SendEventHandler.HANDLER_NAME, this.handler.getName());
+        assertEquals(CallActivityHandler.HANDLER_NAME, this.handler.getName());
+    }
+
+    @Test
+    void isTheHandlerTheVocabularyGivesEveryCallActivity() throws Exception
+    {
+        // A diagram's call activities are performed by whichever handler the shipped vocabulary names, so the
+        // two names are one fact written down twice, and nothing else would notice them drifting apart
+        try (InputStream entry = Objects.requireNonNull(getClass().getResourceAsStream(
+            "/SLING-INF/content/WorkflowTypes/WorkflowTypes/CallActivity.json"), "The vocabulary ships the type");
+            JsonReader reader = Json.createReader(entry)) {
+            final JsonObject type = reader.readObject();
+            assertEquals("bpmn:callActivity", type.getString("xmlElement"));
+            try (JsonReader fixed = Json.createReader(new StringReader(type.getString("jcrProperties")))) {
+                assertEquals(CallActivityHandler.HANDLER_NAME, fixed.readObject().getString("handler"));
+            }
+        }
     }
 
     @Test

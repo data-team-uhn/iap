@@ -317,22 +317,27 @@ A few handlers are the engine's own, because what they do is generic:
 | `handler` | Configuration | Does |
 | --- | --- | --- |
 | `createEntity` | `entityType` | Creates an entity of that type under the target, titled by the event's `title` |
-| `startWorkflow` | `workflowFrom` | Starts the user workflow a chain of references leads to, e.g. `schemaVersion/workflow` |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
-| `sendEvent` | `message` | Sends that event, with the same payload, to what the execution created, or else the target |
+| `startWorkflow` | `workflowFrom` | Starts the user workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
+| `callActivity` | `message` | Runs the system workflow waiting for that event on the host, with the event's payload, before carrying on |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
 transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
 execution has created, once it has created something, and on the target otherwise, the same rule
-`startWorkflow` follows. They may place and remove `system` tags. Only tags placed on the host itself are
-touched; inherited or computed tags are unaffected.
+`startWorkflow` and `callActivity` follow. They may place and remove `system` tags. Only tags placed on the
+host itself are touched; inherited or computed tags are unaffected.
 
-`sendEvent` chains system workflows: `createSchema` creates the schema, then sends it `createVersion`, whose
-own workflow creates the first version and tags it. The chained workflow runs inside the sending one, in the
-same session and the same commit, so either both happen or neither does. It is matched, guarded and authorized
-like any event, for the same user; the caller is still answered with what the first workflow created.
-Workflows sending events to each other more than ten deep are taken to be looping, and refused.
+A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
+waits for it to finish. `callActivity` is the handler that performs it. The
+vocabulary gives it to the call activities a diagram declares; a definition written by
+hand names it in `handler`, beside the `message`. That is how system workflows chain:
+`createSchema` creates the schema, then calls `createVersion` on it, whose own workflow
+creates the first version and tags it. The called workflow runs inside the calling one,
+in the same session and the same commit, so either both happen or neither does. It is
+matched, guarded and authorized like any event, for the same user; the caller is still
+answered with what the first workflow created. Workflows calling each other more than
+ten deep are taken to be looping, and refused.
 
 ## Sling Models
 
@@ -486,8 +491,8 @@ and never commit — the engine owns the transaction — and communicate through
 variables (`context.setVariable(...)`), which is also how results reach the channel that
 fired the event. Two calls ask the engine for more within the same execution and commit:
 `sendEvent` runs the system workflow waiting for an event, and `startWorkflow` starts an
-instance of a workflow on a resource. The built-in handlers of the same names are thin
-over them.
+instance of a workflow on a resource. The built-in `callActivity` and `startWorkflow`
+handlers are thin over them.
 
 The first built-in handler is `createEntity`: create a node of the configured
 `entityType` under the target, named by camel-casing the payload's `title`, dodging

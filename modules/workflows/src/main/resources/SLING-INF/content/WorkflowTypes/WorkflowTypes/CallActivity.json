@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Call Activity",
+  "description": "Work handed on to another workflow, which runs as part of this one before it carries on.",
+  "category": ["Activities"],
+  "priority": 0,
+  "xmlElement": "bpmn:callActivity",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"callActivity\"}"
+}

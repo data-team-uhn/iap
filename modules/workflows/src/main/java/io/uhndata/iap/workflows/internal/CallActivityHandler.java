@@ -27,19 +27,19 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The {@code sendEvent} service task: sends the event its activity names in {@code message} on to the
- * {@link ExecutionHost host}, with the triggering event's payload, e.g. a schema just created is sent
- * {@code createVersion}. The system workflow waiting for it runs as part of the same execution, and is refused
- * exactly as it would be if the user had sent the event themselves.
+ * What a call activity does: hands the work on to another workflow and waits for it to finish. It sends the event
+ * its activity names in {@code message} on to the {@link ExecutionHost host}, with the triggering event's payload,
+ * e.g. a schema just created is sent {@code createVersion}. The system workflow waiting for it runs as part of the
+ * same execution, and is refused exactly as it would be if the user had sent the event themselves.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = ServiceTaskHandler.class)
-public class SendEventHandler implements ServiceTaskHandler
+public class CallActivityHandler implements ServiceTaskHandler
 {
-    /** The name activities use to point at this handler. */
-    public static final String HANDLER_NAME = "sendEvent";
+    /** The name activities use to point at this handler, and the one the vocabulary sets on every call activity. */
+    public static final String HANDLER_NAME = "callActivity";
 
     /** The activity property naming the event to send. */
     private static final String MESSAGE_PARAMETER = "message";

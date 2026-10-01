@@ -149,7 +149,7 @@ class WorkflowEngineImplTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, failure));
         final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
         allHandlers.add(new CreateEntityHandler());
-        allHandlers.add(new SendEventHandler());
+        allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
         inject(impl, "handlers", allHandlers);
         final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
@@ -938,7 +938,7 @@ class WorkflowEngineImplTest
     void stopsWorkflowsSendingEventsToEachOtherInALoop() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        createOtherWorkflow("loop", Map.of("handler", SendEventHandler.HANDLER_NAME, "message", "loop"));
+        createOtherWorkflow("loop", Map.of("handler", CallActivityHandler.HANDLER_NAME, "message", "loop"));
 
         final WorkflowEngine engine = engine();
 
@@ -951,7 +951,7 @@ class WorkflowEngineImplTest
     void refusesToSendAnEventTheActivityDoesNotName() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        createOtherWorkflow("archive", Map.of("handler", SendEventHandler.HANDLER_NAME));
+        createOtherWorkflow("archive", Map.of("handler", CallActivityHandler.HANDLER_NAME));
 
         final WorkflowEngine engine = engine();
 
@@ -972,7 +972,7 @@ class WorkflowEngineImplTest
         this.context.create().resource(VERSION + "/create/toSend", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toSend", "targetRef", "send"));
         this.context.create().resource(VERSION + "/send", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", SendEventHandler.HANDLER_NAME,
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", CallActivityHandler.HANDLER_NAME,
             "message", message));
         this.context.create().resource(VERSION + "/send/toDone", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
