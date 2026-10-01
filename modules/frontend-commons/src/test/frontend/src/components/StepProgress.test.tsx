@@ -94,7 +94,7 @@ describe("StepProgress", () => {
     });
 
     it("alerts that the failed step stopped, and why", () => {
-      renderSteps({ activeStep: 2, error: { step: 1, message: "Couldn't read the file." }, layout });
+      renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout });
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByText("Review")).toHaveClass("Mui-error");
@@ -116,7 +116,7 @@ describe("StepProgress", () => {
       const { rerenderSteps } = renderSteps({ activeStep: 1, layout });
       rerenderSteps({ activeStep: 2, layout });
 
-      rerenderSteps({ activeStep: 2, error: { step: 2, message: "Stopped." }, layout });
+      rerenderSteps({ activeStep: 2, error: { message: "Stopped." }, layout });
       expect(stepOf("Save")).not.toHaveClass("StepProgress-arriving");
 
       rerenderSteps({ activeStep: 0, layout });
@@ -125,7 +125,7 @@ describe("StepProgress", () => {
   });
 
   it("names the failed step only to screen readers when the message hangs under it", () => {
-    renderSteps({ activeStep: 1, error: { step: 1, message: "Couldn't read the file." }, layout: "vertical" });
+    renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout: "vertical" });
 
     expect(screen.getByText("Review stopped.")).toHaveStyle({ position: "absolute" });
   });
@@ -150,7 +150,7 @@ describe("StepProgress", () => {
     });
 
     it("alerts that the failed step stopped, and why", () => {
-      renderSteps({ activeStep: 1, error: { step: 1, message: "Couldn't read the file." }, layout: "compact" });
+      renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout: "compact" });
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByTestId("WarningIcon")).toBeInTheDocument();
