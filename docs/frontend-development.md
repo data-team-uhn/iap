@@ -153,6 +153,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `ConfirmActionDialog`, `ResponsiveDialog` | Confirmations and dialogs that behave on a phone |
 | `ErrorDialog`, `ErrorPage`, `LoadError`, `GenericErrorPage`, `PageNotFound` | Failure states |
 | `LoadingOverlay` | Waiting |
+| `StepProgress` | Work moving through named stages, as a full stepper or on one compact line |
 | `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |

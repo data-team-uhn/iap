@@ -2,8 +2,8 @@
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/dashboard/widget",
   "ext:name": "Step progress",
-  "ext:subtitle": "Three steps, a few seconds each. Fail one to see the error.",
+  "ext:subtitle": "Three steps, a few seconds each, in any layout and colour. Fail one to see the error.",
   "ext:widgetWidth": "wide",
   "ext:renderURL": "asset:iap-test-data.StepProgressWidget.js",
-  "defaultOrder": 1
+  "defaultOrder": 6
 }
