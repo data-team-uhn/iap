@@ -34,9 +34,8 @@ import { type Breakpoint, type Theme, useTheme } from "@mui/material/styles";
 
 import { visuallyHidden } from "../visuallyHidden";
 
-// A step that stopped, and why.
+// Why the active step stopped.
 export interface StepProgressError {
-  step: number;
   message: string;
 }
 
@@ -50,7 +49,7 @@ interface StepProgressProps {
   steps: readonly string[];
   // Index of the step underway. A value equal to `steps.length` means every step is done.
   activeStep: number;
-  // When set, that step is drawn as the one that failed, and the others up to it stay completed.
+  // When set, `activeStep` is drawn as the one that failed, and the steps before it stay completed.
   error?: StepProgressError;
   layout?: StepProgressLayout | Partial<Record<Breakpoint, StepProgressLayout>>;
   // The palette colour of the step underway and of the pulse that leads to it.
@@ -155,15 +154,16 @@ function StepProgressIcon({ active, completed, error, ...rest }: StepIconProps) 
 
 interface FailureProps {
   steps: readonly string[];
+  step: number;
   error: StepProgressError;
   labelHidden?: boolean;
   variant?: TypographyProps["variant"];
 }
 
-function Failure({ steps, error, labelHidden = false, variant = "body2" }: FailureProps) {
+function Failure({ steps, step, error, labelHidden = false, variant = "body2" }: FailureProps) {
   return (
     <Typography role="alert" variant={variant} color="error" sx={{ minWidth: 0 }}>
-      <Box component="span" sx={labelHidden ? visuallyHidden : undefined}>{`${steps[error.step] ?? ""} stopped. `}</Box>
+      <Box component="span" sx={labelHidden ? visuallyHidden : undefined}>{`${steps[step] ?? ""} stopped. `}</Box>
       {error.message}
     </Typography>
   );
@@ -188,9 +188,9 @@ function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
           // Positions identify steps; labels need not be unique.
           <Step key={index} className={stepClass(index)}>
             <StepLabel
-              error={error?.step === index}
-              optional={orientation === "vertical" && error?.step === index
-                ? <Failure steps={steps} error={error} labelHidden variant="caption" />
+              error={error !== undefined && index === shown}
+              optional={orientation === "vertical" && error !== undefined && index === shown
+                ? <Failure steps={steps} step={shown} error={error} labelHidden variant="caption" />
                 : undefined}
               slots={{ stepIcon: StepProgressIcon }}
             >
@@ -200,7 +200,7 @@ function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
         ))}
       </Stepper>
       {orientation === "horizontal" && error !== undefined
-        ? <Box sx={{ mt: 1 }}><Failure steps={steps} error={error} /></Box>
+        ? <Box sx={{ mt: 1 }}><Failure steps={steps} step={shown} error={error} /></Box>
         : null}
     </>
   );
@@ -231,8 +231,8 @@ function CompactSteps({ steps, shown, error, ended }: StepsProps) {
   let line: ReactNode;
   if (error !== undefined) {
     line = (
-      <CompactLine icon={<StepIcon icon={error.step + 1} error />}>
-        <Failure steps={steps} error={error} />
+      <CompactLine icon={<StepIcon icon={shown + 1} error />}>
+        <Failure steps={steps} step={shown} error={error} />
       </CompactLine>
     );
   } else if (done) {
@@ -333,7 +333,7 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
 // takes its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
 function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, color = "secondary" }: StepProgressProps) {
   const resolved = useLayout(layout);
-  const shown = error === undefined ? activeStep : error.step;
+  const shown = activeStep;
   const ended = useEndedStep(shown);
   const props = { steps, shown, error, ended: error === undefined ? ended : undefined };
   const status = shown >= steps.length
