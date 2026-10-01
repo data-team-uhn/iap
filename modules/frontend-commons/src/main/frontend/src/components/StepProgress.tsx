@@ -70,7 +70,6 @@ const ICON_SIZE = 36;
 
 // How long the move from one step to the next takes, before the next one shows as underway.
 const ARRIVAL = "0.7s";
-const FADE = "0.2s";
 
 // The `color` prop, set once on the root.
 const ACCENT = "var(--iap-step-accent)";
@@ -285,6 +284,8 @@ const SWEEP_FRAMES_Y = sweepFrames("Y");
 
 const rootSx = (color: StepProgressColor) => (theme: Theme) => {
   const { palette } = theme.vars ?? theme;
+  const fade = `${theme.transitions.duration.shorter}ms`;
+  const { easeIn, easeOut } = theme.transitions.easing;
   return {
     width: "100%",
     "--iap-step-accent": palette[color].main,
@@ -322,15 +323,15 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
           ...SWEEP_X,
         },
         "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...SWEEP_Y },
-        "& .MuiStepIcon-root": { animation: `stepProgressSettleIcon ${FADE} ease-in ${ARRIVAL} backwards` },
-        "& .MuiStepLabel-label": { animation: `stepProgressSettleLabel ${FADE} ease-in ${ARRIVAL} backwards` },
-        [`& .${classes.ring}`]: { animation: `stepProgressFadeIn ${FADE} ease-in ${ARRIVAL} backwards` },
+        "& .MuiStepIcon-root": { animation: `stepProgressSettleIcon ${fade} ${easeIn} ${ARRIVAL} backwards` },
+        "& .MuiStepLabel-label": { animation: `stepProgressSettleLabel ${fade} ${easeIn} ${ARRIVAL} backwards` },
+        [`& .${classes.ring}`]: { animation: `stepProgressFadeIn ${fade} ${easeIn} ${ARRIVAL} backwards` },
       },
       [`& .${classes.leaving}`]: {
         display: "flex",
-        animation: `stepProgressFadeOut ${FADE} ease-out ${ARRIVAL} forwards`,
+        animation: `stepProgressFadeOut ${fade} ${easeOut} ${ARRIVAL} forwards`,
       },
-      [`& .${classes.entering}`]: { animation: `stepProgressFadeIn ${FADE} ease-in ${ARRIVAL} backwards` },
+      [`& .${classes.entering}`]: { animation: `stepProgressFadeIn ${fade} ${easeIn} ${ARRIVAL} backwards` },
     },
   };
 };
