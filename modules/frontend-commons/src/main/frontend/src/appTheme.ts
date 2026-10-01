@@ -69,6 +69,14 @@ declare module "@mui/material/styles" {
     tinted: string;
     tintedStrong: string;
   }
+  // What marks content that applies only sometimes, such as a part behind a condition: `main` for its icon,
+  // `surface` for what says when it applies
+  interface Palette {
+    condition: { main: string; surface: string };
+  }
+  interface PaletteOptions {
+    condition?: { main: string; surface: string };
+  }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
   // `description` is secondary explanatory prose, `placeholder` stands in where content is
@@ -208,6 +216,7 @@ const appTheme = createTheme({
           tinted: TINTED_SURFACE,
           tintedStrong: STRONGLY_TINTED_SURFACE,
         },
+        condition: { main: "#0277bd", surface: "#e6f2fa" },
       },
     },
     dark: {
@@ -223,6 +232,7 @@ const appTheme = createTheme({
           tinted: TINTED_SURFACE,
           tintedStrong: STRONGLY_TINTED_SURFACE,
         },
+        condition: { main: "#4fc3f7", surface: "rgba(79, 195, 247, 0.14)" },
       },
     },
   },
