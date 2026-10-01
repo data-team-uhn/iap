@@ -108,7 +108,7 @@ const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((prop
       }}
       {...rest}
     >
-      { title && <DialogTitle sx={withCloseButton ? { pr: 5 } : undefined}>{title}{closeButton}</DialogTitle>}
+      { title && <DialogTitle sx={withCloseButton ? { pr: 8 } : undefined}>{title}{closeButton}</DialogTitle>}
       { children }
     </Dialog>
   );

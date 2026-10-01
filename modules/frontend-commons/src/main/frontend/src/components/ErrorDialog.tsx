@@ -60,7 +60,7 @@ const ErrorDialog = (props: ErrorDialogProps) => {
 
   return (
     <Dialog onClose={onClose} maxWidth={maxWidth} fullWidth={fullWidth} {...rest}>
-      <DialogTitle sx={{ color: "error.main", pr: 5 }}>
+      <DialogTitle sx={{ color: "error.main", pr: 8 }}>
         {title}
         <IconButton onClick={onClose} sx={{ position: "absolute", right: 8, top: 8 }} size="large">
           <CloseIcon />
