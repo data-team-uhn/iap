@@ -43,7 +43,7 @@ function ChoiceAnswer(
   { question, values, disabled, onAnswered, suggested, aside }: AnswerComponentProps,
 ) {
   const labelledBy = getQuestionTextId(question);
-  const options = question.options ?? [];
+  const options = question.options;
 
   if (isMultiple(question)) {
     // A capped list stops offering at the cap instead of letting a pick be made and refused: the
@@ -139,7 +139,7 @@ function optionLabel(option: FormAnswerOption) {
 // Offering a fixed set of answers says more about a question than its data type does, so this
 // outbids the component that would otherwise type the answer in
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
-  (question.options ?? []).length > 0 ? [ ChoiceAnswer, 60 ] : null;
+  question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
 
 registerAnswerComponent(choiceAnswerCandidate);
 

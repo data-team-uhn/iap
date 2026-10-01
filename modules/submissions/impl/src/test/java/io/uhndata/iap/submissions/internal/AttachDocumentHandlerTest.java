@@ -20,14 +20,13 @@ package io.uhndata.iap.submissions.internal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.jcr.ItemExistsException;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -51,7 +50,9 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -63,6 +64,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,7 +88,10 @@ class AttachDocumentHandlerTest
 
     private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
 
-    private static final String NOTE_PATH = VERSION_PATH + "/doctorsNote";
+    // The schema requirement most uploads in these tests answer
+    private static final String DOCTORS_NOTE = "doctorsNote";
+
+    private static final String NOTE_PATH = VERSION_PATH + "/" + DOCTORS_NOTE;
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
 
@@ -111,7 +116,7 @@ class AttachDocumentHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
-            Submission.class, Activity.class);
+            Submission.class, Activity.class, Answer.class, Extraction.class);
         // Whether a request may still be changed is read from its lifecycle tag
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
@@ -142,7 +147,7 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheFileAsADocumentFulfillingTheRequirementItAnswers() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
 
         final Resource document = onlyDocument();
         assertEquals(NOTE, document.getValueMap().get("title", String.class));
@@ -153,7 +158,7 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheContentAsTheFirstVersionsUploadedFile() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
 
         // The shape the node types describe: a version, its one file, and the upload under its fixed name
         final Resource version = child(onlyDocument(), "v1");
@@ -172,13 +177,13 @@ class AttachDocumentHandlerTest
     @Test
     void addsAReplacementAsANewVersionOfTheSameDocument() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
         final Resource first = onlyDocument();
         // Something else under the document is not a version, and must not be counted as one
         this.context.create().resource(first.getPath() + "/notes",
             Map.of("jcr:primaryType", "nt:unstructured", "note", "a reviewer's aside"));
 
-        this.handler.execute(context(payload("doctorsNote", upload("note-signed.pdf", PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("note-signed.pdf", PDF))));
 
         final Resource document = onlyDocument();
         assertEquals(first.getPath(), document.getPath(), "still the one document for this requirement");
@@ -195,14 +200,14 @@ class AttachDocumentHandlerTest
     @Test
     void namesTheNextVersionAfterTheHighestOneRatherThanTheCount() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
         onlyDocument();
-        this.handler.execute(context(payload("doctorsNote", upload("note-2.pdf", PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("note-2.pdf", PDF))));
         final Resource document = onlyDocument();
         this.context.resourceResolver().delete(child(document, "v1"));
         this.context.resourceResolver().commit();
 
-        this.handler.execute(context(payload("doctorsNote", upload("note-3.pdf", PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("note-3.pdf", PDF))));
 
         assertEquals("note-3.pdf", child(child(onlyDocument(), "v3"), "file").getValueMap()
             .get(AttachDocumentHandler.FILE_NAME, String.class), "counting would have said v2, which is there");
@@ -210,65 +215,49 @@ class AttachDocumentHandlerTest
             .get(AttachDocumentHandler.FILE_NAME, String.class), "and the one still there is untouched");
     }
 
-    // A concurrent upload (a double-click, or two tabs on the same requirement) can take the name this
-    // upload was about to use; the retry recovers by reading the highest version again
+    // A reading leaves answered questions alone, so what the old file said has to go for the new one to be read
     @Test
-    void retriesWhenAConcurrentUploadTookTheNextVersionName() throws Exception
+    void dropsTheUntouchedSuggestionsOfTheFileItReplaces() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
-        final String documentPath = onlyDocument().getPath();
-        final Node real = this.context.resourceResolver().getResource(documentPath).adaptTo(Node.class);
-        final boolean[] collided = { false };
-        final Node racing = Mockito.mock(Node.class, invocation -> {
-            if ("addNode".equals(invocation.getMethod().getName()) && invocation.getArguments().length == 2
-                && "v2".equals(invocation.getArguments()[0]) && !collided[0]) {
-                collided[0] = true;
-                // Stands in for the concurrent upload that wins the race for v2 before this one retries
-                real.addNode("v2", "sub:DocumentVersion");
-                throw new ItemExistsException("v2 is taken");
-            }
-            try {
-                return invocation.getMethod().invoke(real, invocation.getArguments());
-            } catch (final InvocationTargetException e) {
-                throw e.getCause();
-            }
-        });
-        final ResourceResolver racy = new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                final Resource found = super.getResource(path);
-                return found == null || !documentPath.equals(path) ? found : new ResourceWrapper(found)
-                {
-                    @Override
-                    public <T> T adaptTo(final Class<T> type)
-                    {
-                        return type == Node.class ? type.cast(racing) : super.adaptTo(type);
-                    }
-                };
-            }
-        };
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
+        final Resource v1 = child(onlyDocument(), "v1");
+        final String untouched = reading("untouched", v1, "one week off", "one week off");
+        final String changed = reading("changed", v1, "two weeks off", "one week off");
 
-        this.handler.execute(
-            context(payload("doctorsNote", upload("note-signed.pdf", PDF)), REQUESTER, racy));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("note-signed.pdf", PDF))));
 
-        assertEquals("note-signed.pdf", child(child(onlyDocument(), "v3"), "file").getValueMap()
-            .get(AttachDocumentHandler.FILE_NAME, String.class), "v2 collided, so the retry used v3");
+        assertNull(this.context.resourceResolver().getResource(untouched), "the new file is read for it");
+        assertNotNull(this.context.resourceResolver().getResource(changed), "what the submitter wrote stays");
+        assertNotNull(this.context.resourceResolver().getResource(changed + "/run"), "with its reading");
+    }
+
+    /** An answer read from a version: the value it holds now, and what the model suggested. */
+    private String reading(final String name, final Resource version, final String value, final String suggested)
+        throws Exception
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, "sub/Answer", "jcr:primaryType", "sub:Answer", "value", new String[] {value}));
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/run", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", suggested));
+        final Node node = extraction.adaptTo(Node.class);
+        node.setProperty("sources", new Value[] {
+            node.getSession().getValueFactory().createValue(version.adaptTo(Node.class)) });
+        this.context.resourceResolver().commit();
+        return answer.getPath();
     }
 
     // A version node whose name is not the vN the handler writes says nothing about how many there are
     @Test
     void ignoresAVersionWhoseNameCarriesNoNumber() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
         final Resource document = onlyDocument();
         this.context.create().resource(document.getPath() + "/restored",
             Map.of("jcr:primaryType", "sub:DocumentVersion"));
         this.context.create().resource(document.getPath() + "/vOld",
             Map.of("jcr:primaryType", "sub:DocumentVersion"));
 
-        this.handler.execute(context(payload("doctorsNote", upload("note-signed.pdf", PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("note-signed.pdf", PDF))));
 
         assertEquals("note-signed.pdf", child(child(onlyDocument(), "v2"), "file").getValueMap()
             .get(AttachDocumentHandler.FILE_NAME, String.class));
@@ -277,7 +266,7 @@ class AttachDocumentHandlerTest
     @Test
     void keepsDocumentsForDifferentRequirementsApart() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
         onlyDocument();
 
         this.handler.execute(context(payload("anything", upload("other.pdf", PDF))));
@@ -312,10 +301,19 @@ class AttachDocumentHandlerTest
     {
         // The repository has to serve the file back with some type, and a wrong guess is worse than an honest
         // "bytes"
-        this.handler.execute(context(payload("anything", upload(NOTE, null))));
+        this.handler.execute(context(payload("anything", upload("note", null))));
 
         assertEquals("application/octet-stream", uploadedContent(onlyDocument(), "v1").getValueMap()
             .get("jcr:mimeType", String.class));
+    }
+
+    // Some browsers send no type, or the generic one, for a file they do not know
+    @Test
+    void readsTheTypeFromTheExtensionWhenTheBrowserGaveNone() throws Exception
+    {
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload("Note.PDF", "application/octet-stream"))));
+
+        assertEquals(PDF, uploadedContent(onlyDocument(), "v1").getValueMap().get("jcr:mimeType", String.class));
     }
 
     @Test
@@ -347,18 +345,31 @@ class AttachDocumentHandlerTest
     void refusesATypeTheRequirementDoesNotAccept()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload("doctorsNote", upload("note.png", "image/png")))));
+            .execute(context(payload(DOCTORS_NOTE, upload("note.png", "image/png")))));
 
         // Named, because a refusal that does not say what would have been accepted cannot be acted on
+        assertTrue(failure.getMessage().startsWith("A file of type image/png is not accepted here"));
         assertTrue(failure.getMessage().contains(PDF));
         assertTrue(failure.getMessage().contains("Doctor's note"));
+    }
+
+    // List.of(...).contains(null) throws rather than answering false; an upload that declares no type at all
+    // must still be refused cleanly, not crash, once the requirement actually restricts what it accepts
+    @Test
+    void refusesAnUndeclaredTypeWhenTypesAreRestricted()
+    {
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
+            .execute(context(payload(DOCTORS_NOTE, upload("note", null)))));
+
+        assertTrue(failure.getMessage().contains("unknown type"));
+        assertTrue(failure.getMessage().contains(PDF));
     }
 
     @Test
     void refusesSomebodyElsesRequest()
     {
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload(NOTE, PDF)), "somebody-else")));
+            context(payload(DOCTORS_NOTE, upload(NOTE, PDF)), "somebody-else")));
     }
 
     @Test
@@ -368,14 +379,14 @@ class AttachDocumentHandlerTest
         modify(this.target, "tags", new String[] {"submitted"});
 
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload(NOTE, PDF)))));
+            context(payload(DOCTORS_NOTE, upload(NOTE, PDF)))));
     }
 
     @Test
     void refusesAnEventCarryingNoFile()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of("requirement", "doctorsNote", "file", NOTE))));
+            () -> this.handler.execute(context(Map.of("requirement", DOCTORS_NOTE, "file", NOTE))));
     }
 
     @Test
@@ -437,7 +448,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload(NOTE, PDF)), REQUESTER, sabotaged)));
+            context(payload(DOCTORS_NOTE, upload(NOTE, PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Could not reference"));
     }
 
@@ -445,7 +456,7 @@ class AttachDocumentHandlerTest
     void translatesAFailedRenameIntoAPersistenceFailure() throws Exception
     {
         // A replacement renames the document it becomes a version of, through a node the repository refuses
-        this.handler.execute(context(payload("doctorsNote", upload(NOTE, PDF))));
+        this.handler.execute(context(payload(DOCTORS_NOTE, upload(NOTE, PDF))));
         final String documentPath = onlyDocument().getPath();
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
@@ -468,7 +479,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note-signed.pdf", PDF)), REQUESTER, sabotaged)));
+            context(payload(DOCTORS_NOTE, upload("note-signed.pdf", PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Could not rename"));
     }
 
@@ -504,7 +515,7 @@ class AttachDocumentHandlerTest
         };
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("doctorsNote", huge))));
+            () -> this.handler.execute(context(payload(DOCTORS_NOTE, huge))));
         assertTrue(refusal.getMessage().contains("the limit is 50 MB"));
     }
 
@@ -541,7 +552,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(context(payload("doctorsNote", broken))));
+            () -> this.handler.execute(context(payload(DOCTORS_NOTE, broken))));
         assertTrue(failure.getMessage().contains("Could not store"));
     }
 
@@ -560,7 +571,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload(NOTE, PDF)), REQUESTER, blind)));
+            context(payload(DOCTORS_NOTE, upload(NOTE, PDF)), REQUESTER, blind)));
         assertTrue(failure.getMessage().contains("Could not read"));
     }
 

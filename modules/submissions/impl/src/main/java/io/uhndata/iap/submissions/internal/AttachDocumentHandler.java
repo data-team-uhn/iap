@@ -20,11 +20,11 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import javax.jcr.ItemExistsException;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
@@ -101,8 +101,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The upload as it arrived, named by the node type. */
     private static final String UPLOADED_FILE = "uploadedFile";
 
-    /** How many times to retry a version name taken by a concurrent upload before giving up. */
-    private static final int VERSION_RETRY_LIMIT = 5;
+    /** The type a browser sends when it does not know better. */
+    private static final String GENERIC_TYPE = "application/octet-stream";
+
+    /** The types the pipeline reads, by the extension that names them, for uploads that arrive untyped. */
+    private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
+        "pdf", "application/pdf",
+        "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc", "application/msword");
 
     @Override
     public String getName()
@@ -118,12 +124,12 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             "The attach workflow only applies to submissions");
         checkMayAttach(submission, context.getActor());
 
-        final EventAttachment file = attachment(context);
-        final DocumentRequirement requirement = requirement(submission, context);
+        final EventAttachment file = getAttachment(context);
+        final DocumentRequirement requirement = getRequirement(submission, context);
         checkAcceptedType(requirement, file);
         checkSize(file);
 
-        write(documentFor(submission, target, requirement, file), file);
+        write(getDocument(submission, target, requirement, file), file);
     }
 
     /**
@@ -138,16 +144,19 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @return the document's node
      * @throws PersistenceException when the document cannot be created or named
      */
-    private Node documentFor(final Submission submission, final Resource target,
+    private Node getDocument(final Submission submission, final Resource target,
         final DocumentRequirement requirement, final EventAttachment file) throws PersistenceException
     {
         final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
         for (final Document existing : submission.getDocuments()) {
             final Requirement fulfilled = existing.getFulfills();
             if (fulfilled != null && requirement.getPath().equals(fulfilled.getPath())) {
-                final Node node = Objects.requireNonNull(Objects.requireNonNull(
+                final Resource resource = Objects.requireNonNull(
                     target.getResourceResolver().getResource(existing.getPath()),
-                    "A document the submission just reported is still where it said").adaptTo(Node.class),
+                    "A document the submission just reported is still where it said");
+                // Otherwise the new file is never read for them: a reading leaves answered questions alone
+                DocumentReadings.dropSuggestions(target.getResourceResolver(), resource);
+                final Node node = Objects.requireNonNull(resource.adaptTo(Node.class),
                     "A document read from the repository is always backed by a JCR node");
                 try {
                     node.setProperty(TITLE, title);
@@ -163,7 +172,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             Map.of("jcr:primaryType", "sub:Document", TITLE, title));
         final Node node = Objects.requireNonNull(document.adaptTo(Node.class),
             "A freshly created document is always backed by a JCR node");
-        reference(node, document.getResourceResolver(), requirement);
+        setFulfills(node, document.getResourceResolver(), requirement);
         return node;
     }
 
@@ -192,7 +201,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @return the attachment
      * @throws InvalidPayloadException when the event carries no file
      */
-    private EventAttachment attachment(final WorkflowTaskContext context) throws InvalidPayloadException
+    private EventAttachment getAttachment(final WorkflowTaskContext context) throws InvalidPayloadException
     {
         final Object file = context.getEvent().get(FILE);
         if (!(file instanceof EventAttachment)) {
@@ -212,7 +221,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @return the requirement
      * @throws InvalidPayloadException when the event names no requirement, or names one this submission lacks
      */
-    private DocumentRequirement requirement(final Submission submission, final WorkflowTaskContext context)
+    private DocumentRequirement getRequirement(final Submission submission, final WorkflowTaskContext context)
         throws InvalidPayloadException
     {
         final Object named = context.getEvent().get(REQUIREMENT);
@@ -248,10 +257,32 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         if (accepted.isEmpty()) {
             return;
         }
-        if (!accepted.contains(file.getMimeType())) {
-            throw new InvalidPayloadException("A " + file.getMimeType() + " is not accepted here; "
-                + requirement.getLabel() + " takes " + String.join(", ", accepted));
+        final String mimeType = getMimeType(file);
+        // List.of(...).contains(null) throws rather than answering false, and an upload can genuinely arrive
+        // with no declared type -- which cannot be one of the accepted ones either way
+        if (mimeType == null || !accepted.contains(mimeType)) {
+            final String what = mimeType == null ? "A file of unknown type" : "A file of type " + mimeType;
+            throw new InvalidPayloadException(what + " is not accepted here; " + requirement.getLabel() + " takes "
+                + String.join(", ", accepted));
         }
+    }
+
+    /**
+     * What the upload is: the type the browser declared, or the one its extension names when the browser
+     * declared none or only the generic one, as some do for Office files.
+     *
+     * @param file the uploaded file
+     * @return the type, or {@code null} when neither says
+     */
+    private static String getMimeType(final EventAttachment file)
+    {
+        final String declared = file.getMimeType();
+        if (declared != null && !GENERIC_TYPE.equals(declared)) {
+            return declared;
+        }
+        final String name = Objects.requireNonNullElse(file.getFileName(), "");
+        final String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        return TYPE_BY_EXTENSION.getOrDefault(extension, declared);
     }
 
     /**
@@ -276,7 +307,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @param requirement the requirement it answers
      * @throws PersistenceException when the repository refuses the reference
      */
-    private void reference(final Node document, final ResourceResolver resolver,
+    private void setFulfills(final Node document, final ResourceResolver resolver,
         final DocumentRequirement requirement) throws PersistenceException
     {
         final Resource resource = resolver.getResource(requirement.getPath());
@@ -323,37 +354,23 @@ public class AttachDocumentHandler implements ServiceTaskHandler
                 fileNode.getSession().getValueFactory().createBinary(content));
             // Recorded because the repository has to serve the file back with a type, and it is the only statement
             // about what this is that anybody has made
-            resource.setProperty("jcr:mimeType",
-                Objects.requireNonNullElse(file.getMimeType(), "application/octet-stream"));
+            resource.setProperty("jcr:mimeType", Objects.requireNonNullElse(getMimeType(file), GENERIC_TYPE));
         } catch (final RepositoryException | IOException e) {
             throw new PersistenceException("Could not store the uploaded file", e);
         }
     }
 
     /**
-     * Adds the next version node, retrying on a name a concurrent upload already took.
-     *
-     * <p>A double-click, or two browser tabs attaching to the same requirement at once, can both read the same
-     * highest version before either has added its own child; the loser's {@code addNode} collides rather than
-     * silently overwriting anything, so retrying with a freshly read highest version is enough to recover.</p>
+     * Adds the next version node. Two uploads racing from separate sessions meet at commit, where the second
+     * one is refused and can be sent again.
      *
      * @param document the document being added to
      * @return the newly added version node
-     * @throws RepositoryException when a version cannot be added for any other reason, or every retry collided
+     * @throws RepositoryException when a version cannot be added
      */
     private static Node addVersion(final Node document) throws RepositoryException
     {
-        ItemExistsException lastCollision = null;
-        for (int attempt = 0; attempt < VERSION_RETRY_LIMIT; attempt++) {
-            try {
-                return document.addNode("v" + (highestVersion(document) + 1), VERSION_TYPE);
-            } catch (final ItemExistsException e) {
-                lastCollision = e;
-            }
-        }
-        throw new ItemExistsException(
-            "Could not add a version after " + VERSION_RETRY_LIMIT + " attempts; another upload keeps taking"
-                + " the next number", lastCollision);
+        return document.addNode("v" + (getHighestVersion(document) + 1), VERSION_TYPE);
     }
 
     /**
@@ -367,21 +384,21 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @return the highest number, or 0 when it has no versions yet
      * @throws RepositoryException when its children cannot be read
      */
-    private static int highestVersion(final Node document) throws RepositoryException
+    private static int getHighestVersion(final Node document) throws RepositoryException
     {
         int highest = 0;
         final NodeIterator children = document.getNodes();
         while (children.hasNext()) {
             final Node child = children.nextNode();
             if (VERSION_TYPE.equals(child.getPrimaryNodeType().getName())) {
-                highest = Math.max(highest, numberOf(child.getName()));
+                highest = Math.max(highest, getVersionNumber(child.getName()));
             }
         }
         return highest;
     }
 
     /** The number in a version node name, or 0 for a name that does not carry one. */
-    private static int numberOf(final String name)
+    private static int getVersionNumber(final String name)
     {
         try {
             return name.startsWith("v") ? Integer.parseInt(name.substring(1)) : 0;
