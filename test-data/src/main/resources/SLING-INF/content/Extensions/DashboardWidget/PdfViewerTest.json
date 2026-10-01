@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "PDF viewer",
+  "ext:subtitle": "Find a quote in a PDF",
+  "ext:renderURL": "asset:iap-test-data.PdfViewerTestWidget.js",
+  "defaultOrder": 6
+}
