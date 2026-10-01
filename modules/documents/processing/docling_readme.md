@@ -86,7 +86,7 @@ On start you get:
 # Optional: only if the shared root is not /shared-docs
 # set IAP_SHARED_DOCS=C:\path\to\shared-docs
 
-python modules/documents/processing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
+python modules/documents/processing/src/main/python/docling_daemon.py
 ```
 
 ### Test endpoints
@@ -110,7 +110,9 @@ site the operator visits could otherwise spend the worker pool or stop the daemo
 Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <token>` on those two
 endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
 open, so container probes need no credential. The generated deployment always sets it, to a random
-value it writes into `.env`; a hand-run daemon has no token unless you set one.
+value it writes into `.env`; a hand-run daemon has no token unless you set one. IAP's own dispatch
+(`ParseJobConsumer`) reads the same variable and presents it back, so setting it on the daemon side
+means setting it on IAP's side too — see `modules/documents/api`.
 
 With no token set the port is the only boundary, and parsing is slow, which makes a reachable
 endpoint a cheap denial-of-service target. Two more ways to hold that line:

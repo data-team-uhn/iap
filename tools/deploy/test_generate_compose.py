@@ -345,6 +345,18 @@ class Docling(unittest.TestCase):
     def test_iap_waits_for_the_parser(self):
         self.assertIn('docling', service(document('--docling'), 'iap')['depends_on'])
 
+    def test_iap_shares_the_document_volume_with_the_daemon(self):
+        shared = '${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs'
+        doc = document('--docling')
+        self.assertIn(shared, service(doc, 'iap')['volumes'])
+        self.assertIn(shared, service(doc, 'docling')['volumes'])
+        self.assertEqual('/shared-docs', service(doc, 'iap')['environment']['IAP_SHARED_DOCS'])
+
+    def test_no_document_volume_without_the_daemon(self):
+        iap = service(document(), 'iap')
+        self.assertFalse(any('/shared-docs' in volume for volume in iap['volumes']))
+        self.assertNotIn('IAP_SHARED_DOCS', iap['environment'])
+
 
 class Debugging(unittest.TestCase):
 
