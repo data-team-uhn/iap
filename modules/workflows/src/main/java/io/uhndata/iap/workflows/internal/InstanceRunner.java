@@ -114,12 +114,16 @@ final class InstanceRunner
      * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
      * @param version the version to instantiate
      * @return the created instance's resource
-     * @throws WorkflowException when the definition cannot be run
+     * @throws WorkflowException when the version is not active or its definition cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
     Resource start(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
+        if (!version.isActive()) {
+            throw new WorkflowDefinitionException("The workflow version " + version.getPath()
+                + " is not active, so " + host.getPath() + " cannot be put through it");
+        }
         final List<StartEvent> starts = version.getStartEvents();
         if (starts.size() != 1) {
             throw new WorkflowDefinitionException("A workflow needs exactly one start event to be instantiated, but "

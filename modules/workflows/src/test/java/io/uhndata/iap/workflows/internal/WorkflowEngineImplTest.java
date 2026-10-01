@@ -117,10 +117,11 @@ class WorkflowEngineImplTest
 
     /**
      * Builds an engine wired the way the DS runtime would wire it: the mock context's resolver factory, plus the
-     * real entity-creating handler and whatever extra handlers a test needs. Wiring is by reflection, the way the
-     * other component tests do it, since the SCR metadata only exists in the packaged bundle.
+     * module's own handlers that need nothing else, and whatever extra handlers a test needs. Wiring is by
+     * reflection, the way the other component tests do it, since the SCR metadata only exists in the packaged
+     * bundle.
      *
-     * @param extraHandlers additional handlers to register beside {@link CreateEntityHandler}
+     * @param extraHandlers additional handlers to register beside the module's own
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
      */
@@ -134,7 +135,7 @@ class WorkflowEngineImplTest
      * repository failures. The writes themselves succeed; only the commit fails.
      *
      * @param failure what the engine's commit throws, or {@code null} for a session that commits normally
-     * @param extraHandlers additional handlers to register beside {@link CreateEntityHandler}
+     * @param extraHandlers additional handlers to register beside the module's own
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
      */
@@ -148,6 +149,8 @@ class WorkflowEngineImplTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, failure));
         final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
         allHandlers.add(new CreateEntityHandler());
+        allHandlers.add(new SendEventHandler());
+        allHandlers.add(new StartWorkflowHandler());
         inject(impl, "handlers", allHandlers);
         final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
         final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
@@ -935,7 +938,7 @@ class WorkflowEngineImplTest
     void stopsWorkflowsSendingEventsToEachOtherInALoop() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        createOtherWorkflow("loop", Map.of("handler", EventSender.HANDLER_NAME, "message", "loop"));
+        createOtherWorkflow("loop", Map.of("handler", SendEventHandler.HANDLER_NAME, "message", "loop"));
 
         final WorkflowEngine engine = engine();
 
@@ -948,7 +951,7 @@ class WorkflowEngineImplTest
     void refusesToSendAnEventTheActivityDoesNotName() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        createOtherWorkflow("archive", Map.of("handler", EventSender.HANDLER_NAME));
+        createOtherWorkflow("archive", Map.of("handler", SendEventHandler.HANDLER_NAME));
 
         final WorkflowEngine engine = engine();
 
@@ -969,7 +972,7 @@ class WorkflowEngineImplTest
         this.context.create().resource(VERSION + "/create/toSend", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toSend", "targetRef", "send"));
         this.context.create().resource(VERSION + "/send", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", EventSender.HANDLER_NAME,
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", SendEventHandler.HANDLER_NAME,
             "message", message));
         this.context.create().resource(VERSION + "/send/toDone", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));

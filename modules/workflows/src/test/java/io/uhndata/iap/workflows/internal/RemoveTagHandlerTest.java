@@ -112,6 +112,6 @@ class RemoveTagHandlerTest
         properties.put("handler", RemoveTagHandler.HANDLER_NAME);
         final Activity activity = this.context.create().resource(ACTIVITY, properties).adaptTo(Activity.class);
         return new WorkflowTaskContextImpl(this.target, new WorkflowEvent("tag", Map.of()), activity, variables,
-            ACTOR);
+            ACTOR, EngineFixture.noFurtherTasks(), 0);
     }
 }

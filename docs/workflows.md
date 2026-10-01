@@ -474,6 +474,8 @@ Activity         getActivity();
 Object           getVariable(String name);
 void             setVariable(String name, Object value);
 ResourceResolver getResourceResolver();
+void             sendEvent(Resource target, WorkflowEvent event);
+void             startWorkflow(Resource host, WorkflowVersion version);
 ```
 
 Service tasks are implemented as a `ServiceTaskHandler`: the activity names its handler
@@ -482,7 +484,10 @@ configuration. This is the extension point that lets a project plug its own beha
 a workflow without touching the platform. Handlers write through the context's resolver
 and never commit — the engine owns the transaction — and communicate through execution
 variables (`context.setVariable(...)`), which is also how results reach the channel that
-fired the event.
+fired the event. Two calls ask the engine for more within the same execution and commit:
+`sendEvent` runs the system workflow waiting for an event, and `startWorkflow` starts an
+instance of a workflow on a resource. The built-in handlers of the same names are thin
+over them.
 
 The first built-in handler is `createEntity`: create a node of the configured
 `entityType` under the target, named by camel-casing the payload's `title`, dodging

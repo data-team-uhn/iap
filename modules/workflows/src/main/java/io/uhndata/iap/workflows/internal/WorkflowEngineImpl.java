@@ -225,8 +225,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 return variables;
             }
             if (node instanceof Activity) {
-                dispatcher.perform((Activity) node,
-                    new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor), depth);
+                dispatcher.perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node,
+                    variables, actor, dispatcher, depth));
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here

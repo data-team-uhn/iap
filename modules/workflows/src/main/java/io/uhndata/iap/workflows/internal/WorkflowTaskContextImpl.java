@@ -19,15 +19,19 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.Map;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The context handed to service task handlers by the engine: a plain carrier for the pieces of one execution.
+ * The context handed to service task handlers by the engine: the pieces of one execution, and what a handler may
+ * ask the engine to do within it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,6 +48,12 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
 
     private final String actor;
 
+    /** How the execution performs service tasks, which the events it sends and the instances it starts share. */
+    private final ServiceTaskDispatcher dispatcher;
+
+    /** How many sent events deep the execution is. */
+    private final int depth;
+
     /**
      * Constructor.
      *
@@ -52,15 +62,20 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
      * @param activity the activity being performed
      * @param variables the execution's shared, mutable variables
      * @param actor the user the execution is acting for
+     * @param dispatcher how the execution performs service tasks
+     * @param depth how many sent events deep the execution is, 0 for an event that came in
      */
     WorkflowTaskContextImpl(final Resource target, final WorkflowEvent event, final Activity activity,
-        final Map<String, Object> variables, final String actor)
+        final Map<String, Object> variables, final String actor, final ServiceTaskDispatcher dispatcher,
+        final int depth)
     {
         this.target = target;
         this.event = event;
         this.activity = activity;
         this.variables = variables;
         this.actor = actor;
+        this.dispatcher = dispatcher;
+        this.depth = depth;
     }
 
     @Override
@@ -103,5 +118,20 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     public ResourceResolver getResourceResolver()
     {
         return this.target.getResourceResolver();
+    }
+
+    @Override
+    public void sendEvent(final Resource to, final WorkflowEvent sent) throws WorkflowException, PersistenceException
+    {
+        this.dispatcher.send(to, sent, this.actor, this.depth + 1);
+    }
+
+    @Override
+    public void startWorkflow(final Resource host, final WorkflowVersion version)
+        throws WorkflowException, PersistenceException
+    {
+        new InstanceRunner(getResourceResolver(), this.dispatcher.performer(this.event, this.actor), this.actor)
+            .start(host, version);
+        HostAccess.grantReaders(getResourceResolver(), host, version, this.actor);
     }
 }

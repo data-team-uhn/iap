@@ -46,7 +46,7 @@ final class ServiceTaskDispatcher
 {
     private final List<ServiceTaskHandler> handlers;
 
-    /** How the engine runs the workflow waiting for an event a {@code sendEvent} task sends. */
+    /** How the engine runs the workflow waiting for an event a service task sends. */
     private final EventChain chain;
 
     /**
@@ -66,28 +66,16 @@ final class ServiceTaskDispatcher
      *
      * @param activity the activity node being executed
      * @param context what the handler gets to work with
-     * @param depth how many sent events deep the executing run is
      * @throws WorkflowException when the activity cannot be performed
      * @throws PersistenceException when the handler's repository writes fail immediately
      */
-    void perform(final Activity activity, final WorkflowTaskContext context, final int depth)
+    void perform(final Activity activity, final WorkflowTaskContext context)
         throws WorkflowException, PersistenceException
     {
         final String name = activity.getHandler();
         if (name == null) {
             throw new WorkflowDefinitionException("The activity " + activity.getPath()
                 + " names no handler to perform it automatically");
-        }
-        if (WorkflowStarter.HANDLER_NAME.equals(name)) {
-            // Built into the engine rather than registered: putting an entity under a workflow is the engine's
-            // own business. Which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
-            return;
-        }
-        if (EventSender.HANDLER_NAME.equals(name)) {
-            EventSender.execute(context,
-                (target, sent) -> this.chain.send(target, sent, context.getActor(), depth + 1));
-            return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()
             .filter(candidate -> name.equals(candidate.getName()))
@@ -112,7 +100,23 @@ final class ServiceTaskDispatcher
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor), 0);
+            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+    }
+
+    /**
+     * Runs the workflow waiting for an event a service task sent, as part of the sending execution.
+     *
+     * @param target the resource the event is sent to, backed by the engine's own session
+     * @param event the sent event
+     * @param actor the user the sending execution acts for
+     * @param depth how many sent events deep this one is
+     * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
+     * @throws PersistenceException when the workflow's writes fail
+     */
+    void send(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+        throws WorkflowException, PersistenceException
+    {
+        this.chain.send(target, event, actor, depth);
     }
 
     /**
@@ -128,8 +132,8 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * How the engine runs the system workflow waiting for an event a {@code sendEvent} task sent, as part of the
-     * sending execution.
+     * How the engine runs the system workflow waiting for an event a service task sent, as part of the sending
+     * execution.
      *
      * @version $Id$
      * @since 0.1.0

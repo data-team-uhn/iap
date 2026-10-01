@@ -18,11 +18,12 @@
 package io.uhndata.iap.workflows.internal;
 
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
+import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
@@ -31,60 +32,33 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code createVersion}. The system workflow waiting for it runs as part of the same execution, and is refused
  * exactly as it would be if the user had sent the event themselves.
  *
- * <p>Built into the engine rather than registered, like {@code startWorkflow}: running another workflow is the
- * engine's own business.</p>
- *
  * @version $Id$
  * @since 0.1.0
  */
-final class EventSender
+@Component(service = ServiceTaskHandler.class)
+public class SendEventHandler implements ServiceTaskHandler
 {
-    /** The name an activity uses to ask for this. */
-    static final String HANDLER_NAME = "sendEvent";
+    /** The name activities use to point at this handler. */
+    public static final String HANDLER_NAME = "sendEvent";
 
     /** The activity property naming the event to send. */
     private static final String MESSAGE_PARAMETER = "message";
 
-    private EventSender()
+    @Override
+    public String getName()
     {
+        return HANDLER_NAME;
     }
 
-    /**
-     * Sends the configured event on.
-     *
-     * @param context the executing task's context
-     * @param dispatch how the engine runs the workflow waiting for the event
-     * @throws WorkflowException when the activity is misconfigured, or the event is refused or fails
-     * @throws PersistenceException when the chained workflow's writes fail
-     */
-    static void execute(final WorkflowTaskContext context, final Dispatch dispatch)
-        throws WorkflowException, PersistenceException
+    @Override
+    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Object message = context.getActivity().get(MESSAGE_PARAMETER);
         if (!(message instanceof String) || ((String) message).isBlank()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not configure which " + MESSAGE_PARAMETER + " to send");
         }
-        dispatch.send(ExecutionHost.of(context),
+        context.sendEvent(ExecutionHost.of(context),
             new WorkflowEvent((String) message, context.getEvent().getPayload()));
-    }
-
-    /**
-     * How the engine runs the system workflow waiting for a sent event.
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    interface Dispatch
-    {
-        /**
-         * Runs the workflow waiting for an event, without committing.
-         *
-         * @param target the resource the event is sent to, backed by the engine's own session
-         * @param event the event
-         * @throws WorkflowException when the event is refused or the workflow fails
-         * @throws PersistenceException when the workflow's writes fail
-         */
-        void send(Resource target, WorkflowEvent event) throws WorkflowException, PersistenceException;
     }
 }
