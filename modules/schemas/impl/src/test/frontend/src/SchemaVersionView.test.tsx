@@ -135,19 +135,20 @@ describe("SchemaVersionView", () => {
     serveSchemas();
     renderVersion("study", "v2");
 
-    fireEvent.click(within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" }));
-    const options = await screen.findByRole("presentation");
-    expect(within(options).getByText("Placebo")).toBeInTheDocument();
-    // What an answer stores, where it differs from what the submitter reads
-    expect(within(options).getByText("placebo")).toBeInTheDocument();
-    expect(within(options).getByText("drug")).toBeInTheDocument();
-    fireEvent.keyDown(options, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByText("Placebo")).not.toBeInTheDocument());
-    // And listed once the question is open
-    await expand("Which arms does it have?");
+    // Its options' chip opens and closes it, as its arrow does
+    const chip = within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" });
+    expect(chip).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-expanded", "true");
     const arms = await card("Which arms does it have?");
     expect(await within(arms).findByText("Placebo")).toBeInTheDocument();
+    // What an answer stores, where it differs from what the submitter reads
+    expect(within(arms).getByText("placebo")).toBeInTheDocument();
+    expect(within(arms).getByText("drug")).toBeInTheDocument();
     expect(within(arms).getByText("A substance with no effect")).toBeInTheDocument();
+    fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText("Placebo")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Expand Which arms does it have?" })).toBeInTheDocument();
     await expand("Minimum age");
     expect(await screen.findByText("Between 18 and 99.")).toBeInTheDocument();
     await expand("Study code");
