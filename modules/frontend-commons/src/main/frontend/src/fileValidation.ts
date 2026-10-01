@@ -113,15 +113,17 @@ function isWorkerFailure(error: unknown): boolean {
 // Opens the PDF. A file PDF.js refuses is one the parser would refuse too, and counting its pages is
 // the only way to know the length before the upload.
 async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Promise<ContentCheck> {
-  const pdfjs = await loadLibrary(loadPdfjs, file);
-  if (pdfjs === undefined) {
+  const loaded = await loadLibrary(loadPdfjs, file);
+  if (loaded === undefined) {
     return { valid: true };
   }
+  const { pdfjs, worker } = loaded;
   try {
     const data = await file.arrayBuffer();
     signal?.throwIfAborted();
     // No password is passed. A file whose only password is empty opens; one that needs a password throws.
-    const task = pdfjs.getDocument({ data });
+    // isEvalSupported off: PDF.js then never runs code it builds from a file's fonts
+    const task = pdfjs.getDocument({ data, worker, isEvalSupported: false });
     // Destroying the task ends a parse that would otherwise run on, and rejects its promise
     const stop = () => void task.destroy();
     signal?.addEventListener("abort", stop, { once: true });
@@ -140,7 +142,7 @@ async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Pro
       return { valid: true };
     } finally {
       signal?.removeEventListener("abort", stop);
-      // Each check has its own worker holding the whole file; left alone it lives as long as the tab
+      // The shared worker keeps the whole file until the task is destroyed
       void task.destroy();
     }
   } catch (error) {

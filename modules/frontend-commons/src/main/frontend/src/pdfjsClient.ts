@@ -15,12 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { PDFWorker } from "pdfjs-dist";
 
-// PDF.js parses in a web worker and refuses to open anything until told where the worker script is.
-// webpack emits that script under a fixed name beside the rest of the frontend (see the rule in
-// webpack.config-template.js); the URL below is what it rewrites to that location.
+// Where the build put the PDF.js worker; see PDF_WORKER_FILE in webpack.config-template.js.
+const WORKER_URL = process.env.PDF_WORKER_URL ?? "";
+
+let worker: PDFWorker | undefined;
+
+// Loads PDF.js and the one worker every document shares. Left to itself, each getDocument starts a
+// worker of its own: a 1.4 MB script fetched and compiled per open. A worker that fails to start is
+// not replaced, because PDF.js remembers the failure and a new one would fail the same way.
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
-  return pdfjs;
+  pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL;
+  worker ??= new pdfjs.PDFWorker();
+  return { pdfjs, worker };
 }

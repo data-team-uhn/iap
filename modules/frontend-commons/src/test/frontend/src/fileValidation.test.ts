@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { GlobalWorkerOptions } from "pdfjs-dist";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -210,15 +209,10 @@ function findDirectoryEntry(bytes: Uint8Array): number {
     value === 0x50 && bytes[at + 1] === 0x4B && bytes[at + 2] === 0x01 && bytes[at + 3] === 0x02);
 }
 
-const workerOptions = vi.hoisted(() => ({ workerSrc: "" }));
+// The one worker the loader shares between documents
+const sharedWorker = vi.hoisted(() => ({}));
 
-vi.mock("pdfjs-dist", () => ({
-  get GlobalWorkerOptions() {
-    if (missing.pdfjs) {
-      throw new Error("Loading chunk pdfjs failed");
-    }
-    return workerOptions;
-  },
+const pdfjs = vi.hoisted(() => ({
   getDocument: (args: { data: ArrayBuffer }) => {
     const bytes = new Uint8Array(args.data);
     const destroy = () => {
@@ -254,6 +248,12 @@ vi.mock("pdfjs-dist", () => ({
       destroy,
     };
   },
+}));
+
+vi.mock("@iap/frontend-commons/pdfjsClient", () => ({
+  loadPdfjs: () => missing.pdfjs
+    ? Promise.reject(new Error("Loading chunk pdfjs failed"))
+    : Promise.resolve({ pdfjs, worker: sharedWorker }),
 }));
 
 afterEach(() => {
@@ -353,11 +353,11 @@ describe("what an upload is refused for", () => {
 });
 
 describe("what is inside the file", () => {
-  // PDF.js refuses to open anything until told where its worker script is
-  it("tells PDF.js where its worker is before opening anything", async () => {
+  // A worker of its own per check would fetch and compile the PDF.js worker script again
+  it("opens a PDF on the shared PDF.js worker", async () => {
     await validateUpload(createPdf(3));
 
-    expect(GlobalWorkerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs$/);
+    expect(opened.options.worker).toBe(sharedWorker);
   });
 
   it("refuses a .pdf that is not a PDF", async () => {
@@ -440,7 +440,7 @@ describe("the limits themselves", () => {
     ]);
   });
 
-  // Each check opens its own PDF.js worker holding the whole file, which has to go once it is done
+  // The shared worker holds the whole file until the check lets go of it
   it("lets go of the PDF it opened", async () => {
     const before = destroyed.count;
     await validateUpload(createPdf(3));
