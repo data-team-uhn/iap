@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Alert, AlertTitle, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
 
@@ -78,28 +78,23 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     onSuccess: onClose,
   });
 
-  // A top-level category carries the schema a new submission under it follows, and a leaf may carry
-  // one too. A category in between, with subcategories, does not get the picker at all
-  const isLeaf = !node || node.children.length === 0;
-  const isTop = parent === CATEGORIES_ROOT;
-  const showSchemaVersion = isLeaf || isTop;
+  // Only a top-level category's schema is used: it is what a new submission under it follows
+  const showSchemaVersion = parent === CATEGORIES_ROOT;
   const duplicateLabel = label.trim() !== ""
     && hasDuplicateLabel(childrenOf(tree, parent), label, node?.path);
   const valid = label.trim() !== "" && !duplicateLabel;
 
-  // Changing the parent can hide the picker (moving a category with subcategories out of the top
-  // level), and the node type forbids a schema version on anything that is neither: a selection left
-  // over from before the move is not visible to clear by hand, so it is cleared here instead
-  useEffect(() => {
-    if (!showSchemaVersion) {
-      setSchemaVersion("");
-    }
-  }, [ showSchemaVersion ]);
+  // Moving a category out of the top level hides the picker, and a hidden binding could never be
+  // cleared by hand, so it is cleared here. Moving it back brings the old binding back. Adjusted
+  // during render rather than in an effect, which would commit the stale value for one extra frame.
+  const [ shownSchemaVersion, setShownSchemaVersion ] = useState(showSchemaVersion);
+  if (showSchemaVersion !== shownSchemaVersion) {
+    setShownSchemaVersion(showSchemaVersion);
+    setSchemaVersion(showSchemaVersion ? node?.schemaVersion?.uuid ?? "" : "");
+  }
 
-  // Filing a category under another - by creating it there, or by moving it there - is what ends
-  // that parent's days as a leaf, and only leaves may carry a schema version. The binding therefore
-  // has to go, and the administrator has to be told before it does: once the parent has a child the
-  // picker is hidden for it, so a binding left behind could never be found or cleared again.
+  // A category below the top level may still hold a binding from before only top categories used
+  // one. Giving it a child is the moment to drop it, and the administrator is told first.
   const gainingChild = mode === "create" || parent !== parentPath
     ? findNode(tree, parent)
     : undefined;
@@ -161,9 +156,9 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
             && (
               <Alert severity="warning">
                 <AlertTitle>{gainingChild.label} will lose its schema version</AlertTitle>
-                Submissions are filed under categories that have no subcategories, so only those
-                carry a schema version. Giving {gainingChild.label} a subcategory means submissions
-                are filed under that subcategory instead, and its own binding is removed.
+                Only top-level categories carry a schema version, so the one bound
+                to {gainingChild.label} is not used. It is removed when {gainingChild.label} gets a
+                subcategory.
               </Alert>
             )}
           <TextField

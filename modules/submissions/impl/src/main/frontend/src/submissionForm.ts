@@ -15,11 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import type { QuestionProvenance } from "./provenance";
-
-import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
@@ -296,8 +295,8 @@ export async function stopProcessing(doFetch: AuthenticatedFetch, path: string):
 }
 
 // Asks for the reading to be done over, from as far back as it has to start: `retryParse` sends the
-// uploads whose parse failed to the daemon again, and `extractAnswers` asks the model again about the
-// ones that parsed perfectly well.
+// uploads whose parse failed to the daemon again, and `readAgain` queues the reading of the ones that
+// parsed perfectly well, the same way a parse does.
 //
 // Offered beside the message saying what went wrong, because what usually goes wrong is on our side —
 // the daemon down, the model refusing — and the submitter has no way of telling that from a problem
@@ -306,7 +305,7 @@ export async function stopProcessing(doFetch: AuthenticatedFetch, path: string):
 // The event is named by a selector, so `.json` has to follow it, as above.
 export async function readAgain(
   doFetch: AuthenticatedFetch, path: string, fromTheParse: boolean): Promise<void> {
-  const event = fromTheParse ? "retryParse" : "extractAnswers";
+  const event = fromTheParse ? "retryParse" : "readAgain";
   const response = await doFetch(`${path}.${event}.json`, { method: "POST" });
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
