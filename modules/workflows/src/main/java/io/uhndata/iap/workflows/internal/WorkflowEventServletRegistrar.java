@@ -20,7 +20,6 @@ package io.uhndata.iap.workflows.internal;
 import java.util.Dictionary;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -46,7 +45,6 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Brings under workflow control the resource types the system workflows say they handle: every POST to a resource
@@ -70,6 +68,8 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     /** The subservice name under which the engine's service user is mapped. */
     private static final String SUBSERVICE_NAME = "workflows";
 
+    private static final String TARGET_RESOURCE_TYPE = "targetResourceType";
+
     @Reference
     private WorkflowEngine engine;
 
@@ -88,9 +88,7 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     @Activate
     public synchronized void activate(final BundleContext context)
     {
-        this.types = controlledTypes();
-        this.registration = context.registerService(Servlet.class, new WorkflowEventServlet(this.engine),
-            properties(this.types));
+        register(context, controlledTypes());
     }
 
     /** Takes the servlet down with the component. */
@@ -105,9 +103,24 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     {
         final Set<String> current = controlledTypes();
         if (!current.equals(this.types)) {
-            this.types = current;
-            this.registration.setProperties(properties(current));
+            // The servlet resolver reads a servlet's resource types when it is registered, not when they change
+            final BundleContext context = this.registration.getReference().getBundle().getBundleContext();
+            this.registration.unregister();
+            register(context, current);
         }
+    }
+
+    /**
+     * Registers the servlet for some types.
+     *
+     * @param context the bundle context to register the servlet through
+     * @param resourceTypes the types it binds
+     */
+    private void register(final BundleContext context, final Set<String> resourceTypes)
+    {
+        this.types = resourceTypes;
+        this.registration = context.registerService(Servlet.class, new WorkflowEventServlet(this.engine),
+            properties(resourceTypes));
     }
 
     /**
@@ -123,15 +136,17 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
         found.add(TaskInstance.RESOURCE_TYPE);
         try (ResourceResolver resolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
+            // Read from the content itself: while this bundle starts, its models may not be adaptable yet
             final Resource home = resolver.getResource(SystemWorkflowsHomepage.PATH);
-            final SystemWorkflowsHomepage homepage =
-                home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
-            if (homepage != null) {
-                homepage.getWorkflows().stream()
-                    .flatMap(definition -> definition.getVersions().stream())
-                    .map(WorkflowVersion::getTargetResourceType)
-                    .filter(Objects::nonNull)
-                    .forEach(found::add);
+            if (home != null) {
+                for (final Resource definition : home.getChildren()) {
+                    for (final Resource version : definition.getChildren()) {
+                        final String type = version.getValueMap().get(TARGET_RESOURCE_TYPE, String.class);
+                        if (type != null) {
+                            found.add(type);
+                        }
+                    }
+                }
             }
         } catch (final LoginException e) {
             LOGGER.error("The workflow engine's service user is not available, so only user tasks take events: {}",
