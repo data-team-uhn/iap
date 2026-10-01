@@ -160,7 +160,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void translatesAPostToAnEntityIntoASaveEvent() throws WorkflowException, IOException
+    void translatesAPostToAnEntityIntoASaveEvent() throws WorkflowException, IOException, ServletException
     {
         // Aimed at one submission rather than at the homepage holding them: that means changing this one, not
         // making another, which is the difference between filling a request in and raising it
@@ -180,7 +180,8 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void translatesAPostToTheSystemWorkflowsHomepageIntoACreateEvent() throws WorkflowException, IOException
+    void translatesAPostToTheSystemWorkflowsHomepageIntoACreateEvent()
+        throws WorkflowException, IOException, ServletException
     {
         // Unbound, a POST here would reach the Sling POST servlet and rename the tree by setting `title` on the
         // homepage node. Bound, an unmatched event is a 409 instead.
@@ -201,7 +202,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void translatesAPostToAWorkflowVersionIntoASaveEvent() throws WorkflowException, IOException
+    void translatesAPostToAWorkflowVersionIntoASaveEvent() throws WorkflowException, IOException, ServletException
     {
         // A version is an entity, so the default is to change this one -- which is how the editor saves a diagram.
         // The moves of its lifecycle name their events outright, being the less obvious things to do to it.
@@ -220,14 +221,14 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void mapsAConflictingTargetStateToConflict() throws WorkflowException, IOException
+    void mapsAConflictingTargetStateToConflict() throws WorkflowException, IOException, ServletException
     {
         // The neighbour of "nothing was waiting for this": something was, and the target has moved past it
         assertEquals(409, statusFor(new WorkflowConflictException("a retired version cannot be made active")));
     }
 
     @Test
-    void letsASelectorNameTheEventInstead() throws WorkflowException, IOException
+    void letsASelectorNameTheEventInstead() throws WorkflowException, IOException, ServletException
     {
         // An entity has one obvious thing that happens to it and any number of less obvious ones, and no reading of
         // the URL tells `save` from `attachDocument`. Naming it changes nothing about who may fire it: the engine
@@ -249,7 +250,8 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void ignoresAnEmptySelectorRatherThanSendingAnEventWithNoName() throws WorkflowException, IOException
+    void ignoresAnEmptySelectorRatherThanSendingAnEventWithNoName()
+        throws WorkflowException, IOException, ServletException
     {
         // Sling reports "no selectors" as an empty string in some paths and as null in others, and an event named
         // "" would be a 409 blaming the definitions for a URL quirk

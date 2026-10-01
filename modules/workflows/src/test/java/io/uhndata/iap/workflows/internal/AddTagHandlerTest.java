@@ -67,7 +67,7 @@ class AddTagHandlerTest
         WorkflowFixture.setUp(this.context);
         TaggingFixture.enable(this.context);
         this.target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         final Field tagManager = AddTagHandler.class.getDeclaredField("tagManager");
         tagManager.setAccessible(true);
         tagManager.set(this.handler, TaggingFixture.definitions(Map.of(

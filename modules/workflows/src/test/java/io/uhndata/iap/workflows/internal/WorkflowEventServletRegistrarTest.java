@@ -65,7 +65,7 @@ class WorkflowEventServletRegistrarTest
     @Test
     void bindsTheTypesTheSystemWorkflowsTarget() throws Exception
     {
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         // An inactive version still keeps its type out of the Sling POST servlet's reach
         this.context.create().resource("/SystemWorkflows/editSchema", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Edit", "active", false));
@@ -84,7 +84,7 @@ class WorkflowEventServletRegistrarTest
         activate();
         assertArrayEquals(new String[] { "wf/TaskInstance" }, boundTypes());
 
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         this.context.resourceResolver().commit();
         this.registrar.onChange(List.of());
 
