@@ -117,18 +117,11 @@
   - bpmnXmlParsedHash (STRING)
 
   // Whether this version's diagram is the source of its flow nodes. When true the editor owns them
-  // outright: it derives them from the bpmn.xml and removes whatever the diagram no longer says,
-  // which is what lets a workflow be authored in the diagram editor and nowhere else.
+  // outright: it derives them automatically from the bpmn.xml whenever it is updated.
   //
-  // False for a version whose flow nodes were written by hand, whose diagram need not say
-  // everything they hold. Deriving such a version would quietly drop whatever the diagram leaves
-  // out, and merging the two would be worse: nothing in a diagram says whether an absent property
-  // was left out or deleted, and a node reused under the same id may have been redrawn as something
-  // else entirely. So the choice is made once, per version, by whoever knows - and this property
-  // records it.
+  // False for a version whose flow nodes were written by hand.
   //
-  // The flag is temporary. It goes away once every version's diagram says everything its flow nodes
-  // hold, because then every version can be derived and the question stops being a question.
+  // The flag is temporary. It goes away once the synchronization process is fully functional.
   - bpmnAuthoritative (BOOLEAN) = false
 
   // When false, no new instances may be created from this version

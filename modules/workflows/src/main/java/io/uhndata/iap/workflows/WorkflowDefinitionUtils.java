@@ -223,10 +223,7 @@ public final class WorkflowDefinitionUtils
      * The invariants of a single parse: everything the per-element methods need that does not change from one element
      * to the next, bundled together so the individual methods stay within the checkstyle parameter limit.
      *
-     * <p>{@code createdNodes} holds every node this parse has made, by the BPMN id it was made for, and where it
-     * went. Membership answers "did this parse create that?" — but the builder is needed too, because a boundary
-     * event lives inside the activity it watches rather than beside it, so an arc leaving one cannot be found by
-     * looking under the version.</p>
+     * <p>{@code createdNodes} holds every node this parse has made, by the BPMN id it was made for.</p>
      *
      * @since 0.1.0
      */
@@ -467,31 +464,25 @@ public final class WorkflowDefinitionUtils
     }
 
     /**
-     * What BPMN's own event definitions say, for the two the engine acts on.
+     * Look up and fill in out-of-place event definitions in the BPMN.
      *
-     * <p>Neither is an attribute, which is why neither can be a copy rule. A message event names a
-     * {@code <bpmn:message>} declared beside the process and the engine wants that message's <em>name</em>, not the
-     * id used to point at it — the id is a document-internal handle and the name is what a caller sends. A timer
-     * carries its duration as the text of a {@code <bpmn:timeDuration>} grandchild.</p>
-     *
-     * <p>Read here rather than configured per type because both are standard BPMN rather than an IAP extension:
-     * a vocabulary entry saying so would be repeating the specification, and a new message event type added later
-     * would have to remember to.</p>
+     * <p>The event name and the timer duration are not attributes, which is why neither can be a copy rule. A message
+     * event names a {@code <bpmn:message>} declared beside the process and the engine wants that message's
+     * <em>name</em>, not the id used to point at it. The id is a document-internal handle and the name is what a caller
+     * sends. And a timer carries its duration as the text of a {@code <bpmn:timeDuration>} grandchild.</p>
      *
      * @param element the BPMN element being translated
      * @param node the flow node being written
      * @param context the parse in progress, holding the document's message names
      */
-    private static void applyEventDefinitions(final Element element, final NodeBuilder node,
-        final ParseContext context)
+    private static void applyEventDefinitions(final Element element, final NodeBuilder node, final ParseContext context)
     {
         final Element message = childElement(element, MESSAGE_EVENT_DEFINITION);
         if (message != null) {
             final String ref = message.getAttribute(MESSAGE_REF_ATTRIBUTE);
             final String name = context.messageNames().get(ref);
             if (StringUtils.isBlank(name)) {
-                // Worth saying: an event that catches a message nobody can name is a workflow nothing can start,
-                // and the diagram looks complete
+                // Worth raising: an unnamed message can not ever be passed as an event
                 LOGGER.warn("Message event {} in {} references message {} which declares no name",
                     element.getAttribute(ID_ATTRIBUTE), context.path(), ref);
             } else {

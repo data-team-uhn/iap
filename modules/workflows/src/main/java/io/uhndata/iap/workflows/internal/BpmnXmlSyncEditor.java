@@ -43,6 +43,11 @@ import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
  * A commit editor that keeps a {@code wf:WorkflowVersion}'s {@code wf:FlowNode}/{@code wf:SequenceFlow} children in
  * sync with its {@code bpmn.xml} file, so that saving a diagram is all it takes to update the graph the engine runs.
  *
+ * <p>The expected behavior is for the BPMN file to be the source of truth: edit the workflow in an editor, export it
+ * as a BPMN XML file and save it in the JCR repository, and then automatically parse it into the JCR nodes that store
+ * the workflow. But it is possible to author the nodes directly, making the XML optional, in which case the
+ * {@code bpmnAuthoritative} property needs to be set to {@code false}.</p>
+ *
  * <p>
  * Deriving the children inside the same commit, rather than from a listener reacting to it afterwards, is what makes
  * the two impossible to observe out of step: no reader ever sees a version whose {@code bpmn.xml} and flow nodes
@@ -274,15 +279,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     }
 
     /**
-     * Whether this version's diagram is the source of its flow nodes, which is the only condition under which this
-     * editor writes anything.
-     *
-     * <p>Asked per version, and answered by the version itself, because the alternatives are both unsound. Deriving
-     * every version would drop whatever a hand-written version's diagram leaves out, turning a working workflow into a
-     * shape of one. Merging the derived nodes into the authored ones would be worse: nothing in a diagram distinguishes
-     * a property that is absent because it was left out from one absent because it was deleted, and a node reappearing
-     * under the same BPMN id may have been redrawn as a different kind of node in a different place, so keeping
-     * properties across it is identity by coincidence.</p>
+     * Whether this version's diagram is the source of truth.
      *
      * @return {@code true} if the diagram owns this version's flow nodes
      */
