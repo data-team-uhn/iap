@@ -277,6 +277,8 @@ const appTheme = createTheme({
         // Nearly every button in the app wants to be small; the few that should stand out
         // (like a page's main call to action) can ask for their size explicitly
         size: "small",
+        // The label stays beside the spinner
+        loadingPosition: "start",
       },
       // Button inherits its casing (and the rest of its font) from typography.button above
     },

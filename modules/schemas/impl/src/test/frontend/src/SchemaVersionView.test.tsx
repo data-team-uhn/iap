@@ -25,7 +25,7 @@ import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
-import { serveSchemas } from "./schemaServer.fixture";
+import { CONTENT, serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
   getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
@@ -431,6 +431,7 @@ describe("SchemaVersionView", () => {
     fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Remove" }));
     const dialog = await screen.findByRole("dialog", { name: /Remove this question/ });
     fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    expect(within(dialog).getByRole("button", { name: "Removing…" })).toBeDisabled();
     expect(await within(dialog).findByText(/depend on it/)).toBeInTheDocument();
     // Asking again would be refused again
     expect(within(dialog).getByRole("button", { name: "Remove" })).toBeDisabled();
@@ -458,14 +459,21 @@ describe("SchemaVersionView", () => {
       .not.toBeInTheDocument();
     // Only where it would go somewhere new, and only into what holds questions
     expect(spots()).toEqual([ "Move before Your name", "Move to the end of Follow-up" ]);
-    fireEvent.click(screen.getByRole("button", { name: "Move before Your name" }));
+    const scrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", scrollBy);
+    const spot = screen.getByRole("button", { name: "Move before Your name" });
+    // Where the place chosen is, and where the tree shows the part once it has moved
+    vi.spyOn(spot, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+    vi.spyOn(await card("Your age"), "getBoundingClientRect").mockReturnValue({ top: 260 } as DOMRect);
+    fireEvent.click(spot);
+    expect(spot).toHaveTextContent(/Moving “Your age” before\s*Your name…/);
 
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/age.move.json"));
     expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake", before: "name" });
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
-    // What moved is shown, and the actions are back
+    // What moved is shown where it was sent from, and the actions are back
     expect(document.activeElement).toBe(await card("Your age"));
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    expect(scrollBy).toHaveBeenCalledWith(0, 60);
     expect(screen.getByText("“Your age” was moved")).toBeInTheDocument();
     expect(within(await card("Your age")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
@@ -498,23 +506,69 @@ describe("SchemaVersionView", () => {
     expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3" });
   });
 
-  it("moves an option among the options of its question", async () => {
+  it("moves an option up or down among its question's, from under the pointer", async () => {
+    const posted = serveSchemas({ answers: {
+      "/Schemas/study/v3/intake/name/full.move.json": { redirect: "/Schemas/study/v3/intake/name/full" },
+    } });
+    const scrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", scrollBy);
+    renderVersion("study", "v3");
+
+    await expand("Your name");
+    const short = screen.getByText("Short").closest("li") as HTMLElement;
+    const full = screen.getByText("Full").closest("li") as HTMLElement;
+    // No place to choose, and nowhere past either end
+    expect(within(short).queryByRole("button", { name: "Move" })).not.toBeInTheDocument();
+    expect(within(short).getByRole("button", { name: "Move up" })).toBeDisabled();
+    expect(within(full).getByRole("button", { name: "Move down" })).toBeDisabled();
+
+    const up = within(full).getByRole("button", { name: "Move up" });
+    // Where the tree shows it next, as the test environment cannot lay it out
+    vi.spyOn(up, "getBoundingClientRect")
+      .mockReturnValueOnce({ top: 300 } as DOMRect)
+      .mockReturnValue({ top: 260 } as DOMRect);
+    up.focus();
+    fireEvent.click(up);
+    expect(within(full).getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByText("Moving “Full” up…")).toBeInTheDocument();
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name/full.move.json"));
+    expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake/name", before: "short" });
+    expect(await screen.findByText("“Full” was moved up")).toBeInTheDocument();
+    await waitFor(() => expect(scrollBy).toHaveBeenCalledWith(0, -40));
+    // What was pressed stays pressed, to be pressed again
+    expect(document.activeElement).toBe(up);
+  });
+
+  it("moves an option down before the one after next, or last, and says why one did not", async () => {
     const posted = serveSchemas({ answers: {
       "/Schemas/study/v3/intake/name/short.move.json": { redirect: "/Schemas/study/v3/intake/name/short" },
+      "/Schemas/study/v3/intake/name/full.move.json": { status: 409, error: "Somebody else changed this" },
     } });
     renderVersion("study", "v3");
 
     await expand("Your name");
-    fireEvent.click(within(screen.getByText("Short").closest("li") as HTMLElement)
-      .getByRole("button", { name: "Move" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Choose where the option goes.");
-    expect(spots()).toEqual([ "Move to the end of Your name" ]);
-    fireEvent.click(screen.getByRole("button", { name: "Move to the end of Your name" }));
+    const short = screen.getByText("Short").closest("li") as HTMLElement;
+    const down = within(short).getByRole("button", { name: "Move down" });
+    // As the tree reads once the move is made
+    const options = CONTENT["study/v3"].intake as Record<string, Record<string, Record<string, unknown>>>;
+    const { short: stored } = options.name;
+    options.name.short = { ...stored, defaultOrder: 30 };
+    try {
+      fireEvent.click(down);
+      await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name/short.move.json"));
+      // After the last, there is nothing to go before
+      expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake/name" });
+      expect(await screen.findByText("“Short” was moved down")).toBeInTheDocument();
+      // Now last, it can only go up again
+      await waitFor(() => expect(document.activeElement).toBe(within(short).getByRole("button", { name: "Move up" })));
+    } finally {
+      options.name.short = stored;
+    }
 
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name/short.move.json"));
-    expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake/name" });
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByText("Short").closest("li")));
-    expect(screen.getByText("“Short” was moved")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByText("Full").closest("li") as HTMLElement)
+      .getByRole("button", { name: "Move down" }));
+    expect(await screen.findByText("“Full” could not be moved. Somebody else changed this")).toBeInTheDocument();
   });
 
   it("stops moving on Cancel, on Escape, or on the same Move again, giving the focus back", async () => {
