@@ -31,17 +31,17 @@ interface RecordedRequest {
 
 let requests: RecordedRequest[] = [];
 
-const catalogJson = (activeProvider = "local", activeModel = "llama3.2-3b") => ({
+const catalogJson = (activeProvider = "example", activeModel = "model-a") => ({
   activeProvider,
   activeModel,
   providers: [
     {
-      name: "local",
-      label: "Local (Ollama)",
-      endpoint: "http://localhost:11434/v1",
+      name: "example",
+      label: "Example Provider",
+      endpoint: "http://model-a.example.invalid/v1",
       timeoutSeconds: 600,
       models: [
-        { name: "llama3.2-3b", contextLimitTokens: 1024, developer: "meta" },
+        { name: "model-a", contextLimitTokens: 1024, developer: "meta" },
         { name: "other-model", contextLimitTokens: 2048 },
       ],
     },
@@ -105,9 +105,9 @@ describe("LlmConfigManager", () => {
     stubFetch();
     await loaded();
 
-    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Local (Ollama)");
-    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("llama3.2-3b");
-    expect(screen.getByText("http://localhost:11434/v1")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Example Provider");
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("model-a");
+    expect(screen.getByText("http://model-a.example.invalid/v1")).toBeInTheDocument();
     expect(screen.getByText("1024")).toBeInTheDocument();
     expect(screen.getByText("meta")).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe("LlmConfigManager", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(lastPost()).toBeDefined());
-    expect(lastPost()?.params.get("activeProvider")).toBe("local");
+    expect(lastPost()?.params.get("activeProvider")).toBe("example");
     expect(lastPost()?.params.get("activeModel")).toBe("other-model");
     expect(await screen.findByText("Active LLM updated")).toBeInTheDocument();
     await waitFor(() => expect(saveButton()).toBeDisabled());
@@ -179,7 +179,7 @@ describe("LlmConfigManager", () => {
     stubFetch();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(await screen.findByRole("combobox", { name: "Provider" })).toHaveTextContent("Local (Ollama)");
+    expect(await screen.findByRole("combobox", { name: "Provider" })).toHaveTextContent("Example Provider");
   });
 
   it("says so when no provider is configured", async () => {
