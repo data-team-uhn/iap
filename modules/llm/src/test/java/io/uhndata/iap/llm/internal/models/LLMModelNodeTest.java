@@ -36,9 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link LLMModelNode}: that it reads an {@code llm:Model} node's known properties, applies the
- * CND defaults when they are absent, and still answers for everything else through
- * {@link LLMModelNode#getProperty}.
+ * Unit tests for {@link LLMModelNode}: that it reads an {@code llm:Model} node's known properties and applies
+ * the CND defaults when they are absent.
  *
  * @version $Id$
  * @since 0.1.0
@@ -91,17 +90,11 @@ class LLMModelNodeTest
     {
         final LLMModelNode node = adapt(Map.of(
             "contextLimitTokens", 131072L,
-            "maxOutputTokens", 2000L,
             "temperature", 0.7d,
-            "chunkTokenSize", 30000L,
-            "wholeDocumentTokenLimit", 15000L,
             "developer", "openai"));
 
         assertEquals(131072, node.getContextLimitTokens());
-        assertEquals(2000, node.getMaxOutputTokens());
         assertEquals(0.7d, node.getTemperature());
-        assertEquals(30000, node.getChunkTokenSize());
-        assertEquals(15000, node.getWholeDocumentTokenLimit());
         assertEquals("openai", node.getDeveloper());
     }
 
@@ -111,19 +104,7 @@ class LLMModelNodeTest
         final LLMModelNode node = adapt(Map.of());
 
         assertEquals(0, node.getContextLimitTokens());
-        assertEquals(2000, node.getMaxOutputTokens());
         assertEquals(0.0d, node.getTemperature());
-        assertEquals(0, node.getChunkTokenSize());
-        assertEquals(20000, node.getWholeDocumentTokenLimit());
         assertNull(node.getDeveloper());
-    }
-
-    @Test
-    void readsAPropertyWithNoDedicatedField()
-    {
-        final LLMModelNode node = adapt(Map.of("tuned", true));
-
-        assertEquals("true", node.getProperty("tuned"));
-        assertNull(node.getProperty("absent"));
     }
 }

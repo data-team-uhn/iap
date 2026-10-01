@@ -36,9 +36,9 @@ class LLMRequestOptionsTest
     private static final String SCHEMA = "{\"type\":\"object\"}";
 
     @Test
-    void defaultsOverrideNothing()
+    void anEmptyBuilderOverridesNothing()
     {
-        final LLMRequestOptions options = LLMRequestOptions.defaults();
+        final LLMRequestOptions options = LLMRequestOptions.builder().build();
         assertNull(options.getMaxOutputTokens());
         assertNull(options.getResponseSchema());
         assertNull(options.getResponseSchemaName());
@@ -46,17 +46,10 @@ class LLMRequestOptionsTest
     }
 
     @Test
-    void resolveMaxOutputTokensFallsBackWhenUnset()
+    void carriesTheOutputCeilingItWasGiven()
     {
-        assertEquals(500, LLMRequestOptions.defaults().resolveMaxOutputTokens(500));
-    }
-
-    @Test
-    void resolveMaxOutputTokensPrefersTheOverride()
-    {
-        final LLMRequestOptions options = LLMRequestOptions.withMaxOutputTokens(1200);
-        assertEquals(1200L, options.getMaxOutputTokens());
-        assertEquals(1200, options.resolveMaxOutputTokens(500));
+        final LLMRequestOptions options = LLMRequestOptions.builder().maxOutputTokens(1200).build();
+        assertEquals(1200, options.getMaxOutputTokens());
     }
 
     @Test
@@ -66,7 +59,7 @@ class LLMRequestOptionsTest
             .maxOutputTokens(64)
             .jsonSchema("document_summary", SCHEMA)
             .build();
-        assertEquals(64L, options.getMaxOutputTokens());
+        assertEquals(64, options.getMaxOutputTokens());
         assertEquals("document_summary", options.getResponseSchemaName());
         assertEquals(SCHEMA, options.getResponseSchema());
         assertTrue(options.hasResponseSchema());
@@ -82,34 +75,9 @@ class LLMRequestOptionsTest
     }
 
     @Test
-    void equalsAndHashCodeConsiderEveryField()
-    {
-        final LLMRequestOptions options = LLMRequestOptions.builder()
-            .maxOutputTokens(64)
-            .jsonSchema("document_summary", SCHEMA)
-            .build();
-        final LLMRequestOptions same = LLMRequestOptions.builder()
-            .maxOutputTokens(64)
-            .jsonSchema("document_summary", SCHEMA)
-            .build();
-
-        assertEquals(options, options);
-        assertEquals(options, same);
-        assertEquals(options.hashCode(), same.hashCode());
-        assertFalse(options.equals(null));
-        assertFalse(options.equals("not an LLMRequestOptions"));
-        assertFalse(options.equals(LLMRequestOptions.builder().jsonSchema("document_summary", SCHEMA).build()));
-        assertFalse(options.equals(LLMRequestOptions.builder().maxOutputTokens(64).jsonSchema("other", SCHEMA)
-            .build()));
-        assertFalse(options.equals(LLMRequestOptions.builder().maxOutputTokens(64)
-            .jsonSchema("document_summary", "{}").build()));
-    }
-
-    @Test
     void refusesACeilingThatIsNotPositive()
     {
         assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.builder().maxOutputTokens(0));
         assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.builder().maxOutputTokens(-1));
-        assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.withMaxOutputTokens(0));
     }
 }

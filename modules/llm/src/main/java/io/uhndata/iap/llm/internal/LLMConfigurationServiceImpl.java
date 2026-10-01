@@ -78,8 +78,8 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
         Set.of("endpoint", "apiKeyEnvVar", "timeoutSeconds");
 
     /** Model properties with a dedicated {@link LLMModelNode} field, left out of {@code extra}. */
-    private static final Set<String> KNOWN_MODEL_PROPERTIES = Set.of("contextLimitTokens", "maxOutputTokens",
-        "temperature", "chunkTokenSize", "wholeDocumentTokenLimit", "developer");
+    private static final Set<String> KNOWN_MODEL_PROPERTIES =
+        Set.of("contextLimitTokens", "temperature", "developer");
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -134,15 +134,14 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
         if (node == null) {
             throw new IOException("Could not read the LLM model at " + model.getPath());
         }
-        return new ModelSettings(node.getContextLimitTokens(), node.getMaxOutputTokens(), node.getTemperature(),
-            node.getChunkTokenSize(), node.getWholeDocumentTokenLimit(), node.getDeveloper(),
+        return new ModelSettings(node.getContextLimitTokens(), node.getTemperature(), node.getDeveloper(),
             extra(model.getValueMap(), KNOWN_MODEL_PROPERTIES));
     }
 
     /**
      * The properties of a node that are neither JCR/Sling bookkeeping nor already exposed through a dedicated
-     * field, i.e. exactly what {@link LLMSettings#getProviderProperty} / {@code getModelProperty} can still
-     * answer.
+     * field, i.e. exactly what {@link LLMSettings#getProviderProperty} and {@link LLMSettings#getModelId} can
+     * still read.
      *
      * @param valueMap the node's properties
      * @param known the property names already covered by a dedicated field

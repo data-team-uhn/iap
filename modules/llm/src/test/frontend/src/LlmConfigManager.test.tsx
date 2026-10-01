@@ -40,8 +40,8 @@ const catalogJson = (activeProvider = "local", activeModel = "llama3.2-3b") => (
       endpoint: "http://localhost:11434/v1",
       timeoutSeconds: 600,
       models: [
-        { name: "llama3.2-3b", maxOutputTokens: 1024, developer: "meta" },
-        { name: "other-model", maxOutputTokens: 2048 },
+        { name: "llama3.2-3b", contextLimitTokens: 1024, developer: "meta" },
+        { name: "other-model", contextLimitTokens: 2048 },
       ],
     },
     { name: "prompter", endpoint: "https://prompter.example.invalid/v1", models: [ { name: "GPT-OSS-120B" } ] },
