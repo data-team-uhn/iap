@@ -6,7 +6,7 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "What the platform does with an uploaded proposal once the daemon has parsed it. The two classifications go first, in one model call: is it a research proposal, and what kind of study is it. The picks are stored as answers, pre-filled for the researcher, and the reading acts on them only once they are settled - confirmed, changed, or picked by a model sure enough of them. A settled no ends the reading without reading the questions. A settled study type reads what every proposal is asked and what that type adds, in one more call. An unsettled pick pauses the reading on a task the researcher completes after confirming it. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
+    "description": "Classifies an uploaded document as a research proposal and, if so, its study type, then reads the matching questions only once both picks are settled: a settled no skips reading, and an unsettled pick pauses for the researcher to confirm. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "started",
@@ -35,6 +35,29 @@
       "elementId": "isProposal",
       "label": "A research proposal?",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toEndReadingFailed": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEndReadingFailed",
+        "label": "Could not classify",
+        "targetRef": "endReadingFailed",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [
+              "extractionStatus"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "failed"
+            ]
+          }
+        }
+      },
       "toStudyType": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toStudyType",
@@ -149,6 +172,23 @@
           }
         }
       },
+      "toAskCommon": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAskCommon",
+        "label": "Another study type",
+        "targetRef": "askCommon",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "is not empty",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "decision",
+            "value": [
+              "proposal_category/decision"
+            ]
+          }
+        }
+      },
       "toMarkCategoryUnsettled": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkCategoryUnsettled",
@@ -186,6 +226,21 @@
       "retrospectiveToMark": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "retrospectiveToMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "askCommon": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askCommon",
+      "label": "Read what every study is asked",
+      "handler": "intakeAnswers",
+      "requirement": [
+        "common"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "commonToMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "commonToMark",
         "targetRef": "markCompleteness"
       }
     },
@@ -249,6 +304,12 @@
       "label": "Not a research proposal",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     },
+    "endReadingFailed": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "endReadingFailed",
+      "label": "The document could not be classified",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
     "markProposalUnsettled": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "markProposalUnsettled",
@@ -266,6 +327,7 @@
       "elementId": "finishProposalUnsettled",
       "label": "The reading is paused",
       "handler": "finishReading",
+      "message": "The reading waits for you to confirm whether this is a research proposal.",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toConfirmProposalUnsettled": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -306,6 +368,7 @@
       "elementId": "finishCategoryUnsettled",
       "label": "The reading is paused",
       "handler": "finishReading",
+      "message": "The reading waits for you to confirm the study type.",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toConfirmCategoryUnsettled": {
         "jcr:primaryType": "wf:SequenceFlow",
