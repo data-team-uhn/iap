@@ -54,7 +54,7 @@ const renderSteps = (props: Props = {}) => {
   return { ...view, rerenderSteps: (next: Props) => view.rerender(tree(next)) };
 };
 
-const stepOf = (label: string) => screen.getByText(label).closest(".MuiStep-root");
+const getStepElement = (label: string) => screen.getByText(label).closest(".MuiStep-root");
 
 // MUI reads the breakpoint through matchMedia, which jsdom does not implement; without a stand-in
 // useMediaQuery just reports false, so only xs matches.
@@ -103,13 +103,13 @@ describe("StepProgress", () => {
 
     it("marks the step that ended and the one arriving when the bar moves forward", () => {
       const { rerenderSteps } = renderSteps({ activeStep: 1, layout });
-      expect(stepOf("Review")).not.toHaveClass("StepProgress-arriving");
+      expect(getStepElement("Review")).not.toHaveClass("StepProgress-arriving");
 
       rerenderSteps({ activeStep: 2, layout });
 
-      expect(stepOf("Review")).toHaveClass("StepProgress-ended");
-      expect(stepOf("Save")).toHaveClass("StepProgress-arriving");
-      expect(stepOf("Collect")).not.toHaveClass("StepProgress-ended");
+      expect(getStepElement("Review")).toHaveClass("StepProgress-ended");
+      expect(getStepElement("Save")).toHaveClass("StepProgress-arriving");
+      expect(getStepElement("Collect")).not.toHaveClass("StepProgress-ended");
     });
 
     it("marks nothing when the bar moves back or a step fails", () => {
@@ -117,10 +117,10 @@ describe("StepProgress", () => {
       rerenderSteps({ activeStep: 2, layout });
 
       rerenderSteps({ activeStep: 2, error: { message: "Stopped." }, layout });
-      expect(stepOf("Save")).not.toHaveClass("StepProgress-arriving");
+      expect(getStepElement("Save")).not.toHaveClass("StepProgress-arriving");
 
       rerenderSteps({ activeStep: 0, layout });
-      expect(stepOf("Collect")).not.toHaveClass("StepProgress-arriving");
+      expect(getStepElement("Collect")).not.toHaveClass("StepProgress-arriving");
     });
   });
 
