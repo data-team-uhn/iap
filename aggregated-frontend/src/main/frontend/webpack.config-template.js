@@ -22,12 +22,35 @@ import MinimizerPlugin from 'minimizer-webpack-plugin';
 import ESLintPlugin from 'eslint-webpack-plugin';
 import { defineReactCompilerLoaderOption, reactCompilerLoader } from 'react-compiler-webpack';
 
+import { createHash } from 'crypto';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isProduction = process.argv.find(arg => arg.startsWith("--mode"))?.substring(7) == 'production';
+
+const FRONTEND_RESOURCES_PATH = '/libs/iap/resources/';
+
+// PDF.js runs in a web worker, served as a file of its own. Hashed so it caches like the chunks;
+// .js because Sling serves .mjs as application/octet-stream.
+const pdfWorkerBytes = fs.readFileSync(new URL(import.meta.resolve('pdfjs-dist/build/pdf.worker.min.mjs')));
+const pdfWorkerHash = createHash('sha256').update(pdfWorkerBytes).digest('hex').slice(0, 20);
+const PDF_WORKER_FILE = `pdf.worker.min.${pdfWorkerHash}.js`;
+
+// A plugin that adds a file to the output as it is. The file belongs to no chunk, so it cannot take
+// a chunk's key in assets.json.
+function emitStaticAsset(name, content, info = {}) {
+  return {
+    apply: compiler => compiler.hooks.thisCompilation.tap(`Emit ${name}`, compilation =>
+      compilation.hooks.processAssets.tap(
+        { name: `Emit ${name}`, stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
+        () => compilation.emitAsset(name, new compiler.webpack.sources.RawSource(content), info)
+      )
+    )
+  };
+}
 
 /**
  * Helper function to format and log React Compiler events
@@ -103,26 +126,34 @@ ENTRY_CONTENT
     },
     plugins: [
       new WebpackAssetsManifest({
-        output: "assets.json"
+        output: "assets.json",
+        // header.html loads the page from these two keys, so fail the build if another file took one
+        done: (manifest, stats) => {
+          for (const chunk of ['vendor', 'runtime']) {
+            const target = manifest.get(`${chunk}.js`);
+            if (!new RegExp(`^${chunk}\\.[0-9a-f]+\\.js$`).test(String(target))) {
+              stats.compilation.errors.push(new webpack.WebpackError(
+                `assets.json maps ${chunk}.js to ${String(target)} instead of the ${chunk} chunk`));
+            }
+          }
+          return Promise.resolve();
+        }
       }),
       // The MUI X license key belongs to the deployment rather than to this (public) repository,
       // so it is read from the build environment and substituted in here.
       new webpack.DefinePlugin({
         "process.env.MUI_LICENSE_KEY": JSON.stringify(process.env.MUI_LICENSE_KEY),
+        // Where pdfjsClient.ts finds the worker emitted below
+        "process.env.PDF_WORKER_URL": JSON.stringify(FRONTEND_RESOURCES_PATH + PDF_WORKER_FILE),
       }),
+      // The PDF.js worker: already minified, and a module, so the minimizer leaves it alone
+      emitStaticAsset(PDF_WORKER_FILE, pdfWorkerBytes, { minimized: true, javascriptModule: true }),
       // The client-side assetManager fetches an asset *dependencies* manifest alongside the
       // assets.json name map (see frontend-commons/src/assetManager.tsx). No IAP entry point
       // declares runtime dependencies on other entry points, so emit an empty manifest to
       // keep that fetch from 404ing; when real cross-entry dependencies appear, replace this
       // with a proper per-module declaration + aggregation step.
-      {
-        apply: compiler => compiler.hooks.thisCompilation.tap('EmitAssetDependencies', compilation =>
-          compilation.hooks.processAssets.tap(
-            { name: 'EmitAssetDependencies', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
-            () => compilation.emitAsset('assetDependencies.json', new compiler.webpack.sources.RawSource('{}\n'))
-          )
-        )
-      },
+      emitStaticAsset('assetDependencies.json', '{}\n'),
       !env.quick && new ESLintPlugin({
         extensions: ['js', 'jsx', 'ts', 'tsx'],
         emitWarning: false,   // Show warnings in ESLint output, not as webpack warnings
@@ -186,6 +217,15 @@ ENTRY_CONTENT
       splitChunks: {
         chunks: 'all',
         cacheGroups: {
+          // PDF.js is only needed once a PDF is opened, so it gets a chunk of its own rather than
+          // joining the vendor chunk that every page loads
+          pdfjs: {
+            test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]/,
+            chunks: 'async',
+            name: 'pdfjs',
+            enforce: true,
+            priority: 0
+          },
           defaultVendors: {
             minChunks: 1,
             minSize: 200,
@@ -210,7 +250,8 @@ ENTRY_CONTENT
         type: "modern-module",
       },
       path: __dirname + '/dist/SLING-INF/content/libs/iap/resources/',
-      publicPath: '/',
+      // Where the runtime loads a chunk from when the code asks for it later, like the PDF.js one
+      publicPath: FRONTEND_RESOURCES_PATH,
       filename: '[name].[contenthash].js',
     }
   }
