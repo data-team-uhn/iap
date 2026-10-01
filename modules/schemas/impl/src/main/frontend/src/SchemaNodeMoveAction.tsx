@@ -34,7 +34,7 @@ function SchemaNodeMoveAction({ node, what }: { node: JcrNode; what: string }) {
       label="Move"
       icon={<SwapVertIcon fontSize="small" />}
       pressed={pressed}
-      onClick={event => (pressed ? cancel() : start({ node, what, trigger: event.currentTarget }))}
+      onClick={trigger => (pressed ? cancel() : start({ node, what, trigger }))}
     />
   );
 }

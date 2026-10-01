@@ -16,15 +16,17 @@
  * limitations under the License.
  */
 
-import { useState, type MouseEvent, type ReactNode, type Ref } from "react";
+import { use, useState, type ReactNode, type Ref } from "react";
 
-import { Box, DialogContentText, IconButton, Tooltip } from "@mui/material";
+import { Box, DialogContentText, IconButton, ListItemIcon, ListItemText, MenuItem, Tooltip } from "@mui/material";
 
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { isRefusal } from "@iap/frontend-commons/requestFailure";
 
+import { ActionsMenuContext } from "./ActionsMenu";
 import { sendEvent } from "./schemaEvents";
+import { TOUCH_TARGET } from "./schemaTreeLayout";
 
 interface EventActionProps {
   path: string;
@@ -71,23 +73,36 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is.
+// One action as an icon button, named by its tooltip, or in a menu as a named line. One that stays on until pressed
+// again says whether it is. What it does is given what stands for it: the button, or what held the menu.
 export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref }: {
   label: string;
   icon: ReactNode;
-  onClick: (event: MouseEvent<HTMLElement>) => void;
+  onClick: (trigger: HTMLElement) => void;
   pressed?: boolean;
   color?: "default" | "primary";
   disabled?: boolean;
   loading?: boolean;
   ref?: Ref<HTMLButtonElement>;
 }) {
+  const menu = use(ActionsMenuContext);
+  if (menu) {
+    return (
+      <MenuItem disabled={disabled} onClick={() => {
+        menu.close();
+        onClick(menu.trigger);
+      }}>
+        <ListItemIcon>{icon}</ListItemIcon>
+        <ListItemText>{label}</ListItemText>
+      </MenuItem>
+    );
+  }
   return (
     <Tooltip title={label}>
       {/* A disabled button fires no events, so the tooltip listens on what holds it */}
       <Box component="span" sx={{ display: "inline-flex" }}>
         <IconButton ref={ref} size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : color}
-          disabled={disabled} loading={loading} onClick={onClick}>
+          disabled={disabled} loading={loading} onClick={event => onClick(event.currentTarget)} sx={TOUCH_TARGET}>
           {icon}
         </IconButton>
       </Box>
