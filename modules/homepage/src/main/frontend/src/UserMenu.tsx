@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 
+import CheckIcon from "@mui/icons-material/Check";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Avatar,
@@ -33,6 +34,12 @@ import {
 } from "@mui/material";
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import {
+  availablePersonas,
+  personaLabel,
+  setActivePersona,
+  usePersona,
+} from "@iap/ui-extension/personas";
 
 // Sling's user management endpoint, serving a user's properties
 const userInfoUrl = (userId: string) => `/system/userManager/user/${encodeURIComponent(userId)}.json`;
@@ -57,12 +64,15 @@ const initialsOf = (name: string): string => {
 };
 
 // The current user's presence in the app bar: an avatar with their initials, opening a menu that
-// identifies the account (user name and, when the profile provides one, full name) and offers to
-// sign out. Registered on the `iap/appBar/entry` extension point, end section.
+// identifies the account (user name and, when the profile provides one, full name), lets them choose
+// the persona they act as when they have more than one, and offers to sign out. Registered on the
+// `iap/appBar/entry` extension point, end section.
 function UserMenu() {
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const [ userName, setUserName ] = useState("");
   const [ fullName, setFullName ] = useState("");
+  const activePersona = usePersona();
+  const personas = availablePersonas();
 
   useEffect(() => {
     fetch(SESSION_INFO_URL)
@@ -86,6 +96,11 @@ function UserMenu() {
     return null;
   }
 
+  const choosePersona = (persona: string) => {
+    setActivePersona(persona);
+    setAnchor(null);
+  };
+
   return (
     <>
       <Tooltip title={userName}>
@@ -107,6 +122,26 @@ function UserMenu() {
           )}
         </Box>
         <Divider sx={{ mb: 1 }} />
+        { personas.length > 1 && [
+          <Typography key="heading" variant="description" sx={{ display: "block", px: 2, py: 0.5 }}>
+            Acting as
+          </Typography>,
+          ...personas.map(persona => (
+            <MenuItem
+              key={persona}
+              role="menuitemradio"
+              aria-checked={persona === activePersona}
+              selected={persona === activePersona}
+              onClick={() => choosePersona(persona)}
+            >
+              <ListItemIcon>
+                { persona === activePersona && <CheckIcon fontSize="small" /> }
+              </ListItemIcon>
+              <ListItemText>{personaLabel(persona)}</ListItemText>
+            </MenuItem>
+          )),
+          <Divider key="divider" />,
+        ] }
         <MenuItem component="a" href={LOGOUT_URL}>
           <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Sign out</ListItemText>
