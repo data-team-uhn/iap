@@ -516,11 +516,11 @@ received the POST.
 A system workflow runs inside the request and leaves nothing behind. A content workflow
 is the opposite: it outlives the request, because the next thing that has to happen is a
 person doing something. It persists as a `wf:WorkflowInstance` **inside the resource it
-drives** — found, secured and deleted along with it — plus a token recording where it
-has got to and a `wf:TaskInstance` for each thing somebody still owes.
+drives** — found, secured and deleted along with it — plus a `wf:WorkflowToken` for each
+branch in progress and a `wf:TaskInstance` for each thing somebody still owes.
 
-Running one is always the same walk, from wherever the token rests through whatever can
-be passed automatically, until it has to stop:
+Running one is always the same walk, from wherever a token rests through whatever can be
+passed automatically, until it has to stop:
 
 ```
 POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
@@ -552,6 +552,25 @@ decide it are different questions, and this is where the second is answered.
 like any other flow node, so the way a process finishes is what places the host's last
 state.
 
+**A task can be given a deadline.** A boundary timer — an event stored *inside* the
+activity, with a `timerDuration` — is armed when the task is raised: the engine works
+out when the wait ends and records it on the task itself, as `dueDate` and the
+`dueEventId` naming the timer. That puts the deadline where anything looking for overdue
+work can see it without running the engine, and it survives a restart, which a scheduled
+job in memory would not.
+
+When it passes, a periodic sweep hands the task to `receiveEvent` as an ordinary
+`timeout` event, so the clock comes through the same door as everything else. The task
+is cancelled — no assignee, no outcome, because nobody did it and nothing was decided —
+and execution leaves down the timer's own arc rather than the activity's, which is how a
+process says what running out of time *means*. There is no performer check: `performers`
+says who may make execution pass through a node, and time belongs to no group; refusing
+the clock for that would park the instance on a task that can never now be done. What
+stands in for one is the deadline itself: a `timeout` that arrives before it is refused
+as a conflict, whoever sends it, since one that could be sent early would take a task
+off somebody's desk, or down the path a process reserves for silence, with nothing
+having run out.
+
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be — a query returns rows, and no engine can run a
 workflow per row — so the workflow declares and the engine writes an ACL: the person it
@@ -559,36 +578,88 @@ is being run for, plus the performers of every user task in the version. Derivin
 from `performers` rather than inventing a second vocabulary means the two can never
 disagree.
 
+### More than one branch at once
+
+An instance holds a token per branch in progress, so the walk is a queue of positions
+rather than a single path. Four things follow from that, and they are the reason it was
+worth doing as one piece:
+
+**A parallel gateway forks and joins.** Leaving one takes *every* arc — the arriving
+token moves onto the first and a new one is created for each of the rest. A parallel
+gateway with several arcs leading in is a join: each token that arrives waits on it
+until one has come from every arc, and then they merge back into the one token that
+carries on.
+
+BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs
+whatever those say — so a condition on one could never decide anything. The engine
+treats that as an error in the diagram rather than quietly ignoring it, because the two
+readings are far apart: an author who guarded an arc believes that branch is sometimes
+not taken, and it always is.
+
+That counting is also how a diagram deadlocks: a parallel join placed after a fork that
+did *not* take every branch — an exclusive or inclusive one — waits for a token that was
+never created, and the instance stays active with nothing able to move it. Use an
+inclusive join to merge branches that were conditionally taken; it is exactly the case
+its reachability rule answers.
+
+**An inclusive gateway forks as widely as applies.** Every arc whose condition holds is
+taken, as is every arc that carries no condition, falling back on the default when
+nothing applies. Its join cannot count the way a parallel one does — the fork took only
+the branches that applied, and how many that was is written nowhere — so it asks the
+question that actually matters: *can any branch still get here?* When no other token in
+the instance can reach it by following the graph, what has arrived is all that ever
+will. Boundary events count as ways onwards, since a deadline can take a token off a
+task.
+
+That answer changes as the other branches move, and nothing arrives at the join to
+announce it, so the walk looks again at the parked joins once every branch has stopped
+moving, until nothing can move at all. Reading it from the graph rather than remembering
+it at the fork is what makes it survive an instance being resumed days later by somebody
+else.
+
+**An end event ends a branch, not the process.** The token that reached it is spent, and
+the instance closes only when the last one is gone. `terminate` on an end event is the
+other thing: it discards every remaining token and cancels every task still waiting for
+somebody, since a task whose token has been discarded can never be completed.
+
+**A non-interrupting boundary event runs beside the work.** An interrupting timer
+cancels the task it watches and execution leaves down the timer's arc. A
+non-interrupting one leaves the task exactly where it was and starts a second branch:
+"remind them after three days" as against "give up after five". Which deadlines have
+already fired is recorded on the task as `firedEvents`, so the sweep does not deliver
+the same one twice, and arming picks the earliest timer that has not fired — measured
+from when the task started, so "remind after a day and a half, give up after five days"
+means five days from the start rather than from the reminder.
+
+Tokens are interchangeable: nothing distinguishes one from another beyond where it
+rests, which is why two branches arriving at the same task simply mean two tasks, each
+completed on its own.
+
 ## Known gaps
 
-- **Gateway conditions are an interim placeholder.** An arc is taken when its
-  `conditionExpression` equals the instance's `outcome` variable, and the arc marked
-  default is taken when none matches. That covers the approve-or-reject shape and
-  deliberately nothing more; the demo's BPMN carries the real expression (`outcome ==
-  'approved'`) which the conditions module will compile, and the stored graph carries
-  the literal the engine can match today.
-- **One token at a time.** Parallel and inclusive gateways are rejected rather than
-  forked, and `terminate` on an end event is not yet distinguished from an ordinary one,
-  since with a single token there is nothing else to discard.
 - **Instance variables are not exposed to handlers.** The runtime persists `outcome` as
   a `wf:Variable`, but a service task inside an instance gets variables that live only
   for that delivery. Typed variables are already in the node types; wiring them to the
   SPI is what is missing.
-- **Nothing delivers a timer or a message.** An instance that reaches a mid-process
-  catching event is refused rather than parked, because nothing could ever wake it up
-  again.
+- **Nothing delivers a message.** A timer is delivered — a boundary timer on a user task
+  is armed when the task is raised and fired by a periodic sweep — but an instance that
+  reaches a *free-standing* catching event is still refused rather than parked, because
+  nothing could then wake it: what a message event waits for would have to be addressed
+  to it, and the engine's door currently opens onto a homepage or a task.
 - **Read access is granted for the life of the instance**, not only while a task is
   open, and is never revoked. Narrowing it as state changes is a refinement for when
   there is a reason to want it.
-- **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the
-  structured conditions mechanism, the way schema items express their conditions; it is
-  left as an expression until the conditions module lands.
-- **Event definitions carry no payload yet.** A timer event is recognized as a timer,
-  but there is nowhere to put its duration, and a message event records its `messageRef`
-  without resolving it to the `<bpmn:message>` declared at document level — which is
-  what the engine's event dictionary will need. The vocabulary can copy XML
-  *attributes*; these payloads live in nested *elements*, and the mechanism for pulling
-  those across is best designed alongside the parser that needs it.
+- **A gateway's guards can only ask about the execution.** They are evaluated against
+  the instance, so the `variable` operand source reaches what the run knows — the
+  outcome a task recorded — and nothing yet reaches the host it is attached to, which is
+  what routing on a request's own answers would need.
+- **The parser cannot yet fill in an event's payload.** A timer's duration now has
+  somewhere to live — `timerDuration` on the catching event — but BPMN keeps it in a
+  nested `timeDuration` element, and a message event records its `messageRef` without
+  resolving it to the `<bpmn:message>` declared at document level, which is what the
+  engine's event dictionary will need. The vocabulary can copy XML *attributes*; these
+  payloads live in nested *elements*, and the mechanism for reaching them is best
+  designed alongside the parser that needs it.
 - **`performers` is a principal list, not a condition.** It cannot express "and only if
   the schema they name belongs to their institution". That data-dependent half is a job
   for the conditions module, evaluated against the actor alongside the list rather than

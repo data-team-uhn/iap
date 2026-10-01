@@ -295,6 +295,18 @@
   // second token can reach.
   - interrupting (BOOLEAN) = true autocreated
 
+  // How long this event waits before firing, as an ISO-8601 duration such as
+  // P5D or PT48H, which is what makes it a timer: an event with one is fired by
+  // the clock, and an event without one waits for something to be delivered to
+  // it. Relative rather than absolute because it is a definition, shared by every
+  // instance -- when the waiting starts is a fact about the run, and is recorded
+  // on the task the event watches.
+  //
+  // The BPMN counterpart lives in a nested timeEventDefinition element rather
+  // than in an attribute, so the parser will have to reach into the element to
+  // fill this in; the vocabulary can only copy attributes across.
+  - timerDuration (STRING)
+
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
@@ -375,7 +387,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > data:EntityPart
+[wf:SequenceFlow] > data:EntityPart, cond:Conditionable
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier
@@ -387,11 +399,11 @@
   // Optional label shown on the arc
   - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways.
-  // TODO: replace this raw expression with the structured conditions mechanism
-  // (the cond:Conditionable mixin plus a cond:condition child), the same way
-  // schema items express their conditions, once the conditions module lands.
-  - conditionExpression (STRING)
+  // The guard a gateway evaluates before taking this arc is the cond:condition
+  // child the cond:Conditionable supertype brings, the same way schema items
+  // express theirs. An arc with none is unconditional, which for a gateway means
+  // it is taken as soon as it is considered - so ordering, and the default arc,
+  // are what keep such an arc from swallowing every decision.
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)
