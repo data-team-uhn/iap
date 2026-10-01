@@ -277,13 +277,19 @@ const sweepFrames = (axis: "X" | "Y") => ({
   to: { opacity: 1, [`backgroundPosition${axis}`]: "170%" },
 });
 
+// Neither depends on colour or theme, so compute each once rather than on every render.
+const SWEEP_X = sweep("X");
+const SWEEP_Y = sweep("Y");
+const SWEEP_FRAMES_X = sweepFrames("X");
+const SWEEP_FRAMES_Y = sweepFrames("Y");
+
 const rootSx = (color: StepProgressColor) => (theme: Theme) => {
   const { palette } = theme.vars ?? theme;
   return {
     width: "100%",
     "--iap-step-accent": palette[color].main,
-    "@keyframes stepProgressSweepX": sweepFrames("X"),
-    "@keyframes stepProgressSweepY": sweepFrames("Y"),
+    "@keyframes stepProgressSweepX": SWEEP_FRAMES_X,
+    "@keyframes stepProgressSweepY": SWEEP_FRAMES_Y,
     "@keyframes stepProgressPop": { "50%": { scale: "1.25" } },
     "@keyframes stepProgressFadeIn": { from: { opacity: 0 } },
     "@keyframes stepProgressFadeOut": { to: { opacity: 0, visibility: "hidden" } },
@@ -313,9 +319,9 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
           top: "50%",
           height: 3,
           marginTop: "-1.5px",
-          ...sweep("X"),
+          ...SWEEP_X,
         },
-        "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...sweep("Y") },
+        "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...SWEEP_Y },
         "& .MuiStepIcon-root": { animation: `stepProgressSettleIcon ${FADE} ease-in ${ARRIVAL} backwards` },
         "& .MuiStepLabel-label": { animation: `stepProgressSettleLabel ${FADE} ease-in ${ARRIVAL} backwards` },
         [`& .${classes.ring}`]: { animation: `stepProgressFadeIn ${FADE} ease-in ${ARRIVAL} backwards` },
