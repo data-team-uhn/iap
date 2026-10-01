@@ -124,11 +124,11 @@ class PerformerCheckTest
     @Test
     void looksNoGroupsUpForANodeNamingNobody() throws Exception
     {
-        final User actor = user(REQUESTER, false, REQUESTERS);
+        final ResourceResolver repository = repositoryWith(user(REQUESTER, false), REQUESTERS);
+        final UserManager userManager = ((JackrabbitSession) repository.adaptTo(Session.class)).getUserManager();
 
-        assertThrows(NotAuthorizedException.class,
-            () -> PerformerCheck.verify(repositoryWith(actor), node(), REQUESTER));
-        Mockito.verify(actor, Mockito.never()).memberOf();
+        assertThrows(NotAuthorizedException.class, () -> verify(repository, host(), node(), REQUESTER));
+        Mockito.verify(userManager, Mockito.never()).getAuthorizable(REQUESTERS);
     }
 
     @Test
