@@ -96,8 +96,9 @@ describe("AnswerField", () => {
     rerender(<AnswerField question={question({ dataType: "long" })} state="idle" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "number");
 
+    // Every text answer is a multi-line field, so a long drafted answer can be read whole
     rerender(<AnswerField question={question({ dataType: "text" })} state="idle" onAnswered={vi.fn()} />);
-    expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText(/Which day/).tagName).toBe("TEXTAREA");
   });
 
   it("says so when a question asks for something it has no way to answer", () => {
