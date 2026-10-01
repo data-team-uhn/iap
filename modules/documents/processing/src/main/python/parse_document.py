@@ -120,7 +120,7 @@ def parse_document(
             )
             elapsed = perf_counter() - t0
         # The same report the PDF path ends with, so both read the same in the logs
-        _log("\n=== Timing ===")
+        _log("=== Timing ===")
         _log(f"Total:                {elapsed:.2f}s")
         _log(f"Markdown characters:  {len(markdown):,}")
 

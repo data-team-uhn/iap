@@ -30,6 +30,7 @@ request guards were moved to :mod:`daemon_utils` for exactly that reason; see
 
 import json
 import pathlib
+import re
 import sys
 import threading
 import time
@@ -259,6 +260,16 @@ class TestResolveParsePath:
         with pytest.raises(daemon.ParseRequestError):
             daemon.resolve_parse_path(str(tmp_path / "missing.pdf"))
         assert issubclass(daemon.ParseRequestError, ValueError)
+
+
+class TestLogStderr:
+    """Every container log line is timestamped, since nothing upstream of it adds one."""
+
+    def test_prefixes_the_message_with_a_utc_timestamp(self, capsys):
+        daemon._log_stderr("parse job=abc done")
+
+        logged = capsys.readouterr().err
+        assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z parse job=abc done\n$", logged)
 
 
 class TestHealthReporting:
@@ -1017,7 +1028,8 @@ def _parse_only_state(slots=daemon.MAX_CONCURRENT_PARSES):
     state = object.__new__(daemon.DaemonState)
     state.parse_executor = ThreadPoolExecutor(max_workers=slots, thread_name_prefix="parse")
     state.pending_parses = {}
-    state.pending_lock = threading.Lock()
+    state.cancelled_jobs = set()
+    state.pending_lock = threading.RLock()
     state.shutdown_requested = False
     state.pdf_executor_broken = False
     # A background parse takes this for the conversion itself, so that it cannot run
