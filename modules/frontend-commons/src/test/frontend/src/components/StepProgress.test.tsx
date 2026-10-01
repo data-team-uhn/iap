@@ -81,14 +81,14 @@ describe("StepProgress", () => {
       expect(screen.getByText("Collect")).toHaveClass("Mui-completed");
       expect(screen.getByText("Review")).toHaveClass("Mui-active");
       expect(screen.getByText("Save")).toBeInTheDocument();
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).toBeInTheDocument();
       expect(screen.getByRole("status")).toHaveTextContent("Step 2 of 3. Review.");
     });
 
     it("drops the ring once every step is done", () => {
       renderSteps({ activeStep: STEPS.length, layout });
 
-      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
       expect(screen.getByText("Save")).toHaveClass("Mui-completed");
       expect(screen.getByRole("status")).toHaveTextContent("All 3 steps done.");
     });
@@ -98,7 +98,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByText("Review")).toHaveClass("Mui-error");
-      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
     it("marks the step that ended and the one arriving when the bar moves forward", () => {
@@ -138,7 +138,7 @@ describe("StepProgress", () => {
       expect(screen.getByText("2/3")).toBeInTheDocument();
       expect(screen.queryByText("Collect")).not.toBeInTheDocument();
       expect(screen.queryByText("Save")).not.toBeInTheDocument();
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).toBeInTheDocument();
     });
 
     it("keeps the last step, checked, once every step is done", () => {
@@ -146,7 +146,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByText("Save")).toBeInTheDocument();
       expect(screen.getByTestId("CheckCircleIcon")).toBeInTheDocument();
-      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
     it("alerts that the failed step stopped, and why", () => {
@@ -154,7 +154,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByTestId("WarningIcon")).toBeInTheDocument();
-      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
     it("checks the step that ended before the next one shows when the bar moves forward", () => {
