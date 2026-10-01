@@ -26,6 +26,8 @@ import {
   Box, Button, Chip, IconButton, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from "@mui/material";
 
+import { usePhone } from "@iap/frontend-commons/usePhone";
+
 import {
   aggregatesFor, type Choice, choicesOf, comparatorOf, comparatorsFor, describeDraft, type DraftCondition,
   type DraftGroup, type DraftOperand, type DraftSingle, isChosen, isComplete, LITERAL, newGroup, newOperand,
@@ -55,8 +57,9 @@ interface Common {
 const NARROW = { width: { xs: "100%", sm: "15rem" }, flexShrink: 0 };
 const WIDE = { flex: 1, minWidth: 0, width: { xs: "100%", sm: "auto" } };
 
-// The column where a group's conditions are joined
+// The column where a group's conditions are joined, narrower on a phone
 const RAIL = 48;
+const PHONE_RAIL = 24;
 
 function Row({ children }: { children: ReactNode }) {
   return <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>{children}</Stack>;
@@ -134,6 +137,7 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
   const aggregates = aggregatesFor(shapeOf({ ...a, aggregate: undefined }, sources));
   const offered = comparatorsFor(shape);
   const comparator = comparatorOf(condition.comparator);
+  const phone = usePhone();
   const taken = valuesTaken(comparator, shape);
   const waiting = disabled || !isChosen(a, sources);
   // For the values' choices to open as soon as what is compared is chosen
@@ -157,7 +161,8 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
 
   return (
     <Box role="group" aria-label="Condition"
-      sx={{ display: "flex", gap: 1, alignItems: "flex-start", p: 2, borderRadius: 1, bgcolor: "background.muted" }}>
+      sx={{ display: "flex", gap: 1, alignItems: "flex-start", p: { xs: 1.5, sm: 2 }, borderRadius: 1,
+        bgcolor: "background.muted" }}>
       <Stack spacing={2.5} sx={{ flex: 1, minWidth: 0 }}>
         <Row>
           <Box sx={NARROW}>
@@ -211,10 +216,18 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
             </Box>
           </Row>
         ) }
+        {/* On a phone, under what it removes, leaving the fields the width */}
+        { phone && (
+          <Button variant="text" color="error" disabled={disabled} onClick={onRemove} sx={{ alignSelf: "flex-start" }}>
+            Remove this condition
+          </Button>
+        ) }
       </Stack>
-      <IconButton aria-label="Remove this condition" disabled={disabled} onClick={onRemove}>
-        <CloseOutlinedIcon />
-      </IconButton>
+      { !phone && (
+        <IconButton aria-label="Remove this condition" disabled={disabled} onClick={onRemove}>
+          <CloseOutlinedIcon />
+        </IconButton>
+      ) }
     </Box>
   );
 }
@@ -240,6 +253,8 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
   const [ open, setOpen ] = useState(true);
   const first = sources.at(0)?.name ?? LITERAL;
   const nested = depth > 0;
+  const phone = usePhone();
+  const rail = phone ? PHONE_RAIL : RAIL;
   const replace = (at: number, next?: DraftCondition) => onChange({ ...group,
     conditions: next ? group.conditions.map((condition, index) => (index === at ? next : condition))
       : group.conditions.filter((_condition, index) => index !== at) });
@@ -247,6 +262,12 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
   const joiner = group.requireAll ? "And" : "Or";
   // Joined along a line, once there is an All or Any to say how
   const railed = nested || group.conditions.length > 1;
+  // At the end of its heading, or on a phone after what adds to the group, saving the heading a line
+  const removeGroup = onRemove && (
+    <Button variant="text" color="error" disabled={disabled} onClick={onRemove} sx={{ ml: { sm: "auto" } }}>
+      Remove this group
+    </Button>
+  );
 
   return (
     <Stack spacing={1.5} role="group" aria-label={nested ? "Group of conditions" : "Conditions"}
@@ -254,7 +275,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
       sx={nested ? { bgcolor: "background.muted", borderRadius: 1, p: 1 } : undefined}>
       { (nested || group.conditions.length > 1) && (
         <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, rowGap: 1, flexWrap: "wrap" }}>
-          <Box sx={{ width: RAIL, mr: -1, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+          <Box sx={{ width: rail, mr: -1, flexShrink: 0, display: "flex", justifyContent: "center" }}>
             <IconButton size="small" aria-label={open ? "Collapse this group" : "Expand this group"}
               aria-expanded={open} onClick={() => setOpen(current => !current)}>
               { open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" /> }
@@ -272,11 +293,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
             <ToggleButton value="any">Any</ToggleButton>
           </ToggleButtonGroup>
           <Typography>of these are true</Typography>
-          { onRemove && (
-            <Button variant="text" disabled={disabled} onClick={onRemove} sx={{ ml: "auto" }}>
-              Remove this group
-            </Button>
-          ) }
+          { !phone && removeGroup }
         </Stack>
       ) }
       {/* At the top, what the dialog says already reads a complete condition */}
@@ -287,9 +304,9 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
         <Typography variant="placeholder">No condition. It always applies.</Typography>
       ) }
       { open && (
-        <Box sx={railed ? { position: "relative", pl: `${RAIL}px` } : undefined}>
+        <Box sx={railed ? { position: "relative", pl: `${rail}px` } : undefined}>
           { railed && (
-            <Box aria-hidden sx={{ position: "absolute", left: RAIL / 2 - 1, top: 0, bottom: 0, width: 2,
+            <Box aria-hidden sx={{ position: "absolute", left: rail / 2 - 1, top: 0, bottom: 0, width: 2,
               borderRadius: 1, bgcolor: "background.tintedStrong" }} />
           ) }
           <Stack spacing={1.5}>
@@ -298,7 +315,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
                 { at > 0 && (
                   <Box sx={{ position: "relative", height: 24 }}>
                     <Chip label={joiner} size="small" variant="outlined" color="primary"
-                      sx={{ position: "absolute", left: -RAIL / 2, translate: "-50%", bgcolor: "background.paper" }} />
+                      sx={{ position: "absolute", left: -rail / 2, translate: "-50%", bgcolor: "background.paper" }} />
                   </Box>
                 ) }
                 { condition.kind === "single" && (
@@ -330,6 +347,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
                 onClick={() => add({ ...newGroup(), conditions: [ newSingle(first) ] })}>
                 Group
               </Button>
+              { phone && removeGroup }
             </Stack>
           </Stack>
         </Box>

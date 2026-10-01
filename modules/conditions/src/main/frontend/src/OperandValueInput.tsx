@@ -66,6 +66,10 @@ function OperandValueInput(props: OperandValueInputProps) {
         disabled={disabled}
         onChange={(_event, picked) => onChange(picked)}
         renderInput={params => <TextField {...params} {...common} />}
+        // A long value wraps rather than being cut short
+        slotProps={{
+          chip: { sx: { height: "auto" }, slotProps: { label: { sx: { whiteSpace: "normal", py: 0.5 } } } },
+        }}
       />
     );
   }

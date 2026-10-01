@@ -16,15 +16,24 @@
  * limitations under the License.
  */
 
-import { Typography } from "@mui/material";
+import { useRef, useState } from "react";
+
+import { Tooltip, Typography } from "@mui/material";
 
 // A name the machine goes by, such as a part's identifier or the value an option stores, set apart from the words
-// around it
+// around it. Too long for where it stands, it is cut short, and shown whole on hover or a long press.
 function CodePill({ name }: { name: string }) {
+  const pill = useRef<HTMLSpanElement>(null);
+  const [ whole, setWhole ] = useState(false);
   return (
-    <Typography variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1, overflowWrap: "anywhere" }}>
-      {name}
-    </Typography>
+    <Tooltip title={name} open={whole} onClose={() => setWhole(false)}
+      onOpen={() => setWhole(pill.current !== null && pill.current.scrollWidth > pill.current.clientWidth)}>
+      <Typography ref={pill} variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1,
+        display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        verticalAlign: "bottom" }}>
+        {name}
+      </Typography>
+    </Tooltip>
   );
 }
 

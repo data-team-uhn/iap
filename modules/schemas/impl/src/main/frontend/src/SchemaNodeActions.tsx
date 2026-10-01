@@ -18,7 +18,9 @@
 
 import AltRouteOutlinedIcon from "@mui/icons-material/AltRouteOutlined";
 
+import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import { type JcrNode, nameIfAny } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
@@ -27,7 +29,7 @@ import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
 import SchemaOptionStepActions from "./SchemaOptionStepActions";
-import { isPart } from "./schemaVersionTreeModel";
+import { headingOf, isPart, optionLabelOf } from "./schemaVersionTreeModel";
 
 interface SchemaNodeActionsProps {
   node: JcrNode;
@@ -42,23 +44,31 @@ interface SchemaNodeActionsProps {
 
 // What may be done to a part or an answer option where it stands: correct it, set when a part applies, add a part
 // after it, move it, remove it. An option is added at the end of its question's, and moved up or down from there.
-// While a part is moving, only moving is.
+// While a part is moving, only moving is. On a phone, all but moving one step are in a menu.
 function SchemaNodeActions({ node, parent, siblings, what, editCondition }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
+  const phone = usePhone();
   const next = siblings.at(siblings.indexOf(node) + 1);
+  const label = `Actions for “${isPart(node) ? headingOf(node) : optionLabelOf(node)}”`;
+  const edit = !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} />;
+  const discard = !moving && <SchemaNodeDiscardAction node={node} what={what} />;
+  if (!isPart(node)) {
+    const steps = !moving && <SchemaOptionStepActions option={node} question={parent} options={siblings} />;
+    return phone
+      ? <>{steps}<ActionsMenu label={label}>{edit}{discard}</ActionsMenu></>
+      : <>{edit}{steps}{discard}</>;
+  }
   return (
-    <>
-      { !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} /> }
+    <ActionsMenu label={label} inline={moving !== undefined}>
+      {edit}
       { editCondition && (
         <ActionIcon label="When it applies" onClick={editCondition}
           icon={<AltRouteOutlinedIcon fontSize="small" sx={{ color: "condition.main" }} />} />
       ) }
-      { isPart(node) && <AddBelow parent={parent} next={nameIfAny(next)} /> }
-      { isPart(node)
-        ? <SchemaNodeMoveAction node={node} what={what} />
-        : !moving && <SchemaOptionStepActions option={node} question={parent} options={siblings} /> }
-      { !moving && <SchemaNodeDiscardAction node={node} what={what} /> }
-    </>
+      <AddBelow parent={parent} next={nameIfAny(next)} />
+      <SchemaNodeMoveAction node={node} what={what} />
+      {discard}
+    </ActionsMenu>
   );
 }
 

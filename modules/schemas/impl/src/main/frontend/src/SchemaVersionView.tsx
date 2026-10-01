@@ -22,6 +22,7 @@ import { Alert, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
+import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
@@ -68,15 +69,17 @@ function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema }: S
       status={<TagChip tags={version.tags} />}
       description={descriptionOf(version)}
       action={
-        <SchemaVersionActions
-          version={version}
-          schema={schema}
-          reload={() => {
-            reloadSchema();
-            void reload();
-          }}
-          removed={() => void navigate(schemaPage)}
-        />
+        <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
+          <SchemaVersionActions
+            version={version}
+            schema={schema}
+            reload={() => {
+              reloadSchema();
+              void reload();
+            }}
+            removed={() => void navigate(schemaPage)}
+          />
+        </ActionsMenu>
       }
       disablePanel
     >
