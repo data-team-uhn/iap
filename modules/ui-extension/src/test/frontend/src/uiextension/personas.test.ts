@@ -107,7 +107,7 @@ describe("the active persona", () => {
     unsubscribe();
   });
 
-  // The reason the store hangs off `window` at all: the switcher and the components reading the
+  // The reason the store hangs off `window` at all: the user menu and the components reading the
   // persona are separate webpack bundles, and this module may legitimately be duplicated into both.
   // Duplicate copies must still agree, which they do only because the state is not in a closure.
   it("is shared with a separately loaded copy of this module", async () => {
