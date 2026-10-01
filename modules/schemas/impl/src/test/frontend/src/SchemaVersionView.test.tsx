@@ -23,6 +23,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
+import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
@@ -768,5 +769,101 @@ describe("SchemaVersionView", () => {
     expect(await screen.findByRole("gridcell", { name: "1.0" })).toBeInTheDocument();
     expect(posted.map(event => event.url))
       .toEqual([ "/Schemas/study/v3.activate.json", "/Schemas/study/v3.discard.json" ]);
+  });
+
+  describe("on a phone", () => {
+    beforeEach(() => stubPhone());
+
+    const menuButton = (name: string) => screen.findByRole("button", { name: `Actions for “${name}”` });
+    const openActions = async (name: string) => {
+      fireEvent.click(await menuButton(name));
+      return screen.findByRole("menu");
+    };
+    const lines = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").map(item => item.textContent);
+
+    it("offers what may be done to a part in one menu, and says its kind in its heading", async () => {
+      const posted = serveSchemas();
+      renderVersion("study", "v3");
+
+      const age = await card("Your age");
+      expect(within(age).queryByRole("button", { name: "Move" })).not.toBeInTheDocument();
+      expect(within(age).getByText("Your age").closest("p")).toContainElement(within(age).getByTitle("Question"));
+      const menu = await openActions("Your age");
+      expect(lines(menu)).toEqual(
+        [ "When it applies", "Add section below", "Add question below", "Move", "Remove" ]);
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Add question below" }));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+      const dialog = await screen.findByRole("dialog", { name: /New question/ });
+      fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your email" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
+      expect(posted[0].params.get("type")).toBe("sch:Question");
+      expect(posted[0].params.has("before")).toBe(false);
+    });
+
+    it("edits and sets when a part applies from its menu", async () => {
+      serveSchemas();
+      renderVersion("study", "v3");
+
+      fireEvent.click(within(await openActions("Your age")).getByRole("menuitem", { name: "When it applies" }));
+      fireEvent.click(within(await screen.findByRole("dialog", { name: "When this question applies" }))
+        .getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      fireEvent.click(within(await openActions("Your name")).getByRole("menuitem", { name: "Edit" }));
+
+      expect(await screen.findByRole("dialog", { name: "Edit question" })).toBeInTheDocument();
+    });
+
+    it("moves a part chosen from its menu, showing only moving meanwhile", async () => {
+      serveSchemas();
+      renderVersion("study", "v3");
+
+      fireEvent.click(within(await openActions("Your age")).getByRole("menuitem", { name: "Move" }));
+
+      expect(await screen.findByRole("status")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Actions for “/ })).not.toBeInTheDocument();
+      fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Move", pressed: true }));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(await menuButton("Your age")).toBeInTheDocument();
+    });
+
+    it("says only where a part is moving to, as it is the one shown moving", async () => {
+      serveSchemas({ answers: {
+        "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
+      } });
+      renderVersion("study", "v3");
+
+      fireEvent.click(within(await openActions("Your age")).getByRole("menuitem", { name: "Move" }));
+      const spot = await screen.findByRole("button", { name: "Move before Your name" });
+      fireEvent.click(spot);
+
+      expect(spot).toHaveTextContent(/^Moving before\s*Your name…$/);
+      await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    });
+
+    it("keeps an option's steps on its row, and the rest in its menu", async () => {
+      serveSchemas();
+      renderVersion("study", "v3");
+
+      await expand("Your name");
+      const short = await card("Short");
+      expect(within(short).getByRole("button", { name: "Move down" })).toBeEnabled();
+      expect(within(short).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+
+      expect(lines(await openActions("Short"))).toEqual([ "Remove" ]);
+    });
+
+    it("acts on the version from its menu", async () => {
+      const posted = serveSchemas();
+      renderVersion("study", "v3");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
+      const versionMenu = await screen.findByRole("menu");
+      fireEvent.click(await within(versionMenu).findByRole("menuitem", { name: "Activate" }));
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Activate" }));
+
+      await waitFor(() => expect(posted.map(event => event.url)).toEqual([ "/Schemas/study/v3.activate.json" ]));
+    });
   });
 });

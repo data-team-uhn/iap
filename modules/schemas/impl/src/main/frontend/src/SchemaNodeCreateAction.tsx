@@ -22,6 +22,7 @@ import AddBoxOutlinedIcon from "@mui/icons-material/AddBoxOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import { Button, FormControlLabel, Menu, MenuItem, Radio, RadioGroup } from "@mui/material";
 
+import { useInActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { suggestName } from "@iap/frontend-commons/fields/contentNames";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
@@ -42,8 +43,18 @@ interface SchemaNodeCreateActionProps {
   before?: string;
   // The parent's first child; when given, the dialog offers to place new content ahead of it
   first?: string;
-  // Renders the control that opens the choice; `only` is the type on offer when there is just one
-  trigger: (open: (anchor: HTMLElement) => void, only?: CreatableType) => ReactNode;
+  // The control that offers it, given what it may offer
+  trigger: (offer: Offer) => ReactNode;
+}
+
+interface Offer {
+  // Opens the choice of a type, or the one type's dialog
+  open: (anchor: HTMLElement) => void;
+  // The only type offered, if there is one
+  only?: CreatableType;
+  types: CreatableType[];
+  // Opens one type's dialog
+  add: (type: CreatableType) => void;
 }
 
 // Adds a part or an answer option to a parent. It offers every type the parent may create, then a dialog
@@ -65,6 +76,10 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
     setIdentifier(undefined);
     setChosen(type);
   };
+  const add = (type: CreatableType) => {
+    setAtStart(false);
+    choose(type);
+  };
   const open = (anchor: HTMLElement) => {
     setAtStart(false);
     if (types.length === 1) {
@@ -78,7 +93,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
 
   return (
     <>
-      { trigger(open, types.length === 1 ? types[0] : undefined) }
+      { trigger({ open, only: types.length === 1 ? types[0] : undefined, types, add }) }
       <Menu anchorEl={menu} open={menu !== null} onClose={() => setMenu(null)}>
         { types.map(type => (
           <MenuItem
@@ -132,7 +147,7 @@ export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: s
     <SchemaNodeCreateAction
       parent={parent}
       first={first}
-      trigger={(open, only) => (
+      trigger={({ open, only }) => (
         <Button size="small" startIcon={<AddOutlinedIcon />}
           sx={{ alignSelf: "flex-start", ml: { sm: indent } }}
           onClick={event => open(event.currentTarget)}>
@@ -143,19 +158,20 @@ export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: s
   );
 }
 
-// Adds right after one of the parent's children: ahead of the next child, or last
+// Adds right after one of the parent's children: ahead of the next child, or last. In a menu, each type it
+// may add is a line of its own.
 export function AddBelow({ parent, next }: { parent: JcrNode; next?: string }) {
+  const inMenu = useInActionsMenu();
   return (
     <SchemaNodeCreateAction
       parent={parent}
       before={next}
-      trigger={open => (
-        <ActionIcon
-          label="Add below"
-          icon={<AddBoxOutlinedIcon fontSize="small" />}
-          onClick={event => open(event.currentTarget)}
-        />
-      )}
+      trigger={({ open, types, add }) => (inMenu
+        ? types.map(type => (
+          <ActionIcon key={type.type} label={`Add ${type.label.toLowerCase()} below`}
+            icon={<AddBoxOutlinedIcon fontSize="small" />} onClick={() => add(type)} />
+        ))
+        : <ActionIcon label="Add below" icon={<AddBoxOutlinedIcon fontSize="small" />} onClick={open} />)}
     />
   );
 }
