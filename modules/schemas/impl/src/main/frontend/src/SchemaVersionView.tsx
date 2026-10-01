@@ -27,6 +27,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import TagChip from "@iap/tags/TagChip";
 
+import { ActionsMenu } from "./ActionsMenu";
 import {
   descriptionOf, type JcrNode, labelOf, nameOf, noticeOf, pathOf, titleOf, versionsOf,
 } from "./schemaModel";
@@ -69,16 +70,18 @@ function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema, rep
       status={<TagChip tags={version.tags} />}
       description={descriptionOf(version)}
       action={
-        <SchemaVersionActions
-          version={version}
-          schema={schema}
-          reload={() => {
-            reloadSchema();
-            void reload();
-          }}
-          removed={() => void navigate(schemaPage)}
-          report={report}
-        />
+        <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
+          <SchemaVersionActions
+            version={version}
+            schema={schema}
+            reload={() => {
+              reloadSchema();
+              void reload();
+            }}
+            removed={() => void navigate(schemaPage)}
+            report={report}
+          />
+        </ActionsMenu>
       }
       disablePanel
     >

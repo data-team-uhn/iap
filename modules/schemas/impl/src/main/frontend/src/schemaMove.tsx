@@ -24,6 +24,7 @@ import SubdirectoryArrowRightIcon from "@mui/icons-material/SubdirectoryArrowRig
 import { Alert, Box, Button, Snackbar, type Theme } from "@mui/material";
 
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { usePhone } from "@iap/frontend-commons/usePhone";
 import { visuallyHidden } from "@iap/frontend-commons/visuallyHidden";
 
 import { type JcrNode, nameOf, pathOf } from "./schemaModel";
@@ -243,6 +244,7 @@ interface MoveSpotProps {
 // A place the moving part may go, named after what it would go before or at the end of
 export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
   const { moving, sending, destination, moveTo } = useMoveMode();
+  const phone = usePhone();
   if (!moving || !isMoveSpot(moving.node, parent, before)) {
     return null;
   }
@@ -250,8 +252,9 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
   const name = named && shownNameOf(named);
   const where = before ? "Move before" : name ? "Move to the end of" : "Move to the end";
   const loading = sending && destination === placeOf(parent, before);
-  const said = loading
-    ? `Moving “${shownNameOf(moving.node)}” ${before ? "before" : name ? "to the end of" : "to the end"}` : where;
+  // On a phone, what moves goes unnamed: it is the part shown moving
+  const what = phone ? "" : ` “${shownNameOf(moving.node)}”`;
+  const said = loading ? `Moving${what} ${before ? "before" : name ? "to the end of" : "to the end"}` : where;
   return (
     <Box component={item ? "li" : "div"} sx={{ listStyle: "none", my: item ? 1 : 0 }}>
       <Button
@@ -292,7 +295,10 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
           className="iap-move-spot-label"
           sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.75, minWidth: 0, whiteSpace: "nowrap" }}
         >
-          <span>{said}</span>
+          {/* Giving way to the name before it gives way itself */}
+          <Box component="span" sx={{ minWidth: 0, flexShrink: 0.1, overflow: "hidden", textOverflow: "ellipsis" }}>
+            {said}
+          </Box>
           { name && (
             <Box
               component="span"

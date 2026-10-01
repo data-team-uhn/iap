@@ -25,3 +25,9 @@ export const EXPANDER_COLUMN = 4;
 // The column a part's icon stands in, with the space after it: its heading and chips start after it, and so do a
 // question's options
 export const ICON_COLUMN = 3.5;
+
+// What a control takes at least on a touch screen, so that one is hit and not its neighbour
+export const TOUCH_TARGET = { "@media (pointer: coarse)": { minWidth: 40, minHeight: 40 } };
+
+// The same reach for a small icon button that stays where it is drawn, the extra reaching out around it
+export const TOUCH_REACH = { "@media (pointer: coarse)": { ...TOUCH_TARGET["@media (pointer: coarse)"], m: "-5px" } };
