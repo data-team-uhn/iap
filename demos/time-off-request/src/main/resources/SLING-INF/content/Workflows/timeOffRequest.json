@@ -6,8 +6,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    // This version has no flow nodes of its own: the diagram beside it is their only source, so the editor
-    // derives them from it, and removes whatever the diagram stops saying.
+    // This workflow is automatically derived from the BPMN file
     "bpmnAuthoritative": true,
     "active": true,
     "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
