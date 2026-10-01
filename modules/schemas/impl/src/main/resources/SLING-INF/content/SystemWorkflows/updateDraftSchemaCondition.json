@@ -1,0 +1,58 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Set when a part of a draft schema version applies",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaPart",
+    "description": "Replaces the condition deciding when a requirement, section or question applies, or removes it so that it always applies, while its version is a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "condition",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toReplace": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toReplace",
+        "targetRef": "replace"
+      }
+    },
+    "replace": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "replace",
+      "label": "Replace the condition",
+      "handler": "replaceContent",
+      "child": "cond:condition",
+      "nodeTypes": ["cond:ConditionGroup", "cond:SingleCondition", "cond:ConditionOperand"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Condition set",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

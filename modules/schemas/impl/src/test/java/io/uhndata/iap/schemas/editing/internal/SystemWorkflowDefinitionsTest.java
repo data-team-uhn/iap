@@ -88,7 +88,7 @@ class SystemWorkflowDefinitionsTest
         Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, OPTION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "sendEvent", "addTag", "removeTag", "delete",
-        "copyContent", "updateContent", "createContent", "moveContent", "renameContent",
+        "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
         CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
@@ -120,7 +120,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(23, definitions.size());
+        assertEquals(24, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -244,6 +244,17 @@ class SystemWorkflowDefinitionsTest
             assertEquals(Set.of(), answeringPart(PART, "rename", new String[] { state }));
         }
         assertEquals(Set.of(), answeringPart(OPTION, "rename", new String[] { "draft" }));
+    }
+
+    @Test
+    void partsHaveWhenTheyApplySetInDraftsOnly()
+    {
+        assertEquals(Set.of("updateDraftSchemaCondition"),
+            answeringPart(PART, "condition", new String[] { "draft" }));
+        for (final String state : List.of("active", "retired")) {
+            assertEquals(Set.of(), answeringPart(PART, "condition", new String[] { state }));
+        }
+        assertEquals(Set.of(), answeringPart(OPTION, "condition", new String[] { "draft" }));
     }
 
     @Test
