@@ -42,6 +42,7 @@
     "@mui/material": "9.4.0",
     "react": "^19.3.0",
     "classnames": "2.5.1",
+    "diff": "9.0.0",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
     "@mui/lab": "9.0.0-beta.9",
