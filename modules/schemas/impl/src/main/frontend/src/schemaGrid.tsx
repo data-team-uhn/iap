@@ -66,7 +66,7 @@ function SchemaCard({ row }: { row: JcrNode }) {
         <Typography sx={{ fontWeight: "fontWeightBold", color: "primary.main" }}>{titleOf(schema)}</Typography>
         <LifecycleChip tags={tagsOf(schema)} />
       </Stack>
-      <Stack direction="row" useFlexGap spacing={1.5} sx={{ flexWrap: "wrap" }}>
+      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
         { versionsOf(schema).length === 0
           ? <Typography variant="placeholder">No versions</Typography>
           : versionsOf(schema).map(version => (

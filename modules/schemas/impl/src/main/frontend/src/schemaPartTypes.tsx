@@ -62,7 +62,7 @@ function Detail({ children }: { children: string }) {
 // What an option says: what the submitter reads, and what an answer stores when it differs
 function OptionText({ option }: { option: JcrNode }) {
   return (
-    <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
       <span>{optionLabelOf(option)}</span>
       { option.label !== undefined && option.label !== option.value && <CodePill name={String(option.value)} /> }
     </Stack>
