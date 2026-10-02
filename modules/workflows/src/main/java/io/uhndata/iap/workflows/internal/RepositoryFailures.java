@@ -24,7 +24,7 @@ import javax.jcr.nodetype.ConstraintViolationException;
 import org.apache.sling.api.resource.PersistenceException;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 
@@ -59,8 +59,8 @@ final class RepositoryFailures
             if (cause instanceof InvalidItemStateException) {
                 // Somebody else changed the same thing first. That is the state layer, not a fault: what the
                 // caller asked for was reasonable when they asked, and is not any more
-                return new NoApplicableWorkflowException("Somebody else changed this at the same time; look at"
-                    + " where it has got to and try again");
+                return new InvalidStateException("Somebody else changed this at the same time; look at where it"
+                    + " has got to and try again", failure);
             }
             if (cause instanceof AccessDeniedException) {
                 return new WorkflowFailedException("The workflow engine is not allowed to do what the workflow"
