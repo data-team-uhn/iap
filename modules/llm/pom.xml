@@ -75,6 +75,7 @@
               langchain4j-http-client,
               langchain4j-http-client-jdk,
               langchain4j-reactive-streaming,
+              jspecify,
               jtokkit,
               mutiny-zero
             </Embed-Dependency>
