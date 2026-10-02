@@ -22,6 +22,7 @@ import SchemaNewVersionAction from "@iap/schemas/SchemaNewVersionAction";
 import SchemaRenameAction from "@iap/schemas/SchemaRenameAction";
 import SchemaRetireAction from "@iap/schemas/SchemaRetireAction";
 import SchemaVersionActivateAction from "@iap/schemas/SchemaVersionActivateAction";
+import SchemaVersionCompareAction from "@iap/schemas/SchemaVersionCompareAction";
 import SchemaVersionDetailsAction from "@iap/schemas/SchemaVersionDetailsAction";
 import SchemaVersionDiscardAction from "@iap/schemas/SchemaVersionDiscardAction";
 import SchemaVersionNewVersionAction from "@iap/schemas/SchemaVersionNewVersionAction";
@@ -30,8 +31,8 @@ import SchemaVersionRetireAction from "@iap/schemas/SchemaVersionRetireAction";
 // The actions this module contributes, in their extension order, as the actions manager would
 // resolve them from the repository.
 export const BUILTIN_ACTIONS = [
-  SchemaVersionDetailsAction, SchemaVersionNewVersionAction, SchemaVersionActivateAction, SchemaVersionRetireAction,
-  SchemaVersionDiscardAction,
+  SchemaVersionDetailsAction, SchemaVersionCompareAction, SchemaVersionNewVersionAction, SchemaVersionActivateAction,
+  SchemaVersionRetireAction, SchemaVersionDiscardAction,
 ] as unknown as ActionComponent[];
 
 export const SCHEMA_ACTIONS = [

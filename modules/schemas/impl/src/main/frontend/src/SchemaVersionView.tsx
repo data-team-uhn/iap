@@ -43,11 +43,15 @@ interface SchemaVersionViewProps {
   pageNotices: ReactNode;
   reloadSchema: () => void;
   report: (message: string) => void;
+  // The rules choosing what the version is compared with by default
+  comparisonDefaults: string[];
 }
 
 // One version of a schema: where it stands, what can be done with it and changed in it, and everything it asks of
 // a submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
-function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema, report }: SchemaVersionViewProps) {
+function SchemaVersionView(
+  { schema, versionName, pageNotices, reloadSchema, report, comparisonDefaults }: SchemaVersionViewProps,
+) {
   const navigate = useNavigate();
   const schemaPage = schemaPageUrl(nameOf(schema));
   usePageCrumbs([ { path: schemaPage, label: titleOf(schema) } ]);
@@ -80,6 +84,7 @@ function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema, rep
             }}
             removed={() => void navigate(schemaPage)}
             report={report}
+            comparisonDefaults={comparisonDefaults}
           />
         </ActionsMenu>
       }

@@ -77,6 +77,8 @@ export const HOMEPAGE = {
     },
     "v3": {
       "jcr:primaryType": "sch:SchemaVersion", "version": "3.0", "tags": ["draft"], "@events": DRAFT,
+      "jcr:created": "2026-09-20T10:00:00.000-04:00",
+      "link:links": { "l1": { "type": "/LinkTypes/copiedFrom", "reference": "/Schemas/study/v1" } },
       "@fields": DRAFT_FIELDS, "@notice": "Everything in this version can change until it is activated.",
     },
     "notes": { "jcr:primaryType": "nt:unstructured" },
@@ -312,6 +314,12 @@ export function serveSchemas(
     }
     if (url.startsWith("/Schemas.")) {
       return json(url, withPaths("/Schemas", homepage));
+    }
+    const links = /^\/Schemas\/([^./]+)\/([^./]+)\/link:links\./.exec(url);
+    if (links) {
+      const held = ((homepage[links[1]] as Record<string, unknown> | undefined)?.[links[2]] as
+        Record<string, unknown> | undefined)?.["link:links"];
+      return held ? json(url, held) : json(url, {}, 404);
     }
     const definition = /^\/SystemWorkflows\/([^./]+)\.deep/.exec(url)?.[1];
     if (definition !== undefined) {
