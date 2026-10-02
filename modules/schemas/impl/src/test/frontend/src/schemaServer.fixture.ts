@@ -239,6 +239,32 @@ export function withPaths(path: string, node: Record<string, unknown>): Record<s
   return identified;
 }
 
+// The fields the workflows editing drafts describe, as the version comparison reads them
+export const FIELD_DEFINITIONS: Record<string, Record<string, unknown>> = {
+  updateDraftSchemaVersion: { v1: { active: true, update: { fields: {
+    version: { "@name": "version", label: "Label" },
+    description: { "@name": "description", label: "Description", multiline: true },
+    workflow: {
+      "@name": "workflow", label: "Workflow", referenceType: "wf/WorkflowVersion", referenceRoot: "/Workflows",
+    },
+  } } } },
+  updateDraftSchemaPart: { v1: { active: true, update: { fields: {
+    text: { "@name": "text", label: "Question", multiline: true },
+    label: { "@name": "label", label: "Label" },
+    title: { "@name": "title", label: "Title" },
+    description: { "@name": "description", label: "Description", multiline: true },
+    dataType: { "@name": "dataType", label: "Answer type", choices: {
+      text: { "@name": "text", label: "Text" }, long: { "@name": "long", label: "Whole number" },
+    } },
+    minAnswers: { "@name": "minAnswers", label: "Minimum answers" },
+    required: { "@name": "required", label: "Required" },
+  } } } },
+  updateDraftAnswerOption: { v1: { active: true, update: { fields: {
+    value: { "@name": "value", label: "Value" },
+    label: { "@name": "label", label: "Label" },
+  } } } },
+};
+
 // Installs the server. `homepage` is what /Schemas serves; a schema is served from its own entry.
 // `answers` picks the answer to an event by the URL it is posted to; `failReads` makes every read of
 // schemas fail with that status, and `failContent` only the reads of a whole version.
@@ -286,6 +312,10 @@ export function serveSchemas(
     }
     if (url.startsWith("/Schemas.")) {
       return json(url, withPaths("/Schemas", homepage));
+    }
+    const definition = /^\/SystemWorkflows\/([^./]+)\.deep/.exec(url)?.[1];
+    if (definition !== undefined) {
+      return definition in FIELD_DEFINITIONS ? json(url, FIELD_DEFINITIONS[definition]) : json(url, {}, 404);
     }
     const version = /^\/Schemas\/([^./]+)\/([^./]+)\.deep/.exec(url);
     if (version) {
