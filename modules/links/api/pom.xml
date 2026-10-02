@@ -53,6 +53,7 @@
             <Sling-Model-Packages>io.uhndata.iap.links.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/link/;path:=/libs/link/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/LinkTypes/;path:=/LinkTypes/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
