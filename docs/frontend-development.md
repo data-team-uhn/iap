@@ -197,6 +197,9 @@ using those extensions is what keeps a deployment's rebranding effective:
   emphasised widgets.
 - `background.muted` for surfaces that need to recede — translucent, so it composes
   with whatever it overlaps rather than assuming white.
+- `palette.diff.added` and `palette.diff.removed` for what a comparison marks: `main` for
+  markers, `line` for a changed line's background, `word` for the stronger shade of the
+  words that changed within it; `palette.diff.moved` (`main`, `line`) for what moved.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.

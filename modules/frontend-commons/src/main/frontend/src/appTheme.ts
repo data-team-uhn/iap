@@ -69,13 +69,23 @@ declare module "@mui/material/styles" {
     tinted: string;
     tintedStrong: string;
   }
+  // What a comparison of two snapshots of content marks as added or removed: `main` for its markers, `line` for the
+  // background of a changed line, `word` for the stronger shade of the words that changed within it; and as moved,
+  // with no words of its own
+  interface DiffColors {
+    main: string;
+    line: string;
+    word: string;
+  }
   // What marks content that applies only sometimes, such as a part behind a condition: `main` for its icon,
   // `surface` for what says when it applies
   interface Palette {
     condition: { main: string; surface: string };
+    diff: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word"> };
   }
   interface PaletteOptions {
     condition?: { main: string; surface: string };
+    diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word"> };
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
@@ -219,6 +229,11 @@ const appTheme = createTheme({
           tintedStrong: STRONGLY_TINTED_SURFACE,
         },
         condition: { main: "#0277bd", surface: "#e6f2fa" },
+        diff: {
+          added: { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" },
+          removed: { main: "#cf222e", line: "#ffebe9", word: "rgba(255, 129, 130, 0.4)" },
+          moved: { main: "#9a6700", line: "#fffaee" },
+        },
       },
     },
     dark: {
@@ -238,6 +253,11 @@ const appTheme = createTheme({
           tintedStrong: STRONGLY_TINTED_SURFACE,
         },
         condition: { main: "#4fc3f7", surface: "rgba(79, 195, 247, 0.14)" },
+        diff: {
+          added: { main: "#3fb950", line: "rgba(46, 160, 67, 0.15)", word: "rgba(46, 160, 67, 0.4)" },
+          removed: { main: "#f85149", line: "rgba(248, 81, 73, 0.15)", word: "rgba(248, 81, 73, 0.4)" },
+          moved: { main: "#d29922", line: "rgba(187, 128, 9, 0.1)" },
+        },
       },
     },
   },
