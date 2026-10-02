@@ -75,6 +75,7 @@
               langchain4j-http-client,
               langchain4j-http-client-jdk,
               langchain4j-reactive-streaming,
+              jspecify,
               jtokkit,
               mutiny-zero
             </Embed-Dependency>
@@ -176,31 +177,31 @@
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-open-ai</artifactId>
-      <version>1.20.0</version>
+      <version>1.20.2</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-core</artifactId>
-      <version>1.20.0</version>
+      <version>1.20.2</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-http-client</artifactId>
-      <version>1.20.0</version>
+      <version>1.20.2</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-http-client-jdk</artifactId>
-      <version>1.20.0</version>
+      <version>1.20.2</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-reactive-streaming</artifactId>
-      <version>1.20.0-beta30</version>
+      <version>1.20.2-beta30</version>
       <optional>true</optional>
     </dependency>
     <!--
