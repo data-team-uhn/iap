@@ -37,9 +37,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The {@code delete} service task: deletes the event's target through the {@link DeletionService}, into the
- * archive unless the activity sets {@code permanent}. Whatever the service would refuse, it refuses: content
- * something else refers to, or content a veto protects, is left alone and the event answered with a conflict. The
- * archive records the user the workflow acts for as having deleted it.
+ * archive unless the activity sets {@code permanent}. It never deletes recursively, since a workflow may only
+ * delete the single entity it targets. Whatever the service would refuse, it refuses: content something else
+ * refers to, or content a veto protects, is left alone and the event answered with a conflict. The archive
+ * records the user the workflow acts for as having deleted it.
  *
  * <p>The service writes through its own session and commits there, so the deletion is not undone if a later
  * step fails: {@code delete} belongs at the end of a workflow.</p>

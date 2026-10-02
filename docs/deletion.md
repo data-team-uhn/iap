@@ -108,9 +108,10 @@ offer the listed consequences and retry with `recursive=true` — or start with
 ## From a workflow
 
 A workflow deletes its target with the `delete` service task, which goes through the same service: it archives
-unless the activity sets `permanent`, and it refuses whatever the service refuses. Referenced or vetoed content
-stays, and the event is answered with a 409 carrying the service's explanation. Discarding a schema is one such
-workflow: its only step is `delete`.
+unless the activity sets `permanent`, and it refuses whatever the service refuses. It never deletes recursively,
+since a workflow may only delete the single entity it targets. Referenced or vetoed content stays, and the event
+is answered with a 409 carrying the service's explanation. Discarding a schema is one such workflow: its only step
+is `delete`.
 
 The service writes through its own session and commits there, so the deletion is not undone if a later step
 fails. `delete` belongs at the end of a workflow.
