@@ -40,7 +40,6 @@
     "@emotion/styled": "11.14.1",
     "@mui/icons-material": "9.4.0",
     "@mui/material": "9.4.0",
-    "@mui/utils": "9.4.0",
     "react": "^19.3.0",
     "classnames": "2.5.1",
     "react-markdown": "10.1.0",

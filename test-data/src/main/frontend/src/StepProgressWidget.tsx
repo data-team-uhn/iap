@@ -95,7 +95,7 @@ function StepProgressWidget() {
       <StepProgress
         steps={STEPS}
         activeStep={activeStep}
-        error={failed ? { message: "The demo was asked to fail here." } : undefined}
+        error={failed ? "The demo was asked to fail here." : undefined}
         layout={LAYOUTS[layout].layout}
         color={COLORS[color].color}
       />
