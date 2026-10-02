@@ -28,7 +28,7 @@ import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
-import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -82,11 +82,11 @@ public class DeleteTaskHandler implements ServiceTaskHandler
             case ARCHIVED, DELETED -> {
                 // Done
             }
-            case VETOED -> throw new NoApplicableWorkflowException(result.getImpact().getVetoes().stream()
+            case VETOED -> throw new InvalidStateException(result.getImpact().getVetoes().stream()
                 .map(Veto::getReason)
                 .distinct()
                 .collect(Collectors.joining("; ")));
-            case REQUIRES_CONFIRMATION -> throw new NoApplicableWorkflowException(result.getImpact().getSummary());
+            case REQUIRES_CONFIRMATION -> throw new InvalidStateException(result.getImpact().getSummary());
             default -> throw new NotAuthorizedException("The workflow may not delete " + target.getPath());
         }
     }

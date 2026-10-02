@@ -32,7 +32,7 @@ import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
-import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -108,8 +108,8 @@ class DeleteTaskHandlerTest
     {
         answer(DeletionResult.Status.REQUIRES_CONFIRMATION);
 
-        final NoApplicableWorkflowException refusal =
-            assertThrows(NoApplicableWorkflowException.class, () -> this.handler.execute(this.context));
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(this.context));
         assertEquals("Referenced by 1 category (Intake)", refusal.getMessage());
     }
 
@@ -118,8 +118,8 @@ class DeleteTaskHandlerTest
     {
         answer(DeletionResult.Status.VETOED);
 
-        final NoApplicableWorkflowException refusal =
-            assertThrows(NoApplicableWorkflowException.class, () -> this.handler.execute(this.context));
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(this.context));
         assertEquals("It is undeletable", refusal.getMessage());
     }
 
