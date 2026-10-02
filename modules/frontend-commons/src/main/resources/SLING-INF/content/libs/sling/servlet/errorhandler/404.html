@@ -1,5 +1,6 @@
 <sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter">${contentType.html}</sly>
 <sly data-sly-use.statusCode="io.uhndata.iap.scripting.StatusCodeSetter">${statusCode.notFound}</sly>
+<sly data-sly-use.deletion="io.uhndata.iap.deletion.scripting.DeletionMetadata"></sly>
 <!--/*
  * Copyright 2026 DATA @ UHN. See the NOTICE file
  * distributed with this work for additional information
@@ -18,7 +19,13 @@
  * limitations under the License.
  */-->
 <sly data-sly-include="/libs/data/Content/header.html"></sly>
-    <div id="main-404-container"></div>
+    <!--/* HTL drops an attribute whose value is empty, so a path that was never there carries none of these
+           and a reader who may not see the archive carries only the first. The page is told in the response it
+           was already getting, rather than asking a second time once it has painted. */-->
+    <div id="main-404-container"
+         data-deleted-at="${deletion.deletedAt}"
+         data-deleted-by="${deletion.deletedBy}"
+         data-entry-url="${deletion.entryUrl}"></div>
     <sly data-sly-use.assets="/libs/iap/resources/assets">
       <script type="module" src="/libs/iap/resources/${assets['iap-commons.404.js']}"></script>
     </sly>
