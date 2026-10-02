@@ -34,11 +34,6 @@ import { type Breakpoint, type Theme, useTheme } from "@mui/material/styles";
 
 import { visuallyHidden } from "../visuallyHidden";
 
-// Why the active step stopped.
-export interface StepProgressError {
-  message: string;
-}
-
 // Compact keeps to one line, showing only the step underway and how far along it is.
 export type StepProgressLayout = "horizontal" | "vertical" | "compact";
 
@@ -49,8 +44,9 @@ interface StepProgressProps {
   steps: readonly string[];
   // Index of the step underway. A value equal to `steps.length` means every step is done.
   activeStep: number;
-  // When set, `activeStep` is drawn as the one that failed, and the steps before it stay completed.
-  error?: StepProgressError;
+  // Why the step underway stopped. It is drawn as failed, and the steps before it stay completed.
+  // Ignored once every step is done.
+  error?: string;
   layout?: StepProgressLayout | Partial<Record<Breakpoint, StepProgressLayout>>;
   // The palette colour of the step underway and of the pulse that leads to it.
   color?: StepProgressColor;
@@ -58,8 +54,8 @@ interface StepProgressProps {
 
 interface StepsProps {
   steps: readonly string[];
-  shown: number;
-  error?: StepProgressError;
+  activeStep: number;
+  error?: string;
   // The step that just ended, while the next one arrives.
   ended?: number;
 }
@@ -106,13 +102,13 @@ function useLayout(layout: NonNullable<StepProgressProps["layout"]>): StepProgre
 }
 
 // Remembers the step left behind when the bar last moved forward.
-function useEndedStep(shown: number): number | undefined {
-  const [seen, setSeen] = useState<{ shown: number; ended?: number }>({ shown });
-  if (seen.shown === shown) {
+function useEndedStep(step: number): number | undefined {
+  const [seen, setSeen] = useState<{ step: number; ended?: number }>({ step });
+  if (seen.step === step) {
     return seen.ended;
   }
-  const ended = shown > seen.shown ? seen.shown : undefined;
-  setSeen({ shown, ended });
+  const ended = step > seen.step ? seen.step : undefined;
+  setSeen({ step, ended });
   return ended;
 }
 
@@ -152,44 +148,43 @@ function StepProgressIcon({ active, completed, error, ...rest }: StepIconProps) 
 }
 
 interface FailureProps {
-  steps: readonly string[];
-  step: number;
-  error: StepProgressError;
+  label: string | undefined;
+  message: string;
   labelHidden?: boolean;
   variant?: TypographyProps["variant"];
 }
 
-function Failure({ steps, step, error, labelHidden = false, variant = "body2" }: FailureProps) {
+function Failure({ label = "", message, labelHidden = false, variant = "body2" }: FailureProps) {
   return (
     <Typography role="alert" variant={variant} color="error" sx={{ minWidth: 0 }}>
-      <Box component="span" sx={labelHidden ? visuallyHidden : undefined}>{`${steps[step] ?? ""} stopped. `}</Box>
-      {error.message}
+      <Box component="span" sx={labelHidden ? visuallyHidden : undefined}>{`${label} stopped. `}</Box>
+      {message}
     </Typography>
   );
 }
 
-function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
+function LinearSteps({ steps, activeStep, error, ended, orientation }: StepsProps & {
   orientation: "horizontal" | "vertical";
 }) {
   const getStepClass = (index: number) => {
     if (ended === undefined) {
       return undefined;
     }
-    if (index === shown) {
+    if (index === activeStep) {
       return classes.arriving;
     }
     return index === ended ? classes.ended : undefined;
   };
   return (
     <>
-      <Stepper activeStep={shown} orientation={orientation}>
+      <Stepper activeStep={activeStep} orientation={orientation}>
         {steps.map((label, index) => (
           // Positions identify steps; labels need not be unique.
           <Step key={index} className={getStepClass(index)}>
             <StepLabel
-              error={error !== undefined && index === shown}
-              optional={orientation === "vertical" && error !== undefined && index === shown
-                ? <Failure steps={steps} step={shown} error={error} labelHidden variant="caption" />
+              error={error !== undefined && index === activeStep}
+              optional={orientation === "vertical" && error !== undefined && index === activeStep
+                ? <Failure label={label} message={error} labelHidden variant="caption" />
                 : undefined}
               slots={{ stepIcon: StepProgressIcon }}
             >
@@ -199,7 +194,7 @@ function LinearSteps({ steps, shown, error, ended, orientation }: StepsProps & {
         ))}
       </Stepper>
       {orientation === "horizontal" && error !== undefined
-        ? <Box sx={{ mt: 1 }}><Failure steps={steps} step={shown} error={error} /></Box>
+        ? <Box sx={{ mt: 1 }}><Failure label={steps[activeStep]} message={error} /></Box>
         : null}
     </>
   );
@@ -225,13 +220,13 @@ function CompactLabel({ children }: { children: ReactNode }) {
   return <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>{children}</Typography>;
 }
 
-function CompactSteps({ steps, shown, error, ended }: StepsProps) {
-  const done = shown >= steps.length;
+function CompactSteps({ steps, activeStep, error, ended }: StepsProps) {
+  const done = activeStep >= steps.length;
   let line: ReactNode;
   if (error !== undefined) {
     line = (
-      <CompactLine icon={<StepIcon icon={shown + 1} error />}>
-        <Failure steps={steps} step={shown} error={error} />
+      <CompactLine icon={<StepIcon icon={activeStep + 1} error />}>
+        <Failure label={steps[activeStep]} message={error} />
       </CompactLine>
     );
   } else if (done) {
@@ -246,16 +241,16 @@ function CompactSteps({ steps, shown, error, ended }: StepsProps) {
   } else {
     const counter = (
       <Typography aria-hidden variant="caption" sx={{ fontSize: "0.625rem", fontWeight: 500, lineHeight: 1 }}>
-        {`${shown + 1}/${steps.length}`}
+        {`${activeStep + 1}/${steps.length}`}
       </Typography>
     );
-    line = <CompactLine icon={<><Ring />{counter}</>}><CompactLabel>{steps[shown]}</CompactLabel></CompactLine>;
+    line = <CompactLine icon={<><Ring />{counter}</>}><CompactLabel>{steps[activeStep]}</CompactLabel></CompactLine>;
   }
   if (ended === undefined || done) {
     return line;
   }
   return (
-    <Box key={shown} sx={{ display: "grid", "& > *": { gridArea: "1 / 1" } }}>
+    <Box key={activeStep} sx={{ display: "grid", "& > *": { gridArea: "1 / 1" } }}>
       <CompactLine className={classes.leaving} aria-hidden icon={<StepIcon icon={ended + 1} completed />}>
         <CompactLabel>{steps[ended]}</CompactLabel>
       </CompactLine>
@@ -265,10 +260,10 @@ function CompactSteps({ steps, shown, error, ended }: StepsProps) {
 }
 
 // A band of the accent colour swept once along a connector, in its direction.
-const sweep = (axis: "X" | "Y") => ({
+const sweep = (axis: "X" | "Y", easing: string) => ({
   backgroundImage: `linear-gradient(${axis === "X" ? "90deg" : "180deg"}, transparent, ${ACCENT}, transparent)`,
   backgroundSize: axis === "X" ? "40% 100%" : "100% 40%",
-  animation: `stepProgressSweep${axis} ${ARRIVAL} ease-out`,
+  animation: `stepProgressSweep${axis} ${ARRIVAL} ${easing}`,
 });
 
 const sweepFrames = (axis: "X" | "Y") => ({
@@ -276,21 +271,16 @@ const sweepFrames = (axis: "X" | "Y") => ({
   to: { opacity: 1, [`backgroundPosition${axis}`]: "170%" },
 });
 
-// Neither depends on colour or theme, so compute each once rather than on every render.
-const SWEEP_X = sweep("X");
-const SWEEP_Y = sweep("Y");
-const SWEEP_FRAMES_X = sweepFrames("X");
-const SWEEP_FRAMES_Y = sweepFrames("Y");
-
 const rootSx = (color: StepProgressColor) => (theme: Theme) => {
   const { palette } = theme.vars ?? theme;
   const fade = `${theme.transitions.duration.shorter}ms`;
+  const pop = `${theme.transitions.duration.complex}ms`;
   const { easeIn, easeOut } = theme.transitions.easing;
   return {
     width: "100%",
     "--iap-step-accent": palette[color].main,
-    "@keyframes stepProgressSweepX": SWEEP_FRAMES_X,
-    "@keyframes stepProgressSweepY": SWEEP_FRAMES_Y,
+    "@keyframes stepProgressSweepX": sweepFrames("X"),
+    "@keyframes stepProgressSweepY": sweepFrames("Y"),
     "@keyframes stepProgressPop": { "50%": { scale: "1.25" } },
     "@keyframes stepProgressFadeIn": { from: { opacity: 0 } },
     "@keyframes stepProgressFadeOut": { to: { opacity: 0, visibility: "hidden" } },
@@ -305,7 +295,7 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
     },
     "@media (prefers-reduced-motion: no-preference)": {
       [`& .${classes.ended} .MuiStepIcon-root, & .${classes.leaving} .MuiStepIcon-root`]: {
-        animation: "stepProgressPop 0.35s ease-out",
+        animation: `stepProgressPop ${pop} ${easeOut}`,
       },
       [`& .${classes.arriving}`]: {
         "& .MuiStepConnector-root": { position: "relative" },
@@ -320,9 +310,9 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
           top: "50%",
           height: 3,
           marginTop: "-1.5px",
-          ...SWEEP_X,
+          ...sweep("X", easeOut),
         },
-        "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...SWEEP_Y },
+        "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...sweep("Y", easeOut) },
         "& .MuiStepIcon-root": { animation: `stepProgressSettleIcon ${fade} ${easeIn} ${ARRIVAL} backwards` },
         "& .MuiStepLabel-label": { animation: `stepProgressSettleLabel ${fade} ${easeIn} ${ARRIVAL} backwards` },
         [`& .${classes.ring}`]: { animation: `stepProgressFadeIn ${fade} ${easeIn} ${ARRIVAL} backwards` },
@@ -340,12 +330,13 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
 // takes its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
 function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, color = "secondary" }: StepProgressProps) {
   const resolved = useLayout(layout);
-  const shown = activeStep;
-  const ended = useEndedStep(shown);
-  const props = { steps, shown, error, ended: error === undefined ? ended : undefined };
-  const status = shown >= steps.length
+  const ended = useEndedStep(activeStep);
+  const done = activeStep >= steps.length;
+  const failure = done ? undefined : error;
+  const props = { steps, activeStep, error: failure, ended: failure === undefined ? ended : undefined };
+  const status = done
     ? `All ${steps.length} steps done.`
-    : `Step ${shown + 1} of ${steps.length}. ${steps[shown] ?? ""}.`;
+    : `Step ${activeStep + 1} of ${steps.length}. ${steps[activeStep] ?? ""}.`;
   return (
     <Box sx={rootSx(color)}>
       <Box role="status" sx={visuallyHidden}>{status}</Box>

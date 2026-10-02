@@ -22,16 +22,13 @@ import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import StepProgress, {
-  type StepProgressError,
-  type StepProgressLayout,
-} from "@iap/frontend-commons/components/StepProgress";
+import StepProgress, { type StepProgressLayout } from "@iap/frontend-commons/components/StepProgress";
 
 const STEPS = [ "Collect", "Review", "Save" ];
 
 interface Props {
   activeStep?: number;
-  error?: StepProgressError;
+  error?: string;
   layout?: ComponentProps<typeof StepProgress>["layout"];
   color?: ComponentProps<typeof StepProgress>["color"];
 }
@@ -94,7 +91,7 @@ describe("StepProgress", () => {
     });
 
     it("alerts that the failed step stopped, and why", () => {
-      renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout });
+      renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout });
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByText("Review")).toHaveClass("Mui-error");
@@ -116,7 +113,7 @@ describe("StepProgress", () => {
       const { rerenderSteps } = renderSteps({ activeStep: 1, layout });
       rerenderSteps({ activeStep: 2, layout });
 
-      rerenderSteps({ activeStep: 2, error: { message: "Stopped." }, layout });
+      rerenderSteps({ activeStep: 2, error: "Stopped.", layout });
       expect(getStepElement("Save")).not.toHaveClass("StepProgress-arriving");
 
       rerenderSteps({ activeStep: 0, layout });
@@ -124,8 +121,16 @@ describe("StepProgress", () => {
     });
   });
 
+  it("ignores a failure once every step is done", () => {
+    renderSteps({ activeStep: STEPS.length, error: "Too late." });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Save")).toHaveClass("Mui-completed");
+    expect(screen.getByRole("status")).toHaveTextContent("All 3 steps done.");
+  });
+
   it("names the failed step only to screen readers when the message hangs under it", () => {
-    renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout: "vertical" });
+    renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout: "vertical" });
 
     expect(screen.getByText("Review stopped.")).toHaveStyle({ position: "absolute" });
   });
@@ -150,7 +155,7 @@ describe("StepProgress", () => {
     });
 
     it("alerts that the failed step stopped, and why", () => {
-      renderSteps({ activeStep: 1, error: { message: "Couldn't read the file." }, layout: "compact" });
+      renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout: "compact" });
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByTestId("WarningIcon")).toBeInTheDocument();
