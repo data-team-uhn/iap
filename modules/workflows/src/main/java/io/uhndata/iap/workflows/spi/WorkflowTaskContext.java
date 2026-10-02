@@ -109,9 +109,10 @@ public interface WorkflowTaskContext
     ResourceResolver getResourceResolver();
 
     /**
-     * Sends an event on to another resource, as part of this execution. The system workflow waiting for it is
-     * matched, guarded and authorized like any event, for the same actor, and runs now, in the same commit: either
-     * both workflows happen or neither does.
+     * Sends an event on to another resource, as part of this execution, and waits for the workflow it starts to finish.
+     * The event is matched, guarded and authorized exactly as if the user had sent it themselves, triggering a system
+     * workflow if everything is correct. The called workflow runs inside the calling one, in the same JCR session and
+     * the same commit, so either both happen or neither does.
      *
      * @param target the resource the event is sent to, backed by the engine's own session
      * @param event the event to send
@@ -123,7 +124,7 @@ public interface WorkflowTaskContext
 
     /**
      * Starts an instance of a workflow on a resource, as part of this execution, and runs it up to its first
-     * wait. The instance acts for the same actor, and the people its user tasks name may read the resource.
+     * wait. The instance acts for the same actor.
      *
      * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
      * @param version the workflow version to start
