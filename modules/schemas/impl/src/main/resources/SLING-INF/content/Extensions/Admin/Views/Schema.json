@@ -3,5 +3,14 @@
   "ext:pointId": "iap/coreUI/view",
   "ext:name": "Schema",
   "ext:targetURL": "/admin/schemas/*",
-  "ext:renderURL": "asset:iap-schemas.SchemaPage.js?lazy"
+  "ext:renderURL": "asset:iap-schemas.SchemaPage.js?lazy",
+  "comparisonVersionFieldsFrom": [
+    "/SystemWorkflows/updateDraftSchemaVersion"
+  ],
+  "comparisonPartFieldsFrom": [
+    "/SystemWorkflows/updateDraftSchemaPart"
+  ],
+  "comparisonOptionFieldsFrom": [
+    "/SystemWorkflows/updateDraftAnswerOption"
+  ]
 }
