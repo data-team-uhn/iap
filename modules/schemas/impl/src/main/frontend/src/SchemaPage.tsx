@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ReactNode, useCallback } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 
 import { Alert } from "@mui/material";
 import { useLocation, useNavigate } from "react-router";
@@ -64,6 +64,8 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
+  // Kept the same while the extension is, so that the version list does not redraw its actions for nothing
+  const comparisonDefaults = useMemo(() => strings(extension?.comparisonDefaults), [ extension ]);
 
   if (!schema) {
     return (
@@ -90,7 +92,7 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   if (versionName) {
     return (
       <SchemaVersionView schema={schema} versionName={versionName} pageNotices={notices}
-        reloadSchema={reloadSchema} />
+        reloadSchema={reloadSchema} comparisonDefaults={comparisonDefaults} />
     );
   }
 
@@ -105,7 +107,7 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
       disablePanel
     >
       {notices}
-      <SchemaVersionList schema={schema} reload={reloadSchema} />
+      <SchemaVersionList schema={schema} reload={reloadSchema} comparisonDefaults={comparisonDefaults} />
     </AdminScreen>
   );
 }

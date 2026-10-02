@@ -28,6 +28,8 @@ export interface SchemaVersionActionProps {
   schema: JcrNode;
   reload: () => void;
   removed?: () => void;
+  // The rules choosing what a version is compared with by default, in order
+  comparisonDefaults?: string[];
 }
 
 function SchemaVersionActions(props: SchemaVersionActionProps) {

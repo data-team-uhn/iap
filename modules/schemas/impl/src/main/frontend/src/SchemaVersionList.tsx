@@ -29,9 +29,11 @@ import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 
 // A schema's versions, each with where it stands and what can be done with it. The schema's page has
 // already read them, with what the server offers on each, so the grid lists them as they are.
-function SchemaVersionList({ schema, reload }: {
+function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: JcrNode;
   reload: () => void;
+  // The rules choosing what a version is compared with by default
+  comparisonDefaults: string[];
 }) {
   const actionsColumn = useMemo<EntityGridColumn[]>(() => [ {
     field: "__actions__",
@@ -41,10 +43,11 @@ function SchemaVersionList({ schema, reload }: {
     renderCell: params => (
       // Kept from the row: a click on an action, or inside its dialog, is not a click on the version
       <Box onClick={event => event.stopPropagation()}>
-        <SchemaVersionActions version={params.row} schema={schema} reload={reload} />
+        <SchemaVersionActions version={params.row} schema={schema} reload={reload}
+          comparisonDefaults={comparisonDefaults} />
       </Box>
     ),
-  } ], [ schema, reload ]);
+  } ], [ schema, reload, comparisonDefaults ]);
 
   const versions = useMemo(() => versionsOf(schema), [ schema ]);
 
