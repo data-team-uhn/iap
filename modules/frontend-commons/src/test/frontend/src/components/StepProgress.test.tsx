@@ -98,12 +98,12 @@ describe("StepProgress", () => {
       expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
-    it("draws the failed step in the error colour, not the accent", () => {
+    it("crosses out the failed step in the error colour, not the accent", () => {
       renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout });
 
-      expect(getStepElement("Review")?.querySelector(".MuiStepIcon-root")).toHaveStyle({
-        color: "var(--mui-palette-error-main)",
-      });
+      const icon = getStepElement("Review")?.querySelector("[data-testid=CancelIcon]");
+      expect(icon).toHaveClass("MuiSvgIcon-colorError");
+      expect(icon).not.toHaveStyle({ color: "var(--iap-step-accent)" });
     });
 
     it("marks the step that ended and the one arriving when the bar moves forward", () => {
@@ -166,7 +166,7 @@ describe("StepProgress", () => {
       renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout: "compact" });
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
-      expect(screen.getByTestId("WarningIcon")).toBeInTheDocument();
+      expect(screen.getByTestId("CancelIcon")).toHaveClass("MuiSvgIcon-colorError");
       expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
