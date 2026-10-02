@@ -32,6 +32,16 @@ behaves.
 `getOnDeletePolicy()` falls back to `REMOVE_LINK` for an unset *or unrecognized*
 value, so a typo in `onDelete` degrades to the default rather than failing.
 
+### Shipped types
+
+The links module ships the types that mean the same wherever they are used, under `/LinkTypes`:
+
+| Type | Means | Behaviour |
+|---|---|---|
+| `copiedFrom` | The content this started as a copy of, e.g. a schema version made from another | Weak, ignored on delete: what it was copied from may go, leaving the copy as it is. No backlink, so linking never writes to the source |
+
+Workflows link content with the `addLink` service task ([workflows](workflows.md)).
+
 ## Node types
 
 ```

@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "link:Definition",
+  "label": "Copied from",
+  "description": "The content this started as a copy of. Weak, so that what it was copied from may go, leaving the copy as it is.",
+  "weak": true,
+  "onDelete": "IGNORE"
+}

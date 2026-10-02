@@ -292,6 +292,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `replaceContent` | `child` (the child it replaces), `nodeTypes` (the node types the new tree may hold) | Replaces that child of what the execution created, or else the target, with the tree the event gives as `content`; `null` removes it |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
+| `addLink` | `linkType`, `to` (the event entry naming what to link to), `linkLabel` (optional) | Links what the execution created, or else the target, to the content the event names there, with a link of that type; when the event names nothing, does nothing |
 
 The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
 transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
@@ -418,6 +419,10 @@ itself, such as a label the copy has its own of, and `dropTagCategories` leaves 
 categories. What a module maintains rather than stores, it keeps out of copies, or adjusts in them, with a
 `CopyParticipant`: the tags module leaves out computed tags, the links module the links container, and the
 conditions module points `answer` operands at the copied questions.
+
+A copy can say where it came from with an `addLink` after it: `createSchemaVersion` links a version made as a copy
+to its source with a `copiedFrom` link, the [links](links.md) module's type for it. Since the links container is
+never copied, the copy's links are only its own.
 
 ## Sling Models
 
