@@ -127,7 +127,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
             </Box>
           ) }
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
-            <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
               <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>
                 {/* On a phone, the type's icon starts the heading, and the heading's text wraps under it */}
                 { phone && typeIcon({ verticalAlign: "text-bottom", mr: 0.75 }) }
@@ -136,7 +136,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
               <CodePill name={nameOf(part)} />
             </Stack>
             { type.chips && (
-              <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
+              <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap" }}>
                 { type.chips(part).map(chip => (
                   <FactChip key={typeof chip === "string" ? chip : chip.label} chip={chip} open={open}
                     onToggle={() => setOpen(current => !current)} />

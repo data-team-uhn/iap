@@ -44,7 +44,7 @@ function ActionBar({ point, ...props }: { point: string } & Record<string, unkno
   const shown = actions.map((Action, index) => <Fragment key={`action-${index}`}><Action {...props} /></Fragment>);
   // A menu's lines have to be its own children
   return inMenu ? shown : (
-    <Stack direction="row" spacing={0.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
+    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
       {shown}
     </Stack>
   );
