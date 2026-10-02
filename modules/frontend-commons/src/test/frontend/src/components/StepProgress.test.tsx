@@ -98,6 +98,14 @@ describe("StepProgress", () => {
       expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
     });
 
+    it("draws the failed step in the error colour, not the accent", () => {
+      renderSteps({ activeStep: 1, error: "Couldn't read the file.", layout });
+
+      expect(getStepElement("Review")?.querySelector(".MuiStepIcon-root")).toHaveStyle({
+        color: "var(--mui-palette-error-main)",
+      });
+    });
+
     it("marks the step that ended and the one arriving when the bar moves forward", () => {
       const { rerenderSteps } = renderSteps({ activeStep: 1, layout });
       expect(getStepElement("Review")).not.toHaveClass("StepProgress-arriving");
