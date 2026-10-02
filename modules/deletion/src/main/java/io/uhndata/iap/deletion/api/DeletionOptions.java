@@ -30,6 +30,18 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class DeletionOptions
 {
+    /** For {@link #of(boolean, boolean)}: resources referencing the deleted one are deleted along with it. */
+    public static final boolean RECURSIVE = true;
+
+    /** For {@link #of(boolean, boolean)}: resources referencing the deleted one block the deletion. */
+    public static final boolean NOT_RECURSIVE = false;
+
+    /** For {@link #of(boolean, boolean)}: the deleted resources are removed for good. */
+    public static final boolean PERMANENT = true;
+
+    /** For {@link #of(boolean, boolean)}: the deleted resources are moved into the archive. */
+    public static final boolean ARCHIVE = false;
+
     private final boolean recursive;
 
     private final boolean permanent;
@@ -52,15 +64,16 @@ public final class DeletionOptions
     @NotNull
     public static DeletionOptions recoverable()
     {
-        return new DeletionOptions(false, false, null);
+        return new DeletionOptions(NOT_RECURSIVE, ARCHIVE, null);
     }
 
     /**
-     * Explicit options.
+     * Explicit options, best written with the named flags, e.g. {@code of(NOT_RECURSIVE, ARCHIVE)}.
      *
      * @param recursive whether resources referencing the deleted one are deleted along with it instead of blocking
-     *            the deletion
-     * @param permanent whether the deleted resources are removed for good instead of being moved into the archive
+     *            the deletion: {@link #RECURSIVE} or {@link #NOT_RECURSIVE}
+     * @param permanent whether the deleted resources are removed for good instead of being moved into the archive:
+     *            {@link #PERMANENT} or {@link #ARCHIVE}
      * @return options with the requested behavior
      */
     @NotNull

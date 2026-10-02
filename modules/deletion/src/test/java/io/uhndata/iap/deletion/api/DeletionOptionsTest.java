@@ -19,6 +19,10 @@ package io.uhndata.iap.deletion.api;
 
 import org.junit.jupiter.api.Test;
 
+import static io.uhndata.iap.deletion.api.DeletionOptions.ARCHIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.NOT_RECURSIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.PERMANENT;
+import static io.uhndata.iap.deletion.api.DeletionOptions.RECURSIVE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,10 +44,10 @@ class DeletionOptionsTest
     @Test
     void explicitOptionsAreKept()
     {
-        final DeletionOptions options = DeletionOptions.of(true, true);
+        final DeletionOptions options = DeletionOptions.of(RECURSIVE, PERMANENT);
         assertTrue(options.isRecursive());
         assertTrue(options.isPermanent());
-        assertFalse(DeletionOptions.of(false, true).isRecursive());
-        assertFalse(DeletionOptions.of(true, false).isPermanent());
+        assertFalse(DeletionOptions.of(NOT_RECURSIVE, PERMANENT).isRecursive());
+        assertFalse(DeletionOptions.of(RECURSIVE, ARCHIVE).isPermanent());
     }
 }

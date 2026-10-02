@@ -50,6 +50,8 @@ once.
 
 `DeletionOptions.recoverable()` or `DeletionOptions.of(recursive, permanent)`:
 `recursive` cascades over referring resources, `permanent` skips the archive.
+Each flag has named values, `RECURSIVE`/`NOT_RECURSIVE` and `PERMANENT`/`ARCHIVE`,
+so a call reads `DeletionOptions.of(NOT_RECURSIVE, ARCHIVE)`.
 `DeletionImpact` carries the deleted subtrees, removed links, vetoes, blocking
 referrers and a human-readable summary.
 
