@@ -20,9 +20,11 @@ package io.uhndata.iap.workflows.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Nothing is waiting for this event on this target: no workflow catches it, or none of the catching ones is
- * active. This is the state layer of event acceptance. The event may be well-formed and the user entitled; it is
- * simply not expected here and now. HTTP channels answer 409.
+ * Nothing is waiting for this event on this target: no active workflow catches it, each one that does is guarded
+ * against the target as it is, or the event is aimed at a task that does not await it. This is the
+ * <em>matching</em> layer of event acceptance, decided from the definitions before anything runs. A workflow that
+ * runs and finds its target in a state that refuses the event throws an {@link InvalidStateException} instead.
+ * HTTP channels answer 409.
  *
  * @version $Id$
  * @since 0.1.0
