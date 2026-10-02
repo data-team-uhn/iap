@@ -18,6 +18,7 @@
 
 import { useState, type ReactNode } from "react";
 
+import CancelIcon from "@mui/icons-material/Cancel";
 import {
   Box,
   CircularProgress,
@@ -137,12 +138,20 @@ function Ring() {
   );
 }
 
+// A cross in a circle, the counterpart of a completed step's check.
+function FailedIcon() {
+  return <CancelIcon color="error" />;
+}
+
 // The slot stays the same size when the ring goes, so the label does not jump sideways.
 function StepProgressIcon({ active, completed, error, ...rest }: StepIconProps) {
+  if (error) {
+    return <IconSlot><FailedIcon /></IconSlot>;
+  }
   return (
     <IconSlot>
-      {active && !error ? <Ring /> : null}
-      <StepIcon active={active} completed={completed} error={error} {...rest} />
+      {active ? <Ring /> : null}
+      <StepIcon active={active} completed={completed} {...rest} />
     </IconSlot>
   );
 }
@@ -225,7 +234,7 @@ function CompactSteps({ steps, activeStep, error, ended }: StepsProps) {
   let line: ReactNode;
   if (error !== undefined) {
     line = (
-      <CompactLine icon={<StepIcon icon={activeStep + 1} error />}>
+      <CompactLine icon={<FailedIcon />}>
         <Failure label={steps[activeStep]} message={error} />
       </CompactLine>
     );
@@ -286,7 +295,7 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
     "@keyframes stepProgressFadeOut": { to: { opacity: 0, visibility: "hidden" } },
     "@keyframes stepProgressSettleIcon": { from: { color: palette.text.disabled } },
     "@keyframes stepProgressSettleLabel": { from: { color: palette.text.secondary } },
-    "& .MuiStepIcon-root.Mui-active:not(.Mui-error)": { color: ACCENT },
+    "& .MuiStepIcon-root.Mui-active": { color: ACCENT },
     "& .MuiStepIcon-root.Mui-completed": { color: palette.primary.main },
     "& .MuiStepConnector-vertical": { marginLeft: `${ICON_SIZE / 2 - 0.5}px` },
     [`& .${classes.leaving}`]: { display: "none" },
