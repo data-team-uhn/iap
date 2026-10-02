@@ -58,6 +58,12 @@ public class Extraction extends EntityPart
     private String reasoning;
 
     @ValueMapValue
+    private boolean reviewed;
+
+    @ValueMapValue
+    private boolean evidenceRejected;
+
+    @ValueMapValue
     private Long editDistance;
 
     @ValueMapValue
@@ -116,6 +122,27 @@ public class Extraction extends EntityPart
     public String getReasoning()
     {
         return this.reasoning;
+    }
+
+    /**
+     * Whether the submitter has settled this answer, by accepting it or by changing it.
+     *
+     * @return {@code true} once a person has looked at it
+     */
+    public boolean isReviewed()
+    {
+        return this.reviewed;
+    }
+
+    /**
+     * Whether the submitter said the quoted passage does not support the answer. Separate from
+     * {@link #isReviewed()}: it is a verdict on the evidence, not on the answer, and settles nothing.
+     *
+     * @return {@code true} if the passage was reported as wrong
+     */
+    public boolean isEvidenceRejected()
+    {
+        return this.evidenceRejected;
     }
 
     /**

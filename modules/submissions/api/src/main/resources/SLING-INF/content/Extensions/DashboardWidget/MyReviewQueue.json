@@ -1,9 +1,0 @@
-{
-  "jcr:primaryType": "ext:Extension",
-  "ext:pointId": "iap/dashboard/widget",
-  "ext:name": "Review queue",
-  "ext:subtitle": "Submissions waiting for your review",
-  "ext:renderURL": "asset:iap-submissions.MyReviewQueueWidget.js",
-  "defaultOrder": 2,
-  "ext:widgetWidth": "full"
-}

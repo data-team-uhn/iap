@@ -65,6 +65,7 @@ from concurrent.futures import (
     ThreadPoolExecutor,
     wait,
 )
+from collections.abc import Callable
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -89,6 +90,7 @@ from docling.datamodel.base_models import InputFormat
 
 from docling_docx_parser import get_docx_converter
 from docling_pdf_parser import (
+    ParseAbandonedError,
     StuckWorkerError,
     warm_pdf_workers,
     get_worker_context,
@@ -123,8 +125,9 @@ SHUTDOWN_DELIVERY_TIMEOUT_SECONDS = 5.0
 
 
 def _log_stderr(message: str) -> None:
-    """Log one line to the container log."""
-    print(message, file=sys.stderr, flush=True)
+    """Log one line to the container log, timestamped in UTC since nothing upstream adds one."""
+    stamp = time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime())
+    print(f"{stamp} {message}", file=sys.stderr, flush=True)
 
 
 class DaemonState:
@@ -145,7 +148,13 @@ class DaemonState:
         # The background parses that have not delivered a callback yet, so a shutdown can
         # account for every one of them
         self.pending_parses: dict[Future, tuple[str, str, str]] = {}
-        self.pending_lock = threading.Lock()
+        # Reentrant: a successful Future.cancel() runs its done callback (_forget_parse)
+        # synchronously, on the same thread, before cancel() returns
+        self.pending_lock = threading.RLock()
+        # Jobs the caller asked to stop. A single page batch already converting cannot be
+        # killed, but between batches the PDF loop polls this and abandons the rest early, and
+        # the callback is skipped either way; the caller wipes the folder itself.
+        self.cancelled_jobs: set[str] = set()
         self.docx_lock = threading.Lock()
         # The DOCX converter lives in this process, not the pool, so it sits outside the
         # per-worker RAM budget. That is fine: SimplePipeline parses OOXML and loads no models.
@@ -202,10 +211,45 @@ class DaemonState:
             self.pending_parses[future] = (job_id, callback_url, token)
         future.add_done_callback(self._forget_parse)
 
+    def cancel_parse(self, job_id: str) -> str:
+        """Stop one accepted parse.
+
+        A parse that has not started is cancelled and forgotten. One already converting cannot
+        be killed; it is remembered so its callback is not sent, and the caller removes the
+        files it was writing.
+
+        @param job_id: the caller's identifier for the parse
+        @return: ``cancelled`` when it had not started, ``running`` when it had, ``unknown``
+            when this daemon is not doing it
+        """
+        with self.pending_lock:
+            match = None
+            for future, (pending_id, _callback_url, _token) in self.pending_parses.items():
+                if pending_id == job_id:
+                    match = future
+                    break
+            if match is None:
+                return "unknown"
+            if match.cancel():
+                # Usually done by the done callback already; not when this cancel lands between
+                # submit_parse storing the future and registering that callback
+                self.pending_parses.pop(match, None)
+                return "cancelled"
+            self.cancelled_jobs.add(job_id)
+            return "running"
+
+    def is_cancelled(self, job_id: str) -> bool:
+        """Return whether a parse was stopped and should not call back."""
+        with self.pending_lock:
+            return job_id in self.cancelled_jobs
+
     def _forget_parse(self, future: Future) -> None:
         """Drop a parse that has run its course, callback and all."""
         with self.pending_lock:
-            self.pending_parses.pop(future, None)
+            entry = self.pending_parses.pop(future, None)
+            if entry is not None:
+                # Its callback has been skipped by now, so the stop has nothing left to do
+                self.cancelled_jobs.discard(entry[0])
 
     def drain_parses(self, timeout: float = SHUTDOWN_DRAIN_SECONDS) -> None:
         """Stop taking parses and account for the ones already accepted.
@@ -289,7 +333,9 @@ def _get_health_status() -> str:
     return "ok"
 
 
-def _run_parse(input_path: Path) -> dict[str, Any]:
+def _run_parse(
+    input_path: Path, should_abandon: Callable[[], bool] | None = None
+) -> dict[str, Any]:
     """LibreOffice + Docling on a shared-docs path."""
     assert _STATE is not None
     try:
@@ -303,6 +349,7 @@ def _run_parse(input_path: Path) -> dict[str, Any]:
             # summary message, so the container log is the only place the per-batch
             # diagnostics (e.g. "FAILED pages 4-6: ...") survive.
             log=_log_stderr,
+            should_abandon=should_abandon,
         )
     except (BrokenProcessPool, StuckWorkerError) as exc:
         # A wedged batch is answered as a dead pool for the same reason: its worker is still
@@ -344,19 +391,30 @@ def _parse_and_call_back(
     """
     queued_at = time.monotonic()
     _log_stderr(f"parse job={job_id} queued path={input_path}")
+    if _STATE is not None and _STATE.is_cancelled(job_id):
+        _log_stderr(f"parse job={job_id} was stopped before it started")
+        return
     try:
         with _STATE.parse_slots:
             # Split from the conversion: with one parse slot, a slow answer is often a parse that
             # waited, and one total would not say which of the two it was.
             waited_ms = int((time.monotonic() - queued_at) * 1000)
             started_at = time.monotonic()
-            summary = _run_parse(input_path)
+            summary = _run_parse(
+                input_path,
+                should_abandon=lambda: _STATE is not None and _STATE.is_cancelled(job_id),
+            )
         parse_ms = int((time.monotonic() - started_at) * 1000)
         _log_stderr(
             f"parse job={job_id} done waitMs={waited_ms} parseMs={parse_ms} "
             f"tokens={summary.get('tokens')} markdown={summary.get('markdown_path')}"
         )
         payload = parse_callbacks.success_payload(job_id, summary)
+    except ParseAbandonedError:
+        # The parse slot is already released (the ``with`` block above exited), so the next
+        # caller can take it right away instead of waiting out this conversion.
+        _log_stderr(f"parse job={job_id} was stopped; not calling back")
+        return
     except (Exception, CancelledError) as exc:
         # CancelledError is a BaseException, so "except Exception" would miss it: it is what
         # a shutdown closing the PDF pool mid-parse raises here, and that still owes the
@@ -367,6 +425,9 @@ def _parse_and_call_back(
         )
         traceback.print_exc(file=sys.stderr)
         payload = parse_callbacks.failure_payload(job_id, str(exc) or type(exc).__name__)
+    if _STATE is not None and _STATE.is_cancelled(job_id):
+        _log_stderr(f"parse job={job_id} was stopped; not calling back")
+        return
     delivery_started = time.monotonic()
     parse_callbacks.deliver(callback_url, payload, token=token, log=_log_stderr)
     _log_stderr(
@@ -387,7 +448,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             return
         # ``format % args`` stays printf: that is BaseHTTPRequestHandler's contract with its
         # callers. Only the line assembled around it is ours to write as an f-string.
-        sys.stderr.write(f"{self.address_string()} - {format % args}\n")
+        _log_stderr(f"{self.address_string()} - {format % args}")
 
     def do_GET(self) -> None:
         # Drained like every POST route, and for the same reason: answering with the body still
@@ -454,8 +515,35 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             self._handle_parse()
             return
 
+        if self.path.split("?", 1)[0] == "/cancel":
+            self._handle_cancel()
+            return
+
         drain_request_body(self)
         send_json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _handle_cancel(self) -> None:
+        """Stop one background parse. Query: ``?job_id=``."""
+        if self._refuse_unauthorized("/cancel"):
+            return
+        if not drain_request_body(self):
+            send_json_response(
+                self,
+                HTTPStatus.BAD_REQUEST,
+                {"error": "request body must be absent, or declared and under 1 MiB"},
+            )
+            return
+        if _STATE is None:
+            send_json_response(
+                self, HTTPStatus.SERVICE_UNAVAILABLE, {"error": "daemon shutting down"}
+            )
+            return
+        job_id = (parse_query(self.path).get("job_id", [""])[0] or "").strip()
+        if not job_id:
+            send_json_response(self, HTTPStatus.BAD_REQUEST, {"error": "job_id is required"})
+            return
+        status = _STATE.cancel_parse(job_id)
+        send_json_response(self, HTTPStatus.OK, {"job_id": job_id, "status": status})
 
     def _handle_parse(self) -> None:
         """Parse a document already on the shared volume.
@@ -516,7 +604,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             # traceback goes to the log under a reference and the caller gets the reference.
             # Same rule as JdkHttpRequests (#104) and EmailTestEndpoint (#107).
             reference = uuid.uuid4().hex[:12]
-            print(f"Parse failure {reference}:", file=sys.stderr, flush=True)
+            _log_stderr(f"Parse failure {reference}:")
             traceback.print_exc(file=sys.stderr)
             # The three causes stay distinguishable, in the daemon's own words rather than the
             # exception's: _run_parse sets shutdown_requested for a dead pool too, so a
@@ -665,13 +753,11 @@ def _warn_if_exposed(host: str) -> None:
         return
     if (os.environ.get(TRUSTED_NETWORK_VARIABLE) or "").strip():
         return
-    print(
+    _log_stderr(
         f"WARNING: binding {host}, not loopback, with no {TOKEN_ENVIRONMENT_VARIABLE} set. "
         f"Anyone who can reach this port can parse any document on the shared volume and "
         f"spend the worker pool. Set {TOKEN_ENVIRONMENT_VARIABLE}, or in Docker publish as "
-        f"\"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it.",
-        file=sys.stderr,
-        flush=True,
+        f"\"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it."
     )
 
 
@@ -693,7 +779,7 @@ def main() -> None:
     try:
         _STATE = DaemonState(args.workers)
     except Exception as e:
-        print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
+        _log_stderr(f"Docling daemon initialization failed: {e}")
         sys.exit(1)
 
     # Build the server before installing the handlers. The other order leaves a window where a
@@ -703,11 +789,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    print(
+    _log_stderr(
         f"Docling daemon listening on http://{args.host}:{args.port} "
         f"with {_STATE.worker_count} warm PDF workers "
-        f"(shared docs root: {get_shared_docs_root()})",
-        flush=True,
+        f"(shared docs root: {get_shared_docs_root()})"
     )
 
     # serve_forever() on a thread of its own, so the main thread is free to watch for the
@@ -732,14 +817,12 @@ def main() -> None:
         # same way as a corrupt document -- so a plain SIGTERM looked like a parse failure.
         _SERVER.server_close()
         _STATE.close()
-        print("Docling daemon stopped", flush=True)
+        _log_stderr("Docling daemon stopped")
 
     if pool_broke:
-        print(
+        _log_stderr(
             "PDF worker pool broke and cannot be rebuilt in-process; exiting so a fresh "
-            "daemon is started",
-            file=sys.stderr,
-            flush=True,
+            "daemon is started"
         )
         sys.exit(1)
 

@@ -33,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link DocumentRequirement}, including the properties it inherits from {@link Requirement}.
@@ -72,6 +74,26 @@ class DocumentRequirementTest
         assertEquals("Patient consent", requirement.getLabel());
         assertArrayEquals(new String[]{ "application/pdf" }, requirement.getAcceptedFileTypes());
         assertEquals("Confirm the document is signed and dated", requirement.getAiCheckPrompt());
+    }
+
+    // The safe direction: a forgotten flag demands too much rather than quietly approving without the document
+    @Test
+    void isRequiredUnlessTheSchemaSaysOtherwise()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(DocumentRequirement.class).isRequired());
+    }
+
+    @Test
+    void canBeDeclaredOptional()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/sponsorLetter", Map.of(
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE,
+            "required", false));
+
+        assertFalse(resource.adaptTo(DocumentRequirement.class).isRequired());
     }
 
     @Test

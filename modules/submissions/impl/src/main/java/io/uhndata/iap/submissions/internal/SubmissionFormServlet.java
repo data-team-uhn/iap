@@ -18,10 +18,12 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -32,6 +34,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
@@ -40,14 +43,19 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
-import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -82,6 +90,17 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String ITEMS_KEY = "items";
 
     private static final String TYPE_KEY = "type";
+
+    /** Where the extraction workflows record how far reading the documents got, and what they made of them. */
+    private static final String EXTRACTION_STATUS = "extractionStatus";
+
+    private static final String EXTRACTION_MESSAGE = "extractionMessage";
+
+    /** Set once a job has taken the reading, which is after every parse has been read in. */
+    private static final String READING_CLAIMED = "extractionReadingClaimed";
+
+    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    private static final String READING_WORKFLOW = "readingWorkflow";
 
     @Reference
     private transient ConditionEvaluator conditions;
@@ -119,19 +138,64 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
-        final Map<String, List<String>> answers = answersByQuestion(submission);
+        // The submission's own index, which is also what decides whether its form requirements are fulfilled:
+        // two indexes that disagreed about what counts as an answer would have the form and the decision to
+        // accept it disagree too
+        final Map<String, List<String>> answers = submission.getAnswersByQuestion();
+        // Where a pre-filled answer came from, for the questions a model answered. Read once here rather than
+        // per question, because it means walking every answer's extractions.
+        final Map<String, JsonObject> provenance = ProvenanceProjection.of(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
+        // Counts the questions as they are written out, so each carries the number it is asked under. One
+        // counter per rendering: the servlet is shared, and a field would have two readers counting together.
+        final AtomicInteger number = new AtomicInteger();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
-        return Json.createObjectBuilder()
+            .forEach(requirement ->
+                requirements.add(requirement(requirement, submission, answers, provenance, number)));
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            // Whether anything reads the attached documents: a schema version that names a reading workflow
+            // has answers filled in from them, one that names none never will. Without the difference the
+            // view cannot tell a form waiting for its reading from one that is simply unanswered.
+            .add("readsDocuments", version.get(READING_WORKFLOW, String.class) != null)
+            .add("requirements", requirements);
+        final JsonObjectBuilder extraction = extraction(submission);
+        if (extraction != null) {
+            json.add("extraction", extraction);
+        }
+        return json.build();
+    }
+
+    /**
+     * Where reading the answers out of the attached documents got to, once it has started: the state the view
+     * shows a progress bar or a banner for, the message that goes with it, and whether asking again would do
+     * anything. {@code parsed} and {@code reading} are the two moments the view can actually see: the daemon
+     * has answered, and a job has taken the reading. Written by the extraction system workflows,
+     * read back here by name.
+     *
+     * @param submission the submission being read
+     * @return the extraction block, or {@code null} when no reading was ever asked for
+     */
+    private static JsonObjectBuilder extraction(final Submission submission)
+    {
+        final String status = submission.get(EXTRACTION_STATUS, String.class);
+        if (status == null) {
+            return null;
+        }
+        final JsonObjectBuilder json = Json.createObjectBuilder().add("status", status);
+        final String message = submission.get(EXTRACTION_MESSAGE, String.class);
+        if (message != null) {
+            json.add("message", message);
+        }
+        json.add("retryable", ParseStatus.hasFailed(submission));
+        json.add("parsed", ParseStatus.isSettled(submission));
+        json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
+        return json;
     }
 
     /**
@@ -143,7 +207,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, requirement.getName())
@@ -153,10 +218,107 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers));
+            final List<FormItem> children = ((FormRequirement) requirement).getChildren();
+            json.add(ITEMS_KEY, items(children, requirement.getName(), submission, answers, provenance, number));
+            // A section the model fills in, as opposed to one the submitter answers by hand. The editor
+            // keeps the two on different pages: the hand-filled page is where reading is started.
+            // A classification's model prompt sits on the requirement itself, not on its decision question, so
+            // it is extracted by definition -- there is no hand-filled form of "what kind of document is this".
+            json.add("extracted", requirement instanceof ClassificationRequirement || isExtracted(children));
+        } else if (requirement instanceof DocumentRequirement) {
+            describe((DocumentRequirement) requirement, submission, json);
+        } else if (requirement instanceof ApprovalRequirement) {
+            describe((ApprovalRequirement) requirement, submission, json);
         }
         return json;
+    }
+
+    /**
+     * What an approval requirement adds: who it waits on, and the decision once somebody has made one.
+     *
+     * <p>Nobody fills an approval in here, so what the form can offer is an honest account of where it stands.
+     * That is worth projecting rather than leaving the reader to infer it, because the alternative — a section
+     * that says only that it cannot be completed here — is indistinguishable from a part of the form that is
+     * broken.</p>
+     *
+     * <p>Approved is the model's own predicate, an approved review naming this requirement, so the form and the
+     * completeness tag cannot disagree about what an approval means. The decision is reported from the same
+     * review; a rejection is a review that is not approved, which is why the reviewer and the date are given
+     * whenever a review exists rather than only when it granted the approval.</p>
+     *
+     * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
+     * @param json the requirement's JSON, added to in place
+     */
+    private void describe(final ApprovalRequirement requirement, final Submission submission,
+        final JsonObjectBuilder json)
+    {
+        // Always stated, empty meaning "not narrowed to a group": a reader has to tell that from "nobody has said
+        // who decides", and both are things the section says out loud
+        json.add("approverGroup", Objects.toString(requirement.getApproverGroup(), ""));
+        final List<Review> reviews = submission.getReviewsOf(requirement);
+        json.add("approved", reviews.stream().anyMatch(Review::isApproved));
+        // The last word rather than the first: an approval that was revisited is reported as it now stands
+        reviews.stream().reduce((first, second) -> second).ifPresent(review -> {
+            json.add("decidedBy", Objects.toString(review.getReviewer(), ""));
+            final Calendar decided = review.getCreated();
+            if (decided != null) {
+                // The same spelling the resource JSON uses for a date, so the reader parses one format
+                json.add("decidedAt", DateUtils.PREFERRED_DATETIME_FORMAT
+                    .format(decided.toInstant().atZone(decided.getTimeZone().toZoneId())));
+            }
+        });
+    }
+
+    /**
+     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
+     * has already been attached for it.
+     *
+     * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
+     * only place that says which requirements currently apply — reading them off the schema instead would mean a
+     * control offering to answer something this submission is not being asked.</p>
+     *
+     * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
+     * @param json the requirement's JSON, added to in place
+     */
+    private void describe(final DocumentRequirement requirement, final Submission submission,
+        final JsonObjectBuilder json)
+    {
+        // Stated always, not only when false: an upload control marks the optional case, and it should do so
+        // because the form said so rather than because a key was missing
+        json.add("required", requirement.isRequired());
+        final JsonArrayBuilder accepted = Json.createArrayBuilder();
+        // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
+        // empty — so the key is always there and it is the emptiness that carries the meaning
+        Arrays.stream(Objects.requireNonNullElse(requirement.getAcceptedFileTypes(), new String[0]))
+            .forEach(accepted::add);
+        json.add("acceptedFileTypes", accepted);
+        final Resource template = requirement.getTemplate();
+        if (template != null) {
+            json.add("template", template.getPath());
+        }
+        // Named rather than counted, so that a form reopened later says which document is there. Without this an
+        // upload control looks the same before and after, and the way to check would be to leave the page
+        final JsonArrayBuilder attached = Json.createArrayBuilder();
+        submission.getDocuments().stream()
+            .filter(document -> fulfills(document, requirement))
+            .map(document -> Objects.toString(document.getTitle(), document.getName()))
+            .forEach(attached::add);
+        json.add("attached", attached);
+    }
+
+    /**
+     * Whether one document was attached in answer to one requirement.
+     *
+     * @param document the attached document
+     * @param requirement the requirement in question
+     * @return {@code true} if the document says it fulfills that requirement
+     */
+    private boolean fulfills(final Document document, final Requirement requirement)
+    {
+        final Requirement fulfilled = document.getFulfills();
+        return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
     }
 
     /**
@@ -169,7 +331,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the items' JSON
      */
     private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder items = Json.createArrayBuilder();
         children.stream()
@@ -183,9 +346,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                         .add(TYPE_KEY, section.getType())
                         .add(LABEL_KEY, Objects.toString(section.getTitle(), ""))
                         .add(DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers)));
+                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers, provenance,
+                            number)));
                 } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
+                    items.add(question((Question) child, path, answers, provenance, number));
                 }
             });
         return items;
@@ -203,42 +367,91 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the question's JSON
      */
     private JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
-        return Json.createObjectBuilder()
+        // Emitted even when empty, so that "answered freely" is something the form states rather than something a
+        // reader infers from a missing field
+        final JsonArrayBuilder options = Json.createArrayBuilder();
+        question.getOfferedOptions().forEach(option -> {
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add("value", option.value())
+                .add("label", option.label());
+            if (!option.description().isBlank()) {
+                json.add(DESCRIPTION_KEY, option.description());
+            }
+            options.add(json);
+        });
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
             .add("path", path)
+            .add("number", number.incrementAndGet())
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add("required", question.isRequired())
-            .add("multiple", question.isMultiple())
+            // The pair itself rather than derived required/multiple flags: one vocabulary on the wire, read the
+            // same way it is stored, so the two sides cannot disagree about what a count means
+            .add("minAnswers", question.getMinAnswers())
+            .add("maxAnswers", question.getMaxAnswers());
+        // The constraints are stated only where the schema states them; the editor maps them onto the input's own
+        // hints, and the save is where they are enforced. Each is read once into a local, so the null check
+        // guards the very value that is written.
+        final Double minValue = question.getMinValue();
+        final Double maxValue = question.getMaxValue();
+        final String pattern = question.getPattern();
+        final String patternMessage = question.getPatternMessage();
+        if (minValue != null) {
+            json.add("minValue", minValue);
+        }
+        if (maxValue != null) {
+            json.add("maxValue", maxValue);
+        }
+        if (pattern != null) {
+            json.add("pattern", pattern);
+        }
+        if (patternMessage != null) {
+            json.add("patternMessage", patternMessage);
+        }
+        // Why this is being asked at all, in the schema author's own words. Distinct from the description,
+        // which says how to answer: a submitter looking at a question they did not expect wants to know what
+        // the answer is for, and until this was carried across, the only place that was written down was the
+        // schema.
+        final String purpose = question.getPurpose();
+        if (purpose != null && !purpose.isBlank()) {
+            json.add("purpose", purpose);
+        }
+        final JsonObject where = provenance.get(question.getPath());
+        if (where != null) {
+            json.add("provenance", where);
+        }
+        return json
+            .add("options", options)
             .add("value", value);
     }
 
     /**
-     * The submission's answers, keyed by the absolute path of the question each one answers. Keyed by path rather
-     * than by name because two sections may ask questions of the same name.
+     * Whether a form requirement is filled in from a document. True when any question in it, including one
+     * nested in a section, says how to ask a model. Questions meant for the submitter have no such prompt.
      *
-     * @param submission the submission to read
-     * @return the recorded values, by question path
+     * @param children the requirement's items, as the schema stores them
+     * @return {@code true} when the model is asked to answer something here
      */
-    private static Map<String, List<String>> answersByQuestion(final Submission submission)
+    private static boolean isExtracted(final List<FormItem> children)
     {
-        final Map<String, List<String>> byQuestion = new HashMap<>();
-        for (final Answer answer : submission.getAnswers()) {
-            final Question question = answer.getQuestion();
-            final String[] value = answer.getValue();
-            // An answer whose question no longer resolves is the answer to nothing being asked now, and one
-            // holding no value has not been answered yet
-            if (question != null && value != null) {
-                byQuestion.putIfAbsent(question.getPath(), List.of(value));
+        for (final FormItem child : children) {
+            if (child instanceof Question) {
+                final String prompt = ((Question) child).getExtractionPrompt();
+                if (prompt != null && !prompt.isBlank()) {
+                    return true;
+                }
+            } else if (child instanceof Section && isExtracted(((Section) child).getChildren())) {
+                return true;
             }
         }
-        return byQuestion;
+        return false;
     }
 
     /**

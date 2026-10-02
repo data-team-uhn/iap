@@ -736,7 +736,7 @@ describe("BpmnEditor", () => {
       const dialog = screen.getByRole("dialog");
       const report = await within(dialog).findByRole("alert");
       expect(report).toHaveTextContent("The workflows could not be loaded");
-      expect(report).toHaveTextContent(/Not authenticated/);
+      expect(report).toHaveTextContent(/Your session has expired/);
       // The spinner gave way, rather than turning forever
       expect(within(dialog).queryByRole("progressbar")).not.toBeInTheDocument();
     });
@@ -758,7 +758,7 @@ describe("BpmnEditor", () => {
 
       const notice = await screen.findByRole("alert");
       expect(notice).toHaveTextContent('"Approval (v1.0)" could not be saved');
-      expect(notice).toHaveTextContent(/Not authenticated/);
+      expect(notice).toHaveTextContent(/Your session has expired/);
       expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     });
 

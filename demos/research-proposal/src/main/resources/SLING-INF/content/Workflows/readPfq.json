@@ -1,0 +1,240 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a patient facing questionnaire",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "description": "Classifies an uploaded document as a patient facing questionnaire or not, then reads it only once that pick is settled: a settled yes reads the questionnaire and preamble together, a settled no skips reading, and an unsettled pick pauses for the requester to confirm. Started by the extractAnswers system workflow whenever a parse lands, so a preamble uploaded later triggers a re-read that fills only what is still unanswered.",
+    "started": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "started",
+      "label": "The questionnaire is readable",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toClassify": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toClassify",
+        "targetRef": "classify"
+      }
+    },
+    "classify": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "classify",
+      "label": "Classify the document",
+      "handler": "classifyDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toQuestionnaireCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQuestionnaireCheck",
+        "targetRef": "isQuestionnaire"
+      }
+    },
+    "isQuestionnaire": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "isQuestionnaire",
+      "label": "A patient facing questionnaire?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toEndReadingFailed": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEndReadingFailed",
+        "label": "Could not classify",
+        "targetRef": "endReadingFailed",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [
+              "extractionStatus"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "failed"
+            ]
+          }
+        }
+      },
+      "toAsk": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAsk",
+        "label": "Yes",
+        "targetRef": "askTheModel",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "decision",
+            "value": [
+              "is_questionnaire/decision"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "yes"
+            ]
+          }
+        }
+      },
+      "toMarkNotAQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkNotAQuestionnaire",
+        "label": "No",
+        "targetRef": "markNotAQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "decision",
+            "value": [
+              "is_questionnaire/decision"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "no"
+            ]
+          }
+        }
+      },
+      "toMarkUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkUnsettled",
+        "label": "Not settled",
+        "targetRef": "markUnsettled",
+        "isDefault": true
+      }
+    },
+    "askTheModel": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "askTheModel",
+      "label": "Read the questionnaire",
+      "handler": "intakeAnswers",
+      "requirement": "extracted",
+      "documents": [
+        "preamble",
+        "questionnaire"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "markCompleteness"
+      }
+    },
+    "markCompleteness": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markCompleteness",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinish": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinish",
+        "targetRef": "finishReading"
+      }
+    },
+    "finishReading": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishReading",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "The questionnaire has been read",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "markNotAQuestionnaire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markNotAQuestionnaire",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinishNotAQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishNotAQuestionnaire",
+        "targetRef": "finishNotAQuestionnaire"
+      }
+    },
+    "finishNotAQuestionnaire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishNotAQuestionnaire",
+      "label": "The reading is over",
+      "handler": "finishReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toEndNotAQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toEndNotAQuestionnaire",
+        "targetRef": "endNotAQuestionnaire"
+      }
+    },
+    "endNotAQuestionnaire": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "endNotAQuestionnaire",
+      "label": "Not a patient facing questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "endReadingFailed": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "endReadingFailed",
+      "label": "The document could not be classified",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "markUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markUnsettled",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFinishUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinishUnsettled",
+        "targetRef": "finishUnsettled"
+      }
+    },
+    "finishUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finishUnsettled",
+      "label": "The reading is paused",
+      "handler": "finishReading",
+      "message": "The reading waits for you to confirm whether this is a patient facing questionnaire.",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toConfirmUnsettled": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toConfirmUnsettled",
+        "targetRef": "confirmUnsettled"
+      }
+    },
+    "confirmUnsettled": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "confirmUnsettled",
+      "label": "Continue once this is confirmed",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "is_questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "confirmedToIsQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "confirmedToIsQuestionnaire",
+        "label": "Confirmed",
+        "targetRef": "isQuestionnaire"
+      }
+    }
+  }
+}

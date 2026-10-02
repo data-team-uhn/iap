@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
+from time import perf_counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from collections.abc import Callable
@@ -57,6 +58,7 @@ def parse_document(
     docx_lock: threading.Lock | None = None,
     docx_converter: DocumentConverter | None = None,
     log: LogFn | None = None,
+    should_abandon: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """LibreOffice prep, Docling convert, bookmark heading levels, then write ``{stem}.md``.
 
@@ -67,6 +69,9 @@ def parse_document(
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
+    @param should_abandon: polled while a PDF is converting; see
+        :func:`docling_pdf_parser._run_pdf_chunks`. Not consulted for DOCX, which converts in
+        one call with no batch boundary to abandon at.
     @return: summary ``{ok, markdown_path, tokens, logs, filename}``
     """
     source = Path(input_path)
@@ -102,15 +107,22 @@ def parse_document(
             workers=pdf_workers,
             batch_pages=pdf_batch_pages,
             log=_log,
+            should_abandon=should_abandon,
         )
     else:
         # The lock is optional (the CLI has no concurrent callers), so the two arms differed
         # only in holding it — nullcontext keeps the call itself written once
         with docx_lock if docx_lock is not None else contextlib.nullcontext():
+            # Timed inside the lock, so a wait behind another DOCX is not counted as its own time
+            t0 = perf_counter()
             markdown = convert_docx_to_markdown(
                 docling_input, converter=docx_converter
             )
-        _log(f"Converted DOCX ({len(markdown):,} chars)")
+            elapsed = perf_counter() - t0
+        # The same report the PDF path ends with, so both read the same in the logs
+        _log("=== Timing ===")
+        _log(f"Total:                {elapsed:.2f}s")
+        _log(f"Markdown characters:  {len(markdown):,}")
 
     # The Markdown lives beside the staged source (same stem), not a LibreOffice temp.
     output_md = source.with_suffix(".md")

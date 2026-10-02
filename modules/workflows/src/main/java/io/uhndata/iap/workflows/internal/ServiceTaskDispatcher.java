@@ -25,6 +25,8 @@ import java.util.Objects;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -46,14 +48,25 @@ final class ServiceTaskDispatcher
 {
     private final List<ServiceTaskHandler> handlers;
 
+    /** What a started instance's gateways are asked of. */
+    private final ConditionEvaluator conditions;
+
+    /** The vocabulary a started instance's performer names are read in. */
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
+     * @param conditions the evaluator a started instance's gateways are asked of
+     * @param principals the vocabulary a started instance's performer names are read in
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final ConditionEvaluator conditions,
+        final PrincipalService principals)
     {
         this.handlers = handlers;
+        this.conditions = conditions;
+        this.principals = principals;
     }
 
     /**
@@ -75,7 +88,8 @@ final class ServiceTaskDispatcher
         if (WorkflowStarter.HANDLER_NAME.equals(name)) {
             // Built into the engine rather than registered: putting an entity under a workflow is the engine's
             // own business. Which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
+            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions,
+                this.principals);
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()
@@ -91,7 +105,8 @@ final class ServiceTaskDispatcher
 
     /**
      * How an instance performs a service task it meets, through the same dispatch a system workflow uses. The
-     * variables belong to this delivery; an instance's persisted variables are not yet exposed to handlers.
+     * instance's own variables are read in first, so a handler sees what an earlier walk recorded even across a
+     * wait, and what it records is written back, so a gateway later in the same walk can route on it.
      *
      * @param event the event being delivered
      * @param actor the user the instance is being moved for
@@ -100,8 +115,11 @@ final class ServiceTaskDispatcher
     InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
-        return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
+        return (activity, instance) -> {
+            InstanceVariables.load(instance, variables);
+            perform(activity, new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
+            InstanceVariables.flush(instance, variables);
+        };
     }
 
     /**

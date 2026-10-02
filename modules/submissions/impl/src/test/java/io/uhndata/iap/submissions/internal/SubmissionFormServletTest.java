@@ -19,20 +19,27 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Value;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -53,7 +60,9 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -61,6 +70,10 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,6 +101,13 @@ class SubmissionFormServletTest
 
     private static final String REQUIREMENT = "sch/Requirement";
 
+    private static final String APPROVAL = "approval";
+
+    private static final String APPROVERS = "time-off-approvers";
+
+    /** The review whose fixture carries a creation date, so that the date's spelling can be asserted. */
+    private static final String DECIDED_AT = "dated";
+
     private static final String FORM_ITEM = "sch/FormItem";
 
     private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
@@ -98,7 +118,11 @@ class SubmissionFormServletTest
 
     private static final String DETAILS = "details";
 
+    private static final String CLASSIFICATION = "classification";
+
     private static final String START_DATE = "details/startDate";
+
+    private static final String DURATION = "details/duration";
 
     private static final String END_DATE = "details/endDate";
 
@@ -115,7 +139,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, Answer.class, Submission.class);
+            ClassificationRequirement.class, Section.class, Question.class, AnswerOption.class, Answer.class,
+            Document.class, DocumentVersion.class, File.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -135,17 +160,235 @@ class SubmissionFormServletTest
             "label", "Request details", "description", "When and why."));
         this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM,
-            "text", "Which day does your time off start?", "dataType", "date", "required", true));
+            "text", "Which day does your time off start?", "dataType", "date", "minAnswers", 1L));
         this.context.create().resource(VERSION_PATH + "/" + END_DATE, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM,
             "text", "Which day are you back?", "dataType", "date"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How long?", "dataType", "text"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/half", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day",
+            "description", "Morning or afternoon."));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/several", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
+        // The same kind of requirement, but saying what it takes and offering a blank to start from
+        this.context.create().resource(VERSION_PATH + "/signedForm", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Signed form",
+            "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
+        this.context.create().resource(VERSION_PATH + "/signedForm/template", Map.of(
+            "jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/" + APPROVAL, Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval",
+            "approverGroup", APPROVERS));
+        // Its decision question carries no extractionPrompt of its own -- the model prompt lives on the
+        // requirement -- which is exactly what marksAClassificationTheModelAnswers below checks for
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION, Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Urgency",
+            "prompt", "Decide whether this request is urgent.", "document", "doctorsNote"));
+        this.context.create().resource(VERSION_PATH + "/" + CLASSIFICATION + "/decision", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Is this urgent?"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
         reference(SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+    }
+
+    // A question the submitter answered themselves has no block, which is what "nobody suggested this"
+    // looks like on the wire
+    @Test
+    void saysNothingAboutWhereAnAnswerCameFromWhenNobodySuggestedIt() throws IOException
+    {
+        answer(START_DATE, "2026-10-06");
+
+        assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("provenance"));
+    }
+
+    @Test
+    void marksASectionTheModelAnswers() throws IOException
+    {
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"),
+            "a question with no extraction prompt is answered by hand");
+
+        modify(VERSION_PATH + "/" + START_DATE, "extractionPrompt", "Find the first day of the leave.");
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
+    }
+
+    // A classification's prompt sits on the requirement, not on its decision question, so the question
+    // carrying no extractionPrompt of its own must not read as hand-filled
+    @Test
+    void marksAClassificationTheModelAnswers() throws IOException
+    {
+        assertTrue(requirement(form(REQUESTER), CLASSIFICATION).getBoolean("extracted"));
+    }
+
+    @Test
+    void saysWhereAPreFilledAnswerCameFrom() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(List.of("2026-10-06"), where.getJsonArray("suggested").stream()
+            .map(value -> ((JsonString) value).getString()).toList());
+        assertEquals(0.85, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("Stated under Dates.", where.getString("reasoning"));
+        assertFalse(where.getBoolean("reviewed"), "nobody has settled it yet");
+        assertFalse(where.getBoolean("evidenceRejected"));
+    }
+
+    @Test
+    void sendsTheQuoteAndWhereItLives() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject passage =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance")
+                .getJsonArray("passages").getJsonObject(0);
+
+        assertEquals("leave begins on the sixth", passage.getString("quote"));
+        assertEquals("p. 4 · 3.1 Dates", passage.getString("cite"));
+    }
+
+    // Step 2 keeps an extraction per attempt, so the form has to pick one
+    @Test
+    void showsTheSurestOfSeveralAttempts() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a9", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        // The surest one first, so that keeping it is a decision rather than the last one winning
+        this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the better one", "confidence", 0.9));
+        this.context.create().resource(answer.getPath() + "/e2", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the first guess", "confidence", 0.3));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.9, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("the better one", ((JsonString) where.getJsonArray("suggested").get(0)).getString());
+    }
+
+    // The whole point of recording the quote's page: a reader can open the document there and check it
+    @Test
+    void pointsEachPassageAtThePdfItWasReadFrom() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a7");
+        final String version = documentVersionWith("note", "pdfFile");
+        references(extraction.getPath(), "sources", version);
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertEquals(version + "/file/pdfFile#page=4", passages.getJsonObject(0).getString("source"));
+        assertEquals(version + "/file/pdfFile", passages.getJsonObject(1).getString("source"),
+            "a quote the document gave no page for still opens the document");
+    }
+
+    // A run that read two documents as one text has two sources, and a quote that says which one it came from
+    // opens that one rather than whichever the run lists first
+    @Test
+    void pointsAPassageAtTheDocumentItWasQuotedFrom() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a8");
+        final String preamble = documentVersionWith("preamble", "pdfFile");
+        final String questionnaire = documentVersionWith("questionnaire", "pdfFile");
+        references(extraction.getPath(), "sources", preamble, questionnaire);
+        reference(extraction.getPath() + "/q1", questionnaire, "source");
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertEquals(questionnaire + "/file/pdfFile#page=4", passages.getJsonObject(0).getString("source"));
+        assertEquals(preamble + "/file/pdfFile", passages.getJsonObject(1).getString("source"),
+            "a quote naming no document of its own opens the run's first");
+    }
+
+    // A revision whose upload never landed, and one whose parse produced no PDF: neither can be opened,
+    // and a link that led nowhere would read as though the document were one click away
+    @Test
+    void offersNothingToOpenWhenNoRevisionHasAPdf() throws IOException
+    {
+        final Resource extraction = extractionReadingTwoQuotes("a6");
+        this.context.create().resource(SUBMISSION_PATH + "/gone/1", Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        references(extraction.getPath(), "sources",
+            SUBMISSION_PATH + "/gone/1", documentVersionWith("note", null));
+
+        final JsonArray passages = item(requirement(form(REQUESTER), DETAILS), "startDate")
+            .getJsonObject("provenance").getJsonArray("passages");
+
+        assertFalse(passages.getJsonObject(0).containsKey("source"));
+    }
+
+    /** An extracted answer with two quotes behind it, one placed on a page and one placed nowhere. */
+    private Resource extractionReadingTwoQuotes(final String name)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "2026-10-06", "confidence", 0.9));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence",
+            "quote", "leave begins on the sixth", "page", 4L));
+        this.context.create().resource(extraction.getPath() + "/q2", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "and again here"));
+        return extraction;
+    }
+
+    /** A document revision holding a file, with the named rendition under it when one is named. */
+    private String documentVersionWith(final String document, final String rendition)
+    {
+        final String path = SUBMISSION_PATH + "/" + document + "/1";
+        this.context.create().resource(path, Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        this.context.create().resource(path + "/file", Map.of(TYPE, File.RESOURCE_TYPE));
+        if (rendition != null) {
+            this.context.create().resource(path + "/file/" + rendition, Map.of("jcr:primaryType", "nt:file"));
+        }
+        return path;
+    }
+
+    // A schema version that names no reading workflow never fills an answer in from a document, however
+    // many are attached. The view needs the difference to tell a form waiting for its reading from one
+    // that is simply unanswered.
+    @Test
+    void saysWhetherAnythingReadsTheAttachedDocuments() throws IOException
+    {
+        assertFalse(form(REQUESTER).getBoolean("readsDocuments"));
+
+        modify(VERSION_PATH, "readingWorkflow", "the-reading-workflow");
+
+        assertTrue(form(REQUESTER).getBoolean("readsDocuments"));
+    }
+
+    // A bare extraction: nothing found, nothing said, and no page markers in the source
+    @Test
+    void copesWithAnExtractionThatSaysAlmostNothing() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a8", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction"));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "somewhere in here"));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.0, where.getJsonNumber("confidence").doubleValue());
+        assertTrue(where.getJsonArray("suggested").isEmpty());
+        assertFalse(where.containsKey("reasoning"));
+        assertFalse(where.getJsonArray("passages").getJsonObject(0).containsKey("cite"),
+            "a DOCX carries no pages, and this passage has no heading either");
     }
 
     @Test
@@ -163,11 +406,64 @@ class SubmissionFormServletTest
         final JsonObject startDate = item(details, "startDate");
         assertEquals("Which day does your time off start?", startDate.getString("text"));
         assertEquals("date", startDate.getString("dataType"));
-        assertTrue(startDate.getBoolean("required"));
-        assertFalse(startDate.getBoolean("multiple"));
+        // The pair as stored, not derived flags; an absent maximum reads as the single value it defaults to
+        assertEquals(1, startDate.getInt("minAnswers"));
+        assertEquals(1, startDate.getInt("maxAnswers"));
+        // The value constraints are stated only where the schema states them
+        assertFalse(startDate.containsKey("minValue"));
+        assertFalse(startDate.containsKey("maxValue"));
+        assertFalse(startDate.containsKey("pattern"));
+        assertFalse(startDate.containsKey("patternMessage"));
+        // Stated even when there is nothing to offer, so that "answered freely" is something the form says
+        assertTrue(startDate.getJsonArray("options").isEmpty());
+
+        // A question offering answers carries them, in the order the schema declares them, with the
+        // label falling back to the value so an option may declare only the one string
+        final JsonArray offered = item(details, "duration").getJsonArray("options");
+        assertEquals(2, offered.size());
+        assertEquals("half-day", offered.getJsonObject(0).getString("value"));
+        assertEquals("Half day", offered.getJsonObject(0).getString("label"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("value"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("label"));
+        assertEquals("Morning or afternoon.", offered.getJsonObject(0).getString("description"));
+        assertFalse(offered.getJsonObject(1).containsKey("description"));
         assertEquals("2026-10-06", startDate.getJsonArray("value").getString(0));
         // Unanswered, and saying so as an empty list rather than by omission
         assertTrue(item(details, "endDate").getJsonArray("value").isEmpty());
+    }
+
+    @Test
+    void statesTheConstraintsTheSchemaStates() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/daysAway", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How many days?", "dataType", "long",
+            "maxAnswers", 3L, "minValue", 0.5d, "maxValue", 30.0d,
+            "pattern", "[0-9.]+", "patternMessage", "A number of days."));
+
+        final JsonObject question = item(requirement(form(REQUESTER), DETAILS), "daysAway");
+
+        assertEquals(0, question.getInt("minAnswers"));
+        assertEquals(3, question.getInt("maxAnswers"));
+        assertEquals(0.5d, question.getJsonNumber("minValue").doubleValue());
+        assertEquals(30.0d, question.getJsonNumber("maxValue").doubleValue());
+        assertEquals("[0-9.]+", question.getString("pattern"));
+        assertEquals("A number of days.", question.getString("patternMessage"));
+    }
+
+    @Test
+    void saysWhetherEachDocumentIsDemandedOrMerelyOffered() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/sponsorLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Sponsor letter",
+            "required", false));
+
+        final JsonObject form = form(REQUESTER);
+
+        // Absence of the flag on the node means demanded, and the wire says so explicitly
+        assertTrue(requirement(form, "doctorsNote").getBoolean("required"));
+        assertFalse(requirement(form, "sponsorLetter").getBoolean("required"));
+        // Only document requirements carry the key; a form's optionality lives per-question in minAnswers
+        assertFalse(requirement(form, DETAILS).containsKey("required"));
     }
 
     @Test
@@ -184,13 +480,16 @@ class SubmissionFormServletTest
 
         final JsonArray items = requirement(form(REQUESTER), DETAILS).getJsonArray("items");
 
-        assertEquals(Set.of("startDate"), names(items));
+        assertEquals(Set.of("startDate", "duration"), names(items));
     }
 
     @Test
     void leavesOutAWholeRequirementThatDoesNotApply() throws IOException
     {
         this.hidden.add("doctorsNote");
+        this.hidden.add("signedForm");
+        this.hidden.add(APPROVAL);
+        this.hidden.add(CLASSIFICATION);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -203,6 +502,88 @@ class SubmissionFormServletTest
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
         assertFalse(note.containsKey("items"));
+        // Restricted to nothing in particular, said as an empty list rather than by omission: a reader has to be
+        // able to tell "takes anything" from "the server did not say"
+        assertTrue(note.getJsonArray("acceptedFileTypes").isEmpty());
+        assertFalse(note.containsKey("template"));
+        assertTrue(note.getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
+    {
+        // Named rather than counted, so that a form reopened later says which document is there: an upload control
+        // that looks the same before and after leaves the only way to check outside the page
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d1", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals(List.of("note.pdf"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
+            .stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+    }
+
+    @Test
+    void fallsBackOnANameForAnUntitledAttachment() throws IOException
+    {
+        // A document created by something other than the attach workflow may carry no title at all, and a form
+        // saying "Attached: " with nothing after it reads as broken rather than as untitled
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d2", Map.of(
+            TYPE, Document.RESOURCE_TYPE));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals(List.of("d2"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+    }
+
+    @Test
+    void leavesOutADocumentAttachedForSomeOtherRequirement() throws IOException
+    {
+        // The reference is what ties a document to a requirement, not being a child of the same submission
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d3", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "form.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+        assertFalse(requirement(form(REQUESTER), "signedForm").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void leavesOutADocumentThatFulfillsNothing() throws IOException
+    {
+        // A document with no reference at all: whatever it is, it is not the answer to this requirement
+        this.context.create().resource(SUBMISSION_PATH + "/d4", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "stray.pdf"));
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void saysWhatADocumentRequirementTakesAndWhatItOffersToStartFrom() throws IOException
+    {
+        // Both are here because an upload control cannot be drawn without them, and this projection is the only
+        // place that says which requirements currently apply
+        final JsonObject signed = requirement(form(REQUESTER), "signedForm");
+
+        assertEquals(List.of("application/pdf", "image/png"), signed.getJsonArray("acceptedFileTypes").stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+        assertEquals(VERSION_PATH + "/signedForm/template", signed.getString("template"));
+    }
+
+    // The question the model answers may sit inside a section of the requirement
+    @Test
+    void marksARequirementWhoseSectionTheModelAnswers() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when", Map.of(
+            TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Dates"));
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when/returning", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Returning?", "dataType", "date",
+            "extractionPrompt", "Find the day the leave ends."));
+
+        assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean("extracted"));
     }
 
     @Test
@@ -239,6 +620,96 @@ class SubmissionFormServletTest
         modify(SUBMISSION_PATH, "tags", new String[] {"submitted"});
 
         assertFalse(form(REQUESTER).getBoolean("editable"));
+    }
+
+    // What the answer is for, in the schema author's words. A submitter looking at a question they did not
+    // expect wants to know why it is being asked, which is not what the description tells them.
+    @Test
+    void carriesWhyAQuestionIsAsked() throws IOException
+    {
+        assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("purpose"),
+            "a question that states no purpose claims none");
+
+        modify(VERSION_PATH + "/" + START_DATE, "purpose", "Working out who covers the desk");
+
+        assertEquals("Working out who covers the desk",
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getString("purpose"));
+    }
+
+    @Test
+    void saysNothingAboutExtractionBeforeItWasAskedFor() throws IOException
+    {
+        assertFalse(form(REQUESTER).containsKey("extraction"));
+    }
+
+    @Test
+    void saysWhereReadingTheDocumentsGotTo() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "failed");
+        modify(SUBMISSION_PATH, "extractionMessage", "The model's answer could not be read");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("failed", extraction.getString("status"));
+        assertEquals("The model's answer could not be read", extraction.getString("message"));
+    }
+
+    // Whether the view offers to try again. A reading that failed for its own reasons is not retryable:
+    // sending the same document to the daemon a second time changes nothing about the model refusing it.
+    @Test
+    void saysWhetherAskingAgainWouldDoAnything() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "failed");
+        this.context.create().resource(SUBMISSION_PATH + "/d5", Map.of(TYPE, Document.RESOURCE_TYPE));
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"),
+            "a document with nothing uploaded has no parse to have failed");
+
+        this.context.create().resource(SUBMISSION_PATH + "/d6", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        final String version = documentVersionWith("d6", null);
+        modify(version + "/file", "parseStatus", "completed");
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"),
+            "a document that was read has nothing to send again");
+
+        modify(version + "/file", "parseStatus", "failed");
+
+        assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
+    }
+
+    // The two moments the progress bar can see. A queued parse is still with the daemon; once it has
+    // been read in, and a job has claimed the reading, the bar moves on.
+    @Test
+    void saysWhetherTheParseAndTheReadingHaveStarted() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+        this.context.create().resource(SUBMISSION_PATH + "/d7", Map.of(TYPE, Document.RESOURCE_TYPE));
+        final String version = documentVersionWith("d7", null);
+        modify(version + "/file", "parseStatus", "queued");
+
+        JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+        assertFalse(extraction.getBoolean("parsed"));
+        assertFalse(extraction.getBoolean("reading"));
+
+        modify(version + "/file", "parseStatus", "completed");
+        modify(SUBMISSION_PATH, "extractionReadingClaimed", Boolean.TRUE);
+
+        extraction = form(REQUESTER).getJsonObject("extraction");
+        assertTrue(extraction.getBoolean("parsed"));
+        assertTrue(extraction.getBoolean("reading"));
+    }
+
+    @Test
+    void leavesOutWhatTheReadingHasNotSaidYet() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("running", extraction.getString("status"));
+        assertFalse(extraction.containsKey("message"));
+        assertFalse(extraction.containsKey("category"));
     }
 
     @Test
@@ -341,11 +812,146 @@ class SubmissionFormServletTest
             .collect(Collectors.toSet());
     }
 
+    @Test
+    void saysWhoAnApprovalWaitsOnWhileNobodyHasDecided() throws IOException
+    {
+        // Nobody fills an approval in here, so the honest thing to project is where it stands. Saying only that
+        // it cannot be completed here reads the same as a part of the form that is broken
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertEquals(ApprovalRequirement.RESOURCE_TYPE, approval.getString("type"));
+        assertEquals(APPROVERS, approval.getString("approverGroup"));
+        assertFalse(approval.getBoolean("approved"));
+        assertFalse(approval.containsKey("decidedBy"));
+        assertFalse(approval.containsKey("decidedAt"));
+    }
+
+    @Test
+    void reportsTheDecisionOnceSomebodyHasMadeIt() throws IOException
+    {
+        review(DECIDED_AT, "priya", true);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertTrue(approval.getBoolean("approved"));
+        assertEquals("priya", approval.getString("decidedBy"));
+        // Spelled the way every other date in the JSON is, numeric offset and all, so a reader parses one format
+        assertEquals("2026-08-27T09:15:30.500-05:00", approval.getString("decidedAt"));
+    }
+
+    @Test
+    void reportsARefusalAsADecisionThatDidNotApprove() throws IOException
+    {
+        // A rejection is a review that is not approved, which is why who decided is reported whenever a review
+        // exists rather than only when it granted the approval
+        review("r1", "priya", false);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertFalse(approval.getBoolean("approved"));
+        assertEquals("priya", approval.getString("decidedBy"));
+    }
+
+    @Test
+    void reportsTheLastWordWhenAnApprovalWasRevisited() throws IOException
+    {
+        review("r1", "priya", false);
+        review("r2", "sam", true);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertTrue(approval.getBoolean("approved"));
+        assertEquals("sam", approval.getString("decidedBy"));
+    }
+
+    @Test
+    void leavesOutAReviewOfSomethingElse() throws IOException
+    {
+        // A review naming another requirement, or naming none at all, is not this approval's decision
+        final Resource elsewhere = this.context.create().resource(SUBMISSION_PATH + "/r1", Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", "priya", "tags", new String[] {"approved"}));
+        reference(elsewhere.getPath(), VERSION_PATH + "/doctorsNote", "requirement");
+        this.context.create().resource(SUBMISSION_PATH + "/r2", Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", "sam", "tags", new String[] {"approved"}));
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertFalse(approval.getBoolean("approved"));
+        assertFalse(approval.containsKey("decidedBy"));
+    }
+
+    @Test
+    void saysAnApprovalIsNotNarrowedToAGroupRatherThanOmittingIt() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/rebApproval", Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "REB approval"));
+
+        assertEquals("", requirement(form(REQUESTER), "rebApproval").getString("approverGroup"));
+    }
+
+    /**
+     * Records one review against the standing approval requirement.
+     *
+     * @param name the node name to give it
+     * @param reviewer who decided
+     * @param approved whether they granted the approval
+     */
+    private void review(final String name, final String reviewer, final boolean approved)
+    {
+        final Map<String, Object> properties = new HashMap<>(Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", reviewer,
+            "tags", approved ? new String[] {"approved"} : new String[0]));
+        // A mock resource carries no jcr:created, which is also the case this projection has to survive: the date
+        // is given only where a test is about it
+        final Resource review = this.context.create().resource(SUBMISSION_PATH + "/" + name, properties);
+        if (DECIDED_AT.equals(name)) {
+            final Calendar decided = new GregorianCalendar(TimeZone.getTimeZone("GMT-05:00"));
+            decided.clear();
+            decided.set(2026, Calendar.AUGUST, 27, 9, 15, 30);
+            decided.set(Calendar.MILLISECOND, 500);
+            modify(review.getPath(), "jcr:created", decided);
+        }
+        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "requirement");
+    }
+
     private void answer(final String questionPath, final String value)
     {
         final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** An answer a model read, with the extraction and the quote behind it. */
+    private void extracted(final String questionPath, final String value, final double confidence)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", value, "confidence", confidence,
+            "reasoning", "Stated under Dates."));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence",
+            "quote", "leave begins on the sixth", "header", "3.1 Dates", "page", 4L));
+    }
+
+    /** A multi-valued REFERENCE, which is how an extraction points at the revisions it read. */
+    private void references(final String fromPath, final String property, final String... toPaths)
+    {
+        try {
+            final Node source = Objects.requireNonNull(
+                this.context.resourceResolver().getResource(fromPath)).adaptTo(Node.class);
+            final Value[] values = new Value[toPaths.length];
+            for (int i = 0; i < toPaths.length; i++) {
+                values[i] = source.getSession().getValueFactory().createValue(Objects.requireNonNull(
+                    this.context.resourceResolver().getResource(toPaths[i])).adaptTo(Node.class));
+            }
+            source.setProperty(property, values);
+            this.context.resourceResolver().commit();
+        } catch (final RepositoryException | PersistenceException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void reference(final String fromPath, final String toPath, final String property)

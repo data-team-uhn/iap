@@ -30,6 +30,8 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
+  CLASSIFICATION_REQUIREMENT,
+  DOCUMENT_REQUIREMENT,
   FORM_REQUIREMENT,
   type FormItem,
   type FormRequirement,
@@ -53,7 +55,7 @@ const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
-    dataType: "text", required: true, multiple: false, options: [], value,
+    dataType: "text", minAnswers: 1, maxAnswers: 1, options: [], value,
   };
 }
 
@@ -65,7 +67,21 @@ function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): F
 function endDate() {
   return {
     name: "endDate", type: QUESTION, path: "details/endDate", text: "Which day are you back?",
-    dataType: "date", required: true, multiple: false, options: [], value: [] as string[],
+    dataType: "date", minAnswers: 1, maxAnswers: 1, options: [], value: [] as string[],
+  };
+}
+
+/** The same question, pre-filled by the extraction and not yet settled by the submitter. */
+function suggested() {
+  return {
+    ...duration([ "Yes" ]),
+    provenance: {
+      suggested: [ "Yes" ],
+      confidence: 0.9,
+      passages: [ { quote: "the leave runs over three days" } ],
+      reviewed: false,
+      evidenceRejected: false,
+    },
   };
 }
 
@@ -74,17 +90,18 @@ function form(overrides: Partial<SubmissionForm> = {}): SubmissionForm {
     path: PATH,
     title: "A long weekend",
     editable: true,
+    readsDocuments: false,
     requirements: [ details([ duration() ], { description: "When and why." }) ],
     ...overrides,
   };
 }
 
-function json(body: unknown, init: { ok?: boolean; status?: number } = {}) {
+function json(body: unknown, init: { ok?: boolean; status?: number; url?: string } = {}) {
   return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
     // The authenticated fetch reads this to tell a form from a login page served with a 200
-    url: "",
+    url: init.url ?? "",
     json: () => Promise.resolve(body),
   } as unknown as Response);
 }
@@ -94,11 +111,11 @@ function serving(...reads: SubmissionForm[]) {
   let read = 0;
   return vi.fn((url: string, options?: { method?: string }) => {
     if (options?.method === "POST") {
-      return json({});
+      return json({}, { url });
     }
     const next = reads[Math.min(read, reads.length - 1)];
     read += 1;
-    return json(next);
+    return json(next, { url });
   });
 }
 
@@ -133,6 +150,39 @@ describe("SubmissionEditor", () => {
     expect(posted?.[0]).toBe(`${PATH}.save.json`);
   });
 
+  it("records a confirmation as an event on the submission", async () => {
+    const withProvenance = form({ requirements: [ details([ suggested() ]) ] });
+    const fetchMock = serving(withProvenance);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionEditor path={PATH} />);
+    await screen.findByText("AI found:");
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+
+    const posted = fetchMock.mock.calls.find(([ , options ]) =>
+      (options as { method?: string })?.method === "POST");
+    expect(posted?.[0]).toBe(`${PATH}.reviewExtraction.json`);
+    const body = (posted?.[1] as unknown as { body: URLSearchParams }).body;
+    expect(body.get("question")).toBe("details/duration");
+    expect(body.get("confirmed")).toBe("true");
+  });
+
+  // The answer is unchanged, so nothing about it should read as unsaved
+  it("reports a refused review without claiming the answer failed to save", async () => {
+    const withProvenance = form({ requirements: [ details([ suggested() ]) ] });
+    const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? json({ error: "Nothing was extracted for that" }, { ok: false, status: 400 })
+      : json(withProvenance));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionEditor path={PATH} />);
+    await screen.findByText("AI found:");
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+
+    expect(await screen.findByText("Review failed")).toBeInTheDocument();
+    expect(screen.queryByText("Not saved")).not.toBeInTheDocument();
+  });
+
   it("reports a refused save on the field it belongs to", async () => {
     // A save can be refused, because somebody submitted the request in another tab. The field is
     // where that has to show, since the rest of the form is untouched
@@ -148,6 +198,33 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText("Not saved")).toBeInTheDocument();
   });
 
+  it("tells the page the request changed, so the step that sends it can re-read", async () => {
+    // The editor knowing the form again is not enough: what the request is still missing is recorded
+    // on the submission, and the control offering to *send* it reads that. Without this, answering the
+    // last question leaves that control refusing a request that is now complete.
+    const changed = vi.fn();
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    // Finished, not merely typed into: an answer is saved when the field is left
+    await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
+    await userEvent.tab();
+
+    await waitFor(() => expect(changed).toHaveBeenCalled());
+  });
+
+  it("says nothing to a page that did not ask to be told", async () => {
+    // Optional, because the editor is renderable on its own and a page with no send control has
+    // nothing to re-read
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
+    await userEvent.tab();
+
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
     vi.stubGlobal("fetch", serving(form({ editable: false })));
 
@@ -157,16 +234,278 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
   });
 
-  it("shows a requirement that holds no questions, rather than dropping it", async () => {
-    // A document or an approval is still something the submitter has to do
+  it("leaves approvals out, since the submitter has nothing to do there", async () => {
+    // Where an approval stands is shown on the read-only page. In the editor a reviewer's step drawn
+    // as a form section reads as something the submitter still has to fill in.
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ { name: "doctorsNote", type: "sch/DocumentRequirement", label: "Doctor's note" } ],
+      requirements: [ approval({ approverGroup: "time-off-approvers", approved: false }) ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("Doctor's note")).toBeInTheDocument();
-    expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+    expect(await screen.findByText("A long weekend")).toBeInTheDocument();
+    expect(screen.queryByText("Approval")).toBeNull();
+    expect(screen.queryByText(/Waiting for approval/)).toBeNull();
+  });
+
+  // One approval requirement, with whatever the projection is saying about it
+  function approval(state: Record<string, unknown>) {
+    return { name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...state };
+  }
+
+  describe("answering a document requirement", () => {
+    const NOTE = {
+      name: "doctorsNote",
+      type: DOCUMENT_REQUIREMENT,
+      label: "Doctor's note",
+      description: "A note covering the days you were unwell.",
+      required: true,
+      acceptedFileTypes: [ ".doc", "application/pdf" ],
+      template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
+      attached: [] as string[],
+    };
+
+    function asked(note: Partial<typeof NOTE> = {}, overrides: Partial<SubmissionForm> = {}) {
+      return form({ requirements: [ { ...NOTE, ...note } ], ...overrides });
+    }
+
+    // A .doc, because the browser-side check now looks inside the file and a legacy Word document is
+    // recognised by eight bytes rather than by a library these tests would have to stand in for.
+    const OLE_MAGIC = new Uint8Array([ 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 ]);
+
+    function pick(name = "note.doc", type = "application/msword") {
+      return new File([ OLE_MAGIC ], name, { type });
+    }
+
+    it("offers to attach a file, with the types it takes and the blank to start from", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
+      expect(input).toHaveAttribute("accept", ".doc,application/pdf");
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download the blank form" }))
+        .toHaveAttribute("href", "/Schemas/timeOffRequest/v1/doctorsNote/template");
+    });
+
+    it("says nothing about types or blanks where the requirement offers none", async () => {
+      vi.stubGlobal("fetch", serving(asked({
+        acceptedFileTypes: undefined, template: undefined, attached: undefined,
+      })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
+      expect(screen.queryByRole("link", { name: "Download the blank form" })).toBeNull();
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+    });
+
+    it("says skipping it is allowed when the form says so", async () => {
+      vi.stubGlobal("fetch", serving(asked({ required: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Nothing attached yet — optional")).toBeInTheDocument();
+    });
+
+    it("names what is already there, so a form reopened later does not look untouched", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.doc" ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Attached: note.doc")).toBeInTheDocument();
+      expect(screen.queryByText("Nothing attached yet")).toBeNull();
+    });
+
+    it("posts the file as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked(), asked({ attached: [ "note.doc" ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      // The selector names the event: a bare POST to a submission means `save`
+      // `.json` after the selector, because Sling would otherwise read `attachDocument` as the
+      // extension and the POST would mean `save`
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
+      expect(upload).toBeDefined();
+      const init = upload![1] as RequestInit;
+      expect(init.method).toBe("POST");
+      const body = init.body as FormData;
+      expect(body.get("requirement")).toBe("doctorsNote");
+      expect((body.get("file") as File).name).toBe("note.doc");
+      // No Content-Type of our own: only the browser knows the multipart boundary it generated
+      expect(init.headers).toBeUndefined();
+      // What the server now says is attached, rather than what this page hoped
+      expect(await screen.findByText("Attached: note.doc")).toBeInTheDocument();
+    });
+
+    it("removes an attached file as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked({ attached: [ "note.doc" ] }), asked());
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+
+      const detach = fetchMock.mock.calls.find(call => call[0] === `${PATH}.detachDocument.json`);
+      expect(detach).toBeDefined();
+      expect((detach![1] as RequestInit & { body: URLSearchParams }).body.get("requirement")).toBe("doctorsNote");
+      expect(await screen.findByText("Nothing attached yet")).toBeInTheDocument();
+    });
+
+    // Removed mid-reading, the reading would wait for a parse that lands on nothing
+    it("does not offer to remove a file while the documents are being read", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.doc" ] }, { extraction: { status: "running" } })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      const remove = await screen.findByRole("button", { name: "Remove" });
+      expect(remove).toBeDisabled();
+      expect(remove).toHaveAttribute("title", expect.stringMatching(/Wait until the document has been read/));
+    });
+
+    it("names a requirement with no label by its name", async () => {
+      vi.stubGlobal("fetch", serving(asked({ label: "" })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file for "doctorsNote"/)).toBeInTheDocument();
+    });
+
+    it("says why a file could not be removed", async () => {
+      let refusal: unknown = { error: "This request is already sent" };
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? json(refusal, { ok: false, status: 409 })
+          : json(asked({ attached: [ "note.doc" ] }))));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+      expect(await screen.findByText("This request is already sent")).toBeInTheDocument();
+
+      refusal = {};
+      await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+      expect(await screen.findByText("This file could not be removed (409)")).toBeInTheDocument();
+    });
+
+    it("says why the engine refused a file, in the engine's own words", async () => {
+      // A file the browser-side check is happy with, so the request really does reach the server.
+      // What the server then refuses, it refuses on its own reading of the request, and that reason
+      // is the one worth showing.
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? json({ error: "This request no longer takes documents" }, { ok: false, status: 400 })
+          : json(asked({ acceptedFileTypes: undefined }))));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByText("This request no longer takes documents")).toBeInTheDocument();
+    });
+
+    // The browser-side check, which is there so a person finds out at once rather than after a slow
+    // upload. The server checks again; this only saves the wait.
+    it("refuses a file it can see is wrong before sending it", async () => {
+      const fetchMock = serving(asked({ acceptedFileTypes: undefined }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/),
+        new File([ "not a document" ], "scan.gif", { type: "image/gif" }));
+
+      expect(await screen.findByText(/scan.gif is not a/)).toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([ , options ]) =>
+        (options as { method?: string })?.method === "POST")).toBe(false);
+    });
+
+    it("falls back on its own words when the refusal carries none", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.resolve({
+            ok: false,
+            // Not a 500, which the client first checks against the session
+            status: 400,
+            json: () => Promise.reject(new Error("not json")),
+          } as unknown as Response)
+          : json(asked())));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByText(/This file could not be attached \(400\)/)).toBeInTheDocument();
+    });
+
+    it("stringifies a refusal that is not an error at all", async () => {
+      // Nothing promises an Error, and a page showing "[object Object]" is how that usually surfaces
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.reject("the network went away")
+          : json(asked())));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByText("the network went away")).toBeInTheDocument();
+    });
+
+    it("lets a refusal be dismissed and the same file tried again", async () => {
+      let refuse = true;
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+        if (options?.method === "POST") {
+          const answer = refuse
+            ? json({ error: "The server was busy" }, { ok: false, status: 503 })
+            : json({});
+          refuse = false;
+          return answer;
+        }
+        return json(asked());
+      }));
+
+      render(<SubmissionEditor path={PATH} />);
+      const input = await screen.findByLabelText(/Attach a file/);
+      await userEvent.upload(input, pick());
+      await screen.findByText("The server was busy");
+      await userEvent.click(screen.getByRole("button", { name: /Close/ }));
+
+      // The input is cleared after each pick, so the same file counts as a change and can be retried
+      await userEvent.upload(input, pick());
+
+      await waitFor(() => expect(screen.queryByText("The server was busy")).toBeNull());
+    });
+
+    it("does nothing when the file dialog was dismissed without a choice", async () => {
+      const fetchMock = serving(asked());
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      // What a cancelled dialog looks like to the change handler, which `userEvent.upload` cannot
+      // express: it always has a file to give
+      fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
+
+      expect(fetchMock.mock.calls.some(call => call[0].includes(".attachDocument"))).toBe(false);
+    });
+
+    it("tells the page the request changed when a document is attached", async () => {
+      // Attaching the last thing a request was waiting for makes it ready to send, which is the same
+      // chain a saved answer walks
+      const changed = vi.fn();
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.doc" ] })));
+
+      render(<SubmissionEditor path={PATH} onChanged={changed} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(changed).toHaveBeenCalled());
+    });
+
+    it("cannot be attached to once the request is no longer the submitter's to change", async () => {
+      // The same field that disables the questions, so the control cannot outlive the permission
+      vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file/)).toBeDisabled();
+    });
   });
 
   it("draws a section as its own block, with its questions inside", async () => {
@@ -180,6 +519,32 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("When you are away")).toBeInTheDocument();
     expect(screen.getByLabelText(/Which day are you back/)).toBeInTheDocument();
+  });
+
+  // A step under a form section is how its open questions get answered, so the page's "not ready to
+  // send" reason must not hide it: a request with open questions always has that reason.
+  it("offers a form section's own step even while the request cannot be sent", async () => {
+    const instances = {
+      reading: {
+        "@path": `${PATH}/wf:instances/reading`,
+        "sling:resourceType": "wf/WorkflowInstance",
+        "task": {
+          "sling:resourceType": "wf/TaskInstance",
+          "@path": `${PATH}/wf:instances/reading/task`,
+          "label": "Read the questions for this kind of study",
+          "status": "created",
+          "@mine": true,
+          "requirement": "details",
+        },
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      json(url.includes("wf:instances") ? instances : form())));
+
+    render(<SubmissionEditor path={PATH} blockedReason="Answer everything this request asks for before sending it." />);
+
+    expect(await screen.findByRole("button", { name: /Read the questions for this kind of study/ }))
+      .toBeEnabled();
   });
 
   it("falls back on the name when a requirement or a section is unlabelled", async () => {
@@ -227,7 +592,23 @@ describe("SubmissionEditor", () => {
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText(/could not be loaded \(404\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/could not be found on the server/)).toBeInTheDocument();
+  });
+
+  it("says the server sent a page when the form arrives as HTML", async () => {
+    // Sling answers an expired session with a 200 login page. Parsing that as JSON used to show
+    // "Unexpected token '<'", which names the parser rather than the problem.
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      url: "/form.json",
+      json: () => Promise.reject(new SyntaxError("Unexpected token '<', \"<!doctype \"... is not valid JSON")),
+    } as unknown as Response)));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText(/sent a page instead of data/)).toBeInTheDocument();
+    expect(screen.queryByText(/Unexpected token/)).toBeNull();
   });
 
   it("keeps the newest answer when two are finished in quick succession", async () => {
@@ -258,5 +639,113 @@ describe("SubmissionEditor", () => {
     // The overtaken read is dropped rather than applied over the newer one
     await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
     expect(screen.getByText("Newest")).toBeInTheDocument();
+  });
+
+  it("turns to the classification, then the answers the model fills in, with Next, and starts nothing", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    const classification = {
+      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: true, items: [ duration([ "Yes" ]) ],
+    };
+    const study = {
+      name: "common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
+      items: [ duration() ],
+    };
+    const admin = {
+      name: "administrative", type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
+      items: [ { ...endDate(), value: [ "2026-10-06" ] } ],
+    };
+    const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
+      if (options?.method === "POST") {
+        return json({}, { url });
+      }
+      return json(url.includes("wf:instances") ? {} : form({
+        readsDocuments: true,
+        requirements: [ proposal, admin, classification, study ],
+      }), { url });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.getByText("Administrative information")).toBeInTheDocument();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
+    expect(screen.queryByText("The study")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("Research proposal")).toBeNull();
+    expect(screen.queryByText("The study")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("The study")).toBeInTheDocument();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
+    expect(fetchMock.mock.calls.some(([ , options ]) => options?.method === "POST")).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.queryByText("The study")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByText("Is this a research proposal?")).toBeNull();
+  });
+
+  it("holds Next back until a required document is attached", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [] as string[],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("asks a classification on the first page, and holds Next back until it is answered", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    const classification = {
+      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: false, items: [ duration() ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal, classification ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("holds Next back until every required question on the page is answered", async () => {
+    const proposal = {
+      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(form({
+      readsDocuments: true,
+      requirements: [ proposal,
+        details([ duration() ], { name: "screening", label: "About this questionnaire", extracted: false }) ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByRole("button", { name: "Next" })).toBeDisabled();
   });
 });

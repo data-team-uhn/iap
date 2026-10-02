@@ -1,0 +1,78 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Ethics review demo",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "active": true,
+    "jcr:reference:workflow": "/Workflows/researchProposal/v1",
+    // A minimal reading workflow with nothing but the ethicsReview requirement - no proposal/category
+    // classification in the way, so the TCPS2 check can be demoed on its own.
+    "jcr:reference:readingWorkflow": "/Workflows/ethicsReviewDemo/v1",
+    "description": "Demo: upload a study document and see it checked against TCPS2, the national research ethics policy, with nothing else read first.",
+    "proposal": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Study document",
+      "description": "The proposal or protocol, as a PDF or Word document.",
+      "acceptedFileTypes": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      "required": true
+    },
+    "ethicsReview": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Ethics review",
+      "description": "Checked against TCPS2 (the Tri-Council Policy Statement, Canada's national research ethics policy). Only areas that need attention are filled in; a blank item means nothing was flagged, not that it was checked and passed.",
+      "consentAdequacy": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the consent process meet TCPS2's requirements?",
+        "dataType": "text",
+        "purpose": "Whether participants' consent is voluntary, informed and ongoing, per TCPS2 Articles 3.1-3.3",
+        "extractionPrompt": "Judge the consent process this document describes against TCPS2 Articles 3.1-3.3 (see REFERENCE): voluntary, informed (purpose, risks, benefits, withdrawal rights, confidentiality, conflicts of interest, payments), and ongoing. If it is adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation for the submitter, quoting the passage describing consent even where that passage is what falls short."
+      },
+      "riskBenefitBalance": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is the risk-benefit balance adequately addressed?",
+        "dataType": "text",
+        "purpose": "Whether foreseeable risks, potential benefits and the ethical implications are assessed, per TCPS2 Article 2.9",
+        "extractionPrompt": "Judge whether this document assesses foreseeable risks against potential benefits, consistent with TCPS2's proportionate approach (Article 2.9, see REFERENCE), and whether the stated risk level matches what the study actually does. If adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation, quoting the relevant risk or safety passage."
+      },
+      "fairnessInclusion": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are inclusion and exclusion criteria fair and justified?",
+        "dataType": "text",
+        "purpose": "Whether eligibility criteria are justified by the research question rather than unexplained exclusion, per TCPS2 Article 4.1",
+        "extractionPrompt": "Judge whether the inclusion/exclusion criteria are justified by the research question, with no unexplained exclusion of groups based on culture, language, religion, race, disability, sexual orientation, ethnicity, gender or age (TCPS2 Article 4.1, see REFERENCE). If adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation, quoting the eligibility criteria."
+      },
+      "vulnerablePopulations": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are protections for vulnerable participants described, where relevant?",
+        "dataType": "text",
+        "purpose": "Whether extra safeguards are described for participants with limited decision-making capacity or limited access to social goods, per TCPS2 Article 4.7",
+        "extractionPrompt": "If this study involves participants whose circumstances may make them vulnerable (e.g. limited decision-making capacity, children, institutionalized persons, limited access to social goods -- TCPS2 Article 4.7, see REFERENCE), judge whether appropriate safeguards are described. If the study involves no such participants, or safeguards are adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation, quoting the relevant passage."
+      },
+      "privacyConfidentiality": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are privacy and confidentiality safeguards adequately described?",
+        "dataType": "text",
+        "purpose": "Whether data collection, storage, access and disposal safeguards match what TCPS2 requires and what is promised to participants, per Articles 5.1-5.3",
+        "extractionPrompt": "Judge whether this document describes safeguards for participant data across its life cycle -- collection, use, storage, access, disposal -- consistent with TCPS2 Articles 5.1-5.3 (see REFERENCE), and whether these are consistent with what the consent process promises participants. If adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation, quoting the relevant data-handling passage."
+      },
+      "conflictOfInterest": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are conflicts of interest disclosed?",
+        "dataType": "text",
+        "purpose": "Whether researcher, institutional and sponsor conflicts of interest are disclosed, per TCPS2 Articles 7.1 and 7.4",
+        "extractionPrompt": "Judge whether real, potential or perceived conflicts of interest -- financial, institutional, or dual-role (e.g. clinician-researcher) -- are disclosed, per TCPS2 Articles 7.1 and 7.4 (see REFERENCE). If none apply or disclosure is adequate, answer found_answer=false. Otherwise set found_answer=true and give value as one specific, actionable recommendation, quoting the relevant passage."
+      }
+    },
+    "review": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Scientific review",
+      "description": "A reviewer decides whether the proposal goes forward.",
+      "approverGroup": "proposal-reviewers"
+    }
+  }
+}

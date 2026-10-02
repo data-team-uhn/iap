@@ -19,20 +19,22 @@
 import { Stack, Typography } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { questionLabel } from "./label";
+import QuestionText from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A question asking for a file, which cannot be answered here yet: uploading through the workflow
-// engine is its own mechanism and is not built.
+// A question asking for a file, which cannot be answered here yet. Uploading through the engine is
+// built — a document requirement is answered with a file — but an *answer* holding one is a different
+// shape: a document is a node of its own recording which requirement it fulfills, while this would be
+// a file hanging off a sub:Answer, with its own node type and its own handler.
 //
 // This says so rather than leaving the question out. A form that silently omits a question it
 // cannot ask reads as complete when it is not.
 function FileAnswer({ question }: AnswerComponentProps) {
   return (
     <Stack>
-      <Typography variant="subtitle2">{questionLabel(question)}</Typography>
-      <Typography variant="placeholder">
+      <QuestionText question={question} labelOnly />
+      <Typography variant="description">
         Attaching a file is not available yet.
       </Typography>
     </Stack>

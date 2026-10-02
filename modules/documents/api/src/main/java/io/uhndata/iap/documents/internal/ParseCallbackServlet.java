@@ -201,9 +201,34 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
-            LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "The outcome could not be recorded");
+            // The node existed when read above, but committing can still race a concurrent abandon() that
+            // deletes the same job: not a storage problem, just the ordinary "no such job" answer, logged at
+            // the matching level instead of alarming on a race the system already treats as normal.
+            if (jobExists(jobId)) {
+                LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
+                JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "The outcome could not be recorded");
+            } else {
+                LOGGER.info("Parse job {} was removed before this outcome could be recorded", jobId);
+                JsonResponse.error(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+            }
+        }
+    }
+
+    /**
+     * Whether a job's record still exists, checked fresh after a commit failure -- the session that just failed
+     * to save is not reused, since a session with a failed commit is not trustworthy for a further read.
+     *
+     * @param jobId the job to check
+     * @return {@code true} when the record exists, or when this cannot be determined
+     */
+    private boolean jobExists(final String jobId)
+    {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
+            return resolver.getResource(ParseJob.nodePath(jobId)) != null;
+        } catch (final LoginException e) {
+            // Unknown either way; do not let a guess mask the original commit failure with the wrong log level
+            return true;
         }
     }
 

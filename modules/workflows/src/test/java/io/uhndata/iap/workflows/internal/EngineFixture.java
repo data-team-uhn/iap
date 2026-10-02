@@ -17,11 +17,18 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -31,10 +38,13 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -45,6 +55,15 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.principals.internal.CreatorResolver;
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
+import io.uhndata.iap.tags.internal.TagOperations;
+import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -83,6 +102,13 @@ final class EngineFixture
 
     /** Every principal granted read since the last fixture was built, for the access tests to assert on. */
     static final List<String> GRANTED = new ArrayList<>();
+
+    /** The category the lifecycle states share, and therefore retire each other through. */
+    static final String LIFECYCLE = "lifecycle";
+
+    /** The lifecycle states these tests move a host through. */
+    static final List<String> STATES =
+        List.of("draft", "submitted", "in-review", "approved", "rejected", "expired");
 
     private EngineFixture()
     {
@@ -132,6 +158,81 @@ final class EngineFixture
     }
 
     /**
+     * The shared vocabulary, as the engine wires it: the real service with the built-in resolvers.
+     *
+     * @return a principal service answering @creator and @me
+     */
+    static PrincipalService principals()
+    {
+        final PrincipalServiceImpl service = new PrincipalServiceImpl();
+        try {
+            final Field resolvers = PrincipalServiceImpl.class.getDeclaredField("resolvers");
+            resolvers.setAccessible(true);
+            resolvers.set(service, List.of(new CreatorResolver(), new MeResolver()));
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        return service;
+    }
+
+    /**
+     * A stand-in for the tag vocabulary, knowing only the lifecycle states these tests use.
+     *
+     * <p>The mock repository holds no {@code tag:Definition} nodes, so the service the {@code Taggable} model
+     * reads the vocabulary through is what has to be supplied. It keeps the tags in the node's own {@code tags}
+     * property, which is where the real one puts them, so the assertions read the same place production writes.</p>
+     *
+     * @return a tag service covering the {@link #LIFECYCLE} category
+     */
+    static TagOperations lifecycleTags()
+    {
+        final List<TagDefinition> definitions = STATES.stream()
+            .map(EngineFixture::state)
+            .collect(Collectors.toList());
+        final TagOperations operations = Mockito.mock(TagOperations.class);
+        Mockito.when(operations.getApplicableDefinitions(Mockito.any())).thenReturn(definitions);
+        Mockito.when(operations.getTags(Mockito.any())).thenAnswer(call -> tagsOf(call.getArgument(0)));
+        try {
+            Mockito.doAnswer(call -> {
+                final Resource resource = call.getArgument(0);
+                final Collection<String> names = call.getArgument(1);
+                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class))
+                    .put("tags", names.toArray(String[]::new));
+                return null;
+            }).when(operations).setTags(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
+        } catch (final PersistenceException e) {
+            throw new IllegalStateException("Stubbing does not touch the repository", e);
+        }
+        return operations;
+    }
+
+    /**
+     * The tags a node carries, read the way the tag service stores them.
+     *
+     * @param resource the node to read
+     * @return its tag names, empty if it carries none
+     */
+    static Set<String> tagsOf(final Resource resource)
+    {
+        return new LinkedHashSet<>(Arrays.asList(resource.getValueMap().get("tags", new String[0])));
+    }
+
+    /**
+     * One lifecycle state's definition. Built into a local before the vocabulary is stubbed with it, since Mockito
+     * rejects a mock built inside an unfinished {@code when}.
+     *
+     * @param name the state's tag name
+     * @return its definition
+     */
+    private static TagDefinition state(final String name)
+    {
+        final TagDefinition definition = Mockito.mock(TagDefinition.class);
+        Mockito.when(definition.getName()).thenReturn(name);
+        Mockito.when(definition.getCategories()).thenReturn(List.of(LIFECYCLE));
+        return definition;
+    }
+
+    /**
      * Creates the {@code /Workflows} homepage the tests aim their events at, posted to by an administrator.
      *
      * @param context the Sling context to build in
@@ -156,6 +257,37 @@ final class EngineFixture
         final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
         final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
         return new ResourceWrapper(homepage)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. The divergence is real — a login resolves case-insensitively — and it is what
+     * separates a test that asserts the engine picks the right one from a test that only asserts it picks
+     * something.
+     *
+     * @param target a target built by {@link #createTarget(SlingContext, String)}, whose session is already
+     *            masked with the canonical id
+     * @param spelling what Sling should report the user id to be
+     * @return the target, disagreeing with itself about who is asking
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        };
+        return new ResourceWrapper(target)
         {
             @Override
             public ResourceResolver getResourceResolver()
@@ -224,6 +356,23 @@ final class EngineFixture
     }
 
     /**
+     * A condition evaluator wired the way the platform wires it, with the operand sources a workflow's own guards
+     * use: literals, and the variables of the instance being routed. Built by hand because the bundle plugin only
+     * generates the DS metadata at packaging time, the same way the conditions module tests its own evaluator.
+     *
+     * @return an evaluator a gateway's guards can be asked of
+     * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
+     */
+    static ConditionEvaluator conditions() throws ReflectiveOperationException
+    {
+        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
+        resolvers.setAccessible(true);
+        resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new VariableOperandResolver()));
+        return evaluator;
+    }
+
+    /**
      * Supplies the {@code sling:resourceType} that a real repository autocreates from the node type, which is the
      * one thing the mock one cannot do for itself. It matters because the runtime may not write that property:
      * every {@code wf:} type declares it protected, so a repository refuses. And because the engine reads what it
@@ -286,10 +435,19 @@ final class EngineFixture
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
+            // Membership is asked of the group, about the member; only the ordinary user is in it
+            Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
+                REQUESTER.equals(((Authorizable)
+                    invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
+            // A principal store that knows no dynamic groups, so unknown names stay unknown rather than failing
+            Mockito.doReturn(Mockito.mock(PrincipalManager.class)).when(session).getPrincipalManager();
+            // Stubbed because the underlying context may have no JCR session to delegate to; named so that it
+            // never equals an actor, since membership about anybody else is asked of the stores above
+            Mockito.doReturn("the-engine").when(session).getUserID();
             return session;
         } catch (final RepositoryException e) {
             throw new IllegalStateException(e);
@@ -328,6 +486,7 @@ final class EngineFixture
         Mockito.when(principal.getName()).thenReturn(REQUESTERS);
         final Group group = Mockito.mock(Group.class);
         Mockito.when(group.getID()).thenReturn(REQUESTERS);
+        Mockito.when(group.isGroup()).thenReturn(true);
         Mockito.when(group.getPrincipal()).thenReturn(principal);
         return group;
     }

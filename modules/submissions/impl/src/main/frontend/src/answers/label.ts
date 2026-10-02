@@ -24,5 +24,8 @@ import type { FormQuestion } from "../submissionForm";
  * question the same way: its text, falling back to its name when a schema left the text out.
  */
 export function questionLabel(question: FormQuestion): string {
-  return question.text || question.name;
+  const text = question.text || question.name;
+  // Numbered here rather than by each caller, so every input, every heading and every read-only row
+  // says the same number for the same question.
+  return question.number != undefined && question.number > 0 ? `${question.number}. ${text}` : text;
 }

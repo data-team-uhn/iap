@@ -31,7 +31,13 @@ import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
 // Only the submissions created by the current user; `@me` is resolved server-side.
-const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "jcr:createdBy", value: "@me" }];
+//
+// `createdBy` and not `jcr:createdBy`: every submission is raised through the workflow engine, which
+// writes as its own service user, so the JCR property names the engine and the person it acted for is
+// recorded separately. And `jcr:createdBy` is not worth ORing in as a fallback either, which is the
+// tempting mistake: it could only match content a user's own session wrote directly, which the engine
+// exists to prevent, while seeded content carries `sling-jcr-content-loader` there and matches nobody.
+const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // One dashboard widget extension, as the dashboard hands it to the widget it renders.
 type WidgetExtension = Record<string, unknown>;
@@ -85,7 +91,9 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     setDialogOpen(false);
     setRefreshToken(current => current + 1);
     if (path) {
-      void navigate(path);
+      // Straight into the editor: a request that was just raised has nothing in it yet, and the only
+      // thing anybody opens it for is to start filling it in.
+      void navigate(`${path}.edit`);
     }
   };
 
@@ -114,6 +122,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
         refreshToken={refreshToken}
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
+        searchLabel="Search my submissions"
       />
       { /* Mounted only while open, so each opening reads what is on offer afresh and never
            reopens onto a half-filled attempt */ }

@@ -38,14 +38,31 @@ from docling.datamodel.pipeline_options import (  # noqa: E402
 from docling.datamodel.settings import settings  # noqa: E402
 
 
-class _SuppressTorchDtypeDeprecation(logging.Filter):
-    """Drop transformers' torch_dtype→dtype rename chatter (Docling still passes the old name)."""
+class _SuppressTransformersChatter(logging.Filter):
+    """Drop transformers warnings Docling triggers and this daemon does not control."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return "`torch_dtype` is deprecated" not in record.getMessage()
+        message = record.getMessage()
+        # torch_dtype: Docling still passes the old name. use_fast: the layout checkpoint
+        # was saved with the slow image processor, which is the one we keep.
+        return (
+            "`torch_dtype` is deprecated" not in message
+            and "Using a slow image processor as `use_fast` is unset" not in message
+        )
 
 
-logging.getLogger("transformers").addFilter(_SuppressTorchDtypeDeprecation())
+def _install_transformers_filter() -> None:
+    # Both warnings are logged on child loggers (modeling_utils, image_processing_auto).
+    # A filter on "transformers" itself never sees those records. They reach the terminal
+    # through the handler Docling's import already attached, so the filter has to sit there.
+    chatter = _SuppressTransformersChatter()
+    transformers_logger = logging.getLogger("transformers")
+    transformers_logger.addFilter(chatter)
+    for handler in transformers_logger.handlers:
+        handler.addFilter(chatter)
+
+
+_install_transformers_filter()
 
 # Docling internal batching/concurrency.
 # Keep conservative when also using ProcessPoolExecutor, otherwise memory can spike.

@@ -1,0 +1,55 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Take a document back off a submission",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "What happens when a submitter removes a file they attached: the document answering that requirement goes, and whether anything is still missing is recorded again - taking a file back off can be the thing that makes a request incomplete, exactly as attaching one can be the thing that completes it. The whole document goes rather than its latest version: attaching twice makes a new version of the same document, which reads as a replacement, but removing says this was the wrong file altogether. Detaching is a workflow rather than a write for the same reason attaching is, and under the same rule - the person who raised the request, while it is still a draft. The start event admits everyone because the rule that matters is *the person who raised this particular submission*, which no performer can express.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "File removed",
+      "messageName": "detachDocument",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toDetach": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDetach",
+        "targetRef": "detach"
+      }
+    },
+    "detach": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "detach",
+      "label": "Remove the document",
+      "handler": "detachDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Document removed",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
