@@ -187,8 +187,8 @@ class UserWorkflowTest
     }
 
     /**
-     * Builds an engine wired as the DS runtime would wire it, with a service session that can answer who the
-     * repository's users are.
+     * Builds an engine wired as the DS runtime would wire it, with the {@code startWorkflow} handler the bootstrap
+     * uses, and a service session that can answer who the repository's users are.
      *
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
@@ -198,7 +198,7 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", List.of());
+        inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         return impl;
     }
 
@@ -442,7 +442,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
             new PersistenceException("the disk is on fire")));
-        inject(engine, "handlers", List.of());
+        inject(engine, "handlers", List.of(new StartWorkflowHandler()));
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -609,7 +609,7 @@ class UserWorkflowTest
         final RecordingHandler handler = new RecordingHandler();
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(handler));
+        inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

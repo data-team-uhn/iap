@@ -17,13 +17,16 @@
  */
 package io.uhndata.iap.workflows.spi;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Everything a {@link ServiceTaskHandler} gets to work with: what the event was about, what it carried, how this
@@ -104,4 +107,31 @@ public interface WorkflowTaskContext
      */
     @NotNull
     ResourceResolver getResourceResolver();
+
+    /**
+     * Sends an event on to another resource, as part of this execution, and waits for the workflow it starts to finish.
+     * The event is matched, guarded and authorized exactly as if the user had sent it themselves, triggering a system
+     * workflow if everything is correct. The called workflow runs inside the calling one, in the same JCR session and
+     * the same commit, so either both happen or neither does.
+     *
+     * @param target the resource the event is sent to, backed by the engine's own session
+     * @param event the event to send
+     * @throws WorkflowException when the event is refused or its workflow fails
+     * @throws PersistenceException when its workflow's writes fail
+     */
+    void sendEvent(@NotNull Resource target, @NotNull WorkflowEvent event)
+        throws WorkflowException, PersistenceException;
+
+    /**
+     * Starts an instance of a workflow on a resource, as part of this execution, and runs it up to its first
+     * wait. The instance acts for the same actor.
+     *
+     * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
+     * @param version the workflow version to start
+     * @throws WorkflowException when the version is not active, the resource cannot hold workflows, or the
+     *             definition cannot be run
+     * @throws PersistenceException when the instance cannot be written
+     */
+    void startWorkflow(@NotNull Resource host, @NotNull WorkflowVersion version)
+        throws WorkflowException, PersistenceException;
 }

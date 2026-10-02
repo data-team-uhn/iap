@@ -28,49 +28,50 @@ import javax.jcr.Session;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The {@code startWorkflow} service task: what makes a freshly created entity start living under its workflow.
  *
- * <p>It is built into the engine rather than registered as a handler. Starting an instance is the engine's own
- * business. It is still reached as an ordinary activity in a definition. Which entities get a workflow, and
- * when, stays content rather than platform code.</p>
- *
  * <p>Which workflow to start is found by following a chain of reference properties, named in the activity's
  * {@code workflowFrom} configuration. For submissions that chain is {@code schemaVersion/workflow}: the schema
  * version a submission answers is what decides the process it goes through. Naming the chain rather than
- * hard-coding it keeps the workflows module ignorant of what a submission is.</p>
+ * hard-coding it keeps the workflows module ignorant of what a submission is. Starting the instance itself is
+ * asked of the engine, through the task context.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class WorkflowStarter
+@Component(service = ServiceTaskHandler.class)
+public class StartWorkflowHandler implements ServiceTaskHandler
 {
-    /** The name an activity uses to ask for this. */
-    static final String HANDLER_NAME = "startWorkflow";
+    /** The name activities use to point at this handler. */
+    public static final String HANDLER_NAME = "startWorkflow";
 
     /** The activity property naming the chain of references leading to the workflow version. */
     private static final String WORKFLOW_FROM_PARAMETER = "workflowFrom";
 
-    private WorkflowStarter()
+    @Override
+    public String getName()
     {
+        return HANDLER_NAME;
     }
 
     /**
      * Starts the workflow the created entity's data points at, if it points at one.
      *
      * @param context the executing task's context
-     * @param performer how the started instance performs any service task it meets
      * @throws WorkflowException when the activity is misconfigured or the workflow cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
-    static void execute(final WorkflowTaskContext context, final InstanceRunner.ServiceTaskPerformer performer)
-        throws WorkflowException, PersistenceException
+    @Override
+    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Object chain = context.getActivity().get(WORKFLOW_FROM_PARAMETER);
         if (!(chain instanceof String) || ((String) chain).isBlank()) {
@@ -85,14 +86,8 @@ final class WorkflowStarter
             // Nothing to run: an entity whose data names no workflow simply has none. Not an error
             return;
         }
-        final WorkflowVersion version = Objects.requireNonNull(versionResource.adaptTo(WorkflowVersion.class),
-            "A wf:WorkflowVersion resource always adapts to its model");
-        if (!version.isActive()) {
-            throw new WorkflowDefinitionException("The workflow version " + version.getPath()
-                + " is not active, so " + host.getPath() + " cannot be put through it");
-        }
-        new InstanceRunner(resolver, performer, context.getActor()).start(host, version);
-        HostAccess.grantReaders(resolver, host, version, context.getActor());
+        context.startWorkflow(host, Objects.requireNonNull(versionResource.adaptTo(WorkflowVersion.class),
+            "A wf:WorkflowVersion resource always adapts to its model"));
     }
 
     /**

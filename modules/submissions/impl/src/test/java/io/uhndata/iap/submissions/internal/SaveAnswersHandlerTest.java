@@ -53,6 +53,7 @@ import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -473,6 +474,18 @@ class SaveAnswersHandlerTest
             public void setVariable(final String name, final Object value)
             {
                 variables.put(name, value);
+            }
+
+            @Override
+            public void sendEvent(final Resource to, final WorkflowEvent sent)
+            {
+                throw new IllegalStateException("No event was expected to be sent here");
+            }
+
+            @Override
+            public void startWorkflow(final Resource host, final WorkflowVersion version)
+            {
+                throw new IllegalStateException("No workflow was expected to be started here");
             }
         };
     }

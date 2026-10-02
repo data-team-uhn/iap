@@ -132,6 +132,19 @@ final class EngineFixture
     }
 
     /**
+     * How a task context performs further work, for a handler under test that does none: no handlers to dispatch
+     * to, and no event may be sent.
+     *
+     * @return a dispatcher refusing to send events
+     */
+    static ServiceTaskDispatcher noFurtherTasks()
+    {
+        return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
+            throw new IllegalStateException("No event was expected to be sent here");
+        });
+    }
+
+    /**
      * Creates the {@code /Workflows} homepage the tests aim their events at, posted to by an administrator.
      *
      * @param context the Sling context to build in

@@ -317,15 +317,43 @@ A few handlers are the engine's own, because what they do is generic:
 | `handler` | Configuration | Does |
 | --- | --- | --- |
 | `createEntity` | `entityType` | Creates an entity of that type under the target, titled by the event's `title` |
-| `startWorkflow` | `workflowFrom` | Starts the user workflow a chain of references leads to, e.g. `schemaVersion/workflow` |
+| `callActivity` | `message` | Runs the system workflow waiting for that event on the host, with the event's payload, before carrying on |
+| `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 
-The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle is content: a
-transition is a guarded start event followed by an `addTag` with `replaceExisting`. They act on what the
-execution has created, once it has created something, and on the target otherwise, the same rule
-`startWorkflow` follows. They may place and remove `system` tags. Only tags placed on the host itself are
-touched; inherited or computed tags are unaffected.
+A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
+waits for it to finish. It does so by sending the event named in its `message` to the
+host, carrying the triggering event's payload. Call activities is how system workflows
+call upon each other, splitting the functionality of the system into small, reusable chunks.
+For example, the user invokes `createSchema`, which creates a new schema and sends it
+`createVersion`, whose own workflow creates the first version and tags it.
+
+The called workflow runs inside the calling one, in the same JCR session and the same
+commit, so either both happen or neither does. Its event is matched, guarded and
+authorized exactly as if the user had sent it themselves, and the caller is still
+answered with what the calling workflow created. Call activities can be chained,
+one calling another, but only to a max depth of `MAX_SENT_EVENTS_DEPTH` (10) events.
+
+`startWorkflow` is the equivalent process for content workflows. It puts a newly
+created host resource under its content workflow, creating a new workflow instance,
+and running it until it first has to wait: at a user task, or at an end event if
+nothing needs a person. Just like a call activity, it runs inside the calling workflow.
+
+The `workflowFrom` property of the `startWorkflow` task identifies the workflow to run,
+as a chain of reference properties, starting from the host. For a submission, that is
+`schemaVersion/workflow`, reading the `schemaVersion` property of the submission to find
+its schema version, and then the `workflow` property of the schema version to find the
+workflow version. A chain that breaks off, through a property not set, or that doesn't
+end on a workflow version, starts nothing and is not an error. A missing `workflowFrom`,
+a version that is not active, or one without exactly one start event are definition errors.
+
+The tag tasks are how a workflow says what it did to its host's state, so that a lifecycle
+is content: a transition is a guarded event followed by an `addTag` with `replaceExisting`.
+They act on what the execution has created, once it has created something, and on the
+target otherwise, the same rule `startWorkflow` and `callActivity` follow. They may place
+and remove `system` tags. Only tags placed on the host itself are touched; inherited or
+computed tags are unaffected.
 
 ## Sling Models
 
@@ -467,6 +495,8 @@ Activity         getActivity();
 Object           getVariable(String name);
 void             setVariable(String name, Object value);
 ResourceResolver getResourceResolver();
+void             sendEvent(Resource target, WorkflowEvent event);
+void             startWorkflow(Resource host, WorkflowVersion version);
 ```
 
 Service tasks are implemented as a `ServiceTaskHandler`: the activity names its handler
@@ -475,7 +505,10 @@ configuration. This is the extension point that lets a project plug its own beha
 a workflow without touching the platform. Handlers write through the context's resolver
 and never commit — the engine owns the transaction — and communicate through execution
 variables (`context.setVariable(...)`), which is also how results reach the channel that
-fired the event.
+fired the event. Two calls ask the engine for more within the same execution and commit:
+`sendEvent` runs the system workflow waiting for an event, and `startWorkflow` starts an
+instance of a workflow on a resource. The built-in `callActivity` and `startWorkflow`
+handlers are thin over them.
 
 The first built-in handler is `createEntity`: create a node of the configured
 `entityType` under the target, named by camel-casing the payload's `title`, dodging
