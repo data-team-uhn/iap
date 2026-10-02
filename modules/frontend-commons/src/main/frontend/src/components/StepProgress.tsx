@@ -286,7 +286,7 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
     "@keyframes stepProgressFadeOut": { to: { opacity: 0, visibility: "hidden" } },
     "@keyframes stepProgressSettleIcon": { from: { color: palette.text.disabled } },
     "@keyframes stepProgressSettleLabel": { from: { color: palette.text.secondary } },
-    "& .MuiStepIcon-root.Mui-active": { color: ACCENT },
+    "& .MuiStepIcon-root.Mui-active:not(.Mui-error)": { color: ACCENT },
     "& .MuiStepIcon-root.Mui-completed": { color: palette.primary.main },
     "& .MuiStepConnector-vertical": { marginLeft: `${ICON_SIZE / 2 - 0.5}px` },
     [`& .${classes.leaving}`]: { display: "none" },
