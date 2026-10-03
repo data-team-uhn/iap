@@ -18,24 +18,41 @@
 package io.uhndata.iap.deletion.api;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * How a deletion should behave: whether it may cascade over resources referencing the deleted one, and whether the
- * deleted resources should skip the archive and be removed permanently.
+ * How a deletion should behave: whether it may cascade over resources referencing the deleted one, whether the
+ * deleted resources should skip the archive and be removed permanently, and whom the archive records as having
+ * deleted them.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class DeletionOptions
 {
+    /** For {@link #of(boolean, boolean)}: resources referencing the deleted one are deleted along with it. */
+    public static final boolean RECURSIVE = true;
+
+    /** For {@link #of(boolean, boolean)}: resources referencing the deleted one block the deletion. */
+    public static final boolean NOT_RECURSIVE = false;
+
+    /** For {@link #of(boolean, boolean)}: the deleted resources are removed for good. */
+    public static final boolean PERMANENT = true;
+
+    /** For {@link #of(boolean, boolean)}: the deleted resources are moved into the archive. */
+    public static final boolean ARCHIVE = false;
+
     private final boolean recursive;
 
     private final boolean permanent;
 
-    private DeletionOptions(final boolean recursive, final boolean permanent)
+    private final String onBehalfOf;
+
+    private DeletionOptions(final boolean recursive, final boolean permanent, final String onBehalfOf)
     {
         this.recursive = recursive;
         this.permanent = permanent;
+        this.onBehalfOf = onBehalfOf;
     }
 
     /**
@@ -47,21 +64,22 @@ public final class DeletionOptions
     @NotNull
     public static DeletionOptions recoverable()
     {
-        return new DeletionOptions(false, false);
+        return new DeletionOptions(NOT_RECURSIVE, ARCHIVE, null);
     }
 
     /**
-     * Explicit options.
+     * Explicit options, best written with the named flags, e.g. {@code of(NOT_RECURSIVE, ARCHIVE)}.
      *
      * @param recursive whether resources referencing the deleted one are deleted along with it instead of blocking
-     *            the deletion
-     * @param permanent whether the deleted resources are removed for good instead of being moved into the archive
+     *            the deletion: {@link #RECURSIVE} or {@link #NOT_RECURSIVE}
+     * @param permanent whether the deleted resources are removed for good instead of being moved into the archive:
+     *            {@link #PERMANENT} or {@link #ARCHIVE}
      * @return options with the requested behavior
      */
     @NotNull
     public static DeletionOptions of(final boolean recursive, final boolean permanent)
     {
-        return new DeletionOptions(recursive, permanent);
+        return new DeletionOptions(recursive, permanent, null);
     }
 
     /**
@@ -82,5 +100,29 @@ public final class DeletionOptions
     public boolean isPermanent()
     {
         return this.permanent;
+    }
+
+    /**
+     * The same options, for a deletion made on someone's behalf by a privileged session, such as a workflow's:
+     * the archive then records that user as having deleted the resources, rather than the session's own.
+     *
+     * @param userId the user the deletion is made for
+     * @return new options
+     */
+    @NotNull
+    public DeletionOptions onBehalfOf(@NotNull final String userId)
+    {
+        return new DeletionOptions(this.recursive, this.permanent, userId);
+    }
+
+    /**
+     * Whom the deletion is made for, when not the requesting session's own user.
+     *
+     * @return a user id, or {@code null} for the requesting session's user
+     */
+    @Nullable
+    public String getOnBehalfOf()
+    {
+        return this.onBehalfOf;
     }
 }

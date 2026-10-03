@@ -52,6 +52,10 @@ import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.LinkDefinition;
 
+import static io.uhndata.iap.deletion.api.DeletionOptions.ARCHIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.NOT_RECURSIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.PERMANENT;
+import static io.uhndata.iap.deletion.api.DeletionOptions.RECURSIVE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -202,11 +206,23 @@ class DeletionServiceImplTest
     }
 
     @Test
+    void recordsWhomADeletionWasMadeFor() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult result = this.service.delete(this.resource(VICTIM_PATH),
+            DeletionOptions.of(NOT_RECURSIVE, ARCHIVE).onBehalfOf("coordinator"));
+
+        assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
+        assertEquals("coordinator", this.session.getNode(result.getArchiveEntryPath())
+            .getProperty(DeletionService.DELETED_BY_PROPERTY).getString());
+    }
+
+    @Test
     void simpleDeletionArchives() throws Exception
     {
         final Node node = this.target(VICTIM);
         final String id = node.getIdentifier();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of(VICTIM_PATH), result.getImpact().getItemPaths());
         assertFalse(this.session.nodeExists(VICTIM_PATH));
@@ -223,7 +239,7 @@ class DeletionServiceImplTest
     void archiveEntriesAreFiledUnderAPrefixTree() throws Exception
     {
         this.target(VICTIM);
-        final String entryPath = this.delete(VICTIM_PATH, false, false).getArchiveEntryPath();
+        final String entryPath = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE).getArchiveEntryPath();
         final Node entry = this.session.getNode(entryPath);
         assertEquals(DeletionService.ARCHIVE_PATH + "/" + entry.getName().substring(0, 2) + "/"
             + entry.getName().substring(2, 4) + "/" + entry.getName().substring(4, 6) + "/" + entry.getName(),
@@ -242,7 +258,7 @@ class DeletionServiceImplTest
     {
         this.target(VICTIM);
         final long entriesBefore = this.session.getNode(DeletionService.ARCHIVE_PATH).getNodes().getSize();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, true);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, PERMANENT);
         assertEquals(DeletionResult.Status.DELETED, result.getStatus());
         assertFalse(this.session.nodeExists(VICTIM_PATH));
         assertEquals(entriesBefore, this.session.getNode(DeletionService.ARCHIVE_PATH).getNodes().getSize());
@@ -267,7 +283,7 @@ class DeletionServiceImplTest
     {
         final Node node = this.target(VICTIM);
         this.referrer("holder", node);
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.REQUIRES_CONFIRMATION, result.getStatus());
         assertTrue(result.getImpact().getSummary().contains("referenced by 1"));
         assertTrue(this.session.nodeExists(VICTIM_PATH));
@@ -279,7 +295,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final Node holder = this.referrer("holder", node, node);
         final String holderId = holder.getIdentifier();
-        final DeletionResult result = this.delete(VICTIM_PATH, true, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of("/content/holder", VICTIM_PATH), result.getImpact().getItemPaths());
         final Node entry = this.session.getNode(result.getArchiveEntryPath());
@@ -303,7 +319,7 @@ class DeletionServiceImplTest
         parent.addNode("child").setProperty("ref", node);
         parent.setProperty("ref", sub);
         this.session.save();
-        final DeletionResult result = this.delete(VICTIM_PATH, true, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of("/content/parent", VICTIM_PATH), result.getImpact().getItemPaths());
     }
@@ -315,7 +331,7 @@ class DeletionServiceImplTest
         final Node holder = this.referrer("holder");
         final Node link = this.link(holder, node, this.definition("related", "REMOVE_LINK", false), false);
         final String linkPath = link.getPath();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of(linkPath), result.getImpact().getRemovedLinkPaths());
         assertTrue(this.session.nodeExists("/content/holder"));
@@ -328,7 +344,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final Node holder = this.referrer("holder");
         final Node link = this.link(holder, node, this.definition("seen", "IGNORE", true), true);
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertTrue(result.getImpact().getRemovedLinkPaths().isEmpty());
         assertTrue(this.session.nodeExists(link.getPath()));
@@ -341,7 +357,7 @@ class DeletionServiceImplTest
         final Node holder = this.referrer("holder");
         final Node link = this.link(holder, node, this.definition("illegal", "IGNORE", false), false);
         final String linkPath = link.getPath();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, true);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, PERMANENT);
         assertEquals(DeletionResult.Status.DELETED, result.getStatus());
         assertFalse(this.session.nodeExists(linkPath));
         assertTrue(this.session.nodeExists("/content/holder"));
@@ -353,7 +369,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final Node holder = this.referrer("holder");
         this.link(holder, node, this.definition("vital", "RECURSIVE_DELETE", false), false);
-        final DeletionResult refused = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult refused = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.REQUIRES_CONFIRMATION, refused.getStatus());
         assertEquals("holder", refused.getImpact().getReferrers().get(0).getNames().get(0));
     }
@@ -364,7 +380,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final Node holder = this.referrer("holder");
         this.link(holder, node, this.definition("vital", "RECURSIVE_DELETE", false), false);
-        final DeletionResult result = this.delete(VICTIM_PATH, true, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of("/content/holder", VICTIM_PATH), result.getImpact().getItemPaths());
         assertFalse(this.session.nodeExists("/content/holder"));
@@ -378,7 +394,7 @@ class DeletionServiceImplTest
         final Node vital = this.definition("vital", "RECURSIVE_DELETE", false);
         this.link(first, second, vital, false);
         this.link(second, first, vital, false);
-        final DeletionResult result = this.delete("/content/first", true, false);
+        final DeletionResult result = this.delete("/content/first", RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals(List.of("/content/first", "/content/second"), result.getImpact().getItemPaths());
     }
@@ -393,7 +409,7 @@ class DeletionServiceImplTest
         link.setProperty("type", vital);
         link.setProperty("reference", node);
         this.session.save();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertFalse(this.session.nodeExists("/stray"));
     }
@@ -417,11 +433,11 @@ class DeletionServiceImplTest
         // is what is being deleted: the links are simply removed
         final String linkPath = link.getPath();
         final String externalLinkPath = externalLink.getPath();
-        final DeletionResult first = this.delete(definition.getPath(), false, false);
+        final DeletionResult first = this.delete(definition.getPath(), NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, first.getStatus());
         assertFalse(this.session.nodeExists(linkPath));
         assertTrue(this.session.nodeExists("/content/holder"));
-        final DeletionResult second = this.delete(externalDefinition.getPath(), false, false);
+        final DeletionResult second = this.delete(externalDefinition.getPath(), NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, second.getStatus());
         assertFalse(this.session.nodeExists(externalLinkPath));
         assertTrue(this.session.nodeExists("/content/external"));
@@ -432,13 +448,14 @@ class DeletionServiceImplTest
     {
         final Node node = this.target(VICTIM);
         this.referrer("holder", node);
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/holder", false, false).getStatus());
+        assertEquals(DeletionResult.Status.ARCHIVED,
+            this.delete("/content/holder", NOT_RECURSIVE, ARCHIVE).getStatus());
         // The holder is archived and still references the victim; archiving the victim is fine...
         final DeletionImpact archival =
             this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertTrue(archival.isExecutable());
         // ...but permanently deleting it would break somebody's archived data, so it is refused
-        final DeletionResult result = this.delete(VICTIM_PATH, false, true);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, PERMANENT);
         assertEquals(DeletionResult.Status.REQUIRES_CONFIRMATION, result.getStatus());
         assertEquals(1, result.getImpact().getInaccessibleReferrerCount());
         assertTrue(result.getImpact().getSummary().contains("you cannot see"));
@@ -452,16 +469,17 @@ class DeletionServiceImplTest
         this.link(holder, node, this.definition("related", "REMOVE_LINK", false), false);
         final Node weakHolder = this.referrer("weakHolder");
         this.link(weakHolder, node, this.definition("seen", "IGNORE", true), true);
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/holder", false, false).getStatus());
         assertEquals(DeletionResult.Status.ARCHIVED,
-            this.delete("/content/weakHolder", false, false).getStatus());
+            this.delete("/content/holder", NOT_RECURSIVE, ARCHIVE).getStatus());
+        assertEquals(DeletionResult.Status.ARCHIVED,
+            this.delete("/content/weakHolder", NOT_RECURSIVE, ARCHIVE).getStatus());
         // Archiving the target leaves the archived links alone
         final DeletionImpact archival =
             this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertTrue(archival.isExecutable());
         assertTrue(archival.getRemovedLinkPaths().isEmpty());
         // Permanently deleting it removes the archived hard link, while the weak one just dangles
-        final DeletionResult result = this.delete(VICTIM_PATH, false, true);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, PERMANENT);
         assertEquals(DeletionResult.Status.DELETED, result.getStatus());
         assertEquals(1, result.getImpact().getRemovedLinkPaths().size());
     }
@@ -472,7 +490,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         node.addNode("part").addMixin(DeletionService.UNDELETABLE_MIXIN);
         this.session.save();
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.VETOED, result.getStatus());
         assertEquals("/content/victim/part", result.getImpact().getVetoes().get(0).getPath());
         assertEquals("undeletable", result.getImpact().getVetoes().get(0).getVetoerName());
@@ -487,7 +505,7 @@ class DeletionServiceImplTest
         when(broken.getName()).thenReturn("broken");
         when(broken.veto(any(), any(), any())).thenThrow(new RepositoryException("cannot decide"));
         inject(this.service, "vetoes", List.of(broken));
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.VETOED, result.getStatus());
         assertTrue(result.getImpact().getVetoes().get(0).getReason().contains("Could not verify"));
     }
@@ -502,7 +520,7 @@ class DeletionServiceImplTest
         this.session.save();
         inject(this.service, "vetoes", List.of(refusingGuard("policy", true)));
 
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
 
         assertEquals(DeletionResult.Status.VETOED, result.getStatus());
         assertEquals(1, result.getImpact().getVetoes().size());
@@ -517,7 +535,7 @@ class DeletionServiceImplTest
         this.session.save();
         inject(this.service, "vetoes", List.of(refusingGuard("perResource", false)));
 
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
 
         assertEquals(DeletionResult.Status.VETOED, result.getStatus());
         assertEquals(3, result.getImpact().getVetoes().size());
@@ -538,7 +556,7 @@ class DeletionServiceImplTest
     {
         this.target(VICTIM);
         inject(this.service, "vetoes", null);
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete(VICTIM_PATH, false, false).getStatus());
+        assertEquals(DeletionResult.Status.ARCHIVED, this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE).getStatus());
     }
 
     @Test
@@ -566,7 +584,7 @@ class DeletionServiceImplTest
     void protectedPathsAreRejected() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult archival = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult archival = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, archival.getStatus());
         assertThrows(IllegalArgumentException.class,
             () -> this.service.delete(this.resource(DeletionService.ARCHIVE_PATH), DeletionOptions.recoverable()));
@@ -618,7 +636,7 @@ class DeletionServiceImplTest
         parent.addNode("child");
         this.session.save();
         this.versionManager.checkin("/content/parent");
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/parent/child", false, false)
+        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/parent/child", NOT_RECURSIVE, ARCHIVE)
             .getStatus());
         assertFalse(this.session.nodeExists("/content/parent/child"));
         assertFalse(this.versionManager.isCheckedOut("/content/parent"));
@@ -631,7 +649,7 @@ class DeletionServiceImplTest
         parent.addMixin("mix:versionable");
         parent.addNode("child");
         this.session.save();
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/parent/child", false, false)
+        assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/parent/child", NOT_RECURSIVE, ARCHIVE)
             .getStatus());
         assertTrue(this.versionManager.isCheckedOut("/content/parent"));
     }
@@ -644,7 +662,7 @@ class DeletionServiceImplTest
         this.session.save();
         this.link(holder, node, this.definition("related", "REMOVE_LINK", false), false);
         this.versionManager.checkin("/content/holder");
-        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult result = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertFalse(this.session.getNode("/content/holder/link:links").getNodes().hasNext());
         assertFalse(this.versionManager.isCheckedOut("/content/holder"));
@@ -656,7 +674,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final String id = node.getIdentifier();
         this.referrer("holder", node);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, true, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, RECURSIVE, ARCHIVE);
         final RestoreResult result = this.service.restore(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(RestoreResult.Status.RESTORED, result.getStatus());
         assertEquals(List.of("/content/holder", VICTIM_PATH), result.getRestoredPaths());
@@ -673,7 +691,7 @@ class DeletionServiceImplTest
         parent.addMixin("mix:versionable");
         parent.addNode("child");
         this.session.save();
-        final DeletionResult deleted = this.delete("/content/parent/child", false, false);
+        final DeletionResult deleted = this.delete("/content/parent/child", NOT_RECURSIVE, ARCHIVE);
         this.versionManager.checkin("/content/parent");
         final RestoreResult result = this.service.restore(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(RestoreResult.Status.RESTORED, result.getStatus());
@@ -685,7 +703,7 @@ class DeletionServiceImplTest
     void restoreRefusesOccupiedPaths() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         this.target(VICTIM);
         final RestoreResult result = this.service.restore(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(RestoreResult.Status.CONFLICT, result.getStatus());
@@ -698,8 +716,8 @@ class DeletionServiceImplTest
     {
         this.session.getNode(CONTENT).addNode("area").addNode(VICTIM).addMixin("mix:referenceable");
         this.session.save();
-        final DeletionResult deleted = this.delete("/content/area/victim", false, false);
-        assertEquals(DeletionResult.Status.DELETED, this.delete("/content/area", false, true).getStatus());
+        final DeletionResult deleted = this.delete("/content/area/victim", NOT_RECURSIVE, ARCHIVE);
+        assertEquals(DeletionResult.Status.DELETED, this.delete("/content/area", NOT_RECURSIVE, PERMANENT).getStatus());
         final RestoreResult result = this.service.restore(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(RestoreResult.Status.CONFLICT, result.getStatus());
         assertEquals(RestoreConflict.Reason.PARENT_MISSING, result.getConflicts().get(0).getReason());
@@ -709,7 +727,7 @@ class DeletionServiceImplTest
     void restoreRefusesWithoutAddRights() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         final Session restricted = mock(Session.class, delegatesTo(this.session));
         doReturn(false).when(restricted).hasPermission(anyString(), eq(Session.ACTION_ADD_NODE));
         final RestoreResult result =
@@ -722,7 +740,7 @@ class DeletionServiceImplTest
     void restoreSkipsForeignAndEmptyItems() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         final Node entry = this.session.getNode(deleted.getArchiveEntryPath());
         entry.addNode("empty", DeletionService.ITEM_NODETYPE).setProperty(
             DeletionService.ORIGINAL_PATH_PROPERTY, "/content/nothing");
@@ -748,7 +766,7 @@ class DeletionServiceImplTest
     void purgeRemovesTheEntryForGood() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         final DeletionResult result = this.service.purge(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(DeletionResult.Status.DELETED, result.getStatus());
         assertFalse(this.session.nodeExists(deleted.getArchiveEntryPath()));
@@ -758,7 +776,7 @@ class DeletionServiceImplTest
     void purgeIsVetoedByProtectedContents() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         this.session.getNode(deleted.getArchiveEntryPath()).getNode("0/victim")
             .addMixin(DeletionService.UNDELETABLE_MIXIN);
         this.session.save();
@@ -815,12 +833,12 @@ class DeletionServiceImplTest
         final Node node = this.session.getRootNode().addNode("floater");
         node.addMixin("mix:referenceable");
         this.session.save();
-        final DeletionResult deleted = this.delete("/floater", false, false);
+        final DeletionResult deleted = this.delete("/floater", NOT_RECURSIVE, ARCHIVE);
         assertEquals(DeletionResult.Status.ARCHIVED, deleted.getStatus());
         final RestoreResult result = this.service.restore(this.resource(deleted.getArchiveEntryPath()));
         assertEquals(RestoreResult.Status.RESTORED, result.getStatus());
         assertTrue(this.session.nodeExists("/floater"));
-        this.delete("/floater", false, true);
+        this.delete("/floater", NOT_RECURSIVE, PERMANENT);
     }
 
     @Test
@@ -844,7 +862,7 @@ class DeletionServiceImplTest
     void checkRestoreReportsNothingWhenTheWayIsClear() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertTrue(this.service.checkRestore(this.resource(deleted.getArchiveEntryPath())).isEmpty());
         // The point of asking is that asking does nothing
         assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
@@ -855,7 +873,7 @@ class DeletionServiceImplTest
     void checkRestoreNamesWhatIsInTheWay() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         this.target(VICTIM);
         final List<RestoreConflict> conflicts =
             this.service.checkRestore(this.resource(deleted.getArchiveEntryPath()));
@@ -869,7 +887,7 @@ class DeletionServiceImplTest
     {
         // The preflight is only worth showing if it says what the operation will do
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         this.target(VICTIM);
         final Resource entry = this.resource(deleted.getArchiveEntryPath());
         final List<RestoreConflict> predicted = this.service.checkRestore(entry);
@@ -891,7 +909,7 @@ class DeletionServiceImplTest
     void checkPurgeReportsNoObjectionsWhenThereAreNone() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         assertTrue(this.service.checkPurge(this.resource(deleted.getArchiveEntryPath())).isEmpty());
         assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
     }
@@ -900,7 +918,7 @@ class DeletionServiceImplTest
     void checkPurgeNamesTheGuardsThatWouldRefuse() throws Exception
     {
         this.target(VICTIM);
-        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, NOT_RECURSIVE, ARCHIVE);
         this.session.getNode(deleted.getArchiveEntryPath()).getNode("0/victim")
             .addMixin(DeletionService.UNDELETABLE_MIXIN);
         this.session.save();

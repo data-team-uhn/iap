@@ -51,6 +51,7 @@ import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -77,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -511,11 +513,13 @@ class WorkflowEngineImplTest
     void treatsALostRaceAsSomethingToLookAtAgain() throws Exception
     {
         // Two people acting on the same thing at once is not a fault in either request: the state simply moved
-        // under the slower one, which is the same layer as "nothing here is waiting for this"
-        final NoApplicableWorkflowException refusal = assertThrows(NoApplicableWorkflowException.class,
-            () -> runWithFailingCommit(new PersistenceException("save failed",
-                new InvalidItemStateException("this node has been modified"))));
+        // under the slower one
+        final PersistenceException conflict = new PersistenceException("save failed",
+            new InvalidItemStateException("this node has been modified"));
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> runWithFailingCommit(conflict));
         assertTrue(refusal.getMessage().contains("at the same time"));
+        assertSame(conflict, refusal.getCause());
     }
 
     @Test
