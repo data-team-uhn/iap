@@ -32,8 +32,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { type Breakpoint, type Theme, useTheme } from "@mui/material/styles";
-
-import { visuallyHidden } from "../visuallyHidden";
+import { visuallyHidden } from "@mui/utils";
 
 // Compact keeps to one line, showing only the step underway and how far along it is.
 export type StepProgressLayout = "horizontal" | "vertical" | "compact";
