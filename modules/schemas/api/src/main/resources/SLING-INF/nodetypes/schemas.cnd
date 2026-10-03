@@ -107,12 +107,22 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
+// Abstract base of every part of a schema version: its requirements and the
+// items of its forms. Gives a binding or a workflow one type that addresses any
+// part of a schema, including requirement types added later.
+[sch:SchemaPart] > data:EntityPart
+  abstract
+
+  // Hardcode the supertype to the parent sch/SchemaPart type.
+  - sling:resourceSuperType (STRING) = "sch/SchemaPart" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
 // Abstract base shared by everything that may appear in the body of a form: a
 // single question, or a section grouping more items. Lets callers ask for
 // "the items" of a section or form without caring whether each one is a
 // question or a subsection. Conditionable, so every item may carry a single
 // condition controlling whether it is shown to the submitter.
-[sch:FormItem] > data:EntityPart, cond:Conditionable
+[sch:FormItem] > sch:SchemaPart, cond:Conditionable
   abstract
 
   // Hardcode the supertype to the parent sch/FormItem type.
@@ -237,7 +247,7 @@
 // documents, reviews) can point back at the requirement they fulfill.
 // Conditionable, so every requirement may carry a single condition
 // controlling whether it applies to a submission.
-[sch:Requirement] > data:EntityPart, mix:referenceable, cond:Conditionable
+[sch:Requirement] > sch:SchemaPart, mix:referenceable, cond:Conditionable
   // This is an abstract node type, specific requirement types must be defined.
   abstract
 
