@@ -709,6 +709,22 @@ describe("EntityDataGrid", () => {
     expect(screen.queryByText(/open/)).toBeNull();
   });
 
+  it("puts its own leading columns before a type's own card, unless hidden or kept off cards", async () => {
+    fakeNarrowScreen();
+    window.localStorage.setItem(`iap.entityGrid.${CUSTOM_CARD_TYPE}.columns`, JSON.stringify({ hidden: false }));
+    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke", "status": "open" }]);
+    const leading = [ "shown", "hidden", "omitted" ].map(field => ({ field,
+      ...field === "omitted" ? { cardSlot: "omit" as const } : {}, renderCell: () => <span>{`Leading ${field}`}</span> }));
+
+    render(<EntityDataGrid entityType={CUSTOM_CARD_TYPE} leadingColumns={leading} disableVirtualization />,
+      { wrapper: MemoryRouter });
+
+    expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
+    expect(screen.getByText("Leading shown")).toBeInTheDocument();
+    expect(screen.queryByText("Leading hidden")).toBeNull();
+    expect(screen.queryByText("Leading omitted")).toBeNull();
+  });
+
   it("composes the card from the columns' card slots", async () => {
     fakeNarrowScreen();
     mockPage([{
