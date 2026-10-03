@@ -31,5 +31,5 @@ end
 # them, see appTheme.ts); deployments may override them alongside the rest of the branding
 set properties on /libs/iap/conf/ThemeColor
   default primaryColor to "#192958"
-  default secondaryColor to "#C0233C"
+  default secondaryColor to "#A3213F"
 end

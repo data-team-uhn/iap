@@ -27,7 +27,7 @@ import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#192958";
 // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#C0233C";
+const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#A3213F";
 
 // The dimensions of the page shell (see PageLayout in the homepage module), read from the theme
 // so they are configured here, alongside the rest of the styling.
@@ -187,6 +187,8 @@ const appTheme = createTheme({
       palette: {
         primary: { main: primaryColor },
         secondary: { main: secondaryColor },
+        // Shifted toward orange, so that errors do not read as the red brand secondary
+        error: { main: "#C8471E" },
         // A gray canvas, so that paper surfaces stand out against it. Muted is translucent, so it
         // composes with whatever it overlaps
         background: {
@@ -202,7 +204,10 @@ const appTheme = createTheme({
         // The brand primary is typically dark (tuned for light surfaces); lighten it so it stays
         // legible on the dark scheme's dark surfaces.
         primary: { main: lighten(primaryColor, 0.6) },
-        secondary: { main: secondaryColor },
+        // Likewise, the brand secondary is too dark to stay legible on dark surfaces.
+        secondary: { main: lighten(secondaryColor, 0.35) },
+        // Still a clear red, but lighter than the default so it holds up on dark surfaces
+        error: { main: "#EE5F55" },
         background: {
           default: "#101010",
           paper: "#1a1a1a",
