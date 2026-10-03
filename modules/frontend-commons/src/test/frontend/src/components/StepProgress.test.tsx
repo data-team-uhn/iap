@@ -53,6 +53,8 @@ const renderSteps = (props: Props = {}) => {
 
 const getStepElement = (label: string) => screen.getByText(label).closest(".MuiStep-root");
 
+const getRing = () => document.querySelector(".StepProgress-ring");
+
 // MUI reads the breakpoint through matchMedia, which jsdom does not implement; without a stand-in
 // useMediaQuery just reports false, so only xs matches.
 const stubMatchMedia = (matching: (query: string) => boolean) => vi.stubGlobal("matchMedia", (query: string) => ({
@@ -78,14 +80,14 @@ describe("StepProgress", () => {
       expect(screen.getByText("Collect")).toHaveClass("Mui-completed");
       expect(screen.getByText("Review")).toHaveClass("Mui-active");
       expect(screen.getByText("Save")).toBeInTheDocument();
-      expect(document.querySelector(".StepProgress-ring")).toBeInTheDocument();
+      expect(getRing()).toBeInTheDocument();
       expect(screen.getByRole("status")).toHaveTextContent("Step 2 of 3. Review.");
     });
 
     it("drops the ring once every step is done", () => {
       renderSteps({ activeStep: STEPS.length, layout });
 
-      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
+      expect(getRing()).not.toBeInTheDocument();
       expect(screen.getByText("Save")).toHaveClass("Mui-completed");
       expect(screen.getByRole("status")).toHaveTextContent("All 3 steps done.");
     });
@@ -95,7 +97,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByText("Review")).toHaveClass("Mui-error");
-      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
+      expect(getRing()).not.toBeInTheDocument();
     });
 
     it("crosses out the failed step in the error colour, not the accent", () => {
@@ -151,7 +153,7 @@ describe("StepProgress", () => {
       expect(screen.getByText("2/3")).toBeInTheDocument();
       expect(screen.queryByText("Collect")).not.toBeInTheDocument();
       expect(screen.queryByText("Save")).not.toBeInTheDocument();
-      expect(document.querySelector(".StepProgress-ring")).toBeInTheDocument();
+      expect(getRing()).toBeInTheDocument();
     });
 
     it("keeps the last step, checked, once every step is done", () => {
@@ -159,7 +161,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByText("Save")).toBeInTheDocument();
       expect(screen.getByTestId("CheckCircleIcon")).toBeInTheDocument();
-      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
+      expect(getRing()).not.toBeInTheDocument();
     });
 
     it("alerts that the failed step stopped, and why", () => {
@@ -167,7 +169,7 @@ describe("StepProgress", () => {
 
       expect(screen.getByRole("alert")).toHaveTextContent("Review stopped. Couldn't read the file.");
       expect(screen.getByTestId("CancelIcon")).toHaveClass("MuiSvgIcon-colorError");
-      expect(document.querySelector(".StepProgress-ring")).not.toBeInTheDocument();
+      expect(getRing()).not.toBeInTheDocument();
     });
 
     it("checks the step that ended before the next one shows when the bar moves forward", () => {
