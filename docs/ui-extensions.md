@@ -120,9 +120,9 @@ The app bar is itself a `frameTop` extension composed of entries on its own poin
 `ext:appBarSection` places an entry in `start`, `middle` (centered) or `end`;
 `defaultOrder` orders within the section.
 
-Current entries: Branding (start); dark mode toggle, notifications bell, persona
-switcher, administration console button (admins only), user menu (end). `middle` is
-reserved for e.g. a future search bar.
+Current entries: Branding (start); dark mode toggle, notifications bell,
+administration console button (admins only), user menu with the persona choice (end).
+`middle` is reserved for e.g. a future search bar.
 
 A high-visibility element like a maintenance banner registers directly on `frameTop`
 with `defaultOrder` below the app bar's 20 to sit above it. The
@@ -248,7 +248,7 @@ inherited from the views: one a user cannot read never reaches them.
 ## Personas
 
 A user acts as one persona at a time — submitter, reviewer, administrator — chosen in
-the app bar. `ext:personas` names the personas an extension belongs to; **naming none
+the user menu. `ext:personas` names the personas an extension belongs to; **naming none
 means all**, so an extension that never considered personas keeps displaying where it
 did, and adding a persona to the platform changes nothing about existing extensions.
 Prefer naming nothing over naming every persona but one, or the extension silently

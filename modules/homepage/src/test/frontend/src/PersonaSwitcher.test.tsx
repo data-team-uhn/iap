@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MenuList } from "@mui/material";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import PersonaSwitcher from "@iap/homepage/PersonaSwitcher";
 import { STORE_KEY, availablePersonas, getActivePersona } from "@iap/ui-extension/personas";
@@ -33,84 +34,38 @@ afterEach(() => {
   Reflect.deleteProperty(window, STORE_KEY);
 });
 
+const renderInMenu = (onChoose?: () => void) =>
+  render(<MenuList><PersonaSwitcher onChoose={onChoose} /></MenuList>);
+
 describe("PersonaSwitcher", () => {
-  it("shows the persona the user is currently acting as", async () => {
-    render(<PersonaSwitcher />);
+  // The check mark marking the active persona is decorative, so aria-checked is the only thing that
+  // tells a screen reader which hat is on.
+  it("lists the personas the user may act as, checking the active one", () => {
+    renderInMenu();
 
-    expect(await screen.findByRole("button", { name: /Acting as Submitter/ })).toBeInTheDocument();
+    expect(screen.getByText("Acting as")).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Submitter", checked: true })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Reviewer", checked: false })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Administrator", checked: false })).toBeInTheDocument();
   });
 
-  it("lists the personas the user may choose between", async () => {
-    render(<PersonaSwitcher />);
+  it("puts on the chosen hat, and says so", () => {
+    const onChoose = vi.fn();
+    renderInMenu(onChoose);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Acting as Submitter/ }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Reviewer" }));
 
-    expect(await screen.findByRole("menuitemradio", { name: "Submitter" })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitemradio", { name: "Reviewer" })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitemradio", { name: "Administrator" })).toBeInTheDocument();
-  });
-
-  // The check mark marking the active persona is decorative, so these attributes are the only thing
-  // that tells a screen reader the menu is open and which hat is on.
-  it("says which persona is checked, and whether the menu is open", async () => {
-    render(<PersonaSwitcher />);
-
-    const trigger = await screen.findByRole("button", { name: /Acting as Submitter/ });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(trigger);
-
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByRole("menuitemradio", { name: "Submitter", checked: true })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitemradio", { name: "Reviewer", checked: false })).toBeInTheDocument();
-  });
-
-  // The menu is labelled by the button that opens it, which is what tells assistive technology the two
-  // are one control rather than an unnamed list floating beside a button. It reaches the menu through a
-  // slot, so it is the kind of wiring a component-library upgrade drops silently.
-  it("labels the menu with the button that opens it", async () => {
-    render(<PersonaSwitcher />);
-
-    const trigger = await screen.findByRole("button", { name: /Acting as Submitter/ });
-    fireEvent.click(trigger);
-
-    expect(await screen.findByRole("menu")).toHaveAttribute("aria-labelledby", trigger.id);
-  });
-
-  it("puts on the chosen hat, and says so", async () => {
-    render(<PersonaSwitcher />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Acting as Submitter/ }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Reviewer" }));
-
-    expect(await screen.findByRole("button", { name: /Acting as Reviewer/ })).toBeInTheDocument();
     expect(getActivePersona()).toBe("reviewer");
-  });
-
-  it("closes the menu once a persona is chosen", async () => {
-    render(<PersonaSwitcher />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Acting as Submitter/ }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Administrator" }));
-
-    expect(screen.queryByRole("menuitemradio", { name: "Submitter" })).not.toBeInTheDocument();
-  });
-
-  it("closes the menu when dismissed without choosing, leaving the persona alone", async () => {
-    render(<PersonaSwitcher />);
-    fireEvent.click(await screen.findByRole("button", { name: /Acting as Submitter/ }));
-
-    fireEvent.keyDown(await screen.findByRole("menu"), { key: "Escape", code: "Escape" });
-
-    await waitFor(() => expect(screen.queryByRole("menuitemradio", { name: "Reviewer" })).not.toBeInTheDocument());
-    expect(getActivePersona()).toBe("submitter");
+    expect(onChoose).toHaveBeenCalledOnce();
+    expect(screen.getByRole("menuitemradio", { name: "Reviewer", checked: true })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Submitter", checked: false })).toBeInTheDocument();
   });
 
   it("renders nothing when there is only one persona to act as", () => {
     vi.mocked(availablePersonas).mockReturnValueOnce([ "submitter" ]);
 
-    const { container } = render(<PersonaSwitcher />);
+    renderInMenu();
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("menu")).toBeEmptyDOMElement();
   });
 });
