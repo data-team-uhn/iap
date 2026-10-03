@@ -89,11 +89,10 @@ describe("StepProgressWidget", () => {
     expect(screen.getByText("Collect").closest(".MuiStepper-root")).toHaveClass("MuiStepper-vertical");
   });
 
-  it("accents the bar in the colour picked", () => {
+  it("drops the accent when it is switched off", () => {
     const { container } = renderWidget();
 
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Colour" }));
-    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Primary" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Accent" }));
 
     expect(container.querySelector("[class*=MuiBox-root]")).toHaveStyle({
       "--iap-step-accent": "var(--mui-palette-primary-main)",

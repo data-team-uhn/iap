@@ -18,12 +18,9 @@
 
 import { useEffect, useState } from "react";
 
-import { Button, MenuItem, Stack, TextField } from "@mui/material";
+import { Button, FormControlLabel, MenuItem, Stack, Switch, TextField } from "@mui/material";
 
-import StepProgress, {
-  type StepProgressColor,
-  type StepProgressLayout,
-} from "@iap/frontend-commons/components/StepProgress";
+import StepProgress, { type StepProgressLayout } from "@iap/frontend-commons/components/StepProgress";
 
 // How long each step stays underway before the next one starts.
 const STEP_MS = 3_000;
@@ -37,44 +34,14 @@ const LAYOUTS: Record<string, { label: string; layout?: StepProgressLayout }> = 
   compact: { label: "Compact", layout: "compact" },
 };
 
-const COLORS: Record<string, { label: string; color: StepProgressColor }> = {
-  secondary: { label: "Secondary", color: "secondary" },
-  primary: { label: "Primary", color: "primary" },
-  info: { label: "Info", color: "info" },
-  success: { label: "Success", color: "success" },
-  warning: { label: "Warning", color: "warning" },
-};
-
-interface PickerProps {
-  label: string;
-  value: string;
-  options: Record<string, { label: string }>;
-  onChange: (value: string) => void;
-}
-
-function Picker({ label, value, options, onChange }: PickerProps) {
-  return (
-    <TextField
-      select
-      size="small"
-      label={label}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      sx={{ minWidth: 140 }}
-    >
-      {Object.entries(options).map(([key, option]) => <MenuItem key={key} value={key}>{option.label}</MenuItem>)}
-    </TextField>
-  );
-}
-
 // A dashboard toy for the stepped progress bar. It walks three steps on a timer, so the ring, the
-// move between steps, and a failure can be seen in every layout and colour without sending a document
-// through the pipeline. Shown on the homepage when the app is started with --test.
+// move between steps, and a failure can be seen in every layout, with or without the accent, without
+// sending a document through the pipeline. Shown on the homepage when the app is started with --test.
 function StepProgressWidget() {
   const [activeStep, setActiveStep] = useState(0);
   const [failed, setFailed] = useState(false);
   const [layout, setLayout] = useState("default");
-  const [color, setColor] = useState("secondary");
+  const [accent, setAccent] = useState(true);
   const done = activeStep >= STEPS.length;
 
   useEffect(() => {
@@ -97,7 +64,7 @@ function StepProgressWidget() {
         activeStep={activeStep}
         error={failed ? "The demo was asked to fail here." : undefined}
         layout={LAYOUTS[layout].layout}
-        color={COLORS[color].color}
+        disableAccent={!accent}
       />
       <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
         <Button variant="outlined" color="error" disabled={done || failed} onClick={() => setFailed(true)}>
@@ -106,8 +73,20 @@ function StepProgressWidget() {
         <Button variant="outlined" disabled={activeStep === 0 && !failed} onClick={replay}>
           Play again
         </Button>
-        <Picker label="Layout" value={layout} options={LAYOUTS} onChange={setLayout} />
-        <Picker label="Colour" value={color} options={COLORS} onChange={setColor} />
+        <TextField
+          select
+          size="small"
+          label="Layout"
+          value={layout}
+          onChange={event => setLayout(event.target.value)}
+          sx={{ minWidth: 140 }}
+        >
+          {Object.entries(LAYOUTS).map(([key, option]) => <MenuItem key={key} value={key}>{option.label}</MenuItem>)}
+        </TextField>
+        <FormControlLabel
+          control={<Switch checked={accent} onChange={event => setAccent(event.target.checked)} />}
+          label="Accent"
+        />
       </Stack>
     </Stack>
   );

@@ -30,7 +30,7 @@ interface Props {
   activeStep?: number;
   error?: string;
   layout?: ComponentProps<typeof StepProgress>["layout"];
-  color?: ComponentProps<typeof StepProgress>["color"];
+  disableAccent?: boolean;
 }
 
 // Horizontal unless a layout is given, even an undefined one to leave the default to the component.
@@ -41,7 +41,7 @@ const tree = (props: Props) => (
       activeStep={props.activeStep ?? 0}
       error={props.error}
       layout={"layout" in props ? props.layout : "horizontal"}
-      color={props.color}
+      disableAccent={props.disableAccent}
     />
   </ThemeProvider>
 );
@@ -209,10 +209,10 @@ describe("StepProgress", () => {
   });
 
   it.each([
-    [ "secondary by default", undefined, "secondary" ],
-    [ "the colour asked for", "primary", "primary" ],
-  ] as const)("accents the step underway in %s", (_name, color, palette) => {
-    const { container } = renderSteps({ activeStep: 1, color });
+    [ "the secondary colour by default", undefined, "secondary" ],
+    [ "the primary colour when the accent is disabled", true, "primary" ],
+  ] as const)("draws the step underway in %s", (_name, disableAccent, palette) => {
+    const { container } = renderSteps({ activeStep: 1, disableAccent });
 
     expect(container.firstElementChild).toHaveStyle({
       "--iap-step-accent": `var(--mui-palette-${palette}-main)`,
