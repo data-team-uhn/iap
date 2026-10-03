@@ -63,7 +63,7 @@ const stubSchemasEndpoint = () =>
           "jcr:primaryType": "sch:SchemaVersion",
           "jcr:uuid": "uuid-sv1",
           "version": "1.0",
-          "active": true,
+          "tags": ["active"],
         },
       },
     }),

@@ -86,9 +86,9 @@ class CreateSubmissionHandlerTest
         Tagging.enable(this.context);
         this.target = this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
-            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
+            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
     }
 
     @Test
@@ -231,7 +231,7 @@ class CreateSubmissionHandlerTest
     void refusesAnInactiveSchemaVersion()
     {
         this.context.create().resource("/Schemas/timeOffRequest/old", Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "0.9", "active", false));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "0.9", "tags", new String[] {"draft"}));
 
         final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(
@@ -240,13 +240,13 @@ class CreateSubmissionHandlerTest
     }
 
     @Test
-    void refusesAVersionOfAnInactiveSchema()
+    void refusesAVersionOfARetiredSchema()
     {
-        // The whole schema was retired: even its still-flagged-active versions accept nothing
+        // The whole schema was retired: even its versions still tagged active accept nothing
         this.context.create().resource("/Schemas/retired", Map.of(
-            TYPE, Schema.RESOURCE_TYPE, "title", "Retired", "active", false));
+            TYPE, Schema.RESOURCE_TYPE, "title", "Retired", "tags", new String[] {"retired"}));
         this.context.create().resource("/Schemas/retired/v1", Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(Map.of(
             "title", "My day off", "schemaVersion", "/Schemas/retired/v1"))));
@@ -256,7 +256,7 @@ class CreateSubmissionHandlerTest
     void refusesAVersionStoredOutsideASchema()
     {
         this.context.create().resource("/loose", Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(Map.of(
             "title", "My day off", "schemaVersion", "/loose"))));

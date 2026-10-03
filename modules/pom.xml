@@ -49,6 +49,7 @@
     <module>http-requests</module>
     <module>java-utils</module>
     <module>keycloak</module>
+    <module>lifecycle</module>
     <module>links</module>
     <module>llm</module>
     <module>login</module>

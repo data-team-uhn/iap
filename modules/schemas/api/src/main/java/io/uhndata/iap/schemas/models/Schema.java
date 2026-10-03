@@ -24,7 +24,6 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -46,9 +45,6 @@ public class Schema extends Entity
     @ValueMapValue
     private String title;
 
-    @ValueMapValue
-    private boolean active;
-
     /**
      * The human-readable name of the schema.
      *
@@ -61,16 +57,6 @@ public class Schema extends Entity
     }
 
     /**
-     * Whether new submissions may be created against this schema.
-     *
-     * @return {@code true} if the schema accepts new submissions
-     */
-    public boolean isActive()
-    {
-        return this.active;
-    }
-
-    /**
      * The defined versions of this schema.
      *
      * @return a list of schema versions, empty if none
@@ -79,20 +65,5 @@ public class Schema extends Entity
     public List<SchemaVersion> getVersions()
     {
         return this.getChildren(SchemaVersion.RESOURCE_TYPE, SchemaVersion.class);
-    }
-
-    /**
-     * The version of this schema that new submissions are currently created against. At most one version is
-     * expected to be active at a time.
-     *
-     * @return the active schema version, or {@code null} if none of the versions are active
-     */
-    @Nullable
-    public SchemaVersion getActiveVersion()
-    {
-        return this.getVersions().stream()
-            .filter(SchemaVersion::isActive)
-            .findFirst()
-            .orElse(null);
     }
 }

@@ -32,7 +32,6 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -72,12 +71,10 @@ class SchemaTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema", Map.of(
             "sling:resourceType", "sch/Schema",
-            "title", "Human research schema",
-            "active", true));
+            "title", "Human research schema"));
         final Schema schema = resource.adaptTo(Schema.class);
 
         assertEquals("Human research schema", schema.getTitle());
-        assertTrue(schema.isActive());
     }
 
     @Test
@@ -127,8 +124,6 @@ class SchemaTest
 
         assertNotNull(schema);
         assertNull(schema.getTitle());
-        // A missing active flag is reported as an inactive schema
-        assertFalse(schema.isActive());
     }
 
     @Test
@@ -155,34 +150,5 @@ class SchemaTest
         final Schema schema = resource.adaptTo(Schema.class);
 
         assertTrue(schema.getVersions().isEmpty());
-    }
-
-    @Test
-    void findsActiveVersion()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema",
-            "sling:resourceType", "sch/Schema");
-        this.context.create().resource("/Schemas/schema/1.0", Map.of(
-            "sling:resourceType", "sch/SchemaVersion", "active", false));
-        this.context.create().resource("/Schemas/schema/2.0", Map.of(
-            "sling:resourceType", "sch/SchemaVersion", "active", true));
-        final Schema schema = resource.adaptTo(Schema.class);
-
-        final SchemaVersion active = schema.getActiveVersion();
-
-        assertNotNull(active);
-        assertEquals("2.0", active.getName());
-    }
-
-    @Test
-    void returnsNullActiveVersionWhenNoneIsActive()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema",
-            "sling:resourceType", "sch/Schema");
-        this.context.create().resource("/Schemas/schema/1.0", Map.of(
-            "sling:resourceType", "sch/SchemaVersion", "active", false));
-        final Schema schema = resource.adaptTo(Schema.class);
-
-        assertNull(schema.getActiveVersion());
     }
 }
