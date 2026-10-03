@@ -175,7 +175,7 @@
   - maxValue (DOUBLE)
 
   // For text answers, a regular expression every value must match in full,
-  // and what the submitter is told when one does not
+  // and the error message displayed when one does not
   - pattern (STRING)
   - patternMessage (STRING)
 
@@ -222,7 +222,8 @@
   // What the submitter reads; the value itself when left out
   - label (STRING)
 
-  // When this option applies, for a person choosing and for a model matching
+  // An optional explanation for this option, if the label is not clear enough,
+  // detailing When this option applies
   - description (STRING)
 
   // Allow any other properties for extensibility
@@ -278,11 +279,8 @@
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
 
   // Whether the document must be attached before the submission is complete.
-  // A flag rather than a count: several files under one requirement are
-  // revisions of one deliverable, and "three letters" is three requirements.
-  // Whether it is asked at all is the condition's decision, not this one's.
-  // Defaults to true, so a forgotten flag demands too much rather than too
-  // little.
+  // The DocumentRequirement's condition decides if it is asked at all.
+  // Defaults to true.
   - required (BOOLEAN) = true autocreated
 
   // Accepted MIME types for the uploaded document, e.g. application/pdf
@@ -292,7 +290,7 @@
   // provided by the submitter meets this requirement
   - aiCheckPrompt (STRING)
 
-  // Optional blank template document offered to submitters
+  // Optional template document offered to submitters
   + template (nt:file)
 
 //-----------------------------------------------------------------------------
