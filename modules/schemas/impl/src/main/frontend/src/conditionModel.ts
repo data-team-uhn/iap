@@ -24,7 +24,7 @@ import {
   type ValueType,
 } from "@iap/conditions/conditionModel";
 
-import { isObject, type JcrNode, pathOf } from "./schemaModel";
+import { isObject, type JcrNode, nameOf, pathOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
 // The comparison types of the question data types; a file compares as nothing in particular
@@ -93,3 +93,28 @@ export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
 // The questions a part's condition can compare the answers to: any in its version, but itself and what it holds
 export const questionsFor = (part: JcrNode, index: QuestionIndex): JcrNode[] => index.questions
   .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));
+
+// A condition as two versions can compare it: what it stores, without the repository's bookkeeping, and the
+// questions it compares the answers of by their identifiers in the version, which a copy keeps and a move does not
+// change, rather than by the identifiers a copy changes. A question whose identifier another shares goes by where it
+// stands. Keys are sorted, so that the order they were written in does not count.
+export function conditionKeyOf(condition: JcrNode, index: QuestionIndex, version: string): string {
+  const keyOf = (question: JcrNode) => (index.questions.filter(other => nameOf(other) === nameOf(question)).length === 1
+    ? nameOf(question) : pathOf(question).slice(version.length + 1));
+  const canonical = (node: JcrNode): JcrNode => Object.fromEntries(Object.entries(node)
+    .filter(([ key ]) => !/^(jcr:|sling:|@)/.test(key))
+    .sort(([ first ], [ second ]) => first.localeCompare(second))
+    .map(([ key, value ]) => {
+      if (isObject(value)) {
+        return [ key, canonical(value) ];
+      }
+      if (key === "value" && node.source === "answer") {
+        return [ key, strings(value).map(reference => {
+          const question = index.find(reference);
+          return question ? keyOf(question) : reference;
+        }) ];
+      }
+      return [ key, value ];
+    }));
+  return JSON.stringify(canonical(condition));
+}

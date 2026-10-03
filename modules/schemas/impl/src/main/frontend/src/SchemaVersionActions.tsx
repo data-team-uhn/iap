@@ -29,6 +29,8 @@ export interface SchemaVersionActionProps {
   reload: () => void;
   removed?: () => void;
   report: (message: string) => void;
+  // The rules choosing what a version is compared with by default, in order
+  comparisonDefaults?: string[];
 }
 
 function SchemaVersionActions(props: SchemaVersionActionProps) {
