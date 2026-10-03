@@ -88,7 +88,7 @@ class SystemWorkflowDefinitionsTest
         Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, OPTION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "sendEvent", "addTag", "removeTag", "delete",
-        "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
+        "addLink", "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
         CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
