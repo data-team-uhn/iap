@@ -43,6 +43,11 @@ import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
  * A commit editor that keeps a {@code wf:WorkflowVersion}'s {@code wf:FlowNode}/{@code wf:SequenceFlow} children in
  * sync with its {@code bpmn.xml} file, so that saving a diagram is all it takes to update the graph the engine runs.
  *
+ * <p>The expected behavior is for the BPMN file to be the source of truth: edit the workflow in an editor, export it
+ * as a BPMN XML file and save it in the JCR repository, and then automatically parse it into the JCR nodes that store
+ * the workflow. But it is possible to author the nodes directly, making the XML optional, in which case the
+ * {@code bpmnAuthoritative} property needs to be set to {@code false}.</p>
+ *
  * <p>
  * Deriving the children inside the same commit, rather than from a listener reacting to it afterwards, is what makes
  * the two impossible to observe out of step: no reader ever sees a version whose {@code bpmn.xml} and flow nodes
@@ -94,6 +99,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String PARSED_HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String BPMN_AUTHORITATIVE_PROPERTY = "bpmnAuthoritative";
 
     /**
      * What kind of node this editor instance is looking at, and therefore what its children may be.
@@ -261,9 +268,24 @@ public class BpmnXmlSyncEditor extends DefaultEditor
 
     private void clearFlowNodes(final String reason)
     {
+        if (!bpmnIsAuthoritative()) {
+            LOGGER.debug("Left the flow nodes of WorkflowVersion {} alone ({}): its diagram is not authoritative",
+                this.workflowVersionPath, reason);
+            return;
+        }
         WorkflowDefinitionUtils.clear(this.workflowVersion, this.context.nodeTypesRoot());
         this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
         LOGGER.debug("Cleared flow nodes for WorkflowVersion {}: {}", this.workflowVersionPath, reason);
+    }
+
+    /**
+     * Whether this version's diagram is the source of truth.
+     *
+     * @return {@code true} if the diagram owns this version's flow nodes
+     */
+    private boolean bpmnIsAuthoritative()
+    {
+        return this.workflowVersion != null && this.workflowVersion.getBoolean(BPMN_AUTHORITATIVE_PROPERTY);
     }
 
     /**
@@ -282,6 +304,15 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         try (InputStream contents = bpmnXml.getNewStream()) {
             final String hash = DigestUtils.sha256Hex(contents);
             if (hash.equals(this.workflowVersion.getString(PARSED_HASH_PROPERTY))) {
+                return;
+            }
+            if (!bpmnIsAuthoritative()) {
+                // Said out loud, and only when the bytes really changed: a diagram that was edited and had no
+                // effect is exactly the kind of nothing-happened that is impossible to guess at. Not a warning,
+                // because for a hand-authored version this is the correct outcome rather than a problem.
+                LOGGER.info("The diagram of WorkflowVersion {} changed but its flow nodes were left as authored:"
+                    + " set {} to true to have the diagram own them", this.workflowVersionPath,
+                    BPMN_AUTHORITATIVE_PROPERTY);
                 return;
             }
             try (InputStream reread = bpmnXml.getNewStream()) {
