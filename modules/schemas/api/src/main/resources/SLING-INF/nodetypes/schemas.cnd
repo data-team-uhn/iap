@@ -307,7 +307,73 @@
 // An approval that must be granted before a submission is accepted,
 // e.g. "REB approval".
 [sch:ApprovalRequirement] > sch:Requirement
+  // The list of risks is orderable, so they are shown in a deliberate sequence.
+  orderable
+
   - sling:resourceType (STRING) = "sch/ApprovalRequirement" mandatory autocreated protected
 
   // Principal name of the group whose members may grant this approval
   - approverGroup (STRING)
+
+  // The risks the approvers want assessed
+  + * (sch:Risk) = sch:Risk
+
+  // The assessments of those risks
+  + * (sch:RiskAssessment) = sch:RiskAssessment
+
+//-----------------------------------------------------------------------------
+// A risk the approvers want assessed before they grant an approval.
+// Referenceable so that sch:RiskAssessment nodes can point back to it.
+[sch:Risk] > data:EntityPart, mix:referenceable
+  - sling:resourceType (STRING) = "sch/Risk" mandatory autocreated protected
+
+  // The risk as shown to the submitter
+  - text (STRING) mandatory
+
+  // Optional longer explanation displayed to the submitter
+  - description (STRING)
+
+  // What the assessment is used to judge, in the reviewer's terms rather than
+  // the submitter's
+  - purpose (STRING)
+
+  // The prompt an LLM is given to assess this risk from the submitted documents
+  - extractionPrompt (STRING)
+
+  // The sch:Question nodes whose answers bear on this risk. Weak, so a
+  // question can be removed without first unlinking it from every risk.
+  - questions (WEAKREFERENCE) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The assessment of a single sch:Risk, the way a sub:Answer answers a
+// sch:Question. The submitter fills it in before submission, and reviewers
+// see it.
+[sch:RiskAssessment] > data:EntityPart, mix:referenceable, mix:lastModified
+  // The extraction runs are orderable, so they are presented in the order they
+  // ran, the newest last.
+  orderable
+
+  - sling:resourceType (STRING) = "sch/RiskAssessment" mandatory autocreated protected
+
+  // The sch:Risk this assesses
+  - risk (REFERENCE) mandatory
+
+  // The submitter's assessment: only what they typed or approved
+  - value (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // What extraction made of this risk, one sub:Extraction child per run,
+  // populated by AI. Not typed here: Oak refuses a child type it does not
+  // know yet, and sub:Extraction is defined by the submissions bundle, which
+  // the schemas tests do not have.
+  + * (nt:base) = nt:unstructured
