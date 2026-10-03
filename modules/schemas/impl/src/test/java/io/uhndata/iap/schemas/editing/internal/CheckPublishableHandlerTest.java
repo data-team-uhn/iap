@@ -30,7 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -118,8 +118,8 @@ class CheckPublishableHandlerTest
             Map.of("source", "answer", "value", new String[] { "00000000-0000-0000-0000-000000000000" }));
         resolver.commit();
 
-        final NoApplicableWorkflowException refusal =
-            assertThrows(NoApplicableWorkflowException.class, () -> this.handler.execute(task(draft)));
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
 
         final String message = refusal.getMessage();
         assertTrue(message.contains("\"Counts\" asks for at least 3 answers but allows at most 2"), message);
@@ -173,8 +173,8 @@ class CheckPublishableHandlerTest
         condition(resolver, section, "equals", Map.of("source", "answer", "value", new String[0]));
         resolver.commit();
 
-        final NoApplicableWorkflowException refusal =
-            assertThrows(NoApplicableWorkflowException.class, () -> this.handler.execute(task(draft)));
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
 
         assertTrue(refusal.getMessage().contains("form/nameless has a condition on a question"),
             refusal.getMessage());

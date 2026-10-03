@@ -23,7 +23,7 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -57,7 +57,7 @@ public class CheckPublishableHandler implements ServiceTaskHandler
         }
         final List<String> problems = PublishCheck.problems(target);
         if (!problems.isEmpty()) {
-            throw new NoApplicableWorkflowException("Version " + version.getVersion()
+            throw new InvalidStateException("Version " + version.getVersion()
                 + " cannot be published yet: " + String.join("; ", problems) + ".");
         }
     }
