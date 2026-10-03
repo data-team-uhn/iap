@@ -5,8 +5,8 @@
 
 A schema describes what an institutional process asks of a submission: the questions to
 answer, the documents to provide, the approvals to obtain. Submissions are filed against one
-**version** of a schema, and that version must never change under them — which is why a schema
-is only a container, and its content lives in versions.
+**version** of a schema, which must not change while the submission is active. A schema
+is only a container with a name, while its actual content lives in versions.
 
 ## Data model
 
@@ -24,8 +24,8 @@ is only a container, and its content lives in versions.
 ```
 
 Versions, requirements, sections and questions are `orderable`: the order they are stored in is
-the order they are presented in. Every requirement and form item is `cond:Conditionable`, so it
-may carry one condition deciding whether it applies (see [conditions.md](conditions.md)).
+the order they are presented in. Every requirement is `cond:Conditionable`, so it may carry one
+condition deciding whether it applies (see [conditions.md](conditions.md)).
 Questions and requirements are referenceable, because answers, documents and reviews point back
 at them.
 
@@ -39,7 +39,7 @@ at them.
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match, and what to say when one does not. |
 | `optionsFrom` | A content path whose live items are the options, instead of child options. |
-| `purpose`, `extractionPrompt`, `responseShape`, `rubricTags` | What answer extraction needs. |
+| `purpose`, `extractionPrompt`, `responseShape` | What answer extraction needs. |
 
 A question with `sch:AnswerOption` children is answered only with their values. The **value** is
 what an answer stores and what a condition compares against, so changing it changes the meaning
@@ -59,8 +59,8 @@ schema may carry `retired` too. That tag is inheritable, so the versions of a re
 are retired along with it without being touched, and reopening the schema brings them back as
 they were.
 
-The models only store these tags; they do not say what a state allows. Which moves exist
-between states and what may still be edited are decided by the workflows that act on schemas,
+The models only store these tags; they do not say what a state allows. Which transitions between
+states are allowed and what may still be edited are decided by the workflows that act on schemas,
 as guards on the events they wait for. Creating a submission refuses a version that is not
 `active`, or whose schema is `retired`. A version carrying no lifecycle tag can be moved by
 none of them, so a schema imported by hand should tag its versions, as
