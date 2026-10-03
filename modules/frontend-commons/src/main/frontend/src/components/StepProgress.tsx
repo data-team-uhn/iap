@@ -39,7 +39,7 @@ import { visuallyHidden } from "../visuallyHidden";
 export type StepProgressLayout = "horizontal" | "vertical" | "compact";
 
 interface StepProgressProps {
-  // Labels, in order. The caller decides how many and what they are called.
+  // Labels, in order.
   steps: readonly string[];
   // Index of the step underway. A value equal to `steps.length` means every step is done.
   activeStep: number;
@@ -67,7 +67,7 @@ const ICON_SIZE = 36;
 // How long the move from one step to the next takes, before the next one shows as underway.
 const ARRIVAL = "0.7s";
 
-// Secondary, or primary with `disableAccent`, set once on the root.
+// Set on the root from `disableAccent`.
 const ACCENT = "var(--iap-step-accent)";
 
 const classes = {
@@ -112,6 +112,7 @@ function useEndedStep(step: number): number | undefined {
   return ended;
 }
 
+// Fixed, so the label does not shift as the ring comes and goes.
 function IconSlot({ children }: { children: ReactNode }) {
   return (
     <Box
@@ -137,12 +138,14 @@ function Ring() {
   );
 }
 
-// A cross in a circle, the counterpart of a completed step's check.
+function DoneIcon() {
+  return <StepIcon icon="" completed />;
+}
+
 function FailedIcon() {
   return <CancelIcon color="error" />;
 }
 
-// The slot stays the same size when the ring goes, so the label does not jump sideways.
 function StepProgressIcon({ active, completed, error, ...rest }: StepIconProps) {
   if (error) {
     return <IconSlot><FailedIcon /></IconSlot>;
@@ -186,20 +189,23 @@ function LinearSteps({ steps, activeStep, error, ended, orientation }: StepsProp
   return (
     <>
       <Stepper activeStep={activeStep} orientation={orientation}>
-        {steps.map((label, index) => (
-          // Positions identify steps; labels need not be unique.
-          <Step key={index} className={getStepClass(index)}>
-            <StepLabel
-              error={error !== undefined && index === activeStep}
-              optional={orientation === "vertical" && error !== undefined && index === activeStep
-                ? <Failure label={label} message={error} labelHidden variant="caption" />
-                : undefined}
-              slots={{ stepIcon: StepProgressIcon }}
-            >
-              {label}
-            </StepLabel>
-          </Step>
-        ))}
+        {steps.map((label, index) => {
+          const failure = index === activeStep ? error : undefined;
+          return (
+            // Positions identify steps; labels need not be unique.
+            <Step key={index} className={getStepClass(index)}>
+              <StepLabel
+                error={failure !== undefined}
+                optional={failure !== undefined && orientation === "vertical"
+                  ? <Failure label={label} message={failure} labelHidden variant="caption" />
+                  : undefined}
+                slots={{ stepIcon: StepProgressIcon }}
+              >
+                {label}
+              </StepLabel>
+            </Step>
+          );
+        })}
       </Stepper>
       {orientation === "horizontal" && error !== undefined
         ? <Box sx={{ mt: 1 }}><Failure label={steps[activeStep]} message={error} /></Box>
@@ -241,14 +247,14 @@ function CompactSteps({ steps, activeStep, error, ended }: StepsProps) {
     line = (
       <CompactLine
         className={ended === undefined ? undefined : classes.ended}
-        icon={<StepIcon icon={steps.length} completed />}
+        icon={<DoneIcon />}
       >
         <CompactLabel>{steps.at(-1)}</CompactLabel>
       </CompactLine>
     );
   } else {
     const counter = (
-      <Typography aria-hidden variant="caption" sx={{ fontSize: "0.625rem", fontWeight: 500, lineHeight: 1 }}>
+      <Typography aria-hidden variant="caption" sx={{ fontSize: "0.625rem", fontWeight: "fontWeightMedium", lineHeight: 1 }}>
         {`${activeStep + 1}/${steps.length}`}
       </Typography>
     );
@@ -259,7 +265,7 @@ function CompactSteps({ steps, activeStep, error, ended }: StepsProps) {
   }
   return (
     <Box key={activeStep} sx={{ display: "grid", "& > *": { gridArea: "1 / 1" } }}>
-      <CompactLine className={classes.leaving} aria-hidden icon={<StepIcon icon={ended + 1} completed />}>
+      <CompactLine className={classes.leaving} aria-hidden icon={<DoneIcon />}>
         <CompactLabel>{steps[ended]}</CompactLabel>
       </CompactLine>
       <Box className={classes.entering} sx={{ display: "flex", minWidth: 0 }}>{line}</Box>
@@ -317,7 +323,7 @@ const rootSx = (disableAccent: boolean) => (theme: Theme) => {
           insetInline: 0,
           top: "50%",
           height: 3,
-          marginTop: "-1.5px",
+          translate: "0 -50%",
           ...sweep("X", easeOut),
         },
         "& .MuiStepConnector-vertical::after": { insetBlock: 0, left: -1, width: 3, ...sweep("Y", easeOut) },
@@ -334,8 +340,8 @@ const rootSx = (disableAccent: boolean) => (theme: Theme) => {
   };
 };
 
-// Work moving through named stages. The stage underway wears a faded ring. When a stage ends, it
-// takes its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
+// Work moving through named steps. The step underway wears a faded ring. When a step ends, it takes
+// its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
 function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, disableAccent = false }: StepProgressProps) {
   const resolved = useLayout(layout);
   const ended = useEndedStep(activeStep);

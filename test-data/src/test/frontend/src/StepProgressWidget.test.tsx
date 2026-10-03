@@ -90,11 +90,11 @@ describe("StepProgressWidget", () => {
   });
 
   it("drops the accent when it is switched off", () => {
-    const { container } = renderWidget();
+    renderWidget();
 
     fireEvent.click(screen.getByRole("switch", { name: "Accent" }));
 
-    expect(container.querySelector("[class*=MuiBox-root]")).toHaveStyle({
+    expect(screen.getByRole("status").parentElement).toHaveStyle({
       "--iap-step-accent": "var(--mui-palette-primary-main)",
     });
   });
