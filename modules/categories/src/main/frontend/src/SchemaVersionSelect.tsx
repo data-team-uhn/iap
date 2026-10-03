@@ -31,14 +31,15 @@ interface VersionOption {
   uuid: string;
   // The version label, e.g. "1.0"
   version: string;
-  tags: unknown;
+  // The names of the tags placed on it, its lifecycle state among them
+  tags: string[];
 }
 
 interface SchemaGroup {
   // The schema's node name, unique among its siblings, which titles are not.
   name: string;
   title: string;
-  tags: unknown;
+  tags: string[];
   versions: VersionOption[];
 }
 
@@ -51,6 +52,10 @@ interface SchemaVersionSelectProps {
 const isType = (value: unknown, primaryType: string): value is JcrNode =>
   typeof value === "object" && value !== null && (value as JcrNode)["jcr:primaryType"] === primaryType;
 
+// The tags placed on a node, as serialized: a list of names, absent when there are none.
+const tagsOf = (node: JcrNode): string[] =>
+  Array.isArray(node.tags) ? node.tags.filter((tag): tag is string => typeof tag === "string") : [];
+
 // Parses the /Schemas serialization into selectable groups: one group per schema, one option per
 // version. Versions without an identifier cannot be referenced and are skipped.
 const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
@@ -61,7 +66,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
       return {
         name,
         title: (node.title as string | undefined) ?? name,
-        tags: node.tags,
+        tags: tagsOf(node),
         versions: Object.values(node)
           .filter(version => isType(version, "sch:SchemaVersion"))
           .flatMap(version => {
@@ -69,7 +74,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
             return uuid ? [{
               uuid,
               version: (version.version as string | undefined) ?? "?",
-              tags: version.tags,
+              tags: tagsOf(version),
             }] : [];
           }),
       };
