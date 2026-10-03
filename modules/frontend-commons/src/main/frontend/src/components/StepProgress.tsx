@@ -38,8 +38,6 @@ import { visuallyHidden } from "../visuallyHidden";
 // Compact keeps to one line, showing only the step underway and how far along it is.
 export type StepProgressLayout = "horizontal" | "vertical" | "compact";
 
-export type StepProgressColor = "primary" | "secondary" | "info" | "success" | "warning";
-
 interface StepProgressProps {
   // Labels, in order. The caller decides how many and what they are called.
   steps: readonly string[];
@@ -49,8 +47,9 @@ interface StepProgressProps {
   // Ignored once every step is done.
   error?: string;
   layout?: StepProgressLayout | Partial<Record<Breakpoint, StepProgressLayout>>;
-  // The palette colour of the step underway and of the pulse that leads to it.
-  color?: StepProgressColor;
+  // Draw the step underway, and the pulse that leads to it, in the primary colour instead of the
+  // secondary accent.
+  disableAccent?: boolean;
 }
 
 interface StepsProps {
@@ -68,7 +67,7 @@ const ICON_SIZE = 36;
 // How long the move from one step to the next takes, before the next one shows as underway.
 const ARRIVAL = "0.7s";
 
-// The `color` prop, set once on the root.
+// Secondary, or primary with `disableAccent`, set once on the root.
 const ACCENT = "var(--iap-step-accent)";
 
 const classes = {
@@ -280,14 +279,14 @@ const sweepFrames = (axis: "X" | "Y") => ({
   to: { opacity: 1, [`backgroundPosition${axis}`]: "170%" },
 });
 
-const rootSx = (color: StepProgressColor) => (theme: Theme) => {
+const rootSx = (disableAccent: boolean) => (theme: Theme) => {
   const { palette } = theme.vars ?? theme;
   const fade = `${theme.transitions.duration.shorter}ms`;
   const pop = `${theme.transitions.duration.complex}ms`;
   const { easeIn, easeOut } = theme.transitions.easing;
   return {
     width: "100%",
-    "--iap-step-accent": palette[color].main,
+    "--iap-step-accent": disableAccent ? palette.primary.main : palette.secondary.main,
     "@keyframes stepProgressSweepX": sweepFrames("X"),
     "@keyframes stepProgressSweepY": sweepFrames("Y"),
     "@keyframes stepProgressPop": { "50%": { scale: "1.25" } },
@@ -337,7 +336,7 @@ const rootSx = (color: StepProgressColor) => (theme: Theme) => {
 
 // Work moving through named stages. The stage underway wears a faded ring. When a stage ends, it
 // takes its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
-function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, color = "secondary" }: StepProgressProps) {
+function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, disableAccent = false }: StepProgressProps) {
   const resolved = useLayout(layout);
   const ended = useEndedStep(activeStep);
   const done = activeStep >= steps.length;
@@ -347,7 +346,7 @@ function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, color
     ? `All ${steps.length} steps done.`
     : `Step ${activeStep + 1} of ${steps.length}. ${steps[activeStep] ?? ""}.`;
   return (
-    <Box sx={rootSx(color)}>
+    <Box sx={rootSx(disableAccent)}>
       <Box role="status" sx={visuallyHidden}>{status}</Box>
       {resolved === "compact" ? <CompactSteps {...props} /> : <LinearSteps {...props} orientation={resolved} />}
     </Box>
