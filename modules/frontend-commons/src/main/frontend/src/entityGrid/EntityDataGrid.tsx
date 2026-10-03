@@ -18,7 +18,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Alert, Box, useMediaQuery } from "@mui/material";
+import { Alert, Box, Stack, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
   DataGridPro,
@@ -38,7 +38,7 @@ import { withCompactDates, withElementCellsCentred } from "./columns";
 import { BOTTOM_SHEET_SX, EntityGridSheetPanel, RemoveConditionLabel, filterPanelProps } from "./EntityGridPanels";
 import EntityGridStatusOverlay from "./EntityGridStatusOverlay";
 import EntityGridToolbar from "./EntityGridToolbar";
-import EntityListItem from "./EntityListItem";
+import EntityListItem, { columnContent } from "./EntityListItem";
 import {
   ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
 } from "./gridRows";
@@ -97,6 +97,8 @@ interface EntityDataGridProps {
   // is being listed: the same submission offers deleting it in the submitter's own list and not in a
   // reviewer's queue.
   extraColumns?: EntityGridColumn[];
+  // The same, put before the type's own columns, e.g. a box ticking a row
+  leadingColumns?: EntityGridColumn[];
   // Change this to make the grid read the current page again, for when something outside it
   // changed what the listing should say, such as a row deleted from an actions column. Any new value
   // will do; the grid only watches for it changing.
@@ -131,6 +133,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     searchLabel = "Search",
     disableVirtualization = false,
     extraColumns = NO_EXTRA_COLUMNS,
+    leadingColumns = NO_EXTRA_COLUMNS,
     refreshToken = 0,
     rows: givenRows,
   } = props;
@@ -138,10 +141,11 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // The type's own presentation plus whatever this particular grid adds. An added column is not
   // something the server can sort or filter on, since it usually names no property at all: the
   // defaults say so, and a caller whose column does name one can still say otherwise.
-  const columns = useMemo(
-    () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [],
-      ...extraColumns.map(column => ({ sortable: false, filterable: false, ...column })) ],
-    [ config?.columns, extraColumns ]);
+  const columns = useMemo(() => {
+    const added = (column: EntityGridColumn) => ({ sortable: false, filterable: false, ...column });
+    return extraColumns.length === 0 && leadingColumns.length === 0 ? config?.columns ?? []
+      : [ ...leadingColumns.map(added), ...config?.columns ?? [], ...extraColumns.map(added) ];
+  }, [ config?.columns, extraColumns, leadingColumns ]);
   const navigate = useNavigate();
   const theme = useTheme();
   // On narrow (typically touch) screens the grid switches to the Pro list mode: one card per
@@ -206,10 +210,22 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const registeredFields = new Set(config.columns.map(column => column.field));
   const visibleFields = new Set(visibleColumns.map(column => column.field)
     .filter(field => registeredFields.has(field)));
+  // What this grid puts before the type's own columns stays before a bespoke card too, as it does in a plain one,
+  // unless hidden
+  const leadingOnCards = leadingColumns.filter(column => column.cardSlot !== "omit"
+    && visibleColumns.some(visible => visible.field === column.field));
+  const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) => (leadingOnCards.length === 0
+    ? listItem(row, visibleFields)
+    : (
+      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1, width: "100%" }}>
+        { leadingOnCards.map(column => <Box key={column.field} sx={{ pt: 1 }}>{columnContent(column, row)}</Box>) }
+        <Box sx={{ flex: 1, minWidth: 0 }}>{listItem(row, visibleFields)}</Box>
+      </Stack>
+    ));
   const listColumn: GridListViewColDef<EntityRow> = {
     field: "__listItem__",
     renderCell: params => config.listItem
-      ? config.listItem(params.row, visibleFields)
+      ? bespoke(params.row, config.listItem)
       : <EntityListItem row={params.row} columns={visibleColumns} />,
   };
 
