@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
@@ -323,5 +324,79 @@ describe("SchemaPage", () => {
 
     expect(await screen.findByText("The schema could not be reloaded")).toBeInTheDocument();
     expect(screen.getByText("Clinical study")).toBeInTheDocument();
+  });
+
+  describe("comparing two versions picked from the list", () => {
+    // The study's first version made before the others, so that which is older is known
+    const dated = () => serveSchemas({ homepage: { ...HOMEPAGE, study: { ...HOMEPAGE.study,
+      v1: { ...HOMEPAGE.study.v1, "jcr:created": "2026-09-01T10:00:00.000-04:00" } } } });
+
+    it("compares the two ticked, the newer with the older", async () => {
+      dated();
+      renderPage("study");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Compare versions" }));
+      expect(screen.getByText("Tick the two versions to compare.")).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("checkbox", { name: "Compare version 3.0" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Compare version 1.0" }));
+      // No third, and a box ticked can be unticked
+      expect(screen.getByRole("checkbox", { name: "Compare version 2.0" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Compare version 1.0" }));
+      expect(screen.getByRole("button", { name: "Compare" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Compare version 1.0" }));
+      expect(screen.getByText("Compare these two versions?")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Compare" }));
+
+      expect(await screen.findByText(/Version 3\.0 compared with 1\.0/)).toBeInTheDocument();
+    });
+
+    it("forgets a ticked version once it is gone", async () => {
+      dated();
+      renderPage("study");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Compare versions" }));
+      fireEvent.click(await screen.findByRole("checkbox", { name: "Compare version 3.0" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Compare version 1.0" }));
+      const { v3: _discarded, ...kept } = HOMEPAGE.study;
+      serveSchemas({ homepage: { ...HOMEPAGE, study: kept } });
+      fireEvent.click(within(await versionRow("3.0")).getByRole("button", { name: "Discard" }));
+      await confirm("Discard");
+
+      await waitFor(() => expect(screen.queryByRole("gridcell", { name: "3.0" })).not.toBeInTheDocument());
+      expect(screen.getByText("Tick the two versions to compare.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Compare" })).toBeDisabled();
+      expect(screen.getByRole("checkbox", { name: "Compare version 2.0" })).toBeEnabled();
+    });
+
+    it("stops picking on Cancel", async () => {
+      dated();
+      renderPage("study");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Compare versions" }));
+      fireEvent.click(await screen.findByRole("checkbox", { name: "Compare version 3.0" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("checkbox", { name: /Compare version/ })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Compare versions" }));
+      expect(await screen.findByRole("checkbox", { name: "Compare version 3.0" })).not.toBeChecked();
+    });
+
+    it("ticks a version on its card on a phone", async () => {
+      stubPhone();
+      dated();
+      renderPage("study");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Compare versions" }));
+
+      expect(await screen.findByRole("checkbox", { name: "Compare version 3.0" })).toBeInTheDocument();
+    });
+
+    it("offers no comparison for a schema with a single version", async () => {
+      serveSchemas();
+      renderPage("idea");
+
+      expect(await screen.findByRole("gridcell", { name: "0.1" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Compare versions" })).not.toBeInTheDocument();
+    });
   });
 });
