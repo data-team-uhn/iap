@@ -74,11 +74,11 @@ SVG_SIZE = 48
 #   r_dot  : radius of the filled token
 #   margin : ink-free border kept at the left and right edges
 # At 16px the halo is dropped: a sub-pixel ring at 45% opacity only muddies the token at that
-# size, so the token alone carries the mark, pixel-snapped (r 3 about cy 8) to stay round.
+# size, so the token alone carries the mark, pixel-snapped (r 4 about cy 8) to stay round.
 GEOMETRY = {
-    16: {"t": 2.0, "r_out": 0.0, "stroke": 0.00, "r_dot": 3.00, "margin": 1.0},
-    32: {"t": 2.0, "r_out": 6.1, "stroke": 1.05, "r_dot": 3.55, "margin": 1.4},
-    48: {"t": 2.6, "r_out": 8.8, "stroke": 1.30, "r_dot": 5.20, "margin": 2.0},
+    16: {"t": 2.0, "r_out": 0.0, "stroke": 0.00, "r_dot": 4.00, "margin": 1.0},
+    32: {"t": 2.0, "r_out": 10.7, "stroke": 1.70, "r_dot": 6.30, "margin": 1.3},
+    48: {"t": 4.0, "r_out": 16.0, "stroke": 2.60, "r_dot": 9.40, "margin": 2.0},
 }
 
 # Samples per axis per pixel, i.e. 64 coverage samples with the default. Cheap enough at these
