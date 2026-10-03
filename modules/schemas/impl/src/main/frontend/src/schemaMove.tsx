@@ -22,10 +22,10 @@ import {
 
 import SubdirectoryArrowRightIcon from "@mui/icons-material/SubdirectoryArrowRight";
 import { Alert, Box, Button, Snackbar, type Theme } from "@mui/material";
+import { visuallyHidden } from "@mui/utils";
 
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { usePhone } from "@iap/frontend-commons/usePhone";
-import { visuallyHidden } from "@iap/frontend-commons/visuallyHidden";
 
 import { type JcrNode, nameOf, pathOf } from "./schemaModel";
 import { isMoveSpot } from "./schemaMoveModel";
