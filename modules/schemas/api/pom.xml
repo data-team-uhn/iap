@@ -43,7 +43,6 @@
             <Sling-Model-Packages>io.uhndata.iap.schemas.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/sch/;path:=/libs/sch/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

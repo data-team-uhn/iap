@@ -45,6 +45,11 @@
         {
             "id":"${project.groupId}:iap-favicon:${project.version}",
             "start-order":"25"
+        },
+        {
+            // After the tags API (24), whose node types its tag definitions are
+            "id":"${project.groupId}:iap-lifecycle:${project.version}",
+            "start-order":"25"
         }
     ]
 }

@@ -47,8 +47,8 @@ it. It is the inheritable `retired` tag, not a property — the repository
 materializes an inheritable tag onto the whole subtree at commit time, so "this
 category and its subcategories" is enforced rather than promised, and "everything
 currently closed" is a query rather than a tree walk. The definition is shared with
-schema lifecycles, so it ships with `schemas/api` (`content/Tags/retired.json`),
-which categories already depend on.
+the other lifecycles, so it ships with `modules/lifecycle`
+(`content/Tags/retired.json`).
 
 Which property the tag arrives in tells the two states apart, in Java
 (`hasTag`/`hasOwnTag`) and in the frontend (`inheritedTags`/`tags`):
