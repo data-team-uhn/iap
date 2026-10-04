@@ -1,6 +1,6 @@
 # Schemas
 
-**Module:** `modules/schemas` · **Bundle:** `iap-schemas-api` (start-order 27) ·
+**Module:** `modules/schemas` · **Bundles:** `iap-schemas-api` (start-order 27), `iap-schemas-impl` (28) ·
 **Models:** `io.uhndata.iap.schemas.models`
 
 A schema describes what an institutional process asks of a submission: the questions to
@@ -68,3 +68,51 @@ none of them, so a schema imported by hand should tag its versions, as
 
 The `draft`, `active` and `retired` definitions ship with `modules/lifecycle`, since schemas,
 submissions and categories all use them. `active` applies to versions only.
+
+## Editing through workflows
+
+Nothing writes to `/Schemas` directly: every change is an event, `POST <path>.<event>.json`, handled
+by a system workflow shipped with `schemas/impl` (`content/SystemWorkflows/`). Each admits only
+`iap-administrators`, and each is its own definition, so a deployment can change one, adding an
+approval step to publishing say, without touching the others.
+
+The lifecycle is in those definitions, not in code. Where one event means different things in
+different states, several workflows wait for it, each guarded by a condition on the target's own
+tags (`tags`) and those it inherits from its schema (`inheritedTags`), and the one whose guard holds
+runs. An event no guard admits is refused with a 409, and `@events` (see
+[workflows.md](workflows.md)) never offers it.
+
+| Target | Event | Guard | Steps |
+|---|---|---|---|
+| `/Schemas` | `create` (`title`, optional `version`) | | create the schema, call `createVersion` on it |
+| a schema | `createVersion` (optional `version`) | not `retired` | add an empty version, tag it `draft` |
+| a schema | `update` (`patch`) | | edit `title` |
+| a schema | `retire` | not `retired` | tag it `retired` |
+| a schema | `activate` | `retired` | remove `retired` |
+| a schema | `discard` | | delete it, with its versions |
+| a version | `update` (`patch`) | `draft` | edit `version`, `description`, `workflow` |
+| a version | `update` (`patch`) | not `draft` | edit `description` |
+| a version | `activate` | `draft`, schema not retired | check it can be published, tag it `active` |
+| a version | `activate` | `retired`, schema not retired | tag it `active` |
+| a version | `retire` | `active` | tag it `retired` |
+| a version | `discard` | | delete it |
+
+A **patch** is one JSON object in the `patch` parameter: a key left out is left alone, `null`
+removes the property, anything else is the new value. The whole patch is checked before anything is
+written, and only the fields the workflow lists in its `fields` are accepted: a published version
+keeps everything submissions may depend on, and only its wording can change.
+
+An editor learns which fields it may offer from the `fields` serialization: `@fields` on each schema
+and version lists the fields the requesting user's `update` would change there, with a label, a
+kind, and whether each is mandatory or runs over several lines. It is read from the configuration of
+the update workflow that would run, so no editor keeps a list of its own.
+
+A draft is **published** only when nothing in it would break once it is frozen: answer counts and
+value bounds that are not upside down, patterns that compile, option values that are present and
+unique, and conditions that use known comparisons on questions of this same version. Every problem
+is reported at once. Publishing a draft does not retire the version before it; several versions may
+be active at once.
+
+**Discarding** goes through the deletion service, into the archive: anything something else refers
+to, such as a version that submissions or a category point at, is refused, with the referrers
+listed. What is in use is retired instead.
