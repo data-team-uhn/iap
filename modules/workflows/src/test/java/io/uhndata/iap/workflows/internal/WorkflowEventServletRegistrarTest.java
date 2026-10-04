@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
 
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -39,6 +40,7 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -83,17 +85,22 @@ class WorkflowEventServletRegistrarTest
     {
         activate();
         assertArrayEquals(new String[] { "wf/TaskInstance" }, boundTypes());
+        final Object first = servlet().getProperty(Constants.SERVICE_ID);
 
         EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
         this.context.resourceResolver().commit();
         this.registrar.onChange(List.of());
 
         assertArrayEquals(new String[] { "wf/TaskInstance", "wf/WorkflowsHomepage" }, boundTypes());
+        // Registered anew, since the servlet resolver never sees a change to a registration's properties, and
+        // the old registration is gone
+        final Object second = servlet().getProperty(Constants.SERVICE_ID);
+        assertNotEquals(first, second);
+        assertEquals(1, this.context.bundleContext().getServiceReferences(Servlet.class, null).size());
 
         // Nothing that matters changed: the registration is left alone
-        final Object before = servlet().getProperty("sling.servlet.resourceTypes");
         this.registrar.onChange(List.of());
-        assertEquals(before, servlet().getProperty("sling.servlet.resourceTypes"));
+        assertEquals(second, servlet().getProperty(Constants.SERVICE_ID));
     }
 
     @Test
