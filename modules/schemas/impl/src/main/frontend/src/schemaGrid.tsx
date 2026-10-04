@@ -46,7 +46,7 @@ const COLUMNS: EntityGridColumn[] = [
     width: 130,
     sortable: false,
     filterable: false,
-    renderCell: params => <LifecycleChip tags={params.row.tags} />,
+    renderCell: params => <LifecycleChip tags={tagsOf(params.row)} />,
   },
   {
     field: "jcr:lastModified",
