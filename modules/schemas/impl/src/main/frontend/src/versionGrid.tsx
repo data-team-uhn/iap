@@ -43,7 +43,7 @@ const COLUMNS: EntityGridColumn[] = [
     width: 130,
     sortable: false,
     filterable: false,
-    renderCell: params => <LifecycleChip tags={params.row.tags} />,
+    renderCell: params => <LifecycleChip tags={tagsOf(params.row)} />,
   },
   { field: "description", headerName: "Description", flex: 2, minWidth: 180 },
   {

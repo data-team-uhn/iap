@@ -20,7 +20,7 @@ import TagChip from "@iap/tags/TagChip";
 
 // A lifecycle state, shown as the tag it is: the same label, color and icon as anywhere else tags
 // appear.
-function LifecycleChip({ tags }: { tags: unknown }) {
+function LifecycleChip({ tags }: { tags: string[] }) {
   return <TagChip tags={tags} category="lifecycle" />;
 }
 
