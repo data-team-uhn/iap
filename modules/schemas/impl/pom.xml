@@ -40,7 +40,7 @@
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Initial-Content>
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
