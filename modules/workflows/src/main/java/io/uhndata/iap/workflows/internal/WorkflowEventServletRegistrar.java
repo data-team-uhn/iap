@@ -89,8 +89,7 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     public synchronized void activate(final BundleContext context)
     {
         this.types = controlledTypes();
-        this.registration = context.registerService(Servlet.class, new WorkflowEventServlet(this.engine),
-            properties(this.types));
+        this.registration = register(context, this.types);
     }
 
     /** Takes the servlet down with the component. */
@@ -105,9 +104,26 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     {
         final Set<String> current = controlledTypes();
         if (!current.equals(this.types)) {
+            // Registered anew rather than updated: the servlet resolver binds the types a servlet has when it is
+            // registered and ignores later changes to its properties. The new registration goes up before the old
+            // one comes down, so no event falls through to the Sling POST servlet in between
+            final ServiceRegistration<Servlet> previous = this.registration;
             this.types = current;
-            this.registration.setProperties(properties(current));
+            this.registration = register(previous.getReference().getBundle().getBundleContext(), current);
+            previous.unregister();
         }
+    }
+
+    /**
+     * Registers a servlet for the given types.
+     *
+     * @param context the bundle context to register it through
+     * @param resourceTypes the types it binds
+     * @return the registration
+     */
+    private ServiceRegistration<Servlet> register(final BundleContext context, final Set<String> resourceTypes)
+    {
+        return context.registerService(Servlet.class, new WorkflowEventServlet(this.engine), properties(resourceTypes));
     }
 
     /**
