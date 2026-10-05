@@ -61,6 +61,7 @@ How content is shaped, related, and moved through its process.
 | Document | What it covers |
 | --- | --- |
 | [keycloak-oidc.md](keycloak-oidc.md) | Sign-in delegated to an external Keycloak over OpenID Connect, and how a realm role becomes an Oak group principal that ACLs are written against |
+| [remote-requests.md](remote-requests.md) | JWT-authenticated requests from other IAP instances |
 
 ## Operating an instance
 

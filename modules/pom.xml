@@ -54,6 +54,7 @@
     <module>metrics</module>
     <module>notifications</module>
     <module>principals</module>
+    <module>remote-requests</module>
     <module>schemas</module>
     <module>search</module>
     <module>serialization</module>
