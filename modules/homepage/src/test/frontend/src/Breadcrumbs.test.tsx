@@ -82,7 +82,7 @@ describe("Breadcrumbs", () => {
       return null;
     }
     const { rerender } = render(
-      <MemoryRouter initialEntries={[ "/admin/schemas/study?version=v1" ]}>
+      <MemoryRouter initialEntries={[ "/admin/schemas/study/v1" ]}>
         <Breadcrumbs />
         <VersionPage />
       </MemoryRouter>,
@@ -91,7 +91,7 @@ describe("Breadcrumbs", () => {
     expect(await screen.findByRole("link", { name: "Clinical study" })).toHaveAttribute("href", "/admin/schemas/study");
     expect(screen.getByRole("link", { name: "Administration" })).toBeInTheDocument();
     rerender(
-      <MemoryRouter initialEntries={[ "/admin/schemas/study?version=v1" ]}>
+      <MemoryRouter initialEntries={[ "/admin/schemas/study/v1" ]}>
         <Breadcrumbs />
       </MemoryRouter>,
     );

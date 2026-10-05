@@ -27,7 +27,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import TagChip from "@iap/tags/TagChip";
 
 import SchemaActions from "./SchemaActions";
-import { type JcrNode, schemaNameFromRoute, tagsOf, titleOf } from "./schemaModel";
+import { type JcrNode, schemaNameFromRoute, tagsOf, titleOf, versionNameFromRoute } from "./schemaModel";
 import SchemaVersionList from "./SchemaVersionList";
 import SchemaVersionView from "./SchemaVersionView";
 import { useSchema } from "./useSchema";
@@ -54,8 +54,8 @@ function SchemaNotices({ schema, loadError, reload }: {
 // One schema's page: its versions and where each stands, and the lifecycle actions on them and on
 // the schema as a whole. With a version named, that version's own page.
 function SchemaPage() {
-  const { pathname, search } = useLocation();
-  const versionName = new URLSearchParams(search).get("version");
+  const { pathname } = useLocation();
+  const versionName = versionNameFromRoute(pathname);
   const navigate = useNavigate();
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);

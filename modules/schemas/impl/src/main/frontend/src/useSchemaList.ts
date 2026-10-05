@@ -21,9 +21,9 @@ import { listing, useNode } from "./useNode";
 
 export const schemaPageUrl = (name: string): string => `/admin/schemas/${encodeURIComponent(name)}`;
 
-// A version's page: a query parameter rather than a path segment, since version names such as 1.0 have dots
+// A version's page, under its schema's
 export const versionPageUrl = (schemaName: string, versionName: string): string =>
-  `${schemaPageUrl(schemaName)}?version=${encodeURIComponent(versionName)}`;
+  `${schemaPageUrl(schemaName)}/${encodeURIComponent(versionName)}`;
 
 // Every schema, with its versions: what the listing and the dashboard widget show.
 export function useSchemaList() {

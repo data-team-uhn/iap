@@ -92,7 +92,7 @@ describe("SchemaManager", () => {
     await expand(/Clinical study/);
     fireEvent.click(await screen.findByText("Version 2.0"));
 
-    expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/study?version=v2");
+    expect(await screen.findByTestId("where")).toHaveTextContent("/admin/schemas/study/v2");
   });
 
   it("acts on a version without leaving the listing", async () => {

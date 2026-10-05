@@ -40,7 +40,7 @@ afterEach(() => {
 // In the app's theme, which is what makes a page's title its heading
 const renderVersion = (schema: string, version: string) => render(
   <ThemeProvider theme={appTheme}>
-    <MemoryRouter initialEntries={[ `/admin/schemas/${schema}?version=${version}` ]}>
+    <MemoryRouter initialEntries={[ `/admin/schemas/${schema}/${version}` ]}>
       <Routes>
         <Route path="/admin/schemas/*" element={<SchemaPage />} />
       </Routes>
