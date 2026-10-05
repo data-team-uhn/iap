@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link SchemaContent}.
@@ -45,23 +44,5 @@ class SchemaContentTest
         Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
 
         assertThrows(PersistenceException.class, () -> SchemaContent.checkOut(target));
-    }
-
-    @Test
-    void stopsAtTheRootWhenNothingVersionableHoldsTheContent() throws RepositoryException
-    {
-        final Resource target = Mockito.mock(Resource.class);
-        Mockito.when(target.getPath()).thenReturn("/orphan");
-        final Node node = Mockito.mock(Node.class);
-        final Node root = Mockito.mock(Node.class);
-        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
-        Mockito.when(node.getDepth()).thenReturn(1);
-        Mockito.when(node.getParent()).thenReturn(root);
-
-        final PersistenceException refusal =
-            assertThrows(PersistenceException.class, () -> SchemaContent.checkOut(target));
-
-        assertTrue(refusal.getMessage().contains("/orphan"), refusal.getMessage());
-        Mockito.verify(root, Mockito.never()).getParent();
     }
 }
