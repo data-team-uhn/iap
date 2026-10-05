@@ -22,8 +22,7 @@ import { DialogContentText, IconButton, Tooltip } from "@mui/material";
 
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-
-import { sendEvent } from "./schemaEvents";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 interface EventActionProps {
   path: string;

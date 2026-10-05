@@ -27,10 +27,10 @@ import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/No
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import NewSchemaDialog from "./NewSchemaDialog";
 import SchemaActions from "./SchemaActions";
-import { sendEvent } from "./schemaEvents";
 import { SCHEMA_OF, SCHEMA_TYPE } from "./schemaGrid";
 import { schemaNameFromRoute, SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";

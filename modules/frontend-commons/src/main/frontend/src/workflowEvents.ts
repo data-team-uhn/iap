@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, RequestError } from "./requestFailure";
 
-// Every change to a schema is a workflow event: POST <path>.<event>.json. A refusal carries the
-// engine's reason, which is already worded for the person reading it, so it is passed on as it
-// stands; anything else is described like any other failed request.
+import type { AuthenticatedFetch } from "./reLogin";
+
+// Sends a workflow event to a node: POST <path>.<event>.json, and the engine decides what it does. A
+// refusal carries the engine's reason, which is already worded for the person reading it, so it is
+// passed on as it stands; anything else is described like any other failed request.
 //
 // Resolves with the path of what the event created, when it created something: the engine answers
 // with a redirect, which fetch has already followed.
@@ -48,7 +49,3 @@ export async function sendEvent(
   }
   return undefined;
 }
-
-// An update event's payload: the changed fields, as one JSON object.
-export const patch = (changes: Record<string, string | null>): Record<string, string> =>
-  ({ patch: JSON.stringify(changes) });

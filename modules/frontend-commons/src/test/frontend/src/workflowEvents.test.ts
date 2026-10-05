@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { patch, sendEvent } from "@iap/schemas/schemaEvents";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
 
@@ -24,24 +24,24 @@ describe("sendEvent", () => {
   it("posts the event to the node, named by its selector", async () => {
     const doFetch = answer({ ok: true, status: 200, redirected: false });
 
-    await expect(sendEvent(doFetch, "/Schemas/study/v2", "retire")).resolves.toBeUndefined();
+    await expect(sendEvent(doFetch, "/Workflows/review/v2", "retire")).resolves.toBeUndefined();
 
-    expect(doFetch).toHaveBeenCalledWith("/Schemas/study/v2.retire.json",
+    expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.retire.json",
       expect.objectContaining({ method: "POST" }));
   });
 
   it("resolves with what the event created", async () => {
-    const doFetch = answer({ ok: true, status: 200, redirected: true, url: "http://localhost/Schemas/new" });
+    const doFetch = answer({ ok: true, status: 200, redirected: true, url: "http://localhost/Workflows/new" });
 
-    await expect(sendEvent(doFetch, "/Schemas", "create", { title: "New" })).resolves.toBe("/Schemas/new");
+    await expect(sendEvent(doFetch, "/Workflows", "create", { title: "New" })).resolves.toBe("/Workflows/new");
   });
 
   it("passes the engine's reason for a refusal on as it stands", async () => {
     const doFetch = answer({ ok: false, status: 409, redirected: false,
-      json: () => Promise.resolve({ error: "Version 2.0 is already active" }) });
+      json: () => Promise.resolve({ error: "This request has been submitted and can no longer be changed" }) });
 
-    await expect(sendEvent(doFetch, "/Schemas/study/v2", "activate"))
-      .rejects.toThrow("Version 2.0 is already active");
+    await expect(sendEvent(doFetch, "/Submissions/request", "save"))
+      .rejects.toThrow("can no longer be changed");
   });
 
   it("describes a refusal that gives no reason like any failed request", async () => {
@@ -49,16 +49,12 @@ describe("sendEvent", () => {
       ok: false, status: 403, redirected: false, json: () => Promise.reject(new SyntaxError()),
     });
 
-    await expect(sendEvent(doFetch, "/Schemas", "create")).rejects.toThrow("You do not have permission");
+    await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("You do not have permission");
   });
 
   it("describes a request that never completed", async () => {
     const doFetch = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
 
-    await expect(sendEvent(doFetch, "/Schemas", "create")).rejects.toThrow("could not be reached");
-  });
-
-  it("sends a patch as one JSON object", () => {
-    expect(patch({ title: "New", description: null })).toEqual({ patch: "{\"title\":\"New\",\"description\":null}" });
+    await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("could not be reached");
   });
 });

@@ -20,13 +20,13 @@ import { useState } from "react";
 
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 
-
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import DetailsDialog, { editableText } from "./DetailsDialog";
 import { ActionIcon } from "./EventAction";
-import { patch, sendEvent } from "./schemaEvents";
 import { offers, pathOf } from "./schemaModel";
+import { patch } from "./schemaPatch";
 
 import type { SchemaActionProps } from "./SchemaActions";
 
