@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -38,11 +38,10 @@ import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
 
 import NewVersionDialog from "./NewVersionDialog";
-import { adminUrl, loadWorkflow, type WorkflowSummary } from "./workflowModel";
+import { useWorkflow } from "./useWorkflow";
+import { adminUrl } from "./workflowModel";
 import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
 import WorkflowStateChip from "./WorkflowStateChip";
 import WorkflowVersionActions from "./WorkflowVersionActions";
@@ -80,25 +79,9 @@ interface WorkflowManagerProps {
 // WorkflowVersionActions extension point, so an action added later needs no change to this file.
 function WorkflowManager({ path }: WorkflowManagerProps) {
   const navigate = useNavigate();
-  const [ workflow, setWorkflow ] = useState<WorkflowSummary>();
-  const [ loadError, setLoadError ] = useState<string>();
+  const { workflow, loadError, reload } = useWorkflow(path);
   const [ editing, setEditing ] = useState(false);
   const [ addingVersion, setAddingVersion ] = useState(false);
-  const fetchUtil = useAuthenticatedFetch();
-
-  const load = useCallback((): Promise<void> =>
-    loadWorkflow(fetchUtil, path)
-      .then(loaded => {
-        setWorkflow(loaded);
-        setLoadError(undefined);
-      })
-      .catch((error: unknown) => {
-        setLoadError(describeRequestFailure(error));
-      }), [fetchUtil, path]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const openNewVersion = (versionPath: string): void => {
     setAddingVersion(false);
@@ -108,7 +91,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
   if (loadError) {
     return (
       <AdminScreen title="Workflow">
-        <LoadError title="This workflow could not be loaded" message={loadError} onRetry={load} />
+        <LoadError title="This workflow could not be loaded" message={loadError} onRetry={reload} />
       </AdminScreen>
     );
   }
@@ -178,7 +161,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
                           <WorkflowVersionActions
                             version={version}
                             workflow={workflow}
-                            reload={() => void load()}
+                            reload={() => void reload()}
                           />
                         </Stack>
                       </TableCell>
@@ -194,7 +177,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
         <WorkflowPropertiesDialog
           workflow={workflow}
           onClose={() => setEditing(false)}
-          onSaved={() => void load()}
+          onSaved={() => void reload()}
         />
       )}
       { addingVersion && (

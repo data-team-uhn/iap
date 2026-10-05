@@ -25,14 +25,13 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, messageOf } from "@iap/frontend-commons/requestFailure";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 import BpmnEditor from "./BpmnEditor";
+import { useWorkflow } from "./useWorkflow";
 import {
   adminUrl,
-  loadWorkflow,
   type WorkflowState,
-  type WorkflowSummary,
   type WorkflowVersionSummary,
 } from "./workflowModel";
 import WorkflowStateChip from "./WorkflowStateChip";
@@ -80,8 +79,6 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
   const requestedEdit = editing;
   const navigate = useNavigate();
 
-  const [ workflow, setWorkflow ] = useState<WorkflowSummary>();
-  const [ loadError, setLoadError ] = useState<string>();
   const [ dirty, setDirty ] = useState(false);
   const [ saving, setSaving ] = useState(false);
   const notify = useNotice();
@@ -95,19 +92,7 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
   // knows a version's label and state, and this page needs both to say what is being looked at
   const definitionPath = path.slice(0, path.lastIndexOf("/"));
 
-  const load = useCallback((): Promise<void> =>
-    loadWorkflow(fetchUtil, definitionPath)
-      .then(loaded => {
-        setWorkflow(loaded);
-        setLoadError(undefined);
-      })
-      .catch((error: unknown) => {
-        setLoadError(describeRequestFailure(error));
-      }), [fetchUtil, definitionPath]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { workflow, loadError, reload } = useWorkflow(definitionPath);
 
   const onReady = useCallback((serialize: (() => Promise<string>) | null) => {
     serializeRef.current = serialize;
@@ -199,7 +184,7 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
     >
       <Stack spacing={2}>
         { loadError && (
-          <LoadError title="This workflow version could not be loaded" message={loadError} onRetry={load} />
+          <LoadError title="This workflow version could not be loaded" message={loadError} onRetry={reload} />
         )}
         { workflow && (
           <Stack direction="row" spacing={2} sx={{ alignItems: "center", flexWrap: "wrap" }}>
