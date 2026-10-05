@@ -16,8 +16,9 @@
  * limitations under the License.
  */
 
-import { schemasOf, SCHEMAS_ROOT } from "./schemaModel";
-import { listing, useNode } from "./useNode";
+import { useNode } from "@iap/frontend-commons/useNode";
+
+import { listing, schemasOf, SCHEMAS_ROOT } from "./schemaModel";
 
 export const schemaPageUrl = (name: string): string => `/admin/schemas/${encodeURIComponent(name)}`;
 

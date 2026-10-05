@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useNode } from "./useNode";
+import { useNode } from "@iap/frontend-commons/useNode";
 
 import type { JcrNode } from "./schemaModel";
 

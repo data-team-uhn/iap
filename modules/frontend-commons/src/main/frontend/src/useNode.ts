@@ -18,16 +18,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { useAuthenticatedFetch, type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { useAuthenticatedFetch, type AuthenticatedFetch } from "./reLogin";
+import { describeRequestFailure, messageOf, RequestError } from "./requestFailure";
 
-import type { JcrNode } from "./schemaModel";
-
-// How listings read schemas and versions. `simple` drops the repository's bookkeeping, and with a
-// version its content too. `events` and `fields` add what the current user may do with each node, and
-// which of its fields an update would change. `-active` keeps the drafts and the retired, which the
-// schema serialization leaves out of a listing by default.
-export const listing = (depth: number): string => `${depth}.simple.events.fields.-active`;
+// A node as the repository serializes it
+type JcrNode = Record<string, unknown>;
 
 // Reads one serialized node, with failures already worded for the person who will read them.
 export async function readNode(doFetch: AuthenticatedFetch, path: string, selectors: string): Promise<JcrNode> {
@@ -42,8 +37,8 @@ export async function readNode(doFetch: AuthenticatedFetch, path: string, select
   }
 }
 
-// What every schema hook shares: the parsed value, whether the first read is still going, what went
-// wrong with the last one, and a way to read again. A failed re-read keeps the last good value, so
+// What a page reading one node needs: the parsed value, whether the first read is still going, what
+// went wrong with the last one, and a way to read again. A failed re-read keeps the last good value, so
 // the page stays readable under the error.
 export function useNode<T>(path: string, selectors: string, parse: (node: JcrNode) => T) {
   const doFetch = useAuthenticatedFetch();
