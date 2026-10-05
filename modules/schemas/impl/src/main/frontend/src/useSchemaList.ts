@@ -17,13 +17,17 @@
  */
 
 import { schemasOf, SCHEMAS_ROOT } from "./schemaModel";
-import { useNode } from "./useNode";
+import { listing, useNode } from "./useNode";
 
 export const schemaPageUrl = (name: string): string => `/admin/schemas/${encodeURIComponent(name)}`;
 
+// A version's page, under its schema's
+export const versionPageUrl = (schemaName: string, versionName: string): string =>
+  `${schemaPageUrl(schemaName)}/${encodeURIComponent(versionName)}`;
+
 // Every schema, with its versions: what the listing and the dashboard widget show.
 export function useSchemaList() {
-  const { value, loading, loadError, reload } = useNode(SCHEMAS_ROOT, 2, schemasOf);
+  const { value, loading, loadError, reload } = useNode(SCHEMAS_ROOT, listing(2), schemasOf);
 
   return { schemas: value ?? [], loading, loadError, reload };
 }

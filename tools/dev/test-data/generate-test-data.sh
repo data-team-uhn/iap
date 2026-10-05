@@ -96,10 +96,10 @@ else
   import_node "/Schemas" "DemoStudy" "$(cat "$SCRIPT_DIR/DemoStudy.json")"
 fi
 
-VERSION_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/1.0.json" \
+VERSION_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1.json" \
   | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 echo "Schema version 1.0 has UUID $VERSION_UUID"
-PROTOCOL_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/1.0/Protocol.json" \
+PROTOCOL_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1/Protocol.json" \
   | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 
 # A small sample file attached as the "study protocol" of approved submissions

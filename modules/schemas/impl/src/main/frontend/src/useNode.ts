@@ -23,15 +23,16 @@ import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-c
 
 import type { JcrNode } from "./schemaModel";
 
-// Reads one serialized node, with failures already worded for the person who will read them.
-// `simple` drops the repository's bookkeeping; `events` and `fields` add what the current user may do
-// with each node, and which of its fields an update would change; `-active` keeps the drafts and the
-// retired, which the schema serialization leaves out by default.
-export const NODE_SELECTORS = "simple.events.fields.-active";
+// How listings read schemas and versions. `simple` drops the repository's bookkeeping, and with a
+// version its content too. `events` and `fields` add what the current user may do with each node, and
+// which of its fields an update would change. `-active` keeps the drafts and the retired, which the
+// schema serialization leaves out of a listing by default.
+export const listing = (depth: number): string => `${depth}.simple.events.fields.-active`;
 
-export async function readNode(doFetch: AuthenticatedFetch, path: string, depth: number): Promise<JcrNode> {
+// Reads one serialized node, with failures already worded for the person who will read them.
+export async function readNode(doFetch: AuthenticatedFetch, path: string, selectors: string): Promise<JcrNode> {
   try {
-    const response = await doFetch(`${path}.${depth}.${NODE_SELECTORS}.json`);
+    const response = await doFetch(`${path}.${selectors}.json`);
     if (!response.ok) {
       throw new RequestError(response.status);
     }
@@ -44,20 +45,20 @@ export async function readNode(doFetch: AuthenticatedFetch, path: string, depth:
 // What every schema hook shares: the parsed value, whether the first read is still going, what went
 // wrong with the last one, and a way to read again. A failed re-read keeps the last good value, so
 // the page stays readable under the error.
-export function useNode<T>(path: string, depth: number, parse: (node: JcrNode) => T) {
+export function useNode<T>(path: string, selectors: string, parse: (node: JcrNode) => T) {
   const doFetch = useAuthenticatedFetch();
   const [ value, setValue ] = useState<T>();
   const [ loading, setLoading ] = useState(true);
   const [ loadError, setLoadError ] = useState<string>();
 
   const reload = useCallback((): Promise<void> =>
-    readNode(doFetch, path, depth)
+    readNode(doFetch, path, selectors)
       .then(node => {
         setValue(parse(node));
         setLoadError(undefined);
       })
       .catch((error: unknown) => setLoadError(messageOf(error)))
-      .finally(() => setLoading(false)), [ doFetch, path, depth, parse ]);
+      .finally(() => setLoading(false)), [ doFetch, path, selectors, parse ]);
 
   useEffect(() => {
     void reload();

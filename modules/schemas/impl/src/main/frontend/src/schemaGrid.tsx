@@ -22,8 +22,8 @@ import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons
 
 import LifecycleChip from "./LifecycleChip";
 import { type JcrNode, labelOf, pathOf, SCHEMAS_ROOT, tagsOf, titleOf, versionsOf } from "./schemaModel";
-import { NODE_SELECTORS } from "./useNode";
-import { schemaPageUrl } from "./useSchemaList";
+import { listing } from "./useNode";
+import { schemaPageUrl, versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_TYPE = "sch/Schema";
 
@@ -85,9 +85,10 @@ registerEntityType(SCHEMA_TYPE, {
   homepage: SCHEMAS_ROOT,
   columns: COLUMNS,
   defaultSort: { field: "title", sort: "asc" },
-  children: { selectors: `1.${NODE_SELECTORS}`, rows: versionRows, treeField: "title",
+  children: { selectors: listing(1), rows: versionRows, treeField: "title",
     countLabel: count => (count === 1 ? "1 version" : `${count} versions`) },
-  // A version opens its schema's page, where it is listed
-  rowLink: row => schemaPageUrl(String((isVersion(row) ? row[SCHEMA_OF] as JcrNode : row)["@name"])),
+  rowLink: row => (isVersion(row)
+    ? versionPageUrl(String((row[SCHEMA_OF] as JcrNode)["@name"]), String(row["@name"]))
+    : schemaPageUrl(String(row["@name"]))),
   listItem: row => <SchemaCard row={row} />,
 });

@@ -125,6 +125,11 @@ Wrap the page in `AdminScreen`:
 The props are optional. `title` defaults to "Administration" if absent. The main
 action sits on the heading's row, a `description` saying what the tool is for
 goes under the heading, and a tool page's title carries a small "Admin" chip.
+A page showing one thing that belongs to another names the owner in `titlePrefix`,
+which leads the heading in regular weight (a schema version's page is headed with
+its schema's title, then "Version 1.0"), and says where its subject stands in
+`status`, right after the title: the subject's tags, as every resource page shows
+them.
 The content sits on a `Panel`, a paper surface standing out against the page
 canvas. Content that brings its own surfaces passes `disablePanel` to lay out
 directly on the page instead (for example the console's landing page, whose
@@ -132,7 +137,8 @@ widgets are panels themselves).
 
 Wayfinding is the shell's
 [breadcrumb trail](ui-extensions.md#the-breadcrumb-trail) on `pageTop`, which the
-heading lines up with.
+heading lines up with. A page whose owner is not named by its path adds the owner as
+a crumb itself, with `usePageCrumbs`.
 
 ## Access control
 

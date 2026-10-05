@@ -18,7 +18,7 @@
 
 import {
   countSchemas, descriptionOf, fieldsOf, labelOf, offers, pathOf, schemaNameFromRoute, schemasOf, tagsOf, titleOf,
-  versionsOf,
+  versionNameFromRoute, versionsOf,
 } from "@iap/schemas/schemaModel";
 
 import { HOMEPAGE, withPaths } from "./schemaServer.fixture";
@@ -78,5 +78,16 @@ describe("schemaModel", () => {
     expect(schemaNameFromRoute("/admin/schemas/study")).toBe("study");
     expect(schemaNameFromRoute("/admin/schemas/my%20study/")).toBe("my study");
     expect(schemaNameFromRoute("")).toBe("");
+  });
+
+  it("reads a version's page as its schema's name, then its own", () => {
+    expect(schemaNameFromRoute("/admin/schemas/study/v2")).toBe("study");
+    expect(versionNameFromRoute("/admin/schemas/study/v2")).toBe("v2");
+    expect(versionNameFromRoute("/admin/schemas/study")).toBeUndefined();
+  });
+
+  it("reads a path in the repository the same way", () => {
+    expect(schemaNameFromRoute("/Schemas/study")).toBe("study");
+    expect(versionNameFromRoute("/Schemas/study/v2")).toBe("v2");
   });
 });

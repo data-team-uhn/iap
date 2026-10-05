@@ -88,8 +88,19 @@ export function countSchemas(schemas: JcrNode[]): SchemaCounts {
   };
 }
 
-// The name of a schema from the page it is shown on, e.g. /admin/schemas/clinicalStudy.
-export function schemaNameFromRoute(pathname: string): string {
-  const trimmed = pathname.replace(/\/+$/, "");
-  return decodeURIComponent(trimmed.slice(trimmed.lastIndexOf("/") + 1));
+// The names a path holds: a schema's, then its version's if there is one. A page's path and the
+// repository's have the same shape, /admin/schemas/clinicalStudy/v2 and /Schemas/clinicalStudy/v2.
+function namesIn(path: string): string[] {
+  const segments = path.split("/").filter(Boolean).map(decodeURIComponent);
+  return segments.slice(segments[0] === "admin" ? 2 : 1);
+}
+
+// The name of the schema a path leads to, e.g. clinicalStudy.
+export function schemaNameFromRoute(path: string): string {
+  return namesIn(path)[0] ?? "";
+}
+
+// The name of the version a path leads to, if it leads to one, e.g. v2.
+export function versionNameFromRoute(path: string): string | undefined {
+  return namesIn(path)[1];
 }

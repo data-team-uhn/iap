@@ -242,7 +242,13 @@ reference on the group node is the natural extension.
 A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages:
 each ancestor path matching a registered view's `ext:targetURL` becomes a link
 labelled with that view's `ext:name`. Top-level pages render nothing — home is the
-logo, and the current page's title is its heading, not a crumb. Access control is
+logo, and the current page's title is its heading, not a crumb.
+
+A page can add crumbs after those, for what its path alone cannot name:
+`usePageCrumbs([{ path, label }])` from `frontend-commons/pageCrumbs` adds them while
+the page is shown. A schema version's page, `/admin/schemas/<schema>/<version>`, adds
+its schema under the schema's title, since a view's `ext:name` is the same for every
+schema. Access control is
 inherited from the views: one a user cannot read never reaches them.
 
 ## Personas

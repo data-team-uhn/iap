@@ -45,6 +45,19 @@ describe("AdminScreen", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("puts what the page belongs to before its title, in the same heading", () => {
+    renderScreen(<AdminScreen title="Version 1.0" titlePrefix="Clinical study">content</AdminScreen>);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Clinical study Version 1.0" })).toBeInTheDocument();
+    expect(screen.getByText("Clinical study")).toHaveStyle({ fontWeight: 400 });
+  });
+
+  it("shows where the page's subject stands right after its title", () => {
+    renderScreen(<AdminScreen title="Version 1.0" status={<span>Draft</span>}>content</AdminScreen>);
+
+    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling).toHaveTextContent("Draft");
+  });
+
   it("flags a tool's page as administrative beside its title, but not the landing page", () => {
     const { unmount } = renderScreen(<AdminScreen title="Some tool">content</AdminScreen>);
     expect(screen.getByText("Admin")).toBeInTheDocument();

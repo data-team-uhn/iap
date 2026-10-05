@@ -19,6 +19,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { getRoutes } from "@iap/frontend-commons/routes";
 import Breadcrumbs from "@iap/homepage/Breadcrumbs";
 
@@ -73,6 +74,28 @@ describe("Breadcrumbs", () => {
     expect(crumb).toHaveAttribute("href", "/admin");
     // The current page itself is not part of the trail - its title is the page heading
     expect(screen.queryByText("Submission categories")).not.toBeInTheDocument();
+  });
+
+  it("follows the ancestors with the crumbs the page adds, for as long as it is shown", async () => {
+    function VersionPage() {
+      usePageCrumbs([ { path: "/admin/schemas/study", label: "Clinical study" } ]);
+      return null;
+    }
+    const { rerender } = render(
+      <MemoryRouter initialEntries={[ "/admin/schemas/study/v1" ]}>
+        <Breadcrumbs />
+        <VersionPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("link", { name: "Clinical study" })).toHaveAttribute("href", "/admin/schemas/study");
+    expect(screen.getByRole("link", { name: "Administration" })).toBeInTheDocument();
+    rerender(
+      <MemoryRouter initialEntries={[ "/admin/schemas/study/v1" ]}>
+        <Breadcrumbs />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Clinical study" })).not.toBeInTheDocument());
   });
 
   // The path carries three bucket segments that are not pages, and all three match /Submissions/*

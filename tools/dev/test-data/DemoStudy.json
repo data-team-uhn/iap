@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Demo Study Authorization",
-  "1.0": {
+  "v1": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
     "description": "Initial demo version",
