@@ -21,21 +21,37 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   id="createSchemaVersionDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createSchemaVersion">
   <bpmn:message id="createVersionMessage" name="createVersion" />
   <bpmn:process id="createSchemaVersion" name="Create a schema version" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Requested">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+          <sv:property sv:name="comparator"><sv:value>excludes</sv:value></sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>retired</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:outgoing>toCreate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="createVersionRequested" messageRef="createVersionMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" name="Create the version">
+    <bpmn:serviceTask id="create" iap:handler="createSchemaVersion" name="Create the version">
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toMarkDraft</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMarkDraft" sourceRef="create" targetRef="markDraft" />
-    <bpmn:serviceTask id="markDraft" name="Mark it as a draft">
+    <bpmn:serviceTask id="markDraft" iap:handler="addTag" iap:replaceExisting="true" iap:tag="draft" name="Mark it as a draft">
       <bpmn:incoming>toMarkDraft</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

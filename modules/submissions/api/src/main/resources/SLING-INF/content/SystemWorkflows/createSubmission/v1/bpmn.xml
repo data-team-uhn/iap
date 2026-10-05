@@ -26,10 +26,9 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createSubmission">
   <bpmn:message id="createMessage" name="create" />
   <bpmn:process id="createSubmission" name="Create a submission" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Submission requested">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="Submission requested">
       <bpmn:outgoing>toCreate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
-
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
     <bpmn:serviceTask id="create" iap:handler="createSubmission" name="Create the submission">
@@ -37,7 +36,7 @@
       <bpmn:outgoing>toStart</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toStart" sourceRef="create" targetRef="start" />
-    <bpmn:serviceTask id="start" iap:handler="startWorkflow" name="Put it under its workflow">
+    <bpmn:serviceTask id="start" iap:handler="startWorkflow" iap:workflowFrom="schemaVersion/workflow" name="Put it under its workflow">
       <bpmn:incoming>toStart</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

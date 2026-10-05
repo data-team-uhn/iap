@@ -26,10 +26,9 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createWorkflow">
   <bpmn:message id="createMessage" name="create" />
   <bpmn:process id="createWorkflow" name="Create a workflow" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Workflow requested">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Workflow requested">
       <bpmn:outgoing>toCreate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
-
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
     <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the workflow">

@@ -21,16 +21,17 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="discardSchemaVersionDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/discardSchemaVersion">
   <bpmn:message id="discardMessage" name="discard" />
   <bpmn:process id="discardSchemaVersion" name="Discard a schema version" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Requested">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
       <bpmn:outgoing>toDelete</bpmn:outgoing>
       <bpmn:messageEventDefinition id="discardRequested" messageRef="discardMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toDelete" sourceRef="requested" targetRef="delete" />
-    <bpmn:serviceTask id="delete" name="Delete the version">
+    <bpmn:serviceTask id="delete" iap:handler="delete" name="Delete the version">
       <bpmn:incoming>toDelete</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

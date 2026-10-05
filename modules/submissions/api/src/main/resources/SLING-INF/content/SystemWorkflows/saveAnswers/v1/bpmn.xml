@@ -26,10 +26,9 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/saveAnswers">
   <bpmn:message id="saveMessage" name="save" />
   <bpmn:process id="saveAnswers" name="Save a submission's answers" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Answers submitted">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="Answers submitted">
       <bpmn:outgoing>toSave</bpmn:outgoing>
       <bpmn:messageEventDefinition id="saveRequested" messageRef="saveMessage" />
-
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
     <bpmn:serviceTask id="save" iap:handler="saveAnswers" name="Record the answers">
