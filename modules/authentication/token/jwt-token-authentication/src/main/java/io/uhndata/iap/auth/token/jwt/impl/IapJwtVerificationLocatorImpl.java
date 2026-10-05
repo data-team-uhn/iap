@@ -106,7 +106,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
             throw new JwtException(String.format("Unsafe peer key: %s", keyID));
         }
 
-        final String resourcePath = "/jcr:system/iap-jwt/" + keyID;
+        final String resourcePath = IapJwtTokenManagerImpl.KEY_ROOT + "/" + keyID;
         try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
             // Grab the appropriate key node, if it exists
             final Resource res = resolver.resolve(resourcePath);
