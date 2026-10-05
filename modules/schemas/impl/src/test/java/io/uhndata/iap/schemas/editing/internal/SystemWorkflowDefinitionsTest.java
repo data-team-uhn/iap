@@ -48,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
+import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionGroup;
 import io.uhndata.iap.conditions.models.ConditionOperand;
@@ -96,7 +97,8 @@ class SystemWorkflowDefinitionsTest
         this.context.create().resource("/libs/cond/ConditionGroup", "sling:resourceSuperType", "cond/Condition");
         final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
         resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver()));
+        resolvers.set(this.evaluator,
+            List.of(new LiteralOperandResolver(), new PropertyOperandResolver(), new TagsOperandResolver()));
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();
             this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),
@@ -151,6 +153,8 @@ class SystemWorkflowDefinitionsTest
     {
         assertEquals(Set.of("reactivateSchemaVersion"), answering(VERSION, "activate", RETIRED, NONE));
         assertEquals(Set.of(), answering(VERSION, "activate", RETIRED, RETIRED));
+        // Retired only through its schema, which is what reopening the schema is for
+        assertEquals(Set.of(), answering(VERSION, "activate", NONE, RETIRED));
         assertEquals(Set.of(), answering(VERSION, "retire", RETIRED, NONE));
         assertEquals(Set.of("updatePublishedSchemaVersion"), answering(VERSION, "update", RETIRED, NONE));
     }

@@ -77,9 +77,10 @@ by a system workflow shipped with `schemas/impl` (`content/SystemWorkflows/`). E
 approval step to publishing say, without touching the others.
 
 The lifecycle is in those definitions, not in code. Where one event means different things in
-different states, several workflows wait for it, each guarded by a condition on the target's own
-tags (`tags`) and those it inherits from its schema (`inheritedTags`), and the one whose guard holds
-runs. An event no guard admits is refused with a 409, and `@events` (see
+different states, several workflows wait for it, each guarded by a condition on the target's tags,
+and the one whose guard holds runs. A guard reads the `tags` operand, which takes in the tags a
+version inherits from its schema; where it matters whether the schema is retired, it also reads
+`inheritedTags` alone. An event no guard admits is refused with a 409, and `@events` (see
 [workflows.md](workflows.md)) never offers it.
 
 | Target | Event | Guard | Steps |

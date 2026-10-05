@@ -23,8 +23,7 @@
           "comparator": "includes",
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "source": "property",
-            "value": ["tags"]
+            "source": "tags"
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
