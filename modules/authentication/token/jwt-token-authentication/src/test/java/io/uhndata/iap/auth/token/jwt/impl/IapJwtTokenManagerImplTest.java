@@ -17,13 +17,17 @@
  */
 package io.uhndata.iap.auth.token.jwt.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.jcr.Node;
 import javax.jcr.Property;
 
@@ -111,6 +115,9 @@ public class IapJwtTokenManagerImplTest
     @Mock
     private Property peerIssuerProperty;
 
+    /** This instance's own keypair. Its public half is what an attacker is assumed to know. */
+    private KeyPair keyPair;
+
     private IapJwtTokenManagerImpl manager;
 
     @BeforeEach
@@ -118,7 +125,7 @@ public class IapJwtTokenManagerImplTest
     {
         // Generate a RS256 keypair and expose it exactly as the component reads it from
         // the repository.
-        final KeyPair keyPair = Jwts.SIG.RS256.keyPair().build();
+        this.keyPair = Jwts.SIG.RS256.keyPair().build();
         when(this.resolverFactory.getServiceResourceResolver(any())).thenReturn(this.resolver);
         // Calling resolve() can return null in these tests despite being marked @NotNull in the actual resolver
         // Fix it by throwing a proper error
@@ -130,8 +137,8 @@ public class IapJwtTokenManagerImplTest
         when(this.keyNode.getProperty("key")).thenReturn(this.keyProperty);
         when(this.keyNode.hasProperty("verify")).thenReturn(true);
         when(this.keyNode.getProperty("verify")).thenReturn(this.verifyProperty);
-        when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPrivate().getEncoded()));
-        when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPublic().getEncoded()));
+        when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPrivate().getEncoded()));
+        when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPublic().getEncoded()));
 
         // Activate the component via its @Activate constructor.
         this.manager = new IapJwtTokenManagerImpl(this.resolverFactory);
@@ -260,6 +267,78 @@ public class IapJwtTokenManagerImplTest
             .signWith(peerPair.getPrivate())
             .compact();
         Assertions.assertNotNull(this.manager.parse(foreign), "A foreign, trusted issued token must parse back");
+    }
+
+    @Test
+    public void parseRejectsUnsecuredTokenBuiltByTheLibrary()
+    {
+        // Claims an attacker cannot otherwise produce, with no signature at all. JJWT refuses unsecured JWTs
+        // unless the parser opts in with unsecured(), which this one does not; asserted so that adding the
+        // opt-in later cannot pass unnoticed.
+        final String unsecured = Jwts.builder()
+            .issuer(selfAudience())
+            .audience().add(selfAudience()).and()
+            .subject("attacker")
+            .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
+            .header().keyId(selfFingerprint()).and()
+            .compact();
+        Assertions.assertNull(this.manager.parse(unsecured), "An unsecured (alg:none) token must not parse");
+    }
+
+    @Test
+    public void parseRejectsHandRolledAlgNoneToken()
+    {
+        // The same attack spelled out by hand, since a library that declines to *build* an unsecured JWT says
+        // nothing about whether the parser would accept one off the wire. An alg:none JWT is the signing input
+        // followed by an empty third segment.
+        Assertions.assertNull(this.manager.parse(signingInput("none") + "."),
+            "A hand-rolled alg:none token must not parse");
+    }
+
+    @Test
+    public void parseRejectsAlgorithmConfusion() throws Exception
+    {
+        // RS256 -> HS256 confusion: the attacker re-labels the token as HMAC and signs it with the one piece of
+        // key material they are assumed to have, the public key. A parser that picks the algorithm from the
+        // header and uses whatever key the locator returned would verify this.
+        final String input = signingInput("HS256");
+        final Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(this.keyPair.getPublic().getEncoded(), "HmacSHA256"));
+        final String signature = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
+
+        Assertions.assertNull(this.manager.parse(input + "." + signature),
+            "A token re-signed as HMAC with the public key must not parse");
+    }
+
+    /**
+     * The header and payload of a token that would pass every claim check, left for the caller to sign (or not).
+     *
+     * @param algorithm the value of the {@code alg} header
+     * @return the two BASE64URL segments, joined by a period
+     */
+    private String signingInput(final String algorithm)
+    {
+        final long expiry = System.currentTimeMillis() / 1000 + 3600;
+        return base64Url("{\"alg\":\"" + algorithm + "\",\"kid\":\"" + selfFingerprint() + "\"}")
+            + "."
+            + base64Url("{\"iss\":\"" + selfAudience() + "\",\"aud\":[\"" + selfAudience()
+                + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
+    }
+
+    private String selfFingerprint()
+    {
+        return IapJwtTokenManagerImpl.getFingerprint(this.keyPair.getPublic());
+    }
+
+    private static String selfAudience()
+    {
+        return IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
+    }
+
+    private static String base64Url(final String value)
+    {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static Calendar oneHourFromNow()
