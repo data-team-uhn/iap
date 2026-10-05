@@ -68,9 +68,12 @@ export class ArchivePage {
     return this.page.getByText('Nothing has been archived yet.');
   }
 
-  /** What the listing says after a restore or a purge, which is where a refusal is reported too. */
+  /**
+   * What the listing last said, after a restore or a purge, which is where a refusal is reported too.
+   * Notices stack, oldest first, so an earlier one may still be showing above it.
+   */
   notice(): Locator {
-    return this.page.getByRole('alert');
+    return this.page.getByRole('alert').last();
   }
 
   /**

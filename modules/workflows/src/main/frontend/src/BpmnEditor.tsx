@@ -50,7 +50,7 @@ import {
 import Modeler from 'bpmn-js/lib/Modeler';
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice, type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
@@ -136,7 +136,7 @@ export default function BpmnEditor() {
   const [creating, setCreating] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<Notice>();
+  const notify = useNotice();
   // A failure raised while a dialog is open belongs in that dialog. MUI marks everything outside an
   // open Modal aria-hidden, so a snackbar over one is announced to nobody - and the dialog is where
   // the user is looking anyway. The snackbar keeps the outcomes of the toolbar, which owns no dialog.
@@ -159,13 +159,13 @@ export default function BpmnEditor() {
 
   // What happened, said in one line, for the outcomes that leave no trace on screen of their own.
   const showMessage = useCallback((message: string, severity: Notice["severity"] = "success") => {
-    setNotice({ title: message, severity });
-  }, []);
+    notify({ title: message, severity });
+  }, [ notify ]);
 
   // What did not happen, then why, and - where trying again makes sense - the offer to.
   const report = useCallback((title: string, cause: string, onRetry?: () => void) => {
-    setNotice({ title, message: cause, severity: "error", onRetry });
-  }, []);
+    notify({ title, message: cause, severity: "error", onRetry });
+  }, [ notify ]);
 
   const loadDefinitions = useCallback((): Promise<void> => {
     setLoadingDefs(true);
@@ -448,7 +448,6 @@ export default function BpmnEditor() {
         </DialogActions>
       </Dialog>
 
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </Stack>
   );
 }

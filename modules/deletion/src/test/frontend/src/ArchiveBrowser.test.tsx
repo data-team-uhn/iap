@@ -23,6 +23,7 @@ import { MemoryRouter } from "react-router";
 
 import { ArchiveBrowser } from "@iap/deletion/ArchiveBrowser";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -83,7 +84,8 @@ const browser = () => render(
     <ThemeProvider theme={appTheme} defaultMode="light">
       <ArchiveBrowser />
     </ThemeProvider>
-  </MemoryRouter>
+  </MemoryRouter>,
+  { wrapper: NoticeProvider },
 );
 
 const listings = (calls: string[]) => calls.filter(url => url.includes(".entries.json"));

@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router";
 
 import LoggedErrorView from "@iap/error-tracking/LoggedErrorView";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 const TRIAGE_DEFINITIONS = [
@@ -83,7 +84,8 @@ function Navigator({ to }: { to: string }) {
 const view = (route = "/admin/errors/abc") => render(
   <MemoryRouter initialEntries={[ route ]}>
     <LoggedErrorView />
-  </MemoryRouter>
+  </MemoryRouter>,
+  { wrapper: NoticeProvider },
 );
 
 /** The reads of the error itself, which is what a re-read after a decision adds to. */
@@ -241,6 +243,7 @@ describe("LoggedErrorView", () => {
         <Navigator to="/admin/errors/def" />
         <LoggedErrorView />
       </MemoryRouter>,
+      { wrapper: NoticeProvider },
     );
     await waitFor(() => { expect(releaseFirst).toBeDefined(); });
 

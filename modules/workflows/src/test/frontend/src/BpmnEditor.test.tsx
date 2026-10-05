@@ -21,6 +21,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { ReLoginContext, type RequestReLogin } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 
@@ -113,7 +114,8 @@ const renderEditor = (signIn: RequestReLogin | null = null) => render(
     <ReLoginContext value={signIn}>
       <BpmnEditor />
     </ReLoginContext>
-  </ThemeProvider>
+  </ThemeProvider>,
+  { wrapper: NoticeProvider },
 );
 
 describe("BpmnEditor", () => {

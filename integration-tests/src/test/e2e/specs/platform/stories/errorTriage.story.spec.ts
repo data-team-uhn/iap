@@ -208,7 +208,8 @@ test.describe('an administrator triages an error the instance could not deal wit
     await page.getByRole('textbox', { name: /Why/ }).fill('Raised on purpose by the triage story.');
     await page.getByRole('button', { name: 'Record decision' }).click();
 
-    await expect(page.getByRole('alert')).toContainText('Decision recorded');
+    // The newest notice: they stack, oldest first
+    await expect(page.getByRole('alert').last()).toContainText('Decision recorded');
     // Re-read from the server rather than patched in the browser: the markers are derived from the
     // decision when the write commits. Both of them are shown, since the processor derives the
     // umbrella `acknowledged` alongside the decision itself and neither is the whole story.

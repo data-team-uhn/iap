@@ -33,7 +33,7 @@ import { useLocation } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import TagChip from "@iap/tags/TagChip";
 
@@ -160,7 +160,7 @@ function LoggedErrorView() {
   const [ loadError, setLoadError ] = useState<string | null>(null);
   const [ settled, setSettled ] = useState(false);
   const [ reloads, setReloads ] = useState(0);
-  const [ notice, setNotice ] = useState<Notice | undefined>(undefined);
+  const notify = useNotice();
   const [ resolution, setResolution ] = useState(RESOLUTIONS[0].name);
   const [ note, setNote ] = useState("");
   const [ saving, setSaving ] = useState(false);
@@ -240,13 +240,13 @@ function LoggedErrorView() {
     acknowledgeError(doFetch, name, resolution, note)
       .then(outcome => {
         if (outcome.status === "ok") {
-          setNotice({ title: "Decision recorded", severity: "success" });
+          notify({ title: "Decision recorded", severity: "success" });
           setNote("");
           // The triage markers are derived from the decisions when the write commits, so what is on
           // screen is stale the moment this succeeds
           setReloads(previous => previous + 1);
         } else {
-          setNotice({
+          notify({
             title: "The decision was not recorded",
             message: outcome.message,
             // Only worth another attempt when the server could not carry it out; a refused
@@ -256,7 +256,7 @@ function LoggedErrorView() {
         }
       })
       .catch(() => {
-        setNotice({
+        notify({
           title: "The decision could not be sent",
           message: "The request did not reach the server.",
           onRetry: submit,
@@ -390,7 +390,6 @@ function LoggedErrorView() {
           </Box>
         </Stack>
       )}
-      <NoticeSnackbar notice={notice} onClose={() => { setNotice(undefined); }} />
     </AdminScreen>
   );
 }

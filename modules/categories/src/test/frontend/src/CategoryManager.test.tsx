@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router";
 
 import CategoryManager from "@iap/categories/CategoryManager";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // A tree with a branch (whose deletion must be blocked), a bound leaf, and a retired category.
@@ -83,7 +84,7 @@ const stubFailingFetch = (status: number, statusText: string) =>
 
 afterEach(() => vi.unstubAllGlobals());
 
-const renderManager = () => render(<MemoryRouter><CategoryManager /></MemoryRouter>);
+const renderManager = () => render(<MemoryRouter><CategoryManager /></MemoryRouter>, { wrapper: NoticeProvider });
 
 describe("CategoryManager", () => {
   it("renders the category tree with nested rows", async () => {

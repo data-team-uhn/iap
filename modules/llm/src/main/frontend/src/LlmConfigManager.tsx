@@ -25,7 +25,7 @@ import {
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
@@ -65,7 +65,7 @@ function LlmConfigManager() {
   // What has been picked since the server last answered. Nothing picked means the screen simply
   // shows what is active, so a load or a save both leave it showing what is actually stored.
   const [ picked, setPicked ] = useState<{ provider: string; model: string }>();
-  const [ notice, setNotice ] = useState<Notice>();
+  const notify = useNotice();
 
   const provider = picked?.provider ?? catalog.activeProvider ?? "";
   const model = picked?.model ?? catalog.activeModel ?? "";
@@ -78,13 +78,13 @@ function LlmConfigManager() {
     // Reported through the snackbar below rather than as a returned failure, so that a save keeps
     // the same voice as the rest of the screen
     onFailure: error => {
-      setNotice({ title: "The selection could not be saved", message: messageOf(error) });
+      notify({ title: "The selection could not be saved", message: messageOf(error) });
       return undefined;
     },
     onSuccess: () => {
       // Back to following the server, which has just answered with the selection it stored
       setPicked(undefined);
-      setNotice({ title: "Active LLM updated", severity: "success" });
+      notify({ title: "Active LLM updated", severity: "success" });
     },
   });
 
@@ -156,7 +156,6 @@ function LlmConfigManager() {
             </Stack>
           </Stack>
         )}
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </AdminScreen>
   );
 }

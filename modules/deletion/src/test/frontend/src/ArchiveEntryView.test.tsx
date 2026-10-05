@@ -23,6 +23,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 import { ArchiveEntryView } from "@iap/deletion/ArchiveEntryView";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 // The view is opened the way a reader reaches it: at its page of the administration console.
 const ROUTE = "/admin/archive/one";
@@ -81,7 +82,8 @@ const view = (route: string = ROUTE) => render(
         <Route path="/admin/archive/*" element={<ArchiveEntryView />} />
       </Routes>
     </ThemeProvider>
-  </MemoryRouter>
+  </MemoryRouter>,
+  { wrapper: NoticeProvider },
 );
 
 describe("ArchiveEntryView", () => {
