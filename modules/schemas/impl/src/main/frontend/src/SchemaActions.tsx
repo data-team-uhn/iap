@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import ActionBar from "./ActionBar";
+import ActionBar from "@iap/frontend-commons/components/ActionBar";
 
 import type { JcrNode } from "./schemaModel";
 

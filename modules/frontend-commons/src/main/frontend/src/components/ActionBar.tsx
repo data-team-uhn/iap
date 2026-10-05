@@ -20,7 +20,7 @@ import { Fragment, useEffect, useState } from "react";
 
 import { Stack } from "@mui/material";
 
-import { getActions, type ActionComponent } from "@iap/frontend-commons/actionsManager";
+import { getActions, type ActionComponent } from "../actionsManager";
 
 // The actions contributed on one extension point, rendered in order with the props the page gives
 // them. Each decides for itself whether it applies.
