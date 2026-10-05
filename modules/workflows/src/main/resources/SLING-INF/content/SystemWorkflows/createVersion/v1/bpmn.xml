@@ -22,60 +22,48 @@
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
-                  id="createWorkflowDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createWorkflow">
-  <bpmn:message id="createMessage" name="create" />
-  <bpmn:process id="createWorkflow" name="Create a workflow" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Workflow requested">
+                  id="createVersionDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createVersion">
+  <bpmn:message id="createVersionMessage" name="createVersion" />
+  <bpmn:process id="createVersion" name="Open a new version of a workflow" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Version requested">
       <bpmn:outgoing>toCreate</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
+      <bpmn:messageEventDefinition id="createVersionRequested" messageRef="createVersionMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the workflow">
+    <bpmn:serviceTask id="create" iap:handler="createWorkflowVersion" name="Create the version">
       <bpmn:incoming>toCreate</bpmn:incoming>
-      <bpmn:outgoing>toVersion</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toVersion" sourceRef="create" targetRef="firstVersion" />
-    <bpmn:serviceTask id="firstVersion" iap:handler="createWorkflowVersion" name="Create its first version">
-      <bpmn:incoming>toVersion</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toDone" sourceRef="firstVersion" targetRef="done" />
-    <bpmn:endEvent id="done" name="Workflow created">
+    <bpmn:sequenceFlow id="toDone" sourceRef="create" targetRef="done" />
+    <bpmn:endEvent id="done" name="Version created">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="createWorkflowDiagram">
-    <bpmndi:BPMNPlane id="createWorkflowPlane" bpmnElement="createWorkflow">
+  <bpmndi:BPMNDiagram id="createVersionDiagram">
+    <bpmndi:BPMNPlane id="createVersionPlane" bpmnElement="createVersion">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="137" y="223" width="83" height="14" />
+          <dc:Bounds x="138" y="223" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="createShape" bpmnElement="create">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="firstVersionShape" bpmnElement="firstVersion">
-        <dc:Bounds x="410" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="410" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="549" y="223" width="79" height="14" />
+          <dc:Bounds x="393" y="223" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toCreateEdge" bpmnElement="toCreate">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toVersionEdge" bpmnElement="toVersion">
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
-        <di:waypoint x="510" y="198" />
-        <di:waypoint x="570" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

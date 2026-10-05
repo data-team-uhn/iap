@@ -22,16 +22,16 @@
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
-                  id="createWorkflowDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createWorkflow">
+                  id="createSystemWorkflowDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createSystemWorkflow">
   <bpmn:message id="createMessage" name="create" />
-  <bpmn:process id="createWorkflow" name="Create a workflow" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Workflow requested">
+  <bpmn:process id="createSystemWorkflow" name="Create a system workflow" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="System workflow requested">
       <bpmn:outgoing>toCreate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the workflow">
+    <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the system workflow">
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toVersion</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -41,16 +41,16 @@
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toDone" sourceRef="firstVersion" targetRef="done" />
-    <bpmn:endEvent id="done" name="Workflow created">
+    <bpmn:endEvent id="done" name="System workflow created">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="createWorkflowDiagram">
-    <bpmndi:BPMNPlane id="createWorkflowPlane" bpmnElement="createWorkflow">
+  <bpmndi:BPMNDiagram id="createSystemWorkflowDiagram">
+    <bpmndi:BPMNPlane id="createSystemWorkflowPlane" bpmnElement="createSystemWorkflow">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="137" y="223" width="83" height="14" />
+          <dc:Bounds x="119" y="223" width="118" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="createShape" bpmnElement="create">
@@ -62,7 +62,7 @@
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
         <dc:Bounds x="570" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="549" y="223" width="79" height="14" />
+          <dc:Bounds x="534" y="223" width="108" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toCreateEdge" bpmnElement="toCreate">
