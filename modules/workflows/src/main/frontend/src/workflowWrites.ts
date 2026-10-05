@@ -24,51 +24,20 @@
 // draft that arrives with its diagram — happens as one atomic run rather than two requests that could
 // half-complete.
 //
-// A selector names the event outright, e.g. `.create.json`, `.activate.json`. A POST with none fires
-// the target's default event (`save` at an entity).
+// A selector names the event, e.g. `.create.json`, `.activate.json`.
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { RequestError } from "@iap/frontend-commons/requestFailure";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import { STARTING_BPMN, bpmnUpload } from "./workflowModel";
 
-// How the engine explains a refusal: no workflow was waiting for this event, this user is not among
-// the performers of the one that was, the payload was unusable, or the target has moved past the
-// state the event was for.
-interface EngineRefusal {
-  error?: string;
-}
-
-// A refusal from the workflow engine, carrying the reason it gave.
-// Kept separate from RequestError so that reason reaches the caller directly.
-export class OperationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "OperationError";
+// Where a create put what it made, which is where the caller goes next.
+async function created(sent: Promise<string | undefined>): Promise<string> {
+  const path = await sent;
+  if (!path) {
+    throw new Error("It was created, but the server did not say where");
   }
-}
-
-// Sends an event and reads the engine's answer, preferring its explanation to the status code.
-async function send(fetchUtil: AuthenticatedFetch, url: string, body: URLSearchParams | FormData):
-Promise<Response> {
-  const response = await fetchUtil(url, { method: "POST", body });
-  if (!response.ok) {
-    // The engine's own report of what it would not do; a response that is not the JSON we expect
-    // leaves the status code to speak instead
-    const answer = await response.json().catch(() => ({})) as EngineRefusal;
-    throw answer.error ? new OperationError(answer.error) : new RequestError(response.status);
-  }
-  return response;
-}
-
-// The engine answers a create with a redirect to the new entity, so the followed request's final URL
-// is where it lives. The same thing the submissions screens read, and the only answer that survives
-// fetch following the redirect on its own.
-function createdPath(response: Response): string {
-  if (!response.redirected) {
-    throw new OperationError("It was created, but the server did not say where");
-  }
-  return new URL(response.url).pathname;
+  return path;
 }
 
 export interface NewWorkflow {
@@ -93,7 +62,7 @@ export async function createWorkflow(fetchUtil: AuthenticatedFetch, fields: NewW
   if (fields.description !== "") {
     requested.set("description", fields.description);
   }
-  return createdPath(await send(fetchUtil, `${fields.homepage}.create.json`, requested));
+  return created(sendEvent(fetchUtil, fields.homepage, "create", requested));
 }
 
 export interface NewVersion {
@@ -117,7 +86,7 @@ Promise<string> {
   if (fields.description !== "") {
     requested.set("description", fields.description);
   }
-  return createdPath(await send(fetchUtil, `${definitionPath}.createVersion.json`, requested));
+  return created(sendEvent(fetchUtil, definitionPath, "createVersion", requested));
 }
 
 // The editable properties of a workflow itself, as opposed to those of its versions.
@@ -130,15 +99,13 @@ export interface WorkflowFields {
 // whatever this request happens to name.
 export async function updateWorkflow(fetchUtil: AuthenticatedFetch, path: string, fields: WorkflowFields):
 Promise<void> {
-  const body = new URLSearchParams();
-  body.set("title", fields.title);
-  await send(fetchUtil, path, body);
+  await sendEvent(fetchUtil, path, "save", { title: fields.title });
 }
 
 // Replaces a version's diagram outright. The server refuses this for anything but a draft — not just
 // the editor declining to open one.
 export async function saveDiagram(fetchUtil: AuthenticatedFetch, versionPath: string, xml: string): Promise<void> {
-  await send(fetchUtil, versionPath, bpmnUpload(xml));
+  await sendEvent(fetchUtil, versionPath, "save", bpmnUpload(xml));
 }
 
 // Each move is its own system workflow, so which versions it applies to and who may perform it is
@@ -150,7 +117,7 @@ export type VersionTransition = "activate" | "startTrial" | "returnToDraft" | "r
 // between the two.
 export async function moveVersion(fetchUtil: AuthenticatedFetch, versionPath: string,
   transition: VersionTransition): Promise<void> {
-  await send(fetchUtil, `${versionPath}.${transition}.json`, new URLSearchParams());
+  await sendEvent(fetchUtil, versionPath, transition);
 }
 
 // Opens a new draft from an existing version, copying its diagram.
@@ -158,7 +125,5 @@ export async function moveVersion(fetchUtil: AuthenticatedFetch, versionPath: st
 // @return the path of the created draft version
 export async function draftFromVersion(fetchUtil: AuthenticatedFetch, versionPath: string, version: string):
 Promise<string> {
-  const body = new URLSearchParams();
-  body.set("version", version);
-  return createdPath(await send(fetchUtil, `${versionPath}.draft.json`, body));
+  return created(sendEvent(fetchUtil, versionPath, "draft", { version }));
 }

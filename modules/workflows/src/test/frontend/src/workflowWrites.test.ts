@@ -118,12 +118,12 @@ describe("createWorkflow", () => {
     })).rejects.toThrow("You are not allowed to create workflows here");
   });
 
-  it("falls back to the status when the refusal explains nothing", async () => {
+  it("describes a refusal that explains nothing like any failed request", async () => {
     const fetchUtil = refusingFetch(403);
 
     await expect(createWorkflow(fetchUtil, {
       homepage: "/Workflows", title: "Standard review", version: "1.0", description: "",
-    })).rejects.toMatchObject({ status: 403 });
+    })).rejects.toThrow("You do not have permission to do this. (HTTP 403)");
   });
 });
 
@@ -153,7 +153,7 @@ describe("updateWorkflow", () => {
 
     await updateWorkflow(fetchUtil, "/Workflows/review", { title: "Reviewed twice" });
 
-    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows/review");
+    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows/review.save.json");
     expect(paramsOf(fetchUtil, 0)).toEqual({ title: "Reviewed twice" });
   });
 
@@ -171,7 +171,7 @@ describe("saveDiagram", () => {
 
     await saveDiagram(fetchUtil, "/Workflows/review/1-0", "<bpmn:definitions/>");
 
-    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows/review/1-0");
+    expect(fetchUtil.mock.calls[0][0]).toBe("/Workflows/review/1-0.save.json");
     const body = formOf(fetchUtil, 0);
     expect(body.get("bpmn.xml")).toBeInstanceOf(File);
     // A payload key the handler looks up, not a Sling POST servlet path with a type hint: where the
@@ -215,9 +215,9 @@ describe("moveVersion", () => {
       .rejects.toThrow("A retired version cannot be made active");
   });
 
-  it("falls back to the status when the refusal explains nothing", async () => {
+  it("describes a refusal that explains nothing like any failed request", async () => {
     await expect(moveVersion(refusingFetch(500), "/Workflows/review/1-0", "activate"))
-      .rejects.toMatchObject({ status: 500 });
+      .rejects.toThrow("The server ran into a problem and could not complete this. Try again in a moment. (HTTP 500)");
   });
 
   it("takes an unreadable body on an accepted event as an answer with nothing in it", async () => {

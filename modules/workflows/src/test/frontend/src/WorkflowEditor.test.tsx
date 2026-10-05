@@ -187,7 +187,7 @@ describe("WorkflowEditor", () => {
 
     await waitFor(() => expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument());
     const save = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
-    expect(save?.[0]).toBe(VERSION_PATH);
+    expect(save?.[0]).toBe(`${VERSION_PATH}.save.json`);
     // The diagram is a plain payload part of the save request, named after the file it becomes.
     expect((save?.[1]?.body as FormData).get("bpmn.xml")).toBeInstanceOf(File);
     expect(await screen.findByText("The diagram was saved")).toBeInTheDocument();

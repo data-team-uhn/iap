@@ -278,7 +278,7 @@ describe("WorkflowManager", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const save = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
-    expect(save?.[0]).toBe(WORKFLOW_PATH);
+    expect(save?.[0]).toBe(`${WORKFLOW_PATH}.save.json`);
     // The title and nothing else: whether the workflow runs is read off its versions
     expect(Object.fromEntries((save?.[1]?.body as URLSearchParams).entries())).toEqual({
       title: "Reviewed twice",
