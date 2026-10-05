@@ -41,7 +41,7 @@ import LoadError from "@iap/frontend-commons/components/LoadError";
 
 import NewVersionDialog from "./NewVersionDialog";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl } from "./workflowModel";
+import { adminUrl, offers } from "./workflowModel";
 import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
 import WorkflowStateChip from "./WorkflowStateChip";
 import WorkflowVersionActions from "./WorkflowVersionActions";
@@ -108,12 +108,16 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
       title={workflow.title}
       action={
         <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditing(true)}>
-            Edit properties
-          </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddingVersion(true)}>
-            New version
-          </Button>
+          { offers(workflow, "save") && (
+            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditing(true)}>
+              Edit properties
+            </Button>
+          ) }
+          { offers(workflow, "createVersion") && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddingVersion(true)}>
+              New version
+            </Button>
+          ) }
         </Stack>
       }
     >

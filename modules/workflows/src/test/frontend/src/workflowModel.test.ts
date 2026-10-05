@@ -33,12 +33,14 @@ const definition = {
   "title": "Standard review",
   "jcr:created": "2026-07-01T09:00:00.000Z",
   "jcr:lastModified": "2026-08-02T11:30:00.000Z",
+  "@events": [ "createVersion", "save" ],
   "1-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "description": "The initial cut",
     "state": "RETIRED",
     "jcr:lastModified": "2026-07-15T09:00:00.000Z",
+    "@events": [ "activate", "draft" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
@@ -89,13 +91,15 @@ describe("loadWorkflow", () => {
     const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
 
     // One level deep: the page reads only a version's own properties, so serializing each version's
-    // diagram and parsed graph as well would be fetching a whole workflow to draw a table row
-    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.1.json");
+    // diagram and parsed graph as well would be fetching a whole workflow to draw a table row. And with
+    // the events the server offers on each, which decide the actions
+    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.1.events.json");
     expect(workflow).toMatchObject({
       path: "/Workflows/review",
       name: "review",
       title: "Standard review",
       active: true,
+      events: [ "createVersion", "save" ],
     });
     expect(workflow.versions.map(version => version.version)).toEqual(["1.0", "2.0", "3.0"]);
     expect(workflow.versions[0]).toEqual({
@@ -105,6 +109,7 @@ describe("loadWorkflow", () => {
       description: "The initial cut",
       state: "RETIRED",
       lastModified: "2026-07-15T09:00:00.000Z",
+      events: [ "activate", "draft" ],
     });
   });
 
@@ -155,7 +160,9 @@ describe("loadWorkflow", () => {
 
     const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
 
-    expect(workflow.versions[2]).toMatchObject({ version: "3.0", state: null, description: "", lastModified: "" });
+    expect(workflow.versions[2]).toMatchObject({
+      version: "3.0", state: null, description: "", lastModified: "", events: [],
+    });
   });
 
   it("falls back to the node name for an untitled workflow", async () => {
@@ -429,6 +436,7 @@ describe("nextVersionLabel", () => {
     retired: false,
     created: "",
     lastModified: "",
+    events: [],
     versions: labels.map((label, index) => ({
       name: `v${index + 1}`,
       path: `/Workflows/review/v${index + 1}`,
@@ -436,6 +444,7 @@ describe("nextVersionLabel", () => {
       description: "",
       state: "DRAFT",
       lastModified: "",
+      events: [],
     })),
   });
 

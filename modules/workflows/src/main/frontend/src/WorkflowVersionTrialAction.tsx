@@ -20,15 +20,14 @@ import ScienceIcon from "@mui/icons-material/Science";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
+import { offers } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Puts a draft on trial: the diagram is frozen, as it is for anything past drafting, but the version
 // is not yet the one new instances are created from.
-//
-// Offered for a draft only — what is on trial is already there, and an active or retired version is
-// carried forward by drafting a copy of it rather than by being tried again.
 function WorkflowVersionTrialAction({ version, workflow, reload }: WorkflowVersionActionProps) {
-  if (version.state !== "DRAFT") {
+  if (!offers(version, "startTrial")) {
     return null;
   }
   const label = version.version || version.name;

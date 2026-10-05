@@ -42,6 +42,7 @@ const definition = {
   "title": "Standard review",
   "jcr:created": "2026-07-01T09:00:00.000Z",
   "jcr:lastModified": "2026-08-02T11:30:00.000Z",
+  "@events": [ "createVersion", "save" ],
   "1-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",

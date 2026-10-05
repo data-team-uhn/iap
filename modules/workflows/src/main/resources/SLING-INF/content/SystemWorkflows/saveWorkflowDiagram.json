@@ -14,6 +14,19 @@
       "messageName": "save",
       "performers": ["iap-administrators"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["state"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["DRAFT"]
+        }
+      },
       "toSave": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toSave",

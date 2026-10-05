@@ -20,13 +20,14 @@ import UnpublishedIcon from "@mui/icons-material/Unpublished";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
+import { offers } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Withdraws the active version without promoting another in its place, which leaves the workflow
-// retired until one of its versions is activated again. Offered for the active version only: nothing
-// is following a draft or a trial, and a retired version is already withdrawn.
+// retired until one of its versions is activated again.
 function WorkflowVersionRetireAction({ version, workflow, reload }: WorkflowVersionActionProps) {
-  if (version.state !== "ACTIVE") {
+  if (!offers(version, "retire")) {
     return null;
   }
   const label = version.version || version.name;

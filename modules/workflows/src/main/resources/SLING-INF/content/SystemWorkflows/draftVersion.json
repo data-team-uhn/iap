@@ -6,7 +6,7 @@
     "version": "1.0",
     "state": "ACTIVE",
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when a version is carried forward: a new draft is opened beside it with a copy of its diagram, and of its graph where the diagram does not own one. This is how an active or retired version is changed at all - neither may be edited where it stands, because instances are following it, so what the manager offers instead is a copy that may be.",
+    "description": "What happens when a version is carried forward: a new draft is opened beside it with a copy of its diagram, and of its graph where the diagram does not own one. This is how an active or retired version is changed at all - neither may be edited where it stands, because instances are following it, so what the manager offers instead is a copy that may be. A draft is not offered this, since it can simply be edited; a version whose state cannot be read is, since copying it is the only way left to carry its diagram forward - which is why this start event's guard excludes drafts rather than listing the states it allows.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -14,6 +14,19 @@
       "messageName": "draft",
       "performers": ["iap-administrators"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["state"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["DRAFT"]
+        }
+      },
       "toDraft": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDraft",

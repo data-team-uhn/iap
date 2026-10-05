@@ -28,14 +28,13 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-import { adminUrl, nextVersionLabel } from "./workflowModel";
+import { adminUrl, nextVersionLabel, offers } from "./workflowModel";
 import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Copies a version into a new draft: the copy is authored while the original keeps running, and takes
-// over only once activated. Not offered for a draft, which can simply be edited. It is offered for a
-// version with no readable state, since copying it is the only way left to carry its diagram forward.
+// over only once activated.
 function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   const [ naming, setNaming ] = useState(false);
   const [ label, setLabel ] = useState("");
@@ -46,7 +45,7 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
     onSuccess: () => setNaming(false),
   });
 
-  if (version.state === "DRAFT") {
+  if (!offers(version, "draft")) {
     return null;
   }
 

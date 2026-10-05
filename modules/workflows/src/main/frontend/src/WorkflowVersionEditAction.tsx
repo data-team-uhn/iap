@@ -20,14 +20,13 @@ import EditIcon from "@mui/icons-material/Edit";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
-import { adminUrl } from "./workflowModel";
+import { adminUrl, offers } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Only a draft can be edited here. An active or retired version has instances following it, so editing
-// would change a process out from under them; carrying either forward means drafting a copy instead.
+// Opens a draft's diagram in the editor, which saves it as the version's own `save` event.
 function WorkflowVersionEditAction({ version }: WorkflowVersionActionProps) {
-  if (version.state !== "DRAFT") {
+  if (!offers(version, "save")) {
     return null;
   }
   return <ActionIcon label="Edit" icon={<EditIcon fontSize="small" />} to={adminUrl(version.path, "edit")} />;

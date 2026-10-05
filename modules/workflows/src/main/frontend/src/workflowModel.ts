@@ -87,6 +87,8 @@ export interface WorkflowVersionSummary {
   // Null when the stored state is missing or names no state this platform knows; see stateOf
   state: WorkflowState | null;
   lastModified: string;
+  // What the current user may do to it, as the events the server offers on it
+  events: string[];
 }
 
 // One workflow definition with the versions stored under it, as its own page displays it.
@@ -102,6 +104,8 @@ export interface WorkflowSummary {
   retired: boolean;
   created: string;
   lastModified: string;
+  // What the current user may do to the workflow itself, as the events the server offers on it
+  events: string[];
   versions: WorkflowVersionSummary[];
 }
 
@@ -124,6 +128,13 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+// Whether the server offers the event on a workflow or a version, which is whether it applies there.
+export const offers = (node: { events: string[] }, event: string): boolean => node.events.includes(event);
+
 // The versions stored under a serialized workflow definition, in the repository's own order.
 function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVersionSummary[] {
   return Object.entries(definition)
@@ -137,6 +148,7 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
         description: text(version.description),
         state: stateOf(version.state),
         lastModified: text(version["jcr:lastModified"]),
+        events: strings(version["@events"]),
       };
     });
 }
@@ -144,13 +156,14 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
 // One level of children is exactly what the page renders — the definition's own properties and the
 // versions under it — so the depth selector both turns on child serialization and stops it there,
 // leaving a version's own children (the diagram file, the parsed flow nodes) out of the response
-// rather than dragging a whole graph in behind every row.
+// rather than dragging a whole graph in behind every row. `events` adds what the current user may send
+// each of them, which decides the actions offered.
 //
 // The status is read off the response before the body is parsed, because a refusal answers with an
 // error page rather than with JSON: parsing it first reports how the body disappointed the parser,
 // which says nothing about what was refused.
 export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promise<WorkflowSummary> {
-  return fetchUtil(`${path}.1.json`)
+  return fetchUtil(`${path}.1.events.json`)
     .then(response => {
       if (!response.ok) {
         throw new RequestError(response.status);
@@ -168,6 +181,7 @@ export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promi
           && !versions.some(version => version.state === "ACTIVE"),
         created: text(definition["jcr:created"]),
         lastModified: text(definition["jcr:lastModified"]),
+        events: strings(definition["@events"]),
         versions,
       };
     });

@@ -58,12 +58,14 @@ const definition = {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "state": "ACTIVE",
+    "@events": [ "retire", "draft" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "2.0",
     "description": "With an escalation",
     "state": "DRAFT",
+    "@events": [ "activate", "startTrial", "save" ],
   },
 };
 

@@ -31,6 +31,7 @@ import BpmnEditor from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
 import {
   adminUrl,
+  offers,
   type WorkflowState,
   type WorkflowVersionSummary,
 } from "./workflowModel";
@@ -111,9 +112,9 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
 
   const version: WorkflowVersionSummary | undefined =
     workflow?.versions.find(candidate => candidate.path === path);
-  // Editable only for a draft. An active or retired version already has other instances relying on
-  // it, and a trial is meant to be tried as-is, so anything else opens read-only with an explanation.
-  const editable = requestedEdit && version?.state === "DRAFT";
+  // Editable where the server offers to save the diagram, which is on a draft. Anything else opens
+  // read-only, with an explanation.
+  const editable = requestedEdit && version !== undefined && offers(version, "save");
 
   // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
   // refused save stays on the page, reports itself, and offers to retry.
@@ -172,9 +173,8 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
               </Button>
             </>
           )}
-          { /* Offered only on a draft, and only when the editor is not already open: every other
-               state is one something may be following, so there is no editing to offer */ }
-          { !requestedEdit && version?.state === "DRAFT" && (
+          { /* Offered where saving is, and only when the editor is not already open */ }
+          { !requestedEdit && version !== undefined && offers(version, "save") && (
             <Button variant="contained" component={RouterLink} to={adminUrl(path, "edit")}>
               Edit
             </Button>

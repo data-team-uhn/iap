@@ -45,6 +45,14 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 // A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
+// What the server offers on a version in each state: the guards on the version workflows' start events
+const OFFERED: Record<WorkflowState, string[]> = {
+  DRAFT: [ "activate", "startTrial", "save" ],
+  TRIAL: [ "activate", "returnToDraft", "draft" ],
+  ACTIVE: [ "retire", "draft" ],
+  RETIRED: [ "activate", "draft" ],
+};
+
 const version = (label: string, state: WorkflowState | null): WorkflowVersionSummary => ({
   name: label.replace(".", "-"),
   path: `/Workflows/review/${label.replace(".", "-")}`,
@@ -52,6 +60,8 @@ const version = (label: string, state: WorkflowState | null): WorkflowVersionSum
   description: "",
   state,
   lastModified: "",
+  // A version whose state cannot be read can still be drafted from
+  events: state === null ? [ "draft" ] : OFFERED[state],
 });
 
 const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
@@ -62,6 +72,7 @@ const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
   retired: false,
   created: "",
   lastModified: "",
+  events: [ "createVersion", "save" ],
   versions,
 });
 
@@ -132,6 +143,30 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+// Each action, how it is found, and the event that decides whether it is offered
+const ACTIONS: [ string, "button" | "link", (props: WorkflowVersionActionProps) => ReactNode, string ][] = [
+  [ "Activate", "button", WorkflowVersionActivateAction, "activate" ],
+  [ "Start trial", "button", WorkflowVersionTrialAction, "startTrial" ],
+  [ "Return to draft", "button", WorkflowVersionRedraftAction, "returnToDraft" ],
+  [ "Retire", "button", WorkflowVersionRetireAction, "retire" ],
+  [ "New draft from this", "button", WorkflowVersionDraftAction, "draft" ],
+  [ "Edit", "link", WorkflowVersionEditAction, "save" ],
+];
+
+describe("every version action", () => {
+  it.each(ACTIONS)("offers %s exactly where the server offers its event", (name, role, Action, event) => {
+    // The state says the opposite each time, so only the events can decide
+    const offered = { ...version("2.0", null), events: [ event ] };
+    const { unmount } = renderAction(Action, propsFor(offered, workflow(offered)));
+    expect(screen.getByRole(role, { name })).toBeInTheDocument();
+    unmount();
+
+    const withheld = { ...version("2.0", "DRAFT"), events: [] };
+    renderAction(Action, propsFor(withheld, workflow(withheld)));
+    expect(screen.queryByRole(role, { name })).not.toBeInTheDocument();
+  });
+});
 
 describe("WorkflowVersionActions", () => {
   it("renders the contributed actions, in the order the repository lists them", async () => {

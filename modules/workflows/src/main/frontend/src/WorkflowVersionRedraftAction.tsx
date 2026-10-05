@@ -20,13 +20,14 @@ import UndoIcon from "@mui/icons-material/Undo";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
+import { offers } from "./workflowModel";
+
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Takes a trial back to draft, so the same node becomes editable again rather than a copy being
-// drafted beside it. Offered for a trial only: an active or retired version already has instances
-// following it, so carrying either forward means drafting a copy instead.
+// drafted beside it.
 function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
-  if (version.state !== "TRIAL") {
+  if (!offers(version, "returnToDraft")) {
     return null;
   }
   const label = version.version || version.name;
