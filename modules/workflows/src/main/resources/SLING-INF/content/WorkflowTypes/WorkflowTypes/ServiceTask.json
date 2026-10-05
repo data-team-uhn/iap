@@ -16,6 +16,10 @@
     "{https://iap.uhndata.io/bpmn}fields=fields[]",
     "{https://iap.uhndata.io/bpmn}sourceType=sourceType",
     "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
-    "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]"
+    "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
+    "{https://iap.uhndata.io/bpmn}toState=toState",
+    "{https://iap.uhndata.io/bpmn}fromStates=fromStates[]",
+    "{https://iap.uhndata.io/bpmn}editable=editable[]",
+    "{https://iap.uhndata.io/bpmn}required=required[]"
   ]
 }
