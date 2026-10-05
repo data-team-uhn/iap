@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
@@ -44,6 +45,7 @@ const renderPage = (name: string) => render(
       <Route path="/admin/schemas" element={<Where />} />
     </Routes>
   </MemoryRouter>,
+  { wrapper: NoticeProvider },
 );
 
 // The row of the version with the given label

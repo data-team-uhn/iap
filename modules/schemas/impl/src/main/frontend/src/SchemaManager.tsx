@@ -23,7 +23,7 @@ import { Box, Button } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -41,7 +41,7 @@ import { schemaPageUrl } from "./useSchemaList";
 function SchemaManager() {
   const [ creating, setCreating ] = useState(false);
   const [ refreshToken, setRefreshToken ] = useState(0);
-  const [ notice, setNotice ] = useState<Notice>();
+  const notify = useNotice();
   const navigate = useNavigate();
   const doFetch = useAuthenticatedFetch();
 
@@ -58,7 +58,7 @@ function SchemaManager() {
       const shared = {
         schema,
         reload: () => setRefreshToken(token => token + 1),
-        report: (title: string) => setNotice({ title, severity: "success" }),
+        report: (title: string) => notify({ title, severity: "success" }),
       };
       // Kept from the row, whose click opens the schema: a click on an action, or inside its dialog,
       // is not a request to navigate
@@ -68,7 +68,7 @@ function SchemaManager() {
         </Box>
       );
     },
-  } ], []);
+  } ], [ notify ]);
 
   return (
     <AdminScreen
@@ -99,7 +99,6 @@ function SchemaManager() {
           onCreated={path => void navigate(schemaPageUrl(schemaNameFromRoute(path)))}
         />
       ) }
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </AdminScreen>
   );
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
 import { Alert } from "@mui/material";
 import { useLocation, useNavigate } from "react-router";
@@ -24,7 +24,7 @@ import { useLocation, useNavigate } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 import SchemaActions from "./SchemaActions";
 import { schemaNameFromRoute, tagsOf, titleOf } from "./schemaModel";
@@ -38,8 +38,8 @@ function SchemaPage() {
   const navigate = useNavigate();
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
-  const [ notice, setNotice ] = useState<Notice>();
-  const report = useCallback((title: string) => setNotice({ title, severity: "success" }), []);
+  const notify = useNotice();
+  const report = useCallback((title: string) => notify({ title, severity: "success" }), [ notify ]);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
 
   if (!schema) {
@@ -68,7 +68,6 @@ function SchemaPage() {
         </Alert>
       ) }
       <VersionList schema={schema} reload={reloadSchema} report={report} />
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </AdminScreen>
   );
 }

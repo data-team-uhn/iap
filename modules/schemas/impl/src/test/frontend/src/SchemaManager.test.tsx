@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SchemaManager from "@iap/schemas/SchemaManager";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
@@ -45,6 +46,7 @@ const renderManager = () => render(
       <Route path="*" element={<Where />} />
     </Routes>
   </MemoryRouter>,
+  { wrapper: NoticeProvider },
 );
 
 // Makes MUI's useMediaQuery see a phone, switching the grid to its card list
