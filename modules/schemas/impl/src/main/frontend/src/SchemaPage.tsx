@@ -24,7 +24,6 @@ import { useLocation, useNavigate } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 import SchemaActions from "./SchemaActions";
 import { schemaNameFromRoute, tagsOf, titleOf } from "./schemaModel";
@@ -38,8 +37,6 @@ function SchemaPage() {
   const navigate = useNavigate();
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
-  const notify = useNotice();
-  const report = useCallback((title: string) => notify({ title, severity: "success" }), [ notify ]);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
 
   if (!schema) {
@@ -56,7 +53,7 @@ function SchemaPage() {
       title={titleOf(schema)}
       description={"A draft version can change in any way. Once active, only its wording can change. Create a "
         + "new version to change anything else."}
-      action={<SchemaActions schema={schema} reload={reloadSchema} report={report}
+      action={<SchemaActions schema={schema} reload={reloadSchema}
         removed={() => void navigate("/admin/schemas")} />}
       disablePanel
     >
@@ -67,7 +64,7 @@ function SchemaPage() {
           This schema is retired. None of its versions accepts new submissions.
         </Alert>
       ) }
-      <VersionList schema={schema} reload={reloadSchema} report={report} />
+      <VersionList schema={schema} reload={reloadSchema} />
     </AdminScreen>
   );
 }

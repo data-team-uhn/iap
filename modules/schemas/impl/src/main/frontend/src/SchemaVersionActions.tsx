@@ -27,7 +27,6 @@ export interface SchemaVersionActionProps {
   version: JcrNode;
   schema: JcrNode;
   reload: () => void;
-  report: (message: string) => void;
 }
 
 function SchemaVersionActions(props: SchemaVersionActionProps) {

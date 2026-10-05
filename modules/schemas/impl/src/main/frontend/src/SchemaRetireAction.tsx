@@ -25,7 +25,7 @@ import { offers, pathOf, titleOf } from "./schemaModel";
 import type { SchemaActionProps } from "./SchemaActions";
 
 // Closes a schema as a whole, which retires every version with it.
-function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
+function SchemaRetireAction({ schema, reload }: SchemaActionProps) {
   if (!offers(schema, "retire")) {
     return null;
   }
@@ -33,7 +33,6 @@ function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
     <EventAction
       path={pathOf(schema)}
       reload={reload}
-      report={report}
       icon={<ArchiveOutlinedIcon fontSize="small" />}
       label="Retire"
       event="retire"

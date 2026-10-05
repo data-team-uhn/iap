@@ -25,7 +25,7 @@ import { offers, pathOf, titleOf } from "./schemaModel";
 import type { SchemaActionProps } from "./SchemaActions";
 
 // Reopens a retired schema, which brings each version back to where it stood.
-function SchemaReopenAction({ schema, reload, report }: SchemaActionProps) {
+function SchemaReopenAction({ schema, reload }: SchemaActionProps) {
   if (!offers(schema, "activate")) {
     return null;
   }
@@ -33,7 +33,6 @@ function SchemaReopenAction({ schema, reload, report }: SchemaActionProps) {
     <EventAction
       path={pathOf(schema)}
       reload={reload}
-      report={report}
       icon={<RestoreOutlinedIcon fontSize="small" />}
       label="Reopen"
       event="activate"

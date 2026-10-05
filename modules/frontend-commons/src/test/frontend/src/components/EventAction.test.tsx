@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { ActionIcon, EventAction } from "@iap/frontend-commons/components/EventAction";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -34,12 +35,10 @@ const serve = (refusal?: string) => {
 
 const renderAction = () => {
   const reload = vi.fn();
-  const report = vi.fn();
   render(
     <EventAction
       path="/Workflows/review"
       reload={reload}
-      report={report}
       icon={<span />}
       label="Retire"
       event="retire"
@@ -47,8 +46,9 @@ const renderAction = () => {
       explanation="No new reviews will start."
       done="Review is retired"
     />,
+    { wrapper: NoticeProvider },
   );
-  return { reload, report };
+  return reload;
 };
 
 const openConfirmation = async () => {
@@ -68,27 +68,29 @@ describe("EventAction", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("sends the event once confirmed, then reports and reloads", async () => {
+  it("sends the event once confirmed, then says so and reloads", async () => {
     const fetch = serve();
-    const { reload, report } = renderAction();
+    const reload = renderAction();
 
     fireEvent.click(within(await openConfirmation()).getByRole("button", { name: "Retire" }));
 
     await waitFor(() => { expect(reload).toHaveBeenCalled(); });
     expect(fetch).toHaveBeenCalledWith("/Workflows/review.retire.json", expect.objectContaining({ method: "POST" }));
-    expect(report).toHaveBeenCalledWith("Review is retired");
+    const notice = await screen.findByRole("alert");
+    expect(notice).toHaveTextContent("Review is retired");
+    expect(notice).toHaveClass("MuiAlert-colorSuccess");
     await waitFor(() => { expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); });
   });
 
   it("shows the engine's refusal and leaves the page as it was", async () => {
     serve("Not while reviews are open");
-    const { reload, report } = renderAction();
+    const reload = renderAction();
 
     const dialog = await openConfirmation();
     fireEvent.click(within(dialog).getByRole("button", { name: "Retire" }));
 
     expect(await within(dialog).findByText("Not while reviews are open")).toBeInTheDocument();
-    expect(report).not.toHaveBeenCalled();
+    expect(screen.queryByText("Review is retired")).not.toBeInTheDocument();
     expect(reload).not.toHaveBeenCalled();
   });
 

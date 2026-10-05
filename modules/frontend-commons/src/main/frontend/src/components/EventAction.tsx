@@ -23,16 +23,16 @@ import { DialogContentText, IconButton, Tooltip } from "@mui/material";
 import { useAuthenticatedFetch } from "../reLogin";
 import { sendEvent } from "../workflowEvents";
 import ConfirmActionDialog from "./ConfirmActionDialog";
+import { useNotice } from "./NoticeSnackbar";
 
 interface EventActionProps {
   path: string;
   reload: () => void;
-  report: (message: string) => void;
   label: string;
   event: string;
   title: string;
   explanation: ReactNode;
-  // What to report once done
+  // The notice raised once the event is done
   done: string;
   color?: "primary" | "warning" | "error";
   icon: ReactNode;
@@ -41,9 +41,10 @@ interface EventActionProps {
 // A workflow event sent to a node from an icon button. It asks for confirmation first, because the
 // event changes the node itself, not just what this page shows.
 export function EventAction(props: EventActionProps) {
-  const { path, reload, report, label, event, title, explanation, done, color } = props;
+  const { path, reload, label, event, title, explanation, done, color } = props;
   const [ confirming, setConfirming ] = useState(false);
   const doFetch = useAuthenticatedFetch();
+  const notify = useNotice();
   return (
     <>
       <ActionIcon label={label} icon={props.icon} onClick={() => setConfirming(true)} />
@@ -54,7 +55,7 @@ export function EventAction(props: EventActionProps) {
           confirmColor={color}
           onConfirm={async () => {
             await sendEvent(doFetch, path, event);
-            report(done);
+            notify({ title: done, severity: "success" });
             reload();
           }}
           onClose={() => setConfirming(false)}

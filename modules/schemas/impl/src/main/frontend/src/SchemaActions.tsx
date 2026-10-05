@@ -28,7 +28,6 @@ export interface SchemaActionProps {
   reload: () => void;
   // What to do once the schema itself is gone, when reloading it would find nothing
   removed?: () => void;
-  report: (message: string) => void;
 }
 
 function SchemaActions(props: SchemaActionProps) {

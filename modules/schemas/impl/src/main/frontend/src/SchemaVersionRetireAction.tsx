@@ -34,7 +34,6 @@ function SchemaVersionRetireAction(props: SchemaVersionActionProps) {
     <EventAction
       path={pathOf(version)}
       reload={props.reload}
-      report={props.report}
       icon={<ArchiveOutlinedIcon fontSize="small" />}
       label="Retire"
       event="retire"

@@ -35,7 +35,6 @@ function SchemaVersionActivateAction(props: SchemaVersionActionProps) {
     <EventAction
       path={pathOf(version)}
       reload={props.reload}
-      report={props.report}
       icon={<PublishOutlinedIcon fontSize="small" />}
       label="Activate"
       event="activate"

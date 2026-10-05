@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SchemaVersionActions from "@iap/schemas/SchemaVersionActions";
 
 import { BUILTIN_ACTIONS } from "./actions.fixture";
@@ -34,12 +35,11 @@ const study = withPaths("/Schemas/study", HOMEPAGE.study);
 
 const renderActions = (versionName: string) => {
   const reload = vi.fn();
-  const report = vi.fn();
   const version = study[versionName] as Record<string, unknown>;
   render(<MemoryRouter>
-    <SchemaVersionActions version={version} schema={study} reload={reload} report={report} />
-  </MemoryRouter>);
-  return { reload, report };
+    <SchemaVersionActions version={version} schema={study} reload={reload} />
+  </MemoryRouter>, { wrapper: NoticeProvider });
+  return { reload };
 };
 
 const confirm = async (label: string) => {
@@ -59,24 +59,23 @@ describe("SchemaVersionActions", () => {
 
   it("renders nothing if it goes away before its actions arrive", async () => {
     const { unmount } = render(<MemoryRouter>
-      <SchemaVersionActions version={study.v1 as Record<string, unknown>} schema={study} reload={vi.fn()}
-        report={vi.fn()} />
+      <SchemaVersionActions version={study.v1 as Record<string, unknown>} schema={study} reload={vi.fn()} />
     </MemoryRouter>);
     unmount();
     await Promise.resolve();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("publishes a draft once confirmed, then reports and reloads", async () => {
+  it("publishes a draft once confirmed, then says so and reloads", async () => {
     const posted = serveSchemas();
-    const { reload, report } = renderActions("v3");
+    const { reload } = renderActions("v3");
 
     fireEvent.click(await screen.findByRole("button", { name: "Activate" }));
     await confirm("Activate");
 
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(posted[0].url).toBe("/Schemas/study/v3.activate.json");
-    expect(report).toHaveBeenCalledWith("Version 3.0 is active");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Version 3.0 is active");
   });
 
   it("shows why a draft cannot be published yet", async () => {

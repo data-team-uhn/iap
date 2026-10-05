@@ -25,7 +25,7 @@ import { offers, pathOf, titleOf } from "./schemaModel";
 import type { SchemaActionProps } from "./SchemaActions";
 
 // Deletes a schema with all its versions, unless something refers to them.
-function SchemaDiscardAction({ schema, reload, removed, report }: SchemaActionProps) {
+function SchemaDiscardAction({ schema, reload, removed }: SchemaActionProps) {
   if (!offers(schema, "discard")) {
     return null;
   }
@@ -33,7 +33,6 @@ function SchemaDiscardAction({ schema, reload, removed, report }: SchemaActionPr
     <EventAction
       path={pathOf(schema)}
       reload={removed ?? reload}
-      report={report}
       icon={<DeleteOutlinedIcon fontSize="small" />}
       label="Discard"
       event="discard"
