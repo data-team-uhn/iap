@@ -23,6 +23,8 @@ import javax.jcr.Node;
 import javax.jcr.Property;
 import javax.jcr.RepositoryException;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * What a module knows about copying the content it is responsible for: what is maintained rather than held, and so
  * not copied, and what has to be adjusted once a copy is made. A module registers one as an OSGi service, and
@@ -40,7 +42,7 @@ public interface CopyParticipant
      * @return {@code true} to leave it out
      * @throws RepositoryException when the property cannot be read
      */
-    default boolean skips(final Property property) throws RepositoryException
+    default boolean skips(@NotNull final Property property) throws RepositoryException
     {
         return false;
     }
@@ -52,7 +54,7 @@ public interface CopyParticipant
      * @return {@code true} to leave it out
      * @throws RepositoryException when the node cannot be read
      */
-    default boolean skips(final Node child) throws RepositoryException
+    default boolean skips(@NotNull final Node child) throws RepositoryException
     {
         return false;
     }
@@ -65,8 +67,8 @@ public interface CopyParticipant
      * @param identifiers the identifiers of the copied referenceable nodes, each original's mapped to its copy's
      * @throws RepositoryException when the copy cannot be adjusted
      */
-    default void afterCopy(final Node source, final Node copy, final Map<String, String> identifiers)
-        throws RepositoryException
+    default void afterCopy(@NotNull final Node source, @NotNull final Node copy,
+        @NotNull final Map<String, String> identifiers) throws RepositoryException
     {
         // Nothing to adjust by default
     }

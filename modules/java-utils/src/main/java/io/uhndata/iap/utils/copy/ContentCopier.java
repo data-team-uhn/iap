@@ -23,6 +23,8 @@ import java.util.Set;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Copies content: a node's properties and descendants into another node, recursively, whatever their structure.
  * Each node keeps its name, type, mixins and position among its siblings, and binaries are copied with it.
@@ -52,6 +54,7 @@ public interface ContentCopier
      * @return the identifiers of the copied referenceable nodes, each original's mapped to its copy's
      * @throws RepositoryException when the source cannot be read or the copy cannot be written
      */
-    Map<String, String> copy(Node source, Node target, Set<String> skipped, Map<String, Set<String>> dropped)
-        throws RepositoryException;
+    @NotNull
+    Map<String, String> copy(@NotNull Node source, @NotNull Node target, @NotNull Set<String> skipped,
+        @NotNull Map<String, Set<String>> dropped) throws RepositoryException;
 }
