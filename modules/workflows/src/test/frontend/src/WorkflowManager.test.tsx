@@ -19,7 +19,7 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -92,14 +92,29 @@ const stubFailingFetch = (status: number) => {
     }) as unknown as Response)));
 };
 
+// Where the router ended up
+function Where() {
+  return <div data-testid="where">{useLocation().pathname}</div>;
+}
+
 const renderManager = () => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
     <MemoryRouter initialEntries={[`/admin/workflows${WORKFLOW_PATH}`]}>
       <WorkflowManager path={WORKFLOW_PATH} />
+      <Where />
     </MemoryRouter>
   </ThemeProvider>,
   { wrapper: NoticeProvider },
 );
+
+// Makes MUI's useMediaQuery see a phone, switching the grid to its card list
+function fakeNarrowScreen() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("max-width"), media: query, onchange: null,
+    addEventListener: () => undefined, removeEventListener: () => undefined,
+    addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+  }));
+}
 
 // An action that shows which version it was handed, standing in for the ones the repository
 // contributes.
@@ -170,6 +185,28 @@ describe("WorkflowManager", () => {
     expect(within(rows[1]).getByText("The initial cut")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Active")).toBeInTheDocument();
     expect(within(rows[3]).getByText("Draft")).toBeInTheDocument();
+  });
+
+  it("opens a version from its row", async () => {
+    const user = userEvent.setup();
+    stubFetch();
+    renderManager();
+    const rows = await screen.findAllByRole("row");
+
+    await user.click(within(rows[2]).getByText("2.0"));
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin/workflows/Workflows/review/2-0"));
+  });
+
+  it("lists the versions as cards on a phone", async () => {
+    fakeNarrowScreen();
+    stubFetch();
+
+    renderManager();
+
+    expect(await screen.findByText("Version 1.0")).toBeInTheDocument();
+    expect(screen.getByText("The initial cut")).toBeInTheDocument();
+    expect(screen.getByText("Version 2.0")).toBeInTheDocument();
   });
 
   it("names a version by its node name when it carries no label", async () => {

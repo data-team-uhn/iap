@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -27,11 +27,6 @@ import {
   CircularProgress,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
 import { useNavigate } from "react-router";
@@ -43,8 +38,7 @@ import NewVersionDialog from "./NewVersionDialog";
 import { useWorkflow } from "./useWorkflow";
 import { adminUrl, offers } from "./workflowModel";
 import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
-import WorkflowStateChip from "./WorkflowStateChip";
-import WorkflowVersionActions from "./WorkflowVersionActions";
+import WorkflowVersionList from "./WorkflowVersionList";
 
 // A repository timestamp as a sentence-worthy date, or nothing at all when it is absent.
 function formatDate(value: string): string {
@@ -80,6 +74,7 @@ interface WorkflowManagerProps {
 function WorkflowManager({ path }: WorkflowManagerProps) {
   const navigate = useNavigate();
   const { workflow, loadError, reload } = useWorkflow(path);
+  const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
   const [ editing, setEditing ] = useState(false);
   const [ addingVersion, setAddingVersion ] = useState(false);
 
@@ -140,40 +135,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>Versions</Typography>
-          { workflow.versions.length === 0
-            ? <Typography variant="placeholder">This workflow has no versions yet.</Typography>
-            : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Version</TableCell>
-                    <TableCell>State</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Last modified</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  { workflow.versions.map(version => (
-                    <TableRow key={version.path}>
-                      <TableCell>{version.version || version.name}</TableCell>
-                      <TableCell><WorkflowStateChip state={version.state} /></TableCell>
-                      <TableCell>{version.description}</TableCell>
-                      <TableCell>{formatDate(version.lastModified)}</TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-                          <WorkflowVersionActions
-                            version={version}
-                            workflow={workflow}
-                            reload={() => void reload()}
-                          />
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  )) }
-                </TableBody>
-              </Table>
-            )}
+          <WorkflowVersionList workflow={workflow} reload={reloadWorkflow} />
         </Paper>
       </Stack>
 
@@ -181,7 +143,7 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
         <WorkflowPropertiesDialog
           workflow={workflow}
           onClose={() => setEditing(false)}
-          onSaved={() => void reload()}
+          onSaved={reloadWorkflow}
         />
       )}
       { addingVersion && (

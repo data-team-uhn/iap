@@ -36,7 +36,6 @@ import WorkflowVersionEditAction from "@iap/workflows/WorkflowVersionEditAction"
 import WorkflowVersionRedraftAction from "@iap/workflows/WorkflowVersionRedraftAction";
 import WorkflowVersionRetireAction from "@iap/workflows/WorkflowVersionRetireAction";
 import WorkflowVersionTrialAction from "@iap/workflows/WorkflowVersionTrialAction";
-import WorkflowVersionViewAction from "@iap/workflows/WorkflowVersionViewAction";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }));
 
@@ -208,19 +207,6 @@ describe("WorkflowVersionActions", () => {
 
     await waitFor(() => expect(mockedLoadExtensions).toHaveBeenCalled());
     expect(container).not.toHaveTextContent(/\w/);
-  });
-});
-
-describe("the view action", () => {
-  it("links to the version's own page, whatever state it is in", () => {
-    for (const state of [ "DRAFT", "TRIAL", "ACTIVE", "RETIRED" ] as WorkflowState[]) {
-      const target = version("1.0", state);
-      const { unmount } = renderAction(WorkflowVersionViewAction, propsFor(target, workflow(target)));
-
-      expect(screen.getByRole("link", { name: "View" }))
-        .toHaveAttribute("href", "/admin/workflows/Workflows/review/1-0");
-      unmount();
-    }
   });
 });
 
