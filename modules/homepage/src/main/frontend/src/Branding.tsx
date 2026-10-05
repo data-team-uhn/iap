@@ -28,7 +28,7 @@ import Logo from "@iap/frontend-commons/components/Logo";
 function Branding() {
   return (
     <Link component={RouterLink} to="/" underline="none" color="inherit">
-      <Logo sx={{ display: "block", blockSize: { xs: 24, sm: 32 } }} />
+      <Logo sx={{ display: "block", blockSize: { xs: 18, sm: 32 } }} />
     </Link>
   );
 }

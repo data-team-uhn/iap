@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import UserMenu from "@iap/homepage/UserMenu";
+import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
 
 // Answers the two Sling endpoints the menu consults: the session info (who is logged in) and
 // the user's properties (their full name).
@@ -29,7 +30,11 @@ const stubUserEndpoints = (userId: string, userProperties: Record<string, unknow
       url.endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
   } as unknown as Response)));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
+  Reflect.deleteProperty(window, STORE_KEY);
+});
 
 describe("UserMenu", () => {
   it("shows an avatar with the user's initials, from their full name", async () => {
@@ -129,5 +134,16 @@ describe("UserMenu", () => {
     expect(await screen.findByText("J")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Account: jdoe" }));
     expect(await screen.findByText("jdoe")).toBeInTheDocument();
+  });
+
+  it("offers the personas to act as, and closes once one is chosen", async () => {
+    stubUserEndpoints("jdoe", {});
+    render(<UserMenu />);
+    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Reviewer" }));
+
+    expect(getActivePersona()).toBe("reviewer");
+    await waitFor(() => { expect(screen.queryByText("Sign out")).not.toBeInTheDocument(); });
   });
 });
