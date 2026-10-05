@@ -21,16 +21,20 @@ import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Refuses to go on unless the target version passes the {@link PublishCheck}: nothing in it would break once it
- * can no longer change. Every problem is reported at once.
+ * Refuses to go on unless the target version passes every {@link SchemaValidityCheck}: nothing in it would break
+ * once it can no longer change. Every problem is reported at once.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,6 +44,10 @@ public class CheckPublishableHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "checkPublishable";
+
+    /** Every check a draft must pass: this module's, and whatever others register later. */
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policyOption = ReferencePolicyOption.GREEDY)
+    private volatile List<SchemaValidityCheck> checks;
 
     @Override
     public String getName()
@@ -55,7 +63,9 @@ public class CheckPublishableHandler implements ServiceTaskHandler
         if (version == null) {
             throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
         }
-        final List<String> problems = PublishCheck.problems(target);
+        final List<String> problems = this.checks.stream()
+            .flatMap(check -> check.check(target).stream())
+            .toList();
         if (!problems.isEmpty()) {
             throw new InvalidStateException("Version " + version.getVersion()
                 + " cannot be published yet: " + String.join("; ", problems) + ".");

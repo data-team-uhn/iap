@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.schemas.editing.internal;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
@@ -58,10 +61,12 @@ class CheckPublishableHandlerTest
     private Resource schema;
 
     @BeforeEach
-    void setUp() throws PersistenceException
+    void setUp() throws PersistenceException, ReflectiveOperationException
     {
         this.fixture = new SchemaFixture(this.context);
         this.schema = this.fixture.schema("study");
+        checks(new QuestionBoundsCheck(), new QuestionPatternCheck(), new AnswerOptionsCheck(),
+            new ConditionOperationsCheck(), new ConditionQuestionsCheck());
     }
 
     @Test
@@ -179,6 +184,26 @@ class CheckPublishableHandlerTest
         assertTrue(refusal.getMessage().contains("form/nameless has a condition on a question"),
             refusal.getMessage());
         assertFalse(refusal.getMessage().contains("comparing"));
+    }
+
+    @Test
+    void runsTheChecksOtherModulesRegister() throws PersistenceException, ReflectiveOperationException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        checks(new QuestionBoundsCheck(), version -> List.of("the module's own rule is broken"));
+
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
+
+        assertEquals("Version v1 cannot be published yet: the module's own rule is broken.", refusal.getMessage());
+    }
+
+    // Set as the component runtime would, by reflection, since a unit test has no component metadata to go by
+    private void checks(final SchemaValidityCheck... checks) throws ReflectiveOperationException
+    {
+        final Field field = CheckPublishableHandler.class.getDeclaredField("checks");
+        field.setAccessible(true);
+        field.set(this.handler, List.of(checks));
     }
 
     private static void condition(final ResourceResolver resolver, final Resource on, final String comparator,

@@ -111,8 +111,10 @@ the update workflow that would run, so no editor keeps a list of its own.
 A draft is **published** only when nothing in it would break once it is frozen: answer counts and
 value bounds that are not upside down, patterns that compile, option values that are present and
 unique, and conditions that use known comparisons on questions of this same version. Every problem
-is reported at once. Publishing a draft does not retire the version before it; several versions may
-be active at once.
+is reported at once. Each rule is a `SchemaValidityCheck` service (`io.uhndata.iap.schemas.spi`),
+and publishing runs every one registered, so a module that adds parts to a schema can add the
+checks they need. Publishing a draft does not retire the version before it; several versions may be
+active at once.
 
 **Discarding** goes through the deletion service, into the archive: anything something else refers
 to, such as a version that submissions or a category point at, is refused, with the referrers
