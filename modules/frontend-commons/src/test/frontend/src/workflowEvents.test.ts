@@ -30,6 +30,16 @@ describe("sendEvent", () => {
       expect.objectContaining({ method: "POST" }));
   });
 
+  it("sends a file as the body it was given", async () => {
+    const doFetch = answer({ ok: true, status: 200, redirected: false });
+    const upload = new FormData();
+    upload.set("bpmn.xml", new File([ "<definitions/>" ], "bpmn.xml"));
+
+    await sendEvent(doFetch, "/Workflows/review/v2", "save", upload);
+
+    expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.save.json", { method: "POST", body: upload });
+  });
+
   it("resolves with what the event created", async () => {
     const doFetch = answer({ ok: true, status: 200, redirected: true, url: "http://localhost/Workflows/new" });
 
