@@ -129,14 +129,19 @@ public class CopyContentHandler implements ServiceTaskHandler
      *
      * @param node the node about to receive the copy
      * @throws RepositoryException when it cannot be checked out
+     * @throws PersistenceException when it is read-only, but nothing versionable holds it so
      */
-    private static void checkOut(final Node node) throws RepositoryException
+    private static void checkOut(final Node node) throws RepositoryException, PersistenceException
     {
         if (node.isCheckedOut()) {
             return;
         }
         Node versionable = node;
         while (!versionable.isNodeType("mix:versionable")) {
+            if (versionable.getDepth() == 0) {
+                throw new PersistenceException("Cannot copy into " + node.getPath()
+                    + ": it is read-only, but neither it nor anything above it is versionable");
+            }
             versionable = versionable.getParent();
         }
         versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());

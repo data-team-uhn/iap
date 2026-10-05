@@ -46,6 +46,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link CopyContentHandler}: the event's source copied into what the task acts on, as the activity
@@ -91,6 +92,8 @@ class CopyContentHandlerTest
         Mockito.when(this.host.adaptTo(Node.class)).thenReturn(this.hostNode);
         Mockito.when(this.host.getPath()).thenReturn("/Schemas/study/v2");
         Mockito.when(this.hostNode.isCheckedOut()).thenReturn(true);
+        // Where the host really is, since a mock's depth of 0 would make it the root
+        Mockito.when(this.hostNode.getDepth()).thenReturn(3);
     }
 
     @Test
@@ -146,6 +149,23 @@ class CopyContentHandlerTest
         this.handler.execute(context(Map.of("source", SOURCE)));
 
         Mockito.verify(versions).checkout("/Schemas/study");
+    }
+
+    @Test
+    void stopsAtTheRootWhenNothingVersionableHoldsTheTarget() throws RepositoryException
+    {
+        final Node root = Mockito.mock(Node.class);
+        Mockito.when(this.hostNode.isCheckedOut()).thenReturn(false);
+        Mockito.when(this.hostNode.getDepth()).thenReturn(1);
+        Mockito.when(this.hostNode.getParent()).thenReturn(root);
+        Mockito.when(this.hostNode.getPath()).thenReturn("/orphan");
+
+        final PersistenceException refusal =
+            assertThrows(PersistenceException.class, () -> this.handler.execute(context(Map.of("source", SOURCE))));
+
+        assertTrue(refusal.getMessage().contains("/orphan"), refusal.getMessage());
+        Mockito.verify(root, Mockito.never()).getParent();
+        Mockito.verifyNoInteractions(this.copier);
     }
 
     @Test
