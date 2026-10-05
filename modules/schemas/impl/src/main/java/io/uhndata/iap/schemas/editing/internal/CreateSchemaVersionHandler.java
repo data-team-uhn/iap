@@ -18,6 +18,8 @@
 package io.uhndata.iap.schemas.editing.internal;
 
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -47,6 +49,9 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
     /** The payload entry labelling the version. */
     static final String VERSION_PARAMETER = "version";
 
+    /** A leading whole number, after an optional {@code v}: {@code v3}, {@code 3.0}, {@code 3}. */
+    private static final Pattern NUMBERED = Pattern.compile("^[vV]?(\\d{1,9})");
+
     @Override
     public String getName()
     {
@@ -61,7 +66,7 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
         if (schema == null) {
             throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
         }
-        final int number = schema.getVersions().size() + 1;
+        final int number = nextNumber(schema);
         SchemaContent.checkOut(target);
         final Resource version = context.getResourceResolver().create(target,
             NodeNameUtils.findFreeName(target, "v" + number),
@@ -70,10 +75,39 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
     }
 
     /**
+     * The number of the next version: one past the largest a version of the schema is named with, so that a
+     * version discarded from the middle leaves no number for a new one to take again. Labels are not read, since
+     * they are free text, as likely a year as a number.
+     *
+     * @param schema the schema gaining a version
+     * @return a number no version of the schema is named with yet
+     */
+    private static int nextNumber(final Schema schema)
+    {
+        return schema.getVersions().stream()
+            .mapToInt(version -> numberIn(version.getName()))
+            .max()
+            .orElse(0) + 1;
+    }
+
+    /**
+     * The whole number a version's name starts with: {@code v3} as this handler names them, or {@code 3.0} as
+     * content imported by hand may be.
+     *
+     * @param name a version's node name
+     * @return the number, or 0 when there is none
+     */
+    private static int numberIn(final String name)
+    {
+        final Matcher number = NUMBERED.matcher(name);
+        return number.find() ? Integer.parseInt(number.group(1)) : 0;
+    }
+
+    /**
      * The version label the event asks for, or the next whole number.
      *
      * @param context the executing task's context
-     * @param number which version of its schema this is
+     * @param number the number the version is named with
      * @return a non-blank label
      * @throws InvalidPayloadException when a label is given but is not usable
      */

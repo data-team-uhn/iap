@@ -88,6 +88,33 @@ class CreateSchemaVersionHandlerTest
     }
 
     @Test
+    void numbersPastAVersionDiscardedFromTheMiddle() throws WorkflowException, PersistenceException
+    {
+        // With v2 gone, counting what is left would make a second v3
+        final Resource schema = this.fixture.schema("study");
+        this.fixture.version(schema, "v1", "retired");
+        this.fixture.version(schema, "v3", "active");
+
+        this.handler.execute(task(schema, Map.of()));
+
+        assertEquals("4.0", this.fixture.get("/Schemas/study/v4").getValueMap().get("version"));
+    }
+
+    @Test
+    void numbersByTheNamesAlone() throws WorkflowException, PersistenceException
+    {
+        // Named by hand as an import may, named without a number, and labelled freely, which counts for nothing
+        final Resource schema = this.fixture.schema("study");
+        this.fixture.create(schema.getPath(), "1.0", "sch:SchemaVersion", Map.of("version", "1.0"));
+        this.fixture.create(schema.getPath(), "pilot", "sch:SchemaVersion", Map.of("version", "Pilot"));
+        this.fixture.create(schema.getPath(), "v2", "sch:SchemaVersion", Map.of("version", "2026"));
+
+        this.handler.execute(task(schema, Map.of()));
+
+        assertEquals("3.0", this.fixture.get("/Schemas/study/v3").getValueMap().get("version"));
+    }
+
+    @Test
     void labelsTheVersionAsAsked() throws WorkflowException, PersistenceException
     {
         this.handler.execute(task(this.fixture.schema("study"), Map.of("version", " 2026 ")));
