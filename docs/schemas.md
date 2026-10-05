@@ -103,7 +103,7 @@ written, and only the fields the workflow lists in its `fields` are accepted: a 
 keeps everything submissions may depend on, and only its wording can change.
 
 An editor learns which fields it may offer from the `fields` serialization: `@fields` on each schema
-and version lists the fields the requesting user's `update` would change there, with a label, a
+and version lists the fields the requesting user's `update` could change there, with a label, a
 kind, and whether each is mandatory or runs over several lines. It is read from the configuration of
 the update workflow that would run, so no editor keeps a list of its own.
 

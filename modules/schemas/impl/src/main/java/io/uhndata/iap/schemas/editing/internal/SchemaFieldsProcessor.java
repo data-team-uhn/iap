@@ -48,7 +48,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * The {@code fields} serialization processor: adds {@code @fields} to each schema and schema version serialized,
- * listing the fields the requesting user's {@code update} event would change on it right now, with what an
+ * listing the fields the requesting user's {@code update} event could change on it right now, with what an
  * editor needs to show them. Which fields those are is the configuration of the update workflow that would run,
  * so the editor never lists fields of its own. Off by default.
  *
@@ -123,7 +123,7 @@ public class SchemaFieldsProcessor implements ResourceJsonProcessor
      * The fields an editor shows, in the order the content declares them.
      *
      * @param resourceType the content's resource type
-     * @param allowed the fields the update would change
+     * @param allowed the fields the update could change
      * @return one object per field
      */
     private static JsonArrayBuilder describe(final String resourceType, final List<String> allowed)
