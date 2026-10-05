@@ -1,0 +1,28 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Everything a remote peer has ever caused to be created, kept apart from the content the platform
+# itself owns. Nothing is granted on it to anyone: the endpoint is the only way in, and it writes as
+# the service user below.
+create path (sling:Folder) /remote
+
+# The write that follows a verified token. Its rights stop at /remote, so a flaw in the endpoint's own
+# name checking still cannot reach content that matters.
+create service user iap-remote-requests
+
+set ACL for iap-remote-requests
+    allow   jcr:read,jcr:write   on /remote
+end
