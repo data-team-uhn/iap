@@ -16,20 +16,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */-->
-<!--/* Editing something is a view of it, addressed the way every other view in this application is -
-     by extension, /admin/workflows/Workflows/review/v1.edit - rather than by a query parameter. Any
-     page the shell serves may be asked for that way; what is served is the same shell as the page
-     beside it, and which of the two it shows is decided by the client router from the same
-     extension. Serving it from here rather than from JavaScript alone is what lets the server have
-     an opinion about the mode later, and is what makes the URL survive being opened directly.
+<!--/* Editing something is a view of it, addressed the way every other view in this application is:
+     by extension, e.g. /admin/workflows/Workflows/review/v1.edit, serving the same shell as the
+     default "view" mode.
 
      Rendered by re-dispatching this same resource as .html rather than by including the shell script
      directly: a script included by path is resolved against the *current* request, which has no
      script for the `edit` extension. The extra selector only makes the inner request differ from
-     this one, so Sling does not see it as the same request repeating; nothing reads it, and the
-     resolver falls back past it to the shell. `edit` is not a known extension either, so the content
-     type has to be stated rather than guessed from it - and stated in the very first line, before
-     anything at all is written: the charset of a response can no longer be changed once its writer
-     has been handed out, so a content type set below even a comment arrives too late and the page
-     goes out as ISO-8859-1. */-->
+     this one, so Sling does not see it as the same request repeating. `edit` is not a known
+     extension either, so the content type has to be stated rather than guessed from it. */-->
 <sly data-sly-resource="${'.html' @selectors='forceInclude'}"/>
