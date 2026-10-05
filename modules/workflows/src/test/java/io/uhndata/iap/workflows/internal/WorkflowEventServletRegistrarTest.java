@@ -20,11 +20,15 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.StreamSupport;
 
 import jakarta.servlet.Servlet;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +39,7 @@ import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
 
 import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
@@ -104,6 +109,23 @@ class WorkflowEventServletRegistrarTest
     }
 
     @Test
+    void bindsTheTypesWhileSlingModelsRestarts() throws Exception
+    {
+        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        this.context.resourceResolver().commit();
+        final Resource home = this.context.resourceResolver().getResource(SystemWorkflowsHomepage.PATH);
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        Mockito.when(resolver.getResource(SystemWorkflowsHomepage.PATH)).thenReturn(new WithoutModels(home));
+        final ResourceResolverFactory restarting = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(restarting.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
+        inject("resolverFactory", restarting);
+
+        this.registrar.activate(this.context.bundleContext());
+
+        assertArrayEquals(new String[] { "wf/TaskInstance", "wf/WorkflowsHomepage" }, boundTypes());
+    }
+
+    @Test
     void bindsOnlyTasksWithoutItsServiceUser() throws Exception
     {
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
@@ -147,5 +169,28 @@ class WorkflowEventServletRegistrarTest
         final Field reference = WorkflowEventServletRegistrar.class.getDeclaredField(field);
         reference.setAccessible(true);
         reference.set(this.registrar, value);
+    }
+
+    /** A resource as it reads while Sling Models restarts: there, with its children, and adaptable to no model. */
+    private static final class WithoutModels extends ResourceWrapper
+    {
+        WithoutModels(final Resource resource)
+        {
+            super(resource);
+        }
+
+        @Override
+        public <T> T adaptTo(final Class<T> type)
+        {
+            return null;
+        }
+
+        @Override
+        public Iterable<Resource> getChildren()
+        {
+            return StreamSupport.stream(super.getChildren().spliterator(), false)
+                .<Resource>map(WithoutModels::new)
+                .toList();
+        }
     }
 }
