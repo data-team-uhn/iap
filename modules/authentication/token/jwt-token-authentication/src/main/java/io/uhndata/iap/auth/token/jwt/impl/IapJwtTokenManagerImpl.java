@@ -72,8 +72,11 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     /** JCR property containing a peer's expected 'issuer' ID. */
     public static final String ISSUER_PROP = "iss";
 
+    /** JCR path under which every key node lives: our own, and one per trusted peer named by its fingerprint. */
+    public static final String KEY_ROOT = "/jcr:system/iap-jwt";
+
     /** JCR path to the node where we keep our signing/verification keys. */
-    public static final String KEY_PATH = "/jcr:system/iap-jwt/JWTRSA256Key";
+    public static final String KEY_PATH = KEY_ROOT + "/JWTRSA256Key";
 
     /** The ID of this IAP instance, used to determine the `iss` field when minting tokens. */
     public static final String SELF_ID =

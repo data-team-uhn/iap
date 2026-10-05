@@ -75,3 +75,39 @@ key in a `verify` property and the issuer it will claim in an `iss` property. Th
 the SHA-256 of the BASE64-encoded key, which is also what the peer puts in its tokens' `kid`
 header — that is how the locator finds the right node without trusting anything in the token
 beyond a lookup key it validates as alphanumeric first.
+
+That node is written through `POST /system/jwt/peers`, which belongs to the token module rather
+than this one, because trusting an instance is not the same thing as letting it do something:
+
+```
+POST /system/jwt/peers
+Content-Type: application/json
+
+{"issuer": "peerexample8080", "key": "<BASE64, PEM armour optional>"}
+```
+
+```
+201 Created
+
+{"kid": "9f86d081884c7d65..."}
+```
+
+**Administrator only**, and that is the whole of the authorization: a key registered here is a
+trust anchor, so whoever can add one can mint tokens this instance will accept. The service user
+that performs the write is granted `/jcr:system/iap-jwt` but explicitly denied the instance's own
+`JWTRSA256Key` node, so a flaw in the endpoint cannot be turned into a way to re-key the instance
+itself.
+
+The fingerprint is computed here from the submitted key, never taken from the request — a caller
+that could choose the node name could register a key under a `kid` the peer never sends, or under
+one that shadows an existing peer. The key is parsed and re-encoded before hashing, so armour,
+wrapped lines and padding differences all land on the same node; parsing it is also what rejects
+a key that every later verification would have failed on anyway.
+
+The `issuer` must be alphanumeric, because a peer derives its own `iss` by stripping everything
+else from its host and port. Anything else describes a peer whose tokens could never match.
+
+Registration is add-only. An already-registered key is a `409`, not an overwrite: replacing a
+trust anchor should not be something a repeated request does quietly. Rotating a peer's key means
+registering the new one — a different key is a different fingerprint, so the two coexist — and
+removing the old node by hand. There is no endpoint for removal yet.
