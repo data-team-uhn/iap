@@ -17,8 +17,8 @@
  */
 
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { Button } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
 import { adminUrl } from "./workflowModel";
 
@@ -27,16 +27,7 @@ import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 // Opens a version's diagram in the editor's read-only mode. Offered for every state, since viewing a
 // workflow is never a change to it.
 function WorkflowVersionViewAction({ version }: WorkflowVersionActionProps) {
-  return (
-    <Button
-      size="small"
-      startIcon={<VisibilityIcon />}
-      component={RouterLink}
-      to={adminUrl(version.path)}
-    >
-      View
-    </Button>
-  );
+  return <ActionIcon label="View" icon={<VisibilityIcon fontSize="small" />} to={adminUrl(version.path)} />;
 }
 
 export default WorkflowVersionViewAction;

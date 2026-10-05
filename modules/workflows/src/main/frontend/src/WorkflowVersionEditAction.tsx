@@ -17,8 +17,8 @@
  */
 
 import EditIcon from "@mui/icons-material/Edit";
-import { Button } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 
 import { adminUrl } from "./workflowModel";
 
@@ -30,16 +30,7 @@ function WorkflowVersionEditAction({ version }: WorkflowVersionActionProps) {
   if (version.state !== "DRAFT") {
     return null;
   }
-  return (
-    <Button
-      size="small"
-      startIcon={<EditIcon />}
-      component={RouterLink}
-      to={adminUrl(version.path, "edit")}
-    >
-      Edit
-    </Button>
-  );
+  return <ActionIcon label="Edit" icon={<EditIcon fontSize="small" />} to={adminUrl(version.path, "edit")} />;
 }
 
 export default WorkflowVersionEditAction;

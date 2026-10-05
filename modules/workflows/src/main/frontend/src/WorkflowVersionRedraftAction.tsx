@@ -16,56 +16,32 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
-
 import UndoIcon from "@mui/icons-material/Undo";
-import { Button, DialogContentText } from "@mui/material";
 
-import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-
-import { moveVersion } from "./workflowWrites";
+import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Takes a trial back to draft, so the same node becomes editable again rather than a copy being
 // drafted beside it. Offered for a trial only: an active or retired version already has instances
 // following it, so carrying either forward means drafting a copy instead.
-function WorkflowVersionRedraftAction({ version, workflow, reload, report }: WorkflowVersionActionProps) {
-  const [ confirming, setConfirming ] = useState(false);
-  const fetchUtil = useAuthenticatedFetch();
-
+function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   if (version.state !== "TRIAL") {
     return null;
   }
-
   const label = version.version || version.name;
-
-  const redraft = (): Promise<void> =>
-    moveVersion(fetchUtil, version.path, "returnToDraft").then(() => {
-      report(`Version ${label} of ${workflow.title} is a draft again`);
-      reload();
-    });
-
   return (
-    <>
-      <Button size="small" startIcon={<UndoIcon />} onClick={() => setConfirming(true)}>
-        Return to draft
-      </Button>
-      { confirming && (
-        <ConfirmActionDialog
-          title={`Return version ${label} to draft?`}
-          confirmLabel="Return to draft"
-          onConfirm={redraft}
-          onClose={() => setConfirming(false)}
-        >
-          <DialogContentText>
-            The trial of version {label} ends and its diagram becomes editable again. Nothing else about
-            {" "}{workflow.title} changes: whichever version was active stays active.
-          </DialogContentText>
-        </ConfirmActionDialog>
-      )}
-    </>
+    <EventAction
+      path={version.path}
+      reload={reload}
+      icon={<UndoIcon fontSize="small" />}
+      label="Return to draft"
+      event="returnToDraft"
+      title={`Return version ${label} to draft?`}
+      explanation={`The trial of version ${label} ends and its diagram becomes editable again. Nothing else about`
+        + ` ${workflow.title} changes: whichever version was active stays active.`}
+      done={`Version ${label} of ${workflow.title} is a draft again`}
+    />
   );
 }
 

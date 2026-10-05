@@ -16,63 +16,37 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
-
 import PublishIcon from "@mui/icons-material/Publish";
-import { Button, DialogContentText } from "@mui/material";
 
-import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-
-import { moveVersion } from "./workflowWrites";
+import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Promotes a draft, a version that has been on trial, or a retired version being brought back, to the
 // version new instances are created from. What is already active needs no promoting.
 //
-// Confirmed, because the effect lands outside this page — on everything that starts a workflow from
-// now on — and because it retires the version that was current, which is not visible from the row
-// the button sits in. The retirement is named in the confirmation for exactly that reason.
-function WorkflowVersionActivateAction({ version, workflow, reload, report }: WorkflowVersionActionProps) {
-  const [ confirming, setConfirming ] = useState(false);
-  const fetchUtil = useAuthenticatedFetch();
-
+// The confirmation names the version this retires, which the row the action sits in does not show.
+function WorkflowVersionActivateAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   if (version.state !== "DRAFT" && version.state !== "TRIAL" && version.state !== "RETIRED") {
     return null;
   }
-
   const label = version.version || version.name;
   const outgoing = workflow.versions.find(candidate => candidate.state === "ACTIVE");
-
-  const activate = (): Promise<void> =>
-    moveVersion(fetchUtil, version.path, "activate").then(() => {
-      report(`Version ${label} is now the active version of ${workflow.title}`);
-      reload();
-    });
-
   return (
-    <>
-      <Button size="small" startIcon={<PublishIcon />} onClick={() => setConfirming(true)}>
-        Activate
-      </Button>
-      { confirming && (
-        <ConfirmActionDialog
-          title={`Activate version ${label}?`}
-          confirmLabel="Activate"
-          onConfirm={activate}
-          onClose={() => setConfirming(false)}
-        >
-          <DialogContentText>
-            New instances of {workflow.title} will be created from version {label}.
-            { outgoing
-              ? ` Version ${outgoing.version || outgoing.name} is retired in the same step: the instances already
-                  running against it carry on, but no new ones start from it.`
-              : " Nothing is retired: this workflow has no active version at the moment." }
-          </DialogContentText>
-        </ConfirmActionDialog>
-      )}
-    </>
+    <EventAction
+      path={version.path}
+      reload={reload}
+      icon={<PublishIcon fontSize="small" />}
+      label="Activate"
+      event="activate"
+      title={`Activate version ${label}?`}
+      explanation={`New instances of ${workflow.title} will be created from version ${label}.`
+        + (outgoing
+          ? ` Version ${outgoing.version || outgoing.name} is retired in the same step: the instances already`
+            + " running against it carry on, but no new ones start from it."
+          : " Nothing is retired: this workflow has no active version at the moment.")}
+      done={`Version ${label} is now the active version of ${workflow.title}`}
+    />
   );
 }
 

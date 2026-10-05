@@ -16,14 +16,7 @@
  * limitations under the License.
  */
 
-import {
-  createVersion,
-  createWorkflow,
-  draftFromVersion,
-  moveVersion,
-  saveDiagram,
-  updateWorkflow,
-} from "@iap/workflows/workflowWrites";
+import { createVersion, createWorkflow, draftFromVersion, saveDiagram, updateWorkflow } from "@iap/workflows/workflowWrites";
 
 // A stubbed fetch: the URL, and the request options an event carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
@@ -185,52 +178,6 @@ describe("saveDiagram", () => {
 
     await expect(saveDiagram(fetchUtil, "/Workflows/review/1-0", "<bpmn:definitions/>"))
       .rejects.toThrow("Only a draft may be edited, and this version is active");
-  });
-});
-
-describe("moveVersion", () => {
-  it("names the move as the event it is, at the version's own path", async () => {
-    const fetchUtil = completingFetch();
-
-    await moveVersion(fetchUtil, "/Workflows/review/2-0", "activate");
-    await moveVersion(fetchUtil, "/Workflows/review/2-0", "startTrial");
-    await moveVersion(fetchUtil, "/Workflows/review/2-0", "returnToDraft");
-
-    expect(fetchUtil.mock.calls.map(call => call[0])).toEqual([
-      "/Workflows/review/2-0.activate.json",
-      "/Workflows/review/2-0.startTrial.json",
-      "/Workflows/review/2-0.returnToDraft.json",
-    ]);
-    // Nothing in the body: which state a move ends in is the definition's, not the caller's, which
-    // is what lets each move name its own performers
-    expect(paramsOf(fetchUtil, 0)).toEqual({});
-    expect(fetchUtil.mock.calls[0][1]?.method).toBe("POST");
-  });
-
-  it("reports the refusal in the words the engine used", async () => {
-    const fetchUtil = refusingFetch(409,
-      "A retired version cannot be made active; that is only available for a draft or trial version");
-
-    await expect(moveVersion(fetchUtil, "/Workflows/review/1-0", "activate"))
-      .rejects.toThrow("A retired version cannot be made active");
-  });
-
-  it("describes a refusal that explains nothing like any failed request", async () => {
-    await expect(moveVersion(refusingFetch(500), "/Workflows/review/1-0", "activate"))
-      .rejects.toThrow("The server ran into a problem and could not complete this. Try again in a moment. (HTTP 500)");
-  });
-
-  it("takes an unreadable body on an accepted event as an answer with nothing in it", async () => {
-    // The move happened: a body that is not the report we expected says nothing about it, and an
-    // accepted request whose answer cannot be read is still an accepted request
-    const fetchUtil = vi.fn<FetchStub>(() => Promise.resolve({
-      ok: true,
-      status: 200,
-      redirected: false,
-      json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
-    } as unknown as Response));
-
-    await expect(moveVersion(fetchUtil, "/Workflows/review/2-0", "startTrial")).resolves.toBeUndefined();
   });
 });
 

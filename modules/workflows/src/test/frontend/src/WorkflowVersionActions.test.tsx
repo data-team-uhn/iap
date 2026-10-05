@@ -25,6 +25,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import type { WorkflowState, WorkflowSummary, WorkflowVersionSummary } from "@iap/workflows/workflowModel";
@@ -64,12 +65,11 @@ const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
   versions,
 });
 
-// The props every action receives, with the two callbacks watchable.
+// The props every action receives, with the callback watchable.
 const propsFor = (target: WorkflowVersionSummary, host: WorkflowSummary) => ({
   version: target,
   workflow: host,
   reload: vi.fn(),
-  report: vi.fn(),
 });
 
 // Wherever the router ended up, as text: a navigation is then asserted on as the destination the
@@ -93,7 +93,8 @@ const renderAction = (
         <Route path="*" element={<Destination />} />
       </Routes>
     </MemoryRouter>
-  </ThemeProvider>
+  </ThemeProvider>,
+  { wrapper: NoticeProvider },
 );
 
 // An engine that runs every event it is given. One that created something answers with a redirect to
@@ -232,7 +233,7 @@ describe("the activate action", () => {
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/2-0.activate.json",
       expect.objectContaining({ method: "POST" }));
     expect(moveAskedFor(fetchMock)).toBe("activate");
-    expect(props.report).toHaveBeenCalledWith("Version 2.0 is now the active version of Standard review");
+    expect(await screen.findByText("Version 2.0 is now the active version of Standard review")).toBeInTheDocument();
   });
 
   it("says that nothing is retired when the workflow has no active version", async () => {
@@ -342,7 +343,7 @@ describe("the trial action", () => {
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/2-0.startTrial.json",
       expect.objectContaining({ method: "POST" }));
     expect(moveAskedFor(fetchMock)).toBe("startTrial");
-    expect(props.report).toHaveBeenCalledWith("Version 2.0 of Standard review is on trial");
+    expect(await screen.findByText("Version 2.0 of Standard review is on trial")).toBeInTheDocument();
   });
 
   it("is offered for a draft only", () => {
@@ -386,7 +387,7 @@ describe("the return-to-draft action", () => {
 
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
     expect(moveAskedFor(fetchMock)).toBe("returnToDraft");
-    expect(props.report).toHaveBeenCalledWith("Version 2.0 of Standard review is a draft again");
+    expect(await screen.findByText("Version 2.0 of Standard review is a draft again")).toBeInTheDocument();
   });
 
   it("is offered for a trial only", () => {
@@ -412,8 +413,7 @@ describe("the return-to-draft action", () => {
     const dialog = await screen.findByRole("dialog", { name: `Return version ${unlabelled.name} to draft?` });
     await user.click(within(dialog).getByRole("button", { name: "Return to draft" }));
 
-    await waitFor(() => expect(props.report)
-      .toHaveBeenCalledWith(`Version ${unlabelled.name} of Standard review is a draft again`));
+    expect(await screen.findByText(`Version ${unlabelled.name} of Standard review is a draft again`)).toBeInTheDocument();
   });
 });
 
@@ -435,7 +435,7 @@ describe("the retire action", () => {
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.retire.json",
       expect.objectContaining({ method: "POST" }));
     expect(moveAskedFor(fetchMock)).toBe("retire");
-    expect(props.report).toHaveBeenCalledWith("Version 1.0 is retired, and Standard review has no active version");
+    expect(await screen.findByText("Version 1.0 is retired, and Standard review has no active version")).toBeInTheDocument();
   });
 
   it("names a version without a label by its node name", async () => {
@@ -449,8 +449,7 @@ describe("the retire action", () => {
     const dialog = await screen.findByRole("dialog", { name: `Retire version ${unlabelled.name}?` });
     await user.click(within(dialog).getByRole("button", { name: "Retire" }));
 
-    await waitFor(() => expect(props.report)
-      .toHaveBeenCalledWith(`Version ${unlabelled.name} is retired, and Standard review has no active version`));
+    expect(await screen.findByText(`Version ${unlabelled.name} is retired, and Standard review has no active version`)).toBeInTheDocument();
   });
 
   it("is offered for the active version only", () => {

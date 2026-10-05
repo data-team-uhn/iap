@@ -22,6 +22,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { Alert, Button, DialogActions, DialogContent, DialogContentText, Stack, TextField } from "@mui/material";
 import { useNavigate } from "react-router";
 
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -63,12 +64,10 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
 
   return (
     <>
-      <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => {
+      <ActionIcon label="New draft from this" icon={<ContentCopyIcon fontSize="small" />} onClick={() => {
         setLabel(nextVersionLabel(workflow));
         setNaming(true);
-      }}>
-        New draft from this
-      </Button>
+      }} />
       { naming && (
         <ResponsiveDialog
           open

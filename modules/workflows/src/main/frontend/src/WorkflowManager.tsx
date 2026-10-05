@@ -38,7 +38,6 @@ import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
-import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
 
@@ -85,7 +84,6 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
   const [ loadError, setLoadError ] = useState<string>();
   const [ editing, setEditing ] = useState(false);
   const [ addingVersion, setAddingVersion ] = useState(false);
-  const notify = useNotice();
   const fetchUtil = useAuthenticatedFetch();
 
   const load = useCallback((): Promise<void> =>
@@ -181,7 +179,6 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
                             version={version}
                             workflow={workflow}
                             reload={() => void load()}
-                            report={message => notify({ title: message, severity: "success" })}
                           />
                         </Stack>
                       </TableCell>

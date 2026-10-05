@@ -185,22 +185,6 @@ describe("WorkflowManager", () => {
     expect(within(rows[1]).getByText("unlabelled")).toBeInTheDocument();
   });
 
-  it("lets a reported message be dismissed", async () => {
-    const user = userEvent.setup();
-    const reportingAction = ({ report }: WorkflowVersionActionProps) => (
-      <button type="button" onClick={() => report("Something happened")}>report</button>
-    );
-    mockedLoadExtensions.mockResolvedValue([ { "ext:render": reportingAction } ]);
-    stubFetch();
-    renderManager();
-    await user.click((await screen.findAllByRole("button", { name: "report" }))[0]);
-    await screen.findByText("Something happened");
-
-    await user.click(screen.getByRole("button", { name: "Dismiss" }));
-
-    await waitFor(() => expect(screen.queryByText("Something happened")).not.toBeInTheDocument());
-  });
-
   it("says so when the workflow has no versions yet", async () => {
     stubFetch({ "jcr:primaryType": "wf:WorkflowDefinition", title: "Empty" });
 
@@ -223,23 +207,21 @@ describe("WorkflowManager", () => {
     expect(mockedLoadExtensions).toHaveBeenCalledWith("WorkflowVersionActions");
   });
 
-  it("shows what an action reports, and reads the workflow again when one asks", async () => {
-    // An action that changed something says so through the page, which is the only place with room
-    // for a message and the only one that can refresh the listing
+  it("reads the workflow again when an action asks", async () => {
+    // Only the page can refresh the listing an action changed
     const user = userEvent.setup();
-    const reportingAction = ({ reload, report }: WorkflowVersionActionProps) => (
-      <button type="button" onClick={() => { report("Version 2.0 is now active"); reload(); }}>report</button>
+    const reloadingAction = ({ reload }: WorkflowVersionActionProps) => (
+      <button type="button" onClick={reload}>reload</button>
     );
-    mockedLoadExtensions.mockResolvedValue([ { "ext:render": reportingAction } ]);
+    mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
     const fetchMock = stubFetch();
     renderManager();
-    const buttons = await screen.findAllByRole("button", { name: "report" });
+    const buttons = await screen.findAllByRole("button", { name: "reload" });
     const listingsBefore = fetchMock.mock.calls.length;
 
     await user.click(buttons[0]);
 
-    expect(await screen.findByText("Version 2.0 is now active")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(listingsBefore);
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(listingsBefore));
   });
 
   it("reports a load failure, and says why", async () => {
