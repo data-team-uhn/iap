@@ -16,16 +16,16 @@
  * limitations under the License.
  */
 
-import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
+import RestoreOutlinedIcon from "@mui/icons-material/RestoreOutlined";
 
 import { EventAction } from "./EventAction";
 import { offers, pathOf, titleOf } from "./schemaModel";
 
 import type { SchemaActionProps } from "./SchemaActions";
 
-// Closes a schema as a whole, which retires every version with it.
-function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
-  if (!offers(schema, "retire")) {
+// Reopens a retired schema, which brings each version back to where it stood.
+function SchemaReopenAction({ schema, reload, report }: SchemaActionProps) {
+  if (!offers(schema, "activate")) {
     return null;
   }
   return (
@@ -33,16 +33,15 @@ function SchemaRetireAction({ schema, reload, report }: SchemaActionProps) {
       path={pathOf(schema)}
       reload={reload}
       report={report}
-      icon={<ArchiveOutlinedIcon fontSize="small" />}
-      label="Retire"
-      event="retire"
-      color="warning"
-      title={`Retire ${titleOf(schema)}`}
-      explanation={"None of its versions will accept new submissions until it is reopened. Existing "
-        + "submissions keep using them."}
-      done={`${titleOf(schema)} is retired`}
+      icon={<RestoreOutlinedIcon fontSize="small" />}
+      label="Reopen"
+      event="activate"
+      title={`Reopen ${titleOf(schema)}`}
+      explanation={"Each version returns to the state it had before the schema was retired. Active "
+        + "versions accept new submissions again, and drafts stay drafts."}
+      done={`${titleOf(schema)} is open again`}
     />
   );
 }
 
-export default SchemaRetireAction;
+export default SchemaReopenAction;
