@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schema/actions",
+  "ext:name": "Reopen the schema",
+  "ext:renderURL": "asset:iap-schemas.SchemaReopenAction.js",
+  "defaultOrder": 25
+}

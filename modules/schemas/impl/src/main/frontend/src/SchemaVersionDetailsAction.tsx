@@ -1,0 +1,58 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { useState } from "react";
+
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
+
+import DetailsDialog, { editableText } from "./DetailsDialog";
+import { labelOf, offers, pathOf } from "./schemaModel";
+import { patch } from "./schemaPatch";
+
+import type { SchemaVersionActionProps } from "./SchemaVersionActions";
+
+// Edits a version's label and description. A published version keeps its label.
+function SchemaVersionDetailsAction({ version, reload }: SchemaVersionActionProps) {
+  const [ editing, setEditing ] = useState(false);
+  const doFetch = useAuthenticatedFetch();
+  if (!offers(version, "update") || editableText(version).length === 0) {
+    return null;
+  }
+  return (
+    <>
+      <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
+      { editing && (
+        <DetailsDialog
+          title={`Version ${labelOf(version)}`}
+          node={version}
+          onSave={async changes => {
+            await sendEvent(doFetch, pathOf(version), "update", patch(changes));
+            reload();
+          }}
+          onClose={() => setEditing(false)}
+        />
+      ) }
+    </>
+  );
+}
+
+export default SchemaVersionDetailsAction;

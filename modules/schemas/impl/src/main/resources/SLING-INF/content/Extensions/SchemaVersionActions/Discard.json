@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "sch/schemaVersion/actions",
+  "ext:name": "Discard the draft",
+  "ext:renderURL": "asset:iap-schemas.SchemaVersionDiscardAction.js",
+  "defaultOrder": 40
+}

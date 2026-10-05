@@ -1,0 +1,51 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { Fragment, useEffect, useState } from "react";
+
+import { Stack } from "@mui/material";
+
+import { getActions, type ActionComponent } from "../actionsManager";
+
+// The actions contributed on one extension point, rendered in order with the props the page gives
+// them. Each decides for itself whether it applies.
+function ActionBar({ point, ...props }: { point: string } & Record<string, unknown>) {
+  const [ actions, setActions ] = useState<ActionComponent[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getActions(point).then(loaded => {
+      if (!cancelled) {
+        setActions(loaded);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ point ]);
+
+  return (
+    <Stack direction="row" spacing={0.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
+      { actions.map((Action, index) => (
+        <Fragment key={`action-${index}`}><Action {...props} /></Fragment>
+      )) }
+    </Stack>
+  );
+}
+
+export default ActionBar;
