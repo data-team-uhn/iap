@@ -37,7 +37,7 @@ export interface Notice {
 // How many notices the page shows at once; past that, the oldest gives way.
 const MAX_SHOWN = 5;
 
-// How long a cheerful notice stays, in milliseconds.
+// How long a positive notice stays, in milliseconds.
 const FADE_AFTER = 4000;
 
 interface ShownNotice extends Notice {
@@ -57,7 +57,7 @@ interface NoticeAlertProps {
 //
 // A failure or a warning stays until it is dismissed or retried: it carries something to read and,
 // often, something to click, so taking it away on a timer would be taking away the remedy. Only the
-// cheerful ones are allowed to fade.
+// positive ones are allowed to fade.
 function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
   const severity = notice.severity ?? "error";
   const transient = severity === "success" || severity === "info";
