@@ -16,23 +16,15 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
 import { Alert, CircularProgress } from "@mui/material";
 import { Navigate, useLocation } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
+import { useWorkflowHomepages } from "./useWorkflowHomepages";
 import WorkflowEditor from "./WorkflowEditor";
 import WorkflowManager from "./WorkflowManager";
-import {
-  adminUrl,
-  consoleTarget,
-  loadWorkflowHomepages,
-  WORKFLOWS_ROOT,
-  type ConsoleTarget,
-} from "./workflowModel";
+import { adminUrl, consoleTarget, WORKFLOWS_ROOT, type ConsoleTarget } from "./workflowModel";
 import WorkflowsView from "./WorkflowsView";
 
 // Everything the console shows below /admin/workflows, chosen by what the URL is about.
@@ -56,30 +48,17 @@ import WorkflowsView from "./WorkflowsView";
 // listing so that a URL a user is likely to type or trim to lands on a page.
 function WorkflowConsole() {
   const location = useLocation();
-  const fetchUtil = useAuthenticatedFetch();
-  const [ homepages, setHomepages ] = useState<string[]>();
-
-  useEffect(() => {
-    let cancelled = false;
-    void loadWorkflowHomepages(fetchUtil).then(discovered => {
-      if (!cancelled) {
-        setHomepages(discovered.map(homepage => homepage.path));
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchUtil]);
+  const { homepages, loading } = useWorkflowHomepages();
 
   // The root is the one URL the homepages have no say in, so it is answered straight away rather
   // than behind a spinner the redirect would throw away. It shows the homepage every admin user has
   // access to, since a listing belongs to a homepage and the root is not a page of its own.
-  const target: ConsoleTarget = consoleTarget(location.pathname, homepages ?? []);
+  const target: ConsoleTarget = consoleTarget(location.pathname, homepages.map(homepage => homepage.path));
   if (target.kind === "root") {
     return <Navigate to={adminUrl(WORKFLOWS_ROOT)} replace />;
   }
 
-  if (homepages === undefined) {
+  if (loading) {
     return (
       <AdminScreen title="Workflows">
         <CircularProgress

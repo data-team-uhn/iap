@@ -16,83 +16,35 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { Skeleton, Typography } from "@mui/material";
 
-import { Chip, CircularProgress, Link as MuiLink, List, ListItem, Stack, Typography } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { useWorkflowCounts } from "./useWorkflowCounts";
+import { adminUrl } from "./workflowModel";
 
-import { adminUrl, loadWorkflowCounts, type WorkflowHomepageCount } from "./workflowModel";
-
-// The chip's label: the count, marked with a "+" when the server only gave a lower bound, or "?" when
-// the count could not be read at all.
-function countLabel(homepage: WorkflowHomepageCount): string {
-  if (homepage.count == undefined) {
-    return "?";
-  }
-  return homepage.atLeast ? `${homepage.count}+` : `${homepage.count}`;
-}
-
-// The administration console widget summarizing the workflows: how many each homepage holds, and
-// nothing more. The workflows themselves are a grid's worth of screen, which a dashboard frame does
-// not have, so the widget answers the question a dashboard is for — is there anything here, and how
-// much — with each homepage's name leading to its own listing, and the frame's "Manage workflows"
-// action (see the extension node) leading to the one every deployment has.
-// There is deliberately no error state: neither half of the load can fail outright. Discovery falls
-// back to the homepage everybody has, and the counts are settled one at a time, so a homepage that
-// could not be counted arrives without a number rather than taking the whole widget down with it.
+// The administration console widget summarizing the workflows: how many each homepage holds, each
+// homepage's name leading to its own listing. The frame's "Manage workflows" action, from the
+// extension node, leads to the one every deployment has.
 function WorkflowsWidget() {
-  const [ counts, setCounts ] = useState<WorkflowHomepageCount[]>();
-  const fetchUtil = useAuthenticatedFetch();
+  const { counts, loading } = useWorkflowCounts();
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadWorkflowCounts(fetchUtil).then(loaded => {
-      if (!cancelled) {
-        setCounts(loaded);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchUtil]);
-
-  if (!counts) {
-    return <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />;
+  if (loading) {
+    return <Skeleton variant="rounded" height={96} aria-label="Loading the workflows" />;
   }
   if (counts.length === 0) {
     return <Typography variant="placeholder">No workflows are defined yet.</Typography>;
   }
-
   return (
-    <List dense disablePadding>
-      {
-        counts.map(homepage => (
-          <ListItem key={homepage.path} disableGutters>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-              {/* A homepage whose count could not be read is still named, with its number left open */}
-              <Chip
-                size="small"
-                color="primary"
-                label={countLabel(homepage)}
-                title={homepage.count == undefined ? "The workflows here could not be counted" : undefined}
-              />
-              {/* Each homepage's name links to its own listing; the frame's "Manage workflows" action
-                  leads to the homepage every deployment has, for when no particular one is in mind. */}
-              <MuiLink
-                component={RouterLink}
-                to={adminUrl(homepage.path)}
-                variant="body2"
-                underline="hover"
-              >
-                {homepage.title}
-              </MuiLink>
-            </Stack>
-          </ListItem>
-        ))
-      }
-    </List>
+    <WidgetStatList
+      stats={counts.map(homepage => ({
+        label: homepage.title,
+        value: homepage.count,
+        approximate: homepage.atLeast,
+        href: adminUrl(homepage.path),
+        unknownTitle: "The workflows here could not be counted",
+      }))}
+    />
   );
 }
 

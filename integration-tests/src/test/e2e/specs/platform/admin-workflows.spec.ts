@@ -47,12 +47,14 @@ test.describe('the workflow editor as an administrative tool', () => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
 
-    // The widget answers what a dashboard is for - is there anything here, and how much - one line
-    // per homepage. A count rather than a particular count: this project shares one instance across
-    // its specs, and creating workflows is what several of them are about.
-    const stored = page.getByRole('listitem')
-      .filter({ has: page.getByRole('link', { name: 'Workflows', exact: true }) });
-    await expect(stored).toContainText(/\d/);
+    // The widget answers what a dashboard is for - is there anything here, and how much - one entry
+    // per homepage: its link as a term, its count the definition after it. A count rather than a
+    // particular count: this project shares one instance across its specs, and creating workflows is
+    // what several of them are about.
+    const stored = page.getByRole('term')
+      .filter({ has: page.getByRole('link', { name: 'Workflows', exact: true }) })
+      .locator('xpath=following-sibling::dd[1]');
+    await expect(stored).toHaveText(/\d/);
   });
 
   test('opens the console at the homepage the dashboard points at', async ({ page }) => {

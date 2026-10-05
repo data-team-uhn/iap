@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import { Button, CircularProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
@@ -24,11 +24,11 @@ import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import NewWorkflowDialog from "./NewWorkflowDialog";
+import { useWorkflowHomepages } from "./useWorkflowHomepages";
 import { WORKFLOW_TYPE } from "./workflowGrid";
-import { adminUrl, loadWorkflowHomepages, type WorkflowHomepage } from "./workflowModel";
+import { adminUrl } from "./workflowModel";
 
 // The "Workflows" administrative tool: every workflow this instance can see, in the shared
 // administration chrome (routed at /admin/workflows, see the extension node under
@@ -49,22 +49,9 @@ interface WorkflowsViewProps {
 }
 
 function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
-  const [ homepages, setHomepages ] = useState<WorkflowHomepage[]>();
+  const { homepages, loading } = useWorkflowHomepages();
   const [ creating, setCreating ] = useState(false);
-  const fetchUtil = useAuthenticatedFetch();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let cancelled = false;
-    void loadWorkflowHomepages(fetchUtil).then(discovered => {
-      if (!cancelled) {
-        setHomepages(discovered);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchUtil]);
 
   // A workflow just created has one draft version and nothing drawn in it yet, so the editor is
   // where its author is going next
@@ -80,21 +67,21 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
       variant="contained"
       startIcon={<AddIcon />}
       onClick={() => setCreating(true)}
-      disabled={homepages === undefined || homepages.length === 0}
+      disabled={loading || homepages.length === 0}
     >
       New workflow
     </Button>
   );
 
   // A lone homepage is the page's own subject: a single tab would name what the heading already says
-  const several = (homepages?.length ?? 0) > 1;
+  const several = homepages.length > 1;
   // Resolved against the homepages actually discovered, not just trusted. Read from the URL rather
   // than held in state, so there's one answer instead of two that could disagree.
-  const listed = homepages?.some(homepage => homepage.path === opened) ? opened : homepages?.[0]?.path;
+  const listed = homepages.some(homepage => homepage.path === opened) ? opened : homepages[0]?.path;
 
   return (
     <AdminScreen title="Workflows" action={action}>
-      { homepages === undefined
+      { loading
         ? <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />
         : homepages.length === 0
           ? (
@@ -134,7 +121,7 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
               )}
             </Stack>
           )}
-      { creating && homepages && (
+      { creating && (
         <NewWorkflowDialog
           homepages={homepages}
           // Default to creating a new workflow based on the selected homepage tab
