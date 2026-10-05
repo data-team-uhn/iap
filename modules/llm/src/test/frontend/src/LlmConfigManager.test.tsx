@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import LlmConfigManager from "@iap/llm/LlmConfigManager";
 
@@ -82,7 +83,7 @@ const chooseOption = async (selectName: string, option: string) => {
   fireEvent.click(within(listbox).getByRole("option", { name: option }));
 };
 
-const renderManager = () => render(<MemoryRouter><LlmConfigManager /></MemoryRouter>);
+const renderManager = () => render(<MemoryRouter><LlmConfigManager /></MemoryRouter>, { wrapper: NoticeProvider });
 
 const loaded = async () => {
   renderManager();

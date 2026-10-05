@@ -41,7 +41,7 @@ import { Link as RouterLink } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
@@ -105,7 +105,7 @@ export function ArchiveBrowser() {
   const [ settled, setSettled ] = useState(false);
   const [ loadError, setLoadError ] = useState<string | null>(null);
 
-  const [ notice, setNotice ] = useState<Notice>();
+  const notify = useNotice();
   const [ busyPath, setBusyPath ] = useState<string | null>(null);
   const [ confirming, setConfirming ] = useState<ArchiveEntry | null>(null);
 
@@ -158,7 +158,7 @@ export function ArchiveBrowser() {
     setBusyPath(entry.path);
     action(doFetch, entry.path)
       .then((response: ActionResponse) => {
-        setNotice(describeOutcome(response, retry));
+        notify(describeOutcome(response, retry));
         // Only a completed action changes what the table should show; a refusal changed nothing.
         if (response.status === "restored" || response.status === "deleted") {
           setReloadKey(key => key + 1);
@@ -166,7 +166,7 @@ export function ArchiveBrowser() {
       })
       .catch(() => {
         // Nothing reached the server, so nothing was decided: this is the outcome most worth another go
-        setNotice({ severity: "error", title: "The request could not be sent.", onRetry: retry });
+        notify({ severity: "error", title: "The request could not be sent.", onRetry: retry });
       })
       .finally(() => { setBusyPath(null); });
   };
@@ -301,7 +301,6 @@ export function ArchiveBrowser() {
         </ResponsiveDialog>
       )}
 
-      <NoticeSnackbar notice={notice} onClose={() => { setNotice(undefined); }} />
     </AdminScreen>
   );
 }

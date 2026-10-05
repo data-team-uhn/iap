@@ -23,7 +23,7 @@ import { Button, Typography } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 import CategoryDialog, { SaveStepFailure, type CategorySubmission, type SaveStep } from "./CategoryDialog";
@@ -66,13 +66,13 @@ function CategoryManager() {
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
   const [ retireTarget, setRetireTarget ] = useState<CategoryNode>();
-  const [ notice, setNotice ] = useState<Notice>();
+  const notify = useNotice();
 
   // The row actions that act the moment they are clicked have no dialog of their own to report
   // back in, so they report over the tree instead - naming what did not happen, and offering the
   // attempt again. A retry that fails in turn raises its own notice.
   const run = (title: string, action: () => Promise<void>): void => {
-    action().catch((error: unknown) => setNotice({
+    action().catch((error: unknown) => notify({
       title,
       message: messageOf(error),
       onRetry: () => { run(title, action); },
@@ -180,7 +180,6 @@ function CategoryManager() {
             onRetire={node => setRetired(node.path, true)}
           />
         )}
-      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </AdminScreen>
   );
 }
