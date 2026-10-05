@@ -21,16 +21,49 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   id="reactivateSchemaVersionDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/reactivateSchemaVersion">
   <bpmn:message id="activateMessage" name="activate" />
   <bpmn:process id="reactivateSchemaVersion" name="Reactivate a schema version" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Requested">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionGroup</sv:value></sv:property>
+          <sv:property sv:name="requireAll" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          <sv:node sv:name="retired">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>retired</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="schemaOpen">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>excludes</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>inheritedTags</sv:value></sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>retired</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:outgoing>toMarkActive</bpmn:outgoing>
       <bpmn:messageEventDefinition id="activateRequested" messageRef="activateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMarkActive" sourceRef="requested" targetRef="markActive" />
-    <bpmn:serviceTask id="markActive" name="Mark it as active">
+    <bpmn:serviceTask id="markActive" iap:handler="addTag" iap:replaceExisting="true" iap:tag="active" name="Mark it as active">
       <bpmn:incoming>toMarkActive</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

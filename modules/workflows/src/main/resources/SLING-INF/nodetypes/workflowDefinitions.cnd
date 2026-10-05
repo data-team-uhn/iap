@@ -116,6 +116,14 @@
   // SHA-256 hash of the bpmnXml file at the time of the last successful parse into flow nodes
   - bpmnXmlParsedHash (STRING)
 
+  // Whether this version's diagram is the source of its flow nodes. When true the editor owns them
+  // outright: it derives them automatically from the bpmn.xml whenever it is updated.
+  //
+  // False for a version whose flow nodes were written by hand.
+  //
+  // The flag is temporary. It goes away once the synchronization process is fully functional.
+  - bpmnAuthoritative (BOOLEAN) = false
+
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
 

@@ -21,16 +21,17 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="updateSchemaDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/updateSchema">
   <bpmn:message id="updateMessage" name="update" />
   <bpmn:process id="updateSchema" name="Edit a schema" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Requested">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
       <bpmn:outgoing>toUpdate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" name="Apply the changes">
+    <bpmn:serviceTask id="update" iap:fields="title" iap:handler="updateSchemaContent" name="Apply the changes">
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

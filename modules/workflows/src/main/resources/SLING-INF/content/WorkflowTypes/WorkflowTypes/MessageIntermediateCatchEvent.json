@@ -6,5 +6,6 @@
   "priority": 10,
   "xmlElement": "bpmn:intermediateCatchEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
-  "jcrNodeType": "wf:IntermediateCatchingEvent"
+  "jcrNodeType": "wf:IntermediateCatchingEvent",
+  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
 }
