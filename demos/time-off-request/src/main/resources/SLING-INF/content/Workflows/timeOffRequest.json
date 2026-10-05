@@ -1,7 +1,6 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Time off request",
-  "active": true,
   "systemWorkflow": false,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",

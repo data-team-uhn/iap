@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Create a schema",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "state": "ACTIVE",
     "targetResourceType": "sch/SchemasHomepage",
     "description": "What happens when a new schema is asked for: the schema, named after its title, then its first version. Administrators only.",
     "requested": {

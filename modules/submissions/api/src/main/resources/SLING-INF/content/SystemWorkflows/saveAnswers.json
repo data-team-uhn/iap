@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Save a submission's answers",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "state": "ACTIVE",
     "targetResourceType": "sub/Submission",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",

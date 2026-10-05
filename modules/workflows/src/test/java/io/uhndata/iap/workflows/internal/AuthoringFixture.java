@@ -175,7 +175,8 @@ final class AuthoringFixture
     static WorkflowTaskContextImpl context(final Resource target, final String event,
         final Map<String, Object> payload, final Activity activity, final Map<String, Object> variables)
     {
-        return new WorkflowTaskContextImpl(target, new WorkflowEvent(event, payload), activity, variables, ACTOR);
+        return new WorkflowTaskContextImpl(target, new WorkflowEvent(event, payload), activity, variables, ACTOR,
+            EngineFixture.noFurtherTasks(), 0);
     }
 
     /**

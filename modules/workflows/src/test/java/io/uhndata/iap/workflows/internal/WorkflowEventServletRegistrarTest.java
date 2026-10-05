@@ -41,7 +41,9 @@ import org.osgi.framework.ServiceReference;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,9 +77,10 @@ class WorkflowEventServletRegistrarTest
         EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         // An inactive version still keeps its type out of the Sling POST servlet's reach
         this.context.create().resource("/SystemWorkflows/editSchema", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Edit", "active", false));
+            TYPE, "wf/WorkflowDefinition", "title", "Edit"));
         this.context.create().resource("/SystemWorkflows/editSchema/v1", Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", "active", false, "targetResourceType", "sch/Schema"));
+            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, WorkflowVersion.State.DRAFT.name(),
+            "targetResourceType", "sch/Schema"));
 
         activate();
 

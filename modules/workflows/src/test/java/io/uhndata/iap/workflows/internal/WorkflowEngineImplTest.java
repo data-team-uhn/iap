@@ -908,7 +908,7 @@ class WorkflowEngineImplTest
     void runsTheWorkflowAnEventIsSentToAsPartOfTheSameExecution() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         sendAfterCreating("initialize");
         createChainedWorkflow("initialize", EngineFixture.ADMIN, Map.of(
@@ -930,7 +930,7 @@ class WorkflowEngineImplTest
     void refusesTheWholeEventWhenNothingWaitsForTheOneItSends() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         sendAfterCreating("initialize");
 
@@ -943,7 +943,7 @@ class WorkflowEngineImplTest
     void refusesTheWholeEventWhenTheUserMayNotSendTheOneItSends() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
         sendAfterCreating("initialize");
         createChainedWorkflow("initialize", "some-other-group", Map.of("handler", "noop"));
@@ -1026,9 +1026,9 @@ class WorkflowEngineImplTest
         final String performer, final Map<String, Object> activity)
     {
         this.context.create().resource(version.substring(0, version.lastIndexOf('/')), Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", message, "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", message));
         this.context.create().resource(version, Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true, "targetResourceType", targetType));
+            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, ACTIVE, "targetResourceType", targetType));
         this.context.create().resource(version + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", message,
             "performers", new String[] { performer }));

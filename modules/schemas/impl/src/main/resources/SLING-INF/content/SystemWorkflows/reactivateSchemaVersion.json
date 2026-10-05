@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Reactivate a schema version",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "state": "ACTIVE",
     "targetResourceType": "sch/SchemaVersion",
     "description": "Opens a retired version to new submissions again, while its schema is open.",
     "requested": {
