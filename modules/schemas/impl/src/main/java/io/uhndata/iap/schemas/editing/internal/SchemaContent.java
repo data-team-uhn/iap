@@ -91,7 +91,7 @@ final class SchemaContent
      * checked out, which changes nothing about what it holds.</p>
      *
      * @param resource the node about to be modified, or whose children are about to change
-     * @throws PersistenceException when the checkout fails
+     * @throws PersistenceException when the checkout fails, or nothing versionable holds the node read-only
      */
     static void checkOut(@NotNull final Resource resource) throws PersistenceException
     {
@@ -103,6 +103,10 @@ final class SchemaContent
             }
             Node versionable = node;
             while (!versionable.isNodeType("mix:versionable")) {
+                if (versionable.getDepth() == 0) {
+                    throw new PersistenceException("Cannot check out " + resource.getPath()
+                        + ": it is read-only, but neither it nor anything above it is versionable");
+                }
                 versionable = versionable.getParent();
             }
             versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());
