@@ -1,0 +1,86 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Publish a schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaVersion",
+    "description": "Opens a draft to new submissions, once nothing in it would break when frozen. The version it replaces is left alone.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "activate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "draft": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "tags"
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["draft"]
+          }
+        },
+        "schemaOpen": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": ["inheritedTags"]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["retired"]
+          }
+        }
+      },
+      "toCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheck",
+        "targetRef": "check"
+      }
+    },
+    "check": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "check",
+      "label": "Check it can be published",
+      "handler": "checkPublishable",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMarkActive": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkActive",
+        "targetRef": "markActive"
+      }
+    },
+    "markActive": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markActive",
+      "label": "Mark it as active",
+      "handler": "addTag",
+      "tag": "active",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema version published",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

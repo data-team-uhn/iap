@@ -1,0 +1,74 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Reactivate a schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaVersion",
+    "description": "Opens a retired version to new submissions again, while its schema is open.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "activate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "retired": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "tags"
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["retired"]
+          }
+        },
+        "schemaOpen": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": ["inheritedTags"]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["retired"]
+          }
+        }
+      },
+      "toMarkActive": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkActive",
+        "targetRef": "markActive"
+      }
+    },
+    "markActive": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markActive",
+      "label": "Mark it as active",
+      "handler": "addTag",
+      "tag": "active",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema version reactivated",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

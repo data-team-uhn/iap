@@ -1,0 +1,69 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Create a schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/Schema",
+    "description": "Adds an empty version to an open schema, as a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "createVersion",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["retired"]
+        }
+      },
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the version",
+      "handler": "createSchemaVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMarkDraft": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkDraft",
+        "targetRef": "markDraft"
+      }
+    },
+    "markDraft": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markDraft",
+      "label": "Mark it as a draft",
+      "handler": "addTag",
+      "tag": "draft",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema version created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

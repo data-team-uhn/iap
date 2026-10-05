@@ -46,4 +46,20 @@ test.describe('the system workflows', () => {
     expect(step.status(), 'the step was not served').toBe(200);
     expect((await step.json() as { handler?: string }).handler).toBe('createEntity');
   });
+
+  test('ship their diagrams as files, served as XML', async ({ request }) => {
+    await ensureUser(request, BYSTANDER);
+    const asBystander = { headers: basicAuth(BYSTANDER), maxRedirects: 0 };
+
+    // A bundle's XML is imported as content unless its initial content says otherwise, so a diagram
+    // that loaded as nodes would be missing as a file
+    const node = await request.get('/SystemWorkflows/createSchema/v1/bpmn.xml.json', asBystander);
+    expect(node.status(), 'the diagram was not served').toBe(200);
+    expect((await node.json() as { 'jcr:primaryType'?: string })['jcr:primaryType']).toBe('nt:file');
+
+    const diagram = await request.get('/SystemWorkflows/createSchema/v1/bpmn.xml', asBystander);
+    expect(diagram.status()).toBe(200);
+    expect(diagram.headers()['content-type']).toContain('application/xml');
+    expect(await diagram.text()).toContain('<bpmn:callActivity id="addVersion"');
+  });
 });

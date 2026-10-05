@@ -1,0 +1,57 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retire a schema version",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sch/SchemaVersion",
+    "description": "Closes an active version to new submissions; the submissions filed under it keep referencing it.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "retire",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["active"]
+        }
+      },
+      "toMarkRetired": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkRetired",
+        "targetRef": "markRetired"
+      }
+    },
+    "markRetired": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markRetired",
+      "label": "Mark it as retired",
+      "handler": "addTag",
+      "tag": "retired",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Schema version retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
