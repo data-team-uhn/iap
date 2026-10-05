@@ -20,9 +20,9 @@ import { useState, type ReactNode } from "react";
 
 import { DialogContentText, IconButton, Tooltip } from "@mui/material";
 
-import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { useAuthenticatedFetch } from "../reLogin";
+import { sendEvent } from "../workflowEvents";
+import ConfirmActionDialog from "./ConfirmActionDialog";
 
 interface EventActionProps {
   path: string;
@@ -38,8 +38,8 @@ interface EventActionProps {
   icon: ReactNode;
 }
 
-// A lifecycle event on a schema or a version. It asks for confirmation first, because it changes what
-// submitters can do, not just what this page shows.
+// A workflow event sent to a node from an icon button. It asks for confirmation first, because the
+// event changes the node itself, not just what this page shows.
 export function EventAction(props: EventActionProps) {
   const { path, reload, report, label, event, title, explanation, done, color } = props;
   const [ confirming, setConfirming ] = useState(false);

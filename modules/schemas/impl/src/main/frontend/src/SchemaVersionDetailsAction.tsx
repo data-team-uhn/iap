@@ -20,11 +20,11 @@ import { useState } from "react";
 
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
+import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import DetailsDialog, { editableText } from "./DetailsDialog";
-import { ActionIcon } from "./EventAction";
 import { labelOf, offers, pathOf } from "./schemaModel";
 import { patch } from "./schemaPatch";
 
