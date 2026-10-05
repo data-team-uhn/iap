@@ -20,11 +20,11 @@ import {
   adminUrl,
   consoleTarget,
   forgetWorkflowHomepages,
-  loadWorkflow,
   loadWorkflowCounts,
   loadWorkflowHomepages,
   nextVersionLabel,
   stateOf,
+  workflowFrom,
   type WorkflowSummary,
 } from "@iap/workflows/workflowModel";
 
@@ -84,16 +84,10 @@ describe("stateOf", () => {
   });
 });
 
-describe("loadWorkflow", () => {
-  it("asks for the definition and its versions, and summarizes what comes back", async () => {
-    const fetchUtil = answering(definition);
+describe("workflowFrom", () => {
+  it("summarizes the definition and its versions", () => {
+    const workflow = workflowFrom("/Workflows/review", definition);
 
-    const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
-
-    // One level deep: the page reads only a version's own properties, so serializing each version's
-    // diagram and parsed graph as well would be fetching a whole workflow to draw a table row. And with
-    // the events the server offers on each, which decide the actions
-    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.1.events.json");
     expect(workflow).toMatchObject({
       path: "/Workflows/review",
       name: "review",
@@ -113,76 +107,62 @@ describe("loadWorkflow", () => {
     });
   });
 
-  it("reads a workflow as running exactly while one of its versions is active", async () => {
+  it("reads a workflow as running exactly while one of its versions is active", () => {
     // Not a property of the definition: the same question asked of the versions, so the two can never
     // disagree. A trial doesn't count, since instances are never created from one.
-    const running = await loadWorkflow(answering(definition), "/Workflows/review");
+    const running = workflowFrom("/Workflows/review", definition);
     expect(running.active).toBe(true);
 
-    const notRunning = await loadWorkflow(answering({
+    const notRunning = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "TRIAL" },
       "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "RETIRED" },
-    }), "/Workflows/review");
+    });
     expect(notRunning.active).toBe(false);
   });
 
-  it("reads a workflow as retired when a version is retired and none is active", async () => {
-    const running = await loadWorkflow(answering(definition), "/Workflows/review");
+  it("reads a workflow as retired when a version is retired and none is active", () => {
+    const running = workflowFrom("/Workflows/review", definition);
     expect(running.retired).toBe(false);
 
-    const retired = await loadWorkflow(answering({
+    const retired = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
       "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "TRIAL" },
-    }), "/Workflows/review");
+    });
     expect(retired.retired).toBe(true);
 
     // Never having run is not the same as having been retired
-    const unreleased = await loadWorkflow(answering({
+    const unreleased = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
       "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "DRAFT" },
-    }), "/Workflows/review");
+    });
     expect(unreleased.retired).toBe(false);
   });
 
-  it("ignores children that are not versions, and dangling nulls", async () => {
+  it("ignores children that are not versions, and dangling nulls", () => {
     // typeof null === "object", so the null entry is exactly the kind of thing a listing must not
     // trip over
-    const workflow = await loadWorkflow(answering(definition), "/Workflows/review");
+    const workflow = workflowFrom("/Workflows/review", definition);
 
     expect(workflow.versions).toHaveLength(3);
   });
 
-  it("reads a version with no state as having none, and fills in what is missing", async () => {
-    const fetchUtil = answering(definition);
-
-    const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
+  it("reads a version with no state as having none, and fills in what is missing", () => {
+    const workflow = workflowFrom("/Workflows/review", definition);
 
     expect(workflow.versions[2]).toMatchObject({
       version: "3.0", state: null, description: "", lastModified: "", events: [],
     });
   });
 
-  it("falls back to the node name for an untitled workflow", async () => {
-    const fetchUtil = answering({ "jcr:primaryType": "wf:WorkflowDefinition" });
-
-    const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
+  it("falls back to the node name for an untitled workflow", () => {
+    const workflow = workflowFrom("/Workflows/review", { "jcr:primaryType": "wf:WorkflowDefinition" });
 
     expect(workflow.title).toBe("review");
     expect(workflow.active).toBe(false);
     expect(workflow.versions).toEqual([]);
-  });
-
-  // A refusal answers with an error page rather than with JSON, so the status has to be read before
-  // the body: parsing first reports how the body disappointed the parser, not what was refused.
-  it("rejects with the status when the server refused, without reading the body", async () => {
-    const json = vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
-    const fetchUtil = vi.fn<FetchStub>(() => Promise.resolve({ ok: false, status: 403, json } as unknown as Response));
-
-    await expect(loadWorkflow(fetchUtil, "/Workflows/review")).rejects.toMatchObject({ status: 403 });
-    expect(json).not.toHaveBeenCalled();
   });
 });
 

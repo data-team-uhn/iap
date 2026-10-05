@@ -16,32 +16,22 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
+import { useNode } from "@iap/frontend-commons/useNode";
 
-import { loadWorkflow, type WorkflowSummary } from "./workflowModel";
+import { workflowFrom, type JcrNode } from "./workflowModel";
 
 // One workflow and its versions: what its page and its versions' pages show.
+//
+// One level of children is exactly what the page renders — the definition's own properties and the
+// versions under it — so the depth selector both turns on child serialization and stops it there,
+// leaving a version's own children (the diagram file, the parsed flow nodes) out of the response
+// rather than dragging a whole graph in behind every row. `events` adds what the current user may send
+// each of them, which decides the actions offered.
 export function useWorkflow(path: string) {
-  const fetchUtil = useAuthenticatedFetch();
-  const [ workflow, setWorkflow ] = useState<WorkflowSummary>();
-  const [ loadError, setLoadError ] = useState<string>();
+  const parse = useCallback((definition: JcrNode) => workflowFrom(path, definition), [ path ]);
+  const { value, loading, loadError, reload } = useNode(path, "1.events", parse);
 
-  const reload = useCallback((): Promise<void> =>
-    loadWorkflow(fetchUtil, path)
-      .then(loaded => {
-        setWorkflow(loaded);
-        setLoadError(undefined);
-      })
-      .catch((error: unknown) => {
-        setLoadError(describeRequestFailure(error));
-      }), [ fetchUtil, path ]);
-
-  useEffect(() => {
-    void reload();
-  }, [ reload ]);
-
-  return { workflow, loading: workflow === undefined && loadError === undefined, loadError, reload };
+  return { workflow: value, loading, loadError, reload };
 }

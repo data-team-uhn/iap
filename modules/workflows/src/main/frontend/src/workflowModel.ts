@@ -21,7 +21,7 @@
 
 import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { RequestError } from "@iap/frontend-commons/requestFailure";
+import { readNode } from "@iap/frontend-commons/useNode";
 
 // The workflow definitions' canonical home; others may exist (the platform's own under
 // /SystemWorkflows, another location's mirrored locally) but are discovered rather than listed here —
@@ -153,38 +153,21 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
     });
 }
 
-// One level of children is exactly what the page renders — the definition's own properties and the
-// versions under it — so the depth selector both turns on child serialization and stops it there,
-// leaving a version's own children (the diagram file, the parsed flow nodes) out of the response
-// rather than dragging a whole graph in behind every row. `events` adds what the current user may send
-// each of them, which decides the actions offered.
-//
-// The status is read off the response before the body is parsed, because a refusal answers with an
-// error page rather than with JSON: parsing it first reports how the body disappointed the parser,
-// which says nothing about what was refused.
-export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promise<WorkflowSummary> {
-  return fetchUtil(`${path}.1.events.json`)
-    .then(response => {
-      if (!response.ok) {
-        throw new RequestError(response.status);
-      }
-      return response.json() as Promise<JcrNode>;
-    })
-    .then(definition => {
-      const versions = parseVersions(path, definition);
-      return {
-        path,
-        name: path.slice(path.lastIndexOf("/") + 1),
-        title: text(definition.title) || path.slice(path.lastIndexOf("/") + 1),
-        active: versions.some(version => version.state === "ACTIVE"),
-        retired: versions.some(version => version.state === "RETIRED")
-          && !versions.some(version => version.state === "ACTIVE"),
-        created: text(definition["jcr:created"]),
-        lastModified: text(definition["jcr:lastModified"]),
-        events: strings(definition["@events"]),
-        versions,
-      };
-    });
+// Reads a workflow from its definition, as served with its versions and the events offered on each.
+export function workflowFrom(path: string, definition: JcrNode): WorkflowSummary {
+  const versions = parseVersions(path, definition);
+  return {
+    path,
+    name: path.slice(path.lastIndexOf("/") + 1),
+    title: text(definition.title) || path.slice(path.lastIndexOf("/") + 1),
+    active: versions.some(version => version.state === "ACTIVE"),
+    retired: versions.some(version => version.state === "RETIRED")
+      && !versions.some(version => version.state === "ACTIVE"),
+    created: text(definition["jcr:created"]),
+    lastModified: text(definition["jcr:lastModified"]),
+    events: strings(definition["@events"]),
+    versions,
+  };
 }
 
 // Cached for the life of the session: every console URL below /admin/workflows is resolved against
@@ -216,13 +199,7 @@ export function forgetWorkflowHomepages(): void {
 }
 
 function fetchHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
-  return fetchUtil(`${WORKFLOWS_ROOT}.homepages.json`)
-    .then(response => {
-      if (!response.ok) {
-        throw new RequestError(response.status);
-      }
-      return response.json() as Promise<{ homepages?: unknown }>;
-    })
+  return readNode(fetchUtil, WORKFLOWS_ROOT, "homepages")
     .then(answer => (Array.isArray(answer.homepages) ? answer.homepages : [])
       .filter(isNode)
       .map(homepage => ({ path: text(homepage.path), title: text(homepage.title) }))

@@ -173,11 +173,15 @@ describe("WorkflowManager", () => {
   });
 
   it("lists every version with its state", async () => {
-    stubFetch();
+    const fetchMock = stubFetch();
 
     renderManager();
 
     const rows = await screen.findAllByRole("row");
+    // One level deep: a row shows only a version's own properties, so serializing each version's
+    // diagram and parsed graph as well would be fetching a whole workflow to draw a table row. And with
+    // the events the server offers on each, which decide the actions
+    expect(fetchMock.mock.calls[0][0]).toBe(`${WORKFLOW_PATH}.1.events.json`);
     // The header, then one row per version, in the repository's own order
     expect(rows).toHaveLength(4);
     expect(within(rows[1]).getByText("1.0")).toBeInTheDocument();
