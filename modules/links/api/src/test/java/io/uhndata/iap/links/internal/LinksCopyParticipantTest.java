@@ -15,34 +15,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.editing.internal;
+package io.uhndata.iap.links.internal;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
-import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link SchemaContent}.
+ * Unit tests for {@link LinksCopyParticipant}: the links container stays out of copies, other children do not.
  *
  * @version $Id$
  * @since 0.1.0
  */
-class SchemaContentTest
+class LinksCopyParticipantTest
 {
-    @Test
-    void reportsContentThatCannotBeCheckedOut() throws RepositoryException
-    {
-        final Resource target = Mockito.mock(Resource.class);
-        final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isCheckedOut()).thenThrow(new RepositoryException("gone"));
-        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
+    private final LinksCopyParticipant participant = new LinksCopyParticipant();
 
-        assertThrows(PersistenceException.class, () -> SchemaContent.checkOut(target));
+    @Test
+    void leavesOutTheLinksContainer() throws RepositoryException
+    {
+        assertTrue(this.participant.skips(child("link:links")));
+        assertFalse(this.participant.skips(child("form")));
+    }
+
+    private static Node child(final String name) throws RepositoryException
+    {
+        final Node child = Mockito.mock(Node.class);
+        Mockito.when(child.getName()).thenReturn(name);
+        return child;
     }
 }

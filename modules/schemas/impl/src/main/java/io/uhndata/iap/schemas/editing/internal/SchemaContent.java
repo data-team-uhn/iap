@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
@@ -98,18 +99,7 @@ final class SchemaContent
         final Node node = Objects.requireNonNull(resource.adaptTo(Node.class),
             "Schemas are stored in a JCR repository");
         try {
-            if (node.isCheckedOut()) {
-                return;
-            }
-            Node versionable = node;
-            while (!versionable.isNodeType("mix:versionable")) {
-                if (versionable.getDepth() == 0) {
-                    throw new PersistenceException("Cannot check out " + resource.getPath()
-                        + ": it is read-only, but neither it nor anything above it is versionable");
-                }
-                versionable = versionable.getParent();
-            }
-            versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());
+            VersioningUtils.checkOut(node);
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot check out " + resource.getPath(), e);
         }

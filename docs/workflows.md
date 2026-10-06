@@ -321,6 +321,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
+| `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
 waits for it to finish. It does so by sending the event named in its `message` to the
@@ -354,6 +355,19 @@ They act on what the execution has created, once it has created something, and o
 target otherwise, the same rule `startWorkflow` and `callActivity` follow. They may place
 and remove `system` tags. Only tags placed on the host itself are touched; inherited or
 computed tags are unaffected.
+
+`copyContent` is how a workflow starts something as a copy of something else, e.g. a
+schema version from another. The copy is made with the `ContentCopier` service
+(`java-utils`), which copies any structure node by node in the engine's commit: names,
+types, order and binaries are kept, references inside the copy point at the copies and
+references outside are kept, and protected properties and modification stamps are left
+out. `sourceType` refuses any other kind of source, `skipProperties` leaves out
+properties of the source node itself, such as a label the copy has its own of, and
+`dropTagCategories` leaves out its tags in those categories. What a module maintains
+rather than stores, it keeps out of copies, or adjusts in them, with a
+`CopyParticipant`: the tags module leaves out computed tags, the links module the links
+container, and the conditions module points `answer` operands naming a question by UUID
+at its copy.
 
 ## Sling Models
 

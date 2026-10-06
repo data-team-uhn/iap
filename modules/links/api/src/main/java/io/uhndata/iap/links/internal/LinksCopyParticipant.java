@@ -15,34 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.editing.internal;
+package io.uhndata.iap.links.internal;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
-import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.osgi.service.component.annotations.Component;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import io.uhndata.iap.links.api.LinkManager;
+import io.uhndata.iap.utils.copy.CopyParticipant;
 
 /**
- * Unit tests for {@link SchemaContent}.
+ * Keeps a node's links out of its copies: they say how the original relates to other content, and the copy has
+ * its own container, created with it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-class SchemaContentTest
+@Component(service = CopyParticipant.class)
+public class LinksCopyParticipant implements CopyParticipant
 {
-    @Test
-    void reportsContentThatCannotBeCheckedOut() throws RepositoryException
+    @Override
+    public boolean skips(final Node child) throws RepositoryException
     {
-        final Resource target = Mockito.mock(Resource.class);
-        final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isCheckedOut()).thenThrow(new RepositoryException("gone"));
-        Mockito.when(target.adaptTo(Node.class)).thenReturn(node);
-
-        assertThrows(PersistenceException.class, () -> SchemaContent.checkOut(target));
+        return LinkManager.CONTAINER_NAME.equals(child.getName());
     }
 }
