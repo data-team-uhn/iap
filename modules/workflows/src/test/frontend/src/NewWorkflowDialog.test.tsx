@@ -23,7 +23,7 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import NewWorkflowDialog from "@iap/workflows/NewWorkflowDialog";
-import { forgetWorkflowHomepages } from "@iap/workflows/workflowModel";
+import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 
 // The homepage discovery is kept for the life of the session, so each test starts from an unasked one
 beforeEach(forgetWorkflowHomepages);

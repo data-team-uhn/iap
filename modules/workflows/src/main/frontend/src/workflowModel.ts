@@ -17,11 +17,7 @@
  */
 
 // What the workflow screens know about the repository: where workflows live, how a version's
-// lifecycle reads, and how one workflow's versions are listed.
-
-import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
-import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { readNode } from "@iap/frontend-commons/useNode";
+// lifecycle reads, and how one workflow's versions are listed. No React, no fetch.
 
 // The workflow definitions' canonical home; others may exist (the platform's own under
 // /SystemWorkflows, another location's mirrored locally) but are discovered rather than listed here —
@@ -141,61 +137,12 @@ export function workflowFrom(path: string, definition: JcrNode): WorkflowSummary
   };
 }
 
-// Cached for the life of the session: every console URL below /admin/workflows is resolved against
-// this list, so asking once per navigation would be wasteful. Homepages change only when a bundle
-// installs or is removed — a restart, hence a new session — so this cache is never stale. An
-// in-flight request is shared, so concurrent page mounts ask the server only once.
-let discovered: WorkflowHomepage[] | null = null;
-let discovery: Promise<WorkflowHomepage[]> | null = null;
-
-// The homepages the current user may list workflows from, the queried one first — asked of
-// /Workflows (which always exists) and answered with every homepage the user can read, so a
-// deployment that adds one (the platform's own system workflows, another location's) needs nothing
-// configured here. A failed ask falls back to the one homepage everybody has, rather than to nothing.
-export function loadWorkflowHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
-  if (discovered) {
-    return Promise.resolve(discovered);
-  }
-  discovery ??= fetchHomepages(fetchUtil)
-    .then(homepages => discovered = homepages)
-    .finally(() => discovery = null);
-  return discovery;
-}
-
-// Forgets the discovery, so that the next ask goes to the server. For tests, and for a caller that
-// has reason to believe the set of homepages has changed under it.
-export function forgetWorkflowHomepages(): void {
-  discovered = null;
-  discovery = null;
-}
-
-function fetchHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
-  return readNode(fetchUtil, WORKFLOWS_ROOT, "homepages")
-    .then(answer => (Array.isArray(answer.homepages) ? answer.homepages : [])
-      .filter(isNode)
-      .map(homepage => ({ path: text(homepage.path), title: text(homepage.title) }))
-      .filter(homepage => homepage.path !== ""))
-    .catch((error: unknown) => {
-      console.error("Failed to discover the workflow homepages; listing the default one only", error);
-      return [ { path: WORKFLOWS_ROOT, title: "Workflows" } ];
-    });
-}
-
-// One count per homepage, asked of the pagination endpoint with a page of no rows — exactly a count
-// and nothing else, which is what a summary needs. Counted independently and settled rather than
-// joined, so a homepage that can't be counted (unreadable, or a failed request) loses only its own
-// number instead of blanking every other homepage's count too.
-export function loadWorkflowCounts(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepageCount[]> {
-  return loadWorkflowHomepages(fetchUtil).then(homepages => Promise.allSettled(
-    homepages.map(homepage => fetchEntityPage(fetchUtil, { homepage: homepage.path, limit: 0 }))
-  ).then(answers => answers.map((answer, index) => {
-    const homepage = homepages[index];
-    if (answer.status === "rejected") {
-      console.error(`Failed to count the workflows in ${homepage.path}`, answer.reason);
-      return { ...homepage, atLeast: false };
-    }
-    return { ...homepage, count: answer.value.totalrows, atLeast: answer.value.totalIsApproximate };
-  })));
+// The homepages a discovery answer names, each one that has a path, in the order given.
+export function homepagesFrom(answer: JcrNode): WorkflowHomepage[] {
+  return (Array.isArray(answer.homepages) ? answer.homepages : [])
+    .filter(isNode)
+    .map(homepage => ({ path: text(homepage.path), title: text(homepage.title) }))
+    .filter(homepage => homepage.path !== "");
 }
 
 // The diagram is an nt:file child of the version node rather than a property, so listing the versions

@@ -22,7 +22,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import { forgetWorkflowHomepages } from "@iap/workflows/workflowModel";
+import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 import WorkflowsView from "@iap/workflows/WorkflowsView";
 
 // The homepage discovery is kept for the life of the session, so each test starts from an unasked one

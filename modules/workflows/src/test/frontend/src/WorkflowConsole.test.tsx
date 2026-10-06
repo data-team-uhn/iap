@@ -21,8 +21,8 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 import WorkflowConsole from "@iap/workflows/WorkflowConsole";
-import { forgetWorkflowHomepages } from "@iap/workflows/workflowModel";
 
 // The three pages the console dispatches to, stood in for by markers: what is under test is which
 // one a URL opens and what it is told, not what any of them then draws.

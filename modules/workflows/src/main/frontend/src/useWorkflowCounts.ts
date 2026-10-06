@@ -18,9 +18,29 @@
 
 import { useEffect, useState } from "react";
 
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
+import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { loadWorkflowCounts, type WorkflowHomepageCount } from "./workflowModel";
+import { loadWorkflowHomepages } from "./useWorkflowHomepages";
+
+import type { WorkflowHomepageCount } from "./workflowModel";
+
+// One count per homepage, asked of the pagination endpoint with a page of no rows — exactly a count
+// and nothing else, which is what a summary needs. Counted independently and settled rather than
+// joined, so a homepage that can't be counted (unreadable, or a failed request) loses only its own
+// number instead of blanking every other homepage's count too.
+export function loadWorkflowCounts(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepageCount[]> {
+  return loadWorkflowHomepages(fetchUtil).then(homepages => Promise.allSettled(
+    homepages.map(homepage => fetchEntityPage(fetchUtil, { homepage: homepage.path, limit: 0 }))
+  ).then(answers => answers.map((answer, index) => {
+    const homepage = homepages[index];
+    if (answer.status === "rejected") {
+      console.error(`Failed to count the workflows in ${homepage.path}`, answer.reason);
+      return { ...homepage, atLeast: false };
+    }
+    return { ...homepage, count: answer.value.totalrows, atLeast: answer.value.totalIsApproximate };
+  })));
+}
 
 // How many workflows each homepage holds: what the dashboard widget shows.
 export function useWorkflowCounts() {
