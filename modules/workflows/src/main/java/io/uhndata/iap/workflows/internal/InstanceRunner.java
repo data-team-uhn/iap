@@ -83,6 +83,8 @@ final class InstanceRunner
 
     private static final String COMPLETED_STATUS = "completed";
 
+    private static final String ACTIVE_STATUS = "active";
+
     private static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
 
     private static final String START_TIME_PROPERTY = "startTime";
@@ -140,6 +142,39 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowToken", CURRENT_NODE_ID_PROPERTY, starts.get(0).getElementId()));
         run(instance, token, starts.get(0));
         return instance;
+    }
+
+    /**
+     * Cancels every instance of the same workflow still active on a host, along with the tasks it was waiting on,
+     * so a new start replaces it rather than running beside it. Any version of the workflow counts.
+     *
+     * @param host the resource the workflow drives
+     * @param version the version about to be started
+     * @throws PersistenceException when an instance cannot be written
+     */
+    void cancelActive(final Resource host, final WorkflowVersion version) throws PersistenceException
+    {
+        final Resource container = host.getChild(WorkflowInstances.NODE_NAME);
+        if (container == null) {
+            return;
+        }
+        final String definition = getParentPath(version.getPath());
+        for (final Resource child : container.getChildren()) {
+            final WorkflowInstance instance = child.adaptTo(WorkflowInstance.class);
+            if (instance == null || !ACTIVE_STATUS.equals(instance.getStatus())) {
+                continue;
+            }
+            final WorkflowVersion running = instance.getWorkflowVersion();
+            if (running != null && definition.equals(getParentPath(running.getPath()))) {
+                terminate(child);
+                modifiable(child).put(STATUS_PROPERTY, CANCELLED);
+            }
+        }
+    }
+
+    private static String getParentPath(final String path)
+    {
+        return path.substring(0, Math.max(path.lastIndexOf('/'), 0));
     }
 
     /**
@@ -380,7 +415,7 @@ final class InstanceRunner
         final String name = NodeNameUtils.findFreeName(container, definitionName(version));
         final Resource instance = this.resolver.create(container, name, Map.of(
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
-            STATUS_PROPERTY, "active",
+            STATUS_PROPERTY, ACTIVE_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
         // right identifier as the wrong type

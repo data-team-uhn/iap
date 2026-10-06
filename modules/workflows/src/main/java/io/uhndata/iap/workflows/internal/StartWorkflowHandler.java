@@ -57,6 +57,9 @@ public class StartWorkflowHandler implements ServiceTaskHandler
     /** The activity property naming the chain of references leading to the workflow version. */
     private static final String WORKFLOW_FROM_PARAMETER = "workflowFrom";
 
+    /** The activity property asking for an earlier active instance of the same workflow to be cancelled first. */
+    private static final String REPLACE_ACTIVE_PARAMETER = "replaceActive";
+
     @Override
     public String getName()
     {
@@ -87,7 +90,8 @@ public class StartWorkflowHandler implements ServiceTaskHandler
             return;
         }
         context.startWorkflow(host, Objects.requireNonNull(versionResource.adaptTo(WorkflowVersion.class),
-            "A wf:WorkflowVersion resource always adapts to its model"));
+            "A wf:WorkflowVersion resource always adapts to its model"),
+            Boolean.parseBoolean(String.valueOf(context.getActivity().get(REPLACE_ACTIVE_PARAMETER))));
     }
 
     /**
