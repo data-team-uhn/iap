@@ -20,6 +20,9 @@ package io.uhndata.iap.utils.move;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Moves content: a node, with everything under it, into a parent, or to another place among its siblings. Anything
  * that names a moved node by where it is gets the chance to name it otherwise before its path changes, from the
@@ -44,5 +47,7 @@ public interface ContentMover
      * @return the node's path once moved
      * @throws RepositoryException when the node cannot be moved there
      */
-    String move(Node node, Node parent, String name, String before) throws RepositoryException;
+    @NotNull
+    String move(@NotNull Node node, @NotNull Node parent, @NotNull String name, @Nullable String before)
+        throws RepositoryException;
 }

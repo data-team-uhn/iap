@@ -20,6 +20,8 @@ package io.uhndata.iap.utils.move;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * What a module does when content moves. A module that names nodes by where they are, such as a condition naming a
  * question by its path, keeps those names working; changing only a node's place among its siblings changes no path,
@@ -38,5 +40,5 @@ public interface MoveParticipant
      * @param newPath where it will be, which tells, for instance, whether it leaves the content it was part of
      * @throws RepositoryException when the preparation cannot be made
      */
-    void beforeMove(Node node, String newPath) throws RepositoryException;
+    void beforeMove(@NotNull Node node, @NotNull String newPath) throws RepositoryException;
 }
