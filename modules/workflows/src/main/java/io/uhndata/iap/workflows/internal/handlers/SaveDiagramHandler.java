@@ -55,9 +55,9 @@ public class SaveDiagramHandler implements ServiceTaskHandler
     {
         // Only a version, stored where versions belong, holds a diagram: anything else is a broken definition
         VersionEdits.targetVersion(context);
-        final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);
+        final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_XML_FILE_NAME);
         if (diagram == null) {
-            throw new InvalidPayloadException("A " + VersionEdits.BPMN_FILE + " file is required");
+            throw new InvalidPayloadException("A " + VersionEdits.BPMN_XML_FILE_NAME + " file is required");
         }
         VersioningUtils.checkOut(context.getTarget());
         VersionEdits.storeDiagram(context.getTarget(), diagram, context.getResourceResolver());

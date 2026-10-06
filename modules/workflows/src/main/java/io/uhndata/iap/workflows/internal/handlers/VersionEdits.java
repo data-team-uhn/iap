@@ -45,34 +45,33 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  */
 final class VersionEdits
 {
-    /** The name of the {@code nt:file} child holding the BPMN source. */
-    static final String BPMN_FILE = "bpmn.xml";
+    /** The name of the {@code nt:file} child holding the BPMN source, and of the payload part a diagram arrives in. */
+    static final String BPMN_XML_FILE_NAME = "bpmn.xml";
 
     /** The property holding a version's label, e.g. {@code 1.0}. */
-    static final String VERSION = "version";
+    static final String VERSION_PROPERTY = "version";
 
-    static final String DESCRIPTION = "description";
+    /** The property holding what a version is for. */
+    static final String DESCRIPTION_PROPERTY = "description";
 
-    static final String PRIMARY_TYPE = "jcr:primaryType";
+    static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     static final String WORKFLOW_VERSION_TYPE = "wf:WorkflowVersion";
 
     /** Whether a version's diagram owns its flow nodes; see {@link WorkflowVersion#isBpmnAuthoritative()}. */
-    static final String BPMN_AUTHORITATIVE = "bpmnAuthoritative";
-
-    static final String TARGET_RESOURCE_TYPE = "targetResourceType";
+    static final String BPMN_AUTHORITATIVE_PROPERTY = "bpmnAuthoritative";
 
     /** The node type a homepage holding workflows names as the type of its children. */
     private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
     /** The property a homepage uses to name the node type it stores. */
-    private static final String CHILD_NODE_TYPE = "childNodeType";
+    private static final String CHILD_NODE_TYPE_PROPERTY = "childNodeType";
 
-    private static final String JCR_CONTENT = "jcr:content";
+    private static final String CONTENT_CHILD = "jcr:content";
 
-    private static final String JCR_DATA = "jcr:data";
+    private static final String JCR_DATA_PROPERTY = "jcr:data";
 
-    private static final String JCR_MIME_TYPE = "jcr:mimeType";
+    private static final String JCR_MIME_TYPE_PROPERTY = "jcr:mimeType";
 
     /** What a BPMN diagram is, for a file stored without a content type of its own. */
     private static final String DEFAULT_MIME_TYPE = "application/xml";
@@ -91,7 +90,10 @@ final class VersionEdits
      */
     static WorkflowVersion targetVersion(final WorkflowTaskContext context) throws WorkflowException
     {
-        final WorkflowVersion version = context.getTarget().adaptTo(WorkflowVersion.class);
+        // By its type: a model adapts a resource of any type, so that it adapted says nothing
+        final Resource target = context.getTarget();
+        final WorkflowVersion version = target.isResourceType(WorkflowVersion.RESOURCE_TYPE)
+            ? target.adaptTo(WorkflowVersion.class) : null;
         if (version == null) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " acts on workflow versions, but " + context.getTarget().getPath() + " is not one");
@@ -132,7 +134,7 @@ final class VersionEdits
     {
         final Resource parent = definition.getParent();
         if (parent == null
-            || !WORKFLOW_DEFINITION_TYPE.equals(parent.getValueMap().get(CHILD_NODE_TYPE, String.class))) {
+            || !WORKFLOW_DEFINITION_TYPE.equals(parent.getValueMap().get(CHILD_NODE_TYPE_PROPERTY, String.class))) {
             throw new WorkflowDefinitionException(
                 definition.getPath() + " is not stored in a homepage that holds workflows");
         }
@@ -153,17 +155,17 @@ final class VersionEdits
     {
         try (InputStream data = diagram.openStream()) {
             final String mimeType = diagram.getMimeType() == null ? DEFAULT_MIME_TYPE : diagram.getMimeType();
-            final Resource existing = version.getChild(BPMN_FILE);
+            final Resource existing = version.getChild(BPMN_XML_FILE_NAME);
             if (existing == null) {
                 createFile(version, data, mimeType, resolver);
                 return;
             }
-            final Resource content = Objects.requireNonNull(existing.getChild(JCR_CONTENT),
+            final Resource content = Objects.requireNonNull(existing.getChild(CONTENT_CHILD),
                 "A stored diagram always has a jcr:content");
             final ModifiableValueMap properties = Objects.requireNonNull(content.adaptTo(ModifiableValueMap.class),
                 "A stored diagram the engine is replacing should always be modifiable");
-            properties.put(JCR_DATA, data);
-            properties.put(JCR_MIME_TYPE, mimeType);
+            properties.put(JCR_DATA_PROPERTY, data);
+            properties.put(JCR_MIME_TYPE_PROPERTY, mimeType);
         } catch (final IOException e) {
             throw new PersistenceException("The diagram could not be read: " + e.getMessage(), e);
         }
@@ -181,11 +183,12 @@ final class VersionEdits
     private static void createFile(final Resource version, final InputStream data, final String mimeType,
         final ResourceResolver resolver) throws PersistenceException
     {
-        final Resource file = resolver.create(version, BPMN_FILE, Map.of(PRIMARY_TYPE, "nt:file"));
+        final Resource file =
+            resolver.create(version, BPMN_XML_FILE_NAME, Map.of(JCR_PRIMARY_TYPE_PROPERTY, "nt:file"));
         final Map<String, Object> content = new HashMap<>();
-        content.put(PRIMARY_TYPE, "nt:resource");
-        content.put(JCR_DATA, data);
-        content.put(JCR_MIME_TYPE, mimeType);
-        resolver.create(file, JCR_CONTENT, content);
+        content.put(JCR_PRIMARY_TYPE_PROPERTY, "nt:resource");
+        content.put(JCR_DATA_PROPERTY, data);
+        content.put(JCR_MIME_TYPE_PROPERTY, mimeType);
+        resolver.create(file, CONTENT_CHILD, content);
     }
 }

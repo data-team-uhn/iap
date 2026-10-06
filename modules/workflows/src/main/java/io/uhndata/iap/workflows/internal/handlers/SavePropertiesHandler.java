@@ -59,10 +59,10 @@ public class SavePropertiesHandler implements ServiceTaskHandler
     public static final String HANDLER_NAME = "saveProperties";
 
     /** The activity property listing which payload entries may be written. */
-    private static final String EDITABLE = "editable";
+    private static final String EDITABLE_PARAMETER = "editable";
 
     /** The activity property listing which of them must arrive with a value. */
-    private static final String REQUIRED = "required";
+    private static final String REQUIRED_PARAMETER = "required";
 
     @Override
     public String getName()
@@ -73,12 +73,12 @@ public class SavePropertiesHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final List<String> editable = names(context, EDITABLE);
+        final List<String> editable = names(context, EDITABLE_PARAMETER);
         if (editable.isEmpty()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not list which properties it is editable to write");
         }
-        final List<String> required = names(context, REQUIRED);
+        final List<String> required = names(context, REQUIRED_PARAMETER);
         VersioningUtils.checkOut(context.getTarget());
         final ModifiableValueMap properties = Objects.requireNonNull(
             context.getTarget().adaptTo(ModifiableValueMap.class),

@@ -66,6 +66,12 @@ public class CreateVersionHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "createWorkflowVersion";
 
+    /** The payload entry labelling the version. */
+    static final String VERSION_PARAMETER = "version";
+
+    /** The payload entry saying what the version is for. */
+    static final String DESCRIPTION_PARAMETER = "description";
+
     @Override
     public String getName()
     {
@@ -82,19 +88,19 @@ public class CreateVersionHandler implements ServiceTaskHandler
             throw new InvalidStateException("This workflow already has a version " + label);
         }
         final Map<String, Object> properties = new HashMap<>();
-        properties.put(VersionEdits.PRIMARY_TYPE, VersionEdits.WORKFLOW_VERSION_TYPE);
-        properties.put(VersionEdits.VERSION, label);
+        properties.put(VersionEdits.JCR_PRIMARY_TYPE_PROPERTY, VersionEdits.WORKFLOW_VERSION_TYPE);
+        properties.put(VersionEdits.VERSION_PROPERTY, label);
         if (context.getEvent().get(CopyContentHandler.SOURCE_PARAMETER) == null) {
-            properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
+            properties.put(VersionEdits.BPMN_AUTHORITATIVE_PROPERTY, true);
         }
-        final String description = Payloads.text(context.getEvent(), VersionEdits.DESCRIPTION);
+        final String description = Payloads.text(context.getEvent(), DESCRIPTION_PARAMETER);
         if (description != null) {
-            properties.put(VersionEdits.DESCRIPTION, description);
+            properties.put(VersionEdits.DESCRIPTION_PROPERTY, description);
         }
         VersioningUtils.checkOut(definition);
         final Resource version = context.getResourceResolver().create(definition,
             VersionNumbers.nodeName(definition, number), properties);
-        final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);
+        final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_XML_FILE_NAME);
         if (diagram != null) {
             VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());
         }
@@ -112,10 +118,10 @@ public class CreateVersionHandler implements ServiceTaskHandler
      */
     private static String label(final WorkflowTaskContext context, final int number) throws InvalidPayloadException
     {
-        if (context.getEvent().get(VersionEdits.VERSION) == null) {
+        if (context.getEvent().get(VERSION_PARAMETER) == null) {
             return VersionNumbers.defaultLabel(number);
         }
-        return Payloads.requireText(context.getEvent(), VersionEdits.VERSION, "A version label cannot be blank");
+        return Payloads.requireText(context.getEvent(), VERSION_PARAMETER, "A version label cannot be blank");
     }
 
     /**
@@ -130,6 +136,6 @@ public class CreateVersionHandler implements ServiceTaskHandler
     {
         return StreamSupport.stream(definition.getChildren().spliterator(), false)
             .filter(child -> child.isResourceType(WorkflowVersion.RESOURCE_TYPE))
-            .anyMatch(child -> label.equals(child.getValueMap().get(VersionEdits.VERSION, String.class)));
+            .anyMatch(child -> label.equals(child.getValueMap().get(VersionEdits.VERSION_PROPERTY, String.class)));
     }
 }

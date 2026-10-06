@@ -86,7 +86,7 @@ class RetireActiveVersionsHandlerTest
         // The promoted version is left where it is; promoting it is the step after this one
         assertEquals(Set.of("draft"), this.tagsOf("2-0"));
         assertArrayEquals(new String[] { AuthoringFixture.path("1-0") },
-            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS));
+            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test
@@ -127,7 +127,7 @@ class RetireActiveVersionsHandlerTest
 
         assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         assertArrayEquals(new String[0],
-            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS));
+            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test

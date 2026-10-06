@@ -56,7 +56,7 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     public static final String HANDLER_NAME = "retireActiveVersions";
 
     /** The variable the retired versions' paths are left in. */
-    public static final String RETIRED_VERSIONS = "retiredVersions";
+    public static final String RETIRED_VERSIONS_VARIABLE = "retiredVersions";
 
     /** The lifecycle tag an outgoing version is given. */
     private static final String RETIRED_TAG = "retired";
@@ -87,6 +87,6 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
             tags.tag(RETIRED_TAG, true);
             retired.add(sibling.getPath());
         }
-        context.setVariable(RETIRED_VERSIONS, retired.toArray(new String[0]));
+        context.setVariable(RETIRED_VERSIONS_VARIABLE, retired.toArray(new String[0]));
     }
 }

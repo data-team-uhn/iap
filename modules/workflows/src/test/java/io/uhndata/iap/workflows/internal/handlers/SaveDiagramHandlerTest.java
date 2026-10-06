@@ -142,10 +142,21 @@ class SaveDiagramHandlerTest
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
         final WorkflowTaskContext request = AuthoringFixture.context(
             AuthoringFixture.unreadable(this.context, AuthoringFixture.path("2-0")), "save",
-            Map.of(VersionEdits.BPMN_FILE, AuthoringFixture.upload(REPLACEMENT, null)), this.activity, new HashMap<>());
+            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity,
+            new HashMap<>());
 
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(request));
+        assertTrue(refusal.getMessage().contains("acts on workflow versions"));
+    }
+
+    @Test
+    void refusesATargetOfAnotherTypeThatAModelWouldStillAdapt()
+    {
+        this.context.create().resource(AuthoringFixture.path("notes"), "sling:resourceType", "test/Notes");
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(this.save("notes", AuthoringFixture.upload(REPLACEMENT, null))));
         assertTrue(refusal.getMessage().contains("acts on workflow versions"));
     }
 
