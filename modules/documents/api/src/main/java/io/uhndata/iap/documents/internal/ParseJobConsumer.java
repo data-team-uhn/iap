@@ -19,13 +19,11 @@ package io.uhndata.iap.documents.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Calendar;
 import java.util.Map;
 
@@ -46,6 +44,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,34 +85,19 @@ import org.slf4j.LoggerFactory;
  * </p>
  *
  * <p>
- * Configurable through OSGi with {@code daemonUrl} (default {@code http://localhost:18765}) and
- * {@code responseTimeout} (seconds to wait for the daemon to accept a dispatch, default 30 — accepting is quick, only
- * the conversion is slow).
- * </p>
- *
- * <p>
- * When the daemon is configured with its own access token ({@code IAP_DOCLING_TOKEN}), this dispatch must present it
- * too, as {@code Authorization: Bearer <token>} — read the same way as the callback token, from
- * {@link ParseJob#DAEMON_TOKEN_PROPERTY} or the {@link ParseJob#DAEMON_TOKEN_VARIABLE} environment variable. Nothing
- * is sent when neither is set, matching the daemon's own default of requiring no credential.
+ * Where the daemon is, how long to wait for it to accept a dispatch, and its own access token are read by
+ * {@link DaemonConnection}; see {@link DaemonConnectionConfiguration}. Accepting is quick, only the conversion is
+ * slow.
  * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = JobConsumer.class, property = { JobConsumer.PROPERTY_TOPICS + "=" + ParseJob.TOPIC })
+@Designate(ocd = DaemonConnectionConfiguration.class)
 public class ParseJobConsumer implements JobConsumer
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseJobConsumer.class);
-
-    /** Where the daemon listens when no {@code daemonUrl} is configured. */
-    private static final String DEFAULT_DAEMON_URL = "http://localhost:18765";
-
-    /** How long to wait for the daemon to accept a dispatch when no {@code responseTimeout} is configured. */
-    private static final long DEFAULT_RESPONSE_TIMEOUT = 30;
-
-    /** How long to wait for the daemon to accept a connection. */
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
     /** How much of a non-JSON daemon answer is kept as the error message. */
     private static final int ERROR_EXCERPT_LENGTH = 200;
@@ -124,17 +108,12 @@ public class ParseJobConsumer implements JobConsumer
     @Reference
     private ParseOutcomeDispatcher outcomes;
 
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+    private final HttpClient client = DaemonConnection.newClient();
 
-    private String daemonUrl;
-
-    private Duration responseTimeout;
+    private DaemonConnection daemon;
 
     /** Whether an authorization token is configured so the daemon's delivery can be accepted. */
     private boolean callbackConfigured;
-
-    /** The {@code Authorization} header to send with each dispatch, or {@code null} when the daemon needs none. */
-    private String daemonAuthorization;
 
     /**
      * Read the configuration, applying the defaults.
@@ -145,17 +124,7 @@ public class ParseJobConsumer implements JobConsumer
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        this.daemonUrl = url(configuration, "daemonUrl", DEFAULT_DAEMON_URL);
-        long seconds = DEFAULT_RESPONSE_TIMEOUT;
-        final Object timeout = configuration.get("responseTimeout");
-        if (timeout != null) {
-            try {
-                seconds = Long.parseLong(String.valueOf(timeout));
-            } catch (final NumberFormatException e) {
-                LOGGER.warn("Ignoring non-numeric responseTimeout: {}", timeout);
-            }
-        }
-        this.responseTimeout = Duration.ofSeconds(seconds > 0 ? seconds : DEFAULT_RESPONSE_TIMEOUT);
+        this.daemon = DaemonConnection.read(configuration, this::environment);
         final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
         this.callbackConfigured = !token.isEmpty();
         if (!this.callbackConfigured) {
@@ -163,26 +132,6 @@ public class ParseJobConsumer implements JobConsumer
                 + " parse jobs will be refused until one is set",
                 ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
         }
-        final String daemonToken = daemonToken(configuration);
-        this.daemonAuthorization = daemonToken.isEmpty() ? null : "Bearer " + daemonToken;
-    }
-
-    /**
-     * Resolve the daemon's own optional access token: the {@link ParseJob#DAEMON_TOKEN_PROPERTY} OSGi property when
-     * set, the {@link ParseJob#DAEMON_TOKEN_VARIABLE} environment variable otherwise.
-     *
-     * @param configuration the component configuration
-     * @return the token to send with each dispatch, or an empty string when the daemon needs none
-     */
-    private String daemonToken(final Map<String, Object> configuration)
-    {
-        final String configured =
-            String.valueOf(configuration.getOrDefault(ParseJob.DAEMON_TOKEN_PROPERTY, "")).trim();
-        if (!configured.isEmpty()) {
-            return configured;
-        }
-        final String env = environment(ParseJob.DAEMON_TOKEN_VARIABLE);
-        return env == null ? "" : env.trim();
     }
 
     @Override
@@ -278,7 +227,7 @@ public class ParseJobConsumer implements JobConsumer
                 fail(jobId, "The daemon answered HTTP " + status + ": " + errorMessage(response.body()));
             }
         } catch (final IOException | IllegalArgumentException e) {
-            fail(jobId, "Calling the daemon at " + this.daemonUrl + " failed: " + describe(e));
+            fail(jobId, "Calling the daemon at " + this.daemon.getUrl() + " failed: " + describe(e));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(jobId, "Interrupted while waiting for the daemon");
@@ -298,19 +247,8 @@ public class ParseJobConsumer implements JobConsumer
         // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
         // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
         // shared token with it.
-        final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
-            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
-        if (this.daemonAuthorization == null) {
-            return HttpRequest.newBuilder(URI.create(url))
-                .timeout(this.responseTimeout)
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-        }
-        return HttpRequest.newBuilder(URI.create(url))
-            .timeout(this.responseTimeout)
-            .header("Authorization", this.daemonAuthorization)
-            .POST(HttpRequest.BodyPublishers.noBody())
-            .build();
+        return this.daemon.post("/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
+            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8));
     }
 
     /**
@@ -441,19 +379,5 @@ public class ParseJobConsumer implements JobConsumer
             throw new PersistenceException("The job node cannot be modified");
         }
         return editable;
-    }
-
-    /**
-     * Read a URL from the configuration, trimming trailing slashes so paths can be appended cleanly.
-     *
-     * @param configuration the component configuration
-     * @param name the configuration property to read
-     * @param fallback the URL to use when the property is absent or blank
-     * @return the configured URL, or the fallback
-     */
-    private static String url(final Map<String, Object> configuration, final String name, final String fallback)
-    {
-        final String configured = String.valueOf(configuration.getOrDefault(name, fallback));
-        return (configured.isBlank() ? fallback : configured).replaceAll("/+$", "");
     }
 }

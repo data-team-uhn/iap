@@ -147,8 +147,8 @@ huggingface.co and fail, and the container would report healthy until the first 
 weights are saved in `DOCLING_ARTIFACTS_PATH`, and `HF_HUB_OFFLINE` is set afterwards so that
 the runtime stays offline after downloading.
 
-`POST /shutdown` is not served unless the daemon is started with `--enable-shutdown`, and both
-mutating endpoints (`/parse`, `/shutdown`) refuse requests carrying an `Origin` header so a page in
+`POST /shutdown` is not served unless the daemon is started with `--enable-shutdown`, and the
+mutating endpoints (`/parse`, `/cancel`, `/shutdown`) refuse requests carrying an `Origin` header so a page in
 the operator's browser cannot drive them. Set `IAP_DOCLING_TOKEN` to require a bearer token on top
 of that; `GET /health` stays open for probes. Otherwise the port is what keeps the daemon private.
 `tools/deploy/generate_compose.py --docling` publishes it as `127.0.0.1:18765:18765` — bound to

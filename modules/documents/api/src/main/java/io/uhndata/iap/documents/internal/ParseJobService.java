@@ -138,22 +138,24 @@ public class ParseJobService implements ParseService
     }
 
     @Override
-    public void discardStaging(final String stagedPath)
+    public boolean discardStaging(final String stagedPath)
     {
         if (stagedPath == null || stagedPath.isBlank()) {
-            return;
+            return true;
         }
         final Path folder = folderToDiscard(Path.of(stagedPath));
         if (folder == null) {
-            return;
+            return true;
         }
         try {
             deleteRecursively(folder);
             LOGGER.info("Parse staging removed: folder={}", folder);
+            return true;
         } catch (final IOException e) {
             // Logged rather than thrown: whatever was worth reading has been read by now, and failing over a
-            // leftover would lose that. The sweeper comes back for it.
+            // leftover would lose that. The caller keeps the record naming it, so the sweep comes back for it.
             LOGGER.warn("Could not remove the staging folder {}: {}", folder, e.getMessage());
+            return false;
         }
     }
 
