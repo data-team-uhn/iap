@@ -37,15 +37,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Fails parse jobs that nobody will ever finish, drops the records of jobs nobody came back for, and takes their
  * staging folders off the shared volume with them.
  *
  * <p>
- * The daemon is the only thing that ends an {@code active} job, through the callback. A daemon killed mid-parse, a
- * container replaced while it was working, a callback refused because the token was wrong — each leaves a job
- * {@code active} for good. Nothing upstream copes with that: the {@code sub:File} stays {@code queued}, so no
+ * Only the daemon's callback, or a caller that abandons the parse, ends an {@code active} job. A daemon killed
+ * mid-parse, a container replaced while it was working, a callback refused because the token was wrong — each leaves
+ * a job {@code active} for good. Nothing upstream copes with that: the {@code sub:File} stays {@code queued}, so no
  * submission ever sees all its parses settle, the reading is never queued, and the submitter is left with a
  * spinner that has nothing behind it. A stuck job is worse than a failed one, because a failure can be retried and
  * a spinner cannot.
@@ -99,6 +101,12 @@ public class StaleParseJobSweeper implements Runnable
 
     private static final long MILLISECONDS_PER_MINUTE = 60_000L;
 
+    /** How long a settled record is left alone before its outcome is offered again. */
+    private static final long RETRY_AFTER_MILLISECONDS = 2 * MILLISECONDS_PER_MINUTE;
+
+    /** How long a record is kept for a staging folder that cannot be removed: a day. */
+    private static final long GIVE_UP_ON_FOLDER_MILLISECONDS = 24 * 60 * MILLISECONDS_PER_MINUTE;
+
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -144,6 +152,9 @@ public class StaleParseJobSweeper implements Runnable
             for (final Resource jobNode : stale(jobsRoot, deadline)) {
                 sweep(resolver, jobNode);
             }
+            for (final Resource jobNode : getUntaken(jobsRoot, deadline)) {
+                this.outcomes.settle(resolver, jobNode);
+            }
             for (final Resource jobNode : forgotten(jobsRoot, deadline)) {
                 forget(resolver, jobNode);
             }
@@ -180,13 +191,50 @@ public class StaleParseJobSweeper implements Runnable
     }
 
     /**
+     * The settled jobs whose outcome no handler took yet, old enough that the request that settled them is over.
+     * A handler may refuse an outcome only for now, such as one for a file whose upload has not been committed
+     * yet, so it is offered again on every sweep until it is taken or forgotten.
+     *
+     * @param jobsRoot the node holding the job nodes
+     * @param deadline the moment before which a settled record is forgotten instead
+     * @return the job nodes to hand over again
+     */
+    private static List<Resource> getUntaken(final Resource jobsRoot, final long deadline)
+    {
+        final long settledBefore = System.currentTimeMillis() - RETRY_AFTER_MILLISECONDS;
+        final List<Resource> untaken = new ArrayList<>();
+        for (final Resource jobNode : jobsRoot.getChildren()) {
+            final ValueMap properties = jobNode.getValueMap();
+            final Calendar finished = properties.get(ParseJob.PN_FINISHED, Calendar.class);
+            if (isSettled(properties) && properties.get(ParseJob.PN_TARGET, String.class) != null
+                && isBetween(finished, deadline, settledBefore)) {
+                untaken.add(jobNode);
+            }
+        }
+        return untaken;
+    }
+
+    /** Whether a job has an outcome, good or bad. */
+    private static boolean isSettled(final ValueMap properties)
+    {
+        final String status = properties.get(ParseJob.PN_STATUS, String.class);
+        return ParseJob.STATUS_COMPLETED.equals(status) || ParseJob.STATUS_FAILED.equals(status);
+    }
+
+    /** Whether a moment is at or after {@code from} and before {@code to}; never for no moment at all. */
+    private static boolean isBetween(final Calendar when, final long from, final long to)
+    {
+        return when != null && when.getTimeInMillis() >= from && when.getTimeInMillis() < to;
+    }
+
+    /**
      * The settled jobs nobody came back for.
      *
      * <p>A job queued with a {@code target} is handed to its handler and its record deleted straight away. A job
      * queued without one is nobody's to hand over, so its record is kept for polling - and was kept for good,
      * because nothing deleted it and this sweep only ever looked at jobs that had not finished. Its staging
-     * folder stayed on the volume with it. So did the record of a job whose handler refused the outcome, which
-     * nothing retries either.</p>
+     * folder stayed on the volume with it. So did the record of a job whose handler refused the outcome; that one
+     * is offered again on every sweep until it reaches this age.</p>
      *
      * <p>The same age answers both: a settled record is worth keeping while somebody might still poll it, and
      * worth nothing afterwards.</p>
@@ -222,7 +270,10 @@ public class StaleParseJobSweeper implements Runnable
     {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
-        this.parseService.discardStaging(staged);
+        if (!this.parseService.discardStaging(staged) && !isFolderGivenUpOn(jobNode)) {
+            // The record is all that names the folder: kept, so the next sweep tries again
+            return;
+        }
         try {
             resolver.delete(jobNode);
             resolver.commit();
@@ -232,6 +283,29 @@ public class StaleParseJobSweeper implements Runnable
             LOGGER.error("Cannot drop the record of parse job {}: {}", jobId, e.getMessage(), e);
             resolver.revert();
         }
+    }
+
+    /**
+     * Whether a folder that still cannot be removed has been retried long enough. A worker lets go of a file within
+     * minutes, so after a day something else holds it, and keeping the record would only keep it forever.
+     *
+     * @param jobNode the settled job whose folder could not be removed
+     * @return {@code true} when the record should be dropped anyway
+     */
+    private static boolean isFolderGivenUpOn(final Resource jobNode)
+    {
+        final Calendar finished = jobNode.getValueMap().get(ParseJob.PN_FINISHED, Calendar.getInstance());
+        if (finished.getTimeInMillis() >= System.currentTimeMillis() - GIVE_UP_ON_FOLDER_MILLISECONDS) {
+            return false;
+        }
+        final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
+        final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
+        LOGGER.error("The staging folder of parse job {} still cannot be removed after a day; giving up on {}",
+            jobId, staged);
+        // Nothing will name the folder once the record goes, so only an administrator can clear it now
+        ErrorLogger.logProblem("A parse staging folder cannot be removed",
+            ErrorContext.of(StaleParseJobSweeper.class, "forget").with("job", jobId).with("folder", staged));
+        return true;
     }
 
     /**

@@ -29,6 +29,7 @@ import java.util.UUID;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -313,6 +314,49 @@ class ParseCallbackServletTest
 
         assertEquals(500, response.getStatus());
         assertTrue(parse(response).getString("error").contains("could not be recorded"));
+    }
+
+    // A Stop deleted the job while this outcome was being recorded: the ordinary "no such job" answer
+    @Test
+    void aJobRemovedDuringTheCommitIsNotFound() throws Exception
+    {
+        jobNode();
+        final ResourceResolver real = this.context.resourceResolver();
+        inject(this.servlet, new TestResolverFactory(new ResourceResolverWrapper(real)
+        {
+            @Override
+            public void commit() throws PersistenceException
+            {
+                real.delete(real.getResource(ParseJob.nodePath(JOB_ID)));
+                throw new PersistenceException("Removed by somebody else");
+            }
+        }));
+
+        assertEquals(404, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
+    }
+
+    // Whether the job is still there cannot be told, so the failure stays the server error it was
+    @Test
+    void aFailedCommitStaysAServerErrorWhenTheJobCannotBeLookedUp() throws Exception
+    {
+        jobNode();
+        final ResourceResolver failing = failingCommits();
+        final int[] logins = { 0 };
+        inject(this.servlet, new TestResolverFactory(failing)
+        {
+            @Override
+            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
+                throws LoginException
+            {
+                logins[0]++;
+                if (logins[0] > 1) {
+                    throw new LoginException("The service user went away");
+                }
+                return super.getServiceResourceResolver(authenticationInfo);
+            }
+        });
+
+        assertEquals(500, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
     }
 
     @Test
