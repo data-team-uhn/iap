@@ -58,6 +58,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
     <iap.version>${project.version}</iap.version>
     <slf4j.version>2.0.20</slf4j.version>
     <!-- The JUnit artifacts must move together; a mismatched api/engine pair fails at test runtime -->
@@ -2596,11 +2597,6 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
           <version>3.16.0</version>
-          <!-- Java 21 is required -->
-          <configuration>
-            <source>21</source>
-            <target>21</target>
-          </configuration>
         </plugin>
         <!-- Compile the React code -->
         <plugin>
