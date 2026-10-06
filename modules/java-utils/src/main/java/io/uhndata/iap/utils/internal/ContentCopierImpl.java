@@ -80,7 +80,7 @@ public class ContentCopierImpl implements ContentCopier
 
         private final Map<String, String> identifiers = new HashMap<>();
 
-        private final List<Map.Entry<Node, Property>> references = new ArrayList<>();
+        private final List<PendingReference> references = new ArrayList<>();
 
         /**
          * A copy consulting the given participants.
@@ -109,8 +109,8 @@ public class ContentCopierImpl implements ContentCopier
             this.identifiers.put(source.getIdentifier(), target.getIdentifier());
             properties(source, target, skipped, dropped);
             children(source, target);
-            for (final Map.Entry<Node, Property> reference : this.references) {
-                reference(reference.getKey(), reference.getValue());
+            for (final PendingReference reference : this.references) {
+                reference(reference);
             }
             for (final CopyParticipant participant : this.participants) {
                 participant.afterCopy(source, target, this.identifiers);
@@ -171,7 +171,7 @@ public class ContentCopierImpl implements ContentCopier
                 }
                 final int type = property.getType();
                 if (type == PropertyType.REFERENCE || type == PropertyType.WEAKREFERENCE) {
-                    this.references.add(Map.entry(to, property));
+                    this.references.add(new PendingReference(to, property, dropped.getOrDefault(name, Set.of())));
                 } else {
                     value(to, property, dropped.getOrDefault(name, Set.of()));
                 }
@@ -197,17 +197,20 @@ public class ContentCopierImpl implements ContentCopier
         }
 
         /**
-         * Sets a reference on a copy, pointing at the copy of what the original pointed at, if it was copied.
+         * Sets a reference on a copy, pointing at the copy of what the original pointed at, if it was copied, and
+         * leaving out the dropped values of a multi-valued one, as for any other property.
          *
-         * @param node the copy
-         * @param original the original property
+         * @param pending the reference found, the copy it goes on, and the values it leaves out
          * @throws RepositoryException when the reference cannot be written
          */
-        private void reference(final Node node, final Property original) throws RepositoryException
+        private void reference(final PendingReference pending) throws RepositoryException
         {
+            final Node node = pending.node();
+            final Property original = pending.original();
             final ValueFactory factory = node.getSession().getValueFactory();
             final int type = original.getType();
-            final Value[] from = original.isMultiple() ? original.getValues() : new Value[] { original.getValue() };
+            final Value[] from = original.isMultiple() ? kept(original, pending.dropped())
+                : new Value[] { original.getValue() };
             final Value[] pointed = new Value[from.length];
             for (int i = 0; i < from.length; i++) {
                 final String identifier = from[i].getString();
@@ -271,6 +274,19 @@ public class ContentCopierImpl implements ContentCopier
                 }
             }
             return kept.toArray(Value[]::new);
+        }
+
+        /**
+         * A reference found during the copy, set once everything it may point at has been copied.
+         *
+         * @param node the copy it goes on
+         * @param original the original property
+         * @param dropped the values left out, if it is multi-valued
+         * @version $Id$
+         * @since 0.1.0
+         */
+        private record PendingReference(Node node, Property original, Set<String> dropped)
+        {
         }
     }
 }

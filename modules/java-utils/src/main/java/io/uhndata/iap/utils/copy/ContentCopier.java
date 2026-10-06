@@ -49,8 +49,9 @@ public interface ContentCopier
      * @param target the node receiving the copy
      * @param skipped properties of the source node itself that are not copied, e.g. a label the target has its own
      *            of; its descendants are copied whole
-     * @param dropped values left out of multi-valued properties of the source node itself, by property name, e.g.
-     *            tags that say where the source stands rather than what it holds
+     * @param dropped values left out of multi-valued properties of the source node itself, by property name, a
+     *            reference's by the identifier it holds; e.g. tags that say where the source stands rather than what
+     *            it holds
      * @return the identifiers of the copied referenceable nodes, each original's mapped to its copy's
      * @throws RepositoryException when the source cannot be read or the copy cannot be written
      */

@@ -106,6 +106,7 @@ class ContentCopierImplTest
         final ValueFactory values = this.session.getValueFactory();
         second.setProperty("weakly", values.createValue(first, true));
         second.setProperty("related", new Value[] { values.createValue(first), values.createValue(this.outside) });
+        this.source.setProperty("links", new Value[] { values.createValue(first), values.createValue(this.outside) });
         this.source.addNode("maintained", UNSTRUCTURED).setProperty("kept", false);
         this.source.addNode("existing", UNSTRUCTURED).setProperty("fromSource", true);
         final Node file = this.source.addNode("file", "nt:file");
@@ -209,6 +210,18 @@ class ContentCopierImplTest
     }
 
     @Test
+    void dropsValuesOfTheRootsReferencesToo() throws RepositoryException
+    {
+        copy();
+
+        // The root's own reference to the outside node is dropped, and what is left still points at the copy
+        final Value[] links = this.target.getProperty("links").getValues();
+        assertEquals(1, links.length);
+        assertEquals(this.target.getNode("first").getIdentifier(), links[0].getString());
+        assertEquals(PropertyType.REFERENCE, this.target.getProperty("links").getType());
+    }
+
+    @Test
     void consultsTheParticipants() throws RepositoryException
     {
         copy();
@@ -231,8 +244,8 @@ class ContentCopierImplTest
 
     private Map<String, String> copy() throws RepositoryException
     {
-        final Map<String, String> identifiers =
-            this.copier.copy(this.source, this.target, Set.of("label"), Map.of("tags", Set.of("active")));
+        final Map<String, String> identifiers = this.copier.copy(this.source, this.target, Set.of("label"),
+            Map.of("tags", Set.of("active"), "links", Set.of(this.outside.getIdentifier())));
         this.session.save();
         return identifiers;
     }
