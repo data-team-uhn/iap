@@ -104,8 +104,27 @@ one that shadows an existing peer. The key is parsed and re-encoded before hashi
 wrapped lines and padding differences all land on the same node; parsing it is also what rejects
 a key that every later verification would have failed on anyway.
 
-The `issuer` must be alphanumeric, because a peer derives its own `iss` by stripping everything
-else from its host and port. Anything else describes a peer whose tokens could never match.
+The `issuer` is compared with the token's `iss` claim exactly, with no normalization:
+`https://peer.example.org` and `https://peer.example.org/` are different issuers, so register the
+exact string the peer sends. The value is only ever stored and compared, never used as a node name
+or path, so it may be a URI or a plain string. What is refused is what could never match or would
+do harm elsewhere:
+
+- blank values, and values over 2048 characters;
+- leading or trailing whitespace, which is refused rather than trimmed, since a stray space would
+  silently never match;
+- control characters, which would let an issuer forge lines in the log;
+- a value containing a `:` that is not an absolute URI, as RFC 7519 requires.
+
+An IAP instance does not send a URI today. It mints its tokens with `iss` set to its
+`IAP_HOST_AND_PORT` with everything non-alphanumeric stripped — `peer.example.org:8080` becomes
+`peerexampleorg8080` — so that is the form to register for an IAP peer. The same stripped value is
+what it expects in `aud`.
+
+Several keys may be registered with the same issuer; that is what lets an old and a new key coexist
+during rotation. It does not let one peer impersonate another: each issuer is bound to the key it
+was registered with, so a token is only accepted if its `iss` matches what was registered for the
+key that signed it.
 
 Registration is add-only. An already-registered key is a `409`, not an overwrite: replacing a
 trust anchor should not be something a repeated request does quietly. Rotating a peer's key means
