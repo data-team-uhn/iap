@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,8 +34,10 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -124,10 +126,9 @@ class CreateEntityHandlerTest
         // An activity of the graph that carries no entityType configuration
         this.context.create().resource(EngineFixture.VERSION + "/misconfigured", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "misconfigured", "handler", CreateEntityHandler.HANDLER_NAME));
-        final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
+        final WorkflowTaskContext taskContext = EngineFixture.taskContext(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), ACTOR,
-            EngineFixture.noFurtherTasks(), 0);
+            adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), ACTOR);
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
     }
@@ -138,9 +139,9 @@ class CreateEntityHandlerTest
         this.context.create().resource(EngineFixture.VERSION + "/blank", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "blank", "handler", CreateEntityHandler.HANDLER_NAME,
             "entityType", " "));
-        final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
+        final WorkflowTaskContext taskContext = EngineFixture.taskContext(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/blank"), new HashMap<>(), ACTOR, EngineFixture.noFurtherTasks(), 0);
+            adaptActivity(EngineFixture.VERSION + "/blank"), new HashMap<>(), ACTOR);
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
     }
@@ -171,7 +172,7 @@ class CreateEntityHandlerTest
     void variablesCanBeReadBackThroughTheContext() throws WorkflowException, PersistenceException
     {
         // The get side of the context contract: what one task leaves behind, a later task can read
-        final WorkflowTaskContextImpl taskContext = context("Round trip", new HashMap<>());
+        final WorkflowTaskContext taskContext = context("Round trip", new HashMap<>());
 
         this.handler.execute(taskContext);
 
@@ -208,11 +209,11 @@ class CreateEntityHandlerTest
      * @param variables where the handler reports its results
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl context(final String title, final Map<String, Object> variables)
+    private WorkflowTaskContext context(final String title, final Map<String, Object> variables)
     {
         final Map<String, Object> payload = title == null ? Map.of() : Map.of("title", title);
-        return new WorkflowTaskContextImpl(this.target, new WorkflowEvent("create", payload),
-            adaptActivity(EngineFixture.VERSION + "/create"), variables, ACTOR, EngineFixture.noFurtherTasks(), 0);
+        return EngineFixture.taskContext(this.target, new WorkflowEvent("create", payload),
+            adaptActivity(EngineFixture.VERSION + "/create"), variables, ACTOR);
     }
 
     private Activity adaptActivity(final String path)

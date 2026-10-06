@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +40,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -322,7 +323,7 @@ class StartWorkflowHandlerTest
         if (created != null) {
             variables.put(WorkflowResult.CREATED_PATH_VARIABLE, created);
         }
-        return new WorkflowTaskContextImpl(resolver.getResource(target), new WorkflowEvent("create", Map.of()),
-            activity, variables, "demo-requester", EngineFixture.noFurtherTasks(), 0);
+        return EngineFixture.taskContext(resolver.getResource(target), new WorkflowEvent("create", Map.of()),
+            activity, variables, "demo-requester");
     }
 }

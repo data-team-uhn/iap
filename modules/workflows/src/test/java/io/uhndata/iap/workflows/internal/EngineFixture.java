@@ -45,6 +45,8 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -53,6 +55,7 @@ import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
@@ -61,18 +64,20 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 /**
  * Shared setup for the engine tests: the {@code /Workflows} homepage events are aimed at, builders for system
  * workflow definitions of various shapes under {@code /SystemWorkflows}, and a stand-in for the user store that
- * the mock repository does not have but authorization cannot do without.
+ * the mock repository does not have but authorization cannot do without. Public for the handlers' tests, which
+ * live in a package of their own and run each handler in a {@link #taskContext task context} built here, the
+ * engine's own being private to it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class EngineFixture
+public final class EngineFixture
 {
     /** The path of the bootstrap system workflow the tests build. */
-    static final String WORKFLOW = SystemWorkflowsHomepage.PATH + "/createWorkflow";
+    public static final String WORKFLOW = SystemWorkflowsHomepage.PATH + "/createWorkflow";
 
     /** The path of the version node of the bootstrap system workflow. */
-    static final String VERSION = WORKFLOW + "/v1";
+    public static final String VERSION = WORKFLOW + "/v1";
 
     /** An administrator, who passes every performer check. */
     static final String ADMIN = "admin";
@@ -147,12 +152,30 @@ final class EngineFixture
     }
 
     /**
+     * A context for a handler under test to execute in, as the engine builds one for a service task: aimed at a
+     * target, for an event, performing an activity, sharing the given variables, and with no further tasks to
+     * dispatch.
+     *
+     * @param target the resource the event was aimed at
+     * @param event the triggering event
+     * @param activity the activity being performed
+     * @param variables the execution's variables, where the handler reports what it did
+     * @param actor the user the execution is acting for
+     * @return the context
+     */
+    public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
+        final Activity activity, final Map<String, Object> variables, final String actor)
+    {
+        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+    }
+
+    /**
      * Creates the {@code /Workflows} homepage the tests aim their events at, posted to by an administrator.
      *
      * @param context the Sling context to build in
      * @return the homepage resource
      */
-    static Resource createTarget(final SlingContext context)
+    public static Resource createTarget(final SlingContext context)
     {
         return createTarget(context, ADMIN);
     }
@@ -166,7 +189,7 @@ final class EngineFixture
      * @param actor the user id the target's session reports
      * @return the homepage resource
      */
-    static Resource createTarget(final SlingContext context, final String actor)
+    public static Resource createTarget(final SlingContext context, final String actor)
     {
         final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
         final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
@@ -268,7 +291,7 @@ final class EngineFixture
      * @param delegate the resolver to wrap
      * @return a resolver over a repository that answers those questions
      */
-    static ResourceResolver withRepositoryServices(final ResourceResolver delegate)
+    public static ResourceResolver withRepositoryServices(final ResourceResolver delegate)
     {
         final JackrabbitSession session = jackrabbitSession(delegate.adaptTo(Session.class));
         return new ResourceResolverWrapper(delegate)
@@ -378,7 +401,7 @@ final class EngineFixture
      * @param context the Sling context to build in
      * @param targetResourceType the resource type the version declares itself for, or {@code null} for none
      */
-    static void createSystemWorkflow(final SlingContext context, final String targetResourceType)
+    public static void createSystemWorkflow(final SlingContext context, final String targetResourceType)
     {
         createSystemWorkflow(context, WorkflowVersion.ACTIVE_TAG, targetResourceType);
     }
@@ -393,7 +416,7 @@ final class EngineFixture
      * @param lifecycle the lifecycle tag the version carries
      * @param targetResourceType the resource type the version declares itself for, or {@code null} for none
      */
-    static void createSystemWorkflow(final SlingContext context, final String lifecycle,
+    public static void createSystemWorkflow(final SlingContext context, final String lifecycle,
         final String targetResourceType)
     {
         context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
@@ -417,7 +440,7 @@ final class EngineFixture
      * @param context the Sling context to build in
      * @param performers the principals the start event admits; none means it admits nobody but administrators
      */
-    static void createBootstrapGraph(final SlingContext context, final String... performers)
+    public static void createBootstrapGraph(final SlingContext context, final String... performers)
     {
         context.create().resource(VERSION + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, "elementId", "requested", "messageName", "create",

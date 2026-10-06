@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +36,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -156,7 +157,7 @@ class SavePropertiesHandlerTest
      * @param required the activity's required configuration, or {@code null} to omit it
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl save(final Map<String, Object> payload, final Object editable,
+    private WorkflowTaskContext save(final Map<String, Object> payload, final Object editable,
         final Object required)
     {
         final Map<String, Object> configuration = new HashMap<>();

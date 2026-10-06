@@ -15,22 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.spi;
 
 import org.apache.sling.api.resource.Resource;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The resource the built-in service tasks act on: the one the execution created, if it created one, or else the
- * resource the event was aimed at.
+ * The resource a service task acts on, by the rule every built-in one follows: the one the execution created, if it
+ * created one, or else the resource the event was aimed at. That is what lets a step act on what an earlier step of
+ * the same run created — {@code createEntity} and then {@code addTag} tags the new entity — so a handler that may
+ * follow a creation finds its resource here rather than reading the target.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class ExecutionHost
+public final class ExecutionHost
 {
     private ExecutionHost()
     {
@@ -43,7 +45,8 @@ final class ExecutionHost
      * @return the created resource, or the target when nothing was created
      * @throws WorkflowDefinitionException when the recorded path leads nowhere
      */
-    static Resource of(final WorkflowTaskContext context) throws WorkflowDefinitionException
+    @NotNull
+    public static Resource of(@NotNull final WorkflowTaskContext context) throws WorkflowDefinitionException
     {
         final Object created = context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
         if (!(created instanceof String)) {

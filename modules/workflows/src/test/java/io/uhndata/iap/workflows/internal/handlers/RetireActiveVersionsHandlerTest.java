@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +34,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -151,7 +152,7 @@ class RetireActiveVersionsHandlerTest
         // Nothing to retire and no telling what promoting it would make current
         this.context.create().resource("/loose/1-0", Map.of(
             WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
-        final WorkflowTaskContextImpl request = AuthoringFixture.context(
+        final WorkflowTaskContext request = AuthoringFixture.context(
             this.context.resourceResolver().getResource("/loose/1-0"), "activate", Map.of(), this.activity,
             new HashMap<>());
 
@@ -168,7 +169,7 @@ class RetireActiveVersionsHandlerTest
             WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
         final Resource rootless = org.mockito.Mockito.spy(orphan);
         org.mockito.Mockito.doReturn(null).when(rootless).getParent();
-        final WorkflowTaskContextImpl request =
+        final WorkflowTaskContext request =
             AuthoringFixture.context(rootless, "activate", Map.of(), this.activity, new HashMap<>());
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(request));
@@ -181,7 +182,7 @@ class RetireActiveVersionsHandlerTest
      * @param variables where the handler reports what it retired
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl retireFor(final String name, final Map<String, Object> variables)
+    private WorkflowTaskContext retireFor(final String name, final Map<String, Object> variables)
     {
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.path(name)),
             "activate", Map.of(), this.activity, variables);

@@ -15,7 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.spi;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -31,7 +34,7 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
  * @version $Id$
  * @since 0.1.0
  */
-final class Payloads
+public final class Payloads
 {
     private Payloads()
     {
@@ -44,7 +47,8 @@ final class Payloads
      * @param name the payload entry to read
      * @return the trimmed value, or {@code null} if it is absent, blank, or not text
      */
-    static String text(final WorkflowEvent event, final String name)
+    @Nullable
+    public static String text(@NotNull final WorkflowEvent event, @NotNull final String name)
     {
         final Object value = event.get(name);
         if (!(value instanceof String)) {
@@ -63,8 +67,9 @@ final class Payloads
      * @return the trimmed value
      * @throws InvalidPayloadException if it is absent, blank, or not text
      */
-    static String requireText(final WorkflowEvent event, final String name, final String complaint)
-        throws InvalidPayloadException
+    @NotNull
+    public static String requireText(@NotNull final WorkflowEvent event, @NotNull final String name,
+        @NotNull final String complaint) throws InvalidPayloadException
     {
         final String value = text(event, name);
         if (value == null) {
@@ -80,7 +85,8 @@ final class Payloads
      * @param name the payload entry to read
      * @return the attachment, or {@code null} if nothing arrived under that name, or what did is not a file
      */
-    static EventAttachment attachment(final WorkflowEvent event, final String name)
+    @Nullable
+    public static EventAttachment attachment(@NotNull final WorkflowEvent event, @NotNull final String name)
     {
         final Object value = event.get(name);
         return value instanceof EventAttachment ? (EventAttachment) value : null;

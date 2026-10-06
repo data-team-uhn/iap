@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -38,10 +38,12 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -189,11 +191,10 @@ final class AuthoringFixture
      * @param variables where the handler reports its results
      * @return the assembled context
      */
-    static WorkflowTaskContextImpl context(final Resource target, final String event,
+    static WorkflowTaskContext context(final Resource target, final String event,
         final Map<String, Object> payload, final Activity activity, final Map<String, Object> variables)
     {
-        return new WorkflowTaskContextImpl(target, new WorkflowEvent(event, payload), activity, variables, ACTOR,
-            EngineFixture.noFurtherTasks(), 0);
+        return EngineFixture.taskContext(target, new WorkflowEvent(event, payload), activity, variables, ACTOR);
     }
 
     /**

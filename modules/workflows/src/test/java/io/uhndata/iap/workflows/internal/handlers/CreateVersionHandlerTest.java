@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,6 +38,7 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -263,7 +264,7 @@ class CreateVersionHandlerTest
      * @param variables where the handler reports its results
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl request(final Map<String, Object> payload,
+    private WorkflowTaskContext request(final Map<String, Object> payload,
         final Map<String, Object> variables)
     {
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION),

@@ -54,6 +54,11 @@ import io.uhndata.iap.conditions.models.ConditionGroup;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.workflows.internal.handlers.CopyContentHandler;
+import io.uhndata.iap.workflows.internal.handlers.CreateVersionHandler;
+import io.uhndata.iap.workflows.internal.handlers.RetireActiveVersionsHandler;
+import io.uhndata.iap.workflows.internal.handlers.SaveDiagramHandler;
+import io.uhndata.iap.workflows.internal.handlers.SavePropertiesHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

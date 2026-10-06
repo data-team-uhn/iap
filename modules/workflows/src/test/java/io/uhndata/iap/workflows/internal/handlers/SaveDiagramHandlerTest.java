@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,6 +39,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -139,7 +140,7 @@ class SaveDiagramHandlerTest
     {
         // A definition that sends the save of anything but a version here is the mistake, not the request
         AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
-        final WorkflowTaskContextImpl request = AuthoringFixture.context(
+        final WorkflowTaskContext request = AuthoringFixture.context(
             AuthoringFixture.unreadable(this.context, AuthoringFixture.path("2-0")), "save",
             Map.of(VersionEdits.BPMN_FILE, AuthoringFixture.upload(REPLACEMENT, null)), this.activity, new HashMap<>());
 
@@ -186,7 +187,7 @@ class SaveDiagramHandlerTest
      * @param diagram the uploaded document, or {@code null} to send none
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl save(final String name, final EventAttachment diagram)
+    private WorkflowTaskContext save(final String name, final EventAttachment diagram)
     {
         final Map<String, Object> payload = new HashMap<>();
         if (diagram != null) {

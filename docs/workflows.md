@@ -2,7 +2,8 @@
 
 **Module:** `modules/workflows` · **Bundle:** `iap-workflows` · **API:**
 `io.uhndata.iap.workflows.api` (`WorkflowEngine`, `WorkflowEvent`, `WorkflowResult`) ·
-**SPI:** `io.uhndata.iap.workflows.spi` (`ServiceTaskHandler`, `WorkflowTaskContext`) ·
+**SPI:** `io.uhndata.iap.workflows.spi` (`ServiceTaskHandler`, `WorkflowTaskContext`,
+`ExecutionHost`, `Payloads`) ·
 **Models:** `io.uhndata.iap.workflows.models`
 
 A workflow is the process a piece of content is put through: who has to look at a
@@ -757,6 +758,12 @@ void             setVariable(String name, Object value);
 ResourceResolver getResourceResolver();
 void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
+
+// ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
+static Resource        ExecutionHost.of(WorkflowTaskContext context);
+static String          Payloads.text(WorkflowEvent event, String name);
+static String          Payloads.requireText(WorkflowEvent event, String name, String complaint);
+static EventAttachment Payloads.attachment(WorkflowEvent event, String name);
 ```
 
 Service tasks are implemented as a `ServiceTaskHandler`: the activity names its handler
@@ -769,6 +776,12 @@ fired the event. Two calls ask the engine for more within the same execution and
 `sendEvent` runs the system workflow waiting for an event, and `startWorkflow` starts an
 instance of a workflow on a resource. The built-in `callActivity` and `startWorkflow`
 handlers are thin over them.
+
+The two helpers are what keeps a module's own handlers consistent with the built-in ones,
+which live privately in `internal.handlers`. `ExecutionHost.of` is what a task acts on:
+what an earlier step of the same run created, or else the target, which is how
+`createEntity` followed by `addTag` tags the entity it just made. `Payloads` reads one
+payload entry: text trimmed, with blank counted as absent, or an uploaded file.
 
 The first built-in handler is `createEntity`: create a node of the configured
 `entityType` under the target, named by camel-casing the payload's `title`, dodging

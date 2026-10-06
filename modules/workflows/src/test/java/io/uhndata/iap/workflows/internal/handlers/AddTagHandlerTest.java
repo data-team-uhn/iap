@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.internal.handlers;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -34,8 +34,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,7 +173,7 @@ class AddTagHandlerTest
      * @param variables the execution's variables
      * @return the assembled context
      */
-    private WorkflowTaskContextImpl context(final Map<String, Object> configuration,
+    private WorkflowTaskContext context(final Map<String, Object> configuration,
         final Map<String, Object> variables)
     {
         final Map<String, Object> properties = new HashMap<>(configuration);
@@ -179,7 +181,7 @@ class AddTagHandlerTest
         properties.put("elementId", "tag");
         properties.put("handler", AddTagHandler.HANDLER_NAME);
         final Activity activity = this.context.create().resource(ACTIVITY, properties).adaptTo(Activity.class);
-        return new WorkflowTaskContextImpl(this.target, new WorkflowEvent("tag", Map.of()), activity, variables,
-            ACTOR, EngineFixture.noFurtherTasks(), 0);
+        return EngineFixture.taskContext(this.target, new WorkflowEvent("tag", Map.of()), activity, variables,
+            ACTOR);
     }
 }
