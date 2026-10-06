@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
@@ -213,7 +213,7 @@ class DraftVersionHandlerTest
     {
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
 
-        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.draft(FIRST, Map.of("version", "1.0"), new HashMap<>())));
         assertTrue(refusal.getMessage().contains("already has a version 1.0"));
     }

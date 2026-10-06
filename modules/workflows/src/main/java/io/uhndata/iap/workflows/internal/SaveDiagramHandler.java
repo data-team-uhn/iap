@@ -22,7 +22,7 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -56,7 +56,7 @@ public class SaveDiagramHandler implements ServiceTaskHandler
     {
         final WorkflowVersion version = VersionEdits.targetVersion(context);
         if (version.getState() != WorkflowVersion.State.DRAFT) {
-            throw new WorkflowConflictException("Only a draft may be edited, and this version is "
+            throw new InvalidStateException("Only a draft may be edited, and this version is "
                 + VersionEdits.describe(version.getState())
                 + "; return it to a draft, or draft a copy of it, and edit that");
         }

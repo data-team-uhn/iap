@@ -44,7 +44,6 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -218,13 +217,6 @@ class WorkflowEventServletTest
 
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
         assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
-    }
-
-    @Test
-    void mapsAConflictingTargetStateToConflict() throws WorkflowException, IOException, ServletException
-    {
-        // The neighbour of "nothing was waiting for this": something was, and the target has moved past it
-        assertEquals(409, statusFor(new WorkflowConflictException("a retired version cannot be made active")));
     }
 
     @Test

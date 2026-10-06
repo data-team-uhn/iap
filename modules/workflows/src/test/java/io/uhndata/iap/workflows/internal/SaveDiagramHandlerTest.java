@@ -32,7 +32,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -126,7 +126,7 @@ class SaveDiagramHandlerTest
             final String name = frozen.name().toLowerCase(java.util.Locale.ROOT);
             AuthoringFixture.createVersion(this.context, name, name, frozen, Map.of());
 
-            final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+            final InvalidStateException refusal = assertThrows(InvalidStateException.class,
                 () -> this.handler.execute(this.save(name, AuthoringFixture.upload(REPLACEMENT, null))));
             assertTrue(refusal.getMessage().contains("Only a draft may be edited"));
             assertTrue(refusal.getMessage().contains("this version is " + name));
@@ -140,7 +140,7 @@ class SaveDiagramHandlerTest
         // edited is the draft, and this version cannot be shown to be one
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "PUBLISHED", Map.of());
 
-        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
         assertTrue(refusal.getMessage().contains("this version is in an unrecognized state"));
     }

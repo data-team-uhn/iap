@@ -869,13 +869,6 @@ or firing timers will feed the same door. Receiving an event answers three quest
 failure maps to its own HTTP status: is anything waiting for this event here (no → **409**), may this user
 fire it (no → **403**), and is what it carries usable (no → **400**)?
 
-A fourth refusal shares the first one's status without being the same question. `WorkflowConflictException`
-is a handler saying the *target* is not in a state that admits this — promoting a version that has already
-been retired, drafting a label some other version carries. A 409 either way, because nothing about the
-request would be improved by sending it differently; what has to change is the target. A client can act on
-the difference: `NoApplicableWorkflowException` means a stale page offering a button that does not exist
-here, `WorkflowConflictException` one offering a button whose moment has passed.
-
 ### Who is allowed: the workflow decides
 
 The middle question is the one the whole design turns on. **Nobody holds rights on the content workflows

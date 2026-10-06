@@ -28,7 +28,7 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -84,7 +84,7 @@ public class SetVersionStateHandler implements ServiceTaskHandler
         // The message says which versions this move is for, since a client that asked for it is usually looking at
         // a version whose state has moved on since the buttons were drawn
         if (!allowed.contains(current)) {
-            throw new WorkflowConflictException("A version that is " + VersionEdits.describe(current)
+            throw new InvalidStateException("A version that is " + VersionEdits.describe(current)
                 + " cannot be made " + VersionEdits.name(target)
                 + "; that is only available for a " + names(allowed) + " version");
         }

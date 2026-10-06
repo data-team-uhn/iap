@@ -24,7 +24,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -75,7 +75,7 @@ public class DraftVersionHandler implements ServiceTaskHandler
         final Resource definition = VersionEdits.definitionOf(sourceResource);
         final String label = VersionEdits.newLabel(context, definition);
         if (VersionEdits.hasVersionLabelled(definition, label)) {
-            throw new WorkflowConflictException("This workflow already has a version " + label);
+            throw new InvalidStateException("This workflow already has a version " + label);
         }
         final Resource draft = context.getResourceResolver().create(definition,
             VersionEdits.availableName(definition),

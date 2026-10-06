@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -125,7 +125,7 @@ class SetVersionStateHandlerTest
     {
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.RETIRED, Map.of());
 
-        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.move(FIRST, "ACTIVE", new String[] { "DRAFT", "TRIAL" })));
         assertTrue(refusal.getMessage().contains("A version that is retired cannot be made active"));
         // The message says which versions the move is for, since a stale page is the usual reason to see it
@@ -140,7 +140,7 @@ class SetVersionStateHandlerTest
         // before it can be said that this is a step it may take
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", "PUBLISHED", Map.of());
 
-        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.move(FIRST, "ACTIVE", new String[] { "DRAFT", "TRIAL" })));
         assertTrue(refusal.getMessage().contains("A version that is in an unrecognized state cannot be made"));
         assertNull(this.stateOf(FIRST));

@@ -44,7 +44,6 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowConflictException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -133,8 +132,8 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             } else {
                 reply(response, HttpServletResponse.SC_OK, "status", "completed");
             }
-        } catch (final NoApplicableWorkflowException | InvalidStateException | WorkflowConflictException e) {
-            // All are "not here, not now" rather than "not you" or "not like that": nothing was waiting for this
+        } catch (final NoApplicableWorkflowException | InvalidStateException e) {
+            // Both are "not here, not now" rather than "not you" or "not like that": nothing was waiting for this
             // event, or something was and the target is not in a state that admits it
             reply(response, HttpServletResponse.SC_CONFLICT, "error", e.getMessage());
         } catch (final NotAuthorizedException e) {
