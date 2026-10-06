@@ -19,13 +19,16 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.StreamSupport;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.VersionNumbers;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -37,7 +40,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * Opens a new version of a workflow, for the step after it to mark a draft, carrying whatever diagram the
  * request brought. The workflow is the one an earlier step of the same run created, when there is one, and otherwise
  * the event's target, as for every built-in service task: so {@code createEntity} followed by this step creates a
- * workflow and its first version in one commit, and this step alone adds a version to an existing workflow.
+ * workflow and its first version in one commit, and this step alone adds a version to an existing workflow. The
+ * version is numbered by the platform's rule for versions, {@link VersionNumbers}, as a schema version is, and
+ * labelled with the event's {@code version}, or else its number.
  *
  * <p>The version and its diagram are created in one write — the version first, then the file beneath it — so a
  * draft with no diagram is never an observable state. A client can't do this by posting directly: Sling creates
@@ -69,8 +74,9 @@ public class CreateVersionHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource definition = ExecutionHost.of(context);
-        final String label = VersionEdits.newLabel(context, definition);
-        if (VersionEdits.hasVersionLabelled(definition, label)) {
+        final int number = VersionNumbers.next(definition, WorkflowVersion.RESOURCE_TYPE);
+        final String label = label(context, number);
+        if (hasVersionLabelled(definition, label)) {
             throw new InvalidStateException("This workflow already has a version " + label);
         }
         final Map<String, Object> properties = new HashMap<>();
@@ -85,11 +91,43 @@ public class CreateVersionHandler implements ServiceTaskHandler
         }
         VersioningUtils.checkOut(definition);
         final Resource version = context.getResourceResolver().create(definition,
-            VersionEdits.availableName(definition), properties);
+            VersionNumbers.nodeName(definition, number), properties);
         final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);
         if (diagram != null) {
             VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());
         }
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, version.getPath());
+    }
+
+    /**
+     * The label a new version is created with: the one the event asks for, or else its number. A label that is
+     * sent but blank, or not text, is refused rather than defaulted.
+     *
+     * @param context the handler's context
+     * @param number the number the version is named with
+     * @return the label, trimmed
+     * @throws InvalidPayloadException when the label sent is not usable
+     */
+    private static String label(final WorkflowTaskContext context, final int number) throws InvalidPayloadException
+    {
+        if (context.getEvent().get(VersionEdits.VERSION) == null) {
+            return VersionNumbers.defaultLabel(number);
+        }
+        return Payloads.requireText(context.getEvent(), VersionEdits.VERSION, "A version label cannot be blank");
+    }
+
+    /**
+     * Whether a definition already has a version carrying the given label. Two versions of one workflow carrying
+     * the same label would be indistinguishable to everyone reading them.
+     *
+     * @param definition the workflow definition to look through
+     * @param label the version label to look for
+     * @return {@code true} if a version already carries that label
+     */
+    private static boolean hasVersionLabelled(final Resource definition, final String label)
+    {
+        return StreamSupport.stream(definition.getChildren().spliterator(), false)
+            .filter(child -> child.isResourceType(WorkflowVersion.RESOURCE_TYPE))
+            .anyMatch(child -> label.equals(child.getValueMap().get(VersionEdits.VERSION, String.class)));
     }
 }

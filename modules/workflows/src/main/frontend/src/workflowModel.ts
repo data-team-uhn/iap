@@ -91,17 +91,6 @@ export interface WorkflowSummary {
   versions: WorkflowVersionSummary[];
 }
 
-// The label a new version of a workflow is offered by default: the whole number after the highest
-// numeric label (3.0 after 2.1), or after the number of versions when none of them is numeric. The same
-// rule the server applies when a request names no label; the user can always type another.
-export function nextVersionLabel(workflow: WorkflowSummary): string {
-  const numbers = workflow.versions
-    // Number rather than parseFloat, so a label is numeric only as a whole: "2.0 (pilot)" is not 2
-    .map(version => (version.version.trim() === "" ? Number.NaN : Number(version.version)))
-    .filter(Number.isFinite);
-  return `${numbers.length > 0 ? Math.floor(Math.max(...numbers)) + 1 : workflow.versions.length + 1}.0`;
-}
-
 function isNode(value: unknown): value is JcrNode {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

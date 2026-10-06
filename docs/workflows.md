@@ -68,10 +68,13 @@ one freely editable, so no guard takes it for one: it cannot be edited, promoted
 console shows no lifecycle for it. Of the moves, only **New draft from this** is still offered, which copies
 it into a genuine draft; **View** is offered whatever the lifecycle, as it always is.
 
-A version's node is named by its position, `v1`, `v2` and so on, skipping any name already taken; what
-readers see is its `version` label, which the author chooses. A label defaults to the whole number after the
-highest numeric label there (`3.0` after `2.1`) — suggested in the console, and applied by the server when a
-request names none — so a label can say anything, dots included, without the path having to carry it.
+A version is numbered the way a schema version is, by the platform's one rule for versions
+(`VersionNumbers` in `java-utils`, `versionNumbers` in `frontend-commons`): one past the largest number a
+version's node name starts with, so a version discarded from the middle leaves no number for a new one to
+take again. Its node is named `v` and that number; what readers see is its `version` label, which the author
+chooses, and which defaults to the number (`3.0` after `v2`) — suggested in the console, and applied by the
+server when a request names none. Labels take no part in the numbering, being free text, as likely a year as
+a number, so a label can say anything, dots included, without the path having to carry it.
 
 At most one version of a definition is active at a time, and that is an invariant of the transition rather
 than of the node type: promoting a version retires the one it supersedes in the same save, so there is no

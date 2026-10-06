@@ -76,7 +76,7 @@ class CreateVersionHandlerTest
     }
 
     @Test
-    void createsADraftNamedAfterItsPosition() throws WorkflowException, PersistenceException
+    void createsAVersionNamedAfterItsNumber() throws WorkflowException, PersistenceException
     {
         final Map<String, Object> variables = new HashMap<>();
 
@@ -162,9 +162,9 @@ class CreateVersionHandlerTest
     }
 
     @Test
-    void skipsANodeNameThatIsAlreadyTaken() throws WorkflowException, PersistenceException
+    void numbersPastTheLargestNumberAVersionIsNamedWith() throws WorkflowException, PersistenceException
     {
-        // One version so far, but already stored under the name the second would get
+        // One version so far, but named as a second would be: the names decide, not how many there are
         AuthoringFixture.createVersion(this.context, "v2", "1.0", "draft", Map.of());
         final Map<String, Object> variables = new HashMap<>();
 
@@ -204,28 +204,17 @@ class CreateVersionHandlerTest
     }
 
     @Test
-    void labelsALaterVersionWithTheWholeNumberAfterTheHighest() throws WorkflowException, PersistenceException
+    void labelsAVersionWithItsNumberWhenNoLabelIsGiven() throws WorkflowException, PersistenceException
     {
-        // A label that is not a number, or not a finite one, takes no part in which number comes next
+        // Labels are free text, as likely a year as a number, so they take no part; and the number follows the
+        // largest, leaving the one a discarded v3 had unused
         AuthoringFixture.createVersion(this.context, "v1", "1.0", "retired", Map.of());
-        AuthoringFixture.createVersion(this.context, "v2", "2.5", "active", Map.of());
-        AuthoringFixture.createVersion(this.context, "v3", "beta", "draft", Map.of());
-        AuthoringFixture.createVersion(this.context, "v4", "Infinity", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, "v2", "2027", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "v4", "beta", "draft", Map.of());
 
         this.handler.execute(this.request(Map.of(), new HashMap<>()));
 
-        assertEquals("3.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v5"))
-            .getValueMap().get("version"));
-    }
-
-    @Test
-    void numbersAfterTheVersionCountWhenNoLabelIsANumber() throws WorkflowException, PersistenceException
-    {
-        AuthoringFixture.createVersion(this.context, "v1", "alpha", "draft", Map.of());
-
-        this.handler.execute(this.request(Map.of(), new HashMap<>()));
-
-        assertEquals("2.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v2"))
+        assertEquals("5.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v5"))
             .getValueMap().get("version"));
     }
 

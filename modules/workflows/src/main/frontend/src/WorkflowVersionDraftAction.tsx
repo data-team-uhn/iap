@@ -27,8 +27,9 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
+import { nextVersionLabel } from "@iap/frontend-commons/versionNumbers";
 
-import { adminUrl, nextVersionLabel, offers } from "./workflowModel";
+import { adminUrl, offers } from "./workflowModel";
 import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
@@ -66,7 +67,7 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
   return (
     <>
       <ActionIcon label="New draft from this" icon={<ContentCopyIcon fontSize="small" />} onClick={() => {
-        setLabel(nextVersionLabel(workflow));
+        setLabel(nextVersionLabel(workflow.versions.map(existing => existing.name)));
         setNaming(true);
       }} />
       { naming && (
