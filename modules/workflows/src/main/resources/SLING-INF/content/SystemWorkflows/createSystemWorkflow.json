@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/SystemWorkflowsHomepage",
-    "description": "What happens when a workflow is asked for under /SystemWorkflows: the same thing as under /Workflows - a definition, then its first draft version through createVersion, created together - which is the point, since only its location makes a definition a system workflow. A definition of its own rather than a second target on createWorkflow because the two are different acts to govern: one adds a process a deployment runs, the other adds behavior the platform performs on its own, and a deployment that wants those held to different people changes this start event's performers without touching the other. A version's targetResourceType names one type, so covering both homepages from one definition would also have meant naming a supertype that every entity homepage shares - which would have had this catch creation on /Submissions too.",
+    "description": "Creates a system workflow, named after its title, with a first version as a draft. Administrators only.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

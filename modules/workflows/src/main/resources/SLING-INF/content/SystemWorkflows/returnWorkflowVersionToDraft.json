@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when a trial needs another look: it goes back to being a draft, and so becomes editable again. Only a trial can, which is what this start event's guard says - an active version is what running instances are following and a retired one is what the instances that outlived it are still following, so neither goes back to being edited; a copy of either is drafted instead.",
+    "description": "Returns a version on trial to being a draft, to be edited again.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

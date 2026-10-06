@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowDefinition",
-    "description": "What happens when another version of an existing workflow is asked for: a draft is created beside the versions already there, either carrying whatever diagram the request brought to start from, or as a copy of the version named by the event's source - its diagram, its graph and everything else it holds, but the new version's own label. A draft rather than anything else, because a version that instances could be created from should be one somebody has decided to activate, and marking the copy a draft replaces where its source stood. Being itself a workflow, a deployment that wants a new version to be announced, or to be refused while another draft is open, edits this definition rather than the platform.",
+    "description": "Adds a version to a workflow, as a draft: a new one, or a copy of the version the event names as its source.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

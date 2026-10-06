@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowDefinition",
-    "description": "What happens when a workflow's own properties are saved: the properties this deployment says are editable are written onto it, and nothing else the request happened to name. Which those are is the activity's `editable` list rather than the handler's code, so a deployment that wants the description editable here adds a word to it. A workflow's versions are not among them - whether it runs is read off them, and is changed by activating one.",
+    "description": "Changes a workflow's title.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

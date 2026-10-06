@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowsHomepage",
-    "description": "What happens when a new workflow is asked for: create the definition, then send it createVersion, whose own workflow gives it its first version, a draft carrying the starting diagram the request brought, in the same commit - so a workflow never exists without a version to edit, its first version is made the way every later one is, and nothing runs until that version is activated. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
+    "description": "Creates a workflow, named after its title, with a first version as a draft. Administrators only.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

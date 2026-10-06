@@ -26,7 +26,7 @@
                   id="saveWorkflowDiagramDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/saveWorkflowDiagram">
   <bpmn:message id="saveMessage" name="save" />
-  <bpmn:process id="saveWorkflowDiagram" name="Save a workflow version's diagram" isExecutable="true">
+  <bpmn:process id="saveWorkflowDiagram" name="Save a workflow version's process" isExecutable="true">
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Diagram saved">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">

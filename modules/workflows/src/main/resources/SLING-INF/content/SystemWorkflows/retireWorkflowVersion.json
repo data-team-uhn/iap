@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when the active version is withdrawn without a replacement: the instances already running against it carry on, but no new ones start, so the workflow is retired until one of its versions is activated again. Only the active version can be, which is what this start event's guard says - a draft or a trial has nothing following it to stop.",
+    "description": "Withdraws the active version: running instances carry on, but no new ones start until a version is activated.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when a draft is put on trial: it stops being editable, without yet becoming what instances are created from. Only a draft can be, which is what this start event's guard says - an active or retired version is carried forward by drafting a copy instead.",
+    "description": "Puts a draft on trial: frozen, and tried out before it is activated.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

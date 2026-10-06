@@ -2,7 +2,7 @@
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/coreUI/view",
   "ext:name": "Workflows",
-  "ext:hint": "Every page of the workflow console: a homepage's listing, a workflow, and a version, whose URL carries a repository path of unknown length, so that only a splat can match it - the page this mounts works out which of the three a URL addresses. A splat never names a crumb, so the console's root, which redirects to the listing of the homepage every deployment has, is routed without becoming a step in the trail; the pages add the steps above them themselves, each under its own title.",
+  "ext:hint": "The workflow console: each homepage's workflows, and their versions.",
   "ext:targetURL": "/admin/workflows/*",
   "ext:renderURL": "asset:iap-workflows.WorkflowConsole.js?lazy",
   "defaultOrder": 90

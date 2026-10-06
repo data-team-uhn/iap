@@ -1,12 +1,12 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
-  "title": "Save a workflow version's diagram",
+  "title": "Save a workflow version's process",
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when the editor saves a diagram: it replaces the one the version held, and the commit editor parses it into the flow nodes the engine runs. This is also where 'only a draft may be edited' is enforced rather than merely offered - the start event's guard refuses a diagram for a version anything could be following. Going through a workflow is what makes that refusal possible at all: a diagram used to arrive as a plain write to the version's bpmn.xml, which nothing guarded.",
+    "description": "Replaces the process of a draft version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
