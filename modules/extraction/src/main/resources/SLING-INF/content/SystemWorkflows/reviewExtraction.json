@@ -1,0 +1,43 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Record what the submitter said about a pre-filled answer",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "The submitter looked at an answer the platform read out of their document and said what they make of it. Confirming settles the answer: they have vouched for it, so it is marked reviewed and its confidence becomes 1. Saying the quoted passage does not support the answer is a report about the extraction rather than a verdict on the answer, so it settles nothing and blocks nothing. The two are recorded independently, and the payload names the question by its path relative to the schema version, the same way the save endpoint does. Fired by the form through POST <submission>.reviewExtraction.json.",
+    "reviewed": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "reviewed",
+      "label": "Answer reviewed",
+      "messageName": "reviewExtraction",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Write down what they said",
+      "handler": "reviewExtraction",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Review recorded",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
