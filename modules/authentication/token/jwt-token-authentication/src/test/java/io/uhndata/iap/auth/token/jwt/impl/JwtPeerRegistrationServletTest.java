@@ -58,6 +58,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -222,9 +223,10 @@ public class JwtPeerRegistrationServletTest
     @Test
     public void anIssuerThatCouldNeverMatchIsRefused() throws Exception
     {
-        // A peer's iss is its host and port with everything non-alphanumeric stripped, so a value carrying a
-        // colon or a dot describes a peer that would never verify
-        for (final String issuer : new String[] {"peer.example.org:8080", "", "../etc"}) {
+        // JSON-escaped: the fourth is a real line break, the kind that would forge a log line
+        final String[] issuers = {"", "   ", " https://peer.example.org", "https://peer.example.org\\n",
+            "a/b:c", "https://exa mple.org", "x".repeat(2049)};
+        for (final String issuer : issuers) {
             this.body.getBuffer().setLength(0);
             post("{\"issuer\": \"" + issuer + "\", \"key\": \"" + encodedPeerKey() + "\"}");
 
@@ -233,6 +235,25 @@ public class JwtPeerRegistrationServletTest
             Assertions.assertTrue(this.body.toString().contains("error"), "Accepted the issuer '" + issuer + "'");
         }
         verifyNothingWasStored();
+    }
+
+    @Test
+    public void uriAndPlainIssuersAreStoredExactlyAsGiven() throws Exception
+    {
+        final String[] issuers = {"https://peer.example.org", "https://peer.example.org:8443/iap/",
+            "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66", PEER_ISSUER};
+        for (final String issuer : issuers) {
+            post("{\"issuer\": \"" + issuer + "\", \"key\": \"" + encodedPeerKey() + "\"}");
+            this.servlet.doPost(this.request, this.response);
+        }
+
+        // Unnormalized, since the comparison against the token's claim is too
+        final ArgumentCaptor<Map<String, Object>> stored = captor();
+        verify(this.serviceResolver, times(issuers.length)).create(any(), anyString(),
+            stored.capture());
+        for (int i = 0; i < issuers.length; ++i) {
+            Assertions.assertEquals(issuers[i], stored.getAllValues().get(i).get(IapJwtTokenManagerImpl.ISSUER_PROP));
+        }
     }
 
     @Test
