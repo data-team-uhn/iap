@@ -17,10 +17,13 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -49,5 +52,16 @@ public class ApprovalRequirement extends Requirement
     public String getApproverGroup()
     {
         return this.approverGroup;
+    }
+
+    /**
+     * The risks the approvers want assessed, in the order they are listed.
+     *
+     * @return a list of risks, empty if none
+     */
+    @NotNull
+    public List<Risk> getRisks()
+    {
+        return this.getChildren(Risk.RESOURCE_TYPE, Risk.class);
     }
 }

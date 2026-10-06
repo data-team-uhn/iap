@@ -287,6 +287,35 @@
   // Questions and comments raised during this review
   + * (sub:ReviewComment) = sub:ReviewComment
 
+  // The reviewer's assessments of the risks listed by the approval requirement
+  + * (sub:RiskAssessment) = sub:RiskAssessment
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The assessment of a single sch:Risk, the way a sub:Answer answers a
+// sch:Question. Referenceable so that review comments can target it.
+[sub:RiskAssessment] > data:EntityPart, mix:referenceable, mix:lastModified
+  // The extraction runs are orderable, so they are presented in the order they
+  // ran, the newest last.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/RiskAssessment" mandatory autocreated protected
+
+  // The sch:Risk this assesses
+  - risk (REFERENCE) mandatory
+
+  // The reviewer's assessment
+  - value (STRING)
+
+  // What extraction made of this risk, one child per run, populated by AI
+  + * (sub:Extraction) = sub:Extraction
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 

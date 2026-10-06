@@ -57,7 +57,7 @@ class ReviewTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, ReviewComment.class,
-            Review.class, ApprovalRequirement.class);
+            Review.class, ApprovalRequirement.class, RiskAssessment.class);
     }
 
     @Test
@@ -137,6 +137,23 @@ class ReviewTest
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.getUnresolvedComments().isEmpty());
+    }
+
+    @Test
+    void listsOnlyRiskAssessments()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/review/privacy", Map.of(
+            "sling:resourceType", RiskAssessment.RESOURCE_TYPE, "value", "Low"));
+        this.context.create().resource("/Submissions/submission/review/c1", Map.of(
+            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Not an assessment"));
+        final Review review = resource.adaptTo(Review.class);
+
+        final List<RiskAssessment> assessments = review.getRiskAssessments();
+
+        assertEquals(1, assessments.size());
+        assertEquals("Low", assessments.get(0).getValue());
     }
 
     @Test
