@@ -66,11 +66,15 @@ export const latestVersion = (schema: JcrNode): JcrNode | undefined => versionsO
   .reduce<JcrNode | undefined>((latest, version) =>
     latest && createdOf(latest) > createdOf(version) ? latest : version, undefined);
 
-// The label a new version would most likely have: the next whole number after the highest numeric label
+// The label the server gives a new version named by no event: one past the largest number the schema's versions are
+// named with (`v3`, or `3.0` as content imported by hand may be). Labels are free text, as likely a year as a number,
+// so they are not read.
 export function nextVersionLabel(schema: JcrNode): string {
-  const versions = versionsOf(schema);
-  const numbers = versions.map(version => Number.parseFloat(labelOf(version))).filter(Number.isFinite);
-  return `${numbers.length > 0 ? Math.floor(Math.max(...numbers)) + 1 : versions.length + 1}.0`;
+  const numbers = versionsOf(schema)
+    .map(version => /^[vV]?(\d{1,9})/.exec(String(version["@name"]))?.[1])
+    .filter((digits): digits is string => digits !== undefined)
+    .map(Number);
+  return `${Math.max(0, ...numbers) + 1}.0`;
 }
 
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
