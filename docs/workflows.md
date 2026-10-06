@@ -366,7 +366,8 @@ properties of the source node itself, such as a label the copy has its own of, a
 `dropTagCategories` leaves out its tags in those categories. What a module maintains
 rather than stores, it keeps out of copies, or adjusts in them, with a
 `CopyParticipant`: the tags module leaves out computed tags, the links module the links
-container, and the conditions module points `answer` operands at the copied questions.
+container, and the conditions module points `answer` operands naming a question by UUID
+at its copy.
 
 ## Sling Models
 

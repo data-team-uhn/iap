@@ -35,8 +35,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
- * Unit tests for {@link AnswerOperandsCopyParticipant}: once copied, answer operands name the copied questions by
- * UUID, whether they named them by UUID or by path, and anything else is left as it was.
+ * Unit tests for {@link AnswerOperandsCopyParticipant}: once copied, an answer operand naming a copied question by
+ * UUID names its copy, a path is kept as written, and anything else is left as it was.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +51,7 @@ class AnswerOperandsCopyParticipantTest
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     @Test
-    void namesTheCopiedQuestionsByUuid() throws RepositoryException
+    void pointsUuidsAtTheCopiedQuestionsAndKeepsPaths() throws RepositoryException
     {
         final Session session = this.context.resourceResolver().adaptTo(Session.class);
         // This module's own types: on a clean build its manifest, which declares them, does not exist yet
@@ -66,7 +66,8 @@ class AnswerOperandsCopyParticipantTest
             Map.of(original, copy.getNode("q").getIdentifier()));
 
         final String copied = copy.getNode("q").getIdentifier();
-        assertArrayEquals(new String[] { copied }, values(copy.getNode("byPath/operandA")));
+        // A path stays readable, and the copy's own structure is what it resolves against
+        assertArrayEquals(new String[] { "q" }, values(copy.getNode("byPath/operandA")));
         assertArrayEquals(new String[] { copied, "nowhere", "/abs" }, values(copy.getNode("byPath/operandB")));
         // A literal that happens to look like a question's path is a literal
         assertArrayEquals(new String[] { "q" }, values(copy.getNode("literal/operandA")));
