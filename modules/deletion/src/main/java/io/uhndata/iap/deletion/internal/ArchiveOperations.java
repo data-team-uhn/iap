@@ -44,6 +44,7 @@ import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.RestoreResult;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.utils.PrefixTree;
+import io.uhndata.iap.utils.VersioningUtils;
 
 /**
  * The execution phase of deletions: performs the actual moves and removals through the privileged service session,
@@ -63,8 +64,6 @@ import io.uhndata.iap.utils.PrefixTree;
 final class ArchiveOperations
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveOperations.class);
-
-    private static final String MIX_VERSIONABLE = "mix:versionable";
 
     private final ResourceResolver serviceResolver;
 
@@ -265,13 +264,9 @@ final class ArchiveOperations
      */
     private void checkoutForAddition(final Node parent) throws RepositoryException
     {
-        Node ancestor = parent;
-        while (ancestor.getDepth() > 0 && !ancestor.isNodeType(MIX_VERSIONABLE)) {
-            ancestor = ancestor.getParent();
-        }
-        if (ancestor.isNodeType(MIX_VERSIONABLE) && !ancestor.isCheckedOut()) {
-            this.versionManager.checkout(ancestor.getPath());
-            this.checkedOut.add(ancestor.getPath());
+        final String versionable = VersioningUtils.checkOut(parent);
+        if (versionable != null) {
+            this.checkedOut.add(versionable);
         }
     }
 

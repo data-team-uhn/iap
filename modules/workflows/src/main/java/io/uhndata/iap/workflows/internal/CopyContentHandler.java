@@ -33,6 +33,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -91,7 +92,7 @@ public class CopyContentHandler implements ServiceTaskHandler
             .collect(Collectors.toSet());
         try {
             final Node target = node(host);
-            checkOut(target);
+            VersioningUtils.checkOut(target);
             this.copier.copy(node(source), target, strings(context.getActivity().get("skipProperties")),
                 Map.of(TagManager.TAGS_PROPERTY, dropped));
         } catch (final RepositoryException e) {
@@ -122,28 +123,5 @@ public class CopyContentHandler implements ServiceTaskHandler
     private static Node node(final Resource resource)
     {
         return Objects.requireNonNull(resource.adaptTo(Node.class), "Content is stored in a JCR repository");
-    }
-
-    /**
-     * Makes the node receiving the copy writable, when it or what holds it is checked in.
-     *
-     * @param node the node about to receive the copy
-     * @throws RepositoryException when it cannot be checked out
-     * @throws PersistenceException when it is read-only, but nothing versionable holds it so
-     */
-    private static void checkOut(final Node node) throws RepositoryException, PersistenceException
-    {
-        if (node.isCheckedOut()) {
-            return;
-        }
-        Node versionable = node;
-        while (!versionable.isNodeType("mix:versionable")) {
-            if (versionable.getDepth() == 0) {
-                throw new PersistenceException("Cannot copy into " + node.getPath()
-                    + ": it is read-only, but neither it nor anything above it is versionable");
-            }
-            versionable = versionable.getParent();
-        }
-        versionable.getSession().getWorkspace().getVersionManager().checkout(versionable.getPath());
     }
 }

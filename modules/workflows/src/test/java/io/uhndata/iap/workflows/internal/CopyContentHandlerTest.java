@@ -26,6 +26,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
+import javax.jcr.version.VersionException;
 import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -45,8 +46,8 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link CopyContentHandler}: the event's source copied into what the task acts on, as the activity
@@ -152,19 +153,17 @@ class CopyContentHandlerTest
     }
 
     @Test
-    void stopsAtTheRootWhenNothingVersionableHoldsTheTarget() throws RepositoryException
+    void copiesNothingIntoATargetItCannotCheckOut() throws RepositoryException
     {
-        final Node root = Mockito.mock(Node.class);
+        // Read-only, yet with nothing versionable above it: the checkout refuses, so the copy never starts
         Mockito.when(this.hostNode.isCheckedOut()).thenReturn(false);
         Mockito.when(this.hostNode.getDepth()).thenReturn(1);
-        Mockito.when(this.hostNode.getParent()).thenReturn(root);
-        Mockito.when(this.hostNode.getPath()).thenReturn("/orphan");
+        Mockito.when(this.hostNode.getParent()).thenReturn(Mockito.mock(Node.class));
 
         final PersistenceException refusal =
             assertThrows(PersistenceException.class, () -> this.handler.execute(context(Map.of("source", SOURCE))));
 
-        assertTrue(refusal.getMessage().contains("/orphan"), refusal.getMessage());
-        Mockito.verify(root, Mockito.never()).getParent();
+        assertInstanceOf(VersionException.class, refusal.getCause());
         Mockito.verifyNoInteractions(this.copier);
     }
 
