@@ -74,9 +74,9 @@ class ParseCompletionHandlerTest
     void setUp() throws Exception
     {
         final SubmissionTree tree = new SubmissionTree(this.context);
-        tree.schemaVersion();
-        tree.submission();
-        this.file = tree.file("queued");
+        tree.createSchemaVersion();
+        tree.createSubmission();
+        this.file = tree.createFile("queued");
         this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
         inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject("engine", this.engine);
@@ -90,7 +90,7 @@ class ParseCompletionHandlerTest
         field.set(this.handler, value);
     }
 
-    private ParseOutcome completed(final String target)
+    private ParseOutcome createCompletedOutcome(final String target)
     {
         return new ParseOutcome(JOB_ID, target, true, null, "/shared-docs/x/proposal.md", 4200L);
     }
@@ -98,7 +98,7 @@ class ParseCompletionHandlerTest
     @Test
     void firesTheEventOnTheSubmissionTheFileBelongsTo() throws Exception
     {
-        assertTrue(this.handler.handle(completed(this.file.getPath())));
+        assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
         final ArgumentCaptor<Resource> target = ArgumentCaptor.forClass(Resource.class);
         final ArgumentCaptor<WorkflowEvent> event = ArgumentCaptor.forClass(WorkflowEvent.class);
@@ -128,7 +128,7 @@ class ParseCompletionHandlerTest
     @Test
     void clearsTheStagingFolderAfterTheEngineHasTakenTheParse() throws Exception
     {
-        assertTrue(this.handler.handle(completed(this.file.getPath())));
+        assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
         final InOrder order = Mockito.inOrder(this.engine, this.ingester);
         order.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
@@ -165,7 +165,7 @@ class ParseCompletionHandlerTest
         final Path pdf = this.volume.resolve("proposal.pdf");
         Files.writeString(pdf, "%PDF");
 
-        final Map<String, Object> payload = ParseCompletionHandler.payload(
+        final Map<String, Object> payload = ParseCompletionHandler.buildPayload(
             new ParseOutcome(JOB_ID, this.file.getPath(), true, null, markdown.toString(), null));
 
         assertEquals(pdf.toString(), payload.get(ParseCompletionHandler.PDF));
@@ -179,7 +179,7 @@ class ParseCompletionHandlerTest
         final Path markdown = this.volume.resolve("proposal.md");
         Files.writeString(markdown, "# Proposal");
 
-        final Map<String, Object> payload = ParseCompletionHandler.payload(
+        final Map<String, Object> payload = ParseCompletionHandler.buildPayload(
             new ParseOutcome(JOB_ID, this.file.getPath(), true, null, markdown.toString(), null));
 
         assertFalse(payload.containsKey(ParseCompletionHandler.PDF));
@@ -189,7 +189,7 @@ class ParseCompletionHandlerTest
     @Test
     void leavesAnOutcomeForAFileThatIsGone() throws Exception
     {
-        assertFalse(this.handler.handle(completed(SubmissionTree.SUBMISSION_PATH + "/d9/v1/file")));
+        assertFalse(this.handler.handle(createCompletedOutcome(SubmissionTree.SUBMISSION_PATH + "/d9/v1/file")));
 
         Mockito.verifyNoInteractions(this.engine, this.ingester);
     }
@@ -199,7 +199,7 @@ class ParseCompletionHandlerTest
     {
         final Resource stray = this.context.create().resource("/var/stray", Map.of());
 
-        assertFalse(this.handler.handle(completed(stray.getPath())));
+        assertFalse(this.handler.handle(createCompletedOutcome(stray.getPath())));
 
         Mockito.verifyNoInteractions(this.engine);
     }
@@ -210,7 +210,7 @@ class ParseCompletionHandlerTest
     {
         this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, "another-job");
 
-        assertFalse(this.handler.handle(completed(this.file.getPath())));
+        assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
         Mockito.verifyNoInteractions(this.engine, this.ingester);
     }
@@ -221,7 +221,7 @@ class ParseCompletionHandlerTest
     {
         this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS, "completed");
 
-        assertTrue(this.handler.handle(completed(this.file.getPath())));
+        assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
         Mockito.verifyNoInteractions(this.engine, this.ingester);
     }
@@ -232,7 +232,7 @@ class ParseCompletionHandlerTest
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenThrow(new WorkflowFailedException("broken definition"));
 
-        assertFalse(this.handler.handle(completed(this.file.getPath())));
+        assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
     }
 
     @Test
@@ -240,7 +240,7 @@ class ParseCompletionHandlerTest
     {
         inject("resolverFactory", new TestResolverFactory(null));
 
-        assertFalse(this.handler.handle(completed(this.file.getPath())));
+        assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
         Mockito.verifyNoInteractions(this.engine);
     }

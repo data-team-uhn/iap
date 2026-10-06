@@ -27,8 +27,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:Evidence} node: one passage backing the extracted answer of an
- * {@link Answer}, kept as a node rather than a plain string so the quote stays linked to the page and section it
- * was taken from.
+ * {@link Answer}, kept as a node rather than a plain string so the quote keeps where it was
+ * taken from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,6 +48,9 @@ public class Evidence extends EntityPart
 
     @ValueMapValue
     private Long page;
+
+    @ValueMapValue
+    private String source;
 
     /**
      * The quoted text.
@@ -81,5 +84,17 @@ public class Evidence extends EntityPart
     public Long getPage()
     {
         return this.page;
+    }
+
+    /**
+     * The document revision this passage was quoted from, when the run read several documents as one text. A
+     * run that read a single document leaves this out, and its passages come from the run's only source.
+     *
+     * @return the revision, or {@code null} if not recorded or it no longer resolves
+     */
+    @Nullable
+    public DocumentVersion getSource()
+    {
+        return this.source == null ? null : this.getReference(this.source, DocumentVersion.class);
     }
 }
