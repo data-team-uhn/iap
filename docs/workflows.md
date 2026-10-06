@@ -775,14 +775,26 @@ variable — which is what the servlet turns into a redirect.
 
 `/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message
 start event, a `createEntity` service task configured with `entityType =
-wf:WorkflowDefinition`, an end event. Its version declares `targetResourceType =
+wf:WorkflowDefinition`, a `createWorkflowVersion` service task that opens its first
+draft, an end event. Its version declares `targetResourceType =
 wf/WorkflowsHomepage`, which is how the engine knows it answers for POSTs to
 `/Workflows`.
 
 Because it is content, not code, a deployment can change what happens when a workflow is
 requested — add a validation step, a notification — by editing this definition rather
 than the platform. That is the point of doing it this way, and it is why the definition
-ships `active` and editable rather than being hardwired into the servlet.
+ships with its version `ACTIVE`, and editable rather than being hardwired into the servlet.
+
+**Everything else that authors a workflow works the same way**, which is what makes that
+claim more than a demonstration: `createSystemWorkflow`, `createVersion`,
+`saveWorkflow`, `saveWorkflowDiagram`, `activateVersion`, `startVersionTrial`,
+`returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over six
+handlers of their own — `createWorkflowVersion`, `saveProperties`,
+`saveWorkflowDiagram`, `setVersionState`, `retireActiveVersions` and
+`draftWorkflowVersion` — plus `createEntity`, shared with the bootstrap. The workflow
+module manages its own content the way it asks every other module to manage theirs, and
+the management UI holds no privileged path of its own. See [Managing
+workflows](#managing-workflows) for the request each one answers.
 
 `/Submissions` works the same way, and shows the intended division of labor: the
 bootstrap definition `/SystemWorkflows/createSubmission` and its `createSubmission`
@@ -848,314 +860,72 @@ is being run for, plus the performers of every user task in the version. Derivin
 from `performers` rather than inventing a second vocabulary means the two can never
 disagree.
 
-## The engine, and system workflows
-
-The first thing the engine runs is the platform itself. A *system workflow* is ordinary workflow content —
-the same node types, the same models — stored under `/SystemWorkflows`, and that location is what makes it
-one: it describes something the platform does on its own behalf, like turning "someone POSTed to
-/Workflows" into a new workflow definition.
-
-```
-HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)
-                          (a deliberately dumb        │  find the one system workflow whose message
-                           translator: builds a       │  start event catches this event on this target
-                           `create` event from        │  walk it: start ─ service tasks ─ end
-                           the POST parameters)       ▼  one commit at the end
-                                              302 Location: /Workflows/<created>
-```
-
-Everything goes through `WorkflowEngine.receiveEvent` — HTTP is just one *translator*, and inbound email
-or firing timers will feed the same door. Receiving an event answers three questions in order, and each
-failure maps to its own HTTP status: is anything waiting for this event here (no → **409**), may this user
-fire it (no → **403**), and is what it carries usable (no → **400**)?
-
-### Who is allowed: the workflow decides
-
-The middle question is the one the whole design turns on. **Nobody holds rights on the content workflows
-manage.** There is no ACL granting users write access to `/Workflows` or `/Submissions`, and none is
-coming: the engine reads and writes everything as its own service user. What a user may do is therefore
-not what an access control list says about the data — it is what the definitions say, which means there
-is exactly one way in and no second mechanism to keep in agreement with the first.
-
-A flow node names the principals it admits in its `performers` property:
-
-```json
-"requested": {
-  "jcr:primaryType": "wf:StartEvent",
-  "messageName": "create",
-  "performers": ["iap-administrators"]
-}
-```
-
-That is the answer to "who can create a workflow": one property, in the same file that says what creating
-a workflow does, editable per deployment without touching code. The shipped bootstraps read
-`["iap-administrators"]` for `/Workflows` and `["everyone"]` for `/Submissions` — authoring processes is
-administrative, raising a submission is what users are here for. The rules:
-
-- **An empty or absent list admits nobody.** A definition that forgot to say who may use it refuses
-  everyone until it does; silence is never permission.
-- **`everyone` means any authenticated user**, matched by name because it is a dynamic principal an
-  authorizable does not necessarily report belonging to.
-- **`@creator` means whoever raised the resource being worked on** — the person the engine recorded when it
-  created it, not `jcr:createdBy`, which names the engine's own service user for everything it writes. It is
-  the one rule a group can never express, and the one most processes need: a request comes back to the person
-  who made it, not to everyone who could have made one. A resource nothing raised — a homepage — is nobody's,
-  so `@creator` admits nobody there.
-- **Groups are matched transitively**, so naming a group also admits the members of its member groups.
-- **Administrators pass regardless**, exactly as they bypass access control in the repository itself.
-  Without that, one bad definition could lock out the very people who could repair it.
-
-Two consequences worth stating plainly. First, since the engine is privileged, *nothing downstream will
-refuse an actor who gets past the check* — by the time a handler runs, the repository will not say no. A
-handler that wants to treat something as invisible or forbidden has to say so itself. Second, an access
-denial coming back from the repository does not mean the user was refused; it means the engine's own
-service user is short of rights, which is a deployment fault and a **500**.
-
-Because the engine does the writing, `jcr:createdBy` on everything it creates names the service user. The
-human is recorded separately, in `createdBy`, which is what an audit trail and any "things I raised"
-listing have to read.
-
-The one grant ordinary users do get is `jcr:read` on the homepage nodes themselves — `/Workflows` and
-`/Submissions`, restricted by node type so that nothing below them is included. That is not a policy
-decision but a mechanical one: Sling resolves the posted-to resource *before* dispatching to a servlet, so
-an invisible `/Submissions` would answer 404 and the workflow would never get to decide anything.
-`/SystemWorkflows` gets no such grant — it is the engine's own tree, nothing is posted to it, and which
-definitions govern a user is none of their business.
-
-**System workflows run to quiescence inside the request and persist no instance.** That settles the
-question of their state by construction: there is none. The corollary is a hard validation rule — a system
-workflow must be *straight-through*. No user tasks, no mid-process catching events, exactly one arc out of
-every node it passes; a definition that would have to wait is rejected as broken (**500**), because there
-is no persisted token that could rest there. Everything a run changes lands in a single commit, so an
-event either fully happened or didn't happen at all.
-
-### Service tasks and the handler SPI
-
-What a service task *does* is a registered `ServiceTaskHandler` (in `io.uhndata.iap.workflows.spi`): the
-activity names its handler in the `handler` property, and the activity's other properties are that
-handler's configuration. This is the extension point that lets a project plug its own behavior into a
-workflow without touching the platform. Handlers write through the context's resolver and never commit —
-the engine owns the transaction — and communicate through execution variables
-(`context.setVariable(...)`), which is also how results reach the channel that fired the event.
-
-The first built-in handler is `createEntity`: create a node of the configured `entityType` under the
-target, named by camel-casing the payload's `title`, dodging collisions with a numeric suffix, and report
-the created path in the `createdPath` variable — which is what the servlet turns into a redirect.
-
-### The bootstrap: creating workflows is itself a workflow
-
-`/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message start event, a
-`createEntity` service task configured with `entityType = wf:WorkflowDefinition`, a `createWorkflowVersion`
-service task that opens its first draft, an end event. Its
-version declares `targetResourceType = wf/WorkflowsHomepage`, which is how the engine knows it answers
-for POSTs to `/Workflows`.
-
-Because it is content, not code, a deployment can change what happens when a workflow is requested — add
-a validation step, a notification — by editing this definition rather than the platform. That is the
-point of doing it this way, and it is why the definition ships as an `ACTIVE` version, editable in place,
-rather than being hardwired into the servlet.
-
-**Everything else that authors a workflow works the same way**, which is what makes that claim more than
-a demonstration: `createSystemWorkflow`, `createVersion`, `saveWorkflow`, `saveWorkflowDiagram`,
-`activateVersion`, `startVersionTrial`, `returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over
-six handlers of their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram`,
-`setVersionState`, `retireActiveVersions` and `draftWorkflowVersion` — plus `createEntity`, shared with the
-bootstrap. The workflow module manages its own content the way it asks every other module to manage theirs,
-and the management UI holds no privileged path of its own. See
-[Managing workflows](#managing-workflows) for the request each one answers.
-
-`/Submissions` works the same way, and shows the intended division of labor: the bootstrap definition
-`/SystemWorkflows/createSubmission` and its `createSubmission` handler ship with the *submissions* module,
-not the workflows one — each module contributes the system workflows for its own homepages, plugged in
-through the handler SPI exactly as a project would. That handler is also where "no new submissions may be
-created from an inactive version" stops being a comment in the CND and becomes an enforced refusal, and it
-sets the submission's `schemaVersion` as a real JCR REFERENCE — the strict node type rejects a
-stringly-typed identifier at commit.
-
-Saving a submission's answers is the same shape and shows what a chain of service tasks buys: the
-`/SystemWorkflows/saveAnswers` definition runs `saveAnswers` (write the answers), then `validateAnswers`
-(put them past every registered `AnswerValidator`), then `markCompleteness` (record whether anything the
-schema still asks for is unanswered, as the `incomplete` tag). Each step can refuse, and a refusal on the
-way to the end event reverts the whole run — so a save that breaks a rule leaves nothing behind, and the
-tag is only ever written for answers that were accepted.
-
-That last step is why a control offering to send a request can refuse to: **whether a request is complete
-is recorded on it rather than worked out by whoever asks.** A required question that a condition hides is
-not missing, so completeness has to be judged against the resolved form by the same evaluator that decides
-what the form shows — done once, at save time, instead of by every reader. The tag is a system tag in its
-own `completeness` category: nobody can hand-place it, and it does not displace the lifecycle state.
-
-Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
-`iap:*` attributes: `messageName` on events (the domain event name), `targetResourceType` on versions
-(what a system workflow answers for), `performers` on flow nodes (who may pass through), and `handler`
-on activities (who performs a service task).
-
-## User workflows: the part that persists
-
-A system workflow runs inside the request and leaves nothing behind. A *user* workflow is the opposite: it
-outlives the request, because the next thing that has to happen is a person doing something. It persists as
-a `wf:WorkflowInstance` **inside the resource it drives** — found, secured and deleted along with it — plus
-a `wf:WorkflowToken` for each branch in progress and a `wf:TaskInstance` for each thing somebody still owes.
-
-Running one is always the same walk, from wherever a token rests through whatever can be passed
-automatically, until it has to stop:
-
-```
-POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
-                                                                        │
-                                             wf:instances/timeOffRequest │  token parked on fillIn
-                                                                        ▼
-POST …/fillIn ──▶ complete ──▶ [task closed, instance walked on to the next wait]
-                                                        │
-                                                        ▼  hostTag: the submission is now tagged "submitted"
-
-POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
-                                                        │
-                                                        ▼  hostTag: the submission is now tagged "approved"
-```
-
-**Starting is a service task, not a special case.** `startWorkflow` is built into the engine — putting an
-entity under a workflow is the engine's own business — but it is reached as an ordinary activity, so *which*
-entities get a workflow, and when, stays editable content. Which workflow is found by following the chain of
-references named in the activity's `workflowFrom`: for submissions, `schemaVersion/workflow`, since it is the
-schema version a submission answers that decides what it must go through. That indirection is what keeps the
-workflows module from having to know what a submission is. An entity whose data names no workflow simply has
-none, which is not an error.
-
-**A user task is an activity with no handler.** Nothing can perform it automatically, so the engine parks the
-token there and creates the task; a `complete` event aimed at that task closes it, records the outcome, and
-carries the instance on. Who may complete it is the same `performers` mechanism as everywhere else, asked one
-step later — of the task's *defining activity* rather than of a start event. Seeing a task and being allowed
-to decide it are different questions, and this is where the second is answered.
-
-**A user task says what it may be decided with.** `outcomeOptions` on the activity lists the decisions on
-offer, and the engine copies them onto each task it raises under the same name. Copied rather than looked up,
-for the
-same reason the label is: a task is decided on the terms it was raised with, and whoever has to do it can read
-the task without being able to read the definition. A task that offers none is one there is *nothing* to
-decide about — it is done or it is not — and that distinction is what a task list needs, because a plain
-"done" button on a task that expected a decision would silently take the default arc of the gateway after it.
-
-**A user task also says who it is waiting for.** The engine records the defining activity's `performers` onto
-each task it raises, and answers `@creator` against the host while it does — so every entry names a principal
-that stands on its own, rather than a question only the host can settle. That is what makes "what is waiting
-for me" a question about *tasks*: a listing cannot run the engine per row to find out, and the person owing a
-decision usually cannot read the workflow the task came from. It is the answer to the first of the two
-questions above, and only that one — the copy describes, it does not permit. Every completion is still checked
-against the definition, so a task turning up in somebody's list is not what makes it theirs to decide.
-
-**Reaching a node can mean something to the host.** `hostTag` on a flow node is placed on the host as a tag
-when execution arrives there, which is how a process says what being *here* means to the thing being
-processed, without a service task whose only job is to write it down. On an end event that is what finishing
-this particular way meant; on a user task it is the state the host is in for as long as that task waits, which
-is what lets a process move its host between states without finishing — a request is a draft while it is being
-filled in, and submitted the moment it reaches the approver, and neither of those is an ending. Placing a tag
-retires whatever other tag the host carries in the same category: the categories are what make a set of tags a
-lifecycle rather than a pile of markers, so a submission that has just been approved stops being in review.
-Tags outside those categories are left alone, since a host is free to carry markers that have nothing to do
-with this process.
-
-**Submitting is a user task, not a separate mechanism.** A request that can be filled in is one whose process
-is parked on a task performed by `@creator`, tagged `draft`; completing that task is what sends it. There is
-no "submit" event, no submit endpoint and no submitted flag — which is why what the button says is the task's
-own label, and why a deployment that wants a request to go somewhere else first only edits its process.
-
-**A task's deadline is not wired up yet.** `wf:TaskInstance` declares a `dueDate`, and a
-`wf:IntermediateCatchingEvent` can already sit *inside* an activity as a boundary event, with
-`interrupting` telling apart "give up" from "remind and keep waiting" in the data model — but nothing in
-this branch computes a due date, arms a timer, or sweeps for one that has passed: `Activity.getBoundaryEvents()`
-exists and has no caller. There is no `timerDuration` property to arm one from, and no `dueEventId` or
-`firedEvents` to record which one fired. See [Known gaps](#known-gaps) for what building this needs.
-
-**Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
-reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares
-and the engine writes an ACL: the person it is being run for, plus the performers of every user task in the
-version. Deriving that from `performers` rather than inventing a second vocabulary means the two can never
-disagree.
-
-### One token, one arc
-
-**An instance holds exactly one token.** `InstanceRunner` creates it once, at `start()`, and nothing forks
-it: whatever kind of gateway a token reaches, `choose()` treats it the same way — it picks the single
-outgoing arc whose `conditionExpression` matches the outcome just recorded, falling back to the arc marked
-`isDefault`, and refuses the node if that leaves more or fewer than one match. `wf:ParallelGateway`,
-`wf:InclusiveGateway` and `wf:EventBasedGateway` are modeled and parse correctly, but none of them is
-routed any differently from `wf:ExclusiveGateway` yet, so there is no fork, no join, and no boundary event
-ever moves a second token — there is never a second token to move. `EndEvent.isTerminate()` is likewise
-parsed and stored but never read back: today, reaching any end event simply ends the instance, which
-cannot yet be told apart from terminating it. See [Known gaps](#known-gaps) for the fork/join design this
-is expected to grow into.
-
 ## Known gaps
 
-- **An instance can only ever hold one token, and a gateway can only ever choose one outgoing arc.**
-  `wf:ParallelGateway`, `wf:InclusiveGateway` and `wf:EventBasedGateway` are modeled and parse correctly,
-  and `EndEvent.isTerminate()` is parsed and stored, but none of it is read back — see
-  [One token, one arc](#one-token-one-arc). Building fork/join needs, at minimum: a parallel join that
-  counts arrived tokens against the gateway's incoming arcs, refusing a diagram where a conditioned arc
-  feeds a parallel gateway, since it takes every arc regardless of what a condition says; an inclusive join
-  that instead asks whether any other token can still reach it by walking the graph forward from every
-  token still in play, since the fork it pairs with may not have taken every branch, and re-checks that
-  answer each time another branch stops moving, since nothing arrives at the join to announce it; and an
-  event-based gateway that races its awaited events rather than evaluating a condition —
-  `EventBasedGateway.getAwaitedEvents()` already exists for that but has no caller yet. A parallel join
-  placed after a fork that did not take every branch — an exclusive or inclusive one — would deadlock,
-  waiting on a token nothing ever creates; that is what an inclusive join's reachability rule is for.
-- **Instance variables are not exposed to handlers.** The runtime persists `outcome` as a `wf:Variable`, but
-  a service task inside an instance gets variables that live only for that delivery. Typed variables are
-  already in the node types; wiring them to the SPI is what is missing.
-- **Nothing delivers a message or a timer, boundary or free-standing.** `wf:IntermediateCatchingEvent` can
-  already sit inside an activity as a boundary event, and `interrupting` already tells "give up" apart from
-  "remind and keep waiting" in the data model, but there is no `timerDuration` property anywhere yet to say
-  how long to wait, no code arms one when a task is raised, and no periodic sweep to fire one if there were
-  — `Activity.getBoundaryEvents()` exists and is never called. A *free-standing* catching event is refused
-  outright for a related reason: what it waits for would have to be addressed to a parked instance, and the
-  engine's door currently opens onto a homepage or a task only.
-- **Read access is granted for the life of the instance**, not only while a task is open, and is never
-  revoked. Narrowing it as state changes is a refinement for when there is a reason to want it.
-- **A gateway's guards can only ask about the execution.** They are evaluated against the instance, so the
-  `variable` operand source reaches what the run knows — the outcome a task recorded — and nothing yet
-  reaches the host it is attached to, which is what routing on a request's own answers would need.
-- **The parser cannot yet fill in an event's payload.** BPMN keeps a timer's duration in a nested
-  `timeDuration` element and a message event's target in a nested `<bpmn:message>` declared at document
-  level, neither of which the vocabulary can reach today — it can only copy XML *attributes*, and both of
-  these live in nested *elements*. `timerDuration` has no property to land in yet either, so that has to be
-  added to `wf:IntermediateCatchingEvent` alongside whatever reads the element; the mechanism for reaching
-  nested elements is best designed alongside the parser that needs it.
-- **Widening a `performers` list on a workflow-authoring definition needs an ACL to match.** Sling resolves
-  the posted-to resource before dispatching, and the only read granted under `/Workflows` is the homepage
-  node itself, restricted by node type — so a non-administrator named as a performer of `saveWorkflow` or
-  `activateVersion` would get a 404 from the resolver rather than the engine's own answer, because the
-  definition or version they posted to is invisible to them. Administrators bypass access control, which is
-  why the shipped definitions (all `iap-administrators`) work as they stand. Widening any of them means
-  granting `jcr:read` on `wf:WorkflowDefinition`/`wf:WorkflowVersion` nodes too, and that is a deliberate
-  visibility decision rather than a mechanical one — which is why it is not done pre-emptively here.
-- **"At most one active version" is enforced by the workflow, not by the repository.** Activating retires
-  the outgoing version in the same commit, and reading a version's state tolerates finding two actives (a
-  promotion retires all of them). Nothing *else* can now set `state` — the direct-write door is closed,
-  since no user holds rights on this content and the only way in is the definitions — but a service user
-  or a repoinit script still could, and a definition that named `setVersionState` with the wrong
-  `fromStates` would too. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed graph, is the way
-  to close that last gap if it ever matters.
-- **`bpmnAuthoritative` is written but never read back.** Every UI-created draft is marked with it, and
-  drafting a copy inherits whatever its source held, but no code branches on the value — every version's
-  flow-node tree is derived from whatever diagram arrives with it, marked authoritative or not. It exists
-  for a version whose graph was authored some other way and must not be overwritten by a reparse, which
-  this branch never creates, since every version today comes from the diagram editor — see
-  [Managing workflows](#managing-workflows).
-- **`performers` is a principal list, not a condition.** It cannot express "and only if the schema they
-  name belongs to their institution". That data-dependent half is a job for the conditions module,
-  evaluated against the actor alongside the list rather than instead of it: a list can be enumerated to
-  decide which buttons to render, a condition cannot.
-- **No lanes.** BPMN lanes are the natural place for "this task belongs to the coordinator, that one to
-  the board", and `performers` is set per node rather than derived from a lane the way a diagram would
-  express it. Mapping lanes onto groups touches how `ApprovalRequirement.approverGroup` already works, so
-  it is a design decision rather than an omission.
-- **No subprocesses, call activities or multi-instance markers.** "One review per assigned reviewer" is a
-  multi-instance activity in BPMN, and that is the first of these likely to be wanted.
-- **Signal, escalation, conditional and link events** are unmapped; the vocabulary covers timer, message,
-  error and terminate.
-- **The `bpmn:` prefix is matched literally** rather than by namespace URI. Safe while every diagram comes
-  from the in-app editor, which always emits that prefix; a document from elsewhere using `bpmn2:` or a
-  default namespace would not be recognized.
-- **No `oak:index` definitions.** The console's listings and the homepage discovery both query without one.
+- **Gateway conditions are an interim placeholder.** An arc is taken when its
+  `conditionExpression` equals the instance's `outcome` variable, and the arc marked
+  default is taken when none matches. That covers the approve-or-reject shape and
+  deliberately nothing more; the demo's BPMN carries the real expression (`outcome ==
+  'approved'`) which the conditions module will compile, and the stored graph carries
+  the literal the engine can match today.
+- **One token at a time.** Parallel and inclusive gateways are rejected rather than
+  forked, and `terminate` on an end event is not yet distinguished from an ordinary one,
+  since with a single token there is nothing else to discard.
+- **Instance variables are not exposed to handlers.** The runtime persists `outcome` as
+  a `wf:Variable`, but a service task inside an instance gets variables that live only
+  for that delivery. Typed variables are already in the node types; wiring them to the
+  SPI is what is missing.
+- **Nothing delivers a timer or a message.** An instance that reaches a mid-process
+  catching event is refused rather than parked, because nothing could ever wake it up
+  again.
+- **Read access is granted for the life of the instance**, not only while a task is
+  open, and is never revoked. Narrowing it as state changes is a refinement for when
+  there is a reason to want it.
+- **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the
+  structured conditions mechanism, the way schema items express their conditions; it is
+  left as an expression until the conditions module lands.
+- **Event definitions carry no payload yet.** A timer event is recognized as a timer,
+  but there is nowhere to put its duration, and a message event records its `messageRef`
+  without resolving it to the `<bpmn:message>` declared at document level — which is
+  what the engine's event dictionary will need. The vocabulary can copy XML
+  *attributes*; these payloads live in nested *elements*, and the mechanism for pulling
+  those across is best designed alongside the parser that needs it.
+- **Widening a `performers` list on a workflow-authoring definition needs an ACL to
+  match.** Sling resolves the posted-to resource before dispatching, and the only read
+  granted under `/Workflows` is the homepage node itself, restricted by node type — so a
+  non-administrator named as a performer of `saveWorkflow` or `activateVersion` would
+  get a 404 from the resolver rather than the engine's own answer, because the
+  definition or version they posted to is invisible to them. Administrators bypass
+  access control, which is why the shipped definitions (all `iap-administrators`) work
+  as they stand. Widening any of them means granting `jcr:read` on
+  `wf:WorkflowDefinition`/`wf:WorkflowVersion` nodes too, and that is a deliberate
+  visibility decision rather than a mechanical one — which is why it is not done
+  pre-emptively here.
+- **"At most one active version" is enforced by the workflow, not by the repository.**
+  Activating retires the outgoing version in the same commit, and reading a version's
+  state tolerates finding two actives (a promotion retires all of them). Nothing *else*
+  can now set `state` — the direct-write door is closed, since no user holds rights on
+  this content and the only way in is the definitions — but a service user or a repoinit
+  script still could, and a definition that named `setVersionState` with the wrong
+  `fromStates` would too. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed
+  graph, is the way to close that last gap if it ever matters.
+- **`performers` is a principal list, not a condition.** It cannot express "and only if
+  the schema they name belongs to their institution". That data-dependent half is a job
+  for the conditions module, evaluated against the actor alongside the list rather than
+  instead of it: a list can be enumerated to decide which buttons to render, a condition
+  cannot.
+- **No lanes.** BPMN lanes are the natural place for "this task belongs to the
+  coordinator, that one to the board", and `performers` is set per node rather than
+  derived from a lane the way a diagram would express it. Mapping lanes onto groups
+  touches how `ApprovalRequirement.approverGroup` already works, so it is a design
+  decision rather than an omission.
+- **No subprocesses, call activities or multi-instance markers.** "One review per
+  assigned reviewer" is a multi-instance activity in BPMN, and that is the first of
+  these likely to be wanted.
+- **Signal, escalation, conditional and link events** are unmapped; the vocabulary
+  covers timer, message, error and terminate.
+- **The `bpmn:` prefix is matched literally** rather than by namespace URI. Safe while
+  every diagram comes from the in-app editor, which always emits that prefix; a document
+  from elsewhere using `bpmn2:` or a default namespace would not be recognized.
+- **No `oak:index` definitions.** The console's listings and the homepage discovery both
+  query without one.
