@@ -34,7 +34,8 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Opens a new draft version of a workflow, carrying whatever diagram the request brought. The workflow is the one an
+ * Opens a new version of a workflow, for the step after it to mark a draft, carrying whatever diagram the
+ * request brought. The workflow is the one an
  * earlier step of the same run created, when there is one, and otherwise the event's target: so {@code createEntity}
  * followed by this step creates a workflow and its first version in one commit, and this step alone adds a version
  * to an existing workflow.
@@ -74,7 +75,6 @@ public class CreateVersionHandler implements ServiceTaskHandler
         final Map<String, Object> properties = new HashMap<>();
         properties.put(VersionEdits.PRIMARY_TYPE, VersionEdits.WORKFLOW_VERSION_TYPE);
         properties.put(VersionEdits.VERSION, label);
-        properties.put(VersionEdits.STATE, WorkflowVersion.State.DRAFT.name());
         properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
         final String description = Payloads.text(context.getEvent(), VersionEdits.DESCRIPTION);
         if (description != null) {

@@ -34,7 +34,6 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -84,7 +83,8 @@ class CreateVersionHandlerTest
         assertNotNull(created);
         assertEquals("wf:WorkflowVersion", created.getValueMap().get("jcr:primaryType"));
         assertEquals("1.0", created.getValueMap().get("version"));
-        assertEquals("DRAFT", created.getValueMap().get("state"));
+        // Marking it a draft is the next step's, as every lifecycle tag is the workflow's to place
+        assertNull(created.getValueMap().get("tags", String[].class));
         // A version authored here is owned by its diagram: nothing else could derive its flow nodes
         assertEquals(Boolean.TRUE, created.getValueMap().get("bpmnAuthoritative", Boolean.class));
         assertNull(created.getValueMap().get("description"));
@@ -148,7 +148,7 @@ class CreateVersionHandlerTest
     void skipsANodeNameThatIsAlreadyTaken() throws WorkflowException, PersistenceException
     {
         // One version so far, but already stored under the name the second would get
-        AuthoringFixture.createVersion(this.context, "v2", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "v2", "1.0", "draft", Map.of());
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(this.request(Map.of("version", "2.0"), variables));
@@ -170,7 +170,7 @@ class CreateVersionHandlerTest
     @Test
     void refusesALabelTheWorkflowAlreadyCarries()
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
 
         final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.request(Map.of("version", "1.0"), new HashMap<>())));
@@ -190,10 +190,10 @@ class CreateVersionHandlerTest
     void labelsALaterVersionWithTheWholeNumberAfterTheHighest() throws WorkflowException, PersistenceException
     {
         // A label that is not a number, or not a finite one, takes no part in which number comes next
-        AuthoringFixture.createVersion(this.context, "v1", "1.0", WorkflowVersion.State.RETIRED, Map.of());
-        AuthoringFixture.createVersion(this.context, "v2", "2.5", WorkflowVersion.State.ACTIVE, Map.of());
-        AuthoringFixture.createVersion(this.context, "v3", "beta", WorkflowVersion.State.DRAFT, Map.of());
-        AuthoringFixture.createVersion(this.context, "v4", "Infinity", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "v1", "1.0", "retired", Map.of());
+        AuthoringFixture.createVersion(this.context, "v2", "2.5", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "v3", "beta", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, "v4", "Infinity", "draft", Map.of());
 
         this.handler.execute(this.request(Map.of(), new HashMap<>()));
 
@@ -204,7 +204,7 @@ class CreateVersionHandlerTest
     @Test
     void numbersAfterTheVersionCountWhenNoLabelIsANumber() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, "v1", "alpha", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "v1", "alpha", "draft", Map.of());
 
         this.handler.execute(this.request(Map.of(), new HashMap<>()));
 

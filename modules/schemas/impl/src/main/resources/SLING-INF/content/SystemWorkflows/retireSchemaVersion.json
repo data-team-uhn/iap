@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
     "description": "Closes an active version to new submissions; the submissions filed under it keep referencing it.",
     "requested": {

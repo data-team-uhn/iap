@@ -24,7 +24,6 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -58,36 +57,7 @@ public class WorkflowDefinition extends Entity
     }
 
     /**
-     * Whether new instances may be created from this workflow at all: exactly whether one of its
-     * {@link WorkflowVersion versions} is {@link WorkflowVersion.State#ACTIVE active}.
-     *
-     * <p>Computed on every call, so it can never disagree with the versions themselves.</p>
-     *
-     * @return {@code true} if this workflow accepts new instances
-     */
-    public boolean isActive()
-    {
-        return this.getActiveVersion() != null;
-    }
-
-    /**
-     * Whether this workflow has been taken out of use: one of its {@link WorkflowVersion versions} is
-     * {@link WorkflowVersion.State#RETIRED retired} and none is {@link WorkflowVersion.State#ACTIVE active}. A
-     * workflow whose versions are all drafts or trials has never run, so it is neither active nor retired.
-     *
-     * <p>Computed on every call, like {@link #isActive()}; activating any version ends it.</p>
-     *
-     * @return {@code true} if this workflow is retired
-     */
-    public boolean isRetired()
-    {
-        final List<WorkflowVersion> versions = this.getVersions();
-        return versions.stream().noneMatch(WorkflowVersion::isActive)
-            && versions.stream().anyMatch(version -> version.getState() == WorkflowVersion.State.RETIRED);
-    }
-
-    /**
-     * Every version of this workflow, whatever state each one is in.
+     * Every version of this workflow, wherever each one stands in its lifecycle.
      *
      * @return a list of versions, empty if none
      */
@@ -95,22 +65,5 @@ public class WorkflowDefinition extends Entity
     public List<WorkflowVersion> getVersions()
     {
         return this.getChildren(WorkflowVersion.RESOURCE_TYPE, WorkflowVersion.class);
-    }
-
-    /**
-     * The version of this workflow that new instances are currently created from. At most one version is expected
-     * to be {@link WorkflowVersion.State#ACTIVE active} at a time: promoting a draft retires the version it
-     * supersedes, in the same save.
-     *
-     * @return the active version, or {@code null} if this workflow has none — every version is still a draft, or
-     *         the last active one was retired without a replacement
-     */
-    @Nullable
-    public WorkflowVersion getActiveVersion()
-    {
-        return this.getVersions().stream()
-            .filter(WorkflowVersion::isActive)
-            .findFirst()
-            .orElse(null);
     }
 }

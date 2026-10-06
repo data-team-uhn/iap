@@ -74,8 +74,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.internal.EngineFixture.VERSION;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
-import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -294,33 +295,33 @@ class WorkflowEngineImplTest
     @Test
     void skipsDraftVersions() throws Exception
     {
-        assertNothingIsStartedFrom(WorkflowVersion.State.DRAFT);
+        assertNothingIsStartedFrom("draft");
     }
 
     @Test
     void skipsTrialVersions() throws Exception
     {
-        assertNothingIsStartedFrom(WorkflowVersion.State.TRIAL);
+        assertNothingIsStartedFrom("trial");
     }
 
     @Test
     void skipsRetiredVersions() throws Exception
     {
-        assertNothingIsStartedFrom(WorkflowVersion.State.RETIRED);
+        assertNothingIsStartedFrom("retired");
     }
 
     /**
-     * Asserts that a system workflow whose only version is in the given state catches nothing: ACTIVE is the one
-     * state new instances are created from, and a definition is instantiable only through such a version, so this
+     * Asserts that a system workflow whose only version carries the given lifecycle tag catches nothing: active is
+     * the one tag new instances start from, and a definition is instantiable only through such a version, so this
      * covers the definition being unusable as well.
      *
-     * @param state the lifecycle state to put the version in
+     * @param lifecycle the lifecycle tag to give the version
      * @throws Exception if the fixture or the engine fails unexpectedly
      */
-    private void assertNothingIsStartedFrom(final WorkflowVersion.State state) throws Exception
+    private void assertNothingIsStartedFrom(final String lifecycle) throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, state, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, lifecycle, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         final WorkflowEngine engine = engine();
@@ -375,7 +376,7 @@ class WorkflowEngineImplTest
         this.context.create().resource("/SystemWorkflows/other", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Competitor"));
         this.context.create().resource("/SystemWorkflows/other/v1", Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, ACTIVE,
+            TYPE, "wf/WorkflowVersion", "version", "1.0", TAGS, tags(ACTIVE),
             "targetResourceType", WorkflowsHomepage.RESOURCE_TYPE));
         this.context.create().resource("/SystemWorkflows/other/v1/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "create"));
@@ -1028,7 +1029,7 @@ class WorkflowEngineImplTest
         this.context.create().resource(version.substring(0, version.lastIndexOf('/')), Map.of(
             TYPE, "wf/WorkflowDefinition", "title", message));
         this.context.create().resource(version, Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, ACTIVE, "targetResourceType", targetType));
+            TYPE, "wf/WorkflowVersion", "version", "1.0", TAGS, tags(ACTIVE), "targetResourceType", targetType));
         this.context.create().resource(version + "/requested", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", message,
             "performers", new String[] { performer }));
@@ -1082,7 +1083,7 @@ class WorkflowEngineImplTest
         this.context.create().resource("/SystemWorkflows/otherWorkflow", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Another"));
         this.context.create().resource(OTHER_VERSION, Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, ACTIVE,
+            TYPE, "wf/WorkflowVersion", "version", "1.0", TAGS, tags(ACTIVE),
             "targetResourceType", WorkflowsHomepage.RESOURCE_TYPE));
         this.context.create().resource(OTHER_START, Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", message,

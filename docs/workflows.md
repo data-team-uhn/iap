@@ -32,7 +32,7 @@ authored in, and the engine that runs them.
 ```
 /Workflows                         wf:WorkflowsHomepage
 └── timeOffRequest                 wf:WorkflowDefinition   title
-    └── v1                         wf:WorkflowVersion      version, state, bpmnXmlParsedHash,
+    └── v1                         wf:WorkflowVersion      version, tags, bpmnXmlParsedHash,
                                                            targetResourceType
         ├── bpmn.xml               nt:file                 the BPMN 2.0 source
         ├── start_1                wf:StartEvent           elementId, label, flowNodeType
@@ -44,28 +44,29 @@ authored in, and the engine that runs them.
 ```
 
 A definition holds versions, and everything that runs, runs against a specific version — the same split
-as a schema and its schema versions. Each version carries a `state`, which is its whole lifecycle:
+as a schema and its schema versions. Where a version stands is its tag in the `lifecycle` category, as it is
+for a schema version, rather than a property of its own:
 
-| `state` | What it means | Editable | Moves to |
+| Tag | What it means | Editable | Moves to |
 |---|---|---|---|
-| `DRAFT` | Still being authored, and never instantiated | yes | `TRIAL`, `ACTIVE` |
-| `TRIAL` | Being tried out before the workflow commits to it; still not what instances are created from | no | `DRAFT`, `ACTIVE` |
-| `ACTIVE` | The one version new instances are created from | no | `RETIRED` (withdrawn, or by a promotion in its place) |
-| `RETIRED` | Superseded or withdrawn: the instances already running carry on, no new ones start | no | `ACTIVE` (retiring whichever version is active) |
+| `draft` | Still being authored, and never instantiated | yes | `trial`, `active` |
+| `trial` | Being tried out before the workflow commits to it; still not what instances are created from | no | `draft`, `active` |
+| `active` | The one version new instances are created from | no | `retired` (withdrawn, or by a promotion in its place) |
+| `retired` | Superseded or withdrawn: the instances already running carry on, no new ones start | no | `active` (retiring whichever version is active) |
 
-Only a draft may be edited, and that is enforced rather than merely offered: the `saveWorkflowDiagram`
-handler refuses a diagram for anything else. Every later state is one something may be following, or about
-to follow, so changing its diagram would change a process out from under whatever is executing it — which
-is why a trial that needs another look goes back to being a draft rather than being edited where it stands,
-while an active or retired version is carried forward by drafting a copy of it.
+Each move is a system workflow whose start event is guarded on the version's tags, and which tags it with
+`addTag`, replacing the lifecycle tag it had, so a version is never in two places at once. Only a draft may be
+edited, and that is enforced rather than merely offered: `saveWorkflowDiagram` waits for the save of a draft
+only. Every later tag is one something may be following, or about to follow, so changing its diagram would
+change a process out from under whatever is executing it — which is why a trial that needs another look goes
+back to being a draft rather than being edited where it stands, while an active or retired version is carried
+forward by drafting a copy of it.
 
-A version whose stored `state` is missing or names none of the four is in none of them: `WorkflowVersion.getState()`
-answers `null`, and the frontend's `stateOf` does the same. The node type autocreates `DRAFT`, so this takes
-hand-editing or content from a platform that knows a state this one does not — but reading it *as* a draft
-would make the version whose lifecycle is least certain the one freely editable, so it is reported as unknown
-instead. Every state comparison then fails it: it cannot be edited, promoted or instantiated, and the console
-draws it as an error chip. Of the actions that turn on a state, only **New draft from this** is still offered,
-which copies its diagram onto a genuine draft; **View** is offered whatever the state, as it always is.
+A version carrying no lifecycle tag is in none of them: content edited by hand, or from a platform that knows
+a tag this one does not. Reading it *as* a draft would make the version whose lifecycle is least certain the
+one freely editable, so no guard takes it for one: it cannot be edited, promoted or instantiated, and the
+console shows no lifecycle for it. Of the moves, only **New draft from this** is still offered, which copies
+its diagram onto a genuine draft; **View** is offered whatever the lifecycle, as it always is.
 
 A version's node is named by its position, `v1`, `v2` and so on, skipping any name already taken; what
 readers see is its `version` label, which the author chooses. A label defaults to the whole number after the
@@ -74,13 +75,14 @@ request names none — so a label can say anything, dots included, without the p
 
 At most one version of a definition is active at a time, and that is an invariant of the transition rather
 than of the node type: promoting a version retires the one it supersedes in the same save, so there is no
-moment at which two versions claim to be current.
+moment at which two versions claim to be current. The engine reads the `active` tag off a version's stored
+`tags` rather than through the tags service, so which version runs never depends on that service being up.
 
 **A definition has no `active` flag of its own.** Whether a workflow may run is whether one of its versions
-is active, and `WorkflowDefinition.isActive()` computes exactly that. Stored as well, the two could
-disagree, and the stored one would be the side nothing enforces. Whether it is *retired* is computed the same
-way: `isRetired()` holds when a version is retired and none is active, which is where retiring the active
-version without a replacement leaves it. Activating any version brings it back; a workflow that has only had
+is active. Stored as well, the two could disagree, and the stored one would be the side nothing enforces.
+Whether it is *retired* is read off its versions the same way — one is retired and none is active, which is
+where retiring the active version without a replacement leaves it — and the console works both out from the
+versions it lists. Activating any version brings it back; a workflow that has only had
 drafts and trials has never run, and is neither.
 
 A version keeps both representations of its graph: the `bpmn.xml` it
@@ -542,23 +544,24 @@ Three things this buys, none of which an endpoint could:
 
 - **Who may do each of these is one property, in the file that says what it does.** `performers` on the
   start event, editable per deployment. That is why there are four lifecycle definitions rather than one
-  `setState` — a single move endpoint could only ever say who may change state *at all*, where separate
-  definitions can say that an author may return their own trial to a draft while only an administrator may
-  activate one.
-- **The lifecycle table is content.** `toState` and `fromStates` on the promote step say which versions a
-  move applies to; a fifth state is a new definition rather than a new row in Java. A move a version is
-  past the moment for is refused with a 409 naming the states it *is* for.
+  that moves a version anywhere — a single one could only ever say who may change a lifecycle *at all*,
+  where separate definitions can say that an author may return their own trial to a draft while only an
+  administrator may activate one.
+- **The lifecycle table is content.** Each move's start event says which lifecycle tags it applies to, and
+  its `addTag` step what the version becomes; a fifth tag is a new definition rather than a new row in Java.
+  A move a version is past the moment for is not offered on it, and refused with a 409 if sent anyway.
 - **What each action does can grow without touching the platform.** A validation step before a version is
   opened, a notification when one is activated: another service task on the definition.
 
 Three of them are more than one write, which is the reason the run commits once:
 
-- **Activating** is `retireActiveVersions` then `setVersionState`. Retiring the outgoing version in a
+- **Activating** is `retireActiveVersions` then `addTag active`. Retiring the outgoing version in a
   second request would leave a window in which two versions of one workflow both claim to be current, and
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
-- **Creating a workflow** is `createEntity` then `createWorkflowVersion`, the second acting on what the first
-  created, so a workflow and its first draft arrive together and a failure part-way leaves neither. The
+- **Creating a workflow** is `createEntity`, `createWorkflowVersion` and `addTag draft`, each acting on what
+  the one before it created, so a workflow and its first draft arrive together and a failure part-way leaves
+  neither. The
   request carries the title, the first version's label and description, and its starting diagram.
 - **Opening or drafting a version** stores its diagram in the same run — carried as a `bpmn.xml` payload
   part when a version is opened, copied from the source when one is drafted — so the version node and its
@@ -783,15 +786,15 @@ wf/WorkflowsHomepage`, which is how the engine knows it answers for POSTs to
 Because it is content, not code, a deployment can change what happens when a workflow is
 requested — add a validation step, a notification — by editing this definition rather
 than the platform. That is the point of doing it this way, and it is why the definition
-ships with its version `ACTIVE`, and editable rather than being hardwired into the servlet.
+ships with its version tagged `active`, and editable rather than being hardwired into the servlet.
 
 **Everything else that authors a workflow works the same way**, which is what makes that
 claim more than a demonstration: `createSystemWorkflow`, `createVersion`,
 `saveWorkflow`, `saveWorkflowDiagram`, `activateVersion`, `startVersionTrial`,
-`returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over six
+`returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over five
 handlers of their own — `createWorkflowVersion`, `saveProperties`,
-`saveWorkflowDiagram`, `setVersionState`, `retireActiveVersions` and
-`draftWorkflowVersion` — plus `createEntity`, shared with the bootstrap. The workflow
+`saveWorkflowDiagram`, `retireActiveVersions` and `draftWorkflowVersion` — plus
+`createEntity`, shared with the bootstrap, and `addTag` for every move in the lifecycle. The workflow
 module manages its own content the way it asks every other module to manage theirs, and
 the management UI holds no privileged path of its own. See [Managing
 workflows](#managing-workflows) for the request each one answers.
@@ -902,13 +905,13 @@ disagree.
   visibility decision rather than a mechanical one — which is why it is not done
   pre-emptively here.
 - **"At most one active version" is enforced by the workflow, not by the repository.**
-  Activating retires the outgoing version in the same commit, and reading a version's
-  state tolerates finding two actives (a promotion retires all of them). Nothing *else*
-  can now set `state` — the direct-write door is closed, since no user holds rights on
-  this content and the only way in is the definitions — but a service user or a repoinit
-  script still could, and a definition that named `setVersionState` with the wrong
-  `fromStates` would too. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed
-  graph, is the way to close that last gap if it ever matters.
+  Activating retires the outgoing version in the same commit, and the engine tolerates
+  finding two actives (a promotion retires all of them). Nothing *else* can now tag a
+  version — the direct-write door is closed, since no user holds rights on this content and
+  the only way in is the definitions — but a service user or a repoinit script still could,
+  and so could a definition that tagged a version `active` without retiring the one before
+  it. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed graph, is the way to
+  close that last gap if it ever matters.
 - **`performers` is a principal list, not a condition.** It cannot express "and only if
   the schema they name belongs to their institution". That data-dependent half is a job
   for the conditions module, evaluated against the actor alongside the list rather than

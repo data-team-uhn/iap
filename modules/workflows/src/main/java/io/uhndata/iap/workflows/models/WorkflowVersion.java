@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -45,36 +46,11 @@ public class WorkflowVersion extends Entity
     /** The {@code sling:resourceType} of a {@code wf:WorkflowVersion} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowVersion";
 
+    /** The lifecycle tag of the version new instances start from. */
+    public static final String ACTIVE_TAG = "active";
+
     /** The name of the {@code nt:file} child holding the BPMN source. */
     private static final String BPMN_FILE = "bpmn.xml";
-
-    /**
-     * Where a version stands in its lifecycle: authored as a {@link #DRAFT}, optionally put on {@link #TRIAL},
-     * promoted to {@link #ACTIVE} once ready to run, and {@link #RETIRED} when a later version takes over or it is
-     * withdrawn. A retired version can be made {@link #ACTIVE} again.
-     *
-     * <p>
-     * The diagram may only be edited in {@link #DRAFT}: every other state is one something may be following, or
-     * about to follow, and editing it would change a process out from under whatever is executing it.
-     * </p>
-     *
-     * @since 0.1.0
-     */
-    public enum State
-    {
-        /** Still being authored: the only state in which the diagram may be edited, and never instantiated. */
-        DRAFT,
-        /**
-         * Being tried out before the workflow commits to it: the diagram is frozen, as in every state past
-         * {@link #DRAFT}, but this is not the version new instances are created from. A trial goes back to
-         * {@link #DRAFT} to be changed again, or on to {@link #ACTIVE}.
-         */
-        TRIAL,
-        /** The version new instances are created from. At most one version of a definition is active at a time. */
-        ACTIVE,
-        /** Superseded or withdrawn: existing instances keep running, no new ones are created until reactivated. */
-        RETIRED
-    }
 
     @ValueMapValue
     private String version;
@@ -83,7 +59,7 @@ public class WorkflowVersion extends Entity
     private String description;
 
     @ValueMapValue
-    private String state;
+    private String[] tags;
 
     @ValueMapValue
     private String bpmnXmlParsedHash;
@@ -117,35 +93,19 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * Where this version stands in its lifecycle: whether it is still being drafted, is the one new instances are
-     * created from, or has been superseded.
+     * Whether new instances may be started from this version: whether it carries the {@code active} lifecycle tag
+     * itself. A version on {@code trial} does not: starting one is a deliberate act on that version, not the
+     * workflow's default answer to being asked to run.
      *
-     * <p>A state that cannot be read is reported as unknown rather than guessed at. Answering {@code null} instead
-     * leaves it neither editable nor runnable: every state comparison here fails it, so the handlers refuse to edit or
-     * promote it and nothing is instantiated from it, until it is re-authored or a copy is drafted from it.</p>
-     *
-     * @return a lifecycle state, or {@code null} if the stored value is missing or is not one of the states
-     */
-    @Nullable
-    public State getState()
-    {
-        try {
-            return this.state == null ? null : State.valueOf(this.state);
-        } catch (final IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
-    /**
-     * Whether new instances may be created from this version, i.e. whether it is {@link State#ACTIVE active}. A
-     * {@link State#TRIAL trial} version is not: starting one is a deliberate action on that version, not the
-     * workflow's default response to being asked to run.
+     * <p>Read off the stored tags rather than through the tags service, so that which version runs never depends
+     * on that service being up: a version would otherwise read as inactive, and every event it handles as
+     * unexpected, for as long as the service were away.</p>
      *
      * @return {@code true} if this version accepts new instances
      */
     public boolean isActive()
     {
-        return this.getState() == State.ACTIVE;
+        return this.tags != null && Arrays.asList(this.tags).contains(ACTIVE_TAG);
     }
 
     /**

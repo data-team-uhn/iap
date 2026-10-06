@@ -102,7 +102,6 @@ public class DraftVersionHandler implements ServiceTaskHandler
         final Map<String, Object> properties = new HashMap<>();
         properties.put(VersionEdits.PRIMARY_TYPE, VersionEdits.WORKFLOW_VERSION_TYPE);
         properties.put(VersionEdits.VERSION, label);
-        properties.put(VersionEdits.STATE, WorkflowVersion.State.DRAFT.name());
         final String newDescription = description == null ? source.getDescription() : description;
         if (newDescription != null) {
             properties.put(VersionEdits.DESCRIPTION, newDescription);

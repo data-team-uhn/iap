@@ -32,7 +32,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -67,7 +70,7 @@ class WorkflowVersionTest
             TYPE, WorkflowVersion.RESOURCE_TYPE,
             "version", "1.0",
             "description", "The first cut",
-            "state", "ACTIVE",
+            TAGS, tags(ACTIVE),
             "bpmnXmlParsedHash", "abc123",
             "bpmnAuthoritative", true,
             "targetResourceType", "wf/WorkflowsHomepage"));
@@ -79,7 +82,6 @@ class WorkflowVersionTest
         assertNotNull(version);
         assertEquals("1.0", version.getVersion());
         assertEquals("The first cut", version.getDescription());
-        assertEquals(WorkflowVersion.State.ACTIVE, version.getState());
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
@@ -119,9 +121,7 @@ class WorkflowVersionTest
         // nothing for it, which is the safe reading for a graph that may have been authored by hand
         assertFalse(version.isBpmnAuthoritative());
         assertNull(version.getTargetResourceType());
-        // A version whose state never made it into the repository has no state to report, and so is neither
-        // something instances may be created from nor something that may be edited
-        assertNull(version.getState());
+        // A version carrying no lifecycle tag is not one instances start from
         assertFalse(version.isActive());
         assertTrue(version.getFlowNodes().isEmpty());
         assertTrue(version.getStartEvents().isEmpty());
@@ -129,76 +129,33 @@ class WorkflowVersionTest
     }
 
     @Test
-    void readsEachOfTheLifecycleStates()
+    void acceptsInstancesOnlyWhenTaggedActive()
     {
-        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("DRAFT"));
-        assertEquals(WorkflowVersion.State.TRIAL, this.stateOf("TRIAL"));
-        assertEquals(WorkflowVersion.State.ACTIVE, this.stateOf("ACTIVE"));
-        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("RETIRED"));
-    }
-
-    @Test
-    void reportsAVersionOnTrialAsNotAcceptingInstances()
-    {
-        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "TRIAL"));
-        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
-
-        assertNotNull(version);
-        // A trial is being tried out, which is not the same as being the version a workflow runs
-        assertEquals(WorkflowVersion.State.TRIAL, version.getState());
-        assertFalse(version.isActive());
-    }
-
-    @Test
-    void reportsARetiredVersionAsNotAcceptingInstances()
-    {
-        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "RETIRED"));
-        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
-
-        assertNotNull(version);
-        // Retired is not draft, but it is just as much a "no new instances" answer
-        assertEquals(WorkflowVersion.State.RETIRED, version.getState());
-        assertFalse(version.isActive());
-    }
-
-    @Test
-    void reportsAnUnrecognizedStateAsUnknown()
-    {
-        // An unrecognized state -- hand-edited, or written by a newer platform version -- is reported as no state
-        // at all. Reading it as a draft would make the version whose lifecycle is least certain the one that may
-        // be edited, which is the opposite of what an unreadable state should allow.
-        assertNull(this.stateOf("PUBLISHED"));
-        assertNull(this.stateOf("active"));
-        assertNull(this.stateOf(""));
-    }
-
-    @Test
-    void acceptsNoInstancesOfAVersionWhoseStateCannotBeRead()
-    {
-        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "PUBLISHED"));
-        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
-
-        assertNotNull(version);
-        assertFalse(version.isActive());
+        // A trial is being tried out, which is not the same as being the version a workflow runs, and retired is
+        // just as much a "no new instances" answer as draft
+        assertFalse(this.isActive("draft"));
+        assertFalse(this.isActive("trial"));
+        assertFalse(this.isActive("retired"));
+        assertTrue(this.isActive(ACTIVE));
+        // Its other tags are not this question's business, and a tag is a name: spelled otherwise, it is another
+        assertTrue(this.isActive("sensitive", ACTIVE));
+        assertFalse(this.isActive("ACTIVE"));
     }
 
     /**
-     * The lifecycle state a version carrying the given raw {@code state} property is read as.
+     * Whether a version carrying the given tags itself accepts new instances.
      *
-     * @param state the property value to store, as it would arrive from the repository
-     * @return the state the model reports, or {@code null} if it reports none
+     * @param names the tags to store on it
+     * @return what the model answers
      */
-    private WorkflowVersion.State stateOf(final String state)
+    private boolean isActive(final String... names)
     {
         // A path of its own per call, so the cases don't overwrite each other's node
-        final Resource resource = this.context.create().resource(VERSION_PATH + "-" + state.hashCode(), Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", state));
+        final Resource resource = this.context.create().resource(VERSION_PATH + "-" + String.join("-", names),
+            Map.of(TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(names)));
         final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
         assertNotNull(version);
-        return version.getState();
+        return version.isActive();
     }
 
     @Test

@@ -85,8 +85,8 @@ test.describe('the time off request demo', () => {
     const response = await request.get('/Workflows/timeOffRequest/v1.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { state?: string; 'jcr:primaryType'?: string };
-    expect(version.state).toBe('ACTIVE');
+    const version = (await response.json()) as { tags?: string[]; 'jcr:primaryType'?: string };
+    expect(version.tags).toContain('active');
 
     expect(version['jcr:primaryType']).toBe('wf:WorkflowVersion');
 

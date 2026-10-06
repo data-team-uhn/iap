@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "sub/SubmissionsHomepage",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",

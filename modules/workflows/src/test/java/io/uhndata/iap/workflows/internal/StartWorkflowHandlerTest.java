@@ -48,9 +48,10 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
-import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -87,7 +88,7 @@ class StartWorkflowHandlerTest
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(VERSION, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE)));
         // Start straight to an end: this suite is about finding the workflow, not about running it
         this.context.create().resource(VERSION + "/start", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, "elementId", "start"));
@@ -166,7 +167,7 @@ class StartWorkflowHandlerTest
         reference(HOST, "workflow", VERSION);
         this.context.resourceResolver().getResource(VERSION)
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
-            .put(STATE, WorkflowVersion.State.RETIRED.name());
+            .put(TAGS, tags("retired"));
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(context("workflow", HOST)));

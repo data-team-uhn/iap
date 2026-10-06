@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -60,6 +61,7 @@ class RetireActiveVersionsHandlerTest
     void setUp()
     {
         AuthoringFixture.setUp(this.context);
+        TaggingFixture.enable(this.context);
         this.activity = AuthoringFixture.activity(this.context, "retire",
             Map.of("handler", RetireActiveVersionsHandler.NAME));
     }
@@ -73,15 +75,15 @@ class RetireActiveVersionsHandlerTest
     @Test
     void retiresTheOutgoingVersion() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.ACTIVE, Map.of());
-        AuthoringFixture.createVersion(this.context, "2-0", "2.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(this.retireFor("2-0", variables));
 
-        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("1-0"));
+        assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         // The promoted version is left where it is; promoting it is the step after this one
-        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("2-0"));
+        assertEquals(Set.of("draft"), this.tagsOf("2-0"));
         assertArrayEquals(new String[] { AuthoringFixture.path("1-0") },
             (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS));
     }
@@ -90,26 +92,39 @@ class RetireActiveVersionsHandlerTest
     void retiresEveryVersionClaimingToBeCurrent() throws WorkflowException, PersistenceException
     {
         // More than one being active is already a broken invariant; a promotion is the moment to repair it
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.ACTIVE, Map.of());
-        AuthoringFixture.createVersion(this.context, "2-0", "2.0", WorkflowVersion.State.ACTIVE, Map.of());
-        AuthoringFixture.createVersion(this.context, "3-0", "3.0", WorkflowVersion.State.TRIAL, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "3-0", "3.0", "trial", Map.of());
 
         this.handler.execute(this.retireFor("3-0", new HashMap<>()));
 
-        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("1-0"));
-        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("2-0"));
+        assertEquals(Set.of("retired"), this.tagsOf("1-0"));
+        assertEquals(Set.of("retired"), this.tagsOf("2-0"));
+    }
+
+    @Test
+    void retiresOnlyTheLifecycleOfTheOutgoingVersion() throws WorkflowException, PersistenceException
+    {
+        // Whatever else the outgoing version is tagged with is not the promotion's business
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", null,
+            Map.of(WorkflowFixture.TAGS, WorkflowFixture.tags("active", "sensitive")));
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
+
+        this.handler.execute(this.retireFor("2-0", new HashMap<>()));
+
+        assertEquals(Set.of("retired", "sensitive"), this.tagsOf("1-0"));
     }
 
     @Test
     void retiresNothingWhenTheWorkflowHasNoActiveVersion() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.RETIRED, Map.of());
-        AuthoringFixture.createVersion(this.context, "2-0", "2.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "retired", Map.of());
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(this.retireFor("2-0", variables));
 
-        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("1-0"));
+        assertEquals(Set.of("retired"), this.tagsOf("1-0"));
         assertArrayEquals(new String[0],
             (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS));
     }
@@ -119,15 +134,15 @@ class RetireActiveVersionsHandlerTest
     {
         // A definition's children need not all be versions, and adaptTo can return null if the bundle exposing
         // WorkflowVersion isn't fully started. Both are skipped rather than treated as active.
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
         this.context.create().resource(AuthoringFixture.path("notes"),
-            Map.of(WorkflowFixture.TYPE, "nt:unstructured", "state", "ACTIVE"));
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured", WorkflowFixture.TAGS, WorkflowFixture.tags("active")));
 
         this.handler.execute(this.retireFor("1-0", new HashMap<>()));
 
         final Resource notes = this.context.resourceResolver().getResource(AuthoringFixture.path("notes"));
         assertNotNull(notes);
-        assertEquals("ACTIVE", notes.getValueMap().get("state"));
+        assertEquals(Set.of("active"), TaggingFixture.tags(notes));
     }
 
     @Test
@@ -135,7 +150,7 @@ class RetireActiveVersionsHandlerTest
     {
         // Nothing to retire and no telling what promoting it would make current
         this.context.create().resource("/loose/1-0", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "DRAFT"));
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
         final WorkflowTaskContextImpl request = AuthoringFixture.context(
             this.context.resourceResolver().getResource("/loose/1-0"), "activate", Map.of(), this.activity,
             new HashMap<>());
@@ -150,7 +165,7 @@ class RetireActiveVersionsHandlerTest
     {
         // A resource with no parent at all: the same refusal, reached the other way
         final Resource orphan = this.context.create().resource("/orphan", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "DRAFT"));
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
         final Resource rootless = org.mockito.Mockito.spy(orphan);
         org.mockito.Mockito.doReturn(null).when(rootless).getParent();
         final WorkflowTaskContextImpl request =
@@ -173,17 +188,15 @@ class RetireActiveVersionsHandlerTest
     }
 
     /**
-     * The lifecycle state a version currently carries.
+     * The tags a version currently carries itself.
      *
      * @param name the version's node name
-     * @return its state
+     * @return its tags
      */
-    private WorkflowVersion.State stateOf(final String name)
+    private Set<String> tagsOf(final String name)
     {
         final Resource resource = this.context.resourceResolver().getResource(AuthoringFixture.path(name));
         assertNotNull(resource);
-        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
-        assertNotNull(version);
-        return version.getState();
+        return TaggingFixture.tags(resource);
     }
 }

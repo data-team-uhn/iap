@@ -93,8 +93,8 @@
   // Human-readable name for this workflow
   - title (STRING) mandatory
 
-  // No 'active' property: whether a definition may run is computed from its versions' state
-  // (see WorkflowDefinition.isActive()), not stored, so the two can't disagree.
+  // No 'active' property: whether a definition may run is read off its versions' lifecycle tags,
+  // not stored, so the two can't disagree.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -128,14 +128,8 @@
   // The flag is temporary. It goes away once the synchronization process is fully functional.
   - bpmnAuthoritative (BOOLEAN) = false
 
-  // Where this version stands in its lifecycle. Accepted values:
-  // - DRAFT -> still being authored; editable.
-  // - TRIAL -> in testing: not editable, can be returned to DRAFT or progressed to ACTIVE
-  // - ACTIVE -> used by any new instances; unique and no longer editable
-  // - RETIRED -> no longer active: existing instances continue, but no new ones are created
-  // Autocreated so every consumer (JSON export, queries) sees a value, not just the Sling Model default.
-  // No value constraint: transitions are enforced atomically by the state/draft servlets, not listed here.
-  - state (STRING) = "DRAFT" mandatory autocreated
+  // Where it stands is its `lifecycle` tag: `draft`, `trial`, `active` or `retired`.
+  // Only an active version is what new instances start from.
 
   // The resource type of the node whose events this version handles, e.g.
   // "wf/WorkflowsHomepage". This is how the engine matches an incoming event's

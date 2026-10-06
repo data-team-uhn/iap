@@ -23,7 +23,6 @@ import {
   loadWorkflowCounts,
   loadWorkflowHomepages,
   nextVersionLabel,
-  stateOf,
   workflowFrom,
   type WorkflowSummary,
 } from "@iap/workflows/workflowModel";
@@ -38,14 +37,14 @@ const definition = {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "description": "The initial cut",
-    "state": "RETIRED",
+    "tags": ["retired"],
     "jcr:lastModified": "2026-07-15T09:00:00.000Z",
     "@events": [ "activate", "draft" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "2.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
   },
   "3-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
@@ -65,25 +64,6 @@ const okResponse = (body: unknown) =>
 
 const answering = (body: unknown) => vi.fn<FetchStub>(() => Promise.resolve(okResponse(body)));
 
-describe("stateOf", () => {
-  it("reads each of the four lifecycle states", () => {
-    expect(stateOf("DRAFT")).toBe("DRAFT");
-    expect(stateOf("TRIAL")).toBe("TRIAL");
-    expect(stateOf("ACTIVE")).toBe("ACTIVE");
-    expect(stateOf("RETIRED")).toBe("RETIRED");
-  });
-
-  it("reads anything else as no state at all", () => {
-    // A version with no state stored, or one from a platform that knows a state this one does not.
-    // Neither reads as a draft: that is the state the editing and promotion actions are offered for,
-    // and the server refuses both on a version whose state it cannot read either
-    expect(stateOf(undefined)).toBeNull();
-    expect(stateOf("active")).toBeNull();
-    expect(stateOf("PUBLISHED")).toBeNull();
-    expect(stateOf(3)).toBeNull();
-  });
-});
-
 describe("workflowFrom", () => {
   it("summarizes the definition and its versions", () => {
     const workflow = workflowFrom("/Workflows/review", definition);
@@ -101,7 +81,7 @@ describe("workflowFrom", () => {
       path: "/Workflows/review/1-0",
       version: "1.0",
       description: "The initial cut",
-      state: "RETIRED",
+      tags: ["retired"],
       lastModified: "2026-07-15T09:00:00.000Z",
       events: [ "activate", "draft" ],
     });
@@ -116,8 +96,8 @@ describe("workflowFrom", () => {
     const notRunning = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "TRIAL" },
-      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "RETIRED" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["trial"] },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "tags": ["retired"] },
     });
     expect(notRunning.active).toBe(false);
   });
@@ -128,15 +108,15 @@ describe("workflowFrom", () => {
 
     const retired = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
-      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "TRIAL" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["retired"] },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "tags": ["trial"] },
     });
     expect(retired.retired).toBe(true);
 
     // Never having run is not the same as having been retired
     const unreleased = workflowFrom("/Workflows/review", {
       "jcr:primaryType": "wf:WorkflowDefinition",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "DRAFT" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["draft"] },
     });
     expect(unreleased.retired).toBe(false);
   });
@@ -149,11 +129,11 @@ describe("workflowFrom", () => {
     expect(workflow.versions).toHaveLength(3);
   });
 
-  it("reads a version with no state as having none, and fills in what is missing", () => {
+  it("reads a version with no tags as having none, and fills in what is missing", () => {
     const workflow = workflowFrom("/Workflows/review", definition);
 
     expect(workflow.versions[2]).toMatchObject({
-      version: "3.0", state: null, description: "", lastModified: "", events: [],
+      version: "3.0", tags: [], description: "", lastModified: "", events: [],
     });
   });
 
@@ -422,7 +402,7 @@ describe("nextVersionLabel", () => {
       path: `/Workflows/review/v${index + 1}`,
       version: label,
       description: "",
-      state: "DRAFT",
+      tags: ["draft"],
       lastModified: "",
       events: [],
     })),

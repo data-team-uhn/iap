@@ -20,7 +20,6 @@ package io.uhndata.iap.workflows.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,9 +53,6 @@ final class VersionEdits
 
     /** The property holding a version's label, e.g. {@code 1.0}. */
     static final String VERSION = "version";
-
-    /** The property holding a version's lifecycle state. */
-    static final String STATE = "state";
 
     static final String DESCRIPTION = "description";
 
@@ -378,29 +374,5 @@ final class VersionEdits
         for (final Resource child : source.getChildren()) {
             copySubtree(child, copy, resolver);
         }
-    }
-
-    /**
-     * One state, as it reads in a sentence written for a person.
-     *
-     * @param state the state to name
-     * @return its name in lower case, e.g. {@code retired}
-     */
-    static String name(final WorkflowVersion.State state)
-    {
-        return state.name().toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * Where a version stands, as it completes a sentence saying so. Unlike {@link #name}, this takes the answer
-     * {@link WorkflowVersion#getState()} gives for a version whose state could not be read, so that a refusal can
-     * say why without having to name a state the version does not have.
-     *
-     * @param state the version's state, or {@code null} if it could not be read
-     * @return a phrase completing "this version is ...", e.g. {@code retired}
-     */
-    static String describe(final WorkflowVersion.State state)
-    {
-        return state == null ? "in an unrecognized state" : name(state);
     }
 }

@@ -21,11 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -33,7 +33,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * Retires whichever versions of the target's workflow are currently active, to make room for the target being
- * promoted in their place. The step before {@code setVersionState} in the activation workflow.
+ * promoted in their place: their {@code active} tag becomes {@code retired}. The step before the target is
+ * tagged {@code active} in the activation workflow.
  *
  * <p>At most one version of a definition may be active at a time. Retiring and promoting happen as two steps of
  * one workflow run, committed together at its end, so a promotion that can't complete retires nothing and the
@@ -57,6 +58,9 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     /** The variable the retired versions' paths are left in. */
     public static final String RETIRED_VERSIONS = "retiredVersions";
 
+    /** The lifecycle tag an outgoing version is given. */
+    private static final String RETIRED_TAG = "retired";
+
     @Override
     public String getName()
     {
@@ -74,12 +78,13 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
                 continue;
             }
             final WorkflowVersion version = sibling.adaptTo(WorkflowVersion.class);
-            if (version == null || version.getState() != WorkflowVersion.State.ACTIVE) {
+            if (version == null || !version.isActive()) {
                 continue;
             }
-            Objects.requireNonNull(sibling.adaptTo(ModifiableValueMap.class),
-                "An active version the engine is retiring should always be modifiable")
-                .put(VersionEdits.STATE, WorkflowVersion.State.RETIRED.name());
+            final Taggable tags = Objects.requireNonNull(sibling.adaptTo(Taggable.class),
+                "Retiring a version takes the tags service, as tagging it active did");
+            tags.untag(WorkflowVersion.ACTIVE_TAG, true);
+            tags.tag(RETIRED_TAG, true);
             retired.add(sibling.getPath());
         }
         context.setVariable(RETIRED_VERSIONS, retired.toArray(new String[0]));

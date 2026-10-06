@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "wf/WorkflowDefinition",
     "description": "What happens when another version of an existing workflow is asked for: a draft is created beside the versions already there, carrying whatever diagram the request brought to start from. A draft rather than anything else, because a version that instances could be created from should be one somebody has decided to activate. Being itself a workflow, a deployment that wants a new version to be announced, or to be refused while another draft is open, edits this definition rather than the platform.",
     "requested": {
@@ -25,6 +25,20 @@
       "elementId": "create",
       "label": "Create the version",
       "handler": "createWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMarkDraft": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkDraft",
+        "targetRef": "markDraft"
+      }
+    },
+    "markDraft": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markDraft",
+      "label": "Mark it as a draft",
+      "handler": "addTag",
+      "tag": "draft",
+      "replaceExisting": true,
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

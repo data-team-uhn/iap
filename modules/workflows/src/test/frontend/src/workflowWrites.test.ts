@@ -130,9 +130,9 @@ describe("createVersion", () => {
     const body = formOf(fetchUtil, 0);
     expect(body.get("version")).toBe("2.0");
     expect(body.get("bpmn.xml")).toBeInstanceOf(File);
-    // No state, and nothing saying the diagram owns the graph: both are what opening a version
+    // No lifecycle tag, and nothing saying the diagram owns the graph: both are what opening a version
     // means, and the definition that says so is where they are decided
-    expect(body.get("state")).toBeNull();
+    expect(body.get("tags")).toBeNull();
     expect(body.get("bpmnAuthoritative")).toBeNull();
     expect(path).toBe("/Workflows/review/created");
   });

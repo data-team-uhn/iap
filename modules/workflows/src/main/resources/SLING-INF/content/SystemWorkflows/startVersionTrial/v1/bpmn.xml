@@ -34,12 +34,11 @@
           <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
           <sv:node sv:name="operandA">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>state</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>DRAFT</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
@@ -47,7 +46,7 @@
       <bpmn:messageEventDefinition id="startTrialRequested" messageRef="startTrialMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:fromStates="DRAFT" iap:handler="setVersionState" iap:toState="TRIAL" name="Put the version on trial">
+    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="trial" name="Put the version on trial">
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

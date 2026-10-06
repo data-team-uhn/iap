@@ -17,7 +17,7 @@
  */
 
 // What the workflow screens know about the repository: where workflows live, how a version's
-// lifecycle state reads, and how one workflow's versions are listed.
+// lifecycle reads, and how one workflow's versions are listed.
 
 import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -28,31 +28,13 @@ import { readNode } from "@iap/frontend-commons/useNode";
 // this one is only the entry point discovery is asked through, and always exists.
 export const WORKFLOWS_ROOT = "/Workflows";
 
-// The lifecycle of a workflow version, stored in its `state` property: authored as a DRAFT, optionally
-// trialled, promoted to ACTIVE to run, and RETIRED once a later version supersedes it or it is withdrawn —
+// Where a workflow version stands is its `lifecycle` tag: authored as a `draft`, optionally put on
+// `trial`, made `active` to run, and `retired` once a later version supersedes it or it is withdrawn —
 // a retired version's own running instances carry on, but no new ones start from it until it is
-// activated again.
-//
-// Only a DRAFT may be edited: every later state may already be driving a running process, so a trial
-// that needs changes goes back to being a draft rather than being edited in place.
-export const WORKFLOW_STATES = [ "DRAFT", "TRIAL", "ACTIVE", "RETIRED" ] as const;
-
-export type WorkflowState = typeof WORKFLOW_STATES[number];
-
-// How each state is named on screen, and how much colour weight its chip gets — Active alone carries
-// weight, since it's the one state actually running.
-export const STATE_LABELS: Record<WorkflowState, string> = {
-  DRAFT: "Draft",
-  TRIAL: "Trial",
-  ACTIVE: "Active",
-  RETIRED: "Retired",
-};
-
-// Anything unrecognized — an absent property on older content, a value from a newer platform — reads as
-// no state at all to ensure it doesn't inherit actions from another state.
-export function stateOf(raw: unknown): WorkflowState | null {
-  return WORKFLOW_STATES.includes(raw as WorkflowState) ? raw as WorkflowState : null;
-}
+// activated again. What may be done to a version next is what the server offers on it (see `offers`),
+// so these are only read to describe it.
+export const ACTIVE_TAG = "active";
+export const RETIRED_TAG = "retired";
 
 // A node parsed from the repository's JSON serialization: a known primary type, everything else
 // read defensively.
@@ -84,8 +66,8 @@ export interface WorkflowVersionSummary {
   path: string;
   version: string;
   description: string;
-  // Null when the stored state is missing or names no state this platform knows; see stateOf
-  state: WorkflowState | null;
+  // The tags it carries itself, its lifecycle tag among them
+  tags: string[];
   lastModified: string;
   // What the current user may do to it, as the events the server offers on it
   events: string[];
@@ -146,7 +128,7 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
         path: `${definitionPath}/${name}`,
         version: text(version.version),
         description: text(version.description),
-        state: stateOf(version.state),
+        tags: strings(version.tags),
         lastModified: text(version["jcr:lastModified"]),
         events: strings(version["@events"]),
       };
@@ -160,9 +142,9 @@ export function workflowFrom(path: string, definition: JcrNode): WorkflowSummary
     path,
     name: path.slice(path.lastIndexOf("/") + 1),
     title: text(definition.title) || path.slice(path.lastIndexOf("/") + 1),
-    active: versions.some(version => version.state === "ACTIVE"),
-    retired: versions.some(version => version.state === "RETIRED")
-      && !versions.some(version => version.state === "ACTIVE"),
+    active: versions.some(version => version.tags.includes(ACTIVE_TAG)),
+    retired: versions.some(version => version.tags.includes(RETIRED_TAG))
+      && !versions.some(version => version.tags.includes(ACTIVE_TAG)),
     created: text(definition["jcr:created"]),
     lastModified: text(definition["jcr:lastModified"]),
     events: strings(definition["@events"]),

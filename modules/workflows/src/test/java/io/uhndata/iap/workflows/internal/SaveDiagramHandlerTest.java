@@ -32,11 +32,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,7 +76,7 @@ class SaveDiagramHandlerTest
     @Test
     void storesADiagramOnADraftThatHadNone() throws WorkflowException, PersistenceException, IOException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
 
         this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, "application/xml")));
 
@@ -90,7 +88,7 @@ class SaveDiagramHandlerTest
     @Test
     void replacesTheDiagramADraftAlreadyHeld() throws WorkflowException, PersistenceException, IOException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
         AuthoringFixture.loadDiagram(this.context, "1-0");
         final Resource version = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
         assertNotNull(version);
@@ -107,7 +105,7 @@ class SaveDiagramHandlerTest
     @Test
     void fallsBackToXmlWhenTheUploadDeclaresNoType() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
 
         this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null)));
 
@@ -118,39 +116,11 @@ class SaveDiagramHandlerTest
     }
 
     @Test
-    void refusesADiagramForAnythingButADraft()
-    {
-        // Trial, active, and retired versions are all frozen against edits, each for a different reason
-        for (final WorkflowVersion.State frozen : new WorkflowVersion.State[] {
-            WorkflowVersion.State.TRIAL, WorkflowVersion.State.ACTIVE, WorkflowVersion.State.RETIRED }) {
-            final String name = frozen.name().toLowerCase(java.util.Locale.ROOT);
-            AuthoringFixture.createVersion(this.context, name, name, frozen, Map.of());
-
-            final InvalidStateException refusal = assertThrows(InvalidStateException.class,
-                () -> this.handler.execute(this.save(name, AuthoringFixture.upload(REPLACEMENT, null))));
-            assertTrue(refusal.getMessage().contains("Only a draft may be edited"));
-            assertTrue(refusal.getMessage().contains("this version is " + name));
-        }
-    }
-
-    @Test
-    void refusesADiagramForAVersionWhoseStateCannotBeRead()
-    {
-        // A version whose state names no state it could be in is not editable either: the one state that may be
-        // edited is the draft, and this version cannot be shown to be one
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "PUBLISHED", Map.of());
-
-        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
-            () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
-        assertTrue(refusal.getMessage().contains("this version is in an unrecognized state"));
-    }
-
-    @Test
     void refusesADiagramForAVersionStoredOutsideAHomepage()
     {
         // Everything that lists workflows starts from the homepages that hold them, so a version kept anywhere
         // else could be given a diagram and then never be found again
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
         final Resource homepage = this.context.resourceResolver().getResource("/Workflows");
         assertNotNull(homepage);
         homepage.adaptTo(ModifiableValueMap.class).remove("childNodeType");
@@ -163,7 +133,7 @@ class SaveDiagramHandlerTest
     @Test
     void requiresADiagramToStore()
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(this.save("1-0", null)));
@@ -173,7 +143,7 @@ class SaveDiagramHandlerTest
     @Test
     void reportsAnUploadThatCannotBeRead()
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(this.save("1-0", AuthoringFixture.brokenUpload())));

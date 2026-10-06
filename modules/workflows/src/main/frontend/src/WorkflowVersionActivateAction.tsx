@@ -20,7 +20,7 @@ import PublishIcon from "@mui/icons-material/Publish";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 
-import { offers } from "./workflowModel";
+import { ACTIVE_TAG, offers } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
@@ -33,7 +33,7 @@ function WorkflowVersionActivateAction({ version, workflow, reload }: WorkflowVe
     return null;
   }
   const label = version.version || version.name;
-  const outgoing = workflow.versions.find(candidate => candidate.state === "ACTIVE");
+  const outgoing = workflow.versions.find(candidate => candidate.tags.includes(ACTIVE_TAG));
   return (
     <EventAction
       path={version.path}

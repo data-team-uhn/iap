@@ -34,12 +34,11 @@
           <sv:property sv:name="comparator"><sv:value>includes any</sv:value></sv:property>
           <sv:node sv:name="operandA">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>state</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>DRAFT</sv:value><sv:value>TRIAL</sv:value><sv:value>RETIRED</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value><sv:value>trial</sv:value><sv:value>retired</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
@@ -52,7 +51,7 @@
       <bpmn:outgoing>toPromote</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toPromote" sourceRef="retire" targetRef="promote" />
-    <bpmn:serviceTask id="promote" iap:fromStates="DRAFT,TRIAL,RETIRED" iap:handler="setVersionState" iap:toState="ACTIVE" name="Make this the active version">
+    <bpmn:serviceTask id="promote" iap:handler="addTag" iap:replaceExisting="true" iap:tag="active" name="Make this the active version">
       <bpmn:incoming>toPromote</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

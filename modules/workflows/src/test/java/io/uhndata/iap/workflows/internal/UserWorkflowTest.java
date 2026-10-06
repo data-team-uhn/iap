@@ -53,9 +53,10 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
-import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -122,7 +123,7 @@ class UserWorkflowTest
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE)));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toApproval", Map.of(
@@ -156,7 +157,7 @@ class UserWorkflowTest
         this.context.create().resource("/SystemWorkflows/putUnderWorkflow", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow"));
         this.context.create().resource(BOOTSTRAP, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE,
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE),
             "targetResourceType", "sub/Submission"));
         this.context.create().resource(BOOTSTRAP + "/raised", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "raised", "messageName", "start",
@@ -532,7 +533,7 @@ class UserWorkflowTest
     {
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS)
-            .adaptTo(ModifiableValueMap.class).put(STATE, WorkflowVersion.State.RETIRED.name());
+            .adaptTo(ModifiableValueMap.class).put(TAGS, tags("retired"));
 
         final WorkflowDefinitionException rejection =
             assertThrows(WorkflowDefinitionException.class, this::started);

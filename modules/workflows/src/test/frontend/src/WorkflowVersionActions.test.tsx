@@ -28,7 +28,7 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
-import type { WorkflowState, WorkflowSummary, WorkflowVersionSummary } from "@iap/workflows/workflowModel";
+import type { WorkflowSummary, WorkflowVersionSummary } from "@iap/workflows/workflowModel";
 import WorkflowVersionActions, { type WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
 import WorkflowVersionActivateAction from "@iap/workflows/WorkflowVersionActivateAction";
 import WorkflowVersionDraftAction from "@iap/workflows/WorkflowVersionDraftAction";
@@ -44,23 +44,27 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 // A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
-// What the server offers on a version in each state: the guards on the version workflows' start events
-const OFFERED: Record<WorkflowState, string[]> = {
-  DRAFT: [ "activate", "startTrial", "save" ],
-  TRIAL: [ "activate", "returnToDraft", "draft" ],
-  ACTIVE: [ "retire", "draft" ],
-  RETIRED: [ "activate", "draft" ],
+// A version's lifecycle tag
+type Lifecycle = "draft" | "trial" | "active" | "retired";
+
+// What the server offers on a version with each lifecycle tag: the guards on the version workflows' start
+// events
+const OFFERED: Record<Lifecycle, string[]> = {
+  draft: [ "activate", "startTrial", "save" ],
+  trial: [ "activate", "returnToDraft", "draft" ],
+  active: [ "retire", "draft" ],
+  retired: [ "activate", "draft" ],
 };
 
-const version = (label: string, state: WorkflowState | null): WorkflowVersionSummary => ({
+const version = (label: string, lifecycle: Lifecycle | null): WorkflowVersionSummary => ({
   name: label.replace(".", "-"),
   path: `/Workflows/review/${label.replace(".", "-")}`,
   version: label,
   description: "",
-  state,
+  tags: lifecycle === null ? [] : [ lifecycle ],
   lastModified: "",
-  // A version whose state cannot be read can still be drafted from
-  events: state === null ? [ "draft" ] : OFFERED[state],
+  // A version in no lifecycle can still be drafted from
+  events: lifecycle === null ? [ "draft" ] : OFFERED[lifecycle],
 });
 
 const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
@@ -155,13 +159,13 @@ const ACTIONS: [ string, "button" | "link", (props: WorkflowVersionActionProps) 
 
 describe("every version action", () => {
   it.each(ACTIONS)("offers %s exactly where the server offers its event", (name, role, Action, event) => {
-    // The state says the opposite each time, so only the events can decide
+    // The lifecycle says nothing each time, so only the events can decide
     const offered = { ...version("2.0", null), events: [ event ] };
     const { unmount } = renderAction(Action, propsFor(offered, workflow(offered)));
     expect(screen.getByRole(role, { name })).toBeInTheDocument();
     unmount();
 
-    const withheld = { ...version("2.0", "DRAFT"), events: [] };
+    const withheld = { ...version("2.0", "draft"), events: [] };
     renderAction(Action, propsFor(withheld, workflow(withheld)));
     expect(screen.queryByRole(role, { name })).not.toBeInTheDocument();
   });
@@ -175,7 +179,7 @@ describe("WorkflowVersionActions", () => {
       { "ext:render": first },
       { "ext:render": second },
     ]);
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
 
     render(<WorkflowVersionActions {...propsFor(draft, workflow(draft))} />);
 
@@ -191,7 +195,7 @@ describe("WorkflowVersionActions", () => {
     mockedLoadExtensions.mockReturnValue(new Promise<Record<string, unknown>[]>(resolve => {
       resolveActions = resolve;
     }));
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
     const { unmount } = render(<WorkflowVersionActions {...propsFor(draft, workflow(draft))} />);
 
     unmount();
@@ -201,7 +205,7 @@ describe("WorkflowVersionActions", () => {
   });
 
   it("renders nothing at all when no action applies", async () => {
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
 
     const { container } = render(<WorkflowVersionActions {...propsFor(draft, workflow(draft))} />);
 
@@ -212,7 +216,7 @@ describe("WorkflowVersionActions", () => {
 
 describe("the edit action", () => {
   it("links a draft to the editing mode of its page", () => {
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
 
     renderAction(WorkflowVersionEditAction, propsFor(draft, workflow(draft)));
 
@@ -220,13 +224,13 @@ describe("the edit action", () => {
       .toHaveAttribute("href", "/admin/workflows/Workflows/review/1-0.edit");
   });
 
-  it("is not offered for a version that is no longer a draft, or is in no state it knows", () => {
+  it("is not offered for a version that is no longer a draft, or is in no lifecycle", () => {
     // Editing an active or retired version would change a process out from under the things
     // executing it, and a trial is being tried as it stands; carrying any of them forward means
-    // drafting — a copy of the first two, the trial itself. A version whose state cannot be read
+    // drafting — a copy of the first two, the trial itself. A version in no lifecycle
     // cannot be shown to be a draft, so it is not editable either
-    for (const state of [ "TRIAL", "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
-      const target = version("1.0", state);
+    for (const lifecycle of [ "trial", "active", "retired", null ] as (Lifecycle | null)[]) {
+      const target = version("1.0", lifecycle);
       const { unmount } = renderAction(WorkflowVersionEditAction, propsFor(target, workflow(target)));
 
       expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
@@ -239,8 +243,8 @@ describe("the activate action", () => {
   it("names the version that will be retired, and promotes on confirmation", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const active = version("1.0", "ACTIVE");
-    const draft = version("2.0", "DRAFT");
+    const active = version("1.0", "active");
+    const draft = version("2.0", "draft");
     const props = propsFor(draft, workflow(active, draft));
     renderAction(WorkflowVersionActivateAction, props);
 
@@ -260,7 +264,7 @@ describe("the activate action", () => {
   it("says that nothing is retired when the workflow has no active version", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
     renderAction(WorkflowVersionActivateAction, propsFor(draft, workflow(draft)));
 
     await user.click(screen.getByRole("button", { name: "Activate" }));
@@ -271,7 +275,7 @@ describe("the activate action", () => {
   it("keeps the confirmation open and reports what the server refused", async () => {
     const user = userEvent.setup();
     stubRefusingFetch(409, "Only a draft version can be activated");
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
     const props = propsFor(draft, workflow(draft));
     renderAction(WorkflowVersionActivateAction, props);
 
@@ -286,8 +290,8 @@ describe("the activate action", () => {
   it("names an unlabelled version, and the unlabelled one it supersedes, by node name", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const active = { ...version("1.0", "ACTIVE"), version: "" };
-    const draft = { ...version("2.0", "DRAFT"), version: "" };
+    const active = { ...version("1.0", "active"), version: "" };
+    const draft = { ...version("2.0", "draft"), version: "" };
     renderAction(WorkflowVersionActivateAction, propsFor(draft, workflow(active, draft)));
 
     await user.click(screen.getByRole("button", { name: "Activate" }));
@@ -302,8 +306,8 @@ describe("the activate action", () => {
     // is — and supersedes what was running, which the confirmation still has to say
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const active = version("1.0", "ACTIVE");
-    const trial = version("2.0", "TRIAL");
+    const active = version("1.0", "active");
+    const trial = version("2.0", "trial");
     const props = propsFor(trial, workflow(active, trial));
     renderAction(WorkflowVersionActivateAction, props);
 
@@ -320,8 +324,8 @@ describe("the activate action", () => {
   it("brings a retired version back, retiring the one that replaced it", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const retired = version("1.0", "RETIRED");
-    const active = version("2.0", "ACTIVE");
+    const retired = version("1.0", "retired");
+    const active = version("2.0", "active");
     const props = propsFor(retired, workflow(retired, active));
     renderAction(WorkflowVersionActivateAction, props);
 
@@ -335,9 +339,9 @@ describe("the activate action", () => {
       expect.objectContaining({ method: "POST" }));
   });
 
-  it("is not offered for a version that is already active, or is in no state it knows", () => {
-    for (const state of [ "ACTIVE", null ] as (WorkflowState | null)[]) {
-      const target = version("1.0", state);
+  it("is not offered for a version that is already active, or is in no lifecycle", () => {
+    for (const lifecycle of [ "active", null ] as (Lifecycle | null)[]) {
+      const target = version("1.0", lifecycle);
       const { unmount } = renderAction(WorkflowVersionActivateAction, propsFor(target, workflow(target)));
 
       expect(screen.queryByRole("button", { name: "Activate" })).not.toBeInTheDocument();
@@ -350,8 +354,8 @@ describe("the trial action", () => {
   it("puts a draft on trial once the freeze is confirmed", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const draft = version("2.0", "DRAFT");
-    const props = propsFor(draft, workflow(version("1.0", "ACTIVE"), draft));
+    const draft = version("2.0", "draft");
+    const props = propsFor(draft, workflow(version("1.0", "active"), draft));
     renderAction(WorkflowVersionTrialAction, props);
 
     await user.click(screen.getByRole("button", { name: "Start trial" }));
@@ -368,8 +372,8 @@ describe("the trial action", () => {
   });
 
   it("is offered for a draft only", () => {
-    for (const state of [ "TRIAL", "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
-      const target = version("1.0", state);
+    for (const lifecycle of [ "trial", "active", "retired", null ] as (Lifecycle | null)[]) {
+      const target = version("1.0", lifecycle);
       const { unmount } = renderAction(WorkflowVersionTrialAction, propsFor(target, workflow(target)));
 
       expect(screen.queryByRole("button", { name: "Start trial" })).not.toBeInTheDocument();
@@ -382,7 +386,7 @@ describe("the trial action", () => {
     // asking about it; its node name is the only other thing it is known by
     const user = userEvent.setup();
     stubFetch();
-    const unlabelled = { ...version("2.0", "DRAFT"), version: "" };
+    const unlabelled = { ...version("2.0", "draft"), version: "" };
 
     renderAction(WorkflowVersionTrialAction, propsFor(unlabelled, workflow(unlabelled)));
     await user.click(screen.getByRole("button", { name: "Start trial" }));
@@ -396,8 +400,8 @@ describe("the return-to-draft action", () => {
   it("takes a trial back to being a draft", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const trial = version("2.0", "TRIAL");
-    const props = propsFor(trial, workflow(version("1.0", "ACTIVE"), trial));
+    const trial = version("2.0", "trial");
+    const props = propsFor(trial, workflow(version("1.0", "active"), trial));
     renderAction(WorkflowVersionRedraftAction, props);
 
     await user.click(screen.getByRole("button", { name: "Return to draft" }));
@@ -414,8 +418,8 @@ describe("the return-to-draft action", () => {
   it("is offered for a trial only", () => {
     // A draft is already one; an active or retired version has instances following it, and is
     // carried forward by drafting a copy instead
-    for (const state of [ "DRAFT", "ACTIVE", "RETIRED" ] as WorkflowState[]) {
-      const target = version("1.0", state);
+    for (const lifecycle of [ "draft", "active", "retired" ] as Lifecycle[]) {
+      const target = version("1.0", lifecycle);
       const { unmount } = renderAction(WorkflowVersionRedraftAction, propsFor(target, workflow(target)));
 
       expect(screen.queryByRole("button", { name: "Return to draft" })).not.toBeInTheDocument();
@@ -426,7 +430,7 @@ describe("the return-to-draft action", () => {
   it("names a version without a label by its node name", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const unlabelled = { ...version("2.0", "TRIAL"), version: "" };
+    const unlabelled = { ...version("2.0", "trial"), version: "" };
     const props = propsFor(unlabelled, workflow(unlabelled));
 
     renderAction(WorkflowVersionRedraftAction, props);
@@ -442,7 +446,7 @@ describe("the retire action", () => {
   it("withdraws the active version once confirmed", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const active = version("1.0", "ACTIVE");
+    const active = version("1.0", "active");
     const props = propsFor(active, workflow(active));
     renderAction(WorkflowVersionRetireAction, props);
 
@@ -462,7 +466,7 @@ describe("the retire action", () => {
   it("names a version without a label by its node name", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const unlabelled = { ...version("1.0", "ACTIVE"), version: "" };
+    const unlabelled = { ...version("1.0", "active"), version: "" };
     const props = propsFor(unlabelled, workflow(unlabelled));
     renderAction(WorkflowVersionRetireAction, props);
 
@@ -474,8 +478,8 @@ describe("the retire action", () => {
   });
 
   it("is offered for the active version only", () => {
-    for (const state of [ "DRAFT", "TRIAL", "RETIRED", null ] as (WorkflowState | null)[]) {
-      const target = version("1.0", state);
+    for (const lifecycle of [ "draft", "trial", "retired", null ] as (Lifecycle | null)[]) {
+      const target = version("1.0", lifecycle);
       const { unmount } = renderAction(WorkflowVersionRetireAction, propsFor(target, workflow(target)));
 
       expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
@@ -487,8 +491,8 @@ describe("the retire action", () => {
 describe("the draft-from action", () => {
   it("suggests the next whole number as the draft's label", async () => {
     const user = userEvent.setup();
-    const active = version("2.1", "ACTIVE");
-    renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(version("1.0", "RETIRED"), active)));
+    const active = version("2.1", "active");
+    renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(version("1.0", "retired"), active)));
 
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog", { name: /New draft from version 2.1/ });
@@ -499,7 +503,7 @@ describe("the draft-from action", () => {
   it("copies an active version into a new draft and opens it", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch("/Workflows/review/2-0");
-    const active = version("1.0", "ACTIVE");
+    const active = version("1.0", "active");
     const props = propsFor(active, workflow(active));
     renderAction(WorkflowVersionDraftAction, props);
 
@@ -519,8 +523,8 @@ describe("the draft-from action", () => {
   it("refuses a label the workflow already uses", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const active = version("1.0", "ACTIVE");
-    const retired = version("0.9", "RETIRED");
+    const active = version("1.0", "active");
+    const retired = version("0.9", "retired");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(retired, active)));
 
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
@@ -535,7 +539,7 @@ describe("the draft-from action", () => {
   it("can be abandoned without creating anything", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const active = version("1.0", "ACTIVE");
+    const active = version("1.0", "active");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(active)));
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog");
@@ -547,14 +551,14 @@ describe("the draft-from action", () => {
   });
 
   it("is not offered for a draft, which can simply be edited", () => {
-    const draft = version("1.0", "DRAFT");
+    const draft = version("1.0", "draft");
 
     renderAction(WorkflowVersionDraftAction, propsFor(draft, workflow(draft)));
 
     expect(screen.queryByRole("button", { name: "New draft from this" })).not.toBeInTheDocument();
   });
 
-  it("is offered for a version in no state it knows, the only way left to carry its diagram forward", () => {
+  it("is offered for a version in no lifecycle, the only way left to carry its diagram forward", () => {
     // Every other action refuses such a version. Copying it does not: the copy is authored as a draft
     // whatever the original claimed to be, which is what makes this the way out
     const unknown = version("1.0", null);
@@ -567,7 +571,7 @@ describe("the draft-from action", () => {
   it("is offered for a trial, which cannot be edited where it stands", () => {
     // Returning the trial to a draft changes the version being tried; branching leaves the trial
     // running and carries its diagram forward, which is a different thing to want
-    const trial = version("1.0", "TRIAL");
+    const trial = version("1.0", "trial");
 
     renderAction(WorkflowVersionDraftAction, propsFor(trial, workflow(trial)));
 
@@ -577,7 +581,7 @@ describe("the draft-from action", () => {
   it("names a source version without a label by its node name", async () => {
     const user = userEvent.setup();
     stubFetch();
-    const unlabelled = { ...version("1.0", "ACTIVE"), version: "" };
+    const unlabelled = { ...version("1.0", "active"), version: "" };
 
     renderAction(WorkflowVersionDraftAction, propsFor(unlabelled, workflow(unlabelled)));
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
@@ -591,7 +595,7 @@ describe("the draft-from action", () => {
     // rather than replacing the dialog it was typed into
     const user = userEvent.setup();
     stubRefusingFetch(409, "A version with that label already exists");
-    const active = version("1.0", "ACTIVE");
+    const active = version("1.0", "active");
     const props = propsFor(active, workflow(active));
     renderAction(WorkflowVersionDraftAction, props);
 
@@ -609,7 +613,7 @@ describe("the draft-from action", () => {
   it("can be dismissed with the dialog's close button", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch();
-    const active = version("1.0", "ACTIVE");
+    const active = version("1.0", "active");
     renderAction(WorkflowVersionDraftAction, propsFor(active, workflow(active)));
     await user.click(screen.getByRole("button", { name: "New draft from this" }));
     const dialog = await screen.findByRole("dialog");

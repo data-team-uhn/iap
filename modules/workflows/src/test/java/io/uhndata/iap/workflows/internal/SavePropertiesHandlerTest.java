@@ -81,12 +81,12 @@ class SavePropertiesHandlerTest
     void ignoresWhatTheActivityDoesNotSayIsEditable() throws WorkflowException, PersistenceException
     {
         // Without this the handler would be an open write to whatever a caller cared to name
-        this.handler.execute(this.save(Map.of(TITLE, "Annual leave", "state", "ACTIVE", "description", "Sneaky"),
+        this.handler.execute(this.save(Map.of(TITLE, "Annual leave", "tags", "active", "description", "Sneaky"),
             new String[] { TITLE }, new String[] { TITLE }));
 
         final Resource definition = this.definition();
         assertEquals("Annual leave", definition.getValueMap().get(TITLE));
-        assertNull(definition.getValueMap().get("state"));
+        assertNull(definition.getValueMap().get("tags"));
         assertNull(definition.getValueMap().get("description"));
     }
 

@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "sch/Schema",
     "description": "Adds an empty version to an open schema, as a draft.",
     "requested": {

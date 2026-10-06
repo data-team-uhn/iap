@@ -41,10 +41,10 @@ import org.osgi.framework.ServiceReference;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
-import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -79,7 +79,7 @@ class WorkflowEventServletRegistrarTest
         this.context.create().resource("/SystemWorkflows/editSchema", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Edit"));
         this.context.create().resource("/SystemWorkflows/editSchema/v1", Map.of(
-            TYPE, "wf/WorkflowVersion", "version", "1.0", STATE, WorkflowVersion.State.DRAFT.name(),
+            TYPE, "wf/WorkflowVersion", "version", "1.0", TAGS, tags("draft"),
             "targetResourceType", "sch/Schema"));
 
         activate();

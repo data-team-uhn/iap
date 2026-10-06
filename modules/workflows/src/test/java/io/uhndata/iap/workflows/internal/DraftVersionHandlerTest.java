@@ -79,7 +79,7 @@ class DraftVersionHandlerTest
     @Test
     void copiesAnActiveVersionIntoANewDraft() throws WorkflowException, PersistenceException, IOException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE,
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active",
             Map.of("description", "The one in use", "bpmnXmlParsedHash", "abc123"));
         AuthoringFixture.loadDiagram(this.context, FIRST);
         final Map<String, Object> variables = new HashMap<>();
@@ -90,19 +90,21 @@ class DraftVersionHandlerTest
         final Resource draft = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(draft);
         assertEquals("2.0", draft.getValueMap().get("version"));
-        assertEquals("DRAFT", draft.getValueMap().get("state"));
+        // Not even its source's lifecycle tag: the copy of an active version must not claim to be the one that
+        // runs, and marking it a draft is the next step's
+        assertNull(draft.getValueMap().get("tags", String[].class));
         assertEquals("The one in use", draft.getValueMap().get("description"));
         assertEquals(AuthoringFixture.BPMN, AuthoringFixture.read(draft.getChild("bpmn.xml")));
         // Never copied: a draft must not claim a parse that has not happened for it
         assertNull(draft.getValueMap().get("bpmnXmlParsedHash"));
         // The source is untouched: drafting from a version is not a move
-        assertEquals(WorkflowVersion.State.ACTIVE, this.stateOf(FIRST));
+        assertTrue(this.versionOf(FIRST).isActive());
     }
 
     @Test
     void takesANewDescriptionWhenOneIsGiven() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE,
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active",
             Map.of("description", "The one in use", "targetResourceType", "wf/WorkflowsHomepage"));
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0", "description", "  A fresh take  "),
@@ -118,7 +120,7 @@ class DraftVersionHandlerTest
     @Test
     void copiesNeitherDescriptionNorGraphWhenThereIsNone() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.DRAFT,
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "draft",
             Map.of("bpmnAuthoritative", true));
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
@@ -137,7 +139,7 @@ class DraftVersionHandlerTest
     {
         // The commit editor derives the whole tree from the copied diagram, in the same commit, so a copied tree
         // would only be waiting to be replaced by the identical one
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE,
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active",
             Map.of("bpmnAuthoritative", true));
         AuthoringFixture.loadDiagram(this.context, FIRST);
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/start", Map.of(
@@ -155,7 +157,7 @@ class DraftVersionHandlerTest
     void carriesAHandAuthoredGraphForwardBecauseNothingWillDeriveIt()
         throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/start", Map.of(
             WorkflowFixture.TYPE, "wf/StartEvent", "elementId", "start", "messageName", "create",
             "performers", new String[] { "iap-administrators" }));
@@ -179,7 +181,7 @@ class DraftVersionHandlerTest
     {
         // link:links is autocreated on every version, so copying the source's over the draft's own would collide.
         // The same reasoning excludes anything else stored beside the graph — only the process itself is copied.
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/link:links",
             Map.of(WorkflowFixture.TYPE, "link/Links"));
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/notes",
@@ -199,9 +201,9 @@ class DraftVersionHandlerTest
     @Test
     void findsAFreeNodeNameWhenTheDerivedOneIsTaken() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         // Two versions so far, the second already stored under the name the third would get
-        AuthoringFixture.createVersion(this.context, "v3", "1.5", WorkflowVersion.State.DRAFT, Map.of());
+        AuthoringFixture.createVersion(this.context, "v3", "1.5", "draft", Map.of());
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
@@ -211,7 +213,7 @@ class DraftVersionHandlerTest
     @Test
     void refusesALabelTheWorkflowAlreadyCarries()
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
 
         final InvalidStateException refusal = assertThrows(InvalidStateException.class,
             () -> this.handler.execute(this.draft(FIRST, Map.of("version", "1.0"), new HashMap<>())));
@@ -221,7 +223,7 @@ class DraftVersionHandlerTest
     @Test
     void labelsTheDraftWithTheNextWholeNumberWhenNoLabelIsGiven() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
 
         this.handler.execute(this.draft(FIRST, Map.of(), new HashMap<>()));
 
@@ -232,7 +234,7 @@ class DraftVersionHandlerTest
     @Test
     void refusesABlankLabel()
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(this.draft(FIRST, Map.of("version", "  "), new HashMap<>())));
@@ -242,7 +244,7 @@ class DraftVersionHandlerTest
     @Test
     void refusesAVersionThatCannotBeRead()
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         final WorkflowTaskContextImpl request = AuthoringFixture.context(
             AuthoringFixture.unreadable(this.context, AuthoringFixture.path(FIRST)), "draft",
             Map.of("version", "2.0"), this.activity, new HashMap<>());
@@ -253,7 +255,7 @@ class DraftVersionHandlerTest
     @Test
     void reportsADiagramThatCannotBeRead()
     {
-        AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         AuthoringFixture.loadDiagram(this.context, FIRST);
         final WorkflowTaskContextImpl request = AuthoringFixture.context(
             AuthoringFixture.withUnreadableDiagram(this.context, AuthoringFixture.path(FIRST)), "draft",
@@ -280,17 +282,17 @@ class DraftVersionHandlerTest
     }
 
     /**
-     * The lifecycle state a version currently carries.
+     * A version of the fixture's workflow, as it currently reads.
      *
      * @param name the version's node name
-     * @return its state
+     * @return the version
      */
-    private WorkflowVersion.State stateOf(final String name)
+    private WorkflowVersion versionOf(final String name)
     {
         final Resource resource = this.context.resourceResolver().getResource(AuthoringFixture.path(name));
         assertNotNull(resource);
         final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
         assertNotNull(version);
-        return version.getState();
+        return version;
     }
 }

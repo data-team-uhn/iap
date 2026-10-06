@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "sch/Schema",
     "description": "Reopens a retired schema: its versions are back in the states they were in.",
     "requested": {

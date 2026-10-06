@@ -56,18 +56,28 @@ public final class WorkflowFixture
     /** The {@code sling:resourceSuperType} property name. */
     public static final String SUPER_TYPE = "sling:resourceSuperType";
 
-    /** The property a {@code wf:WorkflowVersion} carries its lifecycle state in. */
-    public static final String STATE = "state";
+    /** The property a {@code wf:WorkflowVersion} carries its lifecycle tag in, among any others. */
+    public static final String TAGS = "tags";
 
     /**
-     * The {@link #STATE} value of a version new instances are created from, spelled the way it is stored. Read from
-     * the enum, so renaming a state fails these tests to compile instead of quietly leaving them building versions
-     * the engine will skip.
+     * The lifecycle tag of a version new instances start from. Read from the model, so renaming it fails these tests
+     * to compile instead of quietly leaving them building versions the engine will skip.
      */
-    public static final String ACTIVE = WorkflowVersion.State.ACTIVE.name();
+    public static final String ACTIVE = WorkflowVersion.ACTIVE_TAG;
 
     private WorkflowFixture()
     {
+    }
+
+    /**
+     * Tags, the way a node stores them.
+     *
+     * @param names the tags' names
+     * @return the value of a {@link #TAGS} property holding them
+     */
+    public static String[] tags(final String... names)
+    {
+        return names;
     }
 
     /**

@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "sch/SchemasHomepage",
     "description": "What happens when a new schema is asked for: the schema, named after its title, then its first version. Administrators only.",
     "requested": {

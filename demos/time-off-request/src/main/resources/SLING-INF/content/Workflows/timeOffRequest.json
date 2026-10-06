@@ -7,7 +7,7 @@
     "version": "1.0",
     // This workflow is automatically derived from the BPMN file
     "bpmnAuthoritative": true,
-    "state": "ACTIVE",
+    "tags": ["active"],
     "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
   }
 }

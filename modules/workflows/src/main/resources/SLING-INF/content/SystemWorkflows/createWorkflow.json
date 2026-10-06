@@ -4,7 +4,7 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "wf/WorkflowsHomepage",
     "description": "What happens when a new workflow is asked for: create the definition, then its first version as a draft carrying the starting diagram the request brought, in the same commit - so a workflow never exists without a version to edit, and nothing runs until that version is activated. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
     "requested": {
@@ -38,6 +38,20 @@
       "elementId": "firstVersion",
       "label": "Create its first version",
       "handler": "createWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMarkDraft": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkDraft",
+        "targetRef": "markDraft"
+      }
+    },
+    "markDraft": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markDraft",
+      "label": "Mark it as a draft",
+      "handler": "addTag",
+      "tag": "draft",
+      "replaceExisting": true,
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

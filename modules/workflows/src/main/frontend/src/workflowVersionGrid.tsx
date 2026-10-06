@@ -20,9 +20,9 @@ import { Stack, Typography } from "@mui/material";
 
 import type { EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import LifecycleChip from "@iap/tags/LifecycleChip";
 
 import { adminUrl, WORKFLOWS_ROOT, type WorkflowVersionSummary } from "./workflowModel";
-import WorkflowStateChip from "./WorkflowStateChip";
 
 export const WORKFLOW_VERSION_TYPE = "wf/WorkflowVersion";
 
@@ -50,7 +50,7 @@ const COLUMNS: EntityGridColumn[] = [
     width: 130,
     sortable: false,
     filterable: false,
-    renderCell: params => <WorkflowStateChip state={versionOf(params.row).state} />,
+    renderCell: params => <LifecycleChip tags={versionOf(params.row).tags} />,
   },
   { field: "description", headerName: "Description", flex: 2, minWidth: 180 },
   {
@@ -62,13 +62,13 @@ const COLUMNS: EntityGridColumn[] = [
   },
 ];
 
-// A version on a phone: its label and state, and its description
+// A version on a phone: its label and lifecycle, and its description
 function VersionCard({ version }: { version: WorkflowVersionSummary }) {
   return (
     <Stack spacing={0.5} sx={{ py: 1 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
         <Typography>{`Version ${labelOf(version)}`}</Typography>
-        <WorkflowStateChip state={version.state} />
+        <LifecycleChip tags={version.tags} />
       </Stack>
       { version.description && <Typography variant="description">{version.description}</Typography> }
     </Stack>

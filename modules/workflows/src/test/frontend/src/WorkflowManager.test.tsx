@@ -25,9 +25,12 @@ import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import WorkflowManager from "@iap/workflows/WorkflowManager";
 import type { WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
+
+import { isTagSearch, LIFECYCLE_TAGS } from "./lifecycleTags.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }));
 
@@ -47,17 +50,17 @@ const definition = {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "description": "The initial cut",
-    "state": "RETIRED",
+    "tags": ["retired"],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "2.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
   },
   "3-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "3.0",
-    "state": "DRAFT",
+    "tags": ["draft"],
   },
 };
 
@@ -71,7 +74,7 @@ const stubFetch = (body: unknown = definition) => {
     redirected: options?.method === "POST",
     url: `http://localhost${url.split(".")[0]}/created`,
     headers: new Headers(),
-    json: () => Promise.resolve(body),
+    json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : body),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -125,7 +128,10 @@ beforeEach(() => {
   mockedLoadExtensions.mockResolvedValue([]);
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearTagDefinitionsCache();
+});
 
 describe("WorkflowManager", () => {
   it("displays the workflow's own properties", async () => {
@@ -145,13 +151,13 @@ describe("WorkflowManager", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "TRIAL" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["trial"] },
     });
 
     renderManager();
 
     expect(await screen.findByText("Disabled")).toBeInTheDocument();
-    expect(screen.getByText("Trial")).toBeInTheDocument();
+    expect(await screen.findByText("Trial")).toBeInTheDocument();
   });
 
   it("says a workflow is retired once its last active version is withdrawn", async () => {
@@ -159,20 +165,20 @@ describe("WorkflowManager", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
-      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "state": "DRAFT" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["retired"] },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "2.0", "tags": ["draft"] },
     });
 
     renderManager();
 
     await screen.findByRole("heading", { name: "Standard review" });
-    // Once as the workflow's status, once as the version's state
-    expect(screen.getAllByText("Retired")).toHaveLength(2);
+    // Once as the workflow's status, once as the version's lifecycle
+    await waitFor(() => expect(screen.getAllByText("Retired")).toHaveLength(2));
     expect(screen.queryByText("Disabled")).not.toBeInTheDocument();
     expect(screen.queryByText("Enabled")).not.toBeInTheDocument();
   });
 
-  it("lists every version with its state", async () => {
+  it("lists every version with its lifecycle", async () => {
     const fetchMock = stubFetch();
 
     renderManager();
@@ -185,7 +191,7 @@ describe("WorkflowManager", () => {
     // The header, then one row per version, in the repository's own order
     expect(rows).toHaveLength(4);
     expect(within(rows[1]).getByText("1.0")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Retired")).toBeInTheDocument();
+    expect(await within(rows[1]).findByText("Retired")).toBeInTheDocument();
     expect(within(rows[1]).getByText("The initial cut")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Active")).toBeInTheDocument();
     expect(within(rows[3]).getByText("Draft")).toBeInTheDocument();
@@ -218,7 +224,7 @@ describe("WorkflowManager", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "unlabelled": { "jcr:primaryType": "wf:WorkflowVersion", "state": "DRAFT" },
+      "unlabelled": { "jcr:primaryType": "wf:WorkflowVersion", "tags": ["draft"] },
     });
 
     renderManager();
@@ -340,9 +346,9 @@ describe("WorkflowManager", () => {
     const body = create?.[1]?.body as FormData;
     expect(body.get("version")).toBe("4.0");
     expect(body.get("description")).toBe("With an escalation");
-    // The diagram travels with the request; what state the version starts in is the definition's
+    // The diagram travels with the request; where the version starts in its lifecycle is the definition's
     expect(body.get("bpmn.xml")).toBeInstanceOf(File);
-    expect(body.get("state")).toBeNull();
+    expect(body.get("tags")).toBeNull();
   });
 
   it("keeps the properties dialog open and says why when the save is refused", async () => {

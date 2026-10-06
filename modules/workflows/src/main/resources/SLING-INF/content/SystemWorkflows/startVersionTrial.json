@@ -4,9 +4,9 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when a draft is put on trial: it stops being editable, without yet becoming what instances are created from. Only a draft can be, which is what this start event's guard and this move's `fromStates` say - an active or retired version is carried forward by drafting a copy instead.",
+    "description": "What happens when a draft is put on trial: it stops being editable, without yet becoming what instances are created from. Only a draft can be, which is what this start event's guard says - an active or retired version is carried forward by drafting a copy instead.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -19,12 +19,11 @@
         "comparator": "includes",
         "operandA": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "source": "property",
-          "value": ["state"]
+          "source": "tags"
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "value": ["DRAFT"]
+          "value": ["draft"]
         }
       },
       "toMove": {
@@ -37,9 +36,9 @@
       "jcr:primaryType": "wf:Activity",
       "elementId": "move",
       "label": "Put the version on trial",
-      "handler": "setVersionState",
-      "toState": "TRIAL",
-      "fromStates": ["DRAFT"],
+      "handler": "addTag",
+      "tag": "trial",
+      "replaceExisting": true,
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

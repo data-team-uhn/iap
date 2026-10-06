@@ -24,7 +24,10 @@ import { MemoryRouter, useLocation } from "react-router";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import WorkflowEditor from "@iap/workflows/WorkflowEditor";
+
+import { isTagSearch, LIFECYCLE_TAGS } from "./lifecycleTags.fixture";
 
 // The canvas is covered by its own suite; here it just reports itself ready and serializes a known
 // diagram. That keeps these tests about the page around it -- what's open, and the save.
@@ -57,21 +60,22 @@ const definition = {
   "1-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "@events": [ "retire", "draft" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "2.0",
     "description": "With an escalation",
-    "state": "DRAFT",
+    "tags": ["draft"],
     "@events": [ "activate", "startTrial", "save" ],
   },
 };
 
 const stubFetch = (body: unknown = definition) => {
   const fetchMock = vi.fn<FetchStub>((url) => Promise.resolve({
-    ok: true, status: 200, url, headers: new Headers(), json: () => Promise.resolve(body),
+    ok: true, status: 200, url, headers: new Headers(),
+    json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : body),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -118,16 +122,19 @@ beforeEach(() => {
   canvasProps.length = 0;
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearTagDefinitionsCache();
+});
 
 describe("WorkflowEditor", () => {
-  it("names the version it has open, with its state", async () => {
+  it("names the version it has open, with its lifecycle", async () => {
     stubFetch();
 
     renderEditor();
 
     expect(await screen.findByRole("heading", { name: "Standard review: Version 2.0" })).toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("With an escalation")).toBeInTheDocument();
     // No link of its own back to the workflow: the shell's breadcrumb trail is the way back
     expect(screen.queryByRole("link", { name: /Standard review/ })).not.toBeInTheDocument();
@@ -288,7 +295,7 @@ describe("WorkflowEditor", () => {
   });
 
   it("shows an active version read-only even when asked to edit it, and says why", async () => {
-    // The URL can always be typed; what a version's state allows is not the URL's decision
+    // The URL can always be typed; what a version's lifecycle allows is not the URL's decision
     stubFetch();
 
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
@@ -302,41 +309,42 @@ describe("WorkflowEditor", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "RETIRED" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["retired"] },
     });
 
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
 
-    expect(await screen.findByText(/Version 1.0 is retired/)).toBeInTheDocument();
+    expect(await screen.findByText(/version 1.0 is shown read-only/)).toBeInTheDocument();
+    expect(screen.getByText(/create a new draft from it/)).toBeInTheDocument();
   });
 
-  it("refuses to edit a version whose state it cannot read, and offers a draft instead", async () => {
-    // The state nothing recognizes used to read as a draft, which made the one version whose lifecycle
-    // is least certain the one freely editable. It opens read-only, and the way forward is a copy
+  it("refuses to edit a version in no lifecycle, and offers a draft instead", async () => {
+    // A version with no lifecycle tag is not a draft, so the one version whose lifecycle is least
+    // certain is not the one freely editable. It opens read-only, and the way forward is a copy
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "PUBLISHED" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["sensitive"] },
     });
 
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
 
-    expect(await screen.findByText(/Version 1.0 is in an unrecognized state/)).toBeInTheDocument();
+    expect(await screen.findByText(/version 1.0 is shown read-only/)).toBeInTheDocument();
     expect(screen.getByText(/create a new draft from it/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(latestCanvas().editable).toBe(false);
   });
 
-  it("offers no way into the editor for a version whose state it cannot read", async () => {
+  it("offers no way into the editor for a version in no lifecycle", async () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "PUBLISHED" },
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["sensitive"] },
     });
 
     renderEditor({ edit: false, path: "/Workflows/review/1-0" });
 
-    expect(await screen.findByText("Unknown")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Standard review: Version 1.0" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
   });
 
@@ -346,13 +354,16 @@ describe("WorkflowEditor", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "TRIAL" },
+      "1-0": {
+        "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "tags": ["trial"],
+        "@events": [ "activate", "returnToDraft", "draft" ],
+      },
     });
 
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
 
-    expect(await screen.findByText(/Version 1.0 is on trial/)).toBeInTheDocument();
-    expect(screen.getByText(/return it to being a draft/)).toBeInTheDocument();
+    expect(await screen.findByText(/return it to being a draft/)).toBeInTheDocument();
+    expect(await screen.findByText("Trial")).toBeInTheDocument();
     expect(latestCanvas().editable).toBe(false);
   });
 
@@ -360,7 +371,7 @@ describe("WorkflowEditor", () => {
     stubFetch({
       "jcr:primaryType": "wf:WorkflowDefinition",
       "title": "Standard review",
-      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "state": "DRAFT" },
+      "2-0": { "jcr:primaryType": "wf:WorkflowVersion", "tags": ["draft"] },
     });
 
     renderEditor();

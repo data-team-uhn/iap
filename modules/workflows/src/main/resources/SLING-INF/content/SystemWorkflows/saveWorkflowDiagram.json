@@ -4,9 +4,9 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "state": "ACTIVE",
+    "tags": ["active"],
     "targetResourceType": "wf/WorkflowVersion",
-    "description": "What happens when the editor saves a diagram: it replaces the one the version held, and the commit editor parses it into the flow nodes the engine runs. This is also where 'only a draft may be edited' is enforced rather than merely offered - the handler refuses a diagram for a version anything could be following. Going through a workflow is what makes that refusal reachable at all: a diagram used to arrive as a plain write to the version's bpmn.xml, which nothing guarded by state.",
+    "description": "What happens when the editor saves a diagram: it replaces the one the version held, and the commit editor parses it into the flow nodes the engine runs. This is also where 'only a draft may be edited' is enforced rather than merely offered - the start event's guard refuses a diagram for a version anything could be following. Going through a workflow is what makes that refusal possible at all: a diagram used to arrive as a plain write to the version's bpmn.xml, which nothing guarded.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -19,12 +19,11 @@
         "comparator": "includes",
         "operandA": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "source": "property",
-          "value": ["state"]
+          "source": "tags"
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "value": ["DRAFT"]
+          "value": ["draft"]
         }
       },
       "toSave": {
