@@ -23,6 +23,7 @@ import java.util.Objects;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -145,6 +146,26 @@ final class SubmissionFiles
         final String reason = file.getParseError();
         return reason == null || reason.isBlank()
             ? "The document could not be read" : "The document could not be read. " + reason;
+    }
+
+    /**
+     * The latest upload answering one document requirement, whatever its parse did.
+     *
+     * @param submission the submission
+     * @param requirement the name of the document requirement, as the schema version calls it
+     * @return the latest upload for it, or {@code null} when nothing is attached or nothing was uploaded
+     */
+    static File currentFor(final Submission submission, final String requirement)
+    {
+        for (final Document document : submission.getDocuments()) {
+            final Requirement fulfilled = document.getFulfills();
+            final DocumentVersion version = document.getCurrentVersion();
+            final File file = version == null ? null : version.getFile();
+            if (fulfilled != null && requirement.equals(fulfilled.getName()) && file != null) {
+                return file;
+            }
+        }
+        return null;
     }
 
     /**
