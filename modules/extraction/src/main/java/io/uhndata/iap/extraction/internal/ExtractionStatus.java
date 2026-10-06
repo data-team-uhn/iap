@@ -95,6 +95,23 @@ final class ExtractionStatus
     }
 
     /**
+     * Record that a step read what it could, unless an earlier step of the same reading already recorded a
+     * failure: that one said something this step does not know, and the submitter must still see it.
+     *
+     * @param submission the submission's resource, through a session that may write it
+     * @param message a short message for the person looking at it, or {@code null} to clear it
+     * @throws PersistenceException if the submission cannot be written
+     */
+    static void recordDone(final Resource submission, final String message) throws PersistenceException
+    {
+        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
+        if (properties != null && FAILED.equals(properties.get(PROPERTY, String.class))) {
+            return;
+        }
+        record(submission, DONE, message);
+    }
+
+    /**
      * Record where extraction got to on a submission.
      *
      * @param submission the submission's resource, through a session that may write it

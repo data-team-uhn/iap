@@ -76,6 +76,11 @@
     </dependency>
     <dependency>
       <groupId>io.uhndata.iap</groupId>
+      <artifactId>iap-llm</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.uhndata.iap</groupId>
       <artifactId>iap-documents-api</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -92,11 +97,14 @@
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.event.api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
