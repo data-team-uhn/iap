@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import TagChip from "@iap/tags/TagChip";
+import TagChip from "./TagChip";
 
 // A lifecycle state, shown as the tag it is: the same label, color and icon as anywhere else tags
 // appear.
