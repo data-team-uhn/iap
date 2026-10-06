@@ -31,7 +31,6 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -39,13 +38,12 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ClaimsMutator.AudienceCollection;
 import io.jsonwebtoken.Jwt;
-import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -61,6 +59,7 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * @since 0.1.0
  */
 @Component(immediate = true, property = "service.ranking:Integer=50", service = { TokenManager.class })
+@Designate(ocd = IapJwtTokenManagerConfiguration.class)
 public final class IapJwtTokenManagerImpl implements TokenManager
 {
     /** JCR property containing our signing key. */
@@ -78,18 +77,14 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     /** JCR path to the node where we keep our signing/verification keys. */
     public static final String KEY_PATH = KEY_ROOT + "/JWTRSA256Key";
 
-    /** The ID of this IAP instance, used to determine the `iss` field when minting tokens. */
-    public static final String SELF_ID =
-        StringUtils.defaultIfEmpty(System.getenv("IAP_HOST_AND_PORT"), "localhost:8080");
-
     private static final Logger LOGGER = LoggerFactory.getLogger(IapJwtTokenManagerImpl.class);
 
     private final PrivateKey signingKey;
 
     private final PublicKey verificationKey;
 
-    /** Our own audience, used in the Jwt `aud` field to verify that this token is meant for us. */
-    private final String selfAud;
+    /** Our own identity: the `iss` of every token we mint, and the `aud` a token must name for us to accept it. */
+    private final String identity;
 
     /** Our own fingerprint, used to identify tokens that are signed by us. */
     private final String selfID;
@@ -100,12 +95,19 @@ public final class IapJwtTokenManagerImpl implements TokenManager
      * Activate the component, loading (or generating) the signing/verification keys from the repository.
      *
      * @param rrf the resource resolver factory used to read the JWT key node
+     * @param config this instance's identity
+     * @throws IllegalArgumentException if the configured identity is not usable, which leaves the component
+     *     unactivated rather than minting tokens no peer could ever accept
      */
     @Activate
-    public IapJwtTokenManagerImpl(@Reference final ResourceResolverFactory rrf)
+    public IapJwtTokenManagerImpl(@Reference final ResourceResolverFactory rrf,
+        final IapJwtTokenManagerConfiguration config)
     {
+        if (!JwtIssuers.isUsable(config.identity())) {
+            throw new IllegalArgumentException("Unusable JWT identity configured: " + config.identity());
+        }
         this.rrf = rrf;
-        this.selfAud = SELF_ID.replaceAll("\\P{Alnum}", "");
+        this.identity = config.identity();
         PrivateKey signing = null;
         PublicKey verification = null;
         try (ResourceResolver resolver = rrf.getServiceResourceResolver(null)) {
@@ -184,7 +186,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         final Map<String, String> extraData)
     {
         // Assume our own audience if none is given
-        return create(userId, expiration, extraData, Set.of(this.selfAud));
+        return create(userId, expiration, extraData, Set.of(this.identity));
     }
 
     /**
@@ -203,16 +205,10 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             // Should not happen
             return null;
         }
-        AudienceCollection<JwtBuilder> audBuilder = Jwts.builder()
+        String jws = Jwts.builder()
             .claims(extraData)
-            .issuer(this.selfAud)
-            .audience();
-
-        for (String aud : audiences) {
-            audBuilder.add(aud);
-        }
-
-        String jws = audBuilder.and()
+            .issuer(this.identity)
+            .audience().add(audiences).and()
             .subject(userId)
             .expiration(expiration.getTime())
             .header().keyId(this.selfID).and()
@@ -243,8 +239,8 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             if (claims.getAudience() == null) {
                 // No audience found, reject
                 throw new JwtException("The given JWT is missing an `aud` claim.");
-            } else if (!claims.getAudience().contains(this.selfAud)) {
-                throw new JwtException("Our server (" + this.selfAud
+            } else if (!claims.getAudience().contains(this.identity)) {
+                throw new JwtException("Our server (" + this.identity
                     + ") is not in the list of JWT audiences for the given JWT.");
             } else if (expectedIssuer == null || !expectedIssuer.equals(claims.getIssuer())) {
                 throw new JwtException("The given JWT's issuer does not match the expected issuer.");
@@ -263,7 +259,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         }
         try {
             final IapJwtVerificationLocatorImpl locator =
-                new IapJwtVerificationLocatorImpl(this.verificationKey, this.rrf, this.selfID, this.selfAud);
+                new IapJwtVerificationLocatorImpl(this.verificationKey, this.rrf, this.selfID, this.identity);
             Jwt<?, ?> jwt = Jwts.parser()
                 .keyLocator(locator)
                 .build()

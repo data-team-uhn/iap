@@ -82,7 +82,7 @@ Sling process runs (Docker/K8s env, systemd unit, etc.):
 | `KEYCLOAK_BASE_URL`             | `https://keycloak.example.org/realms/iap` | Realm root; endpoints are read from its OIDC discovery document.                                                                                                                 |
 | `KEYCLOAK_CLIENT_ID`            | `iap-sling`                               | The confidential client below.                                                                                                                                                   |
 | `KEYCLOAK_CLIENT_SECRET`        | (secret)                                  | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly.                                                                                   |
-| `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP; used to build the callback URI.                                                                                                                          |
+| `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP, without a trailing slash; used to build the callback URI. Also this instance's identity in tokens exchanged with peers, see [remote-requests.md](remote-requests.md). |
 | `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret)                                  | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev; if unset, the crypto service fails to activate and the OIDC handler won't come up. |
 
 ## Keycloak realm setup
