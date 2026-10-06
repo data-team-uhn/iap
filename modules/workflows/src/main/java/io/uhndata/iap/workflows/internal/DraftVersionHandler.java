@@ -19,14 +19,23 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -50,7 +59,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * identical one. Where it does not — a version whose flow nodes were authored by hand, because the translation
  * cannot yet carry everything they hold — the graph is copied as it stands, nested as flow nodes nest, extension
  * properties and all: nothing will ever derive it, so a draft without it would be a copy of a process with the
- * process left out.</p>
+ * process left out. Each flow node is copied by the platform's {@link ContentCopier}, which leaves out what the
+ * repository maintains, the properties a node type creates and protects among it, and keeps a reference a
+ * reference.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,6 +71,9 @@ public class DraftVersionHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
     public static final String NAME = "draftWorkflowVersion";
+
+    @Reference
+    private ContentCopier copier;
 
     @Override
     public String getName()
@@ -82,7 +96,7 @@ public class DraftVersionHandler implements ServiceTaskHandler
             draftProperties(source, label, Payloads.text(context.getEvent(), VersionEdits.DESCRIPTION)));
         VersionEdits.copyDiagram(source.getBpmnFile(), draft, context.getResourceResolver());
         if (!source.isBpmnAuthoritative()) {
-            VersionEdits.copyFlowNodes(sourceResource, draft, context.getResourceResolver());
+            this.copyFlowNodes(sourceResource, draft, context.getResourceResolver());
         }
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, draft.getPath());
     }
@@ -116,5 +130,41 @@ public class DraftVersionHandler implements ServiceTaskHandler
             properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
         }
         return properties;
+    }
+
+    /**
+     * Copies a version's flow nodes onto a draft, each with everything below it: the arcs leaving it, its guard.
+     * Each copy is created with the original's type, which has the repository create what that type maintains, and
+     * then filled in by the copier.
+     *
+     * <p>Flow nodes are picked by type, so whatever else a deployment stores beside the graph stays behind:
+     * {@code wf:WorkflowVersion} admits any child, and a list of what to skip would go stale as children are
+     * added.</p>
+     *
+     * @param source the version being drafted from
+     * @param draft the version to copy onto
+     * @param resolver the resolver to create through
+     * @throws PersistenceException if a copy cannot be created or filled in
+     */
+    private void copyFlowNodes(final Resource source, final Resource draft, final ResourceResolver resolver)
+        throws PersistenceException
+    {
+        for (final Resource child : source.getChildren()) {
+            if (child.isResourceType(FlowNode.RESOURCE_TYPE)) {
+                final Resource copy = resolver.create(draft, child.getName(), Map.of(VersionEdits.PRIMARY_TYPE,
+                    child.getValueMap().get(VersionEdits.PRIMARY_TYPE, String.class)));
+                try {
+                    this.copier.copy(node(child), node(copy), Set.of(), Map.of());
+                } catch (final RepositoryException e) {
+                    throw new PersistenceException("The flow node " + child.getPath() + " could not be copied: "
+                        + e.getMessage(), e);
+                }
+            }
+        }
+    }
+
+    private static Node node(final Resource resource)
+    {
+        return Objects.requireNonNull(resource.adaptTo(Node.class), "Content is stored in a JCR repository");
     }
 }

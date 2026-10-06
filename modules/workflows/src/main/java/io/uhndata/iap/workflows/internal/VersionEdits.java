@@ -33,7 +33,6 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -318,61 +317,5 @@ final class VersionEdits
         content.put(JCR_DATA, data);
         content.put(JCR_MIME_TYPE, mimeType);
         resolver.create(file, JCR_CONTENT, content);
-    }
-
-    /**
-     * Copies a version's parsed graph onto a new version: its flow nodes, and nothing else it happens to hold.
-     *
-     * <p>A version's other children are copied elsewhere or not at all. The diagram is copied separately as the
-     * file it is, and {@code link:links} — autocreated on every {@code data:Entity} — can't be copied onto a node
-     * that already has one without an {@code ItemExistsException}; a draft shouldn't carry another version's
-     * relationships anyway.</p>
-     *
-     * <p>Because {@code wf:WorkflowVersion} admits any child, listing flow nodes by type stays correct as
-     * deployments add more children — a list of what to skip would not.</p>
-     *
-     * @param source the version being drafted from
-     * @param draft the version to copy onto
-     * @param resolver the resolver to create through
-     * @throws PersistenceException if a copy cannot be created
-     */
-    static void copyFlowNodes(final Resource source, final Resource draft, final ResourceResolver resolver)
-        throws PersistenceException
-    {
-        for (final Resource child : source.getChildren()) {
-            if (child.isResourceType(FlowNode.RESOURCE_TYPE)) {
-                copySubtree(child, draft, resolver);
-            }
-        }
-    }
-
-    /**
-     * Copies one node and everything under it. Flow nodes nest -- a sequence flow is a child of the node it leaves,
-     * a boundary event a child of the activity it watches -- so a graph is copied by walking it, not by copying a
-     * list.
-     *
-     * <p>
-     * The properties a node type maintains itself are left out rather than copied: {@code jcr:created} and
-     * {@code jcr:createdBy} describe this copy being made now rather than the original being authored, and
-     * {@code sling:resourceType}/{@code sling:resourceSuperType} are autocreated from the primary type, which is
-     * copied. Everything else is carried across as it stands, including the extension properties the translation
-     * cannot yet express -- which are the whole reason this copy exists.
-     * </p>
-     *
-     * @param source the node to copy
-     * @param parent the node to copy it under
-     * @param resolver the resolver to create through
-     * @throws PersistenceException if the copy cannot be created
-     */
-    private static void copySubtree(final Resource source, final Resource parent, final ResourceResolver resolver)
-        throws PersistenceException
-    {
-        final Map<String, Object> properties = new HashMap<>(source.getValueMap());
-        properties.keySet().removeIf(name -> !PRIMARY_TYPE.equals(name)
-            && (name.startsWith("jcr:") || name.startsWith("sling:resource")));
-        final Resource copy = resolver.create(parent, source.getName(), properties);
-        for (final Resource child : source.getChildren()) {
-            copySubtree(child, copy, resolver);
-        }
     }
 }

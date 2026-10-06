@@ -18,17 +18,26 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -56,15 +65,22 @@ class DraftVersionHandlerTest
     /** The node name of the version most of these tests act on. */
     private static final String FIRST = "1-0";
 
-    private final SlingContext context = new SlingContext();
+    // Backed by a JCR, since the copier works on nodes
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final DraftVersionHandler handler = new DraftVersionHandler();
+
+    // What it does to a node is the copier's own business, tested where it lives; here, what it is asked to copy
+    private final ContentCopier copier = Mockito.mock(ContentCopier.class);
 
     private Activity activity;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws ReflectiveOperationException
     {
+        final Field field = DraftVersionHandler.class.getDeclaredField("copier");
+        field.setAccessible(true);
+        field.set(this.handler, this.copier);
         AuthoringFixture.setUp(this.context);
         this.activity = AuthoringFixture.activity(this.context, "draft",
             Map.of("handler", DraftVersionHandler.NAME));
@@ -151,11 +167,12 @@ class DraftVersionHandlerTest
         assertNotNull(draft);
         assertNull(draft.getChild("start"));
         assertNotNull(draft.getChild("bpmn.xml"));
+        Mockito.verifyNoInteractions(this.copier);
     }
 
     @Test
     void carriesAHandAuthoredGraphForwardBecauseNothingWillDeriveIt()
-        throws WorkflowException, PersistenceException
+        throws WorkflowException, PersistenceException, RepositoryException
     {
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/start", Map.of(
@@ -166,18 +183,33 @@ class DraftVersionHandlerTest
 
         this.handler.execute(this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>()));
 
-        final Resource copied =
-            this.context.resourceResolver().getResource(AuthoringFixture.path("v2") + "/start");
-        assertNotNull(copied);
-        assertEquals("create", copied.getValueMap().get("messageName"));
-        // Nested as flow nodes nest: an arc is a child of the node it leaves
-        final Resource arc = copied.getChild("toEnd");
-        assertNotNull(arc);
-        assertEquals("end", arc.getValueMap().get("targetRef"));
+        // Each flow node is made under the draft, then filled in by the copier with everything below it — the
+        // arcs leaving it among that, since an arc is a child of the node it leaves
+        assertNotNull(this.context.resourceResolver().getResource(AuthoringFixture.path("v2") + "/start"));
+        Mockito.verify(this.copier).copy(at(AuthoringFixture.path(FIRST) + "/start"),
+            at(AuthoringFixture.path("v2") + "/start"), ArgumentMatchers.eq(Set.of()), ArgumentMatchers.eq(Map.of()));
+        Mockito.verifyNoMoreInteractions(this.copier);
     }
 
     @Test
-    void copiesTheGraphAndNothingElseTheVersionHolds() throws WorkflowException, PersistenceException
+    void reportsAFlowNodeTheCopierCannotCopy() throws RepositoryException
+    {
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "active", Map.of());
+        this.context.create().resource(AuthoringFixture.path(FIRST) + "/start", Map.of(
+            WorkflowFixture.TYPE, "wf/StartEvent", "elementId", "start"));
+        Mockito.doThrow(new RepositoryException("Property is protected"))
+            .when(this.copier).copy(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+        final WorkflowTaskContextImpl request = this.draft(FIRST, Map.of("version", "2.0"), new HashMap<>());
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> this.handler.execute(request));
+        assertTrue(failure.getMessage().contains(AuthoringFixture.path(FIRST) + "/start"));
+        assertTrue(failure.getMessage().contains("Property is protected"));
+    }
+
+    @Test
+    void copiesTheGraphAndNothingElseTheVersionHolds()
+        throws WorkflowException, PersistenceException, RepositoryException
     {
         // link:links is autocreated on every version, so copying the source's over the draft's own would collide.
         // The same reasoning excludes anything else stored beside the graph — only the process itself is copied.
@@ -196,6 +228,9 @@ class DraftVersionHandlerTest
         assertNotNull(draft.getChild("start"));
         assertNull(draft.getChild("link:links"));
         assertNull(draft.getChild("notes"));
+        Mockito.verify(this.copier).copy(at(AuthoringFixture.path(FIRST) + "/start"),
+            at(AuthoringFixture.path("v2") + "/start"), ArgumentMatchers.eq(Set.of()), ArgumentMatchers.eq(Map.of()));
+        Mockito.verifyNoMoreInteractions(this.copier);
     }
 
     @Test
@@ -294,5 +329,22 @@ class DraftVersionHandlerTest
         final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
         assertNotNull(version);
         return version;
+    }
+
+    /**
+     * Matches the node stored at a path.
+     *
+     * @param path the node's repository path
+     * @return a matcher for it
+     */
+    private static Node at(final String path)
+    {
+        return ArgumentMatchers.argThat(node -> {
+            try {
+                return node != null && path.equals(node.getPath());
+            } catch (final RepositoryException e) {
+                return false;
+            }
+        });
     }
 }
