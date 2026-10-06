@@ -21,12 +21,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 
+import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import WorkflowEditor from "@iap/workflows/WorkflowEditor";
+import type { WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
+import WorkflowVersionEditAction from "@iap/workflows/WorkflowVersionEditAction";
 
 import { isTagSearch, LIFECYCLE_TAGS } from "./lifecycleTags.fixture";
 
@@ -49,6 +53,11 @@ vi.mock("@iap/workflows/BpmnEditor", () => ({
     );
   },
 }));
+
+// The version's actions, as the repository contributes them: the one this page used to write itself
+vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }));
+
+const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
@@ -121,6 +130,8 @@ const latestCanvas = () => canvasProps.at(-1) ?? {};
 
 beforeEach(() => {
   canvasProps.length = 0;
+  clearActions();
+  mockedLoadExtensions.mockResolvedValue([ { "ext:render": WorkflowVersionEditAction } ]);
 });
 
 afterEach(() => {
@@ -175,6 +186,39 @@ describe("WorkflowEditor", () => {
 
     await screen.findByRole("heading", { name: /Standard review/ });
     expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  it("offers the version's own actions beside its title while only showing it", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { "ext:render": ({ version }: WorkflowVersionActionProps) => <span>{`acts on ${version.version}`}</span> },
+    ]);
+    stubFetch();
+
+    const { unmount } = renderEditor();
+    expect(await screen.findByText("acts on 2.0")).toBeInTheDocument();
+    unmount();
+
+    // Not while it is being edited: moving it elsewhere in its lifecycle would leave the diagram half-saved
+    renderEditor({ edit: true });
+    await screen.findByRole("button", { name: "Save" });
+    expect(screen.queryByText("acts on 2.0")).not.toBeInTheDocument();
+  });
+
+  it("reads the workflow again when one of the version's actions asks", async () => {
+    // Moving the version in its lifecycle changes what this page says about it
+    const user = userEvent.setup();
+    const reloadingAction = ({ reload }: WorkflowVersionActionProps) => (
+      <button type="button" onClick={reload}>reload</button>
+    );
+    mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
+    const fetchMock = stubFetch();
+    renderEditor();
+    const button = await screen.findByRole("button", { name: "reload" });
+    const readsBefore = fetchMock.mock.calls.length;
+
+    await user.click(button);
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(readsBefore));
   });
 
   it("offers no way to write anything in view mode", async () => {

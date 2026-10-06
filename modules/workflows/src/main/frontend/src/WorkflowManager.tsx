@@ -16,12 +16,9 @@
  * limitations under the License.
  */
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import { Box, Button, Chip, Stack, Typography } from "@mui/material";
-import { useNavigate } from "react-router";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
@@ -29,10 +26,9 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 
-import NewVersionDialog from "./NewVersionDialog";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, offers, type WorkflowHomepage, type WorkflowSummary } from "./workflowModel";
-import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
+import WorkflowActions from "./WorkflowActions";
+import { adminUrl, type WorkflowHomepage, type WorkflowSummary } from "./workflowModel";
 import WorkflowVersionList from "./WorkflowVersionList";
 
 // A repository timestamp as a sentence-worthy date, or nothing at all when it is absent.
@@ -76,20 +72,13 @@ interface WorkflowManagerProps {
 // about takes the list of homepages, and asking for it once is what keeps this page a function of
 // the path it is given.
 //
-// The per-version buttons are deliberately not written here: they are contributed on the
-// WorkflowVersionActions extension point, so an action added later needs no change to this file.
+// The buttons are deliberately not written here: the workflow's own are contributed on the
+// WorkflowActions extension point and each version's on WorkflowVersionActions, so an action added
+// later needs no change to this file.
 function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
-  const navigate = useNavigate();
   const { workflow, loading, loadError, reload } = useWorkflow(path);
   const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
-  const [ editing, setEditing ] = useState(false);
-  const [ addingVersion, setAddingVersion ] = useState(false);
   usePageCrumbs([ { path: adminUrl(homepage.path), label: homepage.title } ]);
-
-  const openNewVersion = (versionPath: string): void => {
-    setAddingVersion(false);
-    void navigate(adminUrl(versionPath, "edit"));
-  };
 
   if (!workflow) {
     return (
@@ -107,20 +96,7 @@ function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
       description={"Only a draft version can be edited. A version on trial is changed by returning it to being a "
         + "draft, and an active or retired one by drafting a copy of it, which takes over once activated."}
       disablePanel
-      action={
-        <Stack direction="row" spacing={1}>
-          { offers(workflow, "save") && (
-            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setEditing(true)}>
-              Edit properties
-            </Button>
-          ) }
-          { offers(workflow, "createVersion") && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddingVersion(true)}>
-              New version
-            </Button>
-          ) }
-        </Stack>
-      }
+      action={<WorkflowActions workflow={workflow} reload={reloadWorkflow} />}
     >
       <Stack spacing={3}>
         { loadError && <LoadError title="The workflow could not be reloaded" message={loadError} onRetry={reload} /> }
@@ -136,21 +112,6 @@ function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
           <WorkflowVersionList workflow={workflow} reload={reloadWorkflow} />
         </Panel>
       </Stack>
-
-      { editing && (
-        <WorkflowPropertiesDialog
-          workflow={workflow}
-          onClose={() => setEditing(false)}
-          onSaved={reloadWorkflow}
-        />
-      )}
-      { addingVersion && (
-        <NewVersionDialog
-          workflow={workflow}
-          onClose={() => setAddingVersion(false)}
-          onCreated={openNewVersion}
-        />
-      )}
     </AdminScreen>
   );
 }

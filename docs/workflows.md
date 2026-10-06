@@ -487,8 +487,10 @@ following, and a trial is being tried as it stands, so changing any of them woul
 under the things reading it. A trial is changed by being returned to a draft; an active or retired version
 is carried forward by drafting a copy, which is offered next to it.
 
-The per-version buttons are contributed on the **`WorkflowVersionActions`** extension point rather than
-written into the manager page. Six ship with the module — edit, start-trial, activate, return-to-draft,
+The buttons are contributed on extension points rather than written into the pages, as a schema's are: a
+workflow's own — edit its properties, open a new version — on **`WorkflowActions`** (`wf/workflow/actions`),
+shown beside its title, and each version's on **`WorkflowVersionActions`**, shown in its row and beside its
+title on its own page while it is only being looked at. Six ship with the module — edit, start-trial, activate, return-to-draft,
 retire, and draft-a-copy — each offered exactly where the server offers its event: on the version, or for
 a copy, `createVersion` on the workflow it is a version of; another
 needs an `ext:Extension` and an asset, and no change to any existing file. The point is addressed by two names, as every extension point is: the page asks for the

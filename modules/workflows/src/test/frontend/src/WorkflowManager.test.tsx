@@ -28,6 +28,7 @@ import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import type { WorkflowActionProps } from "@iap/workflows/WorkflowActions";
 import WorkflowManager from "@iap/workflows/WorkflowManager";
 import type { WorkflowVersionActionProps } from "@iap/workflows/WorkflowVersionActions";
 
@@ -254,7 +255,8 @@ describe("WorkflowManager", () => {
   it("renders the contributed actions against each version", async () => {
     // The buttons are not written into this page: a module adds one by shipping an extension, which
     // is what makes a later action possible without touching the manager
-    mockedLoadExtensions.mockResolvedValue([ { "ext:render": labellingAction } ]);
+    mockedLoadExtensions.mockImplementation(point =>
+      Promise.resolve(point === "WorkflowVersionActions" ? [ { "ext:render": labellingAction } ] : []));
     stubFetch();
 
     renderManager();
@@ -263,6 +265,17 @@ describe("WorkflowManager", () => {
     expect(screen.getByText("acts on 2.0")).toBeInTheDocument();
     expect(screen.getByText("acts on 3.0")).toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("WorkflowVersionActions");
+  });
+
+  it("renders the workflow's own contributed actions beside its title", async () => {
+    mockedLoadExtensions.mockImplementation(point => Promise.resolve(point === "WorkflowActions"
+      ? [ { "ext:render": ({ workflow }: WorkflowActionProps) => <span>{`acts on ${workflow.title}`}</span> } ]
+      : []));
+    stubFetch();
+
+    renderManager();
+
+    expect(await screen.findByText("acts on Standard review")).toBeInTheDocument();
   });
 
   it("reads the workflow again when an action asks", async () => {
@@ -322,108 +335,5 @@ describe("WorkflowManager", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByRole("heading", { name: "Standard review" })).toBeInTheDocument();
-  });
-
-  it("saves an edit of the workflow's properties and shows the result", async () => {
-    const user = userEvent.setup();
-    const fetchMock = stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-
-    await user.click(screen.getByRole("button", { name: "Edit properties" }));
-    const dialog = await screen.findByRole("dialog", { name: "Workflow properties" });
-    await user.clear(within(dialog).getByRole("textbox", { name: /Title/ }));
-    await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Reviewed twice");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    const save = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
-    expect(save?.[0]).toBe(`${WORKFLOW_PATH}.save.json`);
-    // The title and nothing else: whether the workflow runs is read off its versions
-    expect(Object.fromEntries((save?.[1]?.body as URLSearchParams).entries())).toEqual({
-      title: "Reviewed twice",
-    });
-  });
-
-  it("suggests the next whole number as the new version's label", async () => {
-    const user = userEvent.setup();
-    stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-
-    await user.click(screen.getByRole("button", { name: "New version" }));
-    const dialog = await screen.findByRole("dialog", { name: /New version/ });
-
-    // After 1.0, 2.0 and 3.0; a suggestion only, which the user may replace with any label
-    expect(within(dialog).getByRole("textbox", { name: /Version/ })).toHaveValue("4.0");
-  });
-
-  it("creates a version and opens its editor", async () => {
-    const user = userEvent.setup();
-    const fetchMock = stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-
-    await user.click(screen.getByRole("button", { name: "New version" }));
-    const dialog = await screen.findByRole("dialog", { name: /New version/ });
-    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
-    await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "4.0");
-    await user.type(within(dialog).getByRole("textbox", { name: /Description/ }), "With an escalation");
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    const create = fetchMock.mock.calls.find(call => call[0] === `${WORKFLOW_PATH}.createVersion.json`);
-    const body = create?.[1]?.body as FormData;
-    expect(body.get("version")).toBe("4.0");
-    expect(body.get("description")).toBe("With an escalation");
-    // The diagram travels with the request; where the version starts in its lifecycle is the definition's
-    expect(body.get("bpmn.xml")).toBeInstanceOf(File);
-    expect(body.get("tags")).toBeNull();
-  });
-
-  it("keeps the properties dialog open and says why when the save is refused", async () => {
-    const user = userEvent.setup();
-    stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-    await user.click(screen.getByRole("button", { name: "Edit properties" }));
-    const dialog = await screen.findByRole("dialog", { name: "Workflow properties" });
-
-    stubFailingFetch(403);
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
-
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The engine refused this (403)");
-    expect(screen.getByRole("dialog", { name: "Workflow properties" })).toBeInTheDocument();
-  });
-
-  it("keeps the new-version dialog open and says why when the creation is refused", async () => {
-    const user = userEvent.setup();
-    stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-    await user.click(screen.getByRole("button", { name: "New version" }));
-    const dialog = await screen.findByRole("dialog", { name: /New version/ });
-    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
-    await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "4.0");
-
-    stubFailingFetch(500);
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The engine refused this (500)");
-  });
-
-  it("refuses a version label the workflow already uses", async () => {
-    const user = userEvent.setup();
-    stubFetch();
-    renderManager();
-    await screen.findByRole("heading", { name: "Standard review" });
-
-    await user.click(screen.getByRole("button", { name: "New version" }));
-    const dialog = await screen.findByRole("dialog", { name: /New version/ });
-    await user.clear(within(dialog).getByRole("textbox", { name: /Version/ }));
-    await user.type(within(dialog).getByRole("textbox", { name: /Version/ }), "2.0");
-
-    expect(within(dialog).getByText("This workflow already has a version with that label")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
   });
 });

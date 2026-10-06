@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, Button, CircularProgress, Stack, Typography } from "@mui/material";
-import { Link as RouterLink, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
@@ -32,6 +32,7 @@ import LifecycleChip from "@iap/tags/LifecycleChip";
 import BpmnEditor from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
 import { adminUrl, offers, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
+import WorkflowVersionActions from "./WorkflowVersionActions";
 import { saveDiagram } from "./workflowWrites";
 
 interface WorkflowEditorProps {
@@ -76,6 +77,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const definitionPath = path.slice(0, path.lastIndexOf("/"));
 
   const { workflow, loadError, reload } = useWorkflow(definitionPath);
+  const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
   // The steps above this page that its path cannot name: the homepage, and the workflow under its title
   // once it is read
   const workflowName = definitionPath.slice(definitionPath.lastIndexOf("/") + 1);
@@ -164,11 +166,9 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
               </Button>
             </>
           )}
-          { /* Offered where saving is, and only when the editor is not already open */ }
-          { !requestedEdit && version !== undefined && offers(version, "save") && (
-            <Button variant="contained" component={RouterLink} to={adminUrl(path, "edit")}>
-              Edit
-            </Button>
+          { /* The version's own actions, Edit among them where saving is offered, while it is only shown */ }
+          { !requestedEdit && workflow && version && (
+            <WorkflowVersionActions version={version} workflow={workflow} reload={reloadWorkflow} />
           )}
         </Stack>
       }
