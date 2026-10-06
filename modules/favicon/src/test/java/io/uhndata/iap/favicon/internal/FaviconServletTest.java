@@ -20,9 +20,12 @@ package io.uhndata.iap.favicon.internal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceMetadata;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +89,36 @@ class FaviconServletTest
         assertEquals("image/x-icon", this.response.getContentType());
         assertArrayEquals(ICO, this.response.getOutput());
         assertEquals("Accept", this.response.getHeader("Vary"));
+    }
+
+    @Test
+    void datesTheVectorIconByItsOwnModificationTime() throws IOException
+    {
+        this.raster.getResourceMetadata().setModificationTime(1_000_000L);
+        this.resolver.getResource(FaviconServlet.SVG_PATH).getResourceMetadata().setModificationTime(5_000_000L);
+        when(this.request.getHeader("Accept")).thenReturn("image/svg+xml");
+
+        this.servlet.doGet(this.request, this.response);
+
+        assertEquals(5_000_000L, lastModified());
+    }
+
+    @Test
+    void datesTheRasterIconByItsModificationTime() throws IOException
+    {
+        this.raster.getResourceMetadata().setModificationTime(1_000_000L);
+
+        this.servlet.doGet(this.request, this.response);
+
+        assertEquals(1_000_000L, lastModified());
+    }
+
+    @Test
+    void omitsTheModificationTimeWhenItIsUnknown() throws IOException
+    {
+        this.servlet.doGet(this.request, this.response);
+
+        assertFalse(this.response.containsHeader("Last-Modified"));
     }
 
     @Test
@@ -181,10 +214,17 @@ class FaviconServletTest
         assertFalse(FaviconServlet.acceptsSvg("image/svg+xml; q=0.0"));
     }
 
+    private long lastModified()
+    {
+        return ZonedDateTime.parse(this.response.getHeader("Last-Modified"), DateTimeFormatter.RFC_1123_DATE_TIME)
+            .toInstant().toEpochMilli();
+    }
+
     private static Resource withContent(final byte[] bytes)
     {
         final Resource resource = Mockito.mock(Resource.class);
         when(resource.adaptTo(InputStream.class)).thenAnswer(call -> new ByteArrayInputStream(bytes));
+        when(resource.getResourceMetadata()).thenReturn(new ResourceMetadata());
         return resource;
     }
 }

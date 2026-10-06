@@ -84,6 +84,10 @@ public class FaviconServlet extends SlingJakartaSafeMethodsServlet
             response.sendError(SlingJakartaHttpServletResponse.SC_NOT_FOUND);
             return;
         }
+        final long modified = source.getResourceMetadata().getModificationTime();
+        if (modified >= 0) {
+            response.setDateHeader("Last-Modified", modified);
+        }
         response.setContentType(sendVector ? SVG_TYPE : ICO_TYPE);
         response.setContentLength(bytes.length);
         response.getOutputStream().write(bytes);
