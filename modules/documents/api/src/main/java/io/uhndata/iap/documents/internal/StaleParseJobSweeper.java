@@ -99,6 +99,9 @@ public class StaleParseJobSweeper implements Runnable
 
     private static final long MILLISECONDS_PER_MINUTE = 60_000L;
 
+    /** How long a settled record is left alone before its outcome is offered again. */
+    private static final long RETRY_AFTER_MILLISECONDS = 2 * MILLISECONDS_PER_MINUTE;
+
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -144,6 +147,9 @@ public class StaleParseJobSweeper implements Runnable
             for (final Resource jobNode : stale(jobsRoot, deadline)) {
                 sweep(resolver, jobNode);
             }
+            for (final Resource jobNode : getUntaken(jobsRoot, deadline)) {
+                this.outcomes.settle(resolver, jobNode);
+            }
             for (final Resource jobNode : forgotten(jobsRoot, deadline)) {
                 forget(resolver, jobNode);
             }
@@ -177,6 +183,43 @@ public class StaleParseJobSweeper implements Runnable
             }
         }
         return stale;
+    }
+
+    /**
+     * The settled jobs whose outcome no handler took yet, old enough that the request that settled them is over.
+     * A handler may refuse an outcome only for now, such as one for a file whose upload has not been committed
+     * yet, so it is offered again on every sweep until it is taken or forgotten.
+     *
+     * @param jobsRoot the node holding the job nodes
+     * @param deadline the moment before which a settled record is forgotten instead
+     * @return the job nodes to hand over again
+     */
+    private static List<Resource> getUntaken(final Resource jobsRoot, final long deadline)
+    {
+        final long settledBefore = System.currentTimeMillis() - RETRY_AFTER_MILLISECONDS;
+        final List<Resource> untaken = new ArrayList<>();
+        for (final Resource jobNode : jobsRoot.getChildren()) {
+            final ValueMap properties = jobNode.getValueMap();
+            final Calendar finished = properties.get(ParseJob.PN_FINISHED, Calendar.class);
+            if (isSettled(properties) && properties.get(ParseJob.PN_TARGET, String.class) != null
+                && isBetween(finished, deadline, settledBefore)) {
+                untaken.add(jobNode);
+            }
+        }
+        return untaken;
+    }
+
+    /** Whether a job has an outcome, good or bad. */
+    private static boolean isSettled(final ValueMap properties)
+    {
+        final String status = properties.get(ParseJob.PN_STATUS, String.class);
+        return ParseJob.STATUS_COMPLETED.equals(status) || ParseJob.STATUS_FAILED.equals(status);
+    }
+
+    /** Whether a moment is at or after {@code from} and before {@code to}; never for no moment at all. */
+    private static boolean isBetween(final Calendar when, final long from, final long to)
+    {
+        return when != null && when.getTimeInMillis() >= from && when.getTimeInMillis() < to;
     }
 
     /**
