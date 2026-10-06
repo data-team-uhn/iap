@@ -236,7 +236,10 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             String expectedIssuer = locator.getResolvedIssuer();
 
             // Double-check that we're the intended audience for this JWT, and that it came from the expected issuer
-            if (claims.getAudience() == null) {
+            if (claims.getExpiration() == null) {
+                // A token with no expiry is valid forever, and a JWT cannot be revoked
+                throw new JwtException("The given JWT is missing an `exp` claim.");
+            } else if (claims.getAudience() == null) {
                 // No audience found, reject
                 throw new JwtException("The given JWT is missing an `aud` claim.");
             } else if (!claims.getAudience().contains(this.identity)) {
