@@ -190,11 +190,77 @@ class QuestionTest
         return this.context.create().resource("/Schemas/schema/1.0/" + name, all).adaptTo(Question.class);
     }
 
+    // The form, the model and the matching all read offered options, so a description declared on a
+    // child is the same description they are shown
+    @Test
+    void offersDeclaredOptionsWithTheirDescriptions()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/kind",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.option(resource, "prom", "prom", "PROM", "The patient's own health.");
+
+        final OfferedOption offered = resource.adaptTo(Question.class).getOfferedOptions().get(0);
+
+        assertEquals("prom", offered.value());
+        assertEquals("PROM", offered.label());
+        assertEquals("The patient's own health.", offered.description());
+    }
+
+    // A model is shown the options in the order the form shows them, which is their place, not their storage order
+    @Test
+    void offersDeclaredOptionsInTheirPlaces()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/size",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.context.create().resource(resource.getPath() + "/large", "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", "large", "defaultOrder", 2L);
+        this.context.create().resource(resource.getPath() + "/small", "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", "small", "defaultOrder", 1L);
+        this.option(resource, "first", "first", "First");
+        this.option(resource, "second", "second", "Second");
+
+        final List<OfferedOption> offered = resource.adaptTo(Question.class).getOfferedOptions();
+
+        assertEquals(List.of("first", "second", "small", "large"),
+            offered.stream().map(OfferedOption::value).toList());
+    }
+
+    // The live list is the path's, not the children: a category tree an administrator edits is what
+    // the form shows, even when the question happens to have a leftover child
+    @Test
+    void offersTheOptionsAtThePathItNames()
+    {
+        this.context.create().resource("/Choices/data", Map.of("label", "Chart review",
+            "description", "Reads records already held."));
+        this.context.create().resource("/Choices/trial", Map.of("label", "Clinical trial"));
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/category", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE,
+            "optionsFrom", "/Choices"));
+        this.option(resource, "leftover", "ignored", "Ignored");
+
+        final List<OfferedOption> offered = resource.adaptTo(Question.class).getOfferedOptions();
+
+        assertEquals(List.of("/Choices/data", "/Choices/trial"),
+            offered.stream().map(OfferedOption::value).toList());
+        assertEquals("Reads records already held.", offered.get(0).description());
+        assertEquals("", offered.get(1).description());
+    }
+
     private void option(final Resource question, final String name, final String value, final String label)
     {
-        this.context.create().resource(question.getPath() + "/" + name, Map.of(
-            "sling:resourceType", AnswerOption.RESOURCE_TYPE,
-            "value", value,
-            "label", label));
+        this.option(question, name, value, label, null);
+    }
+
+    private void option(final Resource question, final String name, final String value, final String label,
+        final String description)
+    {
+        final Map<String, Object> properties = new HashMap<>();
+        properties.put("sling:resourceType", AnswerOption.RESOURCE_TYPE);
+        properties.put("value", value);
+        properties.put("label", label);
+        if (description != null) {
+            properties.put("description", description);
+        }
+        this.context.create().resource(question.getPath() + "/" + name, properties);
     }
 }

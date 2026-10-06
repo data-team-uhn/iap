@@ -1,0 +1,178 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.extraction.internal;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
+
+/**
+ * Which questions a step asks of a document, and what becomes of the answers.
+ *
+ * <p>Shared by every {@code intakeAnswers} step, so a schema read in stages is asked the same way and written
+ * the same way in every stage.</p>
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+final class ExtractionFields
+{
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExtractionFields.class);
+
+    private ExtractionFields()
+    {
+        // Utility
+    }
+
+    /**
+     * The questions worth putting to the model, by their path within the schema version.
+     *
+     * @param submission whose schema is being read
+     * @param requirement the requirement to ask about, or {@code null} for every question the schema asks
+     * @return the extractable questions, empty when the requirement is not being asked
+     */
+    static Map<String, Question> getExtractable(final Submission submission, final String requirement)
+    {
+        final String versionPath = submission.getSchemaVersion().getPath();
+        // Kept in the order the schema asks them, which is the order the model is shown them in
+        final Map<String, Question> questions = new LinkedHashMap<>();
+        final List<Question> asked = requirement == null || requirement.isBlank()
+            ? submission.getQuestions() : submission.getQuestions(requirement);
+        for (final Question question : asked) {
+            if (ExtractionField.isExtractable(question)) {
+                questions.put(question.getPath().substring(versionPath.length() + 1), question);
+            }
+        }
+        return questions;
+    }
+
+    /**
+     * The questions as the model is asked them. The key is the path within the schema version, which is what
+     * the answers come back under and what they are written back by.
+     *
+     * @param questions the questions to ask, by path within the schema version
+     * @return the fields to put to a model
+     */
+    static List<ExtractionField> toFields(final Map<String, Question> questions)
+    {
+        final List<ExtractionField> fields = new ArrayList<>(questions.size());
+        questions.forEach((key, question) -> fields.add(ExtractionField.of(question, key)));
+        return fields;
+    }
+
+    /**
+     * Record every answer the model found, for the questions that carry no answer yet.
+     *
+     * @param resolver the session to write with
+     * @param target the submission node
+     * @param submission the submission, for what it already holds
+     * @param questions what was asked, by path within the schema version
+     * @param results what the model answered, keyed the same way
+     * @param files the documents the answers were read from
+     */
+    static void write(final ResourceResolver resolver, final Resource target, final Submission submission,
+        final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files)
+    {
+        final Set<String> answered = getAnswered(submission);
+        final Map<String, Answer> empty = getEmpty(submission);
+        for (final Map.Entry<String, FieldResult> entry : results.entrySet()) {
+            final Question question = questions.get(entry.getKey());
+            if (entry.getValue().found() && question != null && !answered.contains(question.getPath())) {
+                final Answer existing = empty.get(question.getPath());
+                // Isolated per field: one field's evidence failing to write (e.g. a source file that stopped
+                // resolving mid-transaction) must not cost every other, unrelated field its answer too.
+                try {
+                    ExtractedAnswers.write(resolver, target,
+                        existing == null ? null : resolver.getResource(existing.getPath()), question,
+                        entry.getValue(), files);
+                } catch (final PersistenceException e) {
+                    LOGGER.warn("Could not record the answer for {}: {}", question.getPath(), e.getMessage(), e);
+                    // The reading still says done, so a lost answer would go unnoticed
+                    ErrorLogger.logError(e, ErrorContext.of(ExtractionFields.class, "write").about(target)
+                        .with("question", question.getPath()));
+                }
+            }
+        }
+    }
+
+    /**
+     * The paths of the questions a reading must leave alone: ones that hold a value, and ones the model already
+     * suggested an answer for, even if the submitter then cleared it.
+     *
+     * <p>An empty answer with no extraction is not one of them. The form saves a field when it loses focus, so
+     * clicking through a field leaves an empty answer behind, and that must not stop a reading from filling it.</p>
+     *
+     * @param submission the submission
+     * @return the question paths
+     */
+    static Set<String> getAnswered(final Submission submission)
+    {
+        final Set<String> answered = new HashSet<>();
+        for (final Answer answer : submission.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question != null && !isEmpty(answer)) {
+                answered.add(question.getPath());
+            }
+        }
+        return answered;
+    }
+
+    /**
+     * The empty answers a reading may fill, by the path of the question they answer.
+     *
+     * @param submission the submission
+     * @return the answers holding no value and no extraction
+     */
+    static Map<String, Answer> getEmpty(final Submission submission)
+    {
+        final Map<String, Answer> empty = new HashMap<>();
+        for (final Answer answer : submission.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question != null && isEmpty(answer)) {
+                empty.putIfAbsent(question.getPath(), answer);
+            }
+        }
+        return empty;
+    }
+
+    /** Whether an answer holds no value and the model never suggested one for it. */
+    private static boolean isEmpty(final Answer answer)
+    {
+        final String[] values = answer.getValue();
+        final boolean hasValue = values != null && Arrays.stream(values).anyMatch(value -> !value.isBlank());
+        return !hasValue && answer.getExtractions().isEmpty();
+    }
+}

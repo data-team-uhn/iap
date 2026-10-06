@@ -23,6 +23,7 @@ import java.util.Objects;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -30,7 +31,7 @@ import io.uhndata.iap.submissions.models.Submission;
 
 /**
  * The files of a submission, as the extraction steps need them: the latest upload of every document, in the order
- * the documents were attached.
+ * the repository lists the documents.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,7 +49,7 @@ final class SubmissionFiles
      * @param part any node under a submission
      * @return the submission's resource, or {@code null} when the node is not under one
      */
-    static Resource submissionOf(final Resource part)
+    static Resource findSubmission(final Resource part)
     {
         Resource current = part;
         while (current != null && !current.isResourceType(Submission.RESOURCE_TYPE)) {
@@ -63,19 +64,19 @@ final class SubmissionFiles
      * @param target the submission's resource
      * @return the model
      */
-    static Submission submission(final Resource target)
+    static Submission getSubmission(final Resource target)
     {
         return Objects.requireNonNull(target.adaptTo(Submission.class),
             "The extraction workflows only apply to submissions");
     }
 
     /**
-     * The latest upload of every document, in document order.
+     * The latest upload of every document, in the order the repository lists the documents.
      *
      * @param submission the submission
      * @return its current files, skipping documents with no upload yet
      */
-    static List<File> currentFiles(final Submission submission)
+    static List<File> getCurrentFiles(final Submission submission)
     {
         final List<File> files = new ArrayList<>();
         for (final Document document : submission.getDocuments()) {
@@ -89,25 +90,21 @@ final class SubmissionFiles
     }
 
     /**
-     * Why there is nothing to read, said as precisely as what is recorded allows.
-     *
-     * <p>Called only once {@link #firstParsed} has answered nothing, which one of three things explains:
-     * nothing was uploaded, what was uploaded has not been read yet, or reading it failed. The third is the
-     * one worth spelling out, because the parse wrote down what went wrong - the daemon it could not reach,
-     * the answer it did not understand - and that is what somebody needs in order to fix it.
+     * Why there is nothing to read: no upload, a failed parse (with its reason), a parse still queued, or uploads
+     * never sent.
      *
      * @param submission the submission
      * @return the reason, ready to show
      */
-    static String whyNothingToRead(final Submission submission)
+    static String describeNothingToRead(final Submission submission)
     {
-        final List<File> files = currentFiles(submission);
+        final List<File> files = getCurrentFiles(submission);
         if (files.isEmpty()) {
             return "No document has been uploaded";
         }
         for (final File file : files) {
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                return whyUnreadable(file);
+                return describeUnreadable(file);
             }
         }
         for (final File file : files) {
@@ -119,14 +116,15 @@ final class SubmissionFiles
     }
 
     /**
-     * The first file the parse finished for, which is the one the intake reads.
+     * The first file whose parse finished, in the order the repository lists the documents. The intake reads it
+     * when its step names no documents.
      *
      * @param submission the submission
      * @return the file, or {@code null} when no parse has finished
      */
-    static File firstParsed(final Submission submission)
+    static File findFirstParsed(final Submission submission)
     {
-        for (final File file : currentFiles(submission)) {
+        for (final File file : getCurrentFiles(submission)) {
             if (ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {
                 return file;
             }
@@ -140,11 +138,31 @@ final class SubmissionFiles
      * @param file a file whose parse failed
      * @return the reason, ready to show
      */
-    static String whyUnreadable(final File file)
+    static String describeUnreadable(final File file)
     {
         final String reason = file.getParseError();
         return reason == null || reason.isBlank()
             ? "The document could not be read" : "The document could not be read. " + reason;
+    }
+
+    /**
+     * The latest upload answering one document requirement, whatever its parse did.
+     *
+     * @param submission the submission
+     * @param requirement the name of the document requirement, as the schema version calls it
+     * @return the latest upload for it, or {@code null} when nothing is attached or nothing was uploaded
+     */
+    static File getCurrentFile(final Submission submission, final String requirement)
+    {
+        for (final Document document : submission.getDocuments()) {
+            final Requirement fulfilled = document.getFulfills();
+            final DocumentVersion version = document.getCurrentVersion();
+            final File file = version == null ? null : version.getFile();
+            if (fulfilled != null && requirement.equals(fulfilled.getName()) && file != null) {
+                return file;
+            }
+        }
+        return null;
     }
 
     /**
@@ -153,9 +171,9 @@ final class SubmissionFiles
      * @param submission the submission
      * @return {@code true} when every file's parse has ended, one way or the other, or was never asked for
      */
-    static boolean allParsesSettled(final Submission submission)
+    static boolean isEveryParseSettled(final Submission submission)
     {
-        for (final File file : currentFiles(submission)) {
+        for (final File file : getCurrentFiles(submission)) {
             // A file never sent has no status at all, which is not a parse still going
             if (ParsePropertyNames.STATUS_QUEUED.equals(file.getParseStatus())) {
                 return false;

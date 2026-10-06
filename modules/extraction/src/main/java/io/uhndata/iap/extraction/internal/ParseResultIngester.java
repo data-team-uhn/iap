@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.documents.api.ParseService;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.submissions.models.File;
 
 /**
  * Reads a finished parse into the repository.
@@ -73,15 +74,6 @@ public class ParseResultIngester
     private static final String MARKDOWN_MIME_TYPE = "text/markdown";
 
     private static final String PDF_MIME_TYPE = "application/pdf";
-
-    /** The child node the Markdown is kept under, whatever the parse called the file. */
-    private static final String MARKDOWN_CHILD = "markdownFile";
-
-    /** The child node the PDF is kept under, when it is not the upload itself. */
-    private static final String PDF_CHILD = "pdfFile";
-
-    /** The child node holding the upload as it was received. */
-    private static final String UPLOADED_FILE_CHILD = "uploadedFile";
 
     /**
      * Who owns the shared volume, and so who says what is on it and who deletes from it.
@@ -134,7 +126,7 @@ public class ParseResultIngester
         }
 
         applyProperties(file, properties);
-        final long markdownBytes = storeFile(resolver, file, MARKDOWN_CHILD, MARKDOWN_MIME_TYPE, markdown);
+        final long markdownBytes = storeFile(resolver, file, File.MARKDOWN_CHILD, MARKDOWN_MIME_TYPE, markdown);
         final long pdfBytes = storePdf(resolver, file, pdf);
 
         LOGGER.info("Parse read in: file={} markdownBytes={} pdfBytes={} tokens={} ms={}", file.getPath(),
@@ -207,18 +199,12 @@ public class ParseResultIngester
                 ErrorContext.of(ParseResultIngester.class, "ingest").about(file).with("named", pdf));
             return 0;
         }
-        if (isUploadAPdf(file)) {
+        final File model = file.adaptTo(File.class);
+        if (model != null && model.isUploadAPdf()) {
             LOGGER.debug("The upload is the PDF; not keeping a second copy of it");
             return 0;
         }
-        return storeFile(resolver, file, PDF_CHILD, PDF_MIME_TYPE, pdf);
-    }
-
-    private static boolean isUploadAPdf(final Resource file)
-    {
-        final Resource content = file.getChild(UPLOADED_FILE_CHILD + "/" + JCR_CONTENT);
-        return content != null
-            && PDF_MIME_TYPE.equals(content.getValueMap().get(JCR_MIME_TYPE, String.class));
+        return storeFile(resolver, file, File.PDF_CHILD, PDF_MIME_TYPE, pdf);
     }
 
     private static void applyProperties(final Resource file, final Map<String, Object> properties)

@@ -17,8 +17,12 @@
  */
 package io.uhndata.iap.utils;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -56,6 +60,39 @@ public final class ReferenceUtils
         }
         try {
             node.setProperty(property, referenced);
+        } catch (final RepositoryException e) {
+            throw new PersistenceException(failure, e);
+        }
+    }
+
+    /**
+     * Points a property of one resource at several others, as a multi-valued {@code REFERENCE}.
+     *
+     * @param holder the resource the property is set on
+     * @param property the property's name
+     * @param targets the resources it points at, in order, each of which must be referenceable
+     * @throws PersistenceException when any resource is not a node, or the repository refuses the references
+     */
+    public static void setReferences(@NotNull final Resource holder, @NotNull final String property,
+        @NotNull final List<Resource> targets) throws PersistenceException
+    {
+        final Node node = holder.adaptTo(Node.class);
+        final List<Node> referenced = new ArrayList<>();
+        final List<String> paths = new ArrayList<>();
+        for (final Resource target : targets) {
+            referenced.add(target.adaptTo(Node.class));
+            paths.add(target.getPath());
+        }
+        final String failure = "Cannot point " + property + " of " + holder.getPath() + " at " + paths;
+        if (node == null || referenced.contains(null)) {
+            throw new PersistenceException(failure);
+        }
+        try {
+            final Value[] values = new Value[referenced.size()];
+            for (int i = 0; i < values.length; i++) {
+                values[i] = node.getSession().getValueFactory().createValue(referenced.get(i));
+            }
+            node.setProperty(property, values);
         } catch (final RepositoryException e) {
             throw new PersistenceException(failure, e);
         }

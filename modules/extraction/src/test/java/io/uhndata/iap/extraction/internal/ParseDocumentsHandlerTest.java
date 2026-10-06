@@ -72,8 +72,8 @@ class ParseDocumentsHandlerTest
     void setUp() throws Exception
     {
         this.tree = new SubmissionTree(this.context);
-        this.tree.schemaVersion();
-        this.submission = this.tree.submission();
+        this.tree.createSchemaVersion();
+        this.submission = this.tree.createSubmission();
         final Field field = ParseDocumentsHandler.class.getDeclaredField("parseService");
         field.setAccessible(true);
         field.set(this.handler, this.parseService);
@@ -82,7 +82,7 @@ class ParseDocumentsHandlerTest
             .thenReturn(JOB_ID);
     }
 
-    private WorkflowTaskContext task(final Resource target)
+    private WorkflowTaskContext createTask(final Resource target)
     {
         return TaskContexts.of(target, Map.of(), new HashMap<>());
     }
@@ -96,29 +96,29 @@ class ParseDocumentsHandlerTest
     @Test
     void refusesAnybodyButTheSubmitter()
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
         this.submission.adaptTo(ModifiableValueMap.class).put("createdBy", "a-reviewer");
 
-        assertThrows(NotAuthorizedException.class, () -> this.handler.execute(task(this.submission)));
+        assertThrows(NotAuthorizedException.class, () -> this.handler.execute(createTask(this.submission)));
         Mockito.verifyNoInteractions(this.parseService);
     }
 
     @Test
     void refusesARequestAlreadySent()
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
         this.submission.adaptTo(ModifiableValueMap.class).put("tags", new String[0]);
 
-        assertThrows(InvalidStateException.class, () -> this.handler.execute(task(this.submission)));
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask(this.submission)));
         Mockito.verifyNoInteractions(this.parseService);
     }
 
     @Test
     void stagesAndQueuesEveryUploadNotParsedYet() throws Exception
     {
-        final Resource file = this.tree.file(null);
+        final Resource file = this.tree.createFile(null);
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verify(this.parseService).queue(STAGED, file.getPath());
         assertEquals("queued", file.getValueMap().get("parseStatus", String.class));
@@ -131,12 +131,12 @@ class ParseDocumentsHandlerTest
     @Test
     void stagesAFileWithNoFileNameUnderItsDocumentTitle() throws Exception
     {
-        final Resource file = this.tree.file(null);
+        final Resource file = this.tree.createFile(null);
         file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.FILE_NAME);
         file.getParent().getParent().adaptTo(ModifiableValueMap.class).put("title", "protocol.docx");
         Mockito.when(this.parseService.stage(Mockito.eq("protocol.docx"), Mockito.any())).thenReturn(STAGED);
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verify(this.parseService).stage(Mockito.eq("protocol.docx"), Mockito.any());
         Mockito.verify(this.parseService).queue(STAGED, file.getPath());
@@ -146,11 +146,11 @@ class ParseDocumentsHandlerTest
     @Test
     void leavesTheUploadsOfASchemaThatReadsNothingAlone() throws Exception
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
         this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
             .remove(ParseDocumentsHandler.READING_WORKFLOW);
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verifyNoInteractions(this.parseService);
     }
@@ -158,9 +158,9 @@ class ParseDocumentsHandlerTest
     @Test
     void leavesAFileAlreadySentAlone() throws Exception
     {
-        this.tree.file("completed");
+        this.tree.createFile("completed");
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verifyNoInteractions(this.parseService);
         assertNull(this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class),
@@ -170,10 +170,10 @@ class ParseDocumentsHandlerTest
     @Test
     void sendsAFailedParseAgain() throws Exception
     {
-        final Resource file = this.tree.file("failed");
+        final Resource file = this.tree.createFile("failed");
         file.adaptTo(ModifiableValueMap.class).put("parseError", "The daemon could not be reached");
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verify(this.parseService).queue(STAGED, file.getPath());
         assertEquals("queued", file.getValueMap().get("parseStatus", String.class));
@@ -186,9 +186,9 @@ class ParseDocumentsHandlerTest
     @Test
     void skipsADocumentWithNoUpload() throws Exception
     {
-        this.tree.emptyDocument();
+        this.tree.createEmptyDocument();
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verifyNoInteractions(this.parseService);
     }
@@ -196,11 +196,11 @@ class ParseDocumentsHandlerTest
     @Test
     void skipsAFileWithNoUpload() throws Exception
     {
-        this.tree.emptyDocument();
+        this.tree.createEmptyDocument();
         this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/d1/v1/file",
             Map.of("sling:resourceType", "sub/File"));
 
-        this.handler.execute(task(this.submission));
+        this.handler.execute(createTask(this.submission));
 
         Mockito.verifyNoInteractions(this.parseService);
     }
@@ -208,11 +208,11 @@ class ParseDocumentsHandlerTest
     @Test
     void translatesAStagingFailureIntoAPersistenceFailure() throws Exception
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
         Mockito.when(this.parseService.stage(Mockito.any(), Mockito.any())).thenThrow(new IOException("disk full"));
 
         final PersistenceException failure =
-            assertThrows(PersistenceException.class, () -> this.handler.execute(task(this.submission)));
+            assertThrows(PersistenceException.class, () -> this.handler.execute(createTask(this.submission)));
 
         assertEquals(true, failure.getMessage().contains("disk full"));
     }
@@ -220,7 +220,7 @@ class ParseDocumentsHandlerTest
     @Test
     void refusesAFileItCannotWrite()
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
         final Resource readOnlyTarget = new ResourceWrapper(this.submission)
         {
             @Override
@@ -245,6 +245,6 @@ class ParseDocumentsHandlerTest
             }
         };
 
-        assertThrows(PersistenceException.class, () -> this.handler.execute(task(readOnlyTarget)));
+        assertThrows(PersistenceException.class, () -> this.handler.execute(createTask(readOnlyTarget)));
     }
 }

@@ -104,7 +104,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
         try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
             Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
             final Resource file = resolver.getResource(outcome.target());
-            final Resource submission = file == null ? null : SubmissionFiles.submissionOf(file);
+            final Resource submission = file == null ? null : SubmissionFiles.findSubmission(file);
             final ValueMap recorded = file == null ? ValueMap.EMPTY : file.getValueMap();
             if (submission == null
                 || !outcome.jobId().equals(recorded.get(ParseDocumentsHandler.PARSE_JOB_ID, String.class))) {
@@ -121,8 +121,8 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             }
             LOGGER.info("Parse came back: job={} file={} submission={} succeeded={} tokens={}", outcome.jobId(),
                 outcome.target(), submission.getPath(), outcome.succeeded(), outcome.tokens());
-            final String staged = stagedFolder(outcome, file);
-            this.engine.receiveEvent(submission, new WorkflowEvent(EVENT, payload(outcome)));
+            final String staged = getStagedFolder(outcome, file);
+            this.engine.receiveEvent(submission, new WorkflowEvent(EVENT, buildPayload(outcome)));
             // Only now the repository has committed what the parse produced. Until this point the volume holds
             // the only copy, and a delete before the commit would lose the parse for good if the commit failed.
             this.ingester.discardStaging(staged == null ? null : Path.of(staged));
@@ -151,7 +151,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
      * @param file the {@code sub:File} the parse was for
      * @return a path inside the staging folder, or {@code null} when nothing names one
      */
-    private static String stagedFolder(final ParseOutcome outcome, final Resource file)
+    private static String getStagedFolder(final ParseOutcome outcome, final Resource file)
     {
         if (outcome.markdownPath() != null) {
             return outcome.markdownPath();
@@ -167,7 +167,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
      * @param outcome how the parse ended
      * @return the payload
      */
-    static Map<String, Object> payload(final ParseOutcome outcome)
+    static Map<String, Object> buildPayload(final ParseOutcome outcome)
     {
         final Map<String, Object> payload = new HashMap<>();
         payload.put(FILE, outcome.target());
@@ -176,7 +176,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
         putIfPresent(payload, MARKDOWN, outcome.markdownPath());
         putIfPresent(payload, TOKENS, outcome.tokens());
         if (outcome.markdownPath() != null) {
-            putIfPresent(payload, PDF, renditionBeside(Path.of(outcome.markdownPath())));
+            putIfPresent(payload, PDF, findPdfBeside(Path.of(outcome.markdownPath())));
         }
         return payload;
     }
@@ -188,7 +188,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
      * @param markdown where the Markdown is
      * @return the PDF's path, or {@code null} when there is none beside it
      */
-    private static String renditionBeside(final Path markdown)
+    private static String findPdfBeside(final Path markdown)
     {
         // The extension of the last segment, so a dot in a folder name is left where it is
         final Path pdf = Path.of(markdown.toString().replaceFirst(LAST_EXTENSION, "") + PDF_SUFFIX);

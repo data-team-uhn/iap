@@ -40,14 +40,16 @@ final class ExtractionStatus
     /**
      * The property on the submission saying a job has taken the reading. Every parse that lands queues a job, so
      * this is what keeps the second one from paying a model to read the same document again. Taken back down when
-     * new documents are sent to be parsed, which is a new reading to be had.
+     * new documents are sent to be parsed, when the submitter asks to read again or stops the reading, and when a
+     * reading gives up.
      */
     static final String READING_CLAIMED = "extractionReadingClaimed";
 
     /**
-     * The property naming the claim's own value. Two jobs racing to claim would both write {@code true}, and the
-     * repository merges two identical changes without a conflict, so both would read. A value of each job's own
-     * makes the two writes differ, and the second commit is refused.
+     * The property naming the job holding the claim, by its id. Two jobs racing to claim would both write
+     * {@code true}, and the repository merges two identical changes without a conflict, so both would read. Each
+     * job's own id makes the two writes differ, and the second commit is refused. The id also lets a job that
+     * Sling runs again after a restart find the claim is still its own.
      */
     static final String READING_CLAIMED_BY = "extractionReadingClaimedBy";
 
@@ -57,7 +59,7 @@ final class ExtractionStatus
     /** Every answer that could be read has been recorded. */
     static final String DONE = "done";
 
-    /** Parsing or reading failed for a reason other than the document itself. */
+    /** Parsing or reading ended without answers; the message says why. */
     static final String FAILED = "failed";
 
     /** What the view is told when the submitter stopped the reading. */
@@ -92,6 +94,23 @@ final class ExtractionStatus
     {
         properties.remove(READING_CLAIMED);
         properties.remove(READING_CLAIMED_BY);
+    }
+
+    /**
+     * Record that a step read what it could, unless an earlier step of the same reading already recorded a
+     * failure: that one said something this step does not know, and the submitter must still see it.
+     *
+     * @param submission the submission's resource, through a session that may write it
+     * @param message a short message for the person looking at it, or {@code null} to clear it
+     * @throws PersistenceException if the submission cannot be written
+     */
+    static void recordDone(final Resource submission, final String message) throws PersistenceException
+    {
+        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
+        if (properties != null && FAILED.equals(properties.get(PROPERTY, String.class))) {
+            return;
+        }
+        record(submission, DONE, message);
     }
 
     /**
