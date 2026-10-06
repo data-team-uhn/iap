@@ -83,7 +83,7 @@ than this one, because trusting an instance is not the same thing as letting it 
 POST /system/jwt/peers
 Content-Type: application/json
 
-{"issuer": "peerexample8080", "key": "<BASE64, PEM armour optional>"}
+{"issuer": "https://peer.example.org", "key": "<BASE64, PEM armour optional>"}
 ```
 
 ```
@@ -116,10 +116,17 @@ do harm elsewhere:
 - control characters, which would let an issuer forge lines in the log;
 - a value containing a `:` that is not an absolute URI, as RFC 7519 requires.
 
-An IAP instance does not send a URI today. It mints its tokens with `iss` set to its
-`IAP_HOST_AND_PORT` with everything non-alphanumeric stripped — `peer.example.org:8080` becomes
-`peerexampleorg8080` — so that is the form to register for an IAP peer. The same stripped value is
-what it expects in `aud`.
+For an IAP peer, the issuer to register is that peer's configured identity: the `identity`
+property of its **JWT token manager** configuration, normally its public base URL. An instance
+uses that one value both as the `iss` of every token it mints and as the `aud` a token must name
+for it to accept it, so it is also the value peers must address their tokens to. It is taken
+from the `IAP_PUBLIC_URL` environment variable, the same public base URL the Keycloak sign-in
+builds its callback from, and falls back to `http://localhost:8080` when that is unset, which only
+suits a development instance. Since the comparison is exact, a trailing slash in `IAP_PUBLIC_URL`
+becomes part of the identity, and peers must register it with the slash. The identity is held to
+the same rules as a registered issuer, and an instance configured
+with one that breaks them does not start its token manager at all, rather than minting tokens no
+peer could accept.
 
 Several keys may be registered with the same issuer; that is what lets an old and a new key coexist
 during rotation. It does not let one peer impersonate another: each issuer is bound to the key it

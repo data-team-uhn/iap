@@ -76,7 +76,9 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 public class JwtPeerRegistrationServletTest
 {
-    private static final String PEER_ISSUER = "peerexample8080";
+    private static final String SELF_ID = "https://iap.example.org";
+
+    private static final String PEER_ISSUER = "https://peer.example.org";
 
     @Mock
     private ResourceResolverFactory resolverFactory;
@@ -155,10 +157,9 @@ public class JwtPeerRegistrationServletTest
         verify(this.serviceResolver).create(any(), nodeName.capture(), stored.capture());
 
         final IapJwtTokenManagerImpl manager = managerTrusting(nodeName.getValue(), stored.getValue());
-        final String selfAud = IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
         final String peerToken = Jwts.builder()
             .issuer(PEER_ISSUER)
-            .audience().add(selfAud).and()
+            .audience().add(SELF_ID).and()
             .subject("peer-service")
             .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
             .header().keyId(nodeName.getValue()).and()
@@ -241,7 +242,7 @@ public class JwtPeerRegistrationServletTest
     public void uriAndPlainIssuersAreStoredExactlyAsGiven() throws Exception
     {
         final String[] issuers = {"https://peer.example.org", "https://peer.example.org:8443/iap/",
-            "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66", PEER_ISSUER};
+            "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66", "peerexample8080"};
         for (final String issuer : issuers) {
             post("{\"issuer\": \"" + issuer + "\", \"key\": \"" + encodedPeerKey() + "\"}");
             this.servlet.doPost(this.request, this.response);
@@ -339,7 +340,7 @@ public class JwtPeerRegistrationServletTest
             .when(resolver).resolve(anyString());
         doReturn(own).when(resolver).resolve(IapJwtTokenManagerImpl.KEY_PATH);
         doReturn(peer).when(resolver).resolve(IapJwtTokenManagerImpl.KEY_ROOT + "/" + fingerprint);
-        return new IapJwtTokenManagerImpl(factory);
+        return new IapJwtTokenManagerImpl(factory, IapJwtTokenManagerImplTest.configWithIdentity(SELF_ID));
     }
 
     /**
