@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
+
 // Reading schemas and versions straight from the repository's JSON serialization, which is the one
 // description of their shape. Where each stands is its tags; what may be done with it is the events
 // the server offers on it; what may be edited is the fields it describes. No React, no fetch.
@@ -72,12 +74,10 @@ export const latestVersion = (schema: JcrNode): JcrNode | undefined => versionsO
   .reduce<JcrNode | undefined>((latest, version) =>
     latest && createdOf(latest) > createdOf(version) ? latest : version, undefined);
 
-// The label a new version would most likely have: the next whole number after the highest numeric label
-export function nextVersionLabel(schema: JcrNode): string {
-  const versions = versionsOf(schema);
-  const numbers = versions.map(version => Number.parseFloat(labelOf(version))).filter(Number.isFinite);
-  return `${numbers.length > 0 ? Math.floor(Math.max(...numbers)) + 1 : versions.length + 1}.0`;
-}
+// The label the server gives a new version named by no event, numbered as every versioned thing is: after the
+// numbers its versions are named with, never their free-text labels
+export const nextVersionLabel = (schema: JcrNode): string =>
+  labelAfter(versionsOf(schema).map(version => String(version["@name"])));
 
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
