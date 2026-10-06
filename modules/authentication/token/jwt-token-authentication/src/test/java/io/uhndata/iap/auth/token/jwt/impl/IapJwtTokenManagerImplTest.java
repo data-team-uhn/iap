@@ -313,6 +313,14 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void parseRejectsBlankToken()
+    {
+        // What an "Authorization: Bearer " header with nothing after it comes down to
+        Assertions.assertNull(this.manager.parse(""));
+        Assertions.assertNull(this.manager.parse("   "));
+    }
+
+    @Test
     public void parseRejectsTokenWithoutExpiry()
     {
         // Correctly signed and addressed, but valid forever, and a JWT cannot be revoked

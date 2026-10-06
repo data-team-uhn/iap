@@ -19,7 +19,7 @@ package io.uhndata.iap.auth.token.jwt.impl;
 
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
-import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.regex.Pattern;
@@ -41,6 +41,9 @@ record JwtPeerKey(String encoded, String fingerprint)
     /** PEM armour and every kind of whitespace, all of which a pasted key file carries and BASE64 does not. */
     private static final Pattern ARMOUR = Pattern.compile("-----[A-Z ]+-----|\\s");
 
+    /** JJWT refuses shorter RSA keys for RS256. */
+    private static final int MIN_KEY_BITS = 2048;
+
     /**
      * Read a submitted public key.
      *
@@ -56,7 +59,13 @@ record JwtPeerKey(String encoded, String fingerprint)
         } catch (final DecodingException e) {
             throw new InvalidKeySpecException("The key is not valid BASE64", e);
         }
-        final PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+        final RSAPublicKey key =
+            (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+        final int bits = key.getModulus().bitLength();
+        if (bits < MIN_KEY_BITS) {
+            throw new InvalidKeySpecException(
+                "RSA keys must be at least " + MIN_KEY_BITS + " bits to verify tokens; this one has " + bits);
+        }
         return new JwtPeerKey(Encoders.BASE64.encode(key.getEncoded()),
             IapJwtTokenManagerImpl.getFingerprint(key));
     }
