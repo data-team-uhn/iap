@@ -36,7 +36,8 @@ import org.jetbrains.annotations.NotNull;
 public interface CopyParticipant
 {
     /**
-     * Whether a property is left out of copies, e.g. one computed from the content around it.
+     * Whether a property is left out of copies, e.g. one computed from the content around it. One participant
+     * answering {@code true} is enough: the property is left out whatever all the others answer.
      *
      * @param property a property of a node being copied
      * @return {@code true} to leave it out
@@ -49,6 +50,7 @@ public interface CopyParticipant
 
     /**
      * Whether a child node is left out of copies, with everything under it, e.g. a container the module maintains.
+     * One participant answering {@code true} is enough: the child is left out whatever all the others answer.
      *
      * @param child a child of a node being copied
      * @return {@code true} to leave it out
