@@ -73,8 +73,9 @@ public interface ParseService
      *
      * @param stagedPath a path inside the folder, as {@link #stage} returned it or as the daemon named an output;
      *            nothing happens when it is {@code null}, blank, or not under the shared root
+     * @return {@code false} when the folder is still there because it could not be removed
      */
-    void discardStaging(@Nullable String stagedPath);
+    boolean discardStaging(@Nullable String stagedPath);
 
     /**
      * Whether a path names a file on the shared volume, and so one this application put there.

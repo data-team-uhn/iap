@@ -27,7 +27,11 @@ import io.uhndata.iap.documents.api.ParseOutcome;
  *
  * <p>A handler that takes the outcome - stored what the parse produced, or recorded why it failed - says so, and
  * the job record is deleted: what it held now lives where it belongs. A handler that could not take it leaves the
- * record for somebody to look at.</p>
+ * record in place.</p>
+ *
+ * <p>The same outcome can be handed over more than once. One nobody took is offered again on every sweep until the
+ * record is old enough to be dropped, and one that was taken is offered again when its record could not be
+ * deleted. So {@link #handle} must be idempotent.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,7 +42,8 @@ public interface ParseOutcomeHandler
      * Take the outcome of a parse.
      *
      * @param outcome how the parse ended, and for which node
-     * @return {@code true} when the outcome has been taken care of and its job record is no longer needed
+     * @return {@code true} when the outcome has been taken care of and its job record is no longer needed,
+     *         including when this handler already recorded the same outcome before
      */
     boolean handle(@NotNull ParseOutcome outcome);
 }
