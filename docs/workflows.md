@@ -44,9 +44,8 @@ authored in, and the engine that runs them.
         └── end_1                  wf:EndEvent             terminate
 ```
 
-A definition holds versions, and everything that runs, runs against a specific version — the same split
-as a schema and its schema versions. Where a version stands is its tag in the `lifecycle` category, as it is
-for a schema version, rather than a property of its own:
+A definition holds versions, and everything that runs, runs against a specific version.
+Where a version stands is its tag in the `lifecycle` category:
 
 | Tag | What it means | Editable | Moves to |
 |---|---|---|---|
@@ -57,25 +56,23 @@ for a schema version, rather than a property of its own:
 
 Each move is a system workflow whose start event is guarded on the version's tags, and which tags it with
 `addTag`, replacing the lifecycle tag it had, so a version is never in two places at once. Only a draft may be
-edited, and that is enforced rather than merely offered: `saveWorkflowDiagram` waits for the save of a draft
-only. Every later tag is one something may be following, or about to follow, so changing its diagram would
-change a process out from under whatever is executing it — which is why a trial that needs another look goes
+edited. Every later lifecycle step indicates a workflow a submission may already be following, so changing its diagram would
+change a process out from under whatever is executing it. A trial that needs another look goes
 back to being a draft rather than being edited where it stands, while an active or retired version is carried
 forward by drafting a copy of it.
 
-A version carrying no lifecycle tag is in none of them: content edited by hand, or from a platform that knows
-a tag this one does not. Reading it *as* a draft would make the version whose lifecycle is least certain the
-one freely editable, so no guard takes it for one: it cannot be edited, promoted or instantiated, and the
-console shows no lifecycle for it. Of the moves, only **New draft from this** is still offered, which copies
-it into a genuine draft; **View** is offered whatever the lifecycle, as it always is.
+A version carrying no lifecycle tag or an unknown one is not assumed to be in a specific state:
+it cannot be edited, promoted or instantiated, and the console shows no lifecycle for it.
+Of the moves, only **New draft from this** is still offered, which copies
+it into a genuine draft. **View** is always allowed.
 
-A version is numbered the way a schema version is, by the platform's one rule for versions
+A version is numbered by the platform's one rule for versions
 (`VersionNumbers` in `java-utils`, `versionNumbers` in `frontend-commons`): one past the largest number a
 version's node name starts with, so a version discarded from the middle leaves no number for a new one to
 take again. Its node is named `v` and that number; what readers see is its `version` label, which the author
 chooses, and which defaults to the number (`3.0` after `v2`) — suggested in the console, and applied by the
 server when a request names none. Labels take no part in the numbering, being free text, as likely a year as
-a number, so a label can say anything, dots included, without the path having to carry it.
+a number, so a label can say anything to the user.
 
 At most one version of a definition is active at a time, and that is an invariant of the transition rather
 than of the node type: promoting a version retires the one it supersedes in the same save, so there is no
@@ -86,8 +83,7 @@ moment at which two versions claim to be current. The engine reads the `active` 
 is active. Stored as well, the two could disagree, and the stored one would be the side nothing enforces.
 Whether it is *retired* is read off its versions the same way — one is retired and none is active, which is
 where retiring the active version without a replacement leaves it — and the console works both out from the
-versions it lists. Activating any version brings it back; a workflow that has only had
-drafts and trials has never run, and is neither.
+versions it lists.
 
 A version keeps both representations of its graph: the `bpmn.xml` it
 was authored as, which the visual editor loads and saves, and the flow nodes that XML was parsed into,
@@ -96,11 +92,7 @@ so a graph that has fallen behind its diagram can be spotted.
 
 The source is an `nt:file` child rather than a property, so that a diagram can be downloaded and
 re-uploaded as the document it is, and so that it does not weigh on every serialization of the version.
-It is served at the version's own path — `/Workflows/timeOffRequest/v1/bpmn.xml` — and the extension is
-load-bearing: Sling types a file from its name, so an extensionless one would be served as an untyped
-binary, both when shipped by a bundle and when downloaded from the repository. It costs nothing, since a
-version with no diagram yet still answers that path with a plain 404 — nothing renders a
-`wf:WorkflowVersion` as `xml`.
+It is served at the version's own path — `/Workflows/timeOffRequest/v1/bpmn.xml`.
 
 Writing it is an event rather than a repository write: a diagram is a multipart part named `bpmn.xml` on a
 `save` or `createVersion` event, and the handler behind that event decides where it lands — so a version
@@ -136,8 +128,6 @@ Whether it **interrupts** that activity is the difference between "give up after
 reminder after five days but keep waiting" — two quite different processes that are otherwise drawn
 identically, so the flag is not decoration. It is parsed from BPMN's `cancelActivity`, whose default is
 likewise true, and it is meaningful only on an attached event; on a free-standing one it is ignored.
-Parsing and storing it is as far as this branch goes — the engine delivers no timers at all yet, so
-nothing currently acts on either value; see [Known gaps](#known-gaps).
 
 ### What an executable graph carries
 
@@ -228,9 +218,6 @@ is the test to apply before adding to it:
 | Event-based gateway | Node type | It is meant to wait instead of evaluating, unlike every other gateway |
 | Boundary vs. free-standing catch | Containment | Same event; only where it is stored differs |
 | Terminate vs. ordinary end | Property | Same node, but it is meant to end the instance rather than a branch |
-
-That routing distinction is design intent rather than implemented behavior: today's engine treats every
-gateway kind alike and creates only one token per instance. See [Known gaps](#known-gaps).
 
 ### Self-documentation, and why its shape matters
 
@@ -488,7 +475,7 @@ following, and a trial is being tried as it stands, so changing any of them woul
 under the things reading it. A trial is changed by being returned to a draft; an active or retired version
 is carried forward by drafting a copy, which is offered next to it.
 
-The buttons are contributed on extension points rather than written into the pages, as a schema's are: a
+The buttons are contributed on extension points rather than written into the pages: a
 workflow's own — edit its properties, open a new version — on **`WorkflowActions`** (`wf/workflow/actions`),
 shown beside its title, and each version's on **`WorkflowVersionActions`**, shown in its row and beside its
 title on its own page while it is only being looked at. Six ship with the module — edit, start-trial, activate, return-to-draft,
@@ -498,7 +485,7 @@ needs an `ext:Extension` and an asset, and no change to any existing file. The p
 node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
 `ext:pointId` that node carries, `wf/workflowVersion/actions`.
 
-**Every one of these actions is a workflow, not a write.** Creating a workflow, opening a version of one,
+**Every one of these actions is a system workflow, not a write.** Creating a workflow, opening a version of one,
 renaming it, saving a diagram, and each of the four lifecycle moves are domain events posted at the thing
 they concern, matched to a system workflow under `/SystemWorkflows` and run to an end event in one commit.
 Nothing in this UI writes a node.
@@ -517,8 +504,7 @@ Nothing in this UI writes a node.
 
 Drafting a copy of a version is `createVersion` on its workflow, with the version's path as `source`:
 `createVersion` creates the version, has `copyContent` copy the source into it, keeping the new version's
-own label, and tags it a draft in place of wherever the source stood — the steps `createSchemaVersion` takes
-for a schema.
+own label, and tags it a draft in place of wherever the source stood.
 
 A POST with no selector means the target's *default* event, which follows from what it is: `create` at an
 entity homepage, `save` at an entity, `complete` at a user task. Everything else names its event outright.
@@ -567,7 +553,7 @@ Three of them are more than one write, which is the reason the run commits once:
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
 - **Creating a workflow** is `createEntity`, then a `callActivity` sending `createVersion` to what it
-  created, as `createSchema` does for a schema: a first version is made exactly the way every later one is,
+  created: a first version is made exactly the way every later one is,
   and since the called workflow runs in the same commit, a workflow and its first draft arrive together and a
   failure part-way leaves neither. The request carries the title, the first version's label and description,
   and its starting diagram, and the call hands all of it on. What the request is answered with is the
