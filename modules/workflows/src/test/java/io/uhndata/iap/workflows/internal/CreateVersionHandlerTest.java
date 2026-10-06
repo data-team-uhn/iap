@@ -112,6 +112,19 @@ class CreateVersionHandlerTest
     }
 
     @Test
+    void leavesACopyToSayWhetherItsDiagramIsAuthoritative() throws WorkflowException, PersistenceException
+    {
+        AuthoringFixture.createVersion(this.context, "v1", "1.0", "active", Map.of());
+
+        this.handler.execute(this.request(Map.of("version", "2.0", "source", AuthoringFixture.path("v1")),
+            new HashMap<>()));
+
+        final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
+        assertNotNull(created);
+        assertNull(created.getValueMap().get("bpmnAuthoritative"));
+    }
+
+    @Test
     void storesTheDiagramThatArrivedWithTheRequest() throws WorkflowException, PersistenceException, IOException
     {
         final Map<String, Object> payload = new HashMap<>();

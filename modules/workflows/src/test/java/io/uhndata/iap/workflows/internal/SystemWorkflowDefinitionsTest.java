@@ -75,9 +75,9 @@ class SystemWorkflowDefinitionsTest
     private static final Set<String> BOUND_TYPES =
         Set.of("wf/WorkflowsHomepage", "wf/SystemWorkflowsHomepage", DEFINITION, VERSION);
 
-    private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", CreateVersionHandler.NAME,
-        SavePropertiesHandler.NAME, SaveDiagramHandler.NAME, RetireActiveVersionsHandler.NAME,
-        DraftVersionHandler.NAME);
+    private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", CopyContentHandler.HANDLER_NAME,
+        CreateVersionHandler.NAME, SavePropertiesHandler.NAME, SaveDiagramHandler.NAME,
+        RetireActiveVersionsHandler.NAME);
 
     private final SlingContext context = new SlingContext();
 
@@ -107,7 +107,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsActiveReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(10, definitions.size());
+        assertEquals(9, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -129,8 +129,6 @@ class SystemWorkflowDefinitionsTest
         assertEquals(Set.of("saveWorkflowDiagram"), answering(VERSION, "save", "draft"));
         assertEquals(Set.of("startVersionTrial"), answering(VERSION, "startTrial", "draft"));
         assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "draft"));
-        // A draft is simply edited, so it is not copied into another
-        assertEquals(Set.of(), answering(VERSION, "draft", "draft"));
         assertEquals(Set.of(), answering(VERSION, "returnToDraft", "draft"));
         assertEquals(Set.of(), answering(VERSION, "retire", "draft"));
     }
@@ -140,7 +138,6 @@ class SystemWorkflowDefinitionsTest
     {
         assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "trial"));
         assertEquals(Set.of("returnVersionToDraft"), answering(VERSION, "returnToDraft", "trial"));
-        assertEquals(Set.of("draftVersion"), answering(VERSION, "draft", "trial"));
         // Frozen like anything past drafting
         assertEquals(Set.of(), answering(VERSION, "save", "trial"));
         assertEquals(Set.of(), answering(VERSION, "startTrial", "trial"));
@@ -148,29 +145,26 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
-    void anActiveVersionIsRetiredOrCarriedForward()
+    void anActiveVersionIsRetired()
     {
         assertEquals(Set.of("retireVersion"), answering(VERSION, "retire", "active"));
-        assertEquals(Set.of("draftVersion"), answering(VERSION, "draft", "active"));
         assertEquals(Set.of(), answering(VERSION, "activate", "active"));
         assertEquals(Set.of(), answering(VERSION, "save", "active"));
         assertEquals(Set.of(), answering(VERSION, "returnToDraft", "active"));
     }
 
     @Test
-    void aRetiredVersionIsReactivatedOrCarriedForward()
+    void aRetiredVersionIsReactivated()
     {
         assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "retired"));
-        assertEquals(Set.of("draftVersion"), answering(VERSION, "draft", "retired"));
         assertEquals(Set.of(), answering(VERSION, "retire", "retired"));
         assertEquals(Set.of(), answering(VERSION, "save", "retired"));
     }
 
     @Test
-    void aVersionInNoLifecycleCanOnlyBeCopied()
+    void aVersionInNoLifecycleIsNeitherEditedNorRun()
     {
-        // Copying it is the only way left to carry its diagram forward
-        assertEquals(Set.of("draftVersion"), answering(VERSION, "draft"));
+        // Copying it into a new draft of its workflow is the only way left to carry it forward
         assertEquals(Set.of(), answering(VERSION, "activate"));
         assertEquals(Set.of(), answering(VERSION, "save"));
     }

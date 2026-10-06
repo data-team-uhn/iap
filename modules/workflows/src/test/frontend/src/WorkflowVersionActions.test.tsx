@@ -51,9 +51,9 @@ type Lifecycle = "draft" | "trial" | "active" | "retired";
 // events
 const OFFERED: Record<Lifecycle, string[]> = {
   draft: [ "activate", "startTrial", "save" ],
-  trial: [ "activate", "returnToDraft", "draft" ],
-  active: [ "retire", "draft" ],
-  retired: [ "activate", "draft" ],
+  trial: [ "activate", "returnToDraft" ],
+  active: [ "retire" ],
+  retired: [ "activate" ],
 };
 
 const version = (label: string, lifecycle: Lifecycle | null): WorkflowVersionSummary => ({
@@ -63,8 +63,7 @@ const version = (label: string, lifecycle: Lifecycle | null): WorkflowVersionSum
   description: "",
   tags: lifecycle === null ? [] : [ lifecycle ],
   lastModified: "",
-  // A version in no lifecycle can still be drafted from
-  events: lifecycle === null ? [ "draft" ] : OFFERED[lifecycle],
+  events: lifecycle === null ? [] : OFFERED[lifecycle],
 });
 
 const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
@@ -147,13 +146,12 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-// Each action, how it is found, and the event that decides whether it is offered
+// Each action decided by an event on the version, how it is found, and that event
 const ACTIONS: [ string, "button" | "link", (props: WorkflowVersionActionProps) => ReactNode, string ][] = [
   [ "Activate", "button", WorkflowVersionActivateAction, "activate" ],
   [ "Start trial", "button", WorkflowVersionTrialAction, "startTrial" ],
   [ "Return to draft", "button", WorkflowVersionRedraftAction, "returnToDraft" ],
   [ "Retire", "button", WorkflowVersionRetireAction, "retire" ],
-  [ "New draft from this", "button", WorkflowVersionDraftAction, "draft" ],
   [ "Edit", "link", WorkflowVersionEditAction, "save" ],
 ];
 
@@ -514,7 +512,7 @@ describe("the draft-from action", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create draft" }));
 
     await waitFor(() => expect(props.reload).toHaveBeenCalled());
-    expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.draft.json",
+    expect(fetchMock).toHaveBeenCalledWith("/Workflows/review.createVersion.json",
       expect.objectContaining({ method: "POST" }));
     // Straight into the editor: a draft that was just copied exists to be changed
     expect(await screen.findByText("went to /admin/workflows/Workflows/review/2-0.edit")).toBeInTheDocument();
@@ -550,32 +548,24 @@ describe("the draft-from action", () => {
     expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toEqual([]);
   });
 
-  it("is not offered for a draft, which can simply be edited", () => {
-    const draft = version("1.0", "draft");
+  it("is offered on every version wherever the workflow takes a new one", () => {
+    // Whatever the version is: one in no lifecycle has no other way forward, since every other action
+    // refuses it, and a trial or a draft is branched from rather than changed where it stands
+    for (const lifecycle of [ "draft", "trial", "active", "retired", null ] as (Lifecycle | null)[]) {
+      const target = version("1.0", lifecycle);
+      const { unmount } = renderAction(WorkflowVersionDraftAction, propsFor(target, workflow(target)));
 
-    renderAction(WorkflowVersionDraftAction, propsFor(draft, workflow(draft)));
+      expect(screen.getByRole("button", { name: "New draft from this" })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("is not offered where the workflow takes no new version", () => {
+    const active = version("1.0", "active");
+
+    renderAction(WorkflowVersionDraftAction, propsFor(active, { ...workflow(active), events: [ "save" ] }));
 
     expect(screen.queryByRole("button", { name: "New draft from this" })).not.toBeInTheDocument();
-  });
-
-  it("is offered for a version in no lifecycle, the only way left to carry its diagram forward", () => {
-    // Every other action refuses such a version. Copying it does not: the copy is authored as a draft
-    // whatever the original claimed to be, which is what makes this the way out
-    const unknown = version("1.0", null);
-
-    renderAction(WorkflowVersionDraftAction, propsFor(unknown, workflow(unknown)));
-
-    expect(screen.getByRole("button", { name: "New draft from this" })).toBeInTheDocument();
-  });
-
-  it("is offered for a trial, which cannot be edited where it stands", () => {
-    // Returning the trial to a draft changes the version being tried; branching leaves the trial
-    // running and carries its diagram forward, which is a different thing to want
-    const trial = version("1.0", "trial");
-
-    renderAction(WorkflowVersionDraftAction, propsFor(trial, workflow(trial)));
-
-    expect(screen.getByRole("button", { name: "New draft from this" })).toBeInTheDocument();
   });
 
   it("names a source version without a label by its node name", async () => {

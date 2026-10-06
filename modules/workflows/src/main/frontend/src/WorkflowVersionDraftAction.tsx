@@ -34,7 +34,9 @@ import { draftFromVersion } from "./workflowWrites";
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
 // Copies a version into a new draft: the copy is authored while the original keeps running, and takes
-// over only once activated.
+// over only once activated. Copying is a new version of the workflow, so it is offered wherever the
+// workflow takes one, whatever the version being copied is: a version in no lifecycle has no other way
+// forward, and a trial or a draft is branched from rather than changed.
 function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   const [ naming, setNaming ] = useState(false);
   const [ label, setLabel ] = useState("");
@@ -45,7 +47,7 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
     onSuccess: () => setNaming(false),
   });
 
-  if (!offers(version, "draft")) {
+  if (!offers(workflow, "createVersion")) {
     return null;
   }
 
@@ -79,8 +81,8 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
           <DialogContent dividers>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <DialogContentText>
-                The new version starts as a draft holding a copy of version {source}&apos;s diagram. Version {source}
-                {" "}is left as it is, and keeps running until the draft is activated in its place.
+                The new version starts as a draft holding a copy of version {source}. Version {source} is left as
+                it is, and keeps running until the draft is activated in its place.
               </DialogContentText>
               <TextField
                 label="Version"

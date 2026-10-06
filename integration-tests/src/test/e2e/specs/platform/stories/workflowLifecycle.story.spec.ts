@@ -91,7 +91,8 @@ test.describe('stories: a workflow from its first draft to its retirement', () =
     await signInAs(page, ADMIN);
     const workflows = new WorkflowConsolePage(page);
     await workflows.openWorkflow(workflowOf(first));
-    await expect.poll(() => workflows.offered('1.0')).toEqual([ 'Activate', 'Edit', 'Start trial' ]);
+    await expect.poll(() => workflows.offered('1.0'))
+      .toEqual([ 'Activate', 'Edit', 'New draft from this', 'Start trial' ]);
 
     await workflows.move('1.0', 'Start trial', 'Put version 1.0 on trial?', 'Trial');
 

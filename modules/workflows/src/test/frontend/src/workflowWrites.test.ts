@@ -182,14 +182,14 @@ describe("saveDiagram", () => {
 });
 
 describe("draftFromVersion", () => {
-  it("asks for a draft under the given label and reports where it landed", async () => {
+  it("asks the workflow for a version copying the given one, and reports where it landed", async () => {
     const fetchUtil = acceptingFetch(() => "/Workflows/review/3-0");
 
     const created = await draftFromVersion(fetchUtil, "/Workflows/review/2-0", "3.0");
 
-    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review/2-0.draft.json",
+    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.createVersion.json",
       expect.objectContaining({ method: "POST" }));
-    expect(paramsOf(fetchUtil, 0)).toEqual({ version: "3.0" });
+    expect(paramsOf(fetchUtil, 0)).toEqual({ version: "3.0", source: "/Workflows/review/2-0" });
     expect(created).toBe("/Workflows/review/3-0");
   });
 

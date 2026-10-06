@@ -135,6 +135,20 @@ class SaveDiagramHandlerTest
     }
 
     @Test
+    void refusesATargetThatIsNotAVersion()
+    {
+        // A definition that sends the save of anything but a version here is the mistake, not the request
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
+        final WorkflowTaskContextImpl request = AuthoringFixture.context(
+            AuthoringFixture.unreadable(this.context, AuthoringFixture.path("2-0")), "save",
+            Map.of(VersionEdits.BPMN_FILE, AuthoringFixture.upload(REPLACEMENT, null)), this.activity, new HashMap<>());
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(request));
+        assertTrue(refusal.getMessage().contains("acts on workflow versions"));
+    }
+
+    @Test
     void requiresADiagramToStore()
     {
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());

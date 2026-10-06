@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowDefinition",
-    "description": "What happens when another version of an existing workflow is asked for: a draft is created beside the versions already there, carrying whatever diagram the request brought to start from. A draft rather than anything else, because a version that instances could be created from should be one somebody has decided to activate. Being itself a workflow, a deployment that wants a new version to be announced, or to be refused while another draft is open, edits this definition rather than the platform.",
+    "description": "What happens when another version of an existing workflow is asked for: a draft is created beside the versions already there, either carrying whatever diagram the request brought to start from, or as a copy of the version named by the event's source - its diagram, its graph and everything else it holds, but the new version's own label. A draft rather than anything else, because a version that instances could be created from should be one somebody has decided to activate, and marking the copy a draft replaces where its source stood. Being itself a workflow, a deployment that wants a new version to be announced, or to be refused while another draft is open, edits this definition rather than the platform.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -25,6 +25,20 @@
       "elementId": "create",
       "label": "Create the version",
       "handler": "createWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toCopy": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCopy",
+        "targetRef": "copy"
+      }
+    },
+    "copy": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "copy",
+      "label": "Copy the source version, if one is named",
+      "handler": "copyContent",
+      "sourceType": "wf/WorkflowVersion",
+      "skipProperties": ["version"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMarkDraft": {
         "jcr:primaryType": "wf:SequenceFlow",

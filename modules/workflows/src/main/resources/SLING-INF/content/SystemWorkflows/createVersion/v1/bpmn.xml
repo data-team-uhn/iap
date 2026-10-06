@@ -33,9 +33,14 @@
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
     <bpmn:serviceTask id="create" iap:handler="createWorkflowVersion" name="Create the version">
       <bpmn:incoming>toCreate</bpmn:incoming>
+      <bpmn:outgoing>toCopy</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toCopy" sourceRef="create" targetRef="copy" />
+    <bpmn:serviceTask id="copy" iap:handler="copyContent" iap:skipProperties="version" iap:sourceType="wf/WorkflowVersion" name="Copy the source version, if one is named">
+      <bpmn:incoming>toCopy</bpmn:incoming>
       <bpmn:outgoing>toMarkDraft</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toMarkDraft" sourceRef="create" targetRef="markDraft" />
+    <bpmn:sequenceFlow id="toMarkDraft" sourceRef="copy" targetRef="markDraft" />
     <bpmn:serviceTask id="markDraft" iap:handler="addTag" iap:replaceExisting="true" iap:tag="draft" name="Mark it as a draft">
       <bpmn:incoming>toMarkDraft</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
@@ -56,26 +61,33 @@
       <bpmndi:BPMNShape id="createShape" bpmnElement="create">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="markDraftShape" bpmnElement="markDraft">
+      <bpmndi:BPMNShape id="copyShape" bpmnElement="copy">
         <dc:Bounds x="410" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markDraftShape" bpmnElement="markDraft">
+        <dc:Bounds x="570" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="730" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="553" y="223" width="70" height="14" />
+          <dc:Bounds x="713" y="223" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toCreateEdge" bpmnElement="toCreate">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toMarkDraftEdge" bpmnElement="toMarkDraft">
+      <bpmndi:BPMNEdge id="toCopyEdge" bpmnElement="toCopy">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toMarkDraftEdge" bpmnElement="toMarkDraft">
         <di:waypoint x="510" y="198" />
         <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="670" y="198" />
+        <di:waypoint x="730" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

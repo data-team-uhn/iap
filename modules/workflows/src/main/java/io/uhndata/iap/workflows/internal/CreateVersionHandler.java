@@ -44,9 +44,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * the node a file part's path implies before applying {@code jcr:primaryType}, which would leave a
  * {@code sling:Folder} behind.</p>
  *
- * <p>The draft is marked {@link WorkflowVersion#isBpmnAuthoritative() bpmnAuthoritative}: a version authored this
- * way starts from whatever diagram arrived and has no hand-written flow nodes for a reparse to throw away, so the
- * diagram is the only thing its graph could come from.</p>
+ * <p>A version opened empty is marked {@link WorkflowVersion#isBpmnAuthoritative() bpmnAuthoritative}: it starts
+ * from whatever diagram arrived and has no hand-written flow nodes for a reparse to throw away, so the diagram is the
+ * only thing its graph could come from. One the event names a {@code source} for is left for the copy that follows
+ * to say, as it says everything else: a hand-written graph copied under a flag set here would be replaced, in the
+ * very commit that copies it, by whatever its diagram parses to.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,7 +76,9 @@ public class CreateVersionHandler implements ServiceTaskHandler
         final Map<String, Object> properties = new HashMap<>();
         properties.put(VersionEdits.PRIMARY_TYPE, VersionEdits.WORKFLOW_VERSION_TYPE);
         properties.put(VersionEdits.VERSION, label);
-        properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
+        if (context.getEvent().get(CopyContentHandler.SOURCE_PARAMETER) == null) {
+            properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
+        }
         final String description = Payloads.text(context.getEvent(), VersionEdits.DESCRIPTION);
         if (description != null) {
             properties.put(VersionEdits.DESCRIPTION, description);

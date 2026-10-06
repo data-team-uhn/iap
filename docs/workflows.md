@@ -66,7 +66,7 @@ A version carrying no lifecycle tag is in none of them: content edited by hand, 
 a tag this one does not. Reading it *as* a draft would make the version whose lifecycle is least certain the
 one freely editable, so no guard takes it for one: it cannot be edited, promoted or instantiated, and the
 console shows no lifecycle for it. Of the moves, only **New draft from this** is still offered, which copies
-its diagram onto a genuine draft; **View** is offered whatever the lifecycle, as it always is.
+it into a genuine draft; **View** is offered whatever the lifecycle, as it always is.
 
 A version's node is named by its position, `v1`, `v2` and so on, skipping any name already taken; what
 readers see is its `version` label, which the author chooses. A label defaults to the whole number after the
@@ -100,8 +100,8 @@ version with no diagram yet still answers that path with a plain 404 — nothing
 
 Writing it is an event rather than a repository write: a diagram is a multipart part named `bpmn.xml` on a
 `save` or `createVersion` event, and the handler behind that event decides where it lands — so a version
-and the diagram it starts from arrive in one request, in one commit. A `draft` event carries no diagram at
-all: it copies the one the version it is drafted from holds. See
+and the diagram it starts from arrive in one request, in one commit. A `createVersion` event naming a
+`source` carries no diagram at all: the new version is a copy of the source, diagram included. See
 [Managing workflows](#managing-workflows) for the events themselves. Its on-parent-version is `COPY`, so
 checking a version in captures the diagram with it. `WorkflowVersion.getBpmnFile()` hands back the file
 rather than its contents, leaving the caller to decide how to read a document of unknown size.
@@ -489,7 +489,8 @@ is carried forward by drafting a copy, which is offered next to it.
 
 The per-version buttons are contributed on the **`WorkflowVersionActions`** extension point rather than
 written into the manager page. Six ship with the module — edit, start-trial, activate, return-to-draft,
-retire, and draft-a-copy — each offered exactly where the server offers its event on the version; another
+retire, and draft-a-copy — each offered exactly where the server offers its event: on the version, or for
+a copy, `createVersion` on the workflow it is a version of; another
 needs an `ext:Extension` and an asset, and no change to any existing file. The point is addressed by two names, as every extension point is: the page asks for the
 node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
 `ext:pointId` that node carries, `wf/workflowVersion/actions`.
@@ -510,7 +511,11 @@ Nothing in this UI writes a node.
 | `POST <version>.startTrial.json` | `startTrial` | `startVersionTrial` |
 | `POST <version>.returnToDraft.json` | `returnToDraft` | `returnVersionToDraft` |
 | `POST <version>.retire.json` | `retire` | `retireVersion` |
-| `POST <version>.draft.json` | `draft` | `draftVersion` |
+
+Drafting a copy of a version is `createVersion` on its workflow, with the version's path as `source`:
+`createVersion` creates the version, has `copyContent` copy the source into it, keeping the new version's
+own label, and tags it a draft in place of wherever the source stood — the steps `createSchemaVersion` takes
+for a schema.
 
 A POST with no selector means the target's *default* event, which follows from what it is: `create` at an
 entity homepage, `save` at an entity, `complete` at a user task. Everything else names its event outright.
@@ -568,31 +573,24 @@ Three of them are more than one write, which is the reason the run commits once:
   part's path implies before it applies `jcr:primaryType`, so a combined write leaves a `sling:Folder`
   behind and the diagram has to follow in a second request.
 
-Drafting a copy leaves `bpmnXmlParsedHash` off deliberately, so a draft never claims a parse that has not
-happened for it; that missing hash is also what has the commit editor look at the copied diagram in the
-first place.
+`bpmnAuthoritative` says whether a version's diagram owns its flow nodes. `BpmnXmlSyncEditor` reparses the
+diagram of a version that says so whenever its bytes change, replacing the graph; a version that does not
+keeps its graph as it was authored, whatever diagram arrives, because the translation from BPMN cannot yet
+carry everything such a graph holds. A version opened empty is marked authoritative on creation: it starts
+from the diagram the request brought and has no hand-written graph for a reparse to throw away, so its
+diagram is the only thing its flow nodes could come from.
 
-`bpmnAuthoritative` is written but not yet read back anywhere: `WorkflowVersion.isBpmnAuthoritative()` has
-no caller outside its own model class. Drafting a copy inherits whatever value its source held, because it
-is meant to describe how a version was authored rather than a state it moves through, but today every
-version's flow-node tree is derived the same way regardless of the flag — the editor reparses the whole
-tree from whichever diagram arrives with a `save`, `createVersion` or `draft` event, in the same commit.
-The flag exists for a version whose flow nodes were authored some other way, because the translation from
-BPMN cannot yet carry everything they hold, and that graph must not be overwritten by a reparse — a case
-this branch never creates, since every version today is authored through the diagram editor. See
-[Known gaps](#known-gaps).
+A copy takes the flag from its source with everything else, and `bpmnXmlParsedHash` with it, which records
+the bytes the graph was last parsed from. The copied diagram, graph and hash agree, so the commit editor
+leaves the copied graph as it is rather than parsing the same bytes into the same graph again; and a
+hand-written graph stays hand-written, where a flag set on creation would have had it replaced, in the very
+commit that copies it, by whatever its diagram parses to.
 
 Saving a workflow's own properties goes through `saveProperties`, which writes only what the activity's
 `editable` list names and refuses what its `required` list says must arrive with a value. That listing is
 the whole of the safety: without it the handler would be an open write to whatever a caller cared to name,
 `jcr:primaryType` included, which is exactly the direct-CRUD door these workflows replace. It also means a
 deployment that wants the description editable adds a word to a definition rather than shipping code.
-
-A version created through the UI is marked `bpmnAuthoritative` on creation, for that eventual reader. It
-starts from the shipped starting diagram and has no hand-written graph for a reparse to throw away, so its
-diagram is the only thing its flow nodes could come from regardless — parsing itself does not depend on
-the flag; a diagram arriving with a version is parsed into flow nodes whether or not that version is
-marked authoritative.
 
 Listing covers every homepage, one at a time. `GET /Workflows.homepages.json` answers with every entity
 homepage holding `wf:WorkflowDefinition` entities **that the caller can read** — a homepage they may not
@@ -790,10 +788,10 @@ ships with its version tagged `active`, and editable rather than being hardwired
 **Everything else that authors a workflow works the same way**, which is what makes that
 claim more than a demonstration: `createSystemWorkflow`, `createVersion`,
 `saveWorkflow`, `saveWorkflowDiagram`, `activateVersion`, `startVersionTrial`,
-`returnVersionToDraft`, `retireVersion` and `draftVersion` all ship beside it, over five
-handlers of their own — `createWorkflowVersion`, `saveProperties`,
-`saveWorkflowDiagram`, `retireActiveVersions` and `draftWorkflowVersion` — plus
-`createEntity`, shared with the bootstrap, and `addTag` for every move in the lifecycle. The workflow
+`returnVersionToDraft` and `retireVersion` all ship beside it, over four handlers of
+their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram` and
+`retireActiveVersions` — plus `createEntity`, shared with the bootstrap, `copyContent`
+for a version drafted from another, and `addTag` for every move in the lifecycle. The workflow
 module manages its own content the way it asks every other module to manage theirs, and
 the management UI holds no privileged path of its own. See [Managing
 workflows](#managing-workflows) for the request each one answers.

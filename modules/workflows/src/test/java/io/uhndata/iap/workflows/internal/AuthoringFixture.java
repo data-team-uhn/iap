@@ -273,40 +273,6 @@ final class AuthoringFixture
     }
 
     /**
-     * A version whose diagram fails partway through reading, standing in for a binary the repository cannot
-     * deliver.
-     *
-     * @param context the Sling context the version lives in
-     * @param versionPath the path of the version to wrap
-     * @return a resource whose {@code bpmn.xml} child breaks when read
-     */
-    static Resource withUnreadableDiagram(final SlingContext context, final String versionPath)
-    {
-        final Resource resource = context.resourceResolver().getResource(versionPath);
-        assertNotNull(resource);
-        final Resource file = resource.getChild("bpmn.xml");
-        assertNotNull(file);
-        final Resource brokenFile = Mockito.spy(file);
-        Mockito.doReturn(new InputStream()
-        {
-            @Override
-            public int read()
-            {
-                return -1;
-            }
-
-            @Override
-            public void close() throws IOException
-            {
-                throw new IOException("The stream broke");
-            }
-        }).when(brokenFile).adaptTo(InputStream.class);
-        final Resource spy = Mockito.spy(resource);
-        Mockito.doReturn(brokenFile).when(spy).getChild("bpmn.xml");
-        return spy;
-    }
-
-    /**
      * Reads a diagram file the way a caller of {@link WorkflowVersion#getBpmnFile} would.
      *
      * @param file the file resource to read

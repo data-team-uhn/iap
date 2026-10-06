@@ -21,8 +21,8 @@
 //
 // Nobody holds repository rights on workflow content, so what a user may do here is exactly what
 // those definitions say. A multi-step change — a promotion that retires the version it supersedes, a
-// draft that arrives with its diagram — happens as one atomic run rather than two requests that could
-// half-complete.
+// draft that arrives with its diagram or as a copy of another version — happens as one atomic run rather
+// than two requests that could half-complete.
 //
 // A selector names the event, e.g. `.create.json`, `.activate.json`.
 
@@ -108,10 +108,12 @@ export async function saveDiagram(fetchUtil: AuthenticatedFetch, versionPath: st
   await sendEvent(fetchUtil, versionPath, "save", bpmnUpload(xml));
 }
 
-// Opens a new draft from an existing version, copying its diagram.
+// Opens a new draft as a copy of an existing version: a new version of the workflow it belongs to,
+// naming it as the source, which the server copies whole, diagram and graph and all, under the new label.
 //
 // @return the path of the created draft version
 export async function draftFromVersion(fetchUtil: AuthenticatedFetch, versionPath: string, version: string):
 Promise<string> {
-  return created(sendEvent(fetchUtil, versionPath, "draft", { version }));
+  const workflowPath = versionPath.slice(0, versionPath.lastIndexOf("/"));
+  return created(sendEvent(fetchUtil, workflowPath, "createVersion", { version, source: versionPath }));
 }

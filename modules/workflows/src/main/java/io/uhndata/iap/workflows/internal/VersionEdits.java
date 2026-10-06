@@ -27,7 +27,6 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceUtil;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -39,7 +38,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * What the handlers that author workflow versions have in common: finding the definition a version belongs to,
- * naming a new one, and moving a diagram from one place to another. Gathered here rather than repeated, because
+ * naming a new one, and storing a diagram on one. Gathered here rather than repeated, because
  * these are the operations where two handlers disagreeing would show up as a version that is nearly right.
  *
  * @version $Id$
@@ -263,37 +262,6 @@ final class VersionEdits
                 "A stored diagram the engine is replacing should always be modifiable");
             properties.put(JCR_DATA, data);
             properties.put(JCR_MIME_TYPE, mimeType);
-        } catch (final IOException e) {
-            throw new PersistenceException("The diagram could not be read: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Copies a version's BPMN source onto a new version, as the {@code nt:file}/{@code nt:resource} pair a diagram
-     * is stored as. The bytes are copied rather than shared: two versions pointing at one binary would mean
-     * editing either changes both.
-     *
-     * @param sourceFile the source's {@code bpmn.xml} file, or {@code null} if it has none yet, in which case the
-     *            draft starts without one too
-     * @param draft the version to copy it onto
-     * @param resolver the resolver to create through
-     * @throws PersistenceException if the copy cannot be created, or the source cannot be read
-     */
-    static void copyDiagram(final Resource sourceFile, final Resource draft, final ResourceResolver resolver)
-        throws PersistenceException
-    {
-        if (sourceFile == null) {
-            return;
-        }
-        // Adapting the nt:file directly to a stream is the documented way to reach its contents, and what every
-        // other diagram reader here does.
-        try (InputStream data = sourceFile.adaptTo(InputStream.class)) {
-            if (data != null) {
-                // ResourceUtil.getValueMap tolerates a missing jcr:content, answering with an empty map rather
-                // than throwing.
-                createFile(draft, data, ResourceUtil.getValueMap(sourceFile.getChild(JCR_CONTENT))
-                    .get(JCR_MIME_TYPE, DEFAULT_MIME_TYPE), resolver);
-            }
         } catch (final IOException e) {
             throw new PersistenceException("The diagram could not be read: " + e.getMessage(), e);
         }
