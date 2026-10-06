@@ -99,6 +99,17 @@ public class Review extends EntityPart implements Referenceable
     }
 
     /**
+     * The reviewer's assessments of the risks listed by the approval requirement, in the order they were added.
+     *
+     * @return a list of risk assessments, empty if none
+     */
+    @NotNull
+    public List<RiskAssessment> getRiskAssessments()
+    {
+        return this.getChildren(RiskAssessment.RESOURCE_TYPE, RiskAssessment.class);
+    }
+
+    /**
      * Whether this review has been approved, i.e. it carries the {@code approved} tag. The tag has to be placed on
      * the review itself to count, rather than reaching it from the submission it belongs to.
      *

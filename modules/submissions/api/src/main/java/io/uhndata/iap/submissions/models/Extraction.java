@@ -31,9 +31,9 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:Extraction} node: one run of answer extraction against one
- * {@link Answer} — what a model read out of the submitted documents, and which document revisions it read to get
- * there. The run's existence is the record that extraction happened, so a run that found nothing is one with no
- * {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
+ * {@link Answer} or {@link RiskAssessment} — what a model read out of the submitted documents, and which document
+ * revisions it read to get there. The run's existence is the record that extraction happened, so a run that found
+ * nothing is one with no {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
  *
  * @version $Id$
  * @since 0.1.0

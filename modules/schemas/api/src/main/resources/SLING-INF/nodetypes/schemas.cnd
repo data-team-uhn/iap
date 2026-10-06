@@ -318,12 +318,9 @@
   // The risks the approvers want assessed
   + * (sch:Risk) = sch:Risk
 
-  // The assessments of those risks
-  + * (sch:RiskAssessment) = sch:RiskAssessment
-
 //-----------------------------------------------------------------------------
 // A risk the approvers want assessed before they grant an approval.
-// Referenceable so that sch:RiskAssessment nodes can point back to it.
+// Referenceable so that sub:RiskAssessment nodes can point back to it.
 [sch:Risk] > data:EntityPart, mix:referenceable
   - sling:resourceType (STRING) = "sch/Risk" mandatory autocreated protected
 
@@ -338,7 +335,7 @@
   - purpose (STRING)
 
   // The prompt an LLM is given to assess this risk from the submitted documents
-  - extractionPrompt (STRING)
+  - assessmentPrompt (STRING)
 
   // The sch:Question nodes whose answers bear on this risk. Weak, so a
   // question can be removed without first unlinking it from every risk.
@@ -349,31 +346,4 @@
   - * (UNDEFINED) multiple
 
   // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// The assessment of a single sch:Risk, the way a sub:Answer answers a
-// sch:Question. The submitter fills it in before submission, and reviewers
-// see it.
-[sch:RiskAssessment] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The extraction runs are orderable, so they are presented in the order they
-  // ran, the newest last.
-  orderable
-
-  - sling:resourceType (STRING) = "sch/RiskAssessment" mandatory autocreated protected
-
-  // The sch:Risk this assesses
-  - risk (REFERENCE) mandatory
-
-  // The submitter's assessment: only what they typed or approved
-  - value (STRING)
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // What extraction made of this risk, one sub:Extraction child per run,
-  // populated by AI. Not typed here: Oak refuses a child type it does not
-  // know yet, and sub:Extraction is defined by the submissions bundle, which
-  // the schemas tests do not have.
   + * (nt:base) = nt:unstructured
