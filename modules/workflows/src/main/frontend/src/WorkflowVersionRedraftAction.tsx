@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import UndoIcon from "@mui/icons-material/Undo";
+import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -34,7 +34,7 @@ function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVer
     <EventAction
       path={version.path}
       reload={reload}
-      icon={<UndoIcon fontSize="small" />}
+      icon={<UndoOutlinedIcon fontSize="small" />}
       label="Return to draft"
       event="returnToDraft"
       title={`Return version ${label} to draft?`}

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import ScienceIcon from "@mui/icons-material/Science";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -34,7 +34,7 @@ function WorkflowVersionTrialAction({ version, workflow, reload }: WorkflowVersi
     <EventAction
       path={version.path}
       reload={reload}
-      icon={<ScienceIcon fontSize="small" />}
+      icon={<ScienceOutlinedIcon fontSize="small" />}
       label="Start trial"
       event="startTrial"
       title={`Put version ${label} on trial?`}

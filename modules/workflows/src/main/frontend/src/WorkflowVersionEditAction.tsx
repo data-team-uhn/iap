@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import EditIcon from "@mui/icons-material/Edit";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -30,7 +30,7 @@ function WorkflowVersionEditAction({ version }: WorkflowVersionActionProps) {
   if (!offers(version, "save")) {
     return null;
   }
-  return <ActionIcon label="Edit" icon={<EditIcon fontSize="small" />} to={adminUrl(version.path, "edit")} />;
+  return <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} to={adminUrl(version.path, "edit")} />;
 }
 
 export default WorkflowVersionEditAction;

@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import { Alert, Button, DialogActions, DialogContent, DialogContentText, Stack, TextField } from "@mui/material";
 import { useNavigate } from "react-router";
 
@@ -67,7 +67,7 @@ function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersi
 
   return (
     <>
-      <ActionIcon label="New draft from this" icon={<ContentCopyIcon fontSize="small" />} onClick={() => {
+      <ActionIcon label="New draft from this" icon={<ContentCopyOutlinedIcon fontSize="small" />} onClick={() => {
         setLabel(nextVersionLabel(workflow.versions.map(existing => existing.name)));
         setNaming(true);
       }} />

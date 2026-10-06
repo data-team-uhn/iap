@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import EditIcon from "@mui/icons-material/Edit";
+import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -35,7 +35,7 @@ function WorkflowPropertiesAction({ workflow, reload }: WorkflowActionProps) {
   }
   return (
     <>
-      <ActionIcon label="Edit properties" icon={<EditIcon fontSize="small" />} onClick={() => setEditing(true)} />
+      <ActionIcon label="Edit properties" icon={<DriveFileRenameOutlineIcon fontSize="small" />} onClick={() => setEditing(true)} />
       { editing && (
         <WorkflowPropertiesDialog workflow={workflow} onClose={() => setEditing(false)} onSaved={reload} />
       ) }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import PublishIcon from "@mui/icons-material/Publish";
+import PublishOutlinedIcon from "@mui/icons-material/PublishOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -39,7 +39,7 @@ function WorkflowVersionActivateAction({ version, workflow, reload }: WorkflowVe
     <EventAction
       path={version.path}
       reload={reload}
-      icon={<PublishIcon fontSize="small" />}
+      icon={<PublishOutlinedIcon fontSize="small" />}
       label="Activate"
       event="activate"
       title={`Activate version ${label}?`}

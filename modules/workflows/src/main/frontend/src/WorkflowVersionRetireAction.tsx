@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import UnpublishedIcon from "@mui/icons-material/Unpublished";
+import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
@@ -34,9 +34,10 @@ function WorkflowVersionRetireAction({ version, workflow, reload }: WorkflowVers
     <EventAction
       path={version.path}
       reload={reload}
-      icon={<UnpublishedIcon fontSize="small" />}
+      icon={<ArchiveOutlinedIcon fontSize="small" />}
       label="Retire"
       event="retire"
+      color="warning"
       title={`Retire version ${label}?`}
       explanation={`No new instances of ${workflow.title} can be started until a version is activated again. The`
         + ` instances already running against version ${label} carry on.`}
