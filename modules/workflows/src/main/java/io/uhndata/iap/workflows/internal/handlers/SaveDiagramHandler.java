@@ -42,12 +42,12 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class SaveDiagramHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "saveWorkflowDiagram";
+    public static final String HANDLER_NAME = "saveWorkflowDiagram";
 
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override

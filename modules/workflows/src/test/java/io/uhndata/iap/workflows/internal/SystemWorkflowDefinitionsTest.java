@@ -81,9 +81,8 @@ class SystemWorkflowDefinitionsTest
         Set.of("wf/WorkflowsHomepage", "wf/SystemWorkflowsHomepage", DEFINITION, VERSION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", "callActivity",
-        CopyContentHandler.HANDLER_NAME,
-        CreateVersionHandler.NAME, SavePropertiesHandler.NAME, SaveDiagramHandler.NAME,
-        RetireActiveVersionsHandler.NAME);
+        CopyContentHandler.HANDLER_NAME, CreateVersionHandler.HANDLER_NAME, SavePropertiesHandler.HANDLER_NAME,
+        SaveDiagramHandler.HANDLER_NAME, RetireActiveVersionsHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
 

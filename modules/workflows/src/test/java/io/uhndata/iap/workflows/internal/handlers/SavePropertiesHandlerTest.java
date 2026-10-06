@@ -70,7 +70,7 @@ class SavePropertiesHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(SavePropertiesHandler.NAME, this.handler.getName());
+        assertEquals(SavePropertiesHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test
@@ -161,7 +161,7 @@ class SavePropertiesHandlerTest
         final Object required)
     {
         final Map<String, Object> configuration = new HashMap<>();
-        configuration.put("handler", SavePropertiesHandler.NAME);
+        configuration.put("handler", SavePropertiesHandler.HANDLER_NAME);
         if (editable != null) {
             configuration.put("editable", editable);
         }

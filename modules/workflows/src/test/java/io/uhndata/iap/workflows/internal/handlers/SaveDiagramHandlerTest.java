@@ -69,13 +69,13 @@ class SaveDiagramHandlerTest
     {
         AuthoringFixture.setUp(this.context);
         this.activity = AuthoringFixture.activity(this.context, "save",
-            Map.of("handler", SaveDiagramHandler.NAME));
+            Map.of("handler", SaveDiagramHandler.HANDLER_NAME));
     }
 
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(SaveDiagramHandler.NAME, this.handler.getName());
+        assertEquals(SaveDiagramHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test

@@ -67,13 +67,13 @@ class CreateVersionHandlerTest
     {
         AuthoringFixture.setUp(this.context);
         this.activity = AuthoringFixture.activity(this.context, "create",
-            Map.of("handler", CreateVersionHandler.NAME));
+            Map.of("handler", CreateVersionHandler.HANDLER_NAME));
     }
 
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(CreateVersionHandler.NAME, this.handler.getName());
+        assertEquals(CreateVersionHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test

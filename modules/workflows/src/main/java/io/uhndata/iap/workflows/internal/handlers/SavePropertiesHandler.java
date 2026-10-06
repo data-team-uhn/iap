@@ -56,7 +56,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class SavePropertiesHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "saveProperties";
+    public static final String HANDLER_NAME = "saveProperties";
 
     /** The activity property listing which payload entries may be written. */
     private static final String EDITABLE = "editable";
@@ -67,7 +67,7 @@ public class SavePropertiesHandler implements ServiceTaskHandler
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override

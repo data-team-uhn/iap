@@ -64,13 +64,13 @@ class RetireActiveVersionsHandlerTest
         AuthoringFixture.setUp(this.context);
         TaggingFixture.enable(this.context);
         this.activity = AuthoringFixture.activity(this.context, "retire",
-            Map.of("handler", RetireActiveVersionsHandler.NAME));
+            Map.of("handler", RetireActiveVersionsHandler.HANDLER_NAME));
     }
 
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(RetireActiveVersionsHandler.NAME, this.handler.getName());
+        assertEquals(RetireActiveVersionsHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test

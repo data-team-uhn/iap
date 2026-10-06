@@ -53,7 +53,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class RetireActiveVersionsHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "retireActiveVersions";
+    public static final String HANDLER_NAME = "retireActiveVersions";
 
     /** The variable the retired versions' paths are left in. */
     public static final String RETIRED_VERSIONS = "retiredVersions";
@@ -64,7 +64,7 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override
