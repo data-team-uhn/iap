@@ -59,12 +59,13 @@ test.describe('stories: a workflow from its first draft to its retirement', () =
     }
   });
 
-  test('Miriam creates a workflow, and its first version opens as a draft', async ({ page, request }) => {
+  test('Miriam creates a workflow, and its first version is a draft to edit', async ({ page, request }) => {
     await signInAs(page, ADMIN);
     const workflows = new WorkflowConsolePage(page);
     await workflows.openFromConsole();
 
-    first = await workflows.create(TITLE, 'Who approves time off');
+    await workflows.create(TITLE, 'Who approves time off');
+    first = await workflows.edit('1.0');
 
     await expect(workflows.editorHeading(TITLE, '1.0')).toBeVisible();
     await expect(page.getByText('Draft', { exact: true })).toBeVisible();

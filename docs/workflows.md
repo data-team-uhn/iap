@@ -566,10 +566,12 @@ Three of them are more than one write, which is the reason the run commits once:
   second request would leave a window in which two versions of one workflow both claim to be current, and
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
-- **Creating a workflow** is `createEntity`, `createWorkflowVersion` and `addTag draft`, each acting on what
-  the one before it created, so a workflow and its first draft arrive together and a failure part-way leaves
-  neither. The
-  request carries the title, the first version's label and description, and its starting diagram.
+- **Creating a workflow** is `createEntity`, then a `callActivity` sending `createVersion` to what it
+  created, as `createSchema` does for a schema: a first version is made exactly the way every later one is,
+  and since the called workflow runs in the same commit, a workflow and its first draft arrive together and a
+  failure part-way leaves neither. The request carries the title, the first version's label and description,
+  and its starting diagram, and the call hands all of it on. What the request is answered with is the
+  workflow, which is what it created; its first version is listed there, ready to be edited.
 - **Opening or drafting a version** stores its diagram in the same run — carried as a `bpmn.xml` payload
   part when a version is opened, copied from the source when one is drafted — so the version node and its
   diagram arrive together or neither does. Posting directly cannot do that: Sling creates the node a file
@@ -778,8 +780,8 @@ variable — which is what the servlet turns into a redirect.
 
 `/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message
 start event, a `createEntity` service task configured with `entityType =
-wf:WorkflowDefinition`, a `createWorkflowVersion` service task that opens its first
-draft, an end event. Its version declares `targetResourceType =
+wf:WorkflowDefinition`, a call activity sending the new workflow `createVersion` for its
+first draft, an end event. Its version declares `targetResourceType =
 wf/WorkflowsHomepage`, which is how the engine knows it answers for POSTs to
 `/Workflows`.
 
@@ -793,8 +795,9 @@ claim more than a demonstration: `createSystemWorkflow`, `createVersion`,
 `saveWorkflow`, `saveWorkflowDiagram`, `activateVersion`, `startVersionTrial`,
 `returnVersionToDraft` and `retireVersion` all ship beside it, over four handlers of
 their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram` and
-`retireActiveVersions` — plus `createEntity`, shared with the bootstrap, `copyContent`
-for a version drafted from another, and `addTag` for every move in the lifecycle. The workflow
+`retireActiveVersions` — plus `createEntity`, shared with the bootstrap, `callActivity`
+for the first version of a workflow, `copyContent` for a version drafted from another,
+and `addTag` for every move in the lifecycle. The workflow
 module manages its own content the way it asks every other module to manage theirs, and
 the management UI holds no privileged path of its own. See [Managing
 workflows](#managing-workflows) for the request each one answers.

@@ -39,9 +39,9 @@ export class WorkflowConsolePage {
   }
 
   /**
-   * Creates a workflow from the listing, and waits for the editor the console opens on its first version.
+   * Creates a workflow from the listing, and waits for the workflow's own page, which the console opens next.
    *
-   * @returns the first version's repository path
+   * @returns the workflow's repository path
    */
   async create(title: string, description: string): Promise<string> {
     await this.page.getByRole('button', { name: 'New workflow' }).click();
@@ -51,6 +51,14 @@ export class WorkflowConsolePage {
     await dialog.getByRole('textbox', { name: 'Description', exact: true }).fill(description);
     await dialog.getByRole('button', { name: 'Create' }).click();
     await expect(dialog).toHaveCount(0);
+    // The workflow's own page, which is what a create answers with
+    await expect(this.page).toHaveURL(/\/admin\/workflows\/Workflows\/[^/]+$/);
+    return new URL(this.page.url()).pathname.replace(/^\/admin\/workflows/, '');
+  }
+
+  /** Opens a version from its workflow's page in the editor, the way an author does, and says which it is. */
+  async edit(label: string): Promise<string> {
+    await this.version(label).getByRole('link', { name: 'Edit' }).click();
     return this.editedVersion();
   }
 

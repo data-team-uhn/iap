@@ -225,13 +225,11 @@ describe("WorkflowsView", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("went to /admin/workflows/SystemWorkflows/created.edit"))
-      .toBeInTheDocument();
+    expect(await screen.findByText("went to /admin/workflows/SystemWorkflows/created")).toBeInTheDocument();
   });
 
-  it("opens the editor on the workflow it just created", async () => {
-    // A new workflow has one draft version with nothing drawn in it, so drawing is where its author
-    // is going next
+  it("opens the workflow it just created", async () => {
+    // Its one draft version is listed there, ready to be edited
     const user = userEvent.setup();
     stubFetch([ { path: "/Workflows", title: "Workflows" } ]);
     renderView();
@@ -243,6 +241,6 @@ describe("WorkflowsView", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Standard review");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("went to /admin/workflows/Workflows/created.edit")).toBeInTheDocument();
+    expect(await screen.findByText("went to /admin/workflows/Workflows/created")).toBeInTheDocument();
   });
 });

@@ -61,9 +61,9 @@ const formOf = (fetchUtil: ReturnType<typeof acceptingFetch>, call: number): For
 
 describe("createWorkflow", () => {
   it("asks the homepage for a workflow and its first version in one event", async () => {
-    const fetchUtil = acceptingFetch(() => "/Workflows/standardReview/1-0");
+    const fetchUtil = acceptingFetch(() => "/Workflows/standardReview");
 
-    const versionPath = await createWorkflow(fetchUtil, {
+    const workflowPath = await createWorkflow(fetchUtil, {
       homepage: "/Workflows",
       title: "Standard review",
       version: "1.0",
@@ -82,7 +82,7 @@ describe("createWorkflow", () => {
     // never a state anything can observe
     expect(requested.get("bpmn.xml")).toBeInstanceOf(File);
 
-    expect(versionPath).toBe("/Workflows/standardReview/1-0");
+    expect(workflowPath).toBe("/Workflows/standardReview");
   });
 
   it("leaves an empty description out rather than sending one", async () => {

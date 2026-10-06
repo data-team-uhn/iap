@@ -53,11 +53,11 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
   const [ creating, setCreating ] = useState(false);
   const navigate = useNavigate();
 
-  // A workflow just created has one draft version and nothing drawn in it yet, so the editor is
-  // where its author is going next
-  const openNewWorkflow = (versionPath: string): void => {
+  // A workflow just created opens on its own page, where its one draft version is listed, ready to be
+  // edited, and where every version after it is made
+  const openNewWorkflow = (workflowPath: string): void => {
     setCreating(false);
-    void navigate(adminUrl(versionPath, "edit"));
+    void navigate(adminUrl(workflowPath));
   };
 
   // Creating needs somewhere to create in: the action waits for the discovery like the grids do,

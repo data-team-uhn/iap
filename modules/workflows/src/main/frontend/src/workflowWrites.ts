@@ -49,12 +49,13 @@ export interface NewWorkflow {
 }
 
 // One event creates the workflow and its first draft version together, starting from the shipped
-// diagram, so a workflow with no version is never left behind by a request that failed halfway.
+// diagram, so a workflow with no version is never left behind by a request that failed halfway. The
+// server answers with the workflow, which is what was asked for, its version being made on its behalf.
 //
 // Nothing marks the workflow as runnable directly. That's read off its versions, and the one this
 // creates starts as a draft, so the workflow runs nothing until a version is activated.
 //
-// @return the path of the created draft version
+// @return the path of the created workflow
 export async function createWorkflow(fetchUtil: AuthenticatedFetch, fields: NewWorkflow): Promise<string> {
   const requested = bpmnUpload(STARTING_BPMN);
   requested.set("title", fields.title);

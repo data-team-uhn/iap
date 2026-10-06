@@ -75,7 +75,8 @@ class SystemWorkflowDefinitionsTest
     private static final Set<String> BOUND_TYPES =
         Set.of("wf/WorkflowsHomepage", "wf/SystemWorkflowsHomepage", DEFINITION, VERSION);
 
-    private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", CopyContentHandler.HANDLER_NAME,
+    private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", "callActivity",
+        CopyContentHandler.HANDLER_NAME,
         CreateVersionHandler.NAME, SavePropertiesHandler.NAME, SaveDiagramHandler.NAME,
         RetireActiveVersionsHandler.NAME);
 

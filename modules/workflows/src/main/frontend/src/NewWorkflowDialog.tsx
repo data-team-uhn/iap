@@ -36,8 +36,8 @@ interface NewWorkflowDialogProps {
   // Which homepage to default to. If not provided, defaults to the first discovered.
   preselected?: string;
   onClose: () => void;
-  // Called with the new draft version's path once the workflow exists, for the caller to open it.
-  onCreated: (versionPath: string) => void;
+  // Called with the new workflow's path once it exists, for the caller to open it.
+  onCreated: (workflowPath: string) => void;
 }
 
 // Creating a workflow: its title, an optional description of what the first version does, and that

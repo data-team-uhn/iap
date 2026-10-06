@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowsHomepage",
-    "description": "What happens when a new workflow is asked for: create the definition, then its first version as a draft carrying the starting diagram the request brought, in the same commit - so a workflow never exists without a version to edit, and nothing runs until that version is activated. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
+    "description": "What happens when a new workflow is asked for: create the definition, then send it createVersion, whose own workflow gives it its first version, a draft carrying the starting diagram the request brought, in the same commit - so a workflow never exists without a version to edit, its first version is made the way every later one is, and nothing runs until that version is activated. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -27,32 +27,19 @@
       "handler": "createEntity",
       "entityType": "wf:WorkflowDefinition",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toVersion": {
+      "toAddVersion": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toVersion",
-        "targetRef": "firstVersion"
+        "elementId": "toAddVersion",
+        "targetRef": "addVersion"
       }
     },
-    "firstVersion": {
+    "addVersion": {
       "jcr:primaryType": "wf:Activity",
-      "elementId": "firstVersion",
-      "label": "Create its first version",
-      "handler": "createWorkflowVersion",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toMarkDraft": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toMarkDraft",
-        "targetRef": "markDraft"
-      }
-    },
-    "markDraft": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "markDraft",
-      "label": "Mark it as a draft",
-      "handler": "addTag",
-      "tag": "draft",
-      "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "elementId": "addVersion",
+      "label": "Give it a first version",
+      "handler": "callActivity",
+      "message": "createVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CallActivity",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",
