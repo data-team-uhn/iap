@@ -18,6 +18,7 @@
 package io.uhndata.iap.auth.token.jwt.impl;
 
 import java.io.IOException;
+import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -72,8 +73,10 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
     /** The request field naming the {@code iss} claim the peer's tokens will carry. */
     private static final String ISSUER = "issuer";
 
-    /* Pattern for a valid {@code iss}, alphanumeric-only allowed. */
-    private static final Pattern VALID_ISSUER = Pattern.compile("\\p{Alnum}{1,255}");
+    private static final int MAX_ISSUER_LENGTH = 2048;
+
+    /** Disallow line breaks and other control characters in issuer fields. */
+    private static final Pattern CONTROL = Pattern.compile("\\p{Cntrl}");
 
     private final transient ResourceResolverFactory resolverFactory;
 
@@ -107,9 +110,9 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
 
         final String issuer = body.getString(ISSUER, null);
         final String submitted = body.getString("key", null);
-        if (submitted == null || issuer == null || !VALID_ISSUER.matcher(issuer).matches()) {
+        if (submitted == null || issuer == null || !isUsableIssuer(issuer)) {
             reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
-                "`key` and an alphanumeric `issuer` are both required");
+                "`key` and a valid `issuer` are both required");
             return;
         }
 
@@ -125,6 +128,30 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
         }
 
         register(response, key, issuer);
+    }
+
+    /**
+     * Whether an issuer could ever match a token's {@code iss}, which is compared exactly, with no normalization.
+     * Surrounding whitespace is refused rather than trimmed, since it would make a silent never-match. A value
+     * containing a colon must be an absolute URI, as RFC 7519 requires of a StringOrURI.
+     *
+     * @param issuer the submitted issuer
+     * @return whether it is worth storing
+     */
+    private static boolean isUsableIssuer(final String issuer)
+    {
+        if (issuer.isBlank() || issuer.length() > MAX_ISSUER_LENGTH || !issuer.equals(issuer.strip())
+            || CONTROL.matcher(issuer).find()) {
+            return false;
+        }
+        if (issuer.indexOf(':') < 0) {
+            return true;
+        }
+        try {
+            return URI.create(issuer).isAbsolute();
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /**
