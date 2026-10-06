@@ -34,6 +34,7 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -82,7 +83,7 @@ public class UpdateSchemaContentHandler implements ServiceTaskHandler
                     + " allows " + entry.getKey() + ", which is not a field of " + type));
             changes.put(field, value(context, field, entry.getValue()));
         }
-        SchemaContent.checkOut(target);
+        VersioningUtils.checkOut(target);
         for (final Map.Entry<SchemaFields.Field, Object> change : changes.entrySet()) {
             write(target, change.getKey(), change.getValue());
         }
