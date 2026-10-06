@@ -488,10 +488,9 @@ under the things reading it. A trial is changed by being returned to a draft; an
 is carried forward by drafting a copy, which is offered next to it.
 
 The per-version buttons are contributed on the **`WorkflowVersionActions`** extension point rather than
-written into the manager page, the way `SubjectActions` works in the sibling `cards` project. Seven ship
-with the module — view, edit, start-trial, activate, return-to-draft, retire, and draft-a-copy — and each decides
-for itself which states it applies to; a seventh needs an `ext:Extension` and an asset, and no change to
-any existing file. The point is addressed by two names, as every extension point is: the page asks for the
+written into the manager page. Six ship with the module — edit, start-trial, activate, return-to-draft,
+retire, and draft-a-copy — each offered exactly where the server offers its event on the version; another
+needs an `ext:Extension` and an asset, and no change to any existing file. The point is addressed by two names, as every extension point is: the page asks for the
 node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
 `ext:pointId` that node carries, `wf/workflowVersion/actions`.
 
