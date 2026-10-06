@@ -20,16 +20,16 @@
   <title>QuorumPath</title>
   <style>
     @media (prefers-color-scheme: dark) {
-      .path { stroke: #A3A9BC; }
+      .path { fill: #A3A9BC; }
       .halo { opacity: 0.6; }
     }
     @media (max-width: 24px) {
       .halo { display: none; }
-      .path { stroke-width: 6; d: path("M 6 24 H 33"); }
+      .path { d: path("M 6 21 A 3 3 0 0 0 6 27 H 33 V 21 Z"); }
       .token { cx: 33; r: 12; }
     }
   </style>
-  <path class="path" d="M 4 24 H 13.3" fill="none" stroke="#192958" stroke-width="4" stroke-linecap="round"/>
+  <path class="path" d="M 4 22 A 2 2 0 0 0 4 26 H 14.65 V 22 Z" fill="#192958"/>
   <circle class="halo" cx="30" cy="24" r="14.7" fill="none" stroke="#C0233C" stroke-width="2.6" opacity="0.45"/>
   <circle class="token" cx="30" cy="24" r="9.4" fill="#C0233C"/>
 </svg>

@@ -101,11 +101,11 @@ def layout(size):
         # The round cap keeps the left ink at the margin.
         "path_start": geometry["margin"] + geometry["t"] / 2.0,
     }
-    # As in the logo, the path ends on the halo: its cap tip reaches the ring's centreline and no
-    # further, so it never runs into the token. Without a halo (16px) it ends at the token's centre.
+    # As in the logo, the path ends on the halo, flat, just inside the ring's outer edge: far enough
+    # in that the straight end cannot leave a sliver of gap against the curve, no further, so it
+    # never runs into the token. Without a halo (16px) it ends at the token's centre.
     if geometry["r_out"] > 0:
-        ring_centre = geometry["r_out"] - geometry["stroke"] / 2.0
-        placement["path_end"] = placement["center_x"] - ring_centre - geometry["t"] / 2.0
+        placement["path_end"] = placement["center_x"] - geometry["r_out"] + geometry["stroke"] / 4.0
     else:
         placement["path_end"] = placement["center_x"]
     return placement
@@ -136,9 +136,9 @@ def coverage_masks(size):
                 dy = y - center_y
                 for sub_x in range(SUPERSAMPLING):
                     x = pixel_x + (sub_x + 0.5) * step
-                    # Distance to the segment (path_start, cy)-(path_end, cy), giving round caps.
-                    nearest_x = min(max(x, path_start), path_end)
-                    if (x - nearest_x) ** 2 + dy * dy <= half_thickness ** 2:
+                    # A round cap at path_start, a flat end at path_end.
+                    nearest_x = max(x, path_start)
+                    if x <= path_end and (x - nearest_x) ** 2 + dy * dy <= half_thickness ** 2:
                         in_path += 1
                     distance2 = (x - center_x) ** 2 + dy * dy
                     if distance2 <= r_dot ** 2:
@@ -256,22 +256,33 @@ SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
   <title>QuorumPath</title>
   <style>
     @media (prefers-color-scheme: dark) {{
-      .path {{ stroke: {navy_dark}; }}
+      .path {{ fill: {navy_dark}; }}
       .halo {{ opacity: {halo_opacity_dark}; }}
     }}
     @media (max-width: {small_breakpoint}px) {{
       .halo {{ display: none; }}
-      .path {{ stroke-width: {small_thickness}; d: path("M {small_path_start} {center_y} H {small_path_end}"); }}
+      .path {{ d: path("{small_path}"); }}
       .token {{ cx: {small_center_x}; r: {small_r_dot}; }}
     }}
   </style>
-  <path class="path" d="M {path_start} {center_y} H {path_end}" fill="none" stroke="{navy}"\
- stroke-width="{thickness}" stroke-linecap="round"/>
+  <path class="path" d="{path}" fill="{navy}"/>
   <circle class="halo" cx="{center_x}" cy="{center_y}" r="{r_halo}" fill="none" stroke="{red}"\
  stroke-width="{stroke}" opacity="{halo_opacity}"/>
   <circle class="token" cx="{center_x}" cy="{center_y}" r="{r_dot}" fill="{red}"/>
 </svg>
 """
+
+
+def path_outline(placement, scale):
+    # The path as a filled outline, since a stroke cannot have a round cap at one end and a flat
+    # one at the other: the left end is a half-circle, the right end is cut square.
+    half = placement["thickness"] * scale / 2.0
+    start = placement["path_start"] * scale
+    end = placement["path_end"] * scale
+    center_y = placement["center_y"] * scale
+    return "M {start} {top} A {half} {half} 0 0 0 {start} {bottom} H {end} V {top} Z".format(
+        start=number(start), end=number(end), half=number(half),
+        top=number(center_y - half), bottom=number(center_y + half))
 
 
 def svg_markup():
@@ -292,9 +303,7 @@ def svg_markup():
         halo_opacity_dark=number(RING_OPACITY_DARK),
         center_x=number(placement["center_x"]),
         center_y=number(placement["center_y"]),
-        path_start=number(placement["path_start"]),
-        path_end=number(placement["path_end"]),
-        thickness=number(placement["thickness"]),
+        path=path_outline(placement, 1.0),
         r_dot=number(placement["r_dot"]),
         # A stroked circle straddles its radius, so the ring's centreline sits half a stroke
         # inside the outer radius the raster geometry describes.
@@ -303,9 +312,7 @@ def svg_markup():
         # Halfway between the two tuned sizes: 16px viewports take the small mark, 32px ones
         # (a 2x tab, where the full artwork holds up) keep the faithful one.
         small_breakpoint=number((small_size + 32) / 2.0),
-        small_thickness=number(small["thickness"] * scale),
-        small_path_start=number(small["path_start"] * scale),
-        small_path_end=number(small["path_end"] * scale),
+        small_path=path_outline(small, scale),
         small_center_x=number(small["center_x"] * scale),
         small_r_dot=number(small["r_dot"] * scale),
     )
