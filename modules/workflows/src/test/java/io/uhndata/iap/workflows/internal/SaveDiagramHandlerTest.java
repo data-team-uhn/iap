@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.version.VersionManager;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -29,6 +32,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -148,6 +152,17 @@ class SaveDiagramHandlerTest
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(this.save("1-0", AuthoringFixture.brokenUpload())));
         assertTrue(failure.getMessage().contains("The upload broke"));
+    }
+
+    @Test
+    void checksOutTheVersionBeforeWriting() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.path("1-0"));
+
+        this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, "application/xml")));
+
+        Mockito.verify(versions).checkout(AuthoringFixture.path("1-0"));
     }
 
     /**

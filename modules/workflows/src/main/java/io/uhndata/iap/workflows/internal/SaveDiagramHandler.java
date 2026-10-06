@@ -20,6 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import org.apache.sling.api.resource.PersistenceException;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -57,6 +58,7 @@ public class SaveDiagramHandler implements ServiceTaskHandler
         if (diagram == null) {
             throw new InvalidPayloadException("A " + VersionEdits.BPMN_FILE + " file is required");
         }
+        VersioningUtils.checkOut(context.getTarget());
         VersionEdits.storeDiagram(context.getTarget(), diagram, context.getResourceResolver());
     }
 }

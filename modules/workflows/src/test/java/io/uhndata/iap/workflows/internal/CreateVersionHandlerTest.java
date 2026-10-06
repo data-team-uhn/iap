@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.version.VersionManager;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -28,6 +31,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -237,6 +241,17 @@ class CreateVersionHandlerTest
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(this.request(payload, new HashMap<>())));
         assertTrue(failure.getMessage().contains("The upload broke"));
+    }
+
+    @Test
+    void checksOutTheWorkflowBeforeAddingAVersion() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        // A checked-in node takes no children, and the Sling POST servlet checks in whatever it creates
+        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.DEFINITION);
+
+        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+
+        Mockito.verify(versions).checkout(AuthoringFixture.DEFINITION);
     }
 
     /**

@@ -25,6 +25,7 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -77,6 +78,7 @@ public class SavePropertiesHandler implements ServiceTaskHandler
                 + " does not list which properties it is editable to write");
         }
         final List<String> required = names(context, REQUIRED);
+        VersioningUtils.checkOut(context.getTarget());
         final ModifiableValueMap properties = Objects.requireNonNull(
             context.getTarget().adaptTo(ModifiableValueMap.class),
             "A target the engine is writing should always be modifiable");

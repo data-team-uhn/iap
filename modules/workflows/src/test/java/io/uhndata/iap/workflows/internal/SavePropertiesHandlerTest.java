@@ -20,6 +20,9 @@ package io.uhndata.iap.workflows.internal;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.version.VersionManager;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -27,6 +30,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -166,6 +170,16 @@ class SavePropertiesHandlerTest
         final Activity activity =
             AuthoringFixture.activity(this.context, "save-" + configuration.hashCode(), configuration);
         return AuthoringFixture.context(this.definition(), "save", payload, activity, new HashMap<>());
+    }
+
+    @Test
+    void checksOutTheTargetBeforeWriting() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.DEFINITION);
+
+        this.handler.execute(this.save(Map.of(TITLE, "Annual leave"), new String[] { TITLE }, new String[] { TITLE }));
+
+        Mockito.verify(versions).checkout(AuthoringFixture.DEFINITION);
     }
 
     /**

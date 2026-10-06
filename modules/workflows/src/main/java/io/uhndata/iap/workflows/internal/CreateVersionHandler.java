@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -78,6 +79,7 @@ public class CreateVersionHandler implements ServiceTaskHandler
         if (description != null) {
             properties.put(VersionEdits.DESCRIPTION, description);
         }
+        VersioningUtils.checkOut(definition);
         final Resource version = context.getResourceResolver().create(definition,
             VersionEdits.availableName(definition), properties);
         final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);

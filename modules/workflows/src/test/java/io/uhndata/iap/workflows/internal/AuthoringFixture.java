@@ -24,6 +24,13 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -90,6 +97,32 @@ final class AuthoringFixture
     static String path(final String name)
     {
         return DEFINITION + "/" + name;
+    }
+
+    /**
+     * Has the content at a path read as checked in, the way the Sling POST servlet leaves what it creates: the
+     * resource there adapts to a node that is read-only and versionable itself, which the mock repository has no
+     * notion of. Every other resource still adapts to no node at all, and so reads as writable.
+     *
+     * @param context the Sling context to register the adapter in
+     * @param path the path of the versionable content
+     * @return the version manager a checkout goes through, to verify it on
+     * @throws RepositoryException never, every node involved being a mock
+     */
+    static VersionManager checkedIn(final SlingContext context, final String path) throws RepositoryException
+    {
+        final Node node = Mockito.mock(Node.class);
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(node.isNodeType("mix:versionable")).thenReturn(true);
+        Mockito.when(node.getPath()).thenReturn(path);
+        Mockito.when(node.getSession()).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) resource -> path.equals(resource.getPath()) ? node : null);
+        return versions;
     }
 
     /**
