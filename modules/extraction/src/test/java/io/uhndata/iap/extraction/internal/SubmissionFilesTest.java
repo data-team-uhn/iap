@@ -57,22 +57,22 @@ class SubmissionFilesTest
     void setUp()
     {
         this.tree = new SubmissionTree(this.context);
-        this.tree.schemaVersion();
-        this.submission = this.tree.submission();
+        this.tree.createSchemaVersion();
+        this.submission = this.tree.createSubmission();
     }
 
-    private Submission model()
+    private Submission getModel()
     {
-        return SubmissionFiles.submission(this.submission);
+        return SubmissionFiles.getSubmission(this.submission);
     }
 
     @Test
     void findsTheSubmissionAFileBelongsTo()
     {
-        final Resource file = this.tree.file(null);
+        final Resource file = this.tree.createFile(null);
 
-        assertEquals(this.submission.getPath(), SubmissionFiles.submissionOf(file).getPath());
-        assertEquals(this.submission.getPath(), SubmissionFiles.submissionOf(this.submission).getPath());
+        assertEquals(this.submission.getPath(), SubmissionFiles.findSubmission(file).getPath());
+        assertEquals(this.submission.getPath(), SubmissionFiles.findSubmission(this.submission).getPath());
     }
 
     @Test
@@ -80,27 +80,27 @@ class SubmissionFilesTest
     {
         final Resource elsewhere = this.context.create().resource("/var/somewhere", Map.of());
 
-        assertNull(SubmissionFiles.submissionOf(elsewhere));
+        assertNull(SubmissionFiles.findSubmission(elsewhere));
     }
 
     @Test
     void readsTheSubmission()
     {
-        assertNotNull(model());
-        assertEquals("A proposal", model().getTitle());
+        assertNotNull(getModel());
+        assertEquals("A proposal", getModel().getTitle());
     }
 
     @Test
     void listsTheLatestUploadOfEveryDocumentInOrder()
     {
-        final String firstDocument = this.tree.file("completed").getParent().getParent().getPath();
+        final String firstDocument = this.tree.createFile("completed").getParent().getParent().getPath();
         this.context.create().resource(firstDocument + "/v2", Map.of("sling:resourceType", "sub/DocumentVersion"));
         final Resource newer = this.context.create().resource(firstDocument + "/v2/file",
             Map.of("sling:resourceType", "sub/File"));
-        this.tree.emptyDocument();
-        final Resource third = this.tree.file(null);
+        this.tree.createEmptyDocument();
+        final Resource third = this.tree.createFile(null);
 
-        final List<File> files = SubmissionFiles.currentFiles(model());
+        final List<File> files = SubmissionFiles.getCurrentFiles(getModel());
 
         assertEquals(List.of(newer.getPath(), third.getPath()), files.stream().map(File::getPath).toList(),
             "the newest version's file wins, and a document with no upload yet is skipped");
@@ -117,78 +117,78 @@ class SubmissionFilesTest
     @Test
     void saysNothingHasBeenUploadedWhenThereIsNothing()
     {
-        assertEquals("No document has been uploaded", SubmissionFiles.whyNothingToRead(model()));
+        assertEquals("No document has been uploaded", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     @Test
     void saysWhyTheParseFailed()
     {
-        failWith(this.tree.file("failed"), "Calling the daemon at http://localhost:18765 failed: refused");
+        failWith(this.tree.createFile("failed"), "Calling the daemon at http://localhost:18765 failed: refused");
 
         assertEquals("The document could not be read. Calling the daemon at http://localhost:18765 failed: refused",
-            SubmissionFiles.whyNothingToRead(model()));
+            SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     @Test
     void saysTheParseFailedWhenItLeftNoReason()
     {
-        this.tree.file("failed");
+        this.tree.createFile("failed");
 
-        assertEquals("The document could not be read", SubmissionFiles.whyNothingToRead(model()));
+        assertEquals("The document could not be read", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     @Test
     void saysTheDocumentHasNotBeenReadYetWhileAParseIsQueued()
     {
-        this.tree.file("queued");
+        this.tree.createFile("queued");
 
-        assertEquals("The document has not been read yet", SubmissionFiles.whyNothingToRead(model()));
+        assertEquals("The document has not been read yet", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     // Uploaded, neither queued nor failed nor finished: nothing more precise can be said than that
     @Test
     void fallsBackWhenNothingSaysWhy()
     {
-        this.tree.file(null);
+        this.tree.createFile(null);
 
-        assertEquals("No uploaded document could be read", SubmissionFiles.whyNothingToRead(model()));
+        assertEquals("No uploaded document could be read", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     @Test
     void picksTheFirstFileWhoseParseFinished()
     {
-        this.tree.file("queued");
-        final Resource parsed = this.tree.file("completed");
-        this.tree.file("completed");
+        this.tree.createFile("queued");
+        final Resource parsed = this.tree.createFile("completed");
+        this.tree.createFile("completed");
 
-        assertEquals(parsed.getPath(), SubmissionFiles.firstParsed(model()).getPath());
+        assertEquals(parsed.getPath(), SubmissionFiles.findFirstParsed(getModel()).getPath());
     }
 
     @Test
     void picksNothingWhenNoParseFinished()
     {
-        this.tree.file("queued");
-        this.tree.file(null);
+        this.tree.createFile("queued");
+        this.tree.createFile(null);
 
-        assertNull(SubmissionFiles.firstParsed(model()));
+        assertNull(SubmissionFiles.findFirstParsed(getModel()));
     }
 
     @Test
     void knowsWhenEveryParseHasSettled()
     {
-        this.tree.file("completed");
-        this.tree.file("failed");
-        this.tree.file(null);
+        this.tree.createFile("completed");
+        this.tree.createFile("failed");
+        this.tree.createFile(null);
 
-        assertTrue(SubmissionFiles.allParsesSettled(model()), "never asked for counts as settled too");
+        assertTrue(SubmissionFiles.isEveryParseSettled(getModel()), "never asked for counts as settled too");
     }
 
     @Test
     void knowsWhenAParseIsStillGoing()
     {
-        this.tree.file("completed");
-        this.tree.file("queued");
+        this.tree.createFile("completed");
+        this.tree.createFile("queued");
 
-        assertFalse(SubmissionFiles.allParsesSettled(model()));
+        assertFalse(SubmissionFiles.isEveryParseSettled(getModel()));
     }
 }

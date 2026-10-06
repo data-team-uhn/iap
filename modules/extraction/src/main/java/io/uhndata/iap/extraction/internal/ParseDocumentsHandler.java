@@ -89,14 +89,14 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        final Submission submission = SubmissionFiles.submission(target);
+        final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
         // A schema with no reading workflow has nothing to parse for, so its uploads are left alone
         if (submission.getSchemaVersion().get(READING_WORKFLOW, String.class) == null) {
             return;
         }
         int queued = 0;
-        for (final File file : SubmissionFiles.currentFiles(submission)) {
+        for (final File file : SubmissionFiles.getCurrentFiles(submission)) {
             if (!isParseWanted(file)) {
                 continue;
             }

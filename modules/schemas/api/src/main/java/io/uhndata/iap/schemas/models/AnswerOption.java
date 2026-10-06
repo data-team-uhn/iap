@@ -48,6 +48,9 @@ public class AnswerOption extends EntityPart
     @ValueMapValue
     private String description;
 
+    @ValueMapValue
+    private long defaultOrder;
+
     /**
      * What an answer picking this option stores, and what conditions compare against.
      *
@@ -79,5 +82,15 @@ public class AnswerOption extends EntityPart
     public String getDescription()
     {
         return this.description;
+    }
+
+    /**
+     * Its place among its question's options, lower first, as the workflows that add and move options number it.
+     *
+     * @return the place, {@code 0} when it was never numbered
+     */
+    public long getDefaultOrder()
+    {
+        return this.defaultOrder;
     }
 }

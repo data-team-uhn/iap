@@ -54,6 +54,27 @@ public final class ReferenceUtils
     public static void setReference(@NotNull final Resource holder, @NotNull final String property,
         @NotNull final Resource target) throws PersistenceException
     {
+        setReference(holder, property, target, false);
+    }
+
+    /**
+     * Points a property of one resource at another, as a {@code WEAKREFERENCE}, which lets the target be removed
+     * while the property still points at it.
+     *
+     * @param holder the resource the property is set on
+     * @param property the property's name
+     * @param target the resource it points at, which must be referenceable
+     * @throws PersistenceException when either resource is not a node, or the repository refuses the reference
+     */
+    public static void setWeakReference(@NotNull final Resource holder, @NotNull final String property,
+        @NotNull final Resource target) throws PersistenceException
+    {
+        setReference(holder, property, target, true);
+    }
+
+    private static void setReference(final Resource holder, final String property, final Resource target,
+        final boolean weak) throws PersistenceException
+    {
         final Node node = holder.adaptTo(Node.class);
         final Node referenced = target.adaptTo(Node.class);
         final String failure = "Cannot point " + property + " of " + holder.getPath() + " at " + target.getPath();
@@ -61,7 +82,11 @@ public final class ReferenceUtils
             throw new PersistenceException(failure);
         }
         try {
-            node.setProperty(property, referenced);
+            if (weak) {
+                node.setProperty(property, node.getSession().getValueFactory().createValue(referenced, true));
+            } else {
+                node.setProperty(property, referenced);
+            }
         } catch (final RepositoryException e) {
             throw new PersistenceException(failure, e);
         }
@@ -95,8 +120,12 @@ public final class ReferenceUtils
             for (int i = 0; i < values.length; i++) {
                 values[i] = factory.createValue(referenced.get(i));
             }
-            // Typed explicitly: an empty array carries no type of its own
-            node.setProperty(property, values, PropertyType.REFERENCE);
+            if (values.length == 0) {
+                // Typed explicitly: an empty array carries no type of its own
+                node.setProperty(property, values, PropertyType.REFERENCE);
+            } else {
+                node.setProperty(property, values);
+            }
         } catch (final RepositoryException e) {
             throw new PersistenceException(failure, e);
         }
