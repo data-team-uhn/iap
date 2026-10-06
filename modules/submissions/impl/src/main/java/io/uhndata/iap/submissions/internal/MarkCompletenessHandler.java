@@ -126,7 +126,7 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
      * is indistinguishable from being complete, and a control offering to send the request reads that absence as
      * permission.</p>
      *
-     * <p>The same rule, in the same shape, is what {@code WorkflowStarter} uses to find the entity to attach a
+     * <p>The same rule, in the same shape, is what {@code StartWorkflowHandler} uses to find the entity to attach a
      * workflow to. It is asked twice now and belongs on {@link WorkflowTaskContext} rather than in each handler;
      * moving it there is an SPI change and is deliberately not smuggled in here.</p>
      *

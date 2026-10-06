@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Research proposal",
-  "active": true,
   "v1": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/researchProposal/v1",
     // What reads an uploaded proposal once the daemon has parsed it. Followed from the submission as
     // schemaVersion/readingWorkflow by the extractAnswers system workflow.

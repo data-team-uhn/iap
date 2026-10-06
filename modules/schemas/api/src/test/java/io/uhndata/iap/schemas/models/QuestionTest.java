@@ -206,16 +206,6 @@ class QuestionTest
         assertEquals("The patient's own health.", offered.description());
     }
 
-    @Test
-    void exposesThePathItsOptionsComeFrom()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/category", Map.of(
-            "sling:resourceType", Question.RESOURCE_TYPE,
-            "optionsFrom", "/Categories"));
-
-        assertEquals("/Categories", resource.adaptTo(Question.class).getOptionsFrom());
-    }
-
     // The live list is the path's, not the children: a category tree an administrator edits is what
     // the form shows, even when the question happens to have a leftover child
     @Test

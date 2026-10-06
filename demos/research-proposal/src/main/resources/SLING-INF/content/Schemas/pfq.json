@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Patient facing questionnaire",
-  "active": true,
   "v1": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/pfq/v1",
     // What reads the uploaded questionnaire once the daemon has parsed it. Like the proposal, it first
     // checks that the upload is a patient facing questionnaire (is_questionnaire below).

@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "sch:Schema",
   "title": "Ethics review demo",
-  "active": true,
   "v1": {
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/researchProposal/v1",
     // A minimal reading workflow with nothing but the ethicsReview requirement - no proposal/category
     // classification in the way, so the TCPS2 check can be demoed on its own.

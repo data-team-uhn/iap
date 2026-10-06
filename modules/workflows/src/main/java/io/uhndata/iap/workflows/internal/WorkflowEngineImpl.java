@@ -221,7 +221,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     private Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
         final String actor, final int depth) throws WorkflowException, PersistenceException
     {
-        final ResourceResolver resolver = target.getResourceResolver();
         final ServiceTaskDispatcher dispatcher = dispatcher();
         final Map<String, Object> variables = new LinkedHashMap<>();
         FlowNode node = start;

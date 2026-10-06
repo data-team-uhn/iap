@@ -129,6 +129,18 @@ class StartWorkflowHandlerTest
         assertNotNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
+    // The plain call a handler other than this one makes, which never replaces anything
+    @Test
+    void startsAWorkflowAskedForDirectly() throws Exception
+    {
+        final WorkflowVersion version = this.context.resourceResolver().getResource(VERSION)
+            .adaptTo(WorkflowVersion.class);
+
+        context(LINK, HOST).startWorkflow(this.context.resourceResolver().getResource(HOST), version);
+
+        assertNotNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
+    }
+
     @Test
     void cancelsAnEarlierActiveInstanceWhenAskedTo() throws Exception
     {

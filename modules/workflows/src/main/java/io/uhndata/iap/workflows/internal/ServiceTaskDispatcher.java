@@ -135,7 +135,8 @@ final class ServiceTaskDispatcher
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> {
             InstanceVariables.load(instance, variables);
-            perform(activity, new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+            perform(activity,
+                new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
             InstanceVariables.flush(instance, variables);
         };
     }

@@ -146,7 +146,8 @@ public interface WorkflowTaskContext
      *             definition cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
-    default void startWorkflow(@NotNull Resource host, @NotNull WorkflowVersion version, boolean replaceActive)
+    default void startWorkflow(@NotNull final Resource host, @NotNull final WorkflowVersion version,
+        final boolean replaceActive)
         throws WorkflowException, PersistenceException
     {
         if (replaceActive) {

@@ -1090,7 +1090,7 @@ class UserWorkflowTest
         reference(HOST, "workflow", PROCESS);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(new VerdictHandler()));
+        inject(engine, "handlers", List.of(new VerdictHandler(), new StartWorkflowHandler()));
         inject(engine, "conditions", EngineFixture.conditions());
         inject(engine, "principals", EngineFixture.principals());
 
@@ -1147,7 +1147,7 @@ class UserWorkflowTest
         final RecordingHandler handler = new RecordingHandler();
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(handler));
+        inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         inject(engine, "conditions", EngineFixture.conditions());
         inject(engine, "principals", EngineFixture.principals());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);

@@ -228,7 +228,7 @@ function ReadingBar({ extraction }: { extraction: ExtractionState }) {
   const failed = getFailedPhase(extraction);
   const error = failed === undefined
     ? undefined
-    : { message: extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it." };
+    : extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it.";
   return <StepProgress steps={READING_LABELS} activeStep={READING_PHASES.indexOf(failed ?? live)} error={error} />;
 }
 

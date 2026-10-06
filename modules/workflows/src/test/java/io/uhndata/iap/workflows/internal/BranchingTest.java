@@ -571,7 +571,7 @@ class BranchingTest
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", List.of());
+        inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         inject(impl, "conditions", EngineFixture.conditions());
         inject(impl, "principals", EngineFixture.principals());
         return impl;
