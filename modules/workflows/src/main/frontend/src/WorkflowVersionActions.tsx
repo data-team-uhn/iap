@@ -29,6 +29,8 @@ export interface WorkflowVersionActionProps {
   version: WorkflowVersionSummary;
   workflow: WorkflowSummary;
   reload: () => void;
+  // What to do once the version itself is gone, when reloading it would find nothing
+  removed?: () => void;
 }
 
 function WorkflowVersionActions(props: WorkflowVersionActionProps) {

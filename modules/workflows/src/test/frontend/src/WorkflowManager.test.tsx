@@ -278,6 +278,21 @@ describe("WorkflowManager", () => {
     expect(await screen.findByText("acts on Standard review")).toBeInTheDocument();
   });
 
+  it("leads back to its homepage once an action takes the workflow away", async () => {
+    const user = userEvent.setup();
+    const removingAction = ({ removed }: WorkflowActionProps) => (
+      <button type="button" onClick={removed}>remove</button>
+    );
+    mockedLoadExtensions.mockImplementation(point =>
+      Promise.resolve(point === "WorkflowActions" ? [ { "ext:render": removingAction } ] : []));
+    stubFetch();
+    renderManager();
+
+    await user.click(await screen.findByRole("button", { name: "remove" }));
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin/workflows/Workflows"));
+  });
+
   it("reads the workflow again when an action asks", async () => {
     // Only the page can refresh the listing an action changed
     const user = userEvent.setup();

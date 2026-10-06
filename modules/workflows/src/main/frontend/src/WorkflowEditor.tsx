@@ -169,7 +169,8 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
           )}
           { /* The version's own actions, Edit among them where saving is offered, while it is only shown */ }
           { !requestedEdit && workflow && version && (
-            <WorkflowVersionActions version={version} workflow={workflow} reload={reloadWorkflow} />
+            <WorkflowVersionActions version={version} workflow={workflow} reload={reloadWorkflow}
+              removed={() => void navigate(adminUrl(definitionPath))} />
           )}
         </Stack>
       }

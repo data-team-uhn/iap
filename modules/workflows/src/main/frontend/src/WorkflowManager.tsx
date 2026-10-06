@@ -19,6 +19,7 @@
 import { useCallback, type ReactNode } from "react";
 
 import { Box, Chip, Stack, Typography } from "@mui/material";
+import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
@@ -76,6 +77,7 @@ interface WorkflowManagerProps {
 // WorkflowActions extension point and each version's on WorkflowVersionActions, so an action added
 // later needs no change to this file.
 function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
+  const navigate = useNavigate();
   const { workflow, loading, loadError, reload } = useWorkflow(path);
   const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
   usePageCrumbs([ { path: adminUrl(homepage.path), label: homepage.title } ]);
@@ -96,7 +98,8 @@ function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
       description={"Only a draft version can be edited. A version on trial is changed by returning it to being a "
         + "draft, and an active or retired one by drafting a copy of it, which takes over once activated."}
       disablePanel
-      action={<WorkflowActions workflow={workflow} reload={reloadWorkflow} />}
+      action={<WorkflowActions workflow={workflow} reload={reloadWorkflow}
+        removed={() => void navigate(adminUrl(homepage.path))} />}
     >
       <Stack spacing={3}>
         { loadError && <LoadError title="The workflow could not be reloaded" message={loadError} onRetry={reload} /> }

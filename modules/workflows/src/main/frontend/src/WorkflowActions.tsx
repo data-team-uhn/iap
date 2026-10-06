@@ -28,6 +28,8 @@ export const WORKFLOW_ACTIONS_POINT = "WorkflowActions";
 export interface WorkflowActionProps {
   workflow: WorkflowSummary;
   reload: () => void;
+  // What to do once the workflow itself is gone, when reloading it would find nothing
+  removed?: () => void;
 }
 
 function WorkflowActions(props: WorkflowActionProps) {

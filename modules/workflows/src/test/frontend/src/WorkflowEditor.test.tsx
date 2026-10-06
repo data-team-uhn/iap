@@ -221,6 +221,20 @@ describe("WorkflowEditor", () => {
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(readsBefore));
   });
 
+  it("leads back to the workflow once one of the version's actions takes the version away", async () => {
+    const user = userEvent.setup();
+    const removingAction = ({ removed }: WorkflowVersionActionProps) => (
+      <button type="button" onClick={removed}>remove</button>
+    );
+    mockedLoadExtensions.mockResolvedValue([ { "ext:render": removingAction } ]);
+    stubFetch();
+    renderEditor();
+
+    await user.click(await screen.findByRole("button", { name: "remove" }));
+
+    await waitFor(() => expect(currentUrl()).toBe("/admin/workflows/Workflows/review"));
+  });
+
   it("offers no way to write anything in view mode", async () => {
     stubFetch();
 
