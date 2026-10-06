@@ -283,6 +283,30 @@
   + * (sch:FormItem)
 
 //-----------------------------------------------------------------------------
+// A decision a model makes about an uploaded document before anything is read
+// out of it, e.g. "is this a research proposal" or "which kind of study is
+// it". It is a form requirement holding one question, whose options are the
+// categories to choose from: the model's pick is stored as that question's
+// answer, pre-filled for the submitter to confirm or change, and workflow
+// conditions read it like any other answer.
+[sch:ClassificationRequirement] > sch:FormRequirement
+  - sling:resourceType (STRING) = "sch/ClassificationRequirement" mandatory autocreated protected
+
+  // What the model is asked to decide, and how to tell
+  - prompt (STRING) mandatory
+
+  // The name of the document requirement whose upload is classified
+  - document (STRING) mandatory
+
+  // Below this confidence the model's pick is not acted on until the
+  // submitter confirms it
+  - confidenceThreshold (DOUBLE) = '0.7' autocreated
+
+  // Optional reference text the model is shown with the prompt, e.g. the
+  // typical structure of a research protocol
+  + template (nt:file)
+
+//-----------------------------------------------------------------------------
 // A document that the submitter is expected to provide, e.g. the patient
 // consent form, in an expected format described by this requirement.
 [sch:DocumentRequirement] > sch:Requirement
