@@ -68,9 +68,9 @@ export class WorkflowConsolePage {
     await expect(this.page.locator('.djs-shape').first()).toBeVisible();
   }
 
-  /** The editor's heading, which names the workflow and the version open in it. */
+  /** The editor's heading, which names the version open in it after the workflow it belongs to. */
   editorHeading(workflow: string, version: string): Locator {
-    return this.page.getByRole('heading', { name: `${workflow}: Version ${version}` });
+    return this.page.getByRole('heading', { name: `${workflow} Version ${version}` });
   }
 
   /**
@@ -98,7 +98,8 @@ export class WorkflowConsolePage {
 
   /** What the workflow's page says about whether it runs: `Enabled`, `Disabled` or `Retired`. */
   runs(): Locator {
-    return this.page.getByText('Runs', { exact: true }).locator('xpath=following-sibling::*[1]');
+    // The status beside the page's one top-level heading, which is the workflow's title
+    return this.page.getByRole('heading', { level: 1 }).locator('xpath=following-sibling::*[1]');
   }
 
   /** One version's row in the workflow's table of versions. */

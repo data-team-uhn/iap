@@ -23,6 +23,7 @@ import { MemoryRouter, useLocation } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import WorkflowEditor from "@iap/workflows/WorkflowEditor";
@@ -61,7 +62,7 @@ const definition = {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "tags": ["active"],
-    "@events": [ "retire", "draft" ],
+    "@events": [ "retire" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
@@ -104,7 +105,7 @@ const renderEditor = (options: { edit?: boolean; path?: string } = {}) => {
   return render(
     <ThemeProvider theme={appTheme} defaultMode="light">
       <MemoryRouter initialEntries={[url]}>
-        <WorkflowEditor path={path} editing={edit} />
+        <WorkflowEditor path={path} homepage={{ path: "/Workflows", title: "Workflows" }} editing={edit} />
         <CurrentUrl />
       </MemoryRouter>
     </ThemeProvider>,
@@ -133,11 +134,17 @@ describe("WorkflowEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByRole("heading", { name: "Standard review: Version 2.0" })).toBeInTheDocument();
+    // The workflow it belongs to heads the title, as a schema heads its versions' pages
+    expect(await screen.findByRole("heading", { name: "Standard review Version 2.0" })).toBeInTheDocument();
     expect(await screen.findByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("With an escalation")).toBeInTheDocument();
-    // No link of its own back to the workflow: the shell's breadcrumb trail is the way back
+    // No link of its own back to the workflow: the shell's breadcrumb trail is the way back, and this page
+    // adds the steps its path cannot name, under their own titles
     expect(screen.queryByRole("link", { name: /Standard review/ })).not.toBeInTheDocument();
+    expect(getPageCrumbs()).toEqual([
+      { path: "/admin/workflows/Workflows", label: "Workflows" },
+      { path: "/admin/workflows/Workflows/review", label: "Standard review" },
+    ]);
   });
 
   it("offers to edit a draft it is only showing, at the same URL asked the other way", async () => {
@@ -344,7 +351,7 @@ describe("WorkflowEditor", () => {
 
     renderEditor({ edit: false, path: "/Workflows/review/1-0" });
 
-    expect(await screen.findByRole("heading", { name: "Standard review: Version 1.0" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Standard review Version 1.0" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
   });
 
@@ -376,7 +383,7 @@ describe("WorkflowEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByRole("heading", { name: "Standard review: Version 2-0" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Standard review Version 2-0" })).toBeInTheDocument();
   });
 
   it("displays whatever is at the path when the workflow has no such version", async () => {
@@ -394,6 +401,9 @@ describe("WorkflowEditor", () => {
     renderEditor();
     const report = await screen.findByRole("alert");
     expect(report).toHaveTextContent("This workflow version could not be loaded");
+    // Named by what the path says until the workflow is read
+    expect(screen.getByRole("heading", { name: "Version 2-0" })).toBeInTheDocument();
+    expect(getPageCrumbs()).toContainEqual({ path: "/admin/workflows/Workflows/review", label: "review" });
 
     stubFetch();
     await user.click(screen.getByRole("button", { name: "Retry" }));

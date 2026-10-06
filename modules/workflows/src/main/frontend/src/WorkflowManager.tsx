@@ -20,23 +20,18 @@ import { useCallback, useState, type ReactNode } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
+import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import Panel from "@iap/frontend-commons/components/Panel";
+import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 
 import NewVersionDialog from "./NewVersionDialog";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, offers } from "./workflowModel";
+import { adminUrl, offers, type WorkflowHomepage, type WorkflowSummary } from "./workflowModel";
 import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
 import WorkflowVersionList from "./WorkflowVersionList";
 
@@ -54,9 +49,21 @@ function Property({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+// Whether new instances start from a workflow, which is read off its versions: what its page says it is.
+function RunsChip({ workflow }: { workflow: WorkflowSummary }) {
+  if (workflow.active) {
+    return <Chip size="small" color="success" label="Enabled" />;
+  }
+  return workflow.retired
+    ? <Chip size="small" color="warning" variant="outlined" label="Retired" />
+    : <Chip size="small" variant="outlined" label="Disabled" />;
+}
+
 interface WorkflowManagerProps {
   // The workflow's repository path, read out of the URL by the console (see WorkflowConsole)
   path: string;
+  // The homepage it is stored in, which the breadcrumb trail leads back to
+  homepage: WorkflowHomepage;
 }
 
 // The page managing one workflow: its own properties, and every version of it with the actions that
@@ -71,29 +78,24 @@ interface WorkflowManagerProps {
 //
 // The per-version buttons are deliberately not written here: they are contributed on the
 // WorkflowVersionActions extension point, so an action added later needs no change to this file.
-function WorkflowManager({ path }: WorkflowManagerProps) {
+function WorkflowManager({ path, homepage }: WorkflowManagerProps) {
   const navigate = useNavigate();
-  const { workflow, loadError, reload } = useWorkflow(path);
+  const { workflow, loading, loadError, reload } = useWorkflow(path);
   const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
   const [ editing, setEditing ] = useState(false);
   const [ addingVersion, setAddingVersion ] = useState(false);
+  usePageCrumbs([ { path: adminUrl(homepage.path), label: homepage.title } ]);
 
   const openNewVersion = (versionPath: string): void => {
     setAddingVersion(false);
     void navigate(adminUrl(versionPath, "edit"));
   };
 
-  if (loadError) {
-    return (
-      <AdminScreen title="Workflow">
-        <LoadError title="This workflow could not be loaded" message={loadError} onRetry={reload} />
-      </AdminScreen>
-    );
-  }
   if (!workflow) {
     return (
       <AdminScreen title="Workflow">
-        <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />
+        <LoadingOverlay open={loading} />
+        { loadError && <LoadError title="This workflow could not be loaded" message={loadError} onRetry={reload} /> }
       </AdminScreen>
     );
   }
@@ -101,6 +103,10 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
   return (
     <AdminScreen
       title={workflow.title}
+      status={<RunsChip workflow={workflow} />}
+      description={"Only a draft version can be edited. A version on trial is changed by returning it to being a "
+        + "draft, and an active or retired one by drafting a copy of it, which takes over once activated."}
+      disablePanel
       action={
         <Stack direction="row" spacing={1}>
           { offers(workflow, "save") && (
@@ -117,26 +123,18 @@ function WorkflowManager({ path }: WorkflowManagerProps) {
       }
     >
       <Stack spacing={3}>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>Properties</Typography>
+        { loadError && <LoadError title="The workflow could not be reloaded" message={loadError} onRetry={reload} /> }
+        <Panel title="Properties">
           <Stack spacing={1}>
-            <Property label="Title">{workflow.title}</Property>
             <Property label="Stored at">{workflow.path}</Property>
-            <Property label="Runs">
-              { workflow.active && <Chip size="small" color="success" label="Enabled" /> }
-              { workflow.retired && <Chip size="small" color="warning" variant="outlined" label="Retired" /> }
-              { !workflow.active && !workflow.retired && <Chip size="small" variant="outlined" label="Disabled" /> }
-            </Property>
             { workflow.created !== "" && <Property label="Created">{formatDate(workflow.created)}</Property> }
             { workflow.lastModified !== ""
               && <Property label="Last modified">{formatDate(workflow.lastModified)}</Property> }
           </Stack>
-        </Paper>
-
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>Versions</Typography>
+        </Panel>
+        <Panel title="Versions">
           <WorkflowVersionList workflow={workflow} reload={reloadWorkflow} />
-        </Paper>
+        </Panel>
       </Stack>
 
       { editing && (

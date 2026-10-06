@@ -460,26 +460,23 @@ nothing in a path is ever a page, so no name below a homepage is reserved. And a
 a tree that is not a homepage here, more segments than a version can account for — is said to name nothing,
 rather than being handed to a page that would render an empty workflow for it.
 
-What this buys the breadcrumbs above the page: every step of a console URL is a page, so each is
-rendered as a link that leads somewhere. Naming them takes one registration per depth, because a crumb
-is labelled with the `ext:name` of the view whose target matches it, and a single view spanning the whole
-tree would name every step alike. So the console registers `:homepage`, `:homepage/:workflow` and
-`:homepage/:workflow/:version` as views of their own, all rendering the same page, and a trail reads
-`Administration / Workflows / Workflow`.
+What this buys the breadcrumbs above the page: every step of a console URL is a page, so each crumb is a
+link that leads somewhere. The pages name those steps themselves, with `usePageCrumbs`, the way a schema
+version's page names its schema: a workflow's page adds the homepage it is stored in, under that homepage's
+own title, and a version's page adds the homepage and then the workflow, under the workflow's title, so a
+trail reads `Administration / Workflows / Time off requests`. The pages are headed the way a schema's are,
+too: a workflow's by its title, with whether it runs beside it, and a version's by its label after its
+workflow's title, with its lifecycle beside it and its description under it.
 
-Two things fall out of registering by depth rather than behind one splat. A view whose target carries a
-splat never names a crumb, since a splat claims every path beneath it and would label each one alike — so
-the console's root, registered behind the splat that catches everything the named depths miss, is routed
-without becoming a step in the trail. And the depths only line up for a homepage of one segment:
-`/Content/Workflows` is a homepage the trail would call a workflow. Its pages still work, since that same
-`/admin/workflows/*` view catches every depth the named three do not, ordered last so the named ones are
-found first; only the labels are off, and only for a homepage stored deeper than everyone's.
-
-**Every one of those views renders the same page.** `ext:targetURL` is handed to the router as-is, and a
-route may only end in a splat, so no pattern can pick out a page that comes *after* a path of unknown
-length — which means none of them can say, by its pattern alone, which of the three things its URL is
-about. They are registered separately so that the trail can name them, and what each URL actually
-addresses is worked out once, by the page they all mount.
+The console therefore registers a single view, `/admin/workflows/*`, which mounts the page that works out
+what a URL addresses. A splat could never name a crumb anyway — it claims every path beneath it, and would
+label each step alike — and the trail skips it, so the console's root, which redirects to the default
+homepage's listing, is routed without becoming a step in the trail. Naming the steps from the pages rather
+than from a view per depth is also what reads a homepage stored deeper than one segment correctly:
+counted from the root, `/Content/Workflows` would have been labelled a workflow. **Every URL renders the
+same page** for the same reason: a route may only end in a splat, so no pattern can pick out a page that
+comes *after* a path of unknown length, and what each URL actually addresses is worked out once, by the
+page the view mounts.
 
 Two things about that split are load-bearing. **The read-only view is a different bpmn-js class**, a
 `NavigatedViewer` rather than a `Modeler`: it can pan and zoom and has no palette, no context pad and no

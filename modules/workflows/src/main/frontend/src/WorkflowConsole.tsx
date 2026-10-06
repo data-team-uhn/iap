@@ -53,7 +53,7 @@ function WorkflowConsole() {
   // The root is the one URL the homepages have no say in, so it is answered straight away rather
   // than behind a spinner the redirect would throw away. It shows the homepage every admin user has
   // access to, since a listing belongs to a homepage and the root is not a page of its own.
-  const target: ConsoleTarget = consoleTarget(location.pathname, homepages.map(homepage => homepage.path));
+  const target: ConsoleTarget = consoleTarget(location.pathname, homepages);
   if (target.kind === "root") {
     return <Navigate to={adminUrl(WORKFLOWS_ROOT)} replace />;
   }
@@ -76,9 +76,9 @@ function WorkflowConsole() {
       // workflow above it is stored in
       return <WorkflowsView homepage={target.path} />;
     case "workflow":
-      return <WorkflowManager path={target.path} />;
+      return <WorkflowManager path={target.path} homepage={target.homepage} />;
     case "version":
-      return <WorkflowEditor path={target.path} editing={target.editing} />;
+      return <WorkflowEditor path={target.path} homepage={target.homepage} editing={target.editing} />;
     case "unknown":
       // A URL that names nothing showable says so plainly, rather than rendering the empty workflow that
       // querying the repository for it would produce.

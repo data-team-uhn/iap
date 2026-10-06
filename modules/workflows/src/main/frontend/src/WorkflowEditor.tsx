@@ -24,18 +24,21 @@ import { Link as RouterLink, useNavigate } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
 import BpmnEditor from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, offers, type WorkflowVersionSummary } from "./workflowModel";
+import { adminUrl, offers, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
 import { saveDiagram } from "./workflowWrites";
 
 interface WorkflowEditorProps {
   // The version's repository path, read out of the URL by the console (see WorkflowConsole)
   path: string;
+  // The homepage its workflow is stored in, which the breadcrumb trail leads back to
+  homepage: WorkflowHomepage;
   // Whether the URL asked for edit mode (the .edit suffix). Granting it is still this page's decision:
   // only a draft is editable.
   editing: boolean;
@@ -55,7 +58,7 @@ interface WorkflowEditorProps {
 //
 // Load, Save-as and New are deliberately absent: this page is opened for one version, from the page
 // that manages the workflow, which is where versions are created and chosen between.
-function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
+function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const requestedEdit = editing;
   const navigate = useNavigate();
 
@@ -73,6 +76,13 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
   const definitionPath = path.slice(0, path.lastIndexOf("/"));
 
   const { workflow, loadError, reload } = useWorkflow(definitionPath);
+  // The steps above this page that its path cannot name: the homepage, and the workflow under its title
+  // once it is read
+  const workflowName = definitionPath.slice(definitionPath.lastIndexOf("/") + 1);
+  usePageCrumbs([
+    { path: adminUrl(homepage.path), label: homepage.title },
+    { path: adminUrl(definitionPath), label: workflow?.title ?? workflowName },
+  ]);
 
   const onReady = useCallback((serialize: (() => Promise<string>) | null) => {
     serializeRef.current = serialize;
@@ -130,12 +140,14 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
       .finally(() => setSaving(false));
   }
 
-  const label = version ? version.version || version.name : "";
-  const title = workflow ? `${workflow.title}${label === "" ? "" : `: Version ${label}`}` : "Workflow Version";
+  const label = version ? version.version || version.name : path.slice(path.lastIndexOf("/") + 1);
 
   return (
     <AdminScreen
-      title={title}
+      title={`Version ${label}`}
+      titlePrefix={workflow?.title}
+      status={version && <LifecycleChip tags={version.tags} />}
+      description={version?.description}
       action={
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           { editable && (
@@ -164,14 +176,6 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
       <Stack spacing={2}>
         { loadError && (
           <LoadError title="This workflow version could not be loaded" message={loadError} onRetry={reload} />
-        )}
-        { workflow && (
-          <Stack direction="row" spacing={2} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-            { version && <LifecycleChip tags={version.tags} /> }
-            { version?.description !== undefined && version.description !== "" && (
-              <Typography variant="description">{version.description}</Typography>
-            )}
-          </Stack>
         )}
         { workflow && !version && (
           <Alert severity="warning">

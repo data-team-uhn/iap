@@ -293,9 +293,10 @@ export function adminUrl(repositoryPath: string, page?: WorkflowPage): string {
 export type ConsoleTarget =
   | { kind: "root" }
   | { kind: "homepage"; path: string }
-  | { kind: "workflow"; path: string }
+  // A workflow and a version, with the homepage they are stored in, which their pages lead back to
+  | { kind: "workflow"; path: string; homepage: WorkflowHomepage }
   // Editing is a mode of the version's own page rather than a page below it.
-  | { kind: "version"; path: string; editing: boolean }
+  | { kind: "version"; path: string; homepage: WorkflowHomepage; editing: boolean }
   | { kind: "unknown" };
 
 const UNKNOWN: ConsoleTarget = { kind: "unknown" };
@@ -308,7 +309,7 @@ const ROOT: ConsoleTarget = { kind: "root" };
 // (in case one is nested inside another), with what remains saying which of the three it is about.
 // Nothing below a version is a page, since the one page that opens on a version is asked for by the
 // .edit suffix — so no path segment is reserved and every one is repository content.
-export function consoleTarget(url: string, homepages: readonly string[]): ConsoleTarget {
+export function consoleTarget(url: string, homepages: readonly WorkflowHomepage[]): ConsoleTarget {
   const address = url.replace(/\.html$/, "").replace(/\/+$/, "");
   // The editor is asked for on top of the URL of what it edits, so the rest is read by taking the
   // suffix off and asking what is left. It asks for a mode of a page, so it means something only
@@ -331,20 +332,20 @@ export function consoleTarget(url: string, homepages: readonly string[]): Consol
   }
   // The longest match, so a homepage stored under another homepage's path wins over its container
   const homepage = homepages
-    .filter(candidate => tail === candidate || tail.startsWith(`${candidate}/`))
-    .reduce<string | undefined>((longest, candidate) =>
-      longest === undefined || candidate.length > longest.length ? candidate : longest, undefined);
+    .filter(candidate => tail === candidate.path || tail.startsWith(`${candidate.path}/`))
+    .reduce<WorkflowHomepage | undefined>((longest, candidate) =>
+      longest === undefined || candidate.path.length > longest.path.length ? candidate : longest, undefined);
   if (homepage === undefined) {
     return UNKNOWN;
   }
-  const below = tail.slice(homepage.length).split("/").filter(Boolean);
+  const below = tail.slice(homepage.path.length).split("/").filter(Boolean);
   switch (below.length) {
     case 0:
-      return { kind: "homepage", path: homepage };
+      return { kind: "homepage", path: homepage.path };
     case 1:
-      return { kind: "workflow", path: `${homepage}/${below[0]}` };
+      return { kind: "workflow", path: `${homepage.path}/${below[0]}`, homepage };
     case 2:
-      return { kind: "version", path: `${homepage}/${below[0]}/${below[1]}`, editing: false };
+      return { kind: "version", path: `${homepage.path}/${below[0]}/${below[1]}`, homepage, editing: false };
     default:
       return UNKNOWN;
   }

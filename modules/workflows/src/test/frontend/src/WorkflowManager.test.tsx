@@ -24,6 +24,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
@@ -103,7 +104,7 @@ function Where() {
 const renderManager = () => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
     <MemoryRouter initialEntries={[`/admin/workflows${WORKFLOW_PATH}`]}>
-      <WorkflowManager path={WORKFLOW_PATH} />
+      <WorkflowManager path={WORKFLOW_PATH} homepage={{ path: "/Workflows", title: "Workflows" }} />
       <Where />
     </MemoryRouter>
   </ThemeProvider>,
@@ -143,6 +144,15 @@ describe("WorkflowManager", () => {
     expect(screen.getByText(WORKFLOW_PATH)).toBeInTheDocument();
     // Enabled because one of its versions is active, which is the only thing that makes a workflow run
     expect(screen.getAllByText("Enabled").length).toBeGreaterThan(0);
+  });
+
+  it("leads back to its homepage, under the homepage's title", async () => {
+    stubFetch();
+
+    renderManager();
+
+    await screen.findByRole("heading", { name: "Standard review" });
+    expect(getPageCrumbs()).toEqual([ { path: "/admin/workflows/Workflows", label: "Workflows" } ]);
   });
 
   it("says a workflow does not run while no version of it is active", async () => {
@@ -280,6 +290,26 @@ describe("WorkflowManager", () => {
     const report = await screen.findByRole("alert");
     expect(report).toHaveTextContent("This workflow could not be loaded");
     expect(report).toHaveTextContent("(HTTP 500)");
+  });
+
+  it("keeps the workflow on its page when reading it again fails, and says so", async () => {
+    // What is on the page is still what was last read; a refusal to read it again is reported above it
+    // rather than taking its place
+    const user = userEvent.setup();
+    const reloadingAction = ({ reload }: WorkflowVersionActionProps) => (
+      <button type="button" onClick={reload}>reload</button>
+    );
+    mockedLoadExtensions.mockResolvedValue([ { "ext:render": reloadingAction } ]);
+    stubFetch();
+    renderManager();
+    const buttons = await screen.findAllByRole("button", { name: "reload" });
+
+    stubFailingFetch(500);
+    await user.click(buttons[0]);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The workflow could not be reloaded");
+    expect(screen.getByRole("heading", { name: "Standard review" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(4);
   });
 
   it("reloads when the load failure's Retry is used", async () => {

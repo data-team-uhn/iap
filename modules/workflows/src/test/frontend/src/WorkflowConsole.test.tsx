@@ -30,11 +30,12 @@ vi.mock("@iap/workflows/WorkflowsView", () => ({
   default: ({ homepage }: { homepage?: string }) => <div>{`list of ${homepage ?? "everything"}`}</div>,
 }));
 vi.mock("@iap/workflows/WorkflowManager", () => ({
-  default: ({ path }: { path: string }) => <div>{`workflow ${path}`}</div>,
+  default: ({ path, homepage }: { path: string; homepage: { title: string } }) =>
+    <div>{`workflow ${path}`}<span>{`in ${homepage.title}`}</span></div>,
 }));
 vi.mock("@iap/workflows/WorkflowEditor", () => ({
-  default: ({ path, editing }: { path: string; editing: boolean }) =>
-    <div>{`version ${path} ${editing ? "editing" : "read-only"}`}</div>,
+  default: ({ path, homepage, editing }: { path: string; homepage: { title: string }; editing: boolean }) =>
+    <div>{`version ${path} ${editing ? "editing" : "read-only"}`}<span>{`in ${homepage.title}`}</span></div>,
 }));
 
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
@@ -75,6 +76,16 @@ describe("WorkflowConsole", () => {
     renderAt("/admin/workflows/Workflows/review");
 
     expect(await screen.findByText("workflow /Workflows/review")).toBeInTheDocument();
+  });
+
+  it("tells a workflow's page and a version's which homepage they are in, by its title", async () => {
+    // What the breadcrumb trail leads back to: the pages name the steps above them themselves
+    const { unmount } = renderAt("/admin/workflows/SystemWorkflows/review");
+    expect(await screen.findByText("in System workflows")).toBeInTheDocument();
+    unmount();
+
+    renderAt("/admin/workflows/SystemWorkflows/review/2-0");
+    expect(await screen.findByText("in System workflows")).toBeInTheDocument();
   });
 
   it("opens one version, read-only", async () => {

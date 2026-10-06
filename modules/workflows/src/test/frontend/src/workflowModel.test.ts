@@ -23,6 +23,7 @@ import {
   loadWorkflowCounts,
   loadWorkflowHomepages,
   workflowFrom,
+  type WorkflowHomepage,
 } from "@iap/workflows/workflowModel";
 
 const definition = {
@@ -289,7 +290,9 @@ describe("loadWorkflowCounts", () => {
 describe("the console's URLs", () => {
   // What this instance has, as the console discovers it: two homepages, one nested inside the other.
   // That's the case that decides how the homepage is found.
-  const HOMEPAGES = [ "/Workflows", "/SystemWorkflows", "/Content/Workflows" ];
+  const homepage = (path: string): WorkflowHomepage => ({ path, title: `The ${path} homepage` });
+  const HOMEPAGES = [ "/Workflows", "/SystemWorkflows", "/Content/Workflows" ].map(homepage);
+  const [ WORKFLOWS, , CONTENT ] = HOMEPAGES;
 
   it("carries the repository path, and names only the page that needs naming", () => {
     expect(adminUrl("/Workflows/review")).toBe("/admin/workflows/Workflows/review");
@@ -301,11 +304,11 @@ describe("the console's URLs", () => {
 
   it("reads the editor's suffix as a mode of the version it is put on", () => {
     expect(consoleTarget("/admin/workflows/Workflows/review/2-0", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: false });
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", homepage: WORKFLOWS, editing: false });
     expect(consoleTarget("/admin/workflows/Workflows/review/2-0.edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: true });
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", homepage: WORKFLOWS, editing: true });
     expect(consoleTarget("/admin/workflows/Content/Workflows/review/1-0.edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", editing: true });
+      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", homepage: CONTENT, editing: true });
   });
 
   it("names nothing when the editor is asked for on something that has none", () => {
@@ -323,25 +326,25 @@ describe("the console's URLs", () => {
     expect(consoleTarget("/admin/workflows/Workflows", HOMEPAGES))
       .toEqual({ kind: "homepage", path: "/Workflows" });
     expect(consoleTarget("/admin/workflows/Workflows/review", HOMEPAGES))
-      .toEqual({ kind: "workflow", path: "/Workflows/review" });
+      .toEqual({ kind: "workflow", path: "/Workflows/review", homepage: WORKFLOWS });
     expect(consoleTarget("/admin/workflows/Workflows/review/2-0", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: false });
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", homepage: WORKFLOWS, editing: false });
   });
 
   it("treats the trailing slash and the .html a bookmark may carry as the same page", () => {
     expect(consoleTarget("/admin/workflows/Workflows/review/", HOMEPAGES))
-      .toEqual({ kind: "workflow", path: "/Workflows/review" });
+      .toEqual({ kind: "workflow", path: "/Workflows/review", homepage: WORKFLOWS });
     expect(consoleTarget("/admin/workflows/Workflows/review.html", HOMEPAGES))
-      .toEqual({ kind: "workflow", path: "/Workflows/review" });
+      .toEqual({ kind: "workflow", path: "/Workflows/review", homepage: WORKFLOWS });
   });
 
   it("counts depth from the homepage, since a homepage may be anywhere", () => {
     // Counting from the root would read this workflow as a version of /Content/Workflows.
     // The homepage is the only fixed point: below one it's always homepage/workflow/version.
     expect(consoleTarget("/admin/workflows/Content/Workflows/review", HOMEPAGES))
-      .toEqual({ kind: "workflow", path: "/Content/Workflows/review" });
+      .toEqual({ kind: "workflow", path: "/Content/Workflows/review", homepage: CONTENT });
     expect(consoleTarget("/admin/workflows/Content/Workflows/review/1-0", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", editing: false });
+      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", homepage: CONTENT, editing: false });
     expect(adminUrl("/Content/Workflows/review")).toBe("/admin/workflows/Content/Workflows/review");
   });
 
@@ -350,7 +353,10 @@ describe("the console's URLs", () => {
     // path would be read as a workflow of it if the shortest match were taken
     expect(consoleTarget("/admin/workflows/Content/Workflows", HOMEPAGES))
       .toEqual({ kind: "homepage", path: "/Content/Workflows" });
-    expect(consoleTarget("/admin/workflows/Content/Workflows", [ "/Content", "/Content/Workflows" ]))
+    expect(consoleTarget("/admin/workflows/Content/Workflows", [ "/Content", "/Content/Workflows" ].map(homepage)))
+      .toEqual({ kind: "homepage", path: "/Content/Workflows" });
+    // Whichever order they were discovered in
+    expect(consoleTarget("/admin/workflows/Content/Workflows", [ "/Content/Workflows", "/Content" ].map(homepage)))
       .toEqual({ kind: "homepage", path: "/Content/Workflows" });
   });
 
@@ -358,9 +364,9 @@ describe("the console's URLs", () => {
     // Nothing in a path is taken for a page — a page is asked for in the query — so no name below a
     // homepage is reserved
     expect(consoleTarget("/admin/workflows/Workflows/review/edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/edit", editing: false });
+      .toEqual({ kind: "version", path: "/Workflows/review/edit", homepage: WORKFLOWS, editing: false });
     expect(consoleTarget("/admin/workflows/Workflows/edit/edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/edit/edit", editing: false });
+      .toEqual({ kind: "version", path: "/Workflows/edit/edit", homepage: WORKFLOWS, editing: false });
   });
 
   it("knows nothing about a URL it cannot place", () => {
