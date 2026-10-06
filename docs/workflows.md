@@ -143,6 +143,12 @@ by hand.
   finishes there, retiring the host's tags that share any of its categories. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
 
+A service task's configuration reaches the stored node through the `properties` list of
+its vocabulary entry, `ServiceTask.json`: each line maps an `iap:` attribute to an
+activity property, and a trailing `[]` makes it a list, written comma-separated. A
+handler parameter with no line there is dropped when the diagram is parsed, and nothing
+reports it, so a new parameter needs a new line.
+
 ### The vocabulary
 
 `/WorkflowTypes` is the translation table between BPMN and the repository. Each

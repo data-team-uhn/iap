@@ -31,8 +31,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:File} node: one uploaded file, and the renditions parsing made of it, such as
- * the Markdown.
+ * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
+ * derived from it — the Markdown and the PDF.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,9 +45,24 @@ public class File extends EntityPart implements Referenceable
     public static final String RESOURCE_TYPE = "sub/File";
 
     /** The name of the child node holding the upload as it was received. */
-    private static final String UPLOADED_FILE_CHILD = "uploadedFile";
+    public static final String UPLOADED_FILE_CHILD = "uploadedFile";
+
+    /** The name of the child node holding the Markdown the parse produced, whatever the parse called it. */
+    public static final String MARKDOWN_CHILD = "markdownFile";
+
+    /**
+     * The name of the child node holding the PDF LibreOffice rendered from an office document. Absent when the
+     * upload was already a PDF: that one is the PDF, and a second copy of it is dead weight.
+     */
+    public static final String PDF_CHILD = "pdfFile";
 
     private static final String FILE_RESOURCE_TYPE = "nt:file";
+
+    private static final String JCR_CONTENT = "jcr:content";
+
+    private static final String JCR_MIME_TYPE = "jcr:mimeType";
+
+    private static final String PDF_MIME_TYPE = "application/pdf";
 
     @ValueMapValue
     private String parseStatus;
@@ -59,7 +74,8 @@ public class File extends EntityPart implements Referenceable
     private Long tokens;
 
     /**
-     * How far parsing got.
+     * Where the parse got to: queued, completed or failed. Only the parse job record is ever active. Kept here as
+     * well as on the job so that a file that failed parsing does not look like one that was never parsed.
      *
      * @return one of {@code queued}, {@code active}, {@code completed} and {@code failed}; {@code null} if none is
      *         recorded
@@ -104,7 +120,49 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The renditions parsing produced, such as the Markdown. The upload itself is not one of them.
+     * The Markdown the parse produced, which is what the extraction reads.
+     *
+     * @return the Markdown file, or {@code null} if the file has not been parsed
+     */
+    @Nullable
+    public Resource getFileMarkdown()
+    {
+        return this.resource.getChild(MARKDOWN_CHILD);
+    }
+
+    /**
+     * The PDF of this document: the upload when it was a PDF, otherwise the PDF LibreOffice rendered beside the
+     * office file. Kept for showing the document back to a reviewer at the page a quote came from.
+     *
+     * <p>A PDF upload is stored once, as the upload. Callers ask for the PDF and get it either way.
+     *
+     * @return the PDF file, or {@code null} if there is no PDF of this document
+     */
+    @Nullable
+    public Resource getFilePdf()
+    {
+        final Resource rendered = this.resource.getChild(PDF_CHILD);
+        if (rendered != null) {
+            return rendered;
+        }
+        return isUploadAPdf() ? getUploadedFile() : null;
+    }
+
+    /**
+     * Whether the upload arrived as a PDF, which is what decides where the PDF of this document lives.
+     *
+     * @return {@code true} if the upload is a PDF
+     */
+    public boolean isUploadAPdf()
+    {
+        final Resource content = this.resource.getChild(UPLOADED_FILE_CHILD + "/" + JCR_CONTENT);
+        return content != null
+            && PDF_MIME_TYPE.equals(content.getValueMap().get(JCR_MIME_TYPE, String.class));
+    }
+
+    /**
+     * Every rendition stored on this file: the Markdown and the PDF, plus any other file child, which is allowed
+     * for other renditions though the pipeline stores none today. The upload itself is not one of them.
      *
      * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */

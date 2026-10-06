@@ -69,9 +69,9 @@ class IngestParseHandlerTest
     void setUp() throws Exception
     {
         final SubmissionTree tree = new SubmissionTree(this.context);
-        tree.schemaVersion();
-        this.submission = tree.submission();
-        this.file = tree.file("active");
+        tree.createSchemaVersion();
+        this.submission = tree.createSubmission();
+        this.file = tree.createFile("active");
         final Field field = IngestParseHandler.class.getDeclaredField("ingester");
         field.setAccessible(true);
         field.set(this.handler, this.ingester);

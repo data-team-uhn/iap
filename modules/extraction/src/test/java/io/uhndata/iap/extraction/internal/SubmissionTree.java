@@ -77,7 +77,7 @@ final class SubmissionTree
     }
 
     /** The schema version, with one form to hold questions. */
-    Resource schemaVersion()
+    Resource createSchemaVersion()
     {
         this.context.create().resource("/Schemas/proposal", Map.of(TYPE, "sch/Schema", "title", "Proposal"));
         final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
@@ -92,16 +92,16 @@ final class SubmissionTree
     }
 
     /** A question in the form; with a prompt, one the intake reads out of the document. */
-    Resource question(final String name, final String prompt)
+    Resource createQuestion(final String name, final String prompt)
     {
-        return question(name, prompt, 1);
+        return createQuestion(name, prompt, 1);
     }
 
     /**
      * The same, taking as many answers as given. A maximum other than one is what makes a question
      * multi-valued, which is what decides how its extracted answer is stored.
      */
-    Resource question(final String name, final String prompt, final long maxAnswers)
+    Resource createQuestion(final String name, final String prompt, final long maxAnswers)
     {
         final Map<String, Object> properties = new HashMap<>();
         properties.put(TYPE, "sch/Question");
@@ -116,7 +116,7 @@ final class SubmissionTree
     }
 
     /** The submission, answering the schema version, still a draft. */
-    Resource submission()
+    Resource createSubmission()
     {
         final Resource submission = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, "sub/Submission", "title", "A proposal", "createdBy", "demo-researcher",
@@ -131,7 +131,7 @@ final class SubmissionTree
      * @param parseStatus where its parse got to, or {@code null} for one never sent
      * @return the {@code sub:File}
      */
-    Resource file(final String parseStatus)
+    Resource createFile(final String parseStatus)
     {
         this.documents++;
         final String document = SUBMISSION_PATH + "/d" + this.documents;
@@ -149,7 +149,7 @@ final class SubmissionTree
     }
 
     /** A document requirement of the schema version, which uploads are attached for. */
-    Resource documentRequirement(final String name)
+    Resource createDocumentRequirement(final String name)
     {
         return this.context.create().resource(VERSION_PATH + "/" + name,
             Map.of(TYPE, "sch/DocumentRequirement", SUPER_TYPE, "sch/Requirement", "label", name));
@@ -162,16 +162,16 @@ final class SubmissionTree
      * @param text what the parse produced
      * @return the {@code sub:File}
      */
-    Resource parsedFor(final Resource requirement, final String text)
+    Resource createParsedFileFor(final Resource requirement, final String text)
     {
-        final Resource file = file("completed");
-        markdown(file, text);
+        final Resource file = createFile("completed");
+        addMarkdown(file, text);
         reference(file.getParent().getParent(), "fulfills", requirement);
         return file;
     }
 
     /** A document whose version holds no upload yet. */
-    Resource emptyDocument()
+    Resource createEmptyDocument()
     {
         this.documents++;
         final String document = SUBMISSION_PATH + "/d" + this.documents;
@@ -187,7 +187,7 @@ final class SubmissionTree
      * @param prompt what the model is asked to decide
      * @return the question the pick is stored under
      */
-    Resource classification(final String name, final String document, final String prompt)
+    Resource createClassification(final String name, final String document, final String prompt)
     {
         final String path = VERSION_PATH + "/" + name;
         this.context.create().resource(path, Map.of(TYPE, "sch/ClassificationRequirement", SUPER_TYPE,
@@ -202,12 +202,12 @@ final class SubmissionTree
     }
 
     /** The reference text a classification requirement shows the model. */
-    void template(final String requirement, final String text)
+    void addTemplate(final String requirement, final String text)
     {
         storeText(VERSION_PATH + "/" + requirement + "/template", text);
     }
 
-    void markdown(final Resource file, final String text)
+    void addMarkdown(final Resource file, final String text)
     {
         storeText(file.getPath() + "/markdownFile", text);
     }
@@ -224,7 +224,7 @@ final class SubmissionTree
     }
 
     /** The identifier a REFERENCE to a node holds. */
-    static String identifierOf(final Resource resource)
+    static String getIdentifier(final Resource resource)
     {
         try {
             return resource.adaptTo(Node.class).getIdentifier();
