@@ -48,7 +48,7 @@ const version = (label: string) => ({
   description: "",
   tags: [ "retired" ],
   lastModified: "",
-  events: [],
+  "@events": [],
 });
 
 const workflow = (events: string[] = [ "createVersion", "save" ]): WorkflowSummary => ({
@@ -59,7 +59,7 @@ const workflow = (events: string[] = [ "createVersion", "save" ]): WorkflowSumma
   retired: false,
   created: "",
   lastModified: "",
-  events,
+  "@events": events,
   versions: [ version("1.0"), version("2.0"), version("3.0") ],
 });
 

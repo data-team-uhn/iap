@@ -22,10 +22,10 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import DetailsDialog, { editableText } from "./DetailsDialog";
-import { labelOf, offers, pathOf } from "./schemaModel";
+import { labelOf, pathOf } from "./schemaModel";
 import { patch } from "./schemaPatch";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";

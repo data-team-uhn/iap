@@ -68,9 +68,6 @@ export const versionsOf = (schema: JcrNode): JcrNode[] => Object.values(schema)
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
 
-// Whether the server would take this event on a schema or a version from the current user
-export const offers = (node: JcrNode, event: string): boolean => strings(node["@events"]).includes(event);
-
 const isField = (value: unknown): value is EditableField =>
   typeof value === "object" && value !== null
     && typeof (value as EditableField).name === "string" && typeof (value as EditableField).label === "string";

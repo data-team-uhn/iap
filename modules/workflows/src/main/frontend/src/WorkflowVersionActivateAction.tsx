@@ -19,8 +19,9 @@
 import PublishIcon from "@mui/icons-material/Publish";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { ACTIVE_TAG, offers } from "./workflowModel";
+import { ACTIVE_TAG } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 

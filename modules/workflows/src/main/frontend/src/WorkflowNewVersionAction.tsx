@@ -22,9 +22,10 @@ import LibraryAddOutlinedIcon from "@mui/icons-material/LibraryAddOutlined";
 import { useNavigate } from "react-router";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
 import NewVersionDialog from "./NewVersionDialog";
-import { adminUrl, offers } from "./workflowModel";
+import { adminUrl } from "./workflowModel";
 
 import type { WorkflowActionProps } from "./WorkflowActions";
 

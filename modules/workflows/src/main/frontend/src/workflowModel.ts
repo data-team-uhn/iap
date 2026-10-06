@@ -66,7 +66,7 @@ export interface WorkflowVersionSummary {
   tags: string[];
   lastModified: string;
   // What the current user may do to it, as the events the server offers on it
-  events: string[];
+  "@events": string[];
 }
 
 // One workflow definition with the versions stored under it, as its own page displays it.
@@ -83,7 +83,7 @@ export interface WorkflowSummary {
   created: string;
   lastModified: string;
   // What the current user may do to the workflow itself, as the events the server offers on it
-  events: string[];
+  "@events": string[];
   versions: WorkflowVersionSummary[];
 }
 
@@ -99,9 +99,6 @@ function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-// Whether the server offers the event on a workflow or a version, which is whether it applies there.
-export const offers = (node: { events: string[] }, event: string): boolean => node.events.includes(event);
-
 // The versions stored under a serialized workflow definition, in the repository's own order.
 function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVersionSummary[] {
   return Object.entries(definition)
@@ -115,7 +112,7 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
         description: text(version.description),
         tags: strings(version.tags),
         lastModified: text(version["jcr:lastModified"]),
-        events: strings(version["@events"]),
+        "@events": strings(version["@events"]),
       };
     });
 }
@@ -132,7 +129,7 @@ export function workflowFrom(path: string, definition: JcrNode): WorkflowSummary
       && !versions.some(version => version.tags.includes(ACTIVE_TAG)),
     created: text(definition["jcr:created"]),
     lastModified: text(definition["jcr:lastModified"]),
-    events: strings(definition["@events"]),
+    "@events": strings(definition["@events"]),
     versions,
   };
 }

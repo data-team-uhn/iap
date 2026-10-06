@@ -21,8 +21,8 @@ import { useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { offers } from "./workflowModel";
 import WorkflowPropertiesDialog from "./WorkflowPropertiesDialog";
 
 import type { WorkflowActionProps } from "./WorkflowActions";

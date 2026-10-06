@@ -19,8 +19,7 @@
 import UndoIcon from "@mui/icons-material/Undo";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
-
-import { offers } from "./workflowModel";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 

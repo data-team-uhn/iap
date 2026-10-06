@@ -36,7 +36,7 @@ const definition = {
     "description": "The initial cut",
     "tags": ["retired"],
     "jcr:lastModified": "2026-07-15T09:00:00.000Z",
-    "@events": [ "activate", "draft" ],
+    "@events": [ "activate" ],
   },
   "2-0": {
     "jcr:primaryType": "wf:WorkflowVersion",
@@ -63,7 +63,7 @@ describe("workflowFrom", () => {
       name: "review",
       title: "Standard review",
       active: true,
-      events: [ "createVersion", "save" ],
+      "@events": [ "createVersion", "save" ],
     });
     expect(workflow.versions.map(version => version.version)).toEqual(["1.0", "2.0", "3.0"]);
     expect(workflow.versions[0]).toEqual({
@@ -73,7 +73,7 @@ describe("workflowFrom", () => {
       description: "The initial cut",
       tags: ["retired"],
       lastModified: "2026-07-15T09:00:00.000Z",
-      events: [ "activate", "draft" ],
+      "@events": [ "activate" ],
     });
   });
 
@@ -123,7 +123,7 @@ describe("workflowFrom", () => {
     const workflow = workflowFrom("/Workflows/review", definition);
 
     expect(workflow.versions[2]).toMatchObject({
-      version: "3.0", tags: [], description: "", lastModified: "", events: [],
+      version: "3.0", tags: [], description: "", lastModified: "", "@events": [],
     });
   });
 

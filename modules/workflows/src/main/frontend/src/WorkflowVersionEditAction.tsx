@@ -19,8 +19,9 @@
 import EditIcon from "@mui/icons-material/Edit";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { adminUrl, offers } from "./workflowModel";
+import { adminUrl } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 

@@ -28,8 +28,9 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 import { nextVersionLabel } from "@iap/frontend-commons/versionNumbers";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { adminUrl, offers } from "./workflowModel";
+import { adminUrl } from "./workflowModel";
 import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";

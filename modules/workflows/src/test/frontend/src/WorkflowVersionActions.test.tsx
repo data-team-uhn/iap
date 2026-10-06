@@ -63,7 +63,7 @@ const version = (label: string, lifecycle: Lifecycle | null): WorkflowVersionSum
   description: "",
   tags: lifecycle === null ? [] : [ lifecycle ],
   lastModified: "",
-  events: lifecycle === null ? [] : OFFERED[lifecycle],
+  "@events": lifecycle === null ? [] : OFFERED[lifecycle],
 });
 
 const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
@@ -74,7 +74,7 @@ const workflow = (...versions: WorkflowVersionSummary[]): WorkflowSummary => ({
   retired: false,
   created: "",
   lastModified: "",
-  events: [ "createVersion", "save" ],
+  "@events": [ "createVersion", "save" ],
   versions,
 });
 
@@ -158,12 +158,12 @@ const ACTIONS: [ string, "button" | "link", (props: WorkflowVersionActionProps) 
 describe("every version action", () => {
   it.each(ACTIONS)("offers %s exactly where the server offers its event", (name, role, Action, event) => {
     // The lifecycle says nothing each time, so only the events can decide
-    const offered = { ...version("2.0", null), events: [ event ] };
+    const offered = { ...version("2.0", null), "@events": [ event ] };
     const { unmount } = renderAction(Action, propsFor(offered, workflow(offered)));
     expect(screen.getByRole(role, { name })).toBeInTheDocument();
     unmount();
 
-    const withheld = { ...version("2.0", "draft"), events: [] };
+    const withheld = { ...version("2.0", "draft"), "@events": [] };
     renderAction(Action, propsFor(withheld, workflow(withheld)));
     expect(screen.queryByRole(role, { name })).not.toBeInTheDocument();
   });
@@ -563,7 +563,7 @@ describe("the draft-from action", () => {
   it("is not offered where the workflow takes no new version", () => {
     const active = version("1.0", "active");
 
-    renderAction(WorkflowVersionDraftAction, propsFor(active, { ...workflow(active), events: [ "save" ] }));
+    renderAction(WorkflowVersionDraftAction, propsFor(active, { ...workflow(active), "@events": [ "save" ] }));
 
     expect(screen.queryByRole("button", { name: "New draft from this" })).not.toBeInTheDocument();
   });

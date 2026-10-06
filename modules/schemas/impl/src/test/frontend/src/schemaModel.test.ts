@@ -17,7 +17,7 @@
  */
 
 import {
-  countSchemas, descriptionOf, fieldsOf, labelOf, offers, pathOf, schemaNameFromRoute, schemasOf, tagsOf, titleOf,
+  countSchemas, descriptionOf, fieldsOf, labelOf, pathOf, schemaNameFromRoute, schemasOf, tagsOf, titleOf,
   versionNameFromRoute, versionsOf,
 } from "@iap/schemas/schemaModel";
 
@@ -50,13 +50,11 @@ describe("schemaModel", () => {
     };
 
     expect(titleOf(schema)).toBe("bare");
-    expect(offers(schema, "update")).toBe(false);
     expect(fieldsOf(schema).map(field => field.name)).toEqual([ "title" ]);
     expect(fieldsOf(versionsOf(schema)[0])).toEqual([]);
     const [ version ] = versionsOf(schema);
     expect(labelOf(version)).toBe("v9");
     expect(tagsOf(version)).toEqual([ "draft" ]);
-    expect(offers(version, "discard")).toBe(true);
   });
 
   it("lists versions by label, comparing numbers as numbers", () => {

@@ -19,8 +19,9 @@
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { offers, pathOf, titleOf } from "./schemaModel";
+import { pathOf, titleOf } from "./schemaModel";
 
 import type { SchemaActionProps } from "./SchemaActions";
 

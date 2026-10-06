@@ -27,11 +27,12 @@ import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
 import BpmnEditor from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
-import { adminUrl, offers, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
+import { adminUrl, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
 import WorkflowVersionActions from "./WorkflowVersionActions";
 import { saveDiagram } from "./workflowWrites";
 
