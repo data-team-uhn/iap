@@ -99,7 +99,9 @@ public final class ConditionDependencies
      * @return the operands, none when there are no names
      * @throws RepositoryException when the entity cannot be searched
      */
-    public static List<Node> operandsNaming(final Node subtree, final Set<String> names, final boolean inside)
+    @NotNull
+    public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names,
+        final boolean inside)
         throws RepositoryException
     {
         final List<Node> naming = new ArrayList<>();
@@ -122,7 +124,8 @@ public final class ConditionDependencies
      * @return the operands
      * @throws RepositoryException when the subtree cannot be searched
      */
-    public static List<Node> operandsIn(final Node subtree) throws RepositoryException
+    @NotNull
+    public static List<Node> operandsIn(@NotNull final Node subtree) throws RepositoryException
     {
         return answerOperands(subtree, null);
     }
