@@ -1,9 +1,9 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Active",
-  "description": "Open: new submissions may be filed under this.",
+  "description": "Open: new submissions may be filed under this, or new instances started from it.",
   "category": ["lifecycle"],
-  "targetResourceTypes": ["sch/SchemaVersion"],
+  "targetResourceTypes": ["sch/SchemaVersion", "wf/WorkflowVersion"],
   "color": "#1d6a3a",
   "icon": "TaskAltOutlined",
   "order": 15
