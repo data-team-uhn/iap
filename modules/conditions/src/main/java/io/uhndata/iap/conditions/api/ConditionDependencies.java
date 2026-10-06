@@ -29,6 +29,9 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.query.Query;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * What conditions depend on, for the modules that change what they depend on. An {@code answer} operand names a
  * question by its identifier, or by its path within the entity holding the operand; these find, for content about to
@@ -59,7 +62,8 @@ public final class ConditionDependencies
      *     a whole, since what names it from inside names it relative to it
      * @throws RepositoryException when the subtree cannot be read
      */
-    public static Map<String, String> namesOf(final Node subtree) throws RepositoryException
+    @NotNull
+    public static Map<String, String> namesOf(@NotNull final Node subtree) throws RepositoryException
     {
         final Node entity = entityOf(subtree);
         final Map<String, String> names = new HashMap<>();
@@ -77,7 +81,9 @@ public final class ConditionDependencies
      * @return the operands, none when there are no names
      * @throws RepositoryException when the entity cannot be searched
      */
-    public static List<Node> operandsNaming(final Node subtree, final Set<String> names) throws RepositoryException
+    @NotNull
+    public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names)
+        throws RepositoryException
     {
         final List<Node> naming = new ArrayList<>();
         final Node entity = entityOf(subtree);
@@ -105,7 +111,8 @@ public final class ConditionDependencies
      * @return its values, as text
      * @throws RepositoryException when they cannot be read
      */
-    public static List<String> names(final Node operand) throws RepositoryException
+    @NotNull
+    public static List<String> names(@NotNull final Node operand) throws RepositoryException
     {
         final List<String> names = new ArrayList<>();
         for (final Value value : operand.getProperty(VALUE).getValues()) {
@@ -121,7 +128,7 @@ public final class ConditionDependencies
      * @param primaryType the node's primary type
      * @return whether it is
      */
-    public static boolean isConditionPart(final String primaryType)
+    public static boolean isConditionPart(@NotNull final String primaryType)
     {
         return primaryType.startsWith("cond:");
     }
@@ -133,7 +140,8 @@ public final class ConditionDependencies
      * @return the nearest ancestor that is not part of a condition
      * @throws RepositoryException when an ancestor cannot be read
      */
-    public static Node conditionedBy(final Node conditionPart) throws RepositoryException
+    @NotNull
+    public static Node conditionedBy(@NotNull final Node conditionPart) throws RepositoryException
     {
         Node current = conditionPart;
         while (current.getDepth() > 0 && isConditionPart(current.getPrimaryNodeType().getName())) {
@@ -149,7 +157,8 @@ public final class ConditionDependencies
      * @return the nearest entity at or above it, or {@code null} outside any
      * @throws RepositoryException when an ancestor cannot be read
      */
-    public static Node entityOf(final Node node) throws RepositoryException
+    @Nullable
+    public static Node entityOf(@NotNull final Node node) throws RepositoryException
     {
         Node current = node;
         while (!current.isNodeType("data:Entity")) {
