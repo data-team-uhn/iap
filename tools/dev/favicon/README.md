@@ -11,8 +11,9 @@ by an image file, and the `.svg` is emitted from that same table so the two cann
 
 The mark is the small-size counterpart of the QuorumPath application logo
 (`modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/logo-light.svg`):
-a navy path running from the left edge into the centre of a red token — a filled disc with a translucent
-halo ring — sitting at the end of the path.
+a navy path running from the left edge to the halo of a red token — a filled disc with a translucent
+halo ring — sitting at the end of the path. The path is drawn beneath the halo and stops on its ring, as
+in the logo (at 16px, with no halo, it ends at the token's centre).
 
 It is deliberately **not** a scaled copy of the logo. At 16–48 pixels the logo's hairlines vanish and
 fractional strokes turn into grey smears, so the path thickness, token size, halo and margins are tuned
@@ -76,8 +77,20 @@ an entry in `sling.auth.requirements`
 so it is readable before login, and a `favicon.svg.json` descriptor granting anonymous read, both of which
 mirror what the `.ico` already had.
 
+## Content negotiation
+
+`/favicon.ico` is the one path browsers probe by convention, so a client that can draw SVG should get the
+vector icon from it too. `FaviconServlet` (in `modules/favicon`) does that: a request whose `Accept` header
+names `image/svg+xml` — a wildcard does not count, and `q=0` refuses — is answered with `/favicon.svg`;
+every other request gets the `.ico`. Both answers carry `Vary: Accept`, so a cache keeps them apart.
+
+The servlet is bound by resource type (`iap/Favicon`, declared by `favicon.ico.json`), not mounted at the
+path. A path-mounted servlet would shadow the node and the access control that makes the icon readable
+before login.
+
 ## Deploying it
 
 Sling-Initial-Content will not overwrite a `/favicon.ico` or `/favicon.svg` node that already exists, so
-`mvn install` plus a restart leaves a running instance serving the old icons. Either start with a fresh data
-directory, or post the new files over the existing nodes.
+`mvn install` plus a restart leaves a running instance serving the old icons, and without the resource type
+the negotiation never engages. Either start with a fresh data directory, or post the new files over the
+existing nodes and set `sling:resourceType=iap/Favicon` on `/favicon.ico`.

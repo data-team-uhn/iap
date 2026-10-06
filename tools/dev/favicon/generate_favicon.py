@@ -21,9 +21,9 @@
 
 # Regenerates the two QuorumPath favicons shipped by the `favicon` module: `favicon.ico` (16,
 # 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art with a dark-scheme
-# variant. The mark is a navy "path" running from the left edge into the centre of a red token
-# (a filled disc with a translucent halo ring) sitting at the end of the path — the small-size
-# counterpart of the application logo in `modules/homepage/.../media/default/logo-light.svg`.
+# variant. The mark is a navy "path" running from the left edge to the halo of a red token
+# (a filled disc with a translucent halo ring) sitting at the end of the path, drawn beneath
+# the halo — the small-size counterpart of the application logo in `modules/homepage/.../media/default/logo-light.svg`.
 #
 # The favicon is not a scaled copy of that logo: at 16-48 pixels the logo's hairlines
 # disappear, so weights are tuned per size (see GEOMETRY) and the artwork is rasterized here
@@ -74,11 +74,11 @@ SVG_SIZE = 48
 #   r_dot  : radius of the filled token
 #   margin : ink-free border kept at the left and right edges
 # At 16px the halo is dropped: a sub-pixel ring at 45% opacity only muddies the token at that
-# size, so the token alone carries the mark, pixel-snapped (r 3 about cy 8) to stay round.
+# size, so the token alone carries the mark, pixel-snapped (r 4 about cy 8) to stay round.
 GEOMETRY = {
-    16: {"t": 2.0, "r_out": 0.0, "stroke": 0.00, "r_dot": 3.00, "margin": 1.0},
-    32: {"t": 2.0, "r_out": 6.1, "stroke": 1.05, "r_dot": 3.55, "margin": 1.4},
-    48: {"t": 2.6, "r_out": 8.8, "stroke": 1.30, "r_dot": 5.20, "margin": 2.0},
+    16: {"t": 2.0, "r_out": 0.0, "stroke": 0.00, "r_dot": 4.00, "margin": 1.0},
+    32: {"t": 2.0, "r_out": 10.7, "stroke": 1.70, "r_dot": 6.30, "margin": 1.3},
+    48: {"t": 4.0, "r_out": 16.0, "stroke": 2.60, "r_dot": 9.40, "margin": 2.0},
 }
 
 # Samples per axis per pixel, i.e. 64 coverage samples with the default. Cheap enough at these
@@ -98,9 +98,16 @@ def layout(size):
         "center_y": size / 2.0,
         # The widest ink around the token — halo if there is one, otherwise the disc — sets the inset.
         "center_x": size - geometry["margin"] - max(geometry["r_out"], geometry["r_dot"]),
-        # The path stops at the token's centre, and its round cap keeps the left ink at the margin.
+        # The round cap keeps the left ink at the margin.
         "path_start": geometry["margin"] + geometry["t"] / 2.0,
     }
+    # As in the logo, the path ends on the halo, flat, just inside the ring's outer edge: far enough
+    # in that the straight end cannot leave a sliver of gap against the curve, no further, so it
+    # never runs into the token. Without a halo (16px) it ends at the token's centre.
+    if geometry["r_out"] > 0:
+        placement["path_end"] = placement["center_x"] - geometry["r_out"] + geometry["stroke"] / 4.0
+    else:
+        placement["path_end"] = placement["center_x"]
     return placement
 
 
@@ -111,7 +118,8 @@ def coverage_masks(size):
     thickness, r_out, stroke, r_dot = (
         placement["thickness"], placement["r_out"], placement["stroke"], placement["r_dot"],
     )
-    center_x, center_y, path_start = placement["center_x"], placement["center_y"], placement["path_start"]
+    center_x, center_y = placement["center_x"], placement["center_y"]
+    path_start, path_end = placement["path_start"], placement["path_end"]
     half_thickness = thickness / 2.0
     r_in = r_out - stroke
 
@@ -128,9 +136,9 @@ def coverage_masks(size):
                 dy = y - center_y
                 for sub_x in range(SUPERSAMPLING):
                     x = pixel_x + (sub_x + 0.5) * step
-                    # Distance to the segment (path_start, cy)-(center_x, cy), giving round caps.
-                    nearest_x = min(max(x, path_start), center_x)
-                    if (x - nearest_x) ** 2 + dy * dy <= half_thickness ** 2:
+                    # A round cap at path_start, a flat end at path_end.
+                    nearest_x = max(x, path_start)
+                    if x <= path_end and (x - nearest_x) ** 2 + dy * dy <= half_thickness ** 2:
                         in_path += 1
                     distance2 = (x - center_x) ** 2 + dy * dy
                     if distance2 <= r_dot ** 2:
@@ -150,10 +158,9 @@ def render(size):
     for y in range(size):
         row = []
         for x in range(size):
-            # The halo goes down first: since the path now runs all the way to the token's
-            # centre it crosses the halo's left arc, and keeping the halo underneath leaves the
-            # path reading as one unbroken line. The token always sits on top.
-            layers = ((RED, ring[y][x] * RING_OPACITY), (NAVY, path[y][x]), (RED, dot[y][x]))
+            # The path goes down first, so the halo's translucent ring is drawn over its tip, as
+            # in the logo. The token always sits on top.
+            layers = ((NAVY, path[y][x]), (RED, ring[y][x] * RING_OPACITY), (RED, dot[y][x]))
             red = green = blue = alpha = 0.0
             for (source_red, source_green, source_blue), source_alpha in layers:
                 if source_alpha <= 0:
@@ -249,28 +256,38 @@ SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
   <title>QuorumPath</title>
   <style>
     @media (prefers-color-scheme: dark) {{
-      .path {{ stroke: {navy_dark}; }}
+      .path {{ fill: {navy_dark}; }}
       .halo {{ opacity: {halo_opacity_dark}; }}
     }}
     @media (max-width: {small_breakpoint}px) {{
       .halo {{ display: none; }}
-      .path {{ stroke-width: {small_thickness}; d: path("M {small_path_start} {center_y} H {small_center_x}"); }}
+      .path {{ d: path("{small_path}"); }}
       .token {{ cx: {small_center_x}; r: {small_r_dot}; }}
     }}
   </style>
+  <path class="path" d="{path}" fill="{navy}"/>
   <circle class="halo" cx="{center_x}" cy="{center_y}" r="{r_halo}" fill="none" stroke="{red}"\
  stroke-width="{stroke}" opacity="{halo_opacity}"/>
-  <path class="path" d="M {path_start} {center_y} H {center_x}" fill="none" stroke="{navy}"\
- stroke-width="{thickness}" stroke-linecap="round"/>
   <circle class="token" cx="{center_x}" cy="{center_y}" r="{r_dot}" fill="{red}"/>
 </svg>
 """
 
 
+def path_outline(placement, scale):
+    # The path as a filled outline, since a stroke cannot have a round cap at one end and a flat
+    # one at the other: the left end is a half-circle, the right end is cut square.
+    half = placement["thickness"] * scale / 2.0
+    start = placement["path_start"] * scale
+    end = placement["path_end"] * scale
+    center_y = placement["center_y"] * scale
+    return "M {start} {top} A {half} {half} 0 0 0 {start} {bottom} H {end} V {top} Z".format(
+        start=number(start), end=number(end), half=number(half),
+        top=number(center_y - half), bottom=number(center_y + half))
+
+
 def svg_markup():
-    # The vector twin of the raster icon, drawn from the same placement. The halo is painted
-    # first for the same reason as in render(): the path runs to the token's centre, crossing
-    # the halo's left arc, and keeping the halo underneath leaves the path unbroken.
+    # The vector twin of the raster icon, drawn from the same placement and in the same order
+    # as render(): path, then halo over its tip, then the token.
     placement = layout(SVG_SIZE)
     # The tab-sized override is the smallest tuned size, scaled up into this viewBox.
     small_size = min(SIZES)
@@ -286,8 +303,7 @@ def svg_markup():
         halo_opacity_dark=number(RING_OPACITY_DARK),
         center_x=number(placement["center_x"]),
         center_y=number(placement["center_y"]),
-        path_start=number(placement["path_start"]),
-        thickness=number(placement["thickness"]),
+        path=path_outline(placement, 1.0),
         r_dot=number(placement["r_dot"]),
         # A stroked circle straddles its radius, so the ring's centreline sits half a stroke
         # inside the outer radius the raster geometry describes.
@@ -296,8 +312,7 @@ def svg_markup():
         # Halfway between the two tuned sizes: 16px viewports take the small mark, 32px ones
         # (a 2x tab, where the full artwork holds up) keep the faithful one.
         small_breakpoint=number((small_size + 32) / 2.0),
-        small_thickness=number(small["thickness"] * scale),
-        small_path_start=number(small["path_start"] * scale),
+        small_path=path_outline(small, scale),
         small_center_x=number(small["center_x"] * scale),
         small_r_dot=number(small["r_dot"] * scale),
     )
