@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -35,10 +34,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * Opens a new version of a workflow, for the step after it to mark a draft, carrying whatever diagram the
- * request brought. The workflow is the one an
- * earlier step of the same run created, when there is one, and otherwise the event's target: so {@code createEntity}
- * followed by this step creates a workflow and its first version in one commit, and this step alone adds a version
- * to an existing workflow.
+ * request brought. The workflow is the one an earlier step of the same run created, when there is one, and otherwise
+ * the event's target, as for every built-in service task: so {@code createEntity} followed by this step creates a
+ * workflow and its first version in one commit, and this step alone adds a version to an existing workflow.
  *
  * <p>The version and its diagram are created in one write — the version first, then the file beneath it — so a
  * draft with no diagram is never an observable state. A client can't do this by posting directly: Sling creates
@@ -67,7 +65,7 @@ public class CreateVersionHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Resource definition = hostOf(context);
+        final Resource definition = ExecutionHost.of(context);
         final String label = VersionEdits.newLabel(context, definition);
         if (VersionEdits.hasVersionLabelled(definition, label)) {
             throw new InvalidStateException("This workflow already has a version " + label);
@@ -87,21 +85,5 @@ public class CreateVersionHandler implements ServiceTaskHandler
             VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());
         }
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, version.getPath());
-    }
-
-    /**
-     * The workflow a version is being created in: what an earlier step of this run created, or else the target.
-     *
-     * @param context the handler's context
-     * @return the workflow definition resource
-     */
-    private static Resource hostOf(final WorkflowTaskContext context)
-    {
-        final Object created = context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (created instanceof String) {
-            return Objects.requireNonNull(context.getResourceResolver().getResource((String) created),
-                "What this run just created is always readable to it");
-        }
-        return context.getTarget();
     }
 }
