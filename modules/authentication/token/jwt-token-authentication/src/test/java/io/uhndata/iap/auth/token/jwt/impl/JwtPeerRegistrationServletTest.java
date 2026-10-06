@@ -22,6 +22,7 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.util.Date;
 import java.util.Map;
 
@@ -207,6 +208,22 @@ public class JwtPeerRegistrationServletTest
         this.servlet.doPost(this.request, this.response);
 
         verify(this.response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        verifyNothingWasStored();
+    }
+
+    @Test
+    public void aKeyTooShortToVerifyWithIsRefused() throws Exception
+    {
+        // JJWT refuses RSA keys under 2048 bits when verifying, so such a peer could never be trusted
+        final KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(1024);
+        final String weak = Encoders.BASE64.encode(generator.generateKeyPair().getPublic().getEncoded());
+        post("{\"issuer\": \"" + PEER_ISSUER + "\", \"key\": \"" + weak + "\"}");
+
+        this.servlet.doPost(this.request, this.response);
+
+        verify(this.response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        Assertions.assertTrue(this.body.toString().contains("2048"), this.body.toString());
         verifyNothingWasStored();
     }
 

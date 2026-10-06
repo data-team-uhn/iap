@@ -257,7 +257,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     @Override
     public IapJwtTokenImpl parse(final String loginToken)
     {
-        if (loginToken == null || this.verificationKey == null) {
+        if (loginToken == null || loginToken.isBlank() || this.verificationKey == null) {
             return null;
         }
         try {
