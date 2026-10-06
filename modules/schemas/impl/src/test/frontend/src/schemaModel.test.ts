@@ -68,11 +68,15 @@ describe("schemaModel", () => {
     expect(versionsOf(schema).map(labelOf)).toEqual([ "1.1", "2.0", "10.0" ]);
   });
 
-  it("proposes the next whole number as a new version's label", () => {
-    const [ study, idea ] = schemasOf(HOMEPAGE);
+  it("proposes the label the server would give a new version", () => {
+    const [ study, idea ] = schemasOf(withPaths("/Schemas", HOMEPAGE));
     expect(nextVersionLabel(study)).toBe("4.0");
-    expect(nextVersionLabel(idea)).toBe("1.0");
-    expect(nextVersionLabel({ "a": { "jcr:primaryType": "sch:SchemaVersion", "version": "draft" } })).toBe("2.0");
+    // Labelled 0.1, but named v1, so the server's next is v2
+    expect(nextVersionLabel(idea)).toBe("2.0");
+    // Named by hand as an import may, named without a number, and labelled freely: only the names count
+    const version = (label: string) => ({ "jcr:primaryType": "sch:SchemaVersion", "version": label });
+    expect(nextVersionLabel(withPaths("/Schemas/hand",
+      { "1.0": version("1.0"), "pilot": version("Pilot"), "v2": version("2026") }))).toBe("3.0");
     expect(nextVersionLabel({})).toBe("1.0");
   });
 
