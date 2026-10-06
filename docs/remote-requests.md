@@ -61,7 +61,8 @@ would need escaping later.
 
 **The write is done by a service user that can only reach `/remote`.** This is the part that does
 not depend on the other two being correct. `iap-remote-requests` holds `jcr:read,jcr:write` on
-`/remote` and nothing else, so a flaw in the name checking still cannot touch content that matters.
+`/remote`, plus the `jcr:nodeTypeManagement` that Oak requires to create a node with an explicit
+type, and nothing else, so a flaw in the name checking still cannot touch content that matters.
 Nobody else is granted anything on `/remote` at all: the endpoint is the only way in.
 
 Authentication is not authorization, and this endpoint has no authorization to speak of — a peer
