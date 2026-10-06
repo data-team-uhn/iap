@@ -42,11 +42,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Encoders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -79,9 +81,9 @@ public class IapJwtTokenManagerImplTest
 
     private static final String KEY_PATH = "/jcr:system/iap-jwt/JWTRSA256Key";
 
-    private static final String SELF_ID = "localhost8080";
+    private static final String SELF_ID = "https://iap.example.org";
 
-    private static final String PEER_ID = "localhost8081";
+    private static final String PEER_ID = "https://peer.example.org:8443/iap/";
 
     private static final String PEER_KEY_PATH_PREFIX = "/jcr:system/iap-jwt/";
 
@@ -141,7 +143,7 @@ public class IapJwtTokenManagerImplTest
         when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPublic().getEncoded()));
 
         // Activate the component via its @Activate constructor.
-        this.manager = new IapJwtTokenManagerImpl(this.resolverFactory);
+        this.manager = new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID));
     }
 
     @Test
@@ -257,11 +259,10 @@ public class IapJwtTokenManagerImplTest
         when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
 
         // Test using a second set of keys that we've accepted
-        String selfID = IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
 
         final String foreign = Jwts.builder()
-            .issuer("localhost8081")
-            .audience().add(selfID).and()
+            .issuer(PEER_ID)
+            .audience().add(SELF_ID).and()
             .expiration(oneHourFromNow().getTime())
             .header().keyId(peerFingerprint).and()
             .signWith(peerPair.getPrivate())
@@ -276,8 +277,8 @@ public class IapJwtTokenManagerImplTest
         // unless the parser opts in with unsecured(), which this one does not; asserted so that adding the
         // opt-in later cannot pass unnoticed.
         final String unsecured = Jwts.builder()
-            .issuer(selfAudience())
-            .audience().add(selfAudience()).and()
+            .issuer(SELF_ID)
+            .audience().add(SELF_ID).and()
             .subject("attacker")
             .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
             .header().keyId(selfFingerprint()).and()
@@ -311,6 +312,29 @@ public class IapJwtTokenManagerImplTest
             "A token re-signed as HMAC with the public key must not parse");
     }
 
+    @Test
+    public void mintedTokensCarryTheConfiguredIdentityUnaltered()
+    {
+        // Peers register this identity and address their tokens to it, character for character
+        final String token = this.manager.create("guest-patient", oneHourFromNow(), Map.of()).getToken();
+        final Claims claims = Jwts.parser().verifyWith(this.keyPair.getPublic()).build()
+            .parseSignedClaims(token).getPayload();
+
+        Assertions.assertEquals(SELF_ID, claims.getIssuer());
+        Assertions.assertEquals(Set.of(SELF_ID), claims.getAudience());
+    }
+
+    @Test
+    public void anUnusableIdentityRefusesToActivate()
+    {
+        // Better no token manager at all than one minting tokens no peer could ever accept
+        for (final String identity : new String[] {"", " https://iap.example.org", "a/b:c", "https://exa mple.org"}) {
+            Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(identity)),
+                "Activated with the identity '" + identity + "'");
+        }
+    }
+
     /**
      * The header and payload of a token that would pass every claim check, left for the caller to sign (or not).
      *
@@ -322,7 +346,7 @@ public class IapJwtTokenManagerImplTest
         final long expiry = System.currentTimeMillis() / 1000 + 3600;
         return base64Url("{\"alg\":\"" + algorithm + "\",\"kid\":\"" + selfFingerprint() + "\"}")
             + "."
-            + base64Url("{\"iss\":\"" + selfAudience() + "\",\"aud\":[\"" + selfAudience()
+            + base64Url("{\"iss\":\"" + SELF_ID + "\",\"aud\":[\"" + SELF_ID
                 + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
     }
 
@@ -331,9 +355,17 @@ public class IapJwtTokenManagerImplTest
         return IapJwtTokenManagerImpl.getFingerprint(this.keyPair.getPublic());
     }
 
-    private static String selfAudience()
+    /**
+     * A configuration naming the given identity, as DS would supply it.
+     *
+     * @param identity the configured identity
+     * @return the configuration
+     */
+    static IapJwtTokenManagerConfiguration configWithIdentity(final String identity)
     {
-        return IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
+        final IapJwtTokenManagerConfiguration config = mock(IapJwtTokenManagerConfiguration.class);
+        when(config.identity()).thenReturn(identity);
+        return config;
     }
 
     private static String base64Url(final String value)
