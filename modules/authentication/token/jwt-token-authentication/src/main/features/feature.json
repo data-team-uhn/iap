@@ -52,6 +52,9 @@
         "io.uhndata.iap.jwt-token-authentication=[iap-jwt-token-manager]",
         "io.uhndata.iap.jwt-token-authentication:peers=[iap-jwt-peer-registrar]"
       ]
+    },
+    "io.uhndata.iap.auth.token.jwt.impl.IapJwtTokenManagerImpl": {
+      "identity": "$[env:IAP_PUBLIC_URL;default=http://localhost:8080]"
     }
   }
 }
