@@ -29,7 +29,7 @@
       .token { cx: 33; r: 12; }
     }
   </style>
+  <path class="path" d="M 4 24 H 13.3" fill="none" stroke="#192958" stroke-width="4" stroke-linecap="round"/>
   <circle class="halo" cx="30" cy="24" r="14.7" fill="none" stroke="#C0233C" stroke-width="2.6" opacity="0.45"/>
-  <path class="path" d="M 4 24 H 30" fill="none" stroke="#192958" stroke-width="4" stroke-linecap="round"/>
   <circle class="token" cx="30" cy="24" r="9.4" fill="#C0233C"/>
 </svg>

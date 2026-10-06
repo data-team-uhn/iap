@@ -11,8 +11,9 @@ by an image file, and the `.svg` is emitted from that same table so the two cann
 
 The mark is the small-size counterpart of the QuorumPath application logo
 (`modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/logo-light.svg`):
-a navy path running from the left edge into the centre of a red token — a filled disc with a translucent
-halo ring — sitting at the end of the path.
+a navy path running from the left edge to the halo of a red token — a filled disc with a translucent
+halo ring — sitting at the end of the path. The path is drawn beneath the halo and stops on its ring, as
+in the logo (at 16px, with no halo, it ends at the token's centre).
 
 It is deliberately **not** a scaled copy of the logo. At 16–48 pixels the logo's hairlines vanish and
 fractional strokes turn into grey smears, so the path thickness, token size, halo and margins are tuned
