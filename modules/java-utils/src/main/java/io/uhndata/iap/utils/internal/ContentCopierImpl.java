@@ -65,17 +65,7 @@ public class ContentCopierImpl implements ContentCopier
     public Map<String, String> copy(final Node source, final Node target, final Set<String> skipped,
         final Map<String, Set<String>> dropped) throws RepositoryException
     {
-        final Copy copy = new Copy(List.copyOf(this.participants));
-        copy.identifiers.put(source.getIdentifier(), target.getIdentifier());
-        copy.properties(source, target, skipped, dropped);
-        copy.children(source, target);
-        for (final Map.Entry<Node, Property> reference : copy.references) {
-            copy.reference(reference.getKey(), reference.getValue());
-        }
-        for (final CopyParticipant participant : copy.participants) {
-            participant.afterCopy(source, target, copy.identifiers);
-        }
-        return Map.copyOf(copy.identifiers);
+        return new Copy(List.copyOf(this.participants)).run(source, target, skipped, dropped);
     }
 
     /**
@@ -103,13 +93,39 @@ public class ContentCopierImpl implements ContentCopier
         }
 
         /**
+         * Makes the copy: properties and children, then the references found on the way, once everything they may
+         * point at exists, and then whatever the participants adjust.
+         *
+         * @param source the node copied
+         * @param target the node receiving the copy
+         * @param skipped properties of the source node itself that are not copied
+         * @param dropped values left out of multi-valued properties of the source node itself, by property name
+         * @return the identifiers of the copied referenceable nodes, each original's mapped to its copy's
+         * @throws RepositoryException when the source cannot be read or the copy cannot be written
+         */
+        Map<String, String> run(final Node source, final Node target, final Set<String> skipped,
+            final Map<String, Set<String>> dropped) throws RepositoryException
+        {
+            this.identifiers.put(source.getIdentifier(), target.getIdentifier());
+            properties(source, target, skipped, dropped);
+            children(source, target);
+            for (final Map.Entry<Node, Property> reference : this.references) {
+                reference(reference.getKey(), reference.getValue());
+            }
+            for (final CopyParticipant participant : this.participants) {
+                participant.afterCopy(source, target, this.identifiers);
+            }
+            return Map.copyOf(this.identifiers);
+        }
+
+        /**
          * Copies a node's children, and theirs, in order.
          *
          * @param from the node copied
          * @param to its copy
          * @throws RepositoryException when the copy cannot be written
          */
-        void children(final Node from, final Node to) throws RepositoryException
+        private void children(final Node from, final Node to) throws RepositoryException
         {
             final NodeIterator children = from.getNodes();
             while (children.hasNext()) {
@@ -142,7 +158,7 @@ public class ContentCopierImpl implements ContentCopier
          * @param dropped values left out of multi-valued properties, by property name
          * @throws RepositoryException when the copy cannot be written
          */
-        void properties(final Node from, final Node to, final Set<String> skipped,
+        private void properties(final Node from, final Node to, final Set<String> skipped,
             final Map<String, Set<String>> dropped) throws RepositoryException
         {
             final PropertyIterator properties = from.getProperties();
@@ -187,7 +203,7 @@ public class ContentCopierImpl implements ContentCopier
          * @param original the original property
          * @throws RepositoryException when the reference cannot be written
          */
-        void reference(final Node node, final Property original) throws RepositoryException
+        private void reference(final Node node, final Property original) throws RepositoryException
         {
             final ValueFactory factory = node.getSession().getValueFactory();
             final int type = original.getType();
