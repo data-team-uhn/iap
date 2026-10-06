@@ -24,5 +24,5 @@ create path (sling:Folder) /remote
 create service user iap-remote-requests
 
 set ACL for iap-remote-requests
-    allow   jcr:read,jcr:write   on /remote
+    allow   jcr:read,jcr:write,jcr:nodeTypeManagement   on /remote
 end
