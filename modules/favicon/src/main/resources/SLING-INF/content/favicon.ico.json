@@ -1,4 +1,6 @@
 {
+    "jcr:mixinTypes": ["sling:Resource"],
+    "sling:resourceType": "iap/Favicon",
     "security:acl": [
         { "principal": "everyone", "granted": ["jcr:read"] },
         { "principal": "anonymous", "granted": ["jcr:read"] }

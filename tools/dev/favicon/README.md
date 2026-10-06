@@ -77,8 +77,20 @@ an entry in `sling.auth.requirements`
 so it is readable before login, and a `favicon.svg.json` descriptor granting anonymous read, both of which
 mirror what the `.ico` already had.
 
+## Content negotiation
+
+`/favicon.ico` is the one path browsers probe by convention, so a client that can draw SVG should get the
+vector icon from it too. `FaviconServlet` (in `modules/favicon`) does that: a request whose `Accept` header
+names `image/svg+xml` — a wildcard does not count, and `q=0` refuses — is answered with `/favicon.svg`;
+every other request gets the `.ico`. Both answers carry `Vary: Accept`, so a cache keeps them apart.
+
+The servlet is bound by resource type (`iap/Favicon`, declared by `favicon.ico.json`), not mounted at the
+path. A path-mounted servlet would shadow the node and the access control that makes the icon readable
+before login.
+
 ## Deploying it
 
 Sling-Initial-Content will not overwrite a `/favicon.ico` or `/favicon.svg` node that already exists, so
-`mvn install` plus a restart leaves a running instance serving the old icons. Either start with a fresh data
-directory, or post the new files over the existing nodes.
+`mvn install` plus a restart leaves a running instance serving the old icons, and without the resource type
+the negotiation never engages. Either start with a fresh data directory, or post the new files over the
+existing nodes and set `sling:resourceType=iap/Favicon` on `/favicon.ico`.
