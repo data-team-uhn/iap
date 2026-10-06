@@ -44,6 +44,7 @@ import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
+import io.uhndata.iap.workflows.models.WorkflowToken;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -85,6 +86,11 @@ final class InstanceRunner
     private static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
 
     private static final String START_TIME_PROPERTY = "startTime";
+
+    /** The status a task carries until it is completed or cancelled. */
+    private static final String OPEN = "created";
+
+    private static final String CANCELLED = "cancelled";
 
     private static final String END_TIME_PROPERTY = "endTime";
 
@@ -271,8 +277,8 @@ final class InstanceRunner
     }
 
     /**
-     * Ends the instance. The token is spent. An end event that says what finishing this way means also tells the
-     * host.
+     * Ends the instance. The token is spent, or at a terminate end event every token goes and every task still
+     * waiting is cancelled. An end event that says what finishing this way means also tells the host.
      *
      * @param instance the running instance
      * @param token the token that arrived
@@ -282,16 +288,58 @@ final class InstanceRunner
     private void finish(final Resource instance, final Resource token, final EndEvent end)
         throws PersistenceException
     {
-        this.resolver.delete(token);
-        final ModifiableValueMap properties = modifiable(instance);
-        properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
-        properties.put(END_TIME_PROPERTY, Calendar.getInstance());
+        if (end.isTerminate()) {
+            terminate(instance);
+        } else {
+            this.resolver.delete(token);
+            close(instance);
+        }
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
             Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
                 "A workflow's host is taggable").tag(hostTag, true);
         }
+    }
+
+    /**
+     * Ends the whole instance at once: every remaining token is discarded, and every task still waiting for
+     * somebody is cancelled.
+     *
+     * <p>This is what {@code terminate} on an end event means, and why it is a property of an end event rather than
+     * a kind of its own: the difference is entirely in what happens to the <em>other</em> branches. The open tasks
+     * have to go with their tokens — a task whose token has been discarded can never be completed, and leaving it
+     * open would put work on somebody's desk that nothing will ever take off it again.</p>
+     *
+     * @param instance the running instance
+     * @throws PersistenceException when the instance cannot be written
+     */
+    private void terminate(final Resource instance) throws PersistenceException
+    {
+        final WorkflowInstance model = adapt(instance);
+        for (final WorkflowToken token : model.getTokens()) {
+            this.resolver.delete(resourceOf(token.getPath()));
+        }
+        for (final TaskInstance task : model.getTaskInstances()) {
+            if (OPEN.equals(task.getStatus())) {
+                final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
+                properties.put(STATUS_PROPERTY, CANCELLED);
+                properties.put(END_TIME_PROPERTY, Calendar.getInstance());
+            }
+        }
+        close(instance);
+    }
+
+    /**
+     * Marks an instance as finished.
+     *
+     * @param instance the instance to close
+     */
+    private void close(final Resource instance)
+    {
+        final ModifiableValueMap properties = modifiable(instance);
+        properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
+        properties.put(END_TIME_PROPERTY, Calendar.getInstance());
     }
 
     /**
