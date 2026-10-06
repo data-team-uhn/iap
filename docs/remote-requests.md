@@ -33,7 +33,7 @@ machine and not a browser.
 | --- | --- |
 | `201` | The node was created; `Location` and the body carry its path |
 | `400` | The body is not a JSON object, has no `path`, or `path` is not a usable name |
-| `401` | No token, a token that does not verify, or one that has expired |
+| `401` | No token, a token that does not verify, or one that has expired or has no `exp` claim |
 | `409` | Something already exists at that path |
 | `500` | The service user or `/remote` is missing, or the write failed |
 

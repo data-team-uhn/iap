@@ -313,6 +313,20 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void parseRejectsTokenWithoutExpiry()
+    {
+        // Correctly signed and addressed, but valid forever, and a JWT cannot be revoked
+        final String unexpiring = Jwts.builder()
+            .issuer(SELF_ID)
+            .audience().add(SELF_ID).and()
+            .subject("guest-patient")
+            .header().keyId(selfFingerprint()).and()
+            .signWith(this.keyPair.getPrivate())
+            .compact();
+        Assertions.assertNull(this.manager.parse(unexpiring), "A token without an expiry must not parse");
+    }
+
+    @Test
     public void mintedTokensCarryTheConfiguredIdentityUnaltered()
     {
         // Peers register this identity and address their tokens to it, character for character
