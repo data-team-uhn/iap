@@ -18,7 +18,9 @@
 package io.uhndata.iap.submissions.models;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -244,6 +246,57 @@ public class Submission extends Entity
         return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
     }
 
+    /**
+     * The questions this submission is currently asked: every question of every form requirement that applies,
+     * conditions resolved, in the order the schema declares them. A question whose condition does not hold is not
+     * being asked, so it is absent even when it still holds an answer from before its condition changed.
+     *
+     * <p>This is the walk fulfilment is judged by, published so that anything else reading "what is asked and what
+     * was answered" — a validator, a projection — counts the same questions the completeness decision counts.</p>
+     *
+     * @return the questions currently asked, empty when none apply
+     */
+    @NotNull
+    public List<Question> getQuestions()
+    {
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(this::applies)
+            .filter(FormRequirement.class::isInstance)
+            .map(FormRequirement.class::cast)
+            .map(this::getQuestionsOf)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The questions one named requirement asks, on the same terms as {@link #getQuestions()}.
+     *
+     * <p>A schema says which questions belong together by putting them in one requirement. Something that
+     * asks them in stages - a model reading a document in more than one pass - needs to ask for a stage by
+     * name rather than re-deriving the grouping from the questions themselves.</p>
+     *
+     * <p>Empty when the requirement's own condition does not hold, so a requirement that is not being asked
+     * yields nothing rather than being asked anyway.</p>
+     *
+     * @param name the requirement's node name, or its full path
+     * @return its questions, empty when it does not apply, is not a form, or does not exist
+     */
+    @NotNull
+    public List<Question> getQuestions(@Nullable final String name)
+    {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(requirement -> name.equals(requirement.getName()) || name.equals(requirement.getPath()))
+            .filter(this::applies)
+            .filter(FormRequirement.class::isInstance)
+            .map(FormRequirement.class::cast)
+            .map(this::getQuestionsOf)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+    }
+
     private List<Question> getQuestionsOf(final FormRequirement form)
     {
         final List<Question> result = new ArrayList<>();
@@ -268,14 +321,43 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return this.getAnswers().stream().anyMatch(answer -> {
-            final Question answered = answer.getQuestion();
-            if (answered == null || !question.getPath().equals(answered.getPath())) {
-                return false;
+        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).isEmpty();
+    }
+
+    /**
+     * What has been answered, by the path of the question it answers.
+     *
+     * <p>One index, because two readers need it and they must not disagree: this is what decides whether a form
+     * requirement is fulfilled, and it is also what a form is rendered from. Two implementations of "counts as an
+     * answer" would let a form show a value that the decision to accept the submission did not count, or refuse a
+     * submission over a question the reader can see filled in.</p>
+     *
+     * <p>An answer whose question no longer resolves answers nothing being asked, and is left out. Where more than
+     * one answer node addresses the same question — which only degenerate content produces — the one carrying a
+     * value wins, so the index agrees with the plain reading that the question <em>has</em> been answered.</p>
+     *
+     * @return the values given, by question path; empty for a submission nobody has answered
+     */
+    @NotNull
+    public Map<String, List<String>> getAnswersByQuestion()
+    {
+        // A loop rather than a stream: the question has to be read once into a local — asking twice around a null
+        // check is what makes a @Nullable accessor look safe to dereference — and the collision rule below reads
+        // more plainly here than as a merge function
+        final Map<String, List<String>> byQuestion = new HashMap<>();
+        for (final Answer answer : this.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question == null) {
+                continue;
             }
-            // Only read once the question matched: every call resolves the reference and copies the value array
-            final String[] value = answer.getValue();
-            return value != null && value.length > 0;
-        });
+            // The value is nullable and List.of would throw on a null array: an answer node carrying no value at
+            // all is permitted by the node type, and it means the same as one carrying nothing
+            final List<String> value = List.of(Objects.requireNonNullElse(answer.getValue(), new String[0]));
+            final List<String> known = byQuestion.get(question.getPath());
+            if (known == null || known.isEmpty()) {
+                byQuestion.put(question.getPath(), value);
+            }
+        }
+        return byQuestion;
     }
 }
