@@ -132,8 +132,8 @@ class SystemWorkflowDefinitionsTest
     void aDraftIsEditedTriedOrActivated()
     {
         assertEquals(Set.of("saveWorkflowDiagram"), answering(VERSION, "save", "draft"));
-        assertEquals(Set.of("startVersionTrial"), answering(VERSION, "startTrial", "draft"));
-        assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "draft"));
+        assertEquals(Set.of("startWorkflowVersionTrial"), answering(VERSION, "startTrial", "draft"));
+        assertEquals(Set.of("activateWorkflowVersion"), answering(VERSION, "activate", "draft"));
         assertEquals(Set.of(), answering(VERSION, "returnToDraft", "draft"));
         assertEquals(Set.of(), answering(VERSION, "retire", "draft"));
     }
@@ -141,8 +141,8 @@ class SystemWorkflowDefinitionsTest
     @Test
     void aTrialIsActivatedOrReturnedToDraft()
     {
-        assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "trial"));
-        assertEquals(Set.of("returnVersionToDraft"), answering(VERSION, "returnToDraft", "trial"));
+        assertEquals(Set.of("activateWorkflowVersion"), answering(VERSION, "activate", "trial"));
+        assertEquals(Set.of("returnWorkflowVersionToDraft"), answering(VERSION, "returnToDraft", "trial"));
         // Frozen like anything past drafting
         assertEquals(Set.of(), answering(VERSION, "save", "trial"));
         assertEquals(Set.of(), answering(VERSION, "startTrial", "trial"));
@@ -152,7 +152,7 @@ class SystemWorkflowDefinitionsTest
     @Test
     void anActiveVersionIsRetired()
     {
-        assertEquals(Set.of("retireVersion"), answering(VERSION, "retire", "active"));
+        assertEquals(Set.of("retireWorkflowVersion"), answering(VERSION, "retire", "active"));
         assertEquals(Set.of(), answering(VERSION, "activate", "active"));
         assertEquals(Set.of(), answering(VERSION, "save", "active"));
         assertEquals(Set.of(), answering(VERSION, "returnToDraft", "active"));
@@ -161,7 +161,7 @@ class SystemWorkflowDefinitionsTest
     @Test
     void aRetiredVersionIsReactivated()
     {
-        assertEquals(Set.of("activateVersion"), answering(VERSION, "activate", "retired"));
+        assertEquals(Set.of("activateWorkflowVersion"), answering(VERSION, "activate", "retired"));
         assertEquals(Set.of(), answering(VERSION, "retire", "retired"));
         assertEquals(Set.of(), answering(VERSION, "save", "retired"));
     }
@@ -180,7 +180,7 @@ class SystemWorkflowDefinitionsTest
         assertEquals(Set.of("createWorkflow"), answering("wf/WorkflowsHomepage", "create"));
         assertEquals(Set.of("createSystemWorkflow"), answering("wf/SystemWorkflowsHomepage", "create"));
         assertEquals(Set.of("saveWorkflow"), answering(DEFINITION, "save"));
-        assertEquals(Set.of("createVersion"), answering(DEFINITION, "createVersion"));
+        assertEquals(Set.of("createWorkflowVersion"), answering(DEFINITION, "createVersion"));
     }
 
     /**

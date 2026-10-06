@@ -495,15 +495,15 @@ Nothing in this UI writes a node.
 | `POST /Workflows.create.json` | `create` | `createWorkflow` |
 | `POST /SystemWorkflows.create.json` | `create` | `createSystemWorkflow` |
 | `POST <workflow>` | `save` | `saveWorkflow` |
-| `POST <workflow>.createVersion.json` | `createVersion` | `createVersion` |
+| `POST <workflow>.createVersion.json` | `createVersion` | `createWorkflowVersion` |
 | `POST <version>` | `save` | `saveWorkflowDiagram` |
-| `POST <version>.activate.json` | `activate` | `activateVersion` |
-| `POST <version>.startTrial.json` | `startTrial` | `startVersionTrial` |
-| `POST <version>.returnToDraft.json` | `returnToDraft` | `returnVersionToDraft` |
-| `POST <version>.retire.json` | `retire` | `retireVersion` |
+| `POST <version>.activate.json` | `activate` | `activateWorkflowVersion` |
+| `POST <version>.startTrial.json` | `startTrial` | `startWorkflowVersionTrial` |
+| `POST <version>.returnToDraft.json` | `returnToDraft` | `returnWorkflowVersionToDraft` |
+| `POST <version>.retire.json` | `retire` | `retireWorkflowVersion` |
 
 Drafting a copy of a version is `createVersion` on its workflow, with the version's path as `source`:
-`createVersion` creates the version, has `copyContent` copy the source into it, keeping the new version's
+`createWorkflowVersion` creates the version, has `copyContent` copy the source into it, keeping the new version's
 own label, and tags it a draft in place of wherever the source stood.
 
 A POST with no selector means the target's *default* event, which follows from what it is: `create` at an
@@ -789,9 +789,9 @@ than the platform. That is the point of doing it this way, and it is why the def
 ships with its version tagged `active`, and editable rather than being hardwired into the servlet.
 
 **Everything else that authors a workflow works the same way**, which is what makes that
-claim more than a demonstration: `createSystemWorkflow`, `createVersion`,
-`saveWorkflow`, `saveWorkflowDiagram`, `activateVersion`, `startVersionTrial`,
-`returnVersionToDraft` and `retireVersion` all ship beside it, over four handlers of
+claim more than a demonstration: `createSystemWorkflow`, `createWorkflowVersion`,
+`saveWorkflow`, `saveWorkflowDiagram`, `activateWorkflowVersion`, `startWorkflowVersionTrial`,
+`returnWorkflowVersionToDraft` and `retireWorkflowVersion` all ship beside it, over four handlers of
 their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram` and
 `retireActiveVersions` — plus `createEntity`, shared with the bootstrap, `callActivity`
 for the first version of a workflow, `copyContent` for a version drafted from another,
@@ -897,7 +897,7 @@ disagree.
 - **Widening a `performers` list on a workflow-authoring definition needs an ACL to
   match.** Sling resolves the posted-to resource before dispatching, and the only read
   granted under `/Workflows` is the homepage node itself, restricted by node type — so a
-  non-administrator named as a performer of `saveWorkflow` or `activateVersion` would
+  non-administrator named as a performer of `saveWorkflow` or `activateWorkflowVersion` would
   get a 404 from the resolver rather than the engine's own answer, because the
   definition or version they posted to is invisible to them. Administrators bypass
   access control, which is why the shipped definitions (all `iap-administrators`) work

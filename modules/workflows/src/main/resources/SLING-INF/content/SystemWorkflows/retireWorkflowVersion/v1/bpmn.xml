@@ -23,10 +23,10 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
                   xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
-                  id="retireVersionDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/retireVersion">
+                  id="retireWorkflowVersionDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/retireWorkflowVersion">
   <bpmn:message id="retireMessage" name="retire" />
-  <bpmn:process id="retireVersion" name="Retire a workflow version" isExecutable="true">
+  <bpmn:process id="retireWorkflowVersion" name="Retire a workflow version" isExecutable="true">
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Retirement requested">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
@@ -55,8 +55,8 @@
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="retireVersionDiagram">
-    <bpmndi:BPMNPlane id="retireVersionPlane" bpmnElement="retireVersion">
+  <bpmndi:BPMNDiagram id="retireWorkflowVersionDiagram">
+    <bpmndi:BPMNPlane id="retireWorkflowVersionPlane" bpmnElement="retireWorkflowVersion">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>

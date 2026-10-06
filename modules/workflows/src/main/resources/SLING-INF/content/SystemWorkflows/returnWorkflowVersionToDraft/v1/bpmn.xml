@@ -23,11 +23,11 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
                   xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
-                  id="startVersionTrialDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/startVersionTrial">
-  <bpmn:message id="startTrialMessage" name="startTrial" />
-  <bpmn:process id="startVersionTrial" name="Put a workflow version on trial" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Trial requested">
+                  id="returnWorkflowVersionToDraftDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/returnWorkflowVersionToDraft">
+  <bpmn:message id="returnToDraftMessage" name="returnToDraft" />
+  <bpmn:process id="returnWorkflowVersionToDraft" name="Return a workflow version to a draft" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Redraft requested">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
@@ -38,29 +38,29 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>trial</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
       <bpmn:outgoing>toMove</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="startTrialRequested" messageRef="startTrialMessage" />
+      <bpmn:messageEventDefinition id="returnToDraftRequested" messageRef="returnToDraftMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="trial" name="Put the version on trial">
+    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="draft" name="Return the version to a draft">
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toDone" sourceRef="move" targetRef="done" />
-    <bpmn:endEvent id="done" name="Trial started">
+    <bpmn:endEvent id="done" name="Version returned to a draft">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="startVersionTrialDiagram">
-    <bpmndi:BPMNPlane id="startVersionTrialPlane" bpmnElement="startVersionTrial">
+  <bpmndi:BPMNDiagram id="returnWorkflowVersionToDraftDiagram">
+    <bpmndi:BPMNPlane id="returnWorkflowVersionToDraftPlane" bpmnElement="returnWorkflowVersionToDraft">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="143" y="223" width="70" height="14" />
+          <dc:Bounds x="138" y="223" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="moveShape" bpmnElement="move">
@@ -69,7 +69,7 @@
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
         <dc:Bounds x="410" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="398" y="223" width="61" height="14" />
+          <dc:Bounds x="364" y="223" width="127" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toMoveEdge" bpmnElement="toMove">

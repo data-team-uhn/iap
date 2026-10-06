@@ -22,10 +22,10 @@
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
-                  id="createVersionDefinitions"
-                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createVersion">
+                  id="createWorkflowVersionDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createWorkflowVersion">
   <bpmn:message id="createVersionMessage" name="createVersion" />
-  <bpmn:process id="createVersion" name="Open a new version of a workflow" isExecutable="true">
+  <bpmn:process id="createWorkflowVersion" name="Open a new version of a workflow" isExecutable="true">
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Version requested">
       <bpmn:outgoing>toCreate</bpmn:outgoing>
       <bpmn:messageEventDefinition id="createVersionRequested" messageRef="createVersionMessage" />
@@ -50,8 +50,8 @@
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="createVersionDiagram">
-    <bpmndi:BPMNPlane id="createVersionPlane" bpmnElement="createVersion">
+  <bpmndi:BPMNDiagram id="createWorkflowVersionDiagram">
+    <bpmndi:BPMNPlane id="createWorkflowVersionPlane" bpmnElement="createWorkflowVersion">
       <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
         <dc:Bounds x="160" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
