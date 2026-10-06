@@ -125,7 +125,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       .then(() => {
         setDirty(false);
         if (destination === undefined) {
-          notify({ title: "The diagram was saved", severity: "success" });
+          notify({ title: "The process was saved", severity: "success" });
         } else {
           // No confirmation: the page it lands on is the confirmation
           void navigate(destination);
@@ -133,7 +133,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       })
       .catch((error: unknown) => {
         notify({
-          title: "The diagram could not be saved",
+          title: "The process could not be saved",
           message: messageOf(error),
           severity: "error",
           onRetry: () => save(destination),
@@ -179,7 +179,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
         )}
         { workflow && !version && (
           <Alert severity="warning">
-            This workflow has no version stored at {path}; the diagram below is whatever that path holds.
+            This workflow has no version stored at {path}; the process below is whatever that path holds.
           </Alert>
         )}
         { requestedEdit && version && !editable && (

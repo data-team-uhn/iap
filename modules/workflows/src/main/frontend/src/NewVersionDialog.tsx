@@ -65,8 +65,8 @@ function NewVersionDialog({ workflow, onClose, onCreated }: NewVersionDialogProp
       <DialogContent dividers>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <DialogContentText>
-            The new version starts as a draft, with a small starting diagram to author from. To carry an existing
-            version&apos;s diagram forward instead, draft a copy of that version.
+            The new version starts as a draft, with a small starting process to author from. To carry an existing
+            version&apos;s process forward instead, draft a copy of that version.
           </DialogContentText>
           <TextField
             label="Version"

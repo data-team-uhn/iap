@@ -39,7 +39,7 @@ function WorkflowVersionRedraftAction({ version, workflow, reload }: WorkflowVer
       label="Return to draft"
       event="returnToDraft"
       title={`Return version ${label} to draft?`}
-      explanation={`The trial of version ${label} ends and its diagram becomes editable again. Nothing else about`
+      explanation={`The trial of version ${label} ends and its process becomes editable again. Nothing else about`
         + ` ${workflow.title} changes: whichever version was active stays active.`}
       done={`Version ${label} of ${workflow.title} is a draft again`}
     />

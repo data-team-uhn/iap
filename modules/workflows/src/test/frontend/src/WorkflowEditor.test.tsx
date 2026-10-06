@@ -250,11 +250,11 @@ describe("WorkflowEditor", () => {
     expect(save?.[0]).toBe(`${VERSION_PATH}.save.json`);
     // The diagram is a plain payload part of the save request, named after the file it becomes.
     expect((save?.[1]?.body as FormData).get("bpmn.xml")).toBeInstanceOf(File);
-    expect(await screen.findByText("The diagram was saved")).toBeInTheDocument();
+    expect(await screen.findByText("The process was saved")).toBeInTheDocument();
 
     // And the confirmation can be dismissed, being a report of something already done
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
-    await waitFor(() => expect(screen.queryByText("The diagram was saved")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("The process was saved")).not.toBeInTheDocument());
   });
 
   it("saves and then shows the version, on the same URL without the editor asked for", async () => {
@@ -297,7 +297,7 @@ describe("WorkflowEditor", () => {
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save and close" }));
 
-    expect(await screen.findByText("The diagram could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The process could not be saved")).toBeInTheDocument();
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
@@ -330,7 +330,7 @@ describe("WorkflowEditor", () => {
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("The diagram could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The process could not be saved")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 

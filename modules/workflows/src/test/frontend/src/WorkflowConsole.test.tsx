@@ -112,13 +112,13 @@ describe("WorkflowConsole", () => {
     // fourth segment is one more than anything the console can place
     renderAt("/admin/workflows/Workflows/review/2-0/edit");
 
-    expect(await screen.findByText(/does not name a workflow/)).toBeInTheDocument();
+    expect(await screen.findByText(/does not point to a workflow/)).toBeInTheDocument();
   });
 
   it("says so rather than guessing when the URL names nothing it can show", async () => {
     renderAt("/admin/workflows/Elsewhere/review");
 
-    expect(await screen.findByText(/does not name a workflow/)).toBeInTheDocument();
+    expect(await screen.findByText(/does not point to a workflow/)).toBeInTheDocument();
   });
 
   it("opens the default homepage's listing when the URL is the console's own root", async () => {

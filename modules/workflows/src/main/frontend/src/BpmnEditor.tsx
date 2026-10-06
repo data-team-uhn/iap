@@ -117,7 +117,7 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
   const serialize = useCallback(async (): Promise<string> => {
     const { xml } = await (viewer as Modeler).saveXML({ format: true });
     if (xml == undefined) {
-      throw new Error("The diagram could not be serialized.");
+      throw new Error("The process could not be serialized.");
     }
     return xml;
   }, [viewer]);

@@ -87,7 +87,7 @@ export class WorkflowConsolePage {
   /** Saves the diagram open in the editor, staying in it. */
   async save(): Promise<void> {
     await this.page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(this.page.getByText('The diagram was saved')).toBeVisible();
+    await expect(this.page.getByText('The process was saved')).toBeVisible();
   }
 
   /** Opens a workflow's own page, and waits for its versions to be listed. */

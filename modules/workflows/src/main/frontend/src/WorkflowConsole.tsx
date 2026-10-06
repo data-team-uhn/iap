@@ -85,7 +85,7 @@ function WorkflowConsole() {
       return (
         <AdminScreen title="Workflows">
           <Alert severity="warning">
-            {location.pathname} does not name a workflow, a version, or a page of one.
+            {location.pathname} does not point to a workflow.
           </Alert>
         </AdminScreen>
       );
