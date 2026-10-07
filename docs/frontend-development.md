@@ -200,7 +200,8 @@ using those extensions is what keeps a deployment's rebranding effective:
 - `palette.diff.added` and `palette.diff.removed` for what a comparison marks as added
   or removed. `main` is for markers, `line` for a changed line's background, and `word`
   for the stronger shade of the words that changed within it. `palette.diff.moved` has
-  only `main` and `line`, for what moved.
+  only `main` and `line`, for what moved, and so has `palette.diff.hunk`, for what
+  stands for unchanged content left out.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.
