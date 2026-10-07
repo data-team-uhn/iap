@@ -3,6 +3,8 @@
 A submitted document is parsed, read into the repository, checked, and mined for the answers
 the schema asks for. Everything after parsing runs in Java, in this module.
 
+The whole path in plain terms, step by step, is in [docs/extraction.md](../../docs/extraction.md).
+
 ## The pipeline
 
 - **Upload** -- the submitter attaches the file through the submissions module's `attachDocument`
@@ -297,7 +299,7 @@ Stage 1 is complete. What is left is Stage 2 and a few things Stage 1 decided no
   context window keeps its opening and its end, and what was in the middle is never read. Covering a
   very long protocol whole would mean splitting it again, which is what this pipeline deliberately
   does not do.
-- **Chat over the document.** Two calls, a router and an answer. Not built in cards either.
+- **Chat over the document.** Two calls, a router and an answer.
 - **More than one document.** Every upload is parsed, but only the first parsed one is read for
   answers. A proposal with satellite files, a consent form or a covering letter, needs the fields
   asked across all of them.
