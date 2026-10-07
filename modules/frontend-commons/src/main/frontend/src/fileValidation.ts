@@ -35,6 +35,10 @@ export const MAX_FILE_SIZE = 50 * MEGABYTE;
 // 500 pages. Past this the parse is long enough that a person would think it had failed.
 export const MAX_PDF_PAGES = 500;
 
+// 512 MB, the parser's own limit (IAP_MAX_EXPANDED_BYTES). A .docx is a zip, and a small one can
+// unzip to gigabytes.
+export const MAX_UNZIPPED_SIZE = 512 * MEGABYTE;
+
 // The types the pipeline reads, by the extension that names them
 export const MIME_TYPE_BY_EXTENSION: Partial<Record<string, string>> = {
   ".pdf": "application/pdf",
@@ -53,6 +57,8 @@ export interface UploadLimits {
   maxFileSize?: number;
   /** The most pages a PDF may have. */
   maxPdfPages?: number;
+  /** The most a .docx may unzip to, in bytes. */
+  maxUnzippedSize?: number;
 }
 
 // A failed check always says why
@@ -149,20 +155,166 @@ async function checkPdf(file: File, maxPages: number): Promise<ContentCheck> {
 // some producers call it word/document2.xml.
 const WORD_MAIN_DOCUMENT = "wordprocessingml.document.main+xml";
 
-async function checkDocx(file: File): Promise<ContentCheck> {
+const DOCX_DAMAGED = "The document is damaged, or it is not a .docx file.";
+
+const CONTENT_TYPES = "[Content_Types].xml";
+
+// A real one stores about 1 KB. The sizes a zip states can lie, and JSZip unzips past them, but
+// deflate unzips at most about a thousand times what is stored, so this caps it near 16 MB.
+const MAX_STORED_CONTENT_TYPES = 16 * 1024;
+
+// Zip record layouts, from the zip format's APPNOTE
+const END_RECORD = 0x06054B50;
+const END_RECORD_SIZE = 22;
+const ZIP64_LOCATOR = 0x07064B50;
+const ZIP64_LOCATOR_SIZE = 20;
+const ZIP64_END_RECORD = 0x06064B50;
+const ZIP64_END_RECORD_SIZE = 56;
+const ZIP64_EXTRA_FIELD = 0x0001;
+const DIRECTORY_ENTRY = 0x02014B50;
+const DIRECTORY_ENTRY_SIZE = 46;
+const MAX_ZIP_COMMENT = 0xFFFF;
+// A field holding its largest value has the real one in a ZIP64 record
+const ZIP64_COUNT = 0xFFFF;
+const ZIP64_MARKER = 0xFFFFFFFF;
+
+interface ZipEntry {
+  name: string;
+  // Both as the directory states them
+  storedSize: number;
+  unzippedSize: number;
+}
+
+function readUint64(view: DataView, at: number): number {
+  return Number(view.getBigUint64(at, true));
+}
+
+// The end record sits last, after a comment of up to 64 KB, so it is searched for backwards.
+function findEndRecord(view: DataView): number | undefined {
+  const last = view.byteLength - END_RECORD_SIZE;
+  for (let at = last; at >= Math.max(0, last - MAX_ZIP_COMMENT); at--) {
+    if (view.getUint32(at, true) === END_RECORD) {
+      return at;
+    }
+  }
+  return undefined;
+}
+
+// Where the directory starts, how many entries it has, and where it has to end
+function findDirectory(view: DataView, end: number): { start: number; count: number; limit: number } | undefined {
+  const count = view.getUint16(end + 10, true);
+  const start = view.getUint32(end + 16, true);
+  if (count !== ZIP64_COUNT && start !== ZIP64_MARKER) {
+    return { start, count, limit: end };
+  }
+  const locator = end - ZIP64_LOCATOR_SIZE;
+  if (locator < 0 || view.getUint32(locator, true) !== ZIP64_LOCATOR) {
+    return undefined;
+  }
+  const record = readUint64(view, locator + 8);
+  if (record + ZIP64_END_RECORD_SIZE > locator || view.getUint32(record, true) !== ZIP64_END_RECORD) {
+    return undefined;
+  }
+  return { start: readUint64(view, record + 48), count: readUint64(view, record + 32), limit: record };
+}
+
+// The real sizes of an entry whose plain fields hold the marker. The ZIP64 extra field lists only
+// the sizes that were marked, unzipped first.
+function readZip64Sizes(view: DataView, entry: ZipEntry, from: number, to: number): ZipEntry | undefined {
+  for (let at = from; at + 4 <= to; at += 4 + view.getUint16(at + 2, true)) {
+    if (view.getUint16(at, true) !== ZIP64_EXTRA_FIELD) {
+      continue;
+    }
+    const fieldEnd = Math.min(to, at + 4 + view.getUint16(at + 2, true));
+    let next = at + 4;
+    const sizes = { ...entry };
+    for (const key of [ "unzippedSize", "storedSize" ] as const) {
+      if (sizes[key] === ZIP64_MARKER) {
+        if (next + 8 > fieldEnd) {
+          return undefined;
+        }
+        sizes[key] = readUint64(view, next);
+        next += 8;
+      }
+    }
+    return sizes;
+  }
+  return undefined;
+}
+
+/**
+ * A zip's entries as its central directory lists them, read without unzipping anything.
+ *
+ * @returns the entries, or undefined when the directory cannot be read
+ */
+function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
+  const view = new DataView(data);
+  const end = findEndRecord(view);
+  const directory = end === undefined ? undefined : findDirectory(view, end);
+  if (directory === undefined) {
+    return undefined;
+  }
+  const decoder = new TextDecoder();
+  const entries: ZipEntry[] = [];
+  let at = directory.start;
+  for (let index = 0; index < directory.count; index++) {
+    if (at + DIRECTORY_ENTRY_SIZE > directory.limit || view.getUint32(at, true) !== DIRECTORY_ENTRY) {
+      return undefined;
+    }
+    const nameLength = view.getUint16(at + 28, true);
+    const extraStart = at + DIRECTORY_ENTRY_SIZE + nameLength;
+    const extraEnd = extraStart + view.getUint16(at + 30, true);
+    if (extraEnd > directory.limit) {
+      return undefined;
+    }
+    let entry: ZipEntry | undefined = {
+      name: decoder.decode(new Uint8Array(data, at + DIRECTORY_ENTRY_SIZE, nameLength)),
+      storedSize: view.getUint32(at + 20, true),
+      unzippedSize: view.getUint32(at + 24, true),
+    };
+    if (entry.storedSize === ZIP64_MARKER || entry.unzippedSize === ZIP64_MARKER) {
+      entry = readZip64Sizes(view, entry, extraStart, extraEnd);
+      if (entry === undefined) {
+        return undefined;
+      }
+    }
+    entries.push(entry);
+    at = extraEnd + view.getUint16(at + 32, true);
+  }
+  return entries;
+}
+
+// Everything is checked from the directory before anything is unzipped: a small file can unzip to
+// gigabytes, and reading even the content types out of such a file could hang the tab.
+async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCheck> {
   try {
+    const data = await file.arrayBuffer();
+    const entries = readZipDirectory(data);
+    if (entries === undefined) {
+      return { valid: false, error: DOCX_DAMAGED };
+    }
+    if (entries.reduce((total, entry) => total + entry.unzippedSize, 0) > maxUnzippedSize) {
+      return { valid: false, error: `It unzips to more than ${formatMegabytes(maxUnzippedSize)}.` };
+    }
+    const listed = entries.find(entry => entry.name === CONTENT_TYPES);
+    if (listed === undefined) {
+      return { valid: false, error: "It is not a Word document." };
+    }
+    if (listed.storedSize > MAX_STORED_CONTENT_TYPES) {
+      return { valid: false, error: DOCX_DAMAGED };
+    }
     const JSZip = await loadLibrary(async () => (await import("jszip")).default, file);
     if (JSZip === undefined) {
       return { valid: true };
     }
-    const zip = await JSZip.loadAsync(file);
-    const types = zip.file("[Content_Types].xml");
+    const zip = await JSZip.loadAsync(data);
+    const types = zip.file(CONTENT_TYPES);
     if (!types || !(await types.async("string")).includes(WORD_MAIN_DOCUMENT)) {
       return { valid: false, error: "It is not a Word document." };
     }
     return { valid: true };
   } catch {
-    return { valid: false, error: "The document is damaged, or it is not a .docx file." };
+    return { valid: false, error: DOCX_DAMAGED };
   }
 }
 
@@ -190,7 +342,7 @@ async function checkContent(
     return checkPdf(file, limits.maxPdfPages);
   }
   if (extension === ".docx") {
-    return checkDocx(file);
+    return checkDocx(file, limits.maxUnzippedSize);
   }
   if (extension === ".doc") {
     return checkDoc(file);
@@ -228,7 +380,7 @@ function describeWrongType(file: File, accepted: string[]): string {
  *
  * @param file the file the person picked
  * @param accepted the types taken, as MIME types or extensions; empty takes what the pipeline reads
- * @param limits the size and length limits, where the defaults do not fit
+ * @param limits the size, length and unzipped-size limits, where the defaults do not fit
  */
 export async function validateUpload(
   file: File,
@@ -255,6 +407,7 @@ export async function validateUpload(
   const content = await checkContent(file, extension, {
     maxFileSize,
     maxPdfPages: limits.maxPdfPages ?? MAX_PDF_PAGES,
+    maxUnzippedSize: limits.maxUnzippedSize ?? MAX_UNZIPPED_SIZE,
   });
   return content.valid ? undefined : `${file.name}: ${content.error}`;
 }
