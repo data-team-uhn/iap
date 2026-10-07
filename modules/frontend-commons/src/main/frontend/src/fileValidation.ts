@@ -117,6 +117,10 @@ async function checkPdf(file: File, maxPages: number): Promise<ContentCheck> {
     const task = pdfjs.getDocument({ data });
     try {
       const pdf = await task.promise;
+      // The parser refuses these too, and there is nothing in one to read
+      if (pdf.numPages === 0) {
+        return { valid: false, error: "It has no pages." };
+      }
       if (pdf.numPages > maxPages) {
         return {
           valid: false,
