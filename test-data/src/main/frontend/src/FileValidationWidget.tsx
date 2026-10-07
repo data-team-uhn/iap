@@ -22,7 +22,7 @@ import UploadIcon from "@mui/icons-material/Upload";
 import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
-import { MAX_FILE_SIZE, MAX_PDF_PAGES, MEGABYTE, validateUpload } from "@iap/frontend-commons/fileValidation";
+import { MAX_FILE_SIZE, MAX_PDF_PAGES, MAX_UNZIPPED_SIZE, MEGABYTE, validateUpload } from "@iap/frontend-commons/fileValidation";
 
 const ACCEPTS: Record<string, { label: string; types: string[] }> = {
   pipeline: { label: "Anything the pipeline reads", types: [] },
@@ -40,6 +40,7 @@ interface Check {
   accepts: string;
   maxMegabytes: string;
   maxPages: string;
+  maxUnzipped: string;
   problem?: string;
 }
 
@@ -56,13 +57,14 @@ function getByteLimit(value: string): number | undefined {
 }
 
 // A dashboard toy for the upload check. Pick any file and see what it would be refused for, under the
-// types and limits set here, without attaching it to anything. Smaller limits make the size and page
-// refusals easy to reach. Shown on the homepage when the app is started with --test.
+// types and limits set here, without attaching it to anything. Smaller limits make the size, page and
+// unzipped-size refusals easy to reach. Shown on the homepage when the app is started with --test.
 function FileValidationWidget() {
   const [file, setFile] = useState<File | undefined>(undefined);
   const [accepts, setAccepts] = useState("pipeline");
   const [maxMegabytes, setMaxMegabytes] = useState(String(MAX_FILE_SIZE / MEGABYTE));
   const [maxPages, setMaxPages] = useState(String(MAX_PDF_PAGES));
+  const [maxUnzipped, setMaxUnzipped] = useState(String(MAX_UNZIPPED_SIZE / MEGABYTE));
   const [answer, setAnswer] = useState<Check | undefined>(undefined);
 
   // Checked again whenever a setting changes, so the same file can be tried against each one. The
@@ -72,11 +74,12 @@ function FileValidationWidget() {
       return undefined;
     }
     let current = true;
-    const asked = { file, accepts, maxMegabytes, maxPages };
+    const asked = { file, accepts, maxMegabytes, maxPages, maxUnzipped };
     const timer = setTimeout(() => {
       validateUpload(file, ACCEPTS[accepts].types, {
         maxFileSize: getByteLimit(maxMegabytes),
         maxPdfPages: getLimit(maxPages),
+        maxUnzippedSize: getByteLimit(maxUnzipped),
       }).then(
         problem => {
           if (current) {
@@ -94,11 +97,12 @@ function FileValidationWidget() {
       current = false;
       clearTimeout(timer);
     };
-  }, [file, accepts, maxMegabytes, maxPages]);
+  }, [file, accepts, maxMegabytes, maxPages, maxUnzipped]);
 
   // An answer to other settings is stale, so the check for these ones is still underway
   const shown = answer && answer.file === file && answer.accepts === accepts
-    && answer.maxMegabytes === maxMegabytes && answer.maxPages === maxPages ? answer : undefined;
+    && answer.maxMegabytes === maxMegabytes && answer.maxPages === maxPages
+    && answer.maxUnzipped === maxUnzipped ? answer : undefined;
 
   return (
     <Stack spacing={2}>
@@ -141,6 +145,14 @@ function FileValidationWidget() {
           value={maxPages}
           onChange={event => setMaxPages(event.target.value)}
           sx={{ width: 120 }}
+        />
+        <TextField
+          size="small"
+          type="number"
+          label="Unzip limit (MB)"
+          value={maxUnzipped}
+          onChange={event => setMaxUnzipped(event.target.value)}
+          sx={{ width: 140 }}
         />
       </Stack>
       {!file

@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import JSZip from "jszip";
 import { GlobalWorkerOptions } from "pdfjs-dist";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -22,15 +23,16 @@ import {
   ACCEPTED_EXTENSIONS,
   MAX_FILE_SIZE,
   MAX_PDF_PAGES,
+  MAX_UNZIPPED_SIZE,
   getFileExtension,
   validateUpload,
 } from "@iap/frontend-commons/fileValidation";
 
-// PDF.js and JSZip are loaded on demand, so the tests stand in for them rather than shipping real
-// files. What is under test is the rules, not those two libraries.
+// PDF.js is loaded on demand, so the tests stand in for it rather than shipping real PDFs.
 // A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
 // because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password, and
 // one that starts with 0x27 meets a worker that did not load.
+// A .docx is a real zip made with JSZip, since the check reads the zip's own bytes.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
 // Switches that make a library fail to load, as a chunk that 404s after a deploy would
@@ -40,6 +42,121 @@ const missing = vi.hoisted(() => ({ pdfjs: false, jszip: false }));
 function getContentTypes(kind: string): string {
   return `<Types><Override ContentType="application/vnd.openxmlformats-officedocument.${kind}.main+xml"/></Types>`;
 }
+
+/** The bytes of a zip shaped like a .docx; `kind` null leaves out the content types. */
+async function createZipBytes(
+  kind: string | null = "wordprocessingml.document",
+  body = "<w:document/>",
+  comment?: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const zip = new JSZip();
+  if (kind !== null) {
+    zip.file("[Content_Types].xml", getContentTypes(kind));
+  }
+  zip.file("word/document.xml", body);
+  // Copied so the bytes own their buffer from offset 0, which the tests below write into
+  return new Uint8Array(await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", comment }));
+}
+
+async function createDocx(kind?: string | null, body?: string, comment?: string): Promise<File> {
+  return new File([ await createZipBytes(kind, body, comment) ], "proposal.docx");
+}
+
+// Where the first central directory entry starts: its signature, low byte first
+function findDirectoryEntry(bytes: Uint8Array): number {
+  return bytes.findIndex((value, at) =>
+    value === 0x50 && bytes[at + 1] === 0x4B && bytes[at + 2] === 0x01 && bytes[at + 3] === 0x02);
+}
+
+/**
+ * A stored (not compressed) zip written in the ZIP64 format, which JSZip cannot write. Every size
+ * and offset sits in a ZIP64 record, with the marker in the plain fields, the way a writer that
+ * always uses ZIP64 leaves them. `claimed` is the unzipped size the directory states, when it lies.
+ */
+function createZip64(entries: { name: string; text: string; claimed?: number }[]): File {
+  const encoder = new TextEncoder();
+  const parts = entries.map(entry =>
+    ({ ...entry, name: encoder.encode(entry.name), data: encoder.encode(entry.text) }));
+  const localSize = parts.reduce((sum, part) => sum + 30 + part.name.length + 20 + part.data.length, 0);
+  const directorySize = parts.reduce((sum, part) => sum + 46 + part.name.length + 28, 0);
+  const bytes = new Uint8Array(localSize + directorySize + 56 + 20 + 22);
+  const view = new DataView(bytes.buffer);
+  let at = 0;
+  const offsets: number[] = [];
+  for (const part of parts) {
+    offsets.push(at);
+    view.setUint32(at, 0x04034B50, true);
+    view.setUint16(at + 4, 45, true);
+    view.setUint32(at + 18, 0xFFFFFFFF, true);
+    view.setUint32(at + 22, 0xFFFFFFFF, true);
+    view.setUint16(at + 26, part.name.length, true);
+    view.setUint16(at + 28, 20, true);
+    bytes.set(part.name, at + 30);
+    const extra = at + 30 + part.name.length;
+    view.setUint16(extra, 1, true);
+    view.setUint16(extra + 2, 16, true);
+    view.setBigUint64(extra + 4, BigInt(part.data.length), true);
+    view.setBigUint64(extra + 12, BigInt(part.data.length), true);
+    bytes.set(part.data, extra + 20);
+    at = extra + 20 + part.data.length;
+  }
+  const directoryStart = at;
+  parts.forEach((part, index) => {
+    view.setUint32(at, 0x02014B50, true);
+    view.setUint16(at + 4, 45, true);
+    view.setUint16(at + 6, 45, true);
+    view.setUint32(at + 20, 0xFFFFFFFF, true);
+    view.setUint32(at + 24, 0xFFFFFFFF, true);
+    view.setUint16(at + 28, part.name.length, true);
+    view.setUint16(at + 30, 28, true);
+    view.setUint32(at + 42, 0xFFFFFFFF, true);
+    bytes.set(part.name, at + 46);
+    const extra = at + 46 + part.name.length;
+    view.setUint16(extra, 1, true);
+    view.setUint16(extra + 2, 24, true);
+    view.setBigUint64(extra + 4, BigInt(part.claimed ?? part.data.length), true);
+    view.setBigUint64(extra + 12, BigInt(part.data.length), true);
+    view.setBigUint64(extra + 20, BigInt(offsets[index]), true);
+    at = extra + 28;
+  });
+  const zip64End = at;
+  view.setUint32(at, 0x06064B50, true);
+  view.setBigUint64(at + 4, BigInt(44), true);
+  view.setUint16(at + 12, 45, true);
+  view.setUint16(at + 14, 45, true);
+  view.setBigUint64(at + 24, BigInt(parts.length), true);
+  view.setBigUint64(at + 32, BigInt(parts.length), true);
+  view.setBigUint64(at + 40, BigInt(zip64End - directoryStart), true);
+  view.setBigUint64(at + 48, BigInt(directoryStart), true);
+  at += 56;
+  view.setUint32(at, 0x07064B50, true);
+  view.setBigUint64(at + 8, BigInt(zip64End), true);
+  view.setUint32(at + 16, 1, true);
+  at += 20;
+  view.setUint32(at, 0x06054B50, true);
+  view.setUint16(at + 8, 0xFFFF, true);
+  view.setUint16(at + 10, 0xFFFF, true);
+  view.setUint32(at + 12, 0xFFFFFFFF, true);
+  view.setUint32(at + 16, 0xFFFFFFFF, true);
+  return new File([ bytes ], "proposal.docx");
+}
+
+const WORD_PARTS = [
+  { name: "[Content_Types].xml", text: getContentTypes("wordprocessingml.document") },
+  { name: "word/document.xml", text: "<w:document/>" },
+];
+
+vi.mock("jszip", async importOriginal => {
+  const actual = await importOriginal<{ default: unknown }>();
+  return {
+    get default() {
+      if (missing.jszip) {
+        throw new Error("Loading chunk jszip failed");
+      }
+      return actual.default;
+    },
+  };
+});
 
 const workerOptions = vi.hoisted(() => ({ workerSrc: "" }));
 
@@ -72,28 +189,6 @@ vi.mock("pdfjs-dist", () => ({
     };
   },
 }));
-
-vi.mock("jszip", () => {
-  const jszip = {
-    loadAsync: (file: File) => file.name.includes("broken")
-      ? Promise.reject(new Error("not a zip"))
-      : Promise.resolve({
-        file: (name: string) => file.name.includes("bare") ? null : {
-          name,
-          async: () => Promise.resolve(
-            getContentTypes(file.name.includes("sheet") ? "spreadsheetml.sheet" : "wordprocessingml.document")),
-        },
-      }),
-  };
-  return {
-    get default() {
-      if (missing.jszip) {
-        throw new Error("Loading chunk jszip failed");
-      }
-      return jszip;
-    },
-  };
-});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -220,16 +315,29 @@ describe("what is inside the file", () => {
   });
 
   it("accepts a .docx that holds what a Word document holds", async () => {
-    await expect(validateUpload(createUpload("proposal.docx"))).resolves.toBeUndefined();
+    await expect(validateUpload(await createDocx())).resolves.toBeUndefined();
   });
 
   // A zip without these parts is some other zip that was renamed
   it("refuses a .docx missing the parts that make it one", async () => {
-    await expect(validateUpload(createUpload("bare.docx"))).resolves.toMatch(/not a Word document/);
+    await expect(validateUpload(await createDocx(null))).resolves.toMatch(/not a Word document/);
   });
 
   it("refuses a .docx that is not a zip", async () => {
-    await expect(validateUpload(createUpload("broken.docx"))).resolves.toMatch(/damaged/);
+    await expect(validateUpload(createUpload("proposal.docx", [ 0x25, 1, 0 ]))).resolves.toMatch(/damaged/);
+  });
+
+  // The end record is found by searching back from the end, past whatever comment the zip carries
+  it("reads a .docx that ends with a comment", async () => {
+    await expect(validateUpload(await createDocx(undefined, undefined, "c".repeat(300)))).resolves.toBeUndefined();
+  });
+
+  it("refuses a .docx whose directory points at the wrong place", async () => {
+    const bytes = await createZipBytes();
+    // The directory's offset sits 16 bytes into the end record, which is the last 22 bytes
+    new DataView(bytes.buffer).setUint32(bytes.length - 22 + 16, 0, true);
+
+    await expect(validateUpload(new File([ bytes ], "proposal.docx"))).resolves.toMatch(/damaged/);
   });
 
   it("accepts a .doc that starts the way one does", async () => {
@@ -248,6 +356,7 @@ describe("the limits themselves", () => {
   it("are the ones the team agreed", () => {
     expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
     expect(MAX_PDF_PAGES).toBe(500);
+    expect(MAX_UNZIPPED_SIZE).toBe(512 * 1024 * 1024);
     expect(ACCEPTED_EXTENSIONS).toEqual([ ".pdf", ".docx", ".doc" ]);
   });
 
@@ -261,7 +370,24 @@ describe("the limits themselves", () => {
 
   // The main document's name is not fixed, so the content types are what say it is a Word document
   it("refuses a zip whose content types name no Word document", async () => {
-    expect(await validateUpload(createUpload("budget-sheet.docx"))).toMatch(/not a Word document/);
+    expect(await validateUpload(await createDocx("spreadsheetml.sheet"))).toMatch(/not a Word document/);
+  });
+
+  // A small .docx can unzip to gigabytes, so the size it unzips to is checked before anything is unzipped
+  it("refuses a .docx that unzips to more than the limit", async () => {
+    const file = await createDocx(undefined, "x".repeat(4000));
+
+    expect(file.size).toBeLessThan(1000);
+    expect(await validateUpload(file, [], { maxUnzippedSize: 2000 })).toMatch(/unzips to more than/);
+    expect(await validateUpload(file, [], { maxUnzippedSize: 8000 })).toBeUndefined();
+  });
+
+  // The marker says the real size is in a ZIP64 record, so without one the size is unknown
+  it("refuses a .docx that marks a size as ZIP64 but has no ZIP64 record", async () => {
+    const bytes = await createZipBytes();
+    new DataView(bytes.buffer).setUint32(findDirectoryEntry(bytes) + 24, 0xFFFFFFFF, true);
+
+    expect(await validateUpload(new File([ bytes ], "proposal.docx"))).toMatch(/damaged/);
   });
 
   // With no type from the browser, the name says what it is meant to be, and only an accepted kind passes
@@ -296,6 +422,33 @@ describe("an untyped file with no extension", () => {
   });
 });
 
+describe("reading the zip directory", () => {
+  // Some writers use ZIP64 for every archive, however small, and the parser reads them
+  it("reads a small ZIP64 archive", async () => {
+    expect(await validateUpload(createZip64(WORD_PARTS))).toBeUndefined();
+  });
+
+  it("refuses a ZIP64 archive that unzips to more than the limit", async () => {
+    const [ types, document ] = WORD_PARTS;
+    const file = createZip64([ types, { ...document, claimed: 600 * 1024 * 1024 } ]);
+
+    expect(await validateUpload(file)).toMatch(/unzips to more than 512 MB/);
+  });
+
+  // The stated sizes can lie, and JSZip unzips past them; deflate unzips at most about a
+  // thousand times what is stored, so a small stored part cannot unzip to much
+  it("refuses content types stored too large to be real", async () => {
+    // Random text does not compress, so it is stored at about its own size
+    const noise = Array.from(crypto.getRandomValues(new Uint8Array(50_000)), value =>
+      String.fromCharCode(33 + (value % 90))).join("");
+    const zip = new JSZip();
+    zip.file("[Content_Types].xml", getContentTypes("wordprocessingml.document") + noise);
+    const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+
+    expect(await validateUpload(new File([ new Uint8Array(bytes) ], "proposal.docx"))).toMatch(/damaged/);
+  });
+});
+
 describe("when what checks a file cannot load", () => {
   afterEach(() => {
     missing.pdfjs = false;
@@ -324,9 +477,17 @@ describe("when what checks a file cannot load", () => {
 
   it("lets a .docx through when JSZip does not load", async () => {
     const logged = spyOnErrors();
+    const file = await createDocx();
     missing.jszip = true;
 
-    expect(await validateUpload(createUpload("proposal.docx"))).toBeUndefined();
+    expect(await validateUpload(file)).toBeUndefined();
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.docx", expect.any(Error));
+  });
+
+  // Reading the zip's list needs no library, so what it finds is still refused
+  it("still refuses a .docx whose list cannot be read", async () => {
+    missing.jszip = true;
+
+    expect(await validateUpload(createUpload("proposal.docx", [ 0x25, 1, 0 ]))).toMatch(/damaged/);
   });
 });

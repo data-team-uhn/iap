@@ -63,7 +63,11 @@ describe("FileValidationWidget", () => {
     const file = pick("proposal.pdf");
 
     expect(await screen.findByText("proposal.pdf passes every check.")).toBeInTheDocument();
-    expect(validate).toHaveBeenCalledWith(file, [], { maxFileSize: 50 * 1024 * 1024, maxPdfPages: 500 });
+    expect(validate).toHaveBeenCalledWith(file, [], {
+      maxFileSize: 50 * 1024 * 1024,
+      maxPdfPages: 500,
+      maxUnzippedSize: 512 * 1024 * 1024,
+    });
   });
 
   it("shows why a file is refused", async () => {
@@ -94,11 +98,13 @@ describe("FileValidationWidget", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "PDF only" }));
     fireEvent.change(screen.getByLabelText("Size limit (MB)"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Page limit"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Unzip limit (MB)"), { target: { value: "3" } });
 
     await screen.findByText("proposal.pdf passes every check.");
     expect(validate).toHaveBeenLastCalledWith(file, [ "application/pdf" ], {
       maxFileSize: 2 * 1024 * 1024,
       maxPdfPages: 10,
+      maxUnzippedSize: 3 * 1024 * 1024,
     });
   });
 
@@ -110,9 +116,14 @@ describe("FileValidationWidget", () => {
 
     fireEvent.change(screen.getByLabelText("Size limit (MB)"), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("Page limit"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Unzip limit (MB)"), { target: { value: "-1" } });
 
     await screen.findByText("proposal.pdf passes every check.");
-    expect(validate).toHaveBeenLastCalledWith(file, [], { maxFileSize: undefined, maxPdfPages: undefined });
+    expect(validate).toHaveBeenLastCalledWith(file, [], {
+      maxFileSize: undefined,
+      maxPdfPages: undefined,
+      maxUnzippedSize: undefined,
+    });
   });
 
   // Each check reads the whole file, so typing "400" runs one check, not three

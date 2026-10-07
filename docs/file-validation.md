@@ -26,7 +26,7 @@ if (problem !== undefined) {
 | --- | --- | --- | --- |
 | `file` | `File` | — | The file the person picked |
 | `accepted` | `string[]` | `[]` | Types taken, as MIME types (`application/pdf`) or extensions (`.pdf`). Empty means the three formats the document pipeline reads |
-| `limits` | `UploadLimits` | `{}` | `maxFileSize` in bytes and `maxPdfPages`. Each one left out keeps its default |
+| `limits` | `UploadLimits` | `{}` | `maxFileSize` in bytes, `maxPdfPages`, and `maxUnzippedSize` in bytes. Each one left out keeps its default |
 
 It returns a `Promise<string | undefined>`. `undefined` means the file passed every
 check. A string is the reason it failed, written for the person to read, and always
@@ -41,6 +41,7 @@ The module also exports:
 | --- | --- |
 | `MAX_FILE_SIZE` | `50 * 1024 * 1024` (50 MB) |
 | `MAX_PDF_PAGES` | `500` |
+| `MAX_UNZIPPED_SIZE` | `512 * 1024 * 1024` (512 MB) |
 | `MEGABYTE` | `1024 * 1024` |
 | `MIME_TYPE_BY_EXTENSION` | `.pdf`, `.docx` and `.doc`, each with its MIME type (see [Accepted types](#accepted-types)) |
 | `ACCEPTED_EXTENSIONS` | Its keys: `[".pdf", ".docx", ".doc"]` |
@@ -65,8 +66,14 @@ validateUpload(file, accepted, limits)
        │           ├── numPages > maxPdfPages?   → "It has N pages, and the limit is L."
        │           └── task.destroy()            (always, in a finally)
        ├── .docx → checkDocx
+       │           ├── file.arrayBuffer()
+       │           ├── readZipDirectory(data)    (reads the zip's central directory, unzips nothing)
+       │           │     unreadable?             → "The document is damaged, or it is not a .docx file."
+       │           │     sizes > maxUnzippedSize? → "It unzips to more than L MB."
+       │           │     no [Content_Types].xml? → "It is not a Word document."
+       │           │     it stores over 16 KB?   → "The document is damaged, or it is not a .docx file."
        │           ├── import("jszip")
-       │           ├── JSZip.loadAsync(file)
+       │           ├── JSZip.loadAsync(data)
        │           └── read [Content_Types].xml, look for the Word main document type
        ├── .doc  → checkDoc
        │           └── read the first 8 bytes, compare to the OLE signature
@@ -171,9 +178,12 @@ pages is where the parse gets long enough that a person would think it had faile
 
 A `.docx` is a zip file. The check:
 
-1. Loads JSZip and opens the file as a zip.
-2. Reads `[Content_Types].xml` from the zip.
-3. Looks for the text `wordprocessingml.document.main+xml` in it.
+1. Reads the whole file into memory.
+2. Reads the zip's list of entries, without unzipping anything.
+3. Adds up how big the entries are once unzipped.
+4. Finds `[Content_Types].xml` in the list, and checks it stores no more than 16 KB.
+5. Loads JSZip, opens the zip and reads `[Content_Types].xml`.
+6. Looks for the text `wordprocessingml.document.main+xml` in it.
 
 It looks at the content types and not at a fixed file name like `word/document.xml`,
 because some programs name the main part differently (`word/document2.xml`).
@@ -181,9 +191,39 @@ because some programs name the main part differently (`word/document2.xml`).
 | What happened | Message |
 | --- | --- |
 | Zip opens, content types name a Word document | passes |
-| Zip opens, no `[Content_Types].xml`, or it names something else (an Excel file renamed `.docx`) | `It is not a Word document.` |
-| Not a zip at all | `The document is damaged, or it is not a .docx file.` |
+| Unzips to more than `maxUnzippedSize` | `It unzips to more than 512 MB.` |
+| No `[Content_Types].xml`, or it names something else (an Excel file renamed `.docx`) | `It is not a Word document.` |
+| Not a zip, its directory does not add up, or `[Content_Types].xml` stores over 16 KB | `The document is damaged, or it is not a .docx file.` |
 | JSZip could not load | passes, unchecked (see [PDF](#pdf)) |
+
+**Everything is checked from the list before anything is unzipped.** A small zip can
+unzip to gigabytes: 50 MB of the same byte repeated squeezes down to almost nothing.
+Unzipping such a file, even just to read the content types, could hang the tab.
+
+The list is the zip's **central directory**, the index at the end of every zip. It names
+each entry with its size before and after zipping. `readZipDirectory`:
+
+1. Searches back from the end for the end record (signature `PK 05 06`). It is the last
+   22 bytes, unless the zip ends with a comment, which can be up to 64 KB.
+2. Reads from it how many entries there are and where the directory starts. When those
+   fields hold their largest value (`FFFF`, `FFFFFFFF`), the real ones are in a ZIP64
+   record, found through the ZIP64 locator just before the end record.
+3. Walks the entries (signature `PK 01 02`), reading each name and both sizes. A size of
+   `FFFFFFFF` means the real one is in the entry's ZIP64 extra field.
+
+Some writers use ZIP64 for every archive, however small, so a ZIP64 `.docx` is read like
+any other. The parser reads the same numbers (`zipfile`'s `file_size`), so the two agree
+on what a file unzips to.
+
+The list is treated as damaged when there is no end record, an entry lacks its
+signature, an entry runs past the end of the directory, or a size is marked as ZIP64
+with no ZIP64 field to read it from.
+
+**The sizes in the list can lie**, and JSZip does not stop at the stated size. It unzips
+everything and only then sees the lengths differ: a 200 KB file claiming 1 KB was
+unzipped to 200 MB. So the stored size of `[Content_Types].xml`, the one part JSZip
+unzips, is capped too. A real one stores about 1 KB. Deflate unzips at most about a
+thousand times what it stores, so 16 KB stored is at most about 16 MB unzipped.
 
 ### DOC
 
@@ -209,6 +249,7 @@ No content check. A file of another type that passed step 3 passes.
 | --- | --- | --- | --- |
 | File size | 50 MB (`MAX_FILE_SIZE`) | `limits.maxFileSize`, in bytes | Bigger uploads are slow enough to look broken, and the parser holds the file in memory |
 | PDF pages | 500 (`MAX_PDF_PAGES`) | `limits.maxPdfPages` | Longer parses take long enough that a person thinks they failed |
+| DOCX unzipped size | 512 MB (`MAX_UNZIPPED_SIZE`) | `limits.maxUnzippedSize`, in bytes | The parser's own limit (`IAP_MAX_EXPANDED_BYTES`) |
 
 There is no page limit for `.docx` or `.doc`. Their page count is not known until they
 are converted.
@@ -279,14 +320,15 @@ by `Extensions/DashboardWidget/FileValidation.json`).
 | **Accepts** | `Anything the pipeline reads` (`[]`), `PDF only` (`["application/pdf"]`), or `Word only` (`[".docx", ".doc"]`, written as extensions) |
 | **Size limit (MB)** | Passed as `maxFileSize`. Starts at 50 |
 | **Page limit** | Passed as `maxPdfPages`. Starts at 500 |
+| **Unzip limit (MB)** | Passed as `maxUnzippedSize`. Starts at 512 |
 
 The result shows as "Checking …" while it runs, then a green "<name> passes every
 check." or a red box with the reason.
 
 Changing any setting checks the same file again, 300 ms after the last change, so one
 file can be tried against several settings. Lowering the limits is the easy way to see
-the size and page refusals without a huge file: set the size limit to 1 and pick a 2 MB
-PDF.
+the refusals without a huge file: set the size limit to 1 and pick a 2 MB PDF, or set
+the unzip limit to 0.01 (about 10 KB) and pick any real `.docx`.
 
 An empty limit, or 0, falls back to the default rather than meaning "nothing allowed".
 
@@ -298,20 +340,19 @@ so the screen never shows a result for settings that are no longer selected.
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 35 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 43 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 9 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale answer is ignored |
 
-The validation test does not load real PDF.js or JSZip. It replaces both with small
-fakes:
+The validation test does not load real PDF.js. It uses a small fake: a file starting
+with byte `0x25` is a PDF whose page count is in the next two bytes, low byte first, so
+501 pages fits. A file starting with `0x26` needs a password, and one starting with
+`0x27` meets a worker that would not start. Anything else is not a PDF. A switch makes
+PDF.js or JSZip fail to load, the way a missing chunk would.
 
-- **Fake PDF.js:** a file starting with byte `0x25` is a PDF whose page count is in the
-  next two bytes, low byte first, so 501 pages fits. A file starting with `0x26` needs a
-  password, and one starting with `0x27` meets a worker that would not start. Anything
-  else is not a PDF.
-- **Fake JSZip:** the file name decides. A name containing `broken` is not a zip, `bare`
-  has no content types, and `sheet` holds a spreadsheet instead of a Word document.
-
-A switch makes either fake fail to load, the way a missing chunk would.
+It does use real JSZip, to build real `.docx` zips, because the checks read the zip's
+own bytes. Bad zips are made by changing a few bytes of a good one: pointing the
+directory at the wrong place, or writing the ZIP64 marker into an entry's size. JSZip
+cannot write ZIP64, so `createZip64` builds those archives by hand.
 
 The widget test replaces `validateUpload` itself, since the rules have their own tests.
 
@@ -333,5 +374,3 @@ The widget test replaces `validateUpload` itself, since the rules have their own
 - **The browser and the parser disagree on size.** The browser stops at 50 MB and the
   parser at 64 MiB. That is safe, since the stricter one runs first, but nothing keeps
   the two in step. They are in different languages and are changed by hand.
-- **No unzipped-size check for DOCX.** A small `.docx` that unzips to gigabytes passes
-  here. The parser refuses it.
