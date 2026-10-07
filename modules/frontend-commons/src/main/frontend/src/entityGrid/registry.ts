@@ -80,8 +80,9 @@ export interface EntityGridConfig {
   // columns, so the renderer can leave out what the user hid (keeping the card's identity —
   // the title — is fine regardless).
   listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
-  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity,
-  // so a type with children describes them on its card, e.g. through a column's cardValue.
+  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity: the
+  // composed card closes with its children, each by its tree field, linked where it has a rowLink,
+  // while a type's own listItem shows them itself.
   children?: EntityGridChildren;
 }
 

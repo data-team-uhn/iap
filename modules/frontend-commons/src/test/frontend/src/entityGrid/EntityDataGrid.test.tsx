@@ -170,6 +170,17 @@ registerEntityType(EXPANDED_TYPE, {
   columns: [ { field: "status", headerName: "Status" } ],
   children: { selectors: "1", rows: versionsOf, treeField: "label", expanded: true },
 });
+// The same, composing its card from card slots, and opening each row, a child's too, on a page of its own
+const CARD_TREE_TYPE = "test/CardTreeEntity";
+registerEntityType(CARD_TREE_TYPE, {
+  homepage: "/TreeEntities",
+  columns: [
+    { field: "title", headerName: "Name", cardSlot: "title" },
+    { field: "status", headerName: "Status", cardSlot: "badge" },
+  ],
+  children: { selectors: "1", rows: versionsOf, treeField: "title" },
+  rowLink: row => row["@path"] as string | undefined,
+});
 const TREE_ROWS = [
   {
     "@path": "/TreeEntities/study",
@@ -276,8 +287,10 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    expect(await screen.findByText("Clinical study")).toBeInTheDocument();
-    expect(screen.queryByText("Version one")).not.toBeInTheDocument();
+    // Its children are on its card, not cards of their own
+    const card = (await screen.findByText("Clinical study")).closest("[role='row']");
+    expect(screen.getByText("Version one").closest("[role='row']")).toBe(card);
+    expect(screen.getAllByRole("row")).toHaveLength(1);
   });
 
   it("lists the fetched entities using the registered columns and sorting", async () => {
@@ -761,6 +774,29 @@ describe("EntityDataGrid", () => {
     expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
     expect(screen.getByText("Actions shown")).toBeInTheDocument();
     expect(screen.queryByText("Actions hidden")).toBeNull();
+  });
+
+  it("closes an entity's card with its children, each linked to its page where it has one", async () => {
+    fakeNarrowScreen();
+    mockPage(TREE_ROWS);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<EntityDataGrid entityType={CARD_TREE_TYPE} disableVirtualization />} />
+          <Route path="/TreeEntities/study/v1" element={<div>Version page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Clinical study")).toBeInTheDocument();
+    // Each with its badges; one without a title of its own by its name, and without a page, not linked
+    expect(screen.getByText("retired")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("v2").closest("a")).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Version one" }));
+
+    expect(await screen.findByText("Version page")).toBeInTheDocument();
   });
 
   it("composes the card from the columns' card slots", async () => {

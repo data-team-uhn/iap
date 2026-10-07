@@ -18,13 +18,14 @@
 
 import { Fragment, type ReactNode } from "react";
 
-import { Box, Stack, Typography } from "@mui/material";
-
+import { Box, Link, Stack, Typography } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
 import { formatDateTime } from "./columns";
+import { rowId, treeName } from "./gridRows";
 
 import type { EntityRow } from "./pagination";
-import type { EntityGridColumn } from "./registry";
+import type { EntityGridColumn, EntityGridConfig } from "./registry";
 import type { GridRenderCellParams } from "@mui/x-data-grid-pro";
 
 // A generic text rendering of one cell value: dates and primitives have an obvious one,
@@ -63,10 +64,18 @@ export const CardActions = ({ children }: { children: ReactNode }) =>
 // labeled rows; omitted columns don't appear at all. Content comes from each column's own
 // rendering, unless its cardValue asks for a more compact form. Without a designated (or
 // visible) title column, the first regular column leads the card, so a plain column list
-// still makes a sensible card with no hints at all.
-export default function EntityListItem({ row, columns }: { row: EntityRow; columns: EntityGridColumn[] }) {
-  const content = (column: EntityGridColumn) =>
-    column.cardValue ? column.cardValue(row) : columnContent(column, row);
+// still makes a sensible card with no hints at all. An entity's children, for a type that has them, close the card:
+// each by its tree column, linked to its page where it has one, with its badges.
+export default function EntityListItem({ row, columns, config }: {
+  row: EntityRow;
+  columns: EntityGridColumn[];
+  config?: Pick<EntityGridConfig, "children" | "rowLink">;
+}) {
+  const content = (column: EntityGridColumn, of: EntityRow = row) =>
+    column.cardValue ? column.cardValue(of) : columnContent(column, of);
+  const { children: tree, rowLink } = config ?? {};
+  const children = tree ? tree.rows(row).map((child, _index, rows) =>
+    ({ child, key: rowId(child, rows), name: scalarContent(treeName(child, tree)), link: rowLink?.(child) })) : [];
   const shown = columns.filter(column => column.cardSlot !== "omit");
   const badges = shown.filter(column => column.cardSlot === "badge");
   const actions = shown.filter(column => column.cardSlot === "actions");
@@ -106,6 +115,19 @@ export default function EntityListItem({ row, columns }: { row: EntityRow; colum
           </Stack>
         );
       })}
+      {children.length > 0 && (
+        <Stack direction="row" sx={{ columnGap: 1.5, rowGap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
+          {children.map(({ child, key, name, link }) => (
+            <Stack key={key} direction="row" sx={{ gap: 0.5, alignItems: "center" }}>
+              { link
+                ? <Link component={RouterLink} to={link} variant="body2" underline="hover"
+                  onClick={event => event.stopPropagation()}>{name}</Link>
+                : <Typography variant="body2" component="span">{name}</Typography> }
+              {badges.map(column => <Fragment key={column.field}>{content(column, child)}</Fragment>)}
+            </Stack>
+          ))}
+        </Stack>
+      )}
     </Stack>
   );
 }
