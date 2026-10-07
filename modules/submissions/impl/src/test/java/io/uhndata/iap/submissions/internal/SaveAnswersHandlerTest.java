@@ -24,6 +24,9 @@ import java.util.Objects;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -58,6 +61,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,9 +95,15 @@ class SaveAnswersHandlerTest
 
     private Resource target;
 
+    // What the request reads as when adapted to a node: jcr-mock answers nothing about versioning, so each test says
+    // whether the request is checked in
+    private Node node;
+
     @BeforeEach
-    void setUp()
+    void setUp() throws RepositoryException
     {
+        this.node = Mockito.mock(Node.class);
+        Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, Question.class, Answer.class, Submission.class, Activity.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
@@ -130,6 +140,29 @@ class SaveAnswersHandlerTest
         // A real REFERENCE, holding the question node's own identifier
         assertEquals(identifierOf(VERSION_PATH + "/" + START_DATE),
             answer.getValueMap().get("question", String.class));
+    }
+
+    @Test
+    void checksOutTheRequestBeforeAnsweringIt() throws Exception
+    {
+        // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no answers
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(this.node.isCheckedOut()).thenReturn(false);
+        Mockito.when(this.node.isNodeType("mix:versionable")).thenReturn(true);
+        Mockito.when(this.node.getPath()).thenReturn(SUBMISSION_PATH);
+        Mockito.when(this.node.getSession()).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        Mockito.doAnswer(invocation -> {
+            assertFalse(this.target.hasChildren(), "An answer was written before the request was checked out");
+            return null;
+        }).when(versions).checkout(SUBMISSION_PATH);
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+
+        Mockito.verify(versions).checkout(SUBMISSION_PATH);
     }
 
     @Test
@@ -424,12 +457,19 @@ class SaveAnswersHandlerTest
         final WorkflowEvent event = new WorkflowEvent("save", payload);
         final Map<String, Object> variables = new HashMap<>();
         final Activity activity = Mockito.mock(Activity.class);
+        final Node asNode = this.node;
         final Resource submission = new ResourceWrapper(this.target)
         {
             @Override
             public ResourceResolver getResourceResolver()
             {
                 return resolver;
+            }
+
+            @Override
+            public <A> A adaptTo(final Class<A> type)
+            {
+                return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
             }
         };
         return new WorkflowTaskContext()

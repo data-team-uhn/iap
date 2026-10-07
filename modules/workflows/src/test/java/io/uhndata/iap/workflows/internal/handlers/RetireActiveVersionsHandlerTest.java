@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -87,6 +88,23 @@ class RetireActiveVersionsHandlerTest
         assertEquals(Set.of("draft"), this.tagsOf("2-0"));
         assertArrayEquals(new String[] { AuthoringFixture.path("1-0") },
             (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
+    }
+
+    @Test
+    void retiresTheSiblingsOfWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
+    {
+        // After a step that created the version being promoted, its siblings are the ones retired
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
+        final Map<String, Object> variables = new HashMap<>();
+        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, AuthoringFixture.path("2-0"));
+
+        this.handler.execute(AuthoringFixture.context(
+            this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION), "activate", Map.of(),
+            this.activity, variables));
+
+        assertEquals(Set.of("retired"), this.tagsOf("1-0"));
+        assertEquals(Set.of("draft"), this.tagsOf("2-0"));
     }
 
     @Test

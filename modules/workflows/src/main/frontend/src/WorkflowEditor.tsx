@@ -18,12 +18,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Button, CircularProgress, Stack, Typography } from "@mui/material";
-import { useNavigate } from "react-router";
+import {
+  Alert,
+  Button,
+  CircularProgress,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useBlocker, useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -65,6 +75,12 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const navigate = useNavigate();
 
   const [ dirty, setDirty ] = useState(false);
+  // The same, readable at once: a save clears it and navigates in one go, before a render could catch up
+  const dirtyRef = useRef(false);
+  // How many changes the canvas has reported, so that a save can tell whether one arrived while it was out
+  const changesRef = useRef(0);
+  // Whether this page is still the one showing: a Retry that outlives it must neither save nor navigate
+  const mountedRef = useRef(true);
   const [ saving, setSaving ] = useState(false);
   const notify = useNotice();
   // The canvas hands over the means to serialize what is drawn; null until it is ready, and in view
@@ -91,8 +107,23 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
     serializeRef.current = serialize;
   }, []);
 
-  // Leaving with unsaved changes: the browser's own warning is the only one that can interrupt a
-  // reload or a closed tab, and it is enough — the page itself says the same thing in its header.
+  const onDirtyChange = useCallback((changed: boolean) => {
+    if (changed) {
+      changesRef.current += 1;
+    }
+    dirtyRef.current = changed;
+    setDirty(changed);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Leaving with unsaved changes asks first. The browser's own warning covers a reload or a closed tab;
+  // moving within the app unloads nothing, so the blocker below covers that.
   useEffect(() => {
     if (!dirty) {
       return undefined;
@@ -101,12 +132,15 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirtyRef.current && currentLocation.pathname !== nextLocation.pathname);
 
   const version: WorkflowVersionSummary | undefined =
     workflow?.versions.find(candidate => candidate.path === path);
   // Editable where the server offers to save the diagram, which is on a draft. Anything else opens
   // read-only, with an explanation.
   const editable = requestedEdit && version !== undefined && offers(version, "save");
+  const label = version ? version.version || version.name : path.slice(path.lastIndexOf("/") + 1);
 
   // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
   // refused save stays on the page, reports itself, and offers to retry.
@@ -120,11 +154,16 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       }
       return;
     }
+    const changes = changesRef.current;
     setSaving(true);
     void serialize()
       .then(xml => saveDiagram(fetchUtil, path, xml))
       .then(() => {
-        setDirty(false);
+        // A change made while the request was out is not in what was saved
+        if (changesRef.current === changes) {
+          dirtyRef.current = false;
+          setDirty(false);
+        }
         if (destination === undefined) {
           notify({ title: "The process was saved", severity: "success" });
         } else {
@@ -134,16 +173,18 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       })
       .catch((error: unknown) => {
         notify({
-          title: "The process could not be saved",
+          title: `The process of version ${label} could not be saved`,
           message: messageOf(error),
           severity: "error",
-          onRetry: () => save(destination),
+          onRetry: () => {
+            if (mountedRef.current) {
+              save(destination);
+            }
+          },
         });
       })
       .finally(() => setSaving(false));
   }
-
-  const label = version ? version.version || version.name : path.slice(path.lastIndexOf("/") + 1);
 
   return (
     <AdminScreen
@@ -195,10 +236,23 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
         <BpmnEditor
           versionPath={path}
           editable={editable}
-          onDirtyChange={setDirty}
+          onDirtyChange={onDirtyChange}
           onReady={onReady}
         />
       </Stack>
+      { blocker.state === "blocked" && (
+        <ResponsiveDialog open title="Leave without saving?" width="xs" withCloseButton onClose={() => blocker.reset()}>
+          <DialogContent dividers>
+            <DialogContentText>
+              The changes made to the process of version {label} since it was last saved will be lost.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => blocker.reset()}>Stay</Button>
+            <Button variant="contained" color="error" onClick={() => blocker.proceed()}>Leave</Button>
+          </DialogActions>
+        </ResponsiveDialog>
+      )}
     </AdminScreen>
   );
 }

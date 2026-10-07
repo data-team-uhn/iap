@@ -28,13 +28,14 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Retires whichever versions of the target's workflow are currently active, to make room for the target being
- * promoted in their place: their {@code active} tag becomes {@code retired}. The step before the target is
- * tagged {@code active} in the activation workflow.
+ * Retires whichever versions of a workflow are currently active, to make room for the version being promoted in
+ * their place, the one this step acts on: their {@code active} tag becomes {@code retired}. The step before that
+ * version is tagged {@code active} in the activation workflow.
  *
  * <p>At most one version of a definition may be active at a time. Retiring and promoting happen as two steps of
  * one workflow run, committed together at its end, so a promotion that can't complete retires nothing and the
@@ -70,7 +71,7 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Resource promoted = context.getTarget();
+        final Resource promoted = ExecutionHost.of(context);
         final List<String> retired = new ArrayList<>();
         for (final Resource sibling : VersionEdits.definitionOf(promoted).getChildren()) {
             if (sibling.getPath().equals(promoted.getPath())

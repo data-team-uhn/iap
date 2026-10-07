@@ -15,15 +15,32 @@
       "performers": ["iap-administrators"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "includes",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "tags"
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "active": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "tags"
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["active"]
+          }
         },
-        "operandB": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "value": ["active"]
+        "retirable": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": ["protectedFrom"]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["retire"]
+          }
         }
       },
       "toMove": {

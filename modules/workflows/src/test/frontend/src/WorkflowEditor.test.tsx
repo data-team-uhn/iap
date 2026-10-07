@@ -17,9 +17,9 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
+import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 
 import { clearActions } from "@iap/frontend-commons/actionsManager";
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -106,20 +106,44 @@ function CurrentUrl() {
   return <div data-testid="url">{`${pathname}${search}`}</div>;
 }
 
+// Somewhere to go that is not this page, for what happens once it is left.
+const ELSEWHERE = "/elsewhere";
+
 // Renders the page the way the console does: the version's path and whether the URL asked to edit it
-// are worked out from the URL there and handed over, so this page is a function of the two.
+// are worked out from the URL there and handed over, so this page is a function of the two. The router
+// is a data router, as the console's is: leaving with unsaved changes is caught by a blocker, which only
+// a data router supports.
 const renderEditor = (options: { edit?: boolean; path?: string } = {}) => {
   const { edit = false, path = VERSION_PATH } = options;
   const url = `/admin/workflows${path}${edit ? ".edit" : ""}`;
-  return render(
-    <ThemeProvider theme={appTheme} defaultMode="light">
-      <MemoryRouter initialEntries={[url]}>
-        <WorkflowEditor path={path} homepage={{ path: "/Workflows", title: "Workflows" }} editing={edit} />
-        <CurrentUrl />
-      </MemoryRouter>
-    </ThemeProvider>,
-    { wrapper: NoticeProvider },
-  );
+  const router = createMemoryRouter([
+    { path: ELSEWHERE, element: <CurrentUrl /> },
+    {
+      path: "*",
+      element: (
+        <>
+          <WorkflowEditor path={path} homepage={{ path: "/Workflows", title: "Workflows" }} editing={edit} />
+          <CurrentUrl />
+        </>
+      ),
+    },
+  ], { initialEntries: [ url ] });
+  return {
+    router,
+    ...render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <RouterProvider router={router} />
+      </ThemeProvider>,
+      { wrapper: NoticeProvider },
+    ),
+  };
+};
+
+// Moves the router the way a breadcrumb, a menu entry or the browser's Back button would.
+const navigateTo = async (router: ReturnType<typeof createMemoryRouter>, url: string) => {
+  await act(async () => {
+    await router.navigate(url);
+  });
 };
 
 // Where the router ended up.
@@ -311,7 +335,7 @@ describe("WorkflowEditor", () => {
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save and close" }));
 
-    expect(await screen.findByText("The process could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
     expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
@@ -334,6 +358,73 @@ describe("WorkflowEditor", () => {
     expect(dirty.defaultPrevented).toBe(true);
   });
 
+  it("asks before leaving unsaved changes for another page of the app", async () => {
+    // Moving within the app unloads nothing, so the browser's own warning never comes
+    const user = userEvent.setup();
+    stubFetch();
+    const { router } = renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    await user.click(screen.getByRole("button", { name: "pretend to draw" }));
+
+    await navigateTo(router, "/admin/workflows/Workflows/review");
+    expect(await screen.findByRole("dialog", { name: "Leave without saving?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Stay" }));
+    expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
+
+    await navigateTo(router, "/admin/workflows/Workflows/review");
+    await user.click(await screen.findByRole("button", { name: "Leave" }));
+    await waitFor(() => expect(currentUrl()).toBe("/admin/workflows/Workflows/review"));
+  });
+
+  it("still has unsaved changes when the process changed while the save was out", async () => {
+    // What was sent was serialized before that change, so the change is not saved
+    const user = userEvent.setup();
+    const fetchMock = stubFetch();
+    let answerSave: (response: Response) => void = () => undefined;
+    fetchMock.mockImplementation((url, options) => options?.method === "POST"
+      ? new Promise<Response>(resolve => {
+        answerSave = resolve;
+      })
+      : Promise.resolve({
+        ok: true, status: 200, url, headers: new Headers(),
+        json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : definition),
+      } as unknown as Response));
+    renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    await user.click(screen.getByRole("button", { name: "pretend to draw" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(true));
+
+    await user.click(screen.getByRole("button", { name: "pretend to draw" }));
+    await act(async () => {
+      answerSave({ ok: true, status: 200, url: `${VERSION_PATH}.save.json`, headers: new Headers(),
+        json: () => Promise.resolve({ status: "completed" }) } as unknown as Response);
+    });
+
+    expect(await screen.findByText("The process was saved")).toBeInTheDocument();
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+
+  it("does nothing on a Retry once the page that failed has been left", async () => {
+    // The report outlives the page, and the page it would save from is gone
+    const user = userEvent.setup();
+    stubFetch();
+    const { router } = renderEditor({ edit: true });
+    await screen.findByRole("heading", { name: /Standard review/ });
+    (latestCanvas().onReady as (serialize: () => Promise<string>) => void)(() => Promise.resolve("<drawn/>"));
+    stubFailingFetch(403);
+    await user.click(screen.getByRole("button", { name: "Save and close" }));
+    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
+
+    await navigateTo(router, ELSEWHERE);
+    const fetchMock = stubFetch();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
+    expect(currentUrl()).toBe(ELSEWHERE);
+  });
+
   it("reports a save the server refused, and offers to try again", async () => {
     const user = userEvent.setup();
     stubFetch();
@@ -344,7 +435,7 @@ describe("WorkflowEditor", () => {
     stubFailingFetch(403);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("The process could not be saved")).toBeInTheDocument();
+    expect(await screen.findByText("The process of version 2.0 could not be saved")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 

@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.osgi.service.component.annotations.Component;
@@ -30,7 +31,7 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Writes plain text properties from the payload onto the thing the event was aimed at — renaming a workflow, and
+ * Writes plain text properties from the payload onto the resource the step acts on — renaming a workflow, and
  * whatever else a deployment decides is editable that way.
  *
  * <p>Which properties those are is the activity's business: {@code editable} lists the ones a caller may set, and
@@ -62,14 +63,15 @@ public class SavePropertiesHandler extends AbstractPropertiesHandler
 
     @Override
     @NotNull
-    protected List<String> allowed(@NotNull final WorkflowTaskContext context)
+    protected List<String> allowed(@NotNull final WorkflowTaskContext context, @NotNull final Resource target)
     {
         return names(context, EDITABLE_PARAMETER);
     }
 
     @Override
     @NotNull
-    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final String name)
+    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final Resource target,
+        @NotNull final String name)
     {
         return new TextProperty(name, names(context, REQUIRED_PARAMETER).contains(name));
     }

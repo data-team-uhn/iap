@@ -16,37 +16,45 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { readNode } from "@iap/frontend-commons/useNode";
 
 import { homepagesFrom, WORKFLOWS_ROOT, type WorkflowHomepage } from "./workflowModel";
 
-// Cached for the life of the session: every console URL below /admin/workflows is resolved against
-// this list, so asking once per navigation would be wasteful. Homepages change only when a bundle
-// installs or is removed — a restart, hence a new session — so this cache is never stale. An
-// in-flight request is shared, so concurrent page mounts ask the server only once.
+// Kept once discovered: every console URL below /admin/workflows is resolved against this list, so asking
+// once per navigation would be wasteful. A homepage added while the page is open appears after a reload. A
+// failure is not kept, so the next ask goes to the server again. An in-flight request is shared, so
+// concurrent page mounts ask the server only once.
 let discovered: WorkflowHomepage[] | null = null;
 let discovery: Promise<WorkflowHomepage[]> | null = null;
+
+// The one homepage everybody has, which stands in when the others could not be discovered.
+const DEFAULT_HOMEPAGES: WorkflowHomepage[] = [ { path: WORKFLOWS_ROOT, title: "Workflows" } ];
 
 // The homepages the current user may list workflows from, the queried one first — asked of
 // /Workflows (which always exists) and answered with every homepage the user can read, so a
 // deployment that adds one (the platform's own system workflows, another location's) needs nothing
-// configured here. A failed ask falls back to the one homepage everybody has, rather than to nothing.
-export function loadWorkflowHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
+// configured here. Rejects when the server could not be asked.
+function discover(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
   if (discovered) {
     return Promise.resolve(discovered);
   }
   discovery ??= readNode(fetchUtil, WORKFLOWS_ROOT, "homepages")
     .then(homepagesFrom)
-    .catch((error: unknown) => {
-      console.error("Failed to discover the workflow homepages; listing the default one only", error);
-      return [ { path: WORKFLOWS_ROOT, title: "Workflows" } ];
-    })
     .then(homepages => discovered = homepages)
     .finally(() => discovery = null);
   return discovery;
+}
+
+// The homepages, or the one everybody has when they could not be discovered, rather than nothing.
+export function loadWorkflowHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
+  return discover(fetchUtil).catch((error: unknown) => {
+    console.error("Failed to discover the workflow homepages; listing the default one only", error);
+    return DEFAULT_HOMEPAGES;
+  });
 }
 
 // Forgets the discovery, so that the next ask goes to the server. For tests, and for a caller that
@@ -56,22 +64,36 @@ export function forgetWorkflowHomepages(): void {
   discovery = null;
 }
 
-// The homepages workflows live in: what the console routes by and the listing shows a tab for.
+interface HomepagesState {
+  homepages: WorkflowHomepage[];
+  // Why they could not be discovered, while the default stands in for them
+  loadError?: string;
+}
+
+// The homepages workflows live in: what the console routes by and the listing shows a tab for. Where they
+// could not be discovered, the default one stands in, with the reason and a way to ask again.
 export function useWorkflowHomepages() {
   const fetchUtil = useAuthenticatedFetch();
-  const [ homepages, setHomepages ] = useState<WorkflowHomepage[]>();
+  const [ state, setState ] = useState<HomepagesState>();
+
+  const load = useCallback(() => discover(fetchUtil).then(
+    (homepages): HomepagesState => ({ homepages }),
+    (error: unknown): HomepagesState => ({ homepages: DEFAULT_HOMEPAGES, loadError: messageOf(error) }),
+  ), [ fetchUtil ]);
 
   useEffect(() => {
     let cancelled = false;
-    void loadWorkflowHomepages(fetchUtil).then(discovered => {
+    void load().then(loaded => {
       if (!cancelled) {
-        setHomepages(discovered);
+        setState(loaded);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [ fetchUtil ]);
+  }, [ load ]);
 
-  return { homepages: homepages ?? [], loading: homepages === undefined };
+  const retry = useCallback(() => load().then(setState), [ load ]);
+
+  return { homepages: state?.homepages ?? [], loading: state === undefined, loadError: state?.loadError, retry };
 }

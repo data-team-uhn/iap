@@ -27,6 +27,9 @@ import javax.jcr.version.VersionManager;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceWrapper;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,11 +41,13 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class SaveDiagramHandlerTest
 {
+    // The node name of the version most tests save onto
+    private static final String DRAFT = "1-0";
+
     private static final String REPLACEMENT = "<bpmn:definitions id=\"two\"/>";
 
     private final SlingContext context = new SlingContext();
@@ -81,25 +89,43 @@ class SaveDiagramHandlerTest
     @Test
     void storesADiagramOnADraftThatHadNone() throws WorkflowException, PersistenceException, IOException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
 
-        this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, "application/xml")));
+        this.handler.execute(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "application/xml")));
 
-        final Resource version = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        final Resource version = this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT));
         assertNotNull(version);
         assertEquals(REPLACEMENT, AuthoringFixture.read(version.getChild("bpmn.xml")));
     }
 
     @Test
+    void storesTheDiagramOnWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException, IOException
+    {
+        // After a step that created a version in the same run, the diagram goes onto that version
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
+        final Map<String, Object> variables = new HashMap<>();
+        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, AuthoringFixture.path(DRAFT));
+        final Map<String, Object> payload = new HashMap<>();
+        payload.put("bpmn.xml", AuthoringFixture.upload(REPLACEMENT, "application/xml"));
+
+        this.handler.execute(AuthoringFixture.context(
+            this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION), "save", payload, this.activity,
+            variables));
+
+        assertEquals(REPLACEMENT, AuthoringFixture.read(
+            this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT)).getChild("bpmn.xml")));
+    }
+
+    @Test
     void replacesTheDiagramADraftAlreadyHeld() throws WorkflowException, PersistenceException, IOException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
-        AuthoringFixture.loadDiagram(this.context, "1-0");
-        final Resource version = this.context.resourceResolver().getResource(AuthoringFixture.path("1-0"));
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
+        AuthoringFixture.loadDiagram(this.context, DRAFT);
+        final Resource version = this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT));
         assertNotNull(version);
         final String fileId = version.getChild("bpmn.xml").getPath();
 
-        this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, "text/xml")));
+        this.handler.execute(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "text/xml")));
 
         assertEquals(REPLACEMENT, AuthoringFixture.read(version.getChild("bpmn.xml")));
         assertEquals("text/xml", version.getChild("bpmn.xml/jcr:content").getValueMap().get("jcr:mimeType"));
@@ -110,12 +136,12 @@ class SaveDiagramHandlerTest
     @Test
     void fallsBackToXmlWhenTheUploadDeclaresNoType() throws WorkflowException, PersistenceException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
 
-        this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null)));
+        this.handler.execute(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, null)));
 
         final Resource content = this.context.resourceResolver()
-            .getResource(AuthoringFixture.path("1-0") + "/bpmn.xml/jcr:content");
+            .getResource(AuthoringFixture.path(DRAFT) + "/bpmn.xml/jcr:content");
         assertNotNull(content);
         assertEquals("application/xml", content.getValueMap().get("jcr:mimeType"));
     }
@@ -125,13 +151,13 @@ class SaveDiagramHandlerTest
     {
         // Everything that lists workflows starts from the homepages that hold them, so a version kept anywhere
         // else could be given a diagram and then never be found again
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
         final Resource homepage = this.context.resourceResolver().getResource("/Workflows");
         assertNotNull(homepage);
         homepage.adaptTo(ModifiableValueMap.class).remove("childNodeType");
 
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
+            () -> this.handler.execute(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, null))));
         assertTrue(refusal.getMessage().contains("is not stored in a homepage that holds workflows"));
     }
 
@@ -163,32 +189,68 @@ class SaveDiagramHandlerTest
     @Test
     void requiresADiagramToStore()
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(this.save("1-0", null)));
+            () -> this.handler.execute(this.save(DRAFT, null)));
         assertTrue(refusal.getMessage().contains("bpmn.xml file is required"));
     }
 
     @Test
     void reportsAnUploadThatCannotBeRead()
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(this.save("1-0", AuthoringFixture.brokenUpload())));
-        assertTrue(failure.getMessage().contains("The upload broke"));
+            () -> this.handler.execute(this.save(DRAFT, AuthoringFixture.brokenUpload())));
+        // The detail stays in the cause, for the log; the caller is told only what failed
+        assertEquals("The diagram could not be read", failure.getMessage());
+        assertEquals("The upload broke", failure.getCause().getMessage());
+    }
+
+    @Test
+    void reportsAFailedWriteAsItself()
+    {
+        // The file is created inside the same try as the upload is read, and a write failing there is not an
+        // unreadable upload
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
+        final ResourceResolver full = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Resource create(final Resource parent, final String name, final Map<String, Object> properties)
+                throws PersistenceException
+            {
+                throw new PersistenceException("The repository is full");
+            }
+        };
+        final Resource stored = this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT));
+        final Resource version = new ResourceWrapper(stored)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return full;
+            }
+        };
+        final Map<String, Object> payload = new HashMap<>();
+        payload.put("bpmn.xml", AuthoringFixture.upload(REPLACEMENT, "application/xml"));
+
+        final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
+            AuthoringFixture.context(version, "save", payload, this.activity, new HashMap<>())));
+        assertEquals("The repository is full", failure.getMessage());
     }
 
     @Test
     void checksOutTheVersionBeforeWriting() throws WorkflowException, PersistenceException, RepositoryException
     {
-        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "draft", Map.of());
-        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.path("1-0"));
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
+        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.path(DRAFT),
+            () -> assertNull(this.context.resourceResolver().getResource(AuthoringFixture.path(DRAFT) + "/bpmn.xml"),
+                "The diagram was stored before the version was checked out"));
 
-        this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, "application/xml")));
+        this.handler.execute(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "application/xml")));
 
-        Mockito.verify(versions).checkout(AuthoringFixture.path("1-0"));
+        Mockito.verify(versions).checkout(AuthoringFixture.path(DRAFT));
     }
 
     /**

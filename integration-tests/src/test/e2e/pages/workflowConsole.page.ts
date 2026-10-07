@@ -65,7 +65,7 @@ export class WorkflowConsolePage {
   /** Opens a version's diagram in the editor, and waits for the canvas to draw it. */
   async openEditor(version: string): Promise<void> {
     await this.page.goto(`/admin/workflows${version}.edit`);
-    await expect(this.page.locator('.djs-shape').first()).toBeVisible();
+    await this.editorReady();
   }
 
   /** The editor's heading, which names the version open in it after the workflow it belongs to. */
@@ -148,9 +148,19 @@ export class WorkflowConsolePage {
   }
 
   /** The repository path of the version the editor has open, read off its URL once the editor is there. */
+  /**
+   * Waits for the editor's own canvas. Until the workflow is read the page shows the version read-only, on a
+   * viewer that is replaced once editing is allowed; the Save button appears with that, so the shapes found
+   * after it are the editor's.
+   */
+  private async editorReady(): Promise<void> {
+    await expect(this.page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+    await expect(this.page.locator('.djs-shape').first()).toBeVisible();
+  }
+
   private async editedVersion(): Promise<string> {
     await expect(this.page).toHaveURL(/\.edit$/);
-    await expect(this.page.locator('.djs-shape').first()).toBeVisible();
+    await this.editorReady();
     return new URL(this.page.url()).pathname.replace(/^\/admin\/workflows/, '').replace(/\.edit$/, '');
   }
 }

@@ -18,12 +18,14 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -54,12 +56,13 @@ public class SaveDiagramHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         // Only a version, stored where versions belong, holds a diagram: anything else is a broken definition
-        VersionEdits.targetVersion(context);
+        final Resource version = ExecutionHost.of(context);
+        VersionEdits.targetVersion(context, version);
         final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_XML_FILE_NAME);
         if (diagram == null) {
             throw new InvalidPayloadException("A " + VersionEdits.BPMN_XML_FILE_NAME + " file is required");
         }
-        VersioningUtils.checkOut(context.getTarget());
-        VersionEdits.storeDiagram(context.getTarget(), diagram, context.getResourceResolver());
+        VersioningUtils.checkOut(version);
+        VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());
     }
 }

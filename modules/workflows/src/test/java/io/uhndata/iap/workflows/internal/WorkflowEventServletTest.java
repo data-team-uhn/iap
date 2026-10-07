@@ -124,7 +124,7 @@ class WorkflowEventServletTest
         this.servlet.doPost(request(Map.of(
             "title", "My cool workflow",
             "tags", new String[] { "a", "b" },
-            ":operation", "sling:internal",
+            ":redirect", "/elsewhere",
             "_charset_", "utf-8")), new MockSlingJakartaHttpServletResponse());
 
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
@@ -133,7 +133,7 @@ class WorkflowEventServletTest
         assertEquals("My cool workflow", event.get("title"));
         assertArrayEquals(new String[] { "a", "b" }, (String[]) event.get("tags"));
         // The transport's own control parameters are not part of the domain event
-        assertFalse(event.getPayload().containsKey(":operation"));
+        assertFalse(event.getPayload().containsKey(":redirect"));
         assertFalse(event.getPayload().containsKey("_charset_"));
     }
 
@@ -296,6 +296,22 @@ class WorkflowEventServletTest
 
         Mockito.verify(dispatcher).forward(request, response);
         assertEquals("sling/servlet/default", options.getValue().getForceResourceType());
+        Mockito.verifyNoInteractions(this.engine);
+    }
+
+    @Test
+    void refusesASlingOperation() throws IOException, ServletException
+    {
+        // Read as an event, a delete would be an empty save that answers 200 and deletes nothing
+        final Resource workflow = this.context.create().resource("/Workflows/review",
+            WorkflowFixture.TYPE, "wf/WorkflowDefinition");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of(":operation", "delete"));
+        request.setResource(workflow);
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
         Mockito.verifyNoInteractions(this.engine);
     }
 

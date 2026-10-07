@@ -76,10 +76,13 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     }
 
     let cancelled = false;
-    // The fetch itself isn't aborted on cleanup, so the import can still land on a since-unmounted
-    // canvas; only the state updates that would report on it are guarded below.
+    // The fetch itself isn't aborted on cleanup, so each step after it checks that this load is still
+    // wanted: a superseded one imports nothing into the canvas, and reports nothing about it.
     fetchUtil(`${versionPath}/${BPMN_FILE}`)
       .then(response => {
+        if (cancelled) {
+          return undefined;
+        }
         if (response.status === 404) {
           // A version with no saved XML yet isn't an error, load an empty canvas to start from.
           return viewer.importXML(EMPTY_BPMN);
@@ -87,7 +90,7 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.text().then(xml => viewer.importXML(xml));
+        return response.text().then(xml => cancelled ? undefined : viewer.importXML(xml));
       })
       .then(() => {
         if (!cancelled) {

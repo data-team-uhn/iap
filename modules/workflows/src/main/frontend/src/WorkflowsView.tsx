@@ -23,6 +23,7 @@ import { Button, CircularProgress, Stack, Tab, Tabs, Typography } from "@mui/mat
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
+import LoadError from "@iap/frontend-commons/components/LoadError";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 
 import NewWorkflowDialog from "./NewWorkflowDialog";
@@ -49,7 +50,7 @@ interface WorkflowsViewProps {
 }
 
 function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
-  const { homepages, loading } = useWorkflowHomepages();
+  const { homepages, loading, loadError, retry } = useWorkflowHomepages();
   const [ creating, setCreating ] = useState(false);
   const navigate = useNavigate();
 
@@ -91,6 +92,10 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
           )
           : (
             <Stack spacing={2}>
+              { /* The default homepage is listed meanwhile, so what failed is said above it */ }
+              { loadError && (
+                <LoadError title="The workflow homepages could not be listed" message={loadError} onRetry={retry} />
+              )}
               { several && (
                 <Tabs
                   value={listed}

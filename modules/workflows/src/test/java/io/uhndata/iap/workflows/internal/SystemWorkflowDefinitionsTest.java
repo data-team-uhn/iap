@@ -159,6 +159,16 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
+    void theVersionThatActivatesOthersIsNeverOfferedRetirement()
+    {
+        // Retired, it would leave nothing able to activate anything, itself included; activating another version
+        // replaces it instead
+        final Resource activator =
+            this.context.resourceResolver().getResource("/SystemWorkflows/activateWorkflowVersion/v1");
+        assertEquals(Set.of(), answering(activator, VERSION, "retire"));
+    }
+
+    @Test
     void aRetiredVersionIsReactivated()
     {
         assertEquals(Set.of("activateWorkflowVersion"), answering(VERSION, "activate", "retired"));
@@ -193,8 +203,21 @@ class SystemWorkflowDefinitionsTest
      */
     private Set<String> answering(final String type, final String event, final String... tags)
     {
-        final Content target = this.context.create().resource("/content/target" + this.targets++, Map.of(
-            "sling:resourceType", type, "tags", tags)).adaptTo(Content.class);
+        return answering(this.context.create().resource("/content/target" + this.targets++, Map.of(
+            "sling:resourceType", type, "tags", tags)), type, event);
+    }
+
+    /**
+     * The shipped workflows that would take an event aimed at a given resource.
+     *
+     * @param content the resource the event is aimed at
+     * @param type the resource type it is treated as
+     * @param event the event
+     * @return the names of the definitions whose start event catches it and whose guard holds
+     */
+    private Set<String> answering(final Resource content, final String type, final String event)
+    {
+        final Content target = content.adaptTo(Content.class);
         final Set<String> answering = new TreeSet<>();
         for (final Resource definition : this.context.resourceResolver().getResource("/SystemWorkflows")
             .getChildren()) {

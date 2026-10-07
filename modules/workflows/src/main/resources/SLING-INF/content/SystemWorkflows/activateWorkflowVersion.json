@@ -5,6 +5,7 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "tags": ["active"],
+    "protectedFrom": ["retire"],
     "targetResourceType": "wf/WorkflowVersion",
     "description": "Makes a version the one new instances start from, and retires the one it replaces.",
     "requested": {

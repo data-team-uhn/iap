@@ -311,8 +311,9 @@ tree rather than a child.
 
 A `POST` to a resource under workflow control is a domain event, sent to the engine with the request
 parameters as its payload (`:`-prefixed ones excluded). The event is the target's default — `create` on a
-homepage, `complete` on a user task — unless a selector names one: `POST /Schemas/x/1.0.activate.json`
-sends `activate`.
+homepage, `save` on an entity, `complete` on a user task — unless a selector names one:
+`POST /Schemas/x/1.0.activate.json` sends `activate`. A POST carrying a Sling `:operation` is refused with
+a 400, since it would otherwise arrive as an empty event; remove such a resource with an HTTP `DELETE`.
 
 The types under workflow control are the ones the definitions say: the `targetResourceType` of every system
 workflow version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to exactly those, with
@@ -440,7 +441,7 @@ and `/Content/Workflows/review` are both a workflow, and counting segments from 
 second as a version of `/Content/Workflows`. **Depth is therefore counted from the homepage**, which is the
 only fixed point — below one it is always homepage, workflow, version — so resolving a console URL takes the
 list of homepages this instance has. That list is the one the tabs are built from —
-`GET /Workflows.homepages.json`, described below — fetched once and kept for the session, so it costs a
+`GET /Workflows.homepages.json`, described below — fetched once and kept while the page lives, so it costs a
 request when the console is first opened and nothing on any navigation after it.
 
 Two things fall out of counting rather than keyword-matching. A version named `edit` is read as itself:
@@ -481,7 +482,8 @@ shown beside its title, and each version's on **`WorkflowVersionActions`**, show
 title on its own page while it is only being looked at. Six ship with the module — edit, start-trial, activate, return-to-draft,
 retire, and draft-a-copy — each offered exactly where the server offers its event: on the version, or for
 a copy, `createVersion` on the workflow it is a version of; another
-needs an `ext:Extension` and an asset, and no change to any existing file. The point is addressed by two names, as every extension point is: the page asks for the
+needs an `ext:Extension` and an asset, which only its module's `assets.config` can have built: an extension
+naming an asset that was not built is dropped without a word. The point is addressed by two names, as every extension point is: the page asks for the
 node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
 `ext:pointId` that node carries, `wf/workflowVersion/actions`.
 
@@ -552,6 +554,9 @@ Three of them are more than one write, which is the reason the run commits once:
   second request would leave a window in which two versions of one workflow both claim to be current, and
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
+  `activateWorkflowVersion`'s own version is never offered `retire`: its `protectedFrom` lists the event,
+  which `retireWorkflowVersion`'s guard excludes, because retired it would leave nothing able to activate
+  anything again. It leaves `active` only when another version of it is activated.
 - **Creating a workflow** is `createEntity`, then a `callActivity` sending `createVersion` to what it
   created: a first version is made exactly the way every later one is,
   and since the called workflow runs in the same commit, a workflow and its first draft arrive together and a
@@ -593,9 +598,10 @@ Nothing on either side hardcodes which trees a deployment has.
 
 Which tab is open is in the URL, and the answer to this question is what reads it, so the two cannot
 disagree about what a homepage is: a tab is a page, its path is a prefix of every workflow URL below it,
-and the console resolves that prefix against this same list. It is asked for once and kept for the rest of
-the session — homepages appear and disappear when a bundle is installed, which is a restart and so a new
-session — so the depth of a console URL is worked out without a request.
+and the console resolves that prefix against this same list. It is asked for once and kept while the page
+lives, so the depth of a console URL is worked out without a request; a homepage added meanwhile appears
+after a reload. A failed ask is not kept: the default homepage stands in, the console says what failed and
+offers to retry, and the next ask goes to the server again.
 
 The dashboard widget asks the same question and shows only the answer's size: one count per homepage,
 fetched as a page of no rows at all (`.paginate.json?offset=0&limit=0`), with the frame's "Manage

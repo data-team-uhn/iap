@@ -155,8 +155,9 @@ export function bpmnUpload(xml: string, body: FormData = new FormData()): FormDa
   return body;
 }
 
-// What the canvas is handed for a version with no diagram saved. bpmn-js offers no public way to empty
-// a canvas, so a new blank canvas has to be imported like anything else.
+// What the canvas is handed for a version with no diagram saved. Importing it, rather than calling
+// clear(), matters: clear() removes only the drawing and keeps the previous version's definitions, which
+// a save would then export as this version's.
 export const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" id="Definitions_empty" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="Process_empty" isExecutable="false" />

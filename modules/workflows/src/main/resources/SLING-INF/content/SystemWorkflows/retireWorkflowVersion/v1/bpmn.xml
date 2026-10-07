@@ -30,15 +30,32 @@
     <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Retirement requested">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
-          <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
-          <sv:node sv:name="operandA">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionGroup</sv:value></sv:property>
+          <sv:property sv:name="requireAll" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          <sv:node sv:name="active">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>tags</sv:value></sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>active</sv:value></sv:property>
+            </sv:node>
           </sv:node>
-          <sv:node sv:name="operandB">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>active</sv:value></sv:property>
+          <sv:node sv:name="retirable">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+            <sv:property sv:name="comparator"><sv:value>excludes</sv:value></sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>protectedFrom</sv:value></sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="value" sv:multiple="true"><sv:value>retire</sv:value></sv:property>
+            </sv:node>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>

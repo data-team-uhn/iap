@@ -20,6 +20,7 @@ import { Alert, CircularProgress } from "@mui/material";
 import { Navigate, useLocation } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
+import LoadError from "@iap/frontend-commons/components/LoadError";
 
 import { useWorkflowHomepages } from "./useWorkflowHomepages";
 import WorkflowEditor from "./WorkflowEditor";
@@ -41,19 +42,20 @@ import WorkflowsView from "./WorkflowsView";
 // editor are the same page asked two ways rather than one being read as a page below the other.
 //
 // Which of the three a path is takes the list of homepages, since a homepage sits at no predictable
-// depth (see consoleTarget). That list is discovered once and kept for the session, so this costs a
-// request when the console is first opened and nothing on any navigation after it.
+// depth (see consoleTarget). That list is discovered once and kept while the page lives, so this costs a
+// request when the console is first opened and nothing on any navigation after it; a failed discovery is
+// not kept, and is asked again.
 //
 // The console's root is the exception: it addresses nothing, and redirects to the default homepage's
 // listing so that a URL a user is likely to type or trim to lands on a page.
 function WorkflowConsole() {
   const location = useLocation();
-  const { homepages, loading } = useWorkflowHomepages();
+  const { homepages, loading, loadError, retry } = useWorkflowHomepages();
 
   // The root is the one URL the homepages have no say in, so it is answered straight away rather
   // than behind a spinner the redirect would throw away. It shows the homepage every admin user has
   // access to, since a listing belongs to a homepage and the root is not a page of its own.
-  const target: ConsoleTarget = consoleTarget(location.pathname, homepages);
+  const target: ConsoleTarget = consoleTarget(repositoryPath(location.pathname), homepages);
   if (target.kind === "root") {
     return <Navigate to={adminUrl(WORKFLOWS_ROOT)} replace />;
   }
@@ -78,18 +80,41 @@ function WorkflowConsole() {
     case "workflow":
       return <WorkflowManager path={target.path} homepage={target.homepage} />;
     case "version":
-      return <WorkflowEditor path={target.path} homepage={target.homepage} editing={target.editing} />;
+      // Keyed by version and mode, so that moving between them starts a fresh page rather than carrying the
+      // last one's unsaved state onto a canvas it never described
+      return (
+        <WorkflowEditor key={`${target.path}:${String(target.editing)}`}
+          path={target.path} homepage={target.homepage} editing={target.editing} />
+      );
     case "unknown":
       // A URL that names nothing showable says so plainly, rather than rendering the empty workflow that
-      // querying the repository for it would produce.
+      // querying the repository for it would produce. Unless the homepages could not be listed, in which
+      // case it may well name something, and the listing is what to retry.
       return (
         <AdminScreen title="Workflows">
-          <Alert severity="warning">
-            {location.pathname} does not point to a workflow.
-          </Alert>
+          { loadError
+            ? <LoadError title="The workflow homepages could not be listed" message={loadError} onRetry={retry} />
+            : (
+              <Alert severity="warning">
+                {location.pathname} does not point to a workflow.
+              </Alert>
+            )}
         </AdminScreen>
       );
   }
+}
+
+// The repository path a console URL carries. The router hands it over percent-encoded, so a node name
+// holding anything outside ASCII has to be decoded before the repository can find it.
+function repositoryPath(pathname: string): string {
+  return pathname.split("/").map(segment => {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      // Not a valid escape, so not one the router made: the segment is taken as it stands
+      return segment;
+    }
+  }).join("/");
 }
 
 export default WorkflowConsole;

@@ -17,7 +17,7 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
@@ -298,17 +298,21 @@ describe("BpmnEditor", () => {
     expect(instances[0].destroy).toHaveBeenCalled();
   });
 
-  it("stops caring about the diagram it asked for once it is gone", async () => {
+  it("imports nothing it asked for once it is gone", async () => {
     // The fetch outliving the canvas is the ordinary case when a version closes mid-load: the request
-    // is not called off, but the component it would report to is gone, so nothing is recorded or shown.
+    // is not called off, but what it brings is neither imported nor shown
     const { settle } = deferredFetch();
     const { unmount } = renderEditor();
     await waitFor(() => expect(instances).toHaveLength(1));
 
     unmount();
     settle(true);
+    // A turn of the event loop, by which the whole chain after the fetch has run
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
 
-    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
+    expect(instances[0].importXML).not.toHaveBeenCalled();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

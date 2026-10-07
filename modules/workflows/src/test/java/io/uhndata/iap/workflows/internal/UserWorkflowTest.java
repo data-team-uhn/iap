@@ -36,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -436,6 +437,21 @@ class UserWorkflowTest
 
         assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
         assertNull(read(TASK).get("outcome"));
+    }
+
+    @Test
+    void refusesToCloseADecisionWithoutAnOutcome() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
+            .adaptTo(ModifiableValueMap.class).put("outcomes", new String[] {"approved", "rejected"});
+        final WorkflowEngine engine = started();
+
+        // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
+        assertThrows(InvalidPayloadException.class, () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
+            new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, " "))));
+        assertEquals("created", read(TASK).get("status"));
+        assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test

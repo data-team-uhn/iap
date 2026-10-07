@@ -95,10 +95,11 @@
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
+    <!-- VersioningUtils.checkOut is overloaded for a Node, so javac needs JCR to resolve a call made with a
+         Resource even though no source here names it. The tests also use it. -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
-      <scope>test</scope>
     </dependency>
 
     <dependency>

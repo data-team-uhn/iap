@@ -114,8 +114,8 @@ printf 'This is a sample study protocol document, attached by generate-test-data
 # parent as nt:unstructured before the submission's own properties are applied.
 #
 # Removal is an HTTP DELETE rather than `:operation=delete`, because a POST to a submission is
-# a workflow event: the POST servlet never sees the parameter, and the engine, handed a `create`
-# that nothing accepts on a submission, refuses it with a 409 whatever state it is in. DELETE is
+# a workflow event: the POST servlet never sees the parameter, and the event servlet refuses a
+# Sling operation with a 400. DELETE is
 # answered by the deletion servlet, which is bound to every content resource whatever lifecycle
 # state it is in, and `permanent` keeps repeated runs from filling the archive with copies of
 # the previous one.

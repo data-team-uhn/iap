@@ -33,6 +33,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -90,6 +91,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             answers.put(question(schemaVersion, entry.getKey()), values(entry.getKey(), entry.getValue()));
         }
         final Map<String, String> existing = answersByQuestion(submission);
+        VersioningUtils.checkOut(target);
         for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
             record(existing, target, answer.getKey(), answer.getValue());
         }

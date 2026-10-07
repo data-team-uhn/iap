@@ -40,6 +40,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -97,6 +98,20 @@ class AbstractPropertiesHandlerTest
 
         assertEquals("New", this.thing().getValueMap().get(TITLE));
         assertEquals("Kept", this.thing().getValueMap().get(NOTE));
+    }
+
+    @Test
+    void writesOntoWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
+    {
+        // Following createEntity in one run, the step edits the new entity rather than the homepage it went into
+        this.context.create().resource("/content/created", TITLE, "Untitled");
+        Mockito.when(this.task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE)).thenReturn("/content/created");
+        this.requested.put(TITLE, "Named");
+
+        this.handler.execute(this.task);
+
+        assertEquals("Named", this.context.resourceResolver().getResource("/content/created").getValueMap().get(TITLE));
+        assertEquals("Old", this.thing().getValueMap().get(TITLE));
     }
 
     @Test
@@ -243,14 +258,15 @@ class AbstractPropertiesHandlerTest
 
         @Override
         @NotNull
-        protected List<String> allowed(@NotNull final WorkflowTaskContext taskContext)
+        protected List<String> allowed(@NotNull final WorkflowTaskContext taskContext, @NotNull final Resource target)
         {
             return AbstractPropertiesHandlerTest.this.allowed;
         }
 
         @Override
         @NotNull
-        protected EditableProperty property(@NotNull final WorkflowTaskContext taskContext, @NotNull final String name)
+        protected EditableProperty property(@NotNull final WorkflowTaskContext taskContext,
+            @NotNull final Resource target, @NotNull final String name)
         {
             return new Property(name, TITLE.equals(name), OWNER.equals(name) ? "test/Person" : null);
         }

@@ -41,6 +41,7 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -243,14 +244,18 @@ class CreateVersionHandlerTest
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(this.request(payload, new HashMap<>())));
-        assertTrue(failure.getMessage().contains("The upload broke"));
+        // The detail stays in the cause, for the log; the caller is told only what failed
+        assertEquals("The diagram could not be read", failure.getMessage());
+        assertEquals("The upload broke", failure.getCause().getMessage());
     }
 
     @Test
     void checksOutTheWorkflowBeforeAddingAVersion() throws WorkflowException, PersistenceException, RepositoryException
     {
         // A checked-in node takes no children, and the Sling POST servlet checks in whatever it creates
-        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.DEFINITION);
+        final VersionManager versions = AuthoringFixture.checkedIn(this.context, AuthoringFixture.DEFINITION,
+            () -> assertFalse(this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION).hasChildren(),
+                "The version was added before the workflow was checked out"));
 
         this.handler.execute(this.request(Map.of(), new HashMap<>()));
 

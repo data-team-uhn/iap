@@ -58,18 +58,19 @@ public class UpdateSchemaContentHandler extends AbstractPropertiesHandler
 
     @Override
     @NotNull
-    protected List<String> allowed(@NotNull final WorkflowTaskContext context) throws WorkflowException
+    protected List<String> allowed(@NotNull final WorkflowTaskContext context, @NotNull final Resource target)
+        throws WorkflowException
     {
-        typeOf(context.getTarget());
+        typeOf(target);
         return SchemaFields.allowedBy(context.getActivity());
     }
 
     @Override
     @NotNull
-    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final String name)
-        throws WorkflowException
+    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final Resource target,
+        @NotNull final String name) throws WorkflowException
     {
-        final String type = typeOf(context.getTarget());
+        final String type = typeOf(target);
         return SchemaFields.find(type, name).orElseThrow(() -> new WorkflowDefinitionException("The activity "
             + context.getActivity().getPath() + " allows " + name + ", which is not a field of " + type));
     }
@@ -88,9 +89,9 @@ public class UpdateSchemaContentHandler extends AbstractPropertiesHandler
     }
 
     /**
-     * Which kind of schema content the target is.
+     * Which kind of schema content the edited resource is.
      *
-     * @param target the workflow's target
+     * @param target the resource being edited
      * @return the resource type its fields are listed under
      * @throws WorkflowDefinitionException when it is neither a schema nor a schema version
      */

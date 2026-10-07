@@ -81,25 +81,26 @@ final class VersionEdits
     }
 
     /**
-     * The version a handler is acting on, taken from the event's target.
+     * The version a handler is acting on, checked to be one.
      *
-     * @param context the handler's context, whose target the workflow declared as a {@code wf/WorkflowVersion}
-     * @return the target as a version
-     * @throws WorkflowDefinitionException when the target is not a workflow version after all, which means the
+     * @param context the handler's context, for the activity to name in a refusal
+     * @param target the resource the handler acts on, which the workflow declared as a {@code wf/WorkflowVersion}
+     * @return the resource as a version
+     * @throws WorkflowDefinitionException when the resource is not a workflow version after all, which means the
      *             definition that reached this handler declares the wrong {@code targetResourceType}
      */
-    static WorkflowVersion targetVersion(final WorkflowTaskContext context) throws WorkflowException
+    static WorkflowVersion targetVersion(final WorkflowTaskContext context, final Resource target)
+        throws WorkflowException
     {
         // By its type: a model adapts a resource of any type, so that it adapted says nothing
-        final Resource target = context.getTarget();
         final WorkflowVersion version = target.isResourceType(WorkflowVersion.RESOURCE_TYPE)
             ? target.adaptTo(WorkflowVersion.class) : null;
         if (version == null) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " acts on workflow versions, but " + context.getTarget().getPath() + " is not one");
+                + " acts on workflow versions, but " + target.getPath() + " is not one");
         }
         // Verify the target is getting saved in the correct node structure: errors out if the location is invalid.
-        homepageOf(definitionOf(context.getTarget()));
+        homepageOf(definitionOf(target));
         return version;
     }
 
@@ -166,8 +167,12 @@ final class VersionEdits
                 "A stored diagram the engine is replacing should always be modifiable");
             properties.put(JCR_DATA_PROPERTY, data);
             properties.put(JCR_MIME_TYPE_PROPERTY, mimeType);
+        } catch (final PersistenceException e) {
+            // A failed write says what went wrong already, and is no failure to read the upload
+            throw e;
         } catch (final IOException e) {
-            throw new PersistenceException("The diagram could not be read: " + e.getMessage(), e);
+            // The cause carries the detail to the log, not to whoever sent the upload
+            throw new PersistenceException("The diagram could not be read", e);
         }
     }
 

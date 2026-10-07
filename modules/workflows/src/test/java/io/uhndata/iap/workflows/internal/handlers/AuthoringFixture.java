@@ -113,6 +113,23 @@ final class AuthoringFixture
      */
     static VersionManager checkedIn(final SlingContext context, final String path) throws RepositoryException
     {
+        return checkedIn(context, path, () -> { });
+    }
+
+    /**
+     * Has the content at a path read as checked in, as {@link #checkedIn(SlingContext, String)} does, and runs a
+     * check at the moment it is checked out. The mock repository refuses no write, so that moment is the only place
+     * a test can see what had already been written.
+     *
+     * @param context the Sling context to register the adapter in
+     * @param path the path of the versionable content
+     * @param atCheckout the check to run when the content is checked out
+     * @return the version manager a checkout goes through, to verify it on
+     * @throws RepositoryException never, every node involved being a mock
+     */
+    static VersionManager checkedIn(final SlingContext context, final String path, final Runnable atCheckout)
+        throws RepositoryException
+    {
         final Node node = Mockito.mock(Node.class);
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
@@ -122,6 +139,10 @@ final class AuthoringFixture
         Mockito.when(node.getSession()).thenReturn(session);
         Mockito.when(session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        Mockito.doAnswer(invocation -> {
+            atCheckout.run();
+            return null;
+        }).when(versions).checkout(path);
         context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) resource -> path.equals(resource.getPath()) ? node : null);
         return versions;

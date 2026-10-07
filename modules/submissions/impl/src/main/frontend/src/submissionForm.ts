@@ -108,7 +108,8 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
 
 // Records one answer, by posting it to the submission as a `save` event: filling a request in is a
 // workflow event and not a write, so a refusal arrives as the engine's own reason rather than as a
-// repository error. The selector is what names the event; a bare POST would be read as `create`.
+// repository error. The selector names the event outright, though a bare POST to a submission means
+// `save` too.
 export async function saveAnswer(
   doFetch: AuthenticatedFetch, path: string, question: string, values: string[]): Promise<void> {
   const body = new URLSearchParams();

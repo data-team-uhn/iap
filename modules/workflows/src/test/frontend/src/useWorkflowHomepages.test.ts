@@ -26,12 +26,12 @@ const okResponse = (body: unknown) =>
 const answering = (body: unknown) => vi.fn<FetchStub>(() => Promise.resolve(okResponse(body)));
 
 describe("loadWorkflowHomepages", () => {
-  // The discovery is kept for the life of the session, so each test starts from an unasked one
+  // What was discovered is kept, so each test starts from an unasked one
   beforeEach(forgetWorkflowHomepages);
 
   it("keeps what it discovered, since every console URL is read against it", async () => {
-    // Asked on every navigation rather than once per page, and answered by a tree that changes only
-    // when a bundle is installed: asking again on each would be a request per click for nothing
+    // Asked on every navigation rather than once per page: asking again on each would be a request per
+    // click for nothing
     const fetchUtil = answering({ homepages: [ { path: "/Workflows", title: "Workflows" } ] });
 
     await loadWorkflowHomepages(fetchUtil);
@@ -82,6 +82,24 @@ describe("loadWorkflowHomepages", () => {
 
     await expect(loadWorkflowHomepages(fetchUtil)).resolves.toEqual([ { path: "/Workflows", title: "Workflows" } ]);
 
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("asks again after a failure, rather than keeping what stood in for the answer", async () => {
+    // A failure is often passing, the startup gate or a lapsed session, so the next ask goes to the server
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fetchUtil = vi.fn<FetchStub>()
+      .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) } as unknown as Response)
+      .mockResolvedValue(okResponse({ homepages: [
+        { path: "/Workflows", title: "Workflows" },
+        { path: "/SystemWorkflows", title: "System workflows" },
+      ] }));
+
+    await loadWorkflowHomepages(fetchUtil);
+    const homepages = await loadWorkflowHomepages(fetchUtil);
+
+    expect(fetchUtil).toHaveBeenCalledTimes(2);
+    expect(homepages).toHaveLength(2);
     vi.mocked(console.error).mockRestore();
   });
 

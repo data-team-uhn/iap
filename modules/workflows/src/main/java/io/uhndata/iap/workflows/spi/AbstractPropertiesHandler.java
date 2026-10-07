@@ -34,8 +34,9 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 
 /**
- * The base of a service task writing properties onto the resource an event was aimed at, limited to the ones its
- * activity allows. A subclass says which those are, what each may hold, and what the request asks for.
+ * The base of a service task writing properties onto the resource it acts on, limited to the ones its activity
+ * allows. A subclass says which those are, what each may hold, and what the request asks for. The resource is the
+ * one {@link ExecutionHost} names, so a step following a creation edits what was just created.
  *
  * <p>The whole request is checked before anything is written, so a refusal leaves the resource as it was. A property
  * that arrives empty is removed, unless it is mandatory, and one the request does not name is left as it stands, so
@@ -81,7 +82,8 @@ public abstract class AbstractPropertiesHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final List<String> allowed = allowed(context);
+        final Resource target = ExecutionHost.of(context);
+        final List<String> allowed = allowed(context, target);
         if (allowed.isEmpty()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not list the properties a request may change");
@@ -89,13 +91,12 @@ public abstract class AbstractPropertiesHandler implements ServiceTaskHandler
         final Map<EditableProperty, Object> changes = new LinkedHashMap<>();
         for (final Map.Entry<String, Object> entry : requested(context).entrySet()) {
             if (allowed.contains(entry.getKey())) {
-                final EditableProperty property = property(context, entry.getKey());
+                final EditableProperty property = property(context, target, entry.getKey());
                 changes.put(property, value(context, property, entry.getValue()));
             } else if (refusesUnlisted()) {
                 throw new InvalidPayloadException(entry.getKey() + " cannot be edited here");
             }
         }
-        final Resource target = context.getTarget();
         VersioningUtils.checkOut(target);
         for (final Map.Entry<EditableProperty, Object> change : changes.entrySet()) {
             write(target, change.getKey(), change.getValue());
@@ -104,26 +105,29 @@ public abstract class AbstractPropertiesHandler implements ServiceTaskHandler
 
     /**
      * The properties the activity lets a request change. Asked first, so it is also where a subclass refuses a
-     * target it does not serve.
+     * resource it does not serve.
      *
      * @param context the executing task's context
+     * @param target the resource being edited
      * @return property names, empty when the activity lists none, which is a mistake in the definition
-     * @throws WorkflowException when the target is not one this handler serves
+     * @throws WorkflowException when the resource is not one this handler serves
      */
     @NotNull
-    protected abstract List<String> allowed(@NotNull WorkflowTaskContext context) throws WorkflowException;
+    protected abstract List<String> allowed(@NotNull WorkflowTaskContext context, @NotNull Resource target)
+        throws WorkflowException;
 
     /**
      * What one property the activity allows may hold.
      *
      * @param context the executing task's context
+     * @param target the resource being edited
      * @param name a property the activity allows
      * @return the property
-     * @throws WorkflowException when the activity allows a property the target cannot have
+     * @throws WorkflowException when the activity allows a property the resource cannot have
      */
     @NotNull
-    protected abstract EditableProperty property(@NotNull WorkflowTaskContext context, @NotNull String name)
-        throws WorkflowException;
+    protected abstract EditableProperty property(@NotNull WorkflowTaskContext context, @NotNull Resource target,
+        @NotNull String name) throws WorkflowException;
 
     /**
      * What the request asks for, by property name: text to store, or {@code null} to remove the property. Anything

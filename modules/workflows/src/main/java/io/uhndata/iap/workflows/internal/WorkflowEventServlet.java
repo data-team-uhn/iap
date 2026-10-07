@@ -70,7 +70,7 @@ import io.uhndata.iap.workflows.models.TaskInstance;
  * <p>It is not registered by type here. {@link WorkflowEventServletRegistrar} binds it to the resource types the
  * system workflows target, so a type nothing targets is still directly writable. The one exception is the
  * {@code .import} extension, forwarded untouched to the Sling POST servlet, so that an administrator can still
- * import content.</p>
+ * import content. Any other Sling operation is refused.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -85,6 +85,12 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 
     /** The extension that bypasses the engine, for the Sling POST servlet. */
     static final String IMPORT_EXTENSION = "import";
+
+    /** The request parameter naming a Sling POST servlet operation. */
+    private static final String OPERATION_PARAMETER = ":operation";
+
+    /** The key a refusal is reported under in the JSON answer. */
+    private static final String ERROR_KEY = "error";
 
     /**
      * The supertype every entity homepage carries, which is how a POST that means "make me one of these" is told
@@ -122,6 +128,12 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
                 "Sling always dispatches to an existing resource").forward(request, response);
             return;
         }
+        // Read as an event, a Sling operation arrives empty and answers 200 having done nothing
+        if (request.getRequestParameter(OPERATION_PARAMETER) != null) {
+            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY,
+                "Sling operations are not accepted here: send a workflow event, or an HTTP DELETE to remove it");
+            return;
+        }
         try {
             final String name = eventName(request);
             final WorkflowResult result =
@@ -135,11 +147,11 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         } catch (final NoApplicableWorkflowException | InvalidStateException e) {
             // Both are "not here, not now" rather than "not you" or "not like that": nothing was waiting for this
             // event, or something was and the target is not in a state that admits it
-            reply(response, HttpServletResponse.SC_CONFLICT, "error", e.getMessage());
+            reply(response, HttpServletResponse.SC_CONFLICT, ERROR_KEY, e.getMessage());
         } catch (final NotAuthorizedException e) {
-            reply(response, HttpServletResponse.SC_FORBIDDEN, "error", e.getMessage());
+            reply(response, HttpServletResponse.SC_FORBIDDEN, ERROR_KEY, e.getMessage());
         } catch (final InvalidPayloadException e) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, "error", e.getMessage());
+            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY, e.getMessage());
         } catch (final WorkflowException e) {
             // A broken definition or failed machinery: not the client's fault, and the one refusal here that
             // nobody outside can act on. Recorded as well as logged, because whoever has to fix it is the
@@ -150,7 +162,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
                 .about(request.getResource())
                 .actingFor(request.getResourceResolver().getUserID())
                 .with("event", eventName(request)));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "error", e.getMessage());
+            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR_KEY, e.getMessage());
         }
     }
 
