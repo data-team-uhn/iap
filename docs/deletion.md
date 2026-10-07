@@ -301,3 +301,24 @@ The widget needs no persona restriction: the console is reached only by those wh
 read its extensions. Reaching the console is still not the same as being allowed to
 read the archive, so a user whose rights do not match is told the archive is
 unavailable rather than shown three zeros.
+
+### Telling a reader that a resource was deleted
+
+A link to something that has been archived is a dead link, and a bare "this page does not exist" is
+unhelpful to users who have access to the archive or the user who deleted it. For these users,
+modify the 404 page to add the relevant data. `DeletionMetadata` (`io.uhndata.iap.deletion.scripting`)
+is a HTL helper that the error handler declares which adds the relevant data as  `data-deleted-at`,
+`data-deleted-by` and `data-entry-url`.
+
+**It is split in two.** `DeletionMetadata` handles the request; `DeletedPathDisclosure` reads the
+archive and decides what this reader may be told, an OSGi service implemented in this bundle.
+
+The lookup runs through the deletion service session for access to the archive and the service decides
+what to disclose.
+- **A reader who can read the archive entry** gets `deletedAt`, `deletedBy` and a link through to the entry's own page.
+- **The person who deleted the original entry** gets `deletedAt` and no link as they cannot access the archive.
+- **Anybody else** gets a standard "not found" page.
+
+The client half is `PageNotFound`, in `frontend-commons` — a pure component that renders what the
+entry point read off the container. It knows nothing about deletion beyond those three attributes,
+a page carrying none of them is the plain "not found".

@@ -91,6 +91,14 @@ describe("ErrorPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "500" })).toBeInTheDocument();
   });
 
+  // Anything carrying a server-supplied value goes here rather than into the markdown message
+  it("shows supporting detail under the message", () => {
+    renderErrorPage({ message: "No such page", children: <a href="/elsewhere">Look here instead</a> });
+
+    expect(screen.getByText("No such page")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Look here instead" })).toHaveAttribute("href", "/elsewhere");
+  });
+
   it("accepts explicit colours", () => {
     renderErrorPage({ errorCode: "500", title: "Boom", message: "Broke", errorCodeColor: "error" });
 
