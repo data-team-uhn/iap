@@ -61,7 +61,9 @@ function SchemaManager() {
       // is not a request to navigate
       return (
         <Box onClick={event => event.stopPropagation()}>
-          { version ? <SchemaVersionActions version={version} {...shared} /> : <SchemaActions {...shared} /> }
+          { version
+            ? <SchemaVersionActions place="versionList" version={version} {...shared} />
+            : <SchemaActions {...shared} /> }
         </Box>
       );
     },

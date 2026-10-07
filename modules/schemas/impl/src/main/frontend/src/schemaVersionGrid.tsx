@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 
-import { Stack, Typography } from "@mui/material";
+import { Link, type LinkProps, Stack, Typography } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import LifecycleChip from "@iap/tags/LifecycleChip";
@@ -37,6 +38,7 @@ const COLUMNS: EntityGridColumn[] = [
     width: 120,
     valueGetter: (_value, row) => labelOf(row),
     sortComparator: (one: string, other: string) => one.localeCompare(other, undefined, { numeric: true }),
+    renderCell: params => <VersionLink row={params.row}>{labelOf(params.row)}</VersionLink>,
   },
   {
     field: "state",
@@ -59,12 +61,22 @@ const COLUMNS: EntityGridColumn[] = [
 // The schema a version belongs to, by name, from where the version lives
 const schemaNameOf = (version: JcrNode): string => String(version["@path"]).split("/").at(-2) ?? "";
 
+// A version's label displayed as a link to its page
+function VersionLink({ row, children, variant }: { row: JcrNode } & Pick<LinkProps, "children" | "variant">) {
+  return (
+    <Link component={RouterLink} to={versionPageUrl(schemaNameOf(row), nameOf(row))} underline="hover"
+      variant={variant} onClick={event => event.stopPropagation()}>
+      {children}
+    </Link>
+  );
+}
+
 // A version on a phone: its label and lifecycle tags, and its description
 function VersionCard({ row }: { row: JcrNode }) {
   return (
     <Stack spacing={0.5} sx={{ py: 1 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Typography>{`Version ${labelOf(row)}`}</Typography>
+        <VersionLink row={row} variant="body1">{`Version ${labelOf(row)}`}</VersionLink>
         <LifecycleChip tags={tagsOf(row)} />
       </Stack>
       { descriptionOf(row) && <Typography variant="description">{descriptionOf(row)}</Typography> }

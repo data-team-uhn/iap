@@ -26,20 +26,31 @@ import SchemaVersionActivateAction from "@iap/schemas/SchemaVersionActivateActio
 import SchemaVersionCompareAction from "@iap/schemas/SchemaVersionCompareAction";
 import SchemaVersionDetailsAction from "@iap/schemas/SchemaVersionDetailsAction";
 import SchemaVersionDiscardAction from "@iap/schemas/SchemaVersionDiscardAction";
+import SchemaVersionEditAction from "@iap/schemas/SchemaVersionEditAction";
 import SchemaVersionNewVersionAction from "@iap/schemas/SchemaVersionNewVersionAction";
 import SchemaVersionRetireAction from "@iap/schemas/SchemaVersionRetireAction";
 
-// The actions this module contributes, in their extension order, as the actions manager would
-// resolve them from the repository.
-export const BUILTIN_ACTIONS = [
-  SchemaVersionDetailsAction, SchemaVersionCompareAction, SchemaVersionNewVersionAction, SchemaVersionActivateAction,
-  SchemaVersionRetireAction, SchemaVersionDiscardAction,
-] as unknown as ActionComponent[];
+// The version actions this module contributes, in their extension order, each with the asset its extension renders
+// and the places it names, if any, as the actions manager would resolve them from the repository. A test holds this
+// to the extensions themselves.
+export const VERSION_ACTIONS: { asset: string; component: unknown; places?: string[] }[] = [
+  { asset: "SchemaVersionEditAction", component: SchemaVersionEditAction, places: [ "versionList" ] },
+  { asset: "SchemaVersionDetailsAction", component: SchemaVersionDetailsAction, places: [ "versionPage" ] },
+  { asset: "SchemaVersionCompareAction", component: SchemaVersionCompareAction },
+  { asset: "SchemaVersionNewVersionAction", component: SchemaVersionNewVersionAction },
+  { asset: "SchemaVersionActivateAction", component: SchemaVersionActivateAction },
+  { asset: "SchemaVersionRetireAction", component: SchemaVersionRetireAction },
+  { asset: "SchemaVersionDiscardAction", component: SchemaVersionDiscardAction },
+];
+
+export const BUILTIN_ACTIONS = VERSION_ACTIONS.map(action => action.component) as ActionComponent[];
 
 export const SCHEMA_ACTIONS = [
   SchemaNewVersionAction, SchemaRenameAction, SchemaRetireAction, SchemaReopenAction, SchemaDiscardAction,
 ] as unknown as ActionComponent[];
 
-// What the actions manager would resolve for each point this module contributes to
-export const actionsFor = (point: string): ActionComponent[] =>
-  point === "SchemaActions" ? SCHEMA_ACTIONS : BUILTIN_ACTIONS;
+// What the actions manager would resolve for each point this module contributes to, in the given place
+export const actionsFor = (point: string, place?: string): ActionComponent[] => (point === "SchemaActions"
+  ? SCHEMA_ACTIONS
+  : VERSION_ACTIONS.filter(action => !action.places || (place !== undefined && action.places.includes(place)))
+    .map(action => action.component) as ActionComponent[]);
