@@ -16,14 +16,11 @@
  * limitations under the License.
  */
 
-import { Stack, Typography } from "@mui/material";
-
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import {
-  type JcrNode, labelOf, listing, nameOf, pathOf, SCHEMAS_ROOT, tagsOf, titleOf, versionsOf,
-} from "./schemaModel";
+import { type JcrNode, labelOf, listing, nameOf, SCHEMAS_ROOT, tagsOf, versionsOf } from "./schemaModel";
 import { schemaPageUrl, versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_TYPE = "sch/Schema";
@@ -36,11 +33,10 @@ const isVersion = (row: JcrNode): boolean => row["jcr:primaryType"] === "sch:Sch
 const versionRows = (row: JcrNode): JcrNode[] =>
   versionsOf(row).map(version => ({ ...version, title: `Version ${labelOf(version)}`, [SCHEMA_OF]: row }));
 
-
-const dateValue = (value: unknown) => typeof value === "string" ? new Date(value) : null;
-
+// On a phone, a schema's card leads with its title and lifecycle tags, the day it last changed under them, and
+// closes with its versions
 const COLUMNS: EntityGridColumn[] = [
-  { field: "title", headerName: "Schema", flex: 2, minWidth: 180 },
+  { field: "title", headerName: "Schema", flex: 2, minWidth: 180, cardSlot: "title" },
   {
     field: "state",
     headerName: "State",
@@ -48,6 +44,7 @@ const COLUMNS: EntityGridColumn[] = [
     sortable: false,
     filterable: false,
     renderCell: params => <LifecycleChip tags={tagsOf(params.row)} />,
+    cardSlot: "badge",
   },
   {
     field: "jcr:lastModified",
@@ -55,31 +52,10 @@ const COLUMNS: EntityGridColumn[] = [
     width: 170,
     type: "dateTime",
     valueGetter: value => dateValue(value),
+    cardSlot: "caption",
+    cardValue: row => dayOf(row["jcr:lastModified"]),
   },
 ];
-
-// A schema on a phone: its title and each version, with their lifecycle tags
-function SchemaCard({ row }: { row: JcrNode }) {
-  const schema = row;
-  return (
-    <Stack spacing={0.5} sx={{ py: 1 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Typography sx={{ fontWeight: "fontWeightBold", color: "primary.main" }}>{titleOf(schema)}</Typography>
-        <LifecycleChip tags={tagsOf(schema)} />
-      </Stack>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
-        { versionsOf(schema).length === 0
-          ? <Typography variant="placeholder">No versions</Typography>
-          : versionsOf(schema).map(version => (
-            <Stack key={pathOf(version)} direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-              <Typography variant="body2">{labelOf(version)}</Typography>
-              <LifecycleChip tags={tagsOf(version)} />
-            </Stack>
-          )) }
-      </Stack>
-    </Stack>
-  );
-}
 
 // Registered at import, so any grid importing this module can list schemas
 registerEntityType(SCHEMA_TYPE, {
@@ -91,5 +67,4 @@ registerEntityType(SCHEMA_TYPE, {
   rowLink: row => (isVersion(row)
     ? versionPageUrl(nameOf(row[SCHEMA_OF] as JcrNode), nameOf(row))
     : schemaPageUrl(nameOf(row))),
-  listItem: row => <SchemaCard row={row} />,
 });
