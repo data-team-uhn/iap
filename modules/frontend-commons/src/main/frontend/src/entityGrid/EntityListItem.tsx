@@ -53,8 +53,12 @@ export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNo
   return scalarContent(value);
 }
 
+// What can be done with an entity on its card, kept from the card, which opens the entity when pressed
+export const CardActions = ({ children }: { children: ReactNode }) =>
+  <Box onClick={event => event.stopPropagation()} sx={{ display: "inline-flex" }}>{children}</Box>;
+
 // The card shown for one entity in list mode, composed from the visible columns according to
-// their card slots: the title column leads the card, badge columns sit beside it, caption
+// their card slots: the title column leads the card, badge columns sit beside it, actions end its line, caption
 // columns join into one muted " • " line below, and "row" columns — the default — become
 // labeled rows; omitted columns don't appear at all. Content comes from each column's own
 // rendering, unless its cardValue asks for a more compact form. Without a designated (or
@@ -65,6 +69,7 @@ export default function EntityListItem({ row, columns }: { row: EntityRow; colum
     column.cardValue ? column.cardValue(row) : columnContent(column, row);
   const shown = columns.filter(column => column.cardSlot !== "omit");
   const badges = shown.filter(column => column.cardSlot === "badge");
+  const actions = shown.filter(column => column.cardSlot === "actions");
   const captions = shown
     .filter(column => column.cardSlot === "caption")
     .map(column => ({ field: column.field, node: content(column) }))
@@ -78,9 +83,10 @@ export default function EntityListItem({ row, columns }: { row: EntityRow; colum
     <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
       <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="subtitle2" component="div">{title && content(title)}</Typography>
-        {badges.length > 0 && (
+        {badges.length + actions.length > 0 && (
           <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
             {badges.map(column => <Fragment key={column.field}>{content(column)}</Fragment>)}
+            {actions.map(column => <CardActions key={column.field}>{content(column)}</CardActions>)}
           </Stack>
         )}
       </Stack>

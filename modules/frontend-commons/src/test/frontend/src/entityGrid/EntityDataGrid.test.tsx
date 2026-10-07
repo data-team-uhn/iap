@@ -725,6 +725,44 @@ describe("EntityDataGrid", () => {
     expect(screen.queryByText("Leading omitted")).toBeNull();
   });
 
+  it("ends a card's title line with what can be done, which does not open the entity", async () => {
+    fakeNarrowScreen();
+    mockPage([{ "@path": "/GridEntities/e1", "title": "First entity", "status": "draft" }]);
+    const opened = vi.fn();
+    const actions = [ { field: "__actions__", cardSlot: "actions" as const,
+      renderCell: () => <button type="button" onClick={opened}>Act</button> } ];
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/"
+            element={<EntityDataGrid entityType={TEST_TYPE} extraColumns={actions} disableVirtualization />} />
+          <Route path="/GridEntities/e1" element={<div>Entity page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Act" }));
+
+    expect(opened).toHaveBeenCalled();
+    expect(screen.queryByText("Entity page")).toBeNull();
+    expect(screen.getByText("First entity")).toBeInTheDocument();
+  });
+
+  it("ends a type's own card with what can be done, unless hidden", async () => {
+    fakeNarrowScreen();
+    window.localStorage.setItem(`iap.entityGrid.${CUSTOM_CARD_TYPE}.columns`, JSON.stringify({ hidden: false }));
+    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke", "status": "open" }]);
+    const actions = [ "shown", "hidden" ].map(field => ({ field, cardSlot: "actions" as const,
+      renderCell: () => <span>{`Actions ${field}`}</span> }));
+
+    render(<EntityDataGrid entityType={CUSTOM_CARD_TYPE} extraColumns={actions} disableVirtualization />,
+      { wrapper: MemoryRouter });
+
+    expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
+    expect(screen.getByText("Actions shown")).toBeInTheDocument();
+    expect(screen.queryByText("Actions hidden")).toBeNull();
+  });
+
   it("composes the card from the columns' card slots", async () => {
     fakeNarrowScreen();
     mockPage([{
