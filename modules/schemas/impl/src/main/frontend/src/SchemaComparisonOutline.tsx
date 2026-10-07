@@ -18,11 +18,15 @@
 
 import { useState } from "react";
 
-import { Box, Button, Chip, Stack, Typography } from "@mui/material";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
+import { Box, ButtonBase, Chip, Stack, Typography } from "@mui/material";
 
 import { compareText } from "@iap/frontend-commons/diff/contentDiffModel";
 import TextDiff from "@iap/frontend-commons/diff/TextDiff";
 import ValueChange from "@iap/frontend-commons/diff/ValueChange";
+import { TOUCH_TARGET } from "@iap/frontend-commons/touchTarget";
 
 import CodePill from "./CodePill";
 import { type ComparedField, isTextChange, shownValue } from "./comparisonFields";
@@ -155,22 +159,42 @@ interface PartListProps {
   everything: boolean;
 }
 
-// Parts where nothing happened, counted in a line that shows them when pressed
-function UnchangedRun({ parts, fields, names }: Omit<PartListProps, "everything">) {
+// Which way unchanged parts left out open, as the diffs people know show it: before what follows them at the start of
+// a list, after what precedes them at its end, and both ways between two changes
+const UNFOLDING = { start: KeyboardArrowUpIcon, end: KeyboardArrowDownIcon, between: UnfoldMoreIcon };
+
+// Parts where nothing happened, counted in a band that shows them when pressed
+function UnchangedRun({ parts, fields, names, at }: Omit<PartListProps, "everything"> & {
+  at: keyof typeof UNFOLDING;
+}) {
   const [ shown, setShown ] = useState(false);
   if (shown) {
     return parts.map(part => <ComparedPart key={keyOf(part)} part={part} fields={fields} names={names} everything />);
   }
   const kinds = new Set(parts.map(part => schemaPartTypeOf(part.type).label.toLowerCase()));
   const kind = kinds.size === 1 ? [ ...kinds ][0] : "part";
+  const Icon = UNFOLDING[at];
   return (
     <Box component="li" sx={{ listStyle: "none", mb: 1 }}>
-      <Button size="small" onClick={() => setShown(true)}>
-        { parts.length === 1 ? `1 unchanged ${kind}` : `${parts.length} unchanged ${kind}s` }
-      </Button>
+      <ButtonBase onClick={() => setShown(true)} sx={{
+        width: "100%", justifyContent: "flex-start", gap: 1, px: 1, py: 0.75, border: 1, borderColor: "transparent",
+        borderRadius: 1, bgcolor: "diff.hunk.line", color: "diff.hunk.main", typography: "body2", textAlign: "start",
+        "&:hover, &.Mui-focusVisible": { borderColor: "diff.hunk.main" }, ...TOUCH_TARGET,
+      }}>
+        <Icon fontSize="small" />
+        { parts.length === 1 ? `Show 1 unchanged ${kind}` : `Show ${parts.length} unchanged ${kind}s` }
+      </ButtonBase>
     </Box>
   );
 }
+
+// Where a run stands in its list: first or last of several, or else between changes
+const placeOf = (index: number, count: number): keyof typeof UNFOLDING => {
+  if (count > 1 && index === 0) {
+    return "start";
+  }
+  return count > 1 && index === count - 1 ? "end" : "between";
+};
 
 // Parts one under the other, those where nothing happened gathered in runs
 function PartList({ parts, fields, names, everything }: PartListProps) {
@@ -185,8 +209,11 @@ function PartList({ parts, fields, names, everything }: PartListProps) {
   }, []);
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
-      { runs.map(run => (!everything && !touched(run[0])
-        ? <UnchangedRun key={keyOf(run[0])} parts={run} fields={fields} names={names} />
+      { runs.map((run, index) => (!everything && !touched(run[0])
+        ? (
+          <UnchangedRun key={keyOf(run[0])} parts={run} fields={fields} names={names}
+            at={placeOf(index, runs.length)} />
+        )
         : <ComparedPart key={keyOf(run[0])} part={run[0]} fields={fields} names={names} everything={everything} />)) }
     </Box>
   );
