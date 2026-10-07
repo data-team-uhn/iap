@@ -61,6 +61,7 @@ validateUpload(file, accepted, limits)
        │           ├── loadPdfjs()               (pdfjsClient.ts: import("pdfjs-dist"), set worker URL)
        │           ├── file.arrayBuffer()
        │           ├── pdfjs.getDocument({ data }).promise
+       │           ├── numPages === 0?           → "It has no pages."
        │           ├── numPages > maxPdfPages?   → "It has N pages, and the limit is L."
        │           └── task.destroy()            (always, in a finally)
        ├── .docx → checkDocx
@@ -145,7 +146,8 @@ type whose name has no known extension gets no content check at all.
 
 | What happened | Message |
 | --- | --- |
-| Opens, `numPages <= maxPdfPages` | passes |
+| Opens, `numPages` from 1 to `maxPdfPages` | passes |
+| Opens, 0 pages | `It has no pages.` |
 | Opens, too many pages | `It has 612 pages, and the limit is 500.` |
 | PDF.js throws an error named `PasswordException` | `It is encrypted with a password.` |
 | PDF.js could not load, or its worker could not start | passes, unchecked |
@@ -296,7 +298,7 @@ so the screen never shows a result for settings that are no longer selected.
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 34 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 35 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 9 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale answer is ignored |
 
 The validation test does not load real PDF.js or JSZip. It replaces both with small
@@ -331,7 +333,5 @@ The widget test replaces `validateUpload` itself, since the rules have their own
 - **The browser and the parser disagree on size.** The browser stops at 50 MB and the
   parser at 64 MiB. That is safe, since the stricter one runs first, but nothing keeps
   the two in step. They are in different languages and are changed by hand.
-- **No check for an empty PDF.** The parser refuses a PDF with no pages. This module
-  does not look for that case.
 - **No unzipped-size check for DOCX.** A small `.docx` that unzips to gigabytes passes
   here. The parser refuses it.

@@ -201,6 +201,10 @@ describe("what is inside the file", () => {
       .resolves.toMatch(/encrypted with a password/);
   });
 
+  it("refuses a PDF with no pages", async () => {
+    await expect(validateUpload(createPdf(0))).resolves.toMatch(/has no pages/);
+  });
+
   it("accepts a PDF within the page limit", async () => {
     await expect(validateUpload(createPdf(10))).resolves.toBeUndefined();
   });
