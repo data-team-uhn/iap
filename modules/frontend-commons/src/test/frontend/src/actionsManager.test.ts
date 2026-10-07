@@ -73,6 +73,21 @@ describe("getActions", () => {
     await expect(getActions("AnotherKind")).resolves.toEqual([Second]);
   });
 
+  it("shows an extension naming its places only in those, and one naming none everywhere", async () => {
+    const Third = () => null;
+    mockedLoadExtensions.mockResolvedValue([
+      { "ext:render": First, "ext:places": [ "list" ] },
+      { "ext:render": Second },
+      // A single value, as a property set without saying it holds several arrives
+      { "ext:render": Third, "ext:places": "page" },
+    ]);
+
+    await expect(getActions("ThingActions", "list")).resolves.toEqual([First, Second]);
+    await expect(getActions("ThingActions", "page")).resolves.toEqual([Second, Third]);
+    await expect(getActions("ThingActions")).resolves.toEqual([Second]);
+    expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
+  });
+
   it("resolves to no actions when the extension point cannot be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedLoadExtensions.mockRejectedValue(new Error("Network is down"));

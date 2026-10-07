@@ -334,6 +334,12 @@ unreadable point yields no actions, so a failing action bar never takes the page
 host renders the components in order with a props contract of its own, typically the thing acted
 on, a `reload`, and a way to `report` back.
 
+Where the same actions are shown in more than one place, such as a list of things and each thing's
+own page, the host names its place (`getActions("<NodeName>", "<place>")`, or `ActionBar`'s `place`)
+and an extension can say where it belongs with `ext:places` (String[]): it is shown only in the places
+it names, and an extension naming none is shown everywhere. An action that belongs in one place
+says so in content rather than in its code, and a deployment can move it.
+
 ## Tools
 
 From the repository root, in [`tools/dev/extension-manager/`](../tools/dev/extension-manager/):
