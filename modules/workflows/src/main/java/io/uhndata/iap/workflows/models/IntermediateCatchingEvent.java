@@ -73,13 +73,12 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     }
 
     /**
-     * How long this event waits before firing, which is what makes it a timer: an event with a duration is fired
-     * by the clock, and one without waits for something to be delivered to it.
+     * How long this event waits before firing. An event with a duration is a timer, fired by the clock. An event
+     * without one waits for something to be delivered to it.
      *
-     * <p>Relative rather than absolute, because a definition is shared by every instance that runs it: when the
-     * waiting started is a fact about the run, recorded where the run is. Stored as an ISO-8601 duration, and
-     * reported as absent when it is not one — a deadline nobody can read is not a deadline, and guessing at what
-     * {@code five days} might have meant would arm the wrong one.</p>
+     * <p>The duration is relative because a definition is shared by every instance that runs it. When the waiting
+     * started is a fact about the run, and the task the event watches records it. The duration is stored as an
+     * ISO-8601 duration. Any other value is logged and reported as absent, so no deadline is armed for it.</p>
      *
      * @return how long the wait lasts, or {@code null} if this event is not a timer
      */

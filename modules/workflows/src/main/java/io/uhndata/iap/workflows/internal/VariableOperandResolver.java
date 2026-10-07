@@ -29,13 +29,11 @@ import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 
 /**
- * Resolves {@code variable} operands: a variable of the running instance the condition is being evaluated for,
- * named by the operand value — e.g. the {@code outcome} the last completed task recorded, which is what a
- * gateway routes on.
+ * Resolves {@code variable} operands: the variable named by the operand value, read from the workflow instance the
+ * condition is evaluated against. A gateway routes this way on the {@code outcome} the last completed task recorded.
  *
- * <p>This is the operand source that makes a workflow's own state conditionable. Everything else a condition can
- * read is content, and content is where the other resolvers look; a variable exists only for as long as the
- * execution that owns it, which is why the instance is what such a condition is evaluated against.</p>
+ * <p>This lets a condition read a workflow's own state. Variables live on the instance rather than in content, so a
+ * condition that reads one is evaluated against the instance.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,21 +57,19 @@ public class VariableOperandResolver implements OperandResolver
             LOGGER.warn("Variable operand at {} does not name a variable", operand.getPath());
             return Operand.EMPTY;
         }
-        // Asked of the resource type rather than of the adaptation: adapting is not a type filter — a model
-        // registered for one type is handed back for any resource when nothing else claims the class — so an
-        // unrelated node with a child of the right name would otherwise answer as if it were an instance
+        // Check the resource type, not just the adaptation. Adapting does not filter by type: a model registered for
+        // one type is handed back for any resource when nothing else claims the class. An unrelated node with a child
+        // of the right name would otherwise answer as if it were an instance.
         final WorkflowInstance instance = WorkflowInstance.RESOURCE_TYPE.equals(context.getType())
             ? context.as(WorkflowInstance.class) : null;
         if (instance == null) {
-            // Not a failure of the definition: a condition written for a workflow can be evaluated against
-            // anything, and what it asks about simply is not there
+            // Not a definition error: the condition was evaluated against something that has no variables
             LOGGER.warn("Variable operand at {} was evaluated against {}, which is not a workflow instance",
                 operand.getPath(), context.getPath());
             return Operand.EMPTY;
         }
         final Variable variable = instance.getVariable(value[0]);
-        // Raw, undeclared: a variable's dataType has already decided which typed property its value came from,
-        // and that stored type speaks for itself in the evaluator's type unification
+        // No declared type: the stored value already has the type the variable's dataType chose
         return variable == null ? Operand.EMPTY : Operand.of(variable.getValue());
     }
 }

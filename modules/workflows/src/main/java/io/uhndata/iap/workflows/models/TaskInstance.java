@@ -176,8 +176,8 @@ public class TaskInstance extends Entity
 
     /**
      * The boundary event whose timer set this task's {@link #getDueDate() deadline}, named by its element
-     * identifier. Recorded because an activity may be watched by several events, and what happens when the
-     * deadline passes is where execution goes next — read from the definition rather than guessed at.
+     * identifier. An activity may be watched by several timers, and this says which one fires when the deadline
+     * passes.
      *
      * @return an element identifier, or {@code null} when nothing is counting down to this task
      */
@@ -224,9 +224,9 @@ public class TaskInstance extends Entity
      * The boundary events watching this task that have already fired, named by their
      * {@link FlowNode#getElementId() element identifiers}.
      *
-     * <p>Only a non-interrupting event can fire and leave the task open behind it, which is what makes this needed:
-     * the deadline that has passed would otherwise be delivered again on every sweep, and a task watched by several
-     * events would have no way to say which of them {@link #getDueDate() its deadline} now belongs to.</p>
+     * <p>Only a non-interrupting event can fire and leave the task open. The task's next
+     * {@link #getDueDate() deadline} is armed from the timers not listed here, so a deadline that has passed is not
+     * delivered again on every sweep.</p>
      *
      * @return the identifiers of the events that have fired, empty for a task nothing has happened to yet
      */

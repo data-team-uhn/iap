@@ -144,7 +144,6 @@ class UserWorkflowTest
             TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "decision"));
         this.context.create().resource(PROCESS + "/decision/toApproved", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
-        // The guard reads what the execution knows: the outcome the completed task recorded
         outcomeIs(PROCESS + "/decision/toApproved", "approved");
         this.context.create().resource(PROCESS + "/decision/toRejected", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRejected", TARGET_REF, "requestRejected",
@@ -156,8 +155,7 @@ class UserWorkflowTest
     }
 
     /**
-     * Gives an arc the guard "the instance's outcome is this", written the way a definition writes it: a single
-     * condition comparing the {@code outcome} variable with a literal.
+     * Puts a guard on an arc that holds when the instance's outcome is the given one.
      *
      * @param flowPath the arc to put the condition on
      * @param outcome the outcome the arc is taken for
@@ -180,8 +178,6 @@ class UserWorkflowTest
         started();
 
         final Map<String, Object> task = read(TASK);
-        // The deadline is a fact about this run, so it is on the task rather than worked out later from the
-        // definition, which only says how long the wait is
         assertEquals("approvalOverdue", task.get("dueEventId"));
         final Calendar due = (Calendar) task.get("dueDate");
         assertNotNull(due);
@@ -203,8 +199,6 @@ class UserWorkflowTest
     void ignoresABoundaryEventThatIsNotATimer() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        // An event with no duration waits for something to be delivered to it, and nothing yet delivers one, so
-        // there is no deadline to start
         this.context.create().resource(PROCESS + "/" + APPROVE + "/cancelled", Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "cancelled", "messageName", "withdraw"));
         started();
@@ -220,7 +214,6 @@ class UserWorkflowTest
         watchApprovalWith("PT36H", "escalate", "escalated");
         started();
 
-        // The earliest is the one that will actually fire; the others would have needed a token each anyway
         assertEquals("escalate", read(TASK).get("dueEventId"));
     }
 
@@ -234,11 +227,9 @@ class UserWorkflowTest
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
 
-        // The task is cancelled rather than completed, and nothing decided it: no assignee, no outcome
         assertEquals("cancelled", read(TASK).get("status"));
         assertNull(read(TASK).get("assignee"));
         assertNull(read(TASK).get("outcome"));
-        // Execution left down the timer's own arc, so the host ends in the state that arc leads to
         assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
         assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get("status"));
     }
@@ -246,10 +237,9 @@ class UserWorkflowTest
     @Test
     void remindsWithoutEndingTheWorkWhenTheTimerDoesNotInterrupt() throws Exception
     {
-        // "Remind them but let them carry on": the approval stays on somebody's desk, and the reminder is a second
-        // branch beside it rather than what became of it
         createProcess(EngineFixture.REQUESTERS);
         watchApprovalWith("PT36H", "approvalSlow", null, false);
+        // The reminder leads to a task chasing the approver instead of an end event
         this.context.resourceResolver().delete(
             this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE + "/approvalSlow/toEndapprovalSlow"));
         this.context.create().resource(PROCESS + "/" + APPROVE + "/approvalSlow/toChase", Map.of(
@@ -264,11 +254,9 @@ class UserWorkflowTest
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
 
-        // The approval is untouched and there are now two things to do
         assertEquals("created", read(TASK).get("status"));
         assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get("status"));
         assertEquals("active", read(HOST + "/wf:instances/timeOffRequest").get("status"));
-        // Recorded as spent, and nothing is counting down any more, which is what stops the sweep delivering it again
         assertArrayEquals(new String[] {"approvalSlow"}, (String[]) read(TASK).get("firedEvents"));
         assertNull(read(TASK).get("dueDate"));
         assertNull(read(TASK).get("dueEventId"));
@@ -277,8 +265,8 @@ class UserWorkflowTest
     @Test
     void armsTheNextDeadlineOnceAReminderHasFired() throws Exception
     {
-        // "Remind them after a day and a half, give up after five days": the second deadline is measured from when
-        // the task started, not from when the reminder went out
+        // A reminder after 36 hours, then a deadline after five days. The second counts from the task's start, not
+        // from the reminder
         createProcess(EngineFixture.REQUESTERS);
         watchApprovalWith("PT36H", "approvalSlow", null, false);
         watchApprovalWith("P5D", "approvalOverdue", "expired");
@@ -294,7 +282,7 @@ class UserWorkflowTest
         fromTheStart.add(Calendar.DATE, 5);
         assertEquals(fromTheStart.getTimeInMillis(), due.getTimeInMillis());
 
-        // And the later deadline still gives up on the task when it passes
+        // The later deadline still cancels the task when it passes
         deadlinePassed();
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
 
@@ -305,8 +293,6 @@ class UserWorkflowTest
     @Test
     void deliversAReminderOnlyOnce() throws Exception
     {
-        // The sweep looks for tasks whose deadline has passed, and a task a non-interrupting event fired on is still
-        // open; nothing is counting down to it any more, so there is nothing left to deliver
         createProcess(EngineFixture.REQUESTERS);
         watchApprovalWith("PT36H", "approvalSlow", null, false);
         final WorkflowEngine engine = started();
@@ -324,8 +310,6 @@ class UserWorkflowTest
         createProcess(EngineFixture.REQUESTERS);
         final WorkflowEngine engine = started();
 
-        // Nothing armed this task, so there is no boundary event to leave through: the sweep must not be able to
-        // cancel a task by aiming a timeout at it
         assertThrows(NoApplicableWorkflowException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
@@ -335,8 +319,6 @@ class UserWorkflowTest
     void letsTheClockPassThroughWhereAPersonMayNot() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        // performers says who may make execution pass through a node, and time belongs to no group: a deadline
-        // that could be refused for that would park the instance on a task nobody can ever do
         watchApprovalWith("P5D");
         final WorkflowEngine engine = started();
         deadlinePassed();
@@ -353,8 +335,6 @@ class UserWorkflowTest
         watchApprovalWith("P5D");
         final WorkflowEngine engine = started();
 
-        // Any channel can deliver an event, and a timeout sent early would take the decision off the approver's
-        // desk with nothing having run out: the deadline is what stands in for a performer check
         assertThrows(InvalidStateException.class,
             () -> engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
@@ -375,7 +355,7 @@ class UserWorkflowTest
     }
 
     /**
-     * Moves the approval task's deadline into the past, which is what has happened by the time the clock fires.
+     * Moves the approval task's deadline an hour into the past.
      */
     private void deadlinePassed()
     {
@@ -385,7 +365,7 @@ class UserWorkflowTest
     }
 
     /**
-     * Attaches a boundary timer to the approval task, leading to an end event that says the request expired.
+     * Watches the approval task with a timer whose end event tags the request expired.
      *
      * @param duration how long the timer waits, as an ISO-8601 duration
      */
@@ -395,7 +375,7 @@ class UserWorkflowTest
     }
 
     /**
-     * Attaches a boundary timer to the approval task, leading to an end event of its own.
+     * Watches the approval task with an interrupting timer.
      *
      * @param duration how long the timer waits, as an ISO-8601 duration
      * @param elementId the timer's element identifier
@@ -407,7 +387,7 @@ class UserWorkflowTest
     }
 
     /**
-     * Attaches a boundary timer to the approval task, leading to an end event of its own.
+     * Attaches a boundary timer to the approval task, with an arc to an end event.
      *
      * @param duration how long the timer waits, as an ISO-8601 duration
      * @param elementId the timer's element identifier
@@ -423,8 +403,6 @@ class UserWorkflowTest
             "timerDuration", duration, "interrupting", interrupting));
         this.context.create().resource(timer + "/toEnd" + elementId, Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd" + elementId, TARGET_REF, "end" + elementId));
-        // A branch that runs beside the work rather than instead of it says nothing about the host's state, so it
-        // gets no tag: passing null is how a caller says the end event is not a lifecycle step
         this.context.create().resource(PROCESS + "/end" + elementId, endTag == null
             ? Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId)
             : Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId, "hostTag", endTag));

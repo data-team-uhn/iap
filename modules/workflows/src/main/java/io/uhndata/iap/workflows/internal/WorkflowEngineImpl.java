@@ -86,10 +86,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ResourceResolverFactory resolverFactory;
 
-    /**
-     * What every guard is asked of, a start event's and a gateway arc's alike: the same evaluator, and the same
-     * conditions, schema items use.
-     */
+    /** Evaluates every guard, on a start event and on a gateway's arcs alike. */
     @Reference
     private ConditionEvaluator conditionEvaluator;
 
