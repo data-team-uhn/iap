@@ -112,10 +112,10 @@ Several things exist for the engine rather than for the diagram:
 - **`handler` on an activity** names the service task handler that performs it. An
   activity naming none is a user task: nothing can perform it automatically, so it waits
   for a person.
-- **`outcomes` on an activity** lists the decisions that person may complete the task
-  with — the values a gateway downstream then routes on. Declared because a task list has
-  to know what to offer. An empty list is a statement rather than a gap — this is a task
-  there is nothing to decide about, done or not done.
+- **`outcomeOptions` on an activity** lists the decisions that person may complete the
+  task with — the values a gateway downstream then routes on. Declared because a task
+  list has to know what to offer. An empty list is a statement rather than a gap — this
+  is a task there is nothing to decide about, done or not done.
 - **`hostTag` on a flow node** is the tag to place on the host when execution reaches
   that node: how a process says what being *here* means to the thing being processed,
   without needing a service task whose only job is to write it down. On any node rather
@@ -201,7 +201,7 @@ deleted along with it:
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
         └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
-                                                          outcome, offeredOutcomes, performers
+                                                          outcome, outcomeOptions, performers
 ```
 
 A **token** is one branch of an execution and the single fact of where it has got to.
@@ -213,12 +213,16 @@ A **variable** takes its name from its node name, so looking one up is a child l
 rather than a scan, and its value lives in whichever typed property its `dataType` names
 — the repository then indexes it as what it is.
 
-A **task instance** is an entity in its own right rather than a part of the instance,
-because a task is something people go looking for: "what is on my desk" should be a
-query over these, not a walk of every running workflow. Its `outcome` is recorded
+An instance is a **part** of what it drives, and a task a part of its instance: neither
+exists without the thing it belongs to, and nothing references, versions or identifies
+one. That is also what lets a guard read the host: a condition asks for the enclosing
+entity, and the walk from an instance or a task carries on past them to the host. A
+**task instance** is still a node type of its own, because a task is something people go
+looking for: "what is on my desk" should be a query over these, not a walk of every
+running workflow. Its `outcome` is recorded
 separately from its `status` because the two answer different questions — the status
 says the task is over, the outcome says how, and the gateway downstream routes on the
-latter. The terms it is decided on — `offeredOutcomes` and `performers` — are copied
+latter. The terms it is decided on — `outcomeOptions` and `performers` — are copied
 onto it from its defining activity as it is raised, rather than looked up: a task is
 decided on the terms it was raised with rather than on terms the definition may have
 grown since, and whoever owes the decision can rarely read the definition at all. Those
@@ -241,8 +245,8 @@ running over it at once — a review process and a periodic reminder, say — so
 list, not a single lifecycle.
 
 **`IGNORE` is load-bearing, not tidiness.** Every `data:Entity` is `mix:versionable`,
-and so is a workflow instance. Under the default on-parent-version setting, checking in
-a submission copies the entire live workflow into version storage, and *restoring an
+and a workflow lives inside one. Under the default on-parent-version setting, checking
+in a submission copies the entire live workflow into version storage, and *restoring an
 earlier revision rolls the workflow back with it* — an editor reverting a typo would
 quietly un-approve a proposal.
 
@@ -461,8 +465,18 @@ users are here for. The rules:
   it refuses everyone until it does; silence is never permission.
 - **`everyone` means any authenticated user**, matched by name because it is a dynamic
   principal an authorizable does not necessarily report belonging to.
-- **Groups are matched transitively**, so naming a group also admits the members of its
-  member groups.
+- **`@creator` means whoever raised the resource being worked on**: the person the
+  engine recorded when it created it, not `jcr:createdBy`, which names the engine's own
+  service user for everything it writes. It is the one rule a group can never express,
+  and the one most processes need: a request comes back to the person who made it, not
+  to everyone who could have made one. A resource nothing raised, a homepage say, is
+  nobody's, so `@creator` admits nobody there.
+- **Every name is read by the principals service**, the one a notification's recipients
+  are read by, so a name means the same people wherever it is written. A group admits
+  its members however a deployment stores it: transitively, and including a role an
+  identity provider synchronises without leaving a group node behind. A special name
+  such as `@creator` is answered about the resource being worked on: the event's target,
+  or the host of the task being completed.
 - **Administrators pass regardless**, exactly as they bypass access control in the
   repository itself. Without that, one bad definition could lock out the very people who
   could repair it.
@@ -595,6 +609,32 @@ the same `performers` mechanism as everywhere else, asked one step later — of 
 *defining activity* rather than of a start event. Seeing a task and being allowed to
 decide it are different questions, and this is where the second is answered.
 
+**A user task says what it may be decided with.** The engine copies the activity's
+`outcomeOptions` onto each task it raises, under the same name, for the same reason it
+copies the label: a task is decided on the terms it was raised with, and whoever has to
+do it can read the task without being able to read the definition. A task that offers
+none is one there is *nothing* to decide about, done or not done, and a task list needs
+that distinction: a plain "done" button on a task that expected a decision would
+complete it with no outcome, and the gateway after it would silently take its default
+arc.
+
+**A user task also says who it is waiting for.** The engine records the activity's
+`performers` onto each task it raises, answering `@creator` against the host as it does,
+so every entry names a principal that stands on its own rather than a question only the
+host can settle. That is what makes "what is waiting for me" a question about *tasks*: a
+listing cannot run the engine per row to find out, and the person owing a decision
+usually cannot read the workflow the task came from. The copy describes, it does not
+permit: every completion is still checked against the definition, so a task turning up
+in somebody's list is not what makes it theirs to decide.
+
+**Submitting is a user task, not a separate mechanism.** A request that can still be
+filled in is one whose process is parked on a task performed by `@creator`; completing
+that task is what sends it. There is no "submit" event and no submit endpoint, which is
+why the button on a submission's page says the task's own label, and why a deployment
+that wants a request to go somewhere else first only edits its process. The page offers
+the tasks the reader may complete, as `@events` lists them, and only those with nothing
+to decide.
+
 **Reaching an end event can mean something to the host.** An end event carries `hostTag`
 like any other flow node, so the way a process finishes is what places the host's last
 state.
@@ -696,10 +736,12 @@ completed on its own.
 - **Read access is granted for the life of the instance**, not only while a task is
   open, and is never revoked. Narrowing it as state changes is a refinement for when
   there is a reason to want it.
-- **A gateway's guards can only ask about the execution.** They are evaluated against
-  the instance, so the `variable` operand source reaches what the run knows — the
-  outcome a task recorded — and nothing yet reaches the host it is attached to, which is
-  what routing on a request's own answers would need.
+- **A gateway's guards cannot name a question by its path.** They are evaluated against
+  the instance, which is a part of its host, so `variable` reaches what the run knows —
+  the outcome a task recorded — and the operand sources that read the enclosing entity,
+  `tags` and `property`, read the host. An `answer` operand resolves a relative question
+  path against the definition it sits in, though, and a workflow holds no questions, so
+  routing on a request's own answers needs the question's identifier.
 - **The parser cannot yet fill in an event's payload.** A timer's duration now has
   somewhere to live — `timerDuration` on the catching event — but BPMN keeps it in a
   nested `timeDuration` element, and a message event records its `messageRef` without

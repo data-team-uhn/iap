@@ -49,3 +49,8 @@ export async function sendEvent(
   }
   return undefined;
 }
+
+// Whether the server offers an event on a node it serialized with the `events` selector, which lists
+// in `@events` the events the current user may send it: whether the event applies there, for them.
+export const offers = (node: { "@events"?: unknown }, event: string): boolean =>
+  Array.isArray(node["@events"]) && node["@events"].includes(event);

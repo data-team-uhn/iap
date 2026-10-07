@@ -38,25 +38,13 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
 import SubmissionEditor from "./SubmissionEditor";
 import { schemaLabel } from "./submissionGrid";
+import SubmissionTasks from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
-
-// A serialized JCR node: its properties, plus its children as nested objects.
-type JsonNode = Record<string, unknown>;
-
-function isNode(value: unknown): value is JsonNode {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// The children of a serialized node having the given resource type, in their storage order.
-function childrenOfType(node: JsonNode, resourceType: string): JsonNode[] {
-  return Object.values(node)
-    .filter(isNode)
-    .filter(child => child["sling:resourceType"] === resourceType);
-}
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -73,6 +61,15 @@ function formatValue(value: unknown): string {
 // containing #, ? or % survive as path characters instead of being parsed as syntax
 function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
+}
+
+// Who raised this submission. `createdBy` rather than `jcr:createdBy`, and for the same reason the
+// dashboard's "my submissions" filter selects on it: the engine writes every submission as its own
+// service user, so the JCR property credits the engine. It is still the fallback here, where the Java
+// model's own `getCreatedBy()` puts it: a page saying "Created by" and then nothing is worse than one
+// naming whoever did write it, which for seeded content is all there is to say.
+function createdBy(submission: JsonNode): unknown {
+  return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
@@ -208,6 +205,9 @@ function SubmissionView() {
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
+  // Bumped when something else on the page changes the submission, so that the fetch below runs
+  // again for a path it has already loaded, which is the one thing its own dependencies cannot say
+  const [reloads, setReloads] = useState(0);
 
   // Reading depends on the mode as well as the path, and not only so that leaving the editor
   // fetches at all. The editor saves as it goes, so what it changed is what coming back should show.
@@ -242,7 +242,7 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil, editing]);
+  }, [path, fetchUtil, editing, reloads]);
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
@@ -251,30 +251,44 @@ function SubmissionView() {
   const header = (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
       <Link component={RouterLink} to="/">← Back to the dashboard</Link>
-      <ToggleButtonGroup
-        exclusive
-        value={editing ? "edit" : "view"}
-        // An exclusive group reports null when the selected button is clicked again. That is a
-        // deselection, and there is no third mode to land in, so it leaves the page as it is.
-        onChange={(_event, next: string | null) => {
-          if (next) {
-            void navigate(next === "edit" ? `${path}${EDIT}` : path);
-          }
-        }}
-        aria-label="How to show this submission"
-      >
-        <ToggleButton value="view">
-          <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
-          View
-        </ToggleButton>
-        {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
-            given by the form it serves, and the editor says so plainly when it may not be — the same
-            rule the listing's Edit action follows. */}
-        <ToggleButton value="edit">
-          <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
-          Edit
-        </ToggleButton>
-      </ToggleButtonGroup>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        {/* Whatever the process is waiting for, offered where the page's other actions are and in
+            both modes. Sending a request is a step of its workflow, so it belongs beside the way of
+            looking at it rather than at the bottom of one of the two views. */}
+        <SubmissionTasks
+          path={path}
+          onCompleted={() => {
+            // Back to reading it: what was just done has usually made it read-only, and what has
+            // changed is what the person now wants to see
+            setReloads(current => current + 1);
+            void navigate(path);
+          }}
+        />
+        <ToggleButtonGroup
+          exclusive
+          value={editing ? "edit" : "view"}
+          // An exclusive group reports null when the selected button is clicked again. That is a
+          // deselection, and there is no third mode to land in, so it leaves the page as it is.
+          onChange={(_event, next: string | null) => {
+            if (next) {
+              void navigate(next === "edit" ? `${path}${EDIT}` : path);
+            }
+          }}
+          aria-label="How to show this submission"
+        >
+          <ToggleButton value="view">
+            <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
+            View
+          </ToggleButton>
+          {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
+              given by the form it serves, and the editor says so plainly when it may not be — the same
+              rule the listing's Edit action follows. */}
+          <ToggleButton value="edit">
+            <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
+            Edit
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
     </Stack>
   );
 
@@ -327,7 +341,7 @@ function SubmissionView() {
         <Typography variant="description">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>

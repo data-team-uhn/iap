@@ -47,6 +47,10 @@
 // on-parent-version setting checking one in would copy the whole live workflow
 // into version storage, and restoring an earlier version would roll the workflow
 // back with it — quietly un-approving things. Verified against Oak, not assumed.
+//
+// It stays now that instances are entity parts, which are not versionable in
+// their own right: what a child of a versionable host does on check-in is
+// decided by this setting, not by the child's own type.
 [wf:WorkflowInstances] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected
 
@@ -68,7 +72,7 @@
 
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > data:Entity
+[wf:WorkflowInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from
@@ -117,7 +121,7 @@
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
-[wf:TaskInstance] > data:Entity
+[wf:TaskInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
   // elementId of the wf:Activity this task was created from
@@ -156,7 +160,7 @@
   // on terms the definition may have grown since, and the person doing it cannot
   // necessarily read the definition at all. A task offering none is one there is
   // nothing to decide about — it is done, or it is not.
-  - offeredOutcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // The principals who may complete this task, as its defining activity named
   // them when the task was raised, with "@creator" answered against the host so
@@ -164,7 +168,7 @@
   // me" is a question about tasks, answerable without reading the definitions —
   // which the person owing the decision cannot necessarily do. It decides
   // nothing: the definition remains the authority every completion is checked
-  // against, exactly as offeredOutcomes describes rather than enforces.
+  // against, exactly as outcomeOptions describes rather than enforces.
   - performers (STRING) multiple
 
   // The elementIds of the boundary events of this task that have already fired.

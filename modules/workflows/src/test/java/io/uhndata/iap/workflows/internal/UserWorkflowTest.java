@@ -20,10 +20,13 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -98,6 +101,11 @@ class UserWorkflowTest
 
     private static final WorkflowEvent TIMEOUT = new WorkflowEvent("timeout", Map.of());
 
+    private static final WorkflowEvent RAISE = new WorkflowEvent("raise", Map.of());
+
+    /** Where the system workflow raising a submission and starting its process puts it. */
+    private static final String RAISED = "/Submissions/raised";
+
     private static final WorkflowEvent APPROVED =
         new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved"));
 
@@ -110,7 +118,10 @@ class UserWorkflowTest
         WorkflowFixture.setUp(this.context);
         WorkflowFixture.enableTagging(this.context);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
-        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"}));
+        // createdBy is what the engine records when it raises something, jcr:createdBy naming the engine itself;
+        // it is what a task coming back to whoever raised the host is answered by
+        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
+            "createdBy", EngineFixture.REQUESTER));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
     }
 
@@ -148,6 +159,17 @@ class UserWorkflowTest
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
         this.context.create().resource(PROCESS + "/requestRejected", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+    }
+
+    /**
+     * Adds properties to the process's user task, for the cases about what a task carries beyond its label.
+     *
+     * @param properties what to write on the activity
+     */
+    private void onTheUserTask(final Map<String, Object> properties)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
+            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified").putAll(properties);
     }
 
     /**
@@ -481,6 +503,7 @@ class UserWorkflowTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
@@ -522,6 +545,37 @@ class UserWorkflowTest
     private Resource host(final String actor)
     {
         return as(HOST, actor);
+    }
+
+    /**
+     * A system workflow in the shape of {@code createSubmission}: aimed at the submissions homepage, one activity
+     * raises a submission and the next puts it under its process, in the same walk.
+     */
+    private void createRaisingWorkflow()
+    {
+        final String version = "/SystemWorkflows/raise/v1";
+        this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
+        this.context.create().resource("/SystemWorkflows/raise", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Raise a submission", "active", true));
+        this.context.create().resource(version, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true,
+            "targetResourceType", "sub/SubmissionsHomepage"));
+        this.context.create().resource(version + "/requested", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "raise",
+            "performers", new String[] {EngineFixture.REQUESTERS}));
+        this.context.create().resource(version + "/requested/toRaise", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRaise", TARGET_REF, "raise"));
+        this.context.create().resource(version + "/raise", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "raise", HANDLER, "raise"));
+        this.context.create().resource(version + "/raise/toStart", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toStart", TARGET_REF, "start"));
+        this.context.create().resource(version + "/start", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "start", HANDLER, "startWorkflow",
+            "workflowFrom", "workflow"));
+        this.context.create().resource(version + "/start/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", TARGET_REF, "done"));
+        this.context.create().resource(version + "/done", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
     }
 
     /**
@@ -569,6 +623,122 @@ class UserWorkflowTest
         assertEquals("created", task.get("status"));
         assertEquals("Approve the request", task.get("label"));
         assertEquals(APPROVE, task.get("taskDefinitionId"));
+    }
+
+    @Test
+    void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
+
+        started();
+
+        // Copied onto the task, so that what it may be decided with can be read without reading the definition
+        assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("outcomeOptions"));
+    }
+
+    @Test
+    void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        assertEquals(0, ((String[]) read(TASK).get("outcomeOptions")).length);
+    }
+
+    @Test
+    void raisesTasksNamingWhoMayCompleteThem() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        // So that "what is waiting for me" is a question about tasks: whoever owes the decision cannot
+        // necessarily read the definition this came from
+        assertArrayEquals(new String[] {EngineFixture.REQUESTERS}, (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
+    void answersCreatorAgainstTheHostWhenItRecordsWhoMayCompleteATask() throws Exception
+    {
+        // "@creator" is a question about this host, and nothing reading the task later is holding the host to
+        // ask it, so it is answered once, here, and what is recorded stands on its own
+        createProcess("@creator");
+
+        started();
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER}, (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
+    void answersCreatorAgainstAHostRaisedEarlierInTheSameWalk() throws Exception
+    {
+        // createSubmission's shape: one activity raises the host and the next puts it under its process, in one
+        // walk, so the process asks @creator about a host the engine raised a moment ago
+        createProcess("@creator");
+        createRaisingWorkflow();
+        this.context.resourceResolver().commit();
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject(engine, "handlers", List.of(new RaisingHandler(), new StartWorkflowHandler()));
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
+
+        engine.receiveEvent(as("/Submissions", EngineFixture.REQUESTER), RAISE);
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER},
+            (String[]) read(RAISED + "/wf:instances/timeOffRequest/" + APPROVE).get("performers"));
+    }
+
+    @Test
+    void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
+    {
+        // The rule a group cannot express: this request comes back to the person who made it, not to everyone
+        // who could have made one
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("completed", read(TASK).get("status"));
+    }
+
+    @Test
+    void admitsThemEvenWhenTheyTypedTheirNameDifferentlyAtLogin() throws Exception
+    {
+        // A login resolves case-insensitively, so the same person arrives as "demo-requester" one day and as
+        // "DEMO-REQUESTER" the next while the repository knows them as one user. @creator compares the actor
+        // against what was recorded when the host was raised, so an actor taken from the spelling would refuse
+        // the very person the task belongs to
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
+            EngineFixture.REQUESTER.toUpperCase(Locale.ROOT)), APPROVED);
+
+        assertEquals("completed", read(TASK).get("status"));
+    }
+
+    @Test
+    void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
+    {
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(as(TASK, "somebody-else"), APPROVED));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    @Test
+    void offersCompletionToWhoeverRaisedTheHostOfATaskThatComesBackToThem() throws Exception
+    {
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(TaskCompletion.COMPLETE_EVENT),
+            engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
+        assertEquals(Set.of(), engine.getAvailableEvents(as(TASK, "somebody-else")));
     }
 
     @Test
@@ -726,6 +896,7 @@ class UserWorkflowTest
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -894,6 +1065,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
@@ -914,6 +1086,33 @@ class UserWorkflowTest
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
+    }
+
+    /**
+     * Raises a submission under the homepage it is aimed at, pointing it at the process, as {@code createSubmission}
+     * does, and says so the way a handler that creates something does.
+     */
+    private static final class RaisingHandler implements ServiceTaskHandler
+    {
+        @Override
+        public String getName()
+        {
+            return "raise";
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext taskContext) throws PersistenceException
+        {
+            final ResourceResolver resolver = taskContext.getResourceResolver();
+            final Resource raised = resolver.create(taskContext.getTarget(), "raised", Map.of(TYPE, "sub/Submission"));
+            resolver.create(raised, "wf:instances", Map.of(TYPE, "wf/WorkflowInstances"));
+            try {
+                raised.adaptTo(Node.class).setProperty("workflow", resolver.getResource(PROCESS).adaptTo(Node.class));
+            } catch (final RepositoryException e) {
+                throw new PersistenceException(e.getMessage(), e);
+            }
+            taskContext.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, raised.getPath());
+        }
     }
 
     /**

@@ -19,8 +19,9 @@
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
+import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { labelOf, offers, pathOf } from "./schemaModel";
+import { labelOf, pathOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 

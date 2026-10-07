@@ -36,7 +36,8 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -109,21 +110,25 @@ final class InstanceRunner
 
     private final FlowRouting routing;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
-     * @param conditions the evaluator a gateway's guards are asked of
+     * @param routing how a gateway's guards decide where execution goes next
+     * @param principals what the names a definition uses for people mean
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final ConditionEvaluator conditions)
+        final FlowRouting routing, final PrincipalService principals)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
-        this.routing = new FlowRouting(conditions);
+        this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -431,7 +436,7 @@ final class InstanceRunner
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
+            Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class),
                 "A workflow's host is taggable").tag(hostTag, true);
         }
     }
@@ -490,6 +495,13 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            // Copied so the task states its own terms: whoever has to do it can read it without being able to read
+            // the definition, and what it offers cannot change under them while it waits
+            "outcomeOptions", activity.getOutcomeOptions().toArray(String[]::new),
+            // Recorded for the same reason, and answered here because "@creator" is a question about this host
+            // that nothing reading the task later is holding the host to ask
+            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
+                .toArray(String[]::new),
             STATUS_PROPERTY, OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
@@ -660,10 +672,10 @@ final class InstanceRunner
     /**
      * The resource a workflow instance drives, two levels up past its container.
      *
-     * @param instance the running instance
+     * @param instance a workflow instance
      * @return the host resource
      */
-    private Resource host(final Resource instance)
+    static Resource hostOf(final Resource instance)
     {
         return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
             "An instance always lives in a container").getParent(), "A container always lives in its host");
