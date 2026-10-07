@@ -37,10 +37,7 @@ public @interface IapJwtTokenManagerConfiguration
      */
     @AttributeDefinition(name = "Identity",
         description = "How this instance names itself to its peers, normally its public base URL, such as "
-            + "https://iap.example.org; the platform sets it from the IAP_PUBLIC_URL environment variable. It is "
-            + "the issuer of every token this instance mints, and the audience a "
-            + "token must name for this instance to accept it. A peer must register exactly this value, character "
-            + "for character: it is compared without normalization, so a trailing slash makes a different "
-            + "identity. A value containing a colon must be an absolute URI.")
+            + "https://iap.example.org; It is the issuer of every token this instance mints, and the audience a "
+            + "token must name for this instance to accept it. A peer must register exactly this value.")
     String identity() default "http://localhost:8080";
 }
