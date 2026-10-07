@@ -38,6 +38,8 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -111,8 +113,8 @@ class MarkCompletenessHandlerTest
     void setUp() throws Exception
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Section.class, Question.class,
-            Answer.class, Document.class, Submission.class);
+            SchemaVersion.class, FormRequirement.class, ClassificationRequirement.class, DocumentRequirement.class,
+            ApprovalRequirement.class, Section.class, Question.class, Answer.class, Document.class, Submission.class);
         Tagging.enable(this.context);
         // Registered as a service rather than injected into the handler: which requirements apply is the
         // submission model's question now, and the model asks for the evaluator through @OSGiService
@@ -281,6 +283,36 @@ class MarkCompletenessHandlerTest
         this.handler.execute(context());
 
         assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE));
+    }
+
+    @Test
+    void holdsTheTagOnWhileAClassificationIsUnanswered() throws Exception
+    {
+        // A classification is a form requirement of its own type, and its question is required like any other
+        this.context.create().resource(VERSION_PATH + "/isProposal", Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Is it a proposal",
+            "prompt", "Is this a research proposal?", "document", "doctorsNote"));
+        this.context.create().resource(VERSION_PATH + "/isProposal/decision", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Is it a proposal?", "minAnswers", 1L));
+        answer(START_DATE, "2026-11-23");
+        answer(REASON, "A break");
+
+        this.handler.execute(context());
+
+        assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE));
+    }
+
+    @Test
+    void doesNotWaitForAnApprovalSomebodyElseGrants() throws Exception
+    {
+        this.context.create().resource(VERSION_PATH + "/reb", Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "REB approval"));
+        answer(START_DATE, "2026-11-23");
+        answer(REASON, "A break");
+
+        this.handler.execute(context());
+
+        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE));
     }
 
     private Set<String> tags()

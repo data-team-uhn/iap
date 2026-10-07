@@ -19,13 +19,14 @@ package io.uhndata.iap.submissions.internal;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
@@ -61,12 +62,6 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     /** The tag saying that something the submission is asked for has not been answered. */
     public static final String INCOMPLETE = "incomplete";
 
-    /**
-     * The requirement kinds a submission's own author fulfils. Approvals are deliberately absent: somebody else
-     * grants those, later, so counting them would leave every submission permanently short of one.
-     */
-    private static final Set<String> SUBMITTER_SUPPLIES = Set.of("sch/FormRequirement", "sch/DocumentRequirement");
-
     @Override
     public String getName()
     {
@@ -99,7 +94,7 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
      * computed over every requirement kind would never come off.</p>
      *
      * <p>Which kinds those are is a property of who fulfils them, not of where the process has got to, which is
-     * why it is a constant here rather than workflow configuration. This tag is not what blocks anything: whether
+     * why it is fixed in code here rather than workflow configuration. This tag is not what blocks anything: whether
      * a step may be taken is the step's own answer, and it says so itself. This only reports, so that a listing can
      * show which drafts still want something without reading each one's process.</p>
      *
@@ -112,8 +107,24 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     private List<Requirement> missing(final Submission submission)
     {
         return submission.getMissingRequirements().stream()
-            .filter(requirement -> SUBMITTER_SUPPLIES.contains(requirement.getType()))
+            .filter(MarkCompletenessHandler::isSuppliedBySubmitter)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Whether a requirement is one the submission's own author fulfils: a form, of any kind, or a document.
+     * Approvals are not: somebody else grants those, later, so counting them would leave every submission
+     * permanently short of one.
+     *
+     * <p>By model class rather than resource type, so a form requirement with a type of its own, such as a
+     * classification, counts too.</p>
+     *
+     * @param requirement a requirement the submission has not fulfilled
+     * @return {@code true} when its author is the one to fulfil it
+     */
+    private static boolean isSuppliedBySubmitter(final Requirement requirement)
+    {
+        return requirement instanceof FormRequirement || requirement instanceof DocumentRequirement;
     }
 
     /**
