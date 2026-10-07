@@ -17,23 +17,16 @@
  */
 package io.uhndata.iap.schemas.editing.internal;
 
-import java.util.Objects;
-
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
- * What the schema handlers share: telling a schema from a version, and making content writable.
+ * What the schema handlers share: telling a schema from a version, and what to say when it is neither.
  *
  * @version $Id$
  * @since 0.1.0
@@ -80,28 +73,5 @@ final class SchemaContent
     {
         return new WorkflowDefinitionException(
             "The " + handler + " handler serves schemas and schema versions, not " + target.getResourceType());
-    }
-
-    /**
-     * Makes content writable. Schemas and versions are versionable, and content created through the Sling POST
-     * servlet is checked in, which makes it and everything under it read-only; this checks out whichever
-     * versionable node is holding it, as the POST servlet's own auto-checkout would. Only tags escape the
-     * read-only state, being ignored by versioning.
-     *
-     * <p>A checkout takes effect at once, outside the engine's commit, so a refused edit leaves the node
-     * checked out, which changes nothing about what it holds.</p>
-     *
-     * @param resource the node about to be modified, or whose children are about to change
-     * @throws PersistenceException when the checkout fails, or nothing versionable holds the node read-only
-     */
-    static void checkOut(@NotNull final Resource resource) throws PersistenceException
-    {
-        final Node node = Objects.requireNonNull(resource.adaptTo(Node.class),
-            "Schemas are stored in a JCR repository");
-        try {
-            VersioningUtils.checkOut(node);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Cannot check out " + resource.getPath(), e);
-        }
     }
 }

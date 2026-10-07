@@ -24,17 +24,22 @@ import type { AuthenticatedFetch } from "./reLogin";
 // refusal carries the engine's reason, which is already worded for the person reading it, so it is
 // passed on as it stands; anything else is described like any other failed request.
 //
+// The parameters go as a form, or as the FormData given, for an event that brings a file.
+//
 // Resolves with the path of what the event created, when it created something: the engine answers
 // with a redirect, which fetch has already followed.
 export async function sendEvent(
   doFetch: AuthenticatedFetch,
   path: string,
   event: string,
-  params: Record<string, string> = {},
+  params: Record<string, string> | FormData = {},
 ): Promise<string | undefined> {
   let response: Response;
   try {
-    response = await doFetch(`${path}.${event}.json`, { method: "POST", body: new URLSearchParams(params) });
+    response = await doFetch(`${path}.${event}.json`, {
+      method: "POST",
+      body: params instanceof FormData ? params : new URLSearchParams(params),
+    });
   } catch (error: unknown) {
     throw new Error(describeRequestFailure(error));
   }
@@ -49,3 +54,8 @@ export async function sendEvent(
   }
   return undefined;
 }
+
+// Whether the server offers an event on a node it serialized with the `events` selector, which lists
+// in `@events` the events the current user may send it: whether the event applies there, for them.
+export const offers = (node: { "@events"?: unknown }, event: string): boolean =>
+  Array.isArray(node["@events"]) && node["@events"].includes(event);

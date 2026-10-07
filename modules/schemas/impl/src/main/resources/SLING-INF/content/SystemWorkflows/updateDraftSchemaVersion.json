@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Edit a draft schema version",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
     "description": "Changes anything about a version while it is a draft.",
     "requested": {

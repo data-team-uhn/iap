@@ -19,8 +19,8 @@
 import { Stack, Typography } from "@mui/material";
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import LifecycleChip from "./LifecycleChip";
 import { descriptionOf, type JcrNode, labelOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 

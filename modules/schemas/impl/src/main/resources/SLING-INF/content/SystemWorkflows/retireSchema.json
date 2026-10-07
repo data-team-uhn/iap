@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Retire a schema",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "sch/Schema",
     "description": "Closes a schema as a whole: every version of it is retired along with it, without changing their own state.",
     "requested": {

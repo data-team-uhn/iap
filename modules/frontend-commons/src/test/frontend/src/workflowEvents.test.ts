@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
 
@@ -28,6 +28,16 @@ describe("sendEvent", () => {
 
     expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.retire.json",
       expect.objectContaining({ method: "POST" }));
+  });
+
+  it("sends a file as the body it was given", async () => {
+    const doFetch = answer({ ok: true, status: 200, redirected: false });
+    const upload = new FormData();
+    upload.set("bpmn.xml", new File([ "<definitions/>" ], "bpmn.xml"));
+
+    await sendEvent(doFetch, "/Workflows/review/v2", "save", upload);
+
+    expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.save.json", { method: "POST", body: upload });
   });
 
   it("resolves with what the event created", async () => {
@@ -56,5 +66,18 @@ describe("sendEvent", () => {
     const doFetch = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("could not be reached");
+  });
+});
+
+describe("offers", () => {
+  it("offers what the server listed in @events, and nothing else", () => {
+    expect(offers({ "@events": [ "save", "activate" ] }, "activate")).toBe(true);
+    expect(offers({ "@events": [ "save" ] }, "activate")).toBe(false);
+  });
+
+  it("offers nothing on a node serialized without a list of events", () => {
+    expect(offers({}, "save")).toBe(false);
+    expect(offers({ "@events": "save" }, "save")).toBe(false);
+    expect(offers({ "@events": [ null, 3 ] }, "save")).toBe(false);
   });
 });

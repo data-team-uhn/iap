@@ -31,6 +31,7 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -151,8 +152,8 @@ public class NotifyHandler implements ServiceTaskHandler
     private static void carry(final WorkflowTaskContext context, final NotificationContext.Builder builder,
         final String name)
     {
-        final Object value = context.getEvent().get(name);
-        if (value instanceof String && !((String) value).isBlank()) {
+        final String value = Payloads.text(context.getEvent(), name);
+        if (value != null) {
             builder.with(name, value);
         }
     }

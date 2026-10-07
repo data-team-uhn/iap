@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -45,6 +46,9 @@ public class WorkflowVersion extends Entity
     /** The {@code sling:resourceType} of a {@code wf:WorkflowVersion} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowVersion";
 
+    /** The lifecycle tag of the version new instances start from. */
+    public static final String ACTIVE_TAG = "active";
+
     /** The name of the {@code nt:file} child holding the BPMN source. */
     private static final String BPMN_FILE = "bpmn.xml";
 
@@ -55,10 +59,13 @@ public class WorkflowVersion extends Entity
     private String description;
 
     @ValueMapValue
-    private boolean active;
+    private String[] tags;
 
     @ValueMapValue
     private String bpmnXmlParsedHash;
+
+    @ValueMapValue
+    private boolean bpmnAuthoritative;
 
     @ValueMapValue
     private String targetResourceType;
@@ -86,13 +93,19 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * Whether new instances may be created from this version.
+     * Whether new instances may be started from this version: whether it carries the {@code active} lifecycle tag
+     * itself. A version on {@code trial} does not: starting one is a deliberate act on that version, not the
+     * workflow's default answer to being asked to run.
+     *
+     * <p>Read off the stored tags rather than through the tags service, so that which version runs never depends
+     * on that service being up: a version would otherwise read as inactive, and every event it handles as
+     * unexpected, for as long as the service were away.</p>
      *
      * @return {@code true} if this version accepts new instances
      */
     public boolean isActive()
     {
-        return this.active;
+        return this.tags != null && Arrays.asList(this.tags).contains(ACTIVE_TAG);
     }
 
     /**
@@ -122,6 +135,24 @@ public class WorkflowVersion extends Entity
     public Resource getBpmnFile()
     {
         return this.resource.getChild(BPMN_FILE);
+    }
+
+    /**
+     * Whether this version's diagram owns its flow nodes. When set, the commit editor derives them from the
+     * {@link #getBpmnFile BPMN source} and removes whatever the diagram no longer says; when not, the graph was
+     * authored by hand and is left exactly as it was written, because the translation cannot yet carry everything
+     * such a graph holds.
+     *
+     * <p>
+     * It is what a version was authored as rather than a state it moves through, so it travels with the version:
+     * a draft copied from another one is authored the way its source was, and carries the same answer.
+     * </p>
+     *
+     * @return {@code true} if the diagram is the source of this version's graph
+     */
+    public boolean isBpmnAuthoritative()
+    {
+        return this.bpmnAuthoritative;
     }
 
     /**

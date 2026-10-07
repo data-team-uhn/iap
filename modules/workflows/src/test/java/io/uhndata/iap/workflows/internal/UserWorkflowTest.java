@@ -36,12 +36,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.ExclusiveGateway;
@@ -53,7 +55,10 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -118,9 +123,9 @@ class UserWorkflowTest
     private void createProcess(final String... performers)
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE)));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toApproval", Map.of(
@@ -152,9 +157,9 @@ class UserWorkflowTest
     {
         this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
         this.context.create().resource("/SystemWorkflows/putUnderWorkflow", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow"));
         this.context.create().resource(BOOTSTRAP, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true,
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE),
             "targetResourceType", "sub/Submission"));
         this.context.create().resource(BOOTSTRAP + "/raised", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "raised", "messageName", "start",
@@ -435,6 +440,21 @@ class UserWorkflowTest
     }
 
     @Test
+    void refusesToCloseADecisionWithoutAnOutcome() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
+            .adaptTo(ModifiableValueMap.class).put("outcomes", new String[] {"approved", "rejected"});
+        final WorkflowEngine engine = started();
+
+        // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
+        assertThrows(InvalidPayloadException.class, () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
+            new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, " "))));
+        assertEquals("created", read(TASK).get("status"));
+        assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
     void leavesNothingBehindWhenTheDecisionCannotBeCommitted() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
@@ -526,11 +546,11 @@ class UserWorkflowTest
     }
 
     @Test
-    void refusesToStartAnInactiveProcess() throws Exception
+    void refusesToStartARetiredProcess() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS)
-            .adaptTo(ModifiableValueMap.class).put("active", false);
+            .adaptTo(ModifiableValueMap.class).put(TAGS, tags("retired"));
 
         final WorkflowDefinitionException rejection =
             assertThrows(WorkflowDefinitionException.class, this::started);

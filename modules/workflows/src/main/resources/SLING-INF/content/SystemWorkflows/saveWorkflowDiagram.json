@@ -1,0 +1,54 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Save a workflow version's process",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "Replaces the process of a draft version.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Diagram saved",
+      "messageName": "save",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toSave": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSave",
+        "targetRef": "save"
+      }
+    },
+    "save": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "save",
+      "label": "Store the diagram",
+      "handler": "saveWorkflowDiagram",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Diagram saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

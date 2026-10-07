@@ -33,6 +33,12 @@ export interface EditableField {
 
 export const SCHEMAS_ROOT = "/Schemas";
 
+// How listings read schemas and versions. `simple` drops the repository's bookkeeping, and with a
+// version its content too. `events` and `fields` add what the current user may do with each node, and
+// which of its fields an update would change. `-active` keeps the drafts and the retired, which the
+// schema serialization leaves out of a listing by default.
+export const listing = (depth: number): string => `${depth}.simple.events.fields.-active`;
+
 const isNode = (value: unknown, primaryType: string): value is JcrNode =>
   typeof value === "object" && value !== null && (value as JcrNode)["jcr:primaryType"] === primaryType;
 
@@ -61,9 +67,6 @@ export const versionsOf = (schema: JcrNode): JcrNode[] => Object.values(schema)
 
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
-
-// Whether the server would take this event on a schema or a version from the current user
-export const offers = (node: JcrNode, event: string): boolean => strings(node["@events"]).includes(event);
 
 const isField = (value: unknown): value is EditableField =>
   typeof value === "object" && value !== null

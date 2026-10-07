@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -31,6 +32,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
  * Completes a user task: records what the person decided, and carries their instance on from there.
@@ -85,8 +87,8 @@ final class TaskCompletion
      * @param event the incoming event
      * @param actor the user completing it
      * @param performer how the resumed instance performs any service task it meets
-     * @throws WorkflowException when the event does not apply, the actor may not complete it, or the definition
-     *             cannot be run on from here
+     * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
+     *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
@@ -110,8 +112,12 @@ final class TaskCompletion
         }
         PerformerCheck.verify(resolver, definition, actor);
 
-        final Object outcome = event.get(OUTCOME_PARAMETER);
-        new InstanceRunner(resolver, performer, actor)
-            .complete(task, outcome instanceof String ? (String) outcome : null);
+        final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
+        // A decision left blank would let the next gateway route on whatever an earlier task decided
+        if (outcome == null && !definition.getOutcomes().isEmpty()) {
+            throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
+                + String.join(", ", definition.getOutcomes()));
+        }
+        new InstanceRunner(resolver, performer, actor).complete(task, outcome);
     }
 }

@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Publish a schema version",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
     "description": "Opens a draft to new submissions, once nothing in it would break when frozen. The version it replaces is left alone.",
     "requested": {

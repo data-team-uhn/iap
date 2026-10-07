@@ -16,8 +16,9 @@
  * limitations under the License.
  */
 
-import { SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
-import { listing, useNode } from "./useNode";
+import { useNode } from "@iap/frontend-commons/useNode";
+
+import { listing, SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
 
 const asNode = (node: JcrNode): JcrNode => node;
 

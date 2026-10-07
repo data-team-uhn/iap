@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Trial",
+  "description": "Being tried as it stands: frozen like anything past drafting, but not yet what new instances are started from.",
+  "category": ["lifecycle"],
+  "targetResourceTypes": ["wf/WorkflowVersion"],
+  "color": "#9a6700",
+  "icon": "FactCheckOutlined",
+  "order": 12
+}

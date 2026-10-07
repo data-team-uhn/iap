@@ -33,7 +33,6 @@ import io.uhndata.iap.entities.models.Entity;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -62,24 +61,21 @@ class WorkflowDefinitionTest
     {
         final Resource resource = this.context.create().resource(PATH, Map.of(
             TYPE, WorkflowDefinition.RESOURCE_TYPE,
-            "title", "Time off request",
-            "active", true));
+            "title", "Time off request"));
         final WorkflowDefinition definition = resource.adaptTo(WorkflowDefinition.class);
 
         assertNotNull(definition);
         assertEquals("Time off request", definition.getTitle());
-        assertTrue(definition.isActive());
     }
 
     @Test
-    void defaultsToInactive()
+    void readsAnEmptyDefinition()
     {
         final Resource resource = this.context.create().resource(PATH, TYPE, WorkflowDefinition.RESOURCE_TYPE);
         final WorkflowDefinition definition = resource.adaptTo(WorkflowDefinition.class);
 
         assertNotNull(definition);
         assertNull(definition.getTitle());
-        assertFalse(definition.isActive());
         assertTrue(definition.getVersions().isEmpty());
     }
 

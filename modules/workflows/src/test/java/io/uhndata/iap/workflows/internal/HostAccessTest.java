@@ -47,7 +47,10 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,7 +81,7 @@ class HostAccessTest
         WorkflowFixture.setUp(this.context);
         this.context.create().resource(HOST, TYPE, "sub/Submission");
         this.context.create().resource(VERSION, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE)));
         // A user task, whose performers are people the process involves, and a service task, whose "performers"
         // are nobody at all: a handler is not somebody who needs to see anything
         this.context.create().resource(VERSION + "/approve", Map.of(

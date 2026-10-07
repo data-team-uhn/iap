@@ -19,6 +19,7 @@
 import { useState, type ReactNode } from "react";
 
 import { DialogContentText, IconButton, Tooltip } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
 import { useAuthenticatedFetch } from "../reLogin";
 import { sendEvent } from "../workflowEvents";
@@ -67,15 +68,18 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip.
-export function ActionIcon({ label, icon, onClick }: {
+// One action as an icon button, named by its tooltip. An action that only goes somewhere is a link there.
+export function ActionIcon({ label, icon, onClick, to }: {
   label: string;
   icon: ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
+  to?: string;
 }) {
   return (
     <Tooltip title={label}>
-      <IconButton size="small" aria-label={label} onClick={onClick}>{icon}</IconButton>
+      { to === undefined
+        ? <IconButton size="small" aria-label={label} onClick={onClick}>{icon}</IconButton>
+        : <IconButton size="small" aria-label={label} component={RouterLink} to={to}>{icon}</IconButton> }
     </Tooltip>
   );
 }

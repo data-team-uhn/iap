@@ -27,6 +27,10 @@
 //
 // Workflow Homepage Nodes
 //
+// Both of these must be created as a direct child of the repository root.
+// BpmnXmlSyncEditor only operates on workflows located in a root level
+// homepages so a homepage stored deeper would never have it's bpmn.xmls parsed
+//
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
@@ -89,8 +93,8 @@
   // Human-readable name for this workflow
   - title (STRING) mandatory
 
-  // When false, no new instances may be created from this definition
-  - active (BOOLEAN) = false
+  // No 'active' property: whether a definition may run is read off its versions' lifecycle tags,
+  // not stored, so the two can't disagree.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -124,8 +128,8 @@
   // The flag is temporary. It goes away once the synchronization process is fully functional.
   - bpmnAuthoritative (BOOLEAN) = false
 
-  // When false, no new instances may be created from this version
-  - active (BOOLEAN) = false
+  // Where it stands is its `lifecycle` tag: `draft`, `trial`, `active` or `retired`.
+  // Only an active version is what new instances start from.
 
   // The resource type of the node whose events this version handles, e.g.
   // "wf/WorkflowsHomepage". This is how the engine matches an incoming event's

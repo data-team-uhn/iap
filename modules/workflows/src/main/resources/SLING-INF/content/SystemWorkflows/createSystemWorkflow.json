@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Create a system workflow",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "wf/SystemWorkflowsHomepage",
+    "description": "Creates a system workflow, named after its title, with a first version as a draft. Administrators only.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "System workflow requested",
+      "messageName": "create",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the system workflow",
+      "handler": "createEntity",
+      "entityType": "wf:WorkflowDefinition",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toAddVersion": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAddVersion",
+        "targetRef": "addVersion"
+      }
+    },
+    "addVersion": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "addVersion",
+      "label": "Give it a first version",
+      "handler": "callActivity",
+      "message": "createVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CallActivity",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "System workflow created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

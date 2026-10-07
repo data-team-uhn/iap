@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Create a submission",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "sub/SubmissionsHomepage",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",

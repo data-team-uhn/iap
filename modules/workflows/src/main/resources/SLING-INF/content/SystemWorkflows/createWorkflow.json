@@ -1,13 +1,12 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Create a workflow",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "wf/WorkflowsHomepage",
-    "description": "What happens when a new workflow is asked for: create the definition, empty and inactive, ready for the editor. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
+    "description": "Creates a workflow, named after its title, with a first version as a draft. Administrators only.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -28,6 +27,19 @@
       "handler": "createEntity",
       "entityType": "wf:WorkflowDefinition",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toAddVersion": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAddVersion",
+        "targetRef": "addVersion"
+      }
+    },
+    "addVersion": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "addVersion",
+      "label": "Give it a first version",
+      "handler": "callActivity",
+      "message": "createVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CallActivity",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

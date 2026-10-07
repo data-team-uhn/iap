@@ -16,60 +16,35 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { Skeleton, Typography } from "@mui/material";
 
-import { CircularProgress, List, ListItem, ListItemText, Typography } from "@mui/material";
+import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
-import LoadError from "@iap/frontend-commons/components/LoadError";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
+import { useWorkflowCounts } from "./useWorkflowCounts";
+import { adminUrl } from "./workflowModel";
 
-import { loadWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
-
-// The administration console widget summarizing the workflows: one line per workflow version,
-// read-only. It reuses the same listing plumbing as the BPMN editor, which itself is behind the
-// widget frame's "Manage" action (see the extension node).
+// The administration console widget summarizing the workflows: how many each homepage holds, each
+// homepage's name leading to its own listing. The frame's "Manage workflows" action, from the
+// extension node, leads to the one every deployment has.
 function WorkflowsWidget() {
-  const [ versions, setVersions ] = useState<WorkflowVersionSummary[]>();
-  const [ loadError, setLoadError ] = useState<string>();
+  const { counts, loading } = useWorkflowCounts();
 
-  const authenticatedFetch = useAuthenticatedFetch();
-
-  const load = useCallback((): Promise<void> =>
-    loadWorkflowList(authenticatedFetch)
-      .then(loaded => {
-        setVersions(loaded);
-        setLoadError(undefined);
-      })
-      .catch((error: unknown) => {
-        setLoadError(describeRequestFailure(error));
-      }), [authenticatedFetch]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loadError) {
-    return <LoadError title="The workflows could not be loaded" message={loadError} onRetry={load} />;
+  if (loading) {
+    return <Skeleton variant="rounded" height={96} aria-label="Loading the workflows" />;
   }
-  if (!versions) {
-    return <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />;
-  }
-  if (versions.length === 0) {
+  if (counts.length === 0) {
     return <Typography variant="placeholder">No workflows are defined yet.</Typography>;
   }
-
   return (
-    <List dense disablePadding>
-      { versions.map(version => (
-        <ListItem key={version.path} disableGutters sx={{ py: 0 }}>
-          <ListItemText
-            primary={`${version.title} (v${version.version})`}
-            secondary={version.description || null}
-          />
-        </ListItem>
-      )) }
-    </List>
+    <WidgetStatList
+      stats={counts.map(homepage => ({
+        label: homepage.title,
+        value: homepage.count,
+        approximate: homepage.atLeast,
+        href: adminUrl(homepage.path),
+        unknownTitle: "The workflows here could not be counted",
+      }))}
+    />
   );
 }
 

@@ -45,9 +45,6 @@ public class WorkflowDefinition extends Entity
     @ValueMapValue
     private String title;
 
-    @ValueMapValue
-    private boolean active;
-
     /**
      * The human-readable name of this workflow.
      *
@@ -60,18 +57,7 @@ public class WorkflowDefinition extends Entity
     }
 
     /**
-     * Whether new instances may be created from this workflow at all. Each {@link WorkflowVersion version} carries
-     * its own flag as well, and both must be set for a version to accept new instances.
-     *
-     * @return {@code true} if this workflow accepts new instances
-     */
-    public boolean isActive()
-    {
-        return this.active;
-    }
-
-    /**
-     * Every version of this workflow, whether active or not.
+     * Every version of this workflow, wherever each one stands in its lifecycle.
      *
      * @return a list of versions, empty if none
      */

@@ -1,0 +1,70 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Open a new version of a workflow",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "wf/WorkflowDefinition",
+    "description": "Adds a version to a workflow, as a draft: a new one, or a copy of the version the event names as its source.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Version requested",
+      "messageName": "createVersion",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the version",
+      "handler": "createWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toCopy": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCopy",
+        "targetRef": "copy"
+      }
+    },
+    "copy": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "copy",
+      "label": "Copy the source version, if one is named",
+      "handler": "copyContent",
+      "sourceType": "wf/WorkflowVersion",
+      "skipProperties": ["version"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMarkDraft": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkDraft",
+        "targetRef": "markDraft"
+      }
+    },
+    "markDraft": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markDraft",
+      "label": "Mark it as a draft",
+      "handler": "addTag",
+      "tag": "draft",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

@@ -17,6 +17,7 @@
  */
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import { ActionIcon, EventAction } from "@iap/frontend-commons/components/EventAction";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
@@ -116,5 +117,11 @@ describe("ActionIcon", () => {
 
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalled();
+  });
+
+  it("is a link when the action only goes somewhere", () => {
+    render(<MemoryRouter><ActionIcon label="Edit" icon={<span />} to="/admin/workflows/review/v2" /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/admin/workflows/review/v2");
   });
 });

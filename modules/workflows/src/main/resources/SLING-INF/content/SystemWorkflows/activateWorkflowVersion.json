@@ -1,0 +1,69 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Activate a workflow version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "protectedFrom": ["retire"],
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "Makes a version the one new instances start from, and retires the one it replaces.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Activation requested",
+      "messageName": "activate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes any",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft", "trial", "retired"]
+        }
+      },
+      "toRetire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRetire",
+        "targetRef": "retire"
+      }
+    },
+    "retire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "retire",
+      "label": "Retire the version this one supersedes",
+      "handler": "retireActiveVersions",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toPromote": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toPromote",
+        "targetRef": "promote"
+      }
+    },
+    "promote": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "promote",
+      "label": "Make this the active version",
+      "handler": "addTag",
+      "tag": "active",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version activated",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

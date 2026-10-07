@@ -22,6 +22,8 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.version.VersionException;
 
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -32,6 +34,7 @@ import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -111,5 +114,38 @@ class VersioningUtilsTest
 
         assertTrue(refusal.getMessage().contains("/orphan"), refusal.getMessage());
         Mockito.verify(root, Mockito.never()).getParent();
+    }
+
+    @Test
+    void checksOutWhatAResourceIs() throws PersistenceException, RepositoryException
+    {
+        final Resource part = this.context.resourceResolver().getResource("/record/part");
+
+        assertEquals("/record", VersioningUtils.checkOut(part));
+
+        assertTrue(this.record.isCheckedOut());
+    }
+
+    @Test
+    void leavesAResourceThatIsNoNodeAlone() throws PersistenceException
+    {
+        assertNull(VersioningUtils.checkOut(Mockito.mock(Resource.class)));
+    }
+
+    @Test
+    void reportsAResourceThatCannotBeCheckedOutAsAFailedWrite() throws RepositoryException
+    {
+        final Resource resource = Mockito.mock(Resource.class);
+        final Node node = Mockito.mock(Node.class);
+        final RepositoryException gone = new RepositoryException("gone");
+        Mockito.when(node.isCheckedOut()).thenThrow(gone);
+        Mockito.when(resource.adaptTo(Node.class)).thenReturn(node);
+        Mockito.when(resource.getPath()).thenReturn("/record");
+
+        final PersistenceException refusal =
+            assertThrows(PersistenceException.class, () -> VersioningUtils.checkOut(resource));
+
+        assertTrue(refusal.getMessage().contains("/record"), refusal.getMessage());
+        assertInstanceOf(RepositoryException.class, refusal.getCause());
     }
 }

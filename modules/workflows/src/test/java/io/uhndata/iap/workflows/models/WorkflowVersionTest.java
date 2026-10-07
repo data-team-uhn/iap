@@ -32,7 +32,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -67,8 +70,9 @@ class WorkflowVersionTest
             TYPE, WorkflowVersion.RESOURCE_TYPE,
             "version", "1.0",
             "description", "The first cut",
-            "active", true,
+            TAGS, tags(ACTIVE),
             "bpmnXmlParsedHash", "abc123",
+            "bpmnAuthoritative", true,
             "targetResourceType", "wf/WorkflowsHomepage"));
         // The source is a file child, not a property, so it is loaded as one
         this.context.load().binaryFile(new ByteArrayInputStream(BPMN.getBytes(StandardCharsets.UTF_8)),
@@ -81,6 +85,7 @@ class WorkflowVersionTest
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
+        assertTrue(version.isBpmnAuthoritative());
         assertEquals("wf/WorkflowsHomepage", version.getTargetResourceType());
     }
 
@@ -112,11 +117,45 @@ class WorkflowVersionTest
         assertNull(version.getDescription());
         assertNull(version.getBpmnFile());
         assertNull(version.getBpmnXmlParsedHash());
+        // A version says nothing about owning its graph until something says so: the diagram derives
+        // nothing for it, which is the safe reading for a graph that may have been authored by hand
+        assertFalse(version.isBpmnAuthoritative());
         assertNull(version.getTargetResourceType());
+        // A version carrying no lifecycle tag is not one instances start from
         assertFalse(version.isActive());
         assertTrue(version.getFlowNodes().isEmpty());
         assertTrue(version.getStartEvents().isEmpty());
         assertNull(version.getFlowNode("nothing"));
+    }
+
+    @Test
+    void acceptsInstancesOnlyWhenTaggedActive()
+    {
+        // A trial is being tried out, which is not the same as being the version a workflow runs, and retired is
+        // just as much a "no new instances" answer as draft
+        assertFalse(this.isActive("draft"));
+        assertFalse(this.isActive("trial"));
+        assertFalse(this.isActive("retired"));
+        assertTrue(this.isActive(ACTIVE));
+        // Its other tags are not this question's business, and a tag is a name: spelled otherwise, it is another
+        assertTrue(this.isActive("sensitive", ACTIVE));
+        assertFalse(this.isActive("ACTIVE"));
+    }
+
+    /**
+     * Whether a version carrying the given tags itself accepts new instances.
+     *
+     * @param names the tags to store on it
+     * @return what the model answers
+     */
+    private boolean isActive(final String... names)
+    {
+        // A path of its own per call, so the cases don't overwrite each other's node
+        final Resource resource = this.context.create().resource(VERSION_PATH + "-" + String.join("-", names),
+            Map.of(TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(names)));
+        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
+        assertNotNull(version);
+        return version.isActive();
     }
 
     @Test

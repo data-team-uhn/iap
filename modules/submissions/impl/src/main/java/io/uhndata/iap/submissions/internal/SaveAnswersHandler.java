@@ -23,9 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -35,6 +32,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.ReferenceUtils;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -63,7 +62,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class SaveAnswersHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "saveAnswers";
+    public static final String HANDLER_NAME = "saveAnswers";
 
     private static final String QUESTION_PROPERTY = "question";
 
@@ -72,7 +71,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override
@@ -92,6 +91,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             answers.put(question(schemaVersion, entry.getKey()), values(entry.getKey(), entry.getValue()));
         }
         final Map<String, String> existing = answersByQuestion(submission);
+        VersioningUtils.checkOut(target);
         for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
             record(existing, target, answer.getKey(), answer.getValue());
         }
@@ -227,7 +227,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
             Map.of("jcr:primaryType", "sub:Answer", VALUE_PROPERTY, values));
-        reference(answer, question);
+        ReferenceUtils.setReference(answer, QUESTION_PROPERTY, question);
     }
 
     /**
@@ -246,27 +246,6 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             }
         }
         return byQuestion;
-    }
-
-    /**
-     * Points a fresh answer at its question with a real {@code REFERENCE}, which has to go through the JCR API: a
-     * plain string would carry the right identifier with the wrong type, and the node type rejects it at commit.
-     *
-     * @param answer the answer just created
-     * @param question the question it answers
-     * @throws PersistenceException when the repository refuses the reference
-     */
-    private void reference(final Resource answer, final Resource question) throws PersistenceException
-    {
-        final Node answerNode = Objects.requireNonNull(answer.adaptTo(Node.class),
-            "A freshly created answer is always backed by a JCR node");
-        final Node questionNode = Objects.requireNonNull(question.adaptTo(Node.class),
-            "A question read from the schema is always backed by a JCR node");
-        try {
-            answerNode.setProperty(QUESTION_PROPERTY, questionNode);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not reference the question", e);
-        }
     }
 
     private ModifiableValueMap modifiable(final Resource resource)

@@ -21,6 +21,8 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.version.VersionException;
 
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -65,5 +67,30 @@ public final class VersioningUtils
         final String path = versionable.getPath();
         versionable.getSession().getWorkspace().getVersionManager().checkout(path);
         return path;
+    }
+
+    /**
+     * Makes a resource writable, as {@link #checkOut(Node)} does a node, failing the way a write through the resource
+     * API would. Content created through the Sling POST servlet is checked in, which makes it and everything under it
+     * read-only; this checks out whichever versionable node is holding it, as the POST servlet's own auto-checkout
+     * would. A resource that is not a node is under no version control, and so writable already.
+     *
+     * @param resource the resource about to be modified, or whose children are about to change
+     * @return the path of the versionable node checked out, for whoever means to check it back in, or {@code null}
+     *         when the resource was writable already
+     * @throws PersistenceException when the checkout fails, or nothing versionable holds the resource read-only
+     */
+    @Nullable
+    public static String checkOut(@NotNull final Resource resource) throws PersistenceException
+    {
+        final Node node = resource.adaptTo(Node.class);
+        if (node == null) {
+            return null;
+        }
+        try {
+            return checkOut(node);
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Cannot check out " + resource.getPath(), e);
+        }
     }
 }

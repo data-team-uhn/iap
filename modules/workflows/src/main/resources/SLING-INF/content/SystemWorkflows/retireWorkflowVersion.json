@@ -1,0 +1,73 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retire a workflow version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "Withdraws the active version: running instances carry on, but no new ones start until a version is activated.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Retirement requested",
+      "messageName": "retire",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "active": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "tags"
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["active"]
+          }
+        },
+        "retirable": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": ["protectedFrom"]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": ["retire"]
+          }
+        }
+      },
+      "toMove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMove",
+        "targetRef": "move"
+      }
+    },
+    "move": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "move",
+      "label": "Retire the version",
+      "handler": "addTag",
+      "tag": "retired",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version retired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

@@ -37,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -217,7 +218,7 @@ class UpdateSchemaContentHandlerTest
             Map.of("label", "Form"));
         versionManager().checkin(version.getPath());
 
-        SchemaContent.checkOut(form);
+        VersioningUtils.checkOut(form);
 
         assertTrue(versionManager().isCheckedOut(version.getPath()));
     }
