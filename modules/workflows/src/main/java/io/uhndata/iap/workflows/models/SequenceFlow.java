@@ -93,11 +93,9 @@ public class SequenceFlow extends EntityPart implements Conditionable
 
     /**
      * The guard deciding whether this arc may be taken, evaluated when the arc leaves a conditional
-     * {@link Gateway}. Structured rather than an expression, and the same mechanism schema items use to say when
-     * they apply, so that what a process routes on is described once and read by one evaluator.
+     * {@link Gateway}.
      *
-     * @return a condition, or {@code null} if this arc is unconditional — which for a gateway means it is taken
-     *         as soon as it is considered
+     * @return a condition, or {@code null} if this arc is unconditional
      */
     @Override
     @Nullable

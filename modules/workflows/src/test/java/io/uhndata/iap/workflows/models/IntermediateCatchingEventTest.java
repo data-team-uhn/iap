@@ -144,7 +144,6 @@ class IntermediateCatchingEventTest
     @Test
     void hasNoDurationWhenItIsNotATimer()
     {
-        // An event with no duration waits for something to be delivered to it rather than for the clock
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1/message", Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "message"));
 
@@ -154,8 +153,6 @@ class IntermediateCatchingEventTest
     @Test
     void reportsADurationNobodyCanReadAsNone()
     {
-        // Guessing at what "five days" might have meant would arm the wrong deadline, and a deadline nobody can
-        // read is not a deadline
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1/vague", Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "vague", "timerDuration", "five days"));
 

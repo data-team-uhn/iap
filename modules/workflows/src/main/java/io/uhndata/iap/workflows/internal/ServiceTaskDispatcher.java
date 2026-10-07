@@ -50,7 +50,7 @@ final class ServiceTaskDispatcher
     /** How the engine runs the workflow waiting for an event a service task sends. */
     private final EventChain chain;
 
-    /** What the gateways of any instance a task starts are asked of. */
+    /** The evaluator for the gateway guards of any instance a task starts. */
     private final ConditionEvaluator conditions;
 
     /**
@@ -58,7 +58,7 @@ final class ServiceTaskDispatcher
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
-     * @param conditions the evaluator the gateways of any instance a task starts are asked of
+     * @param conditions the evaluator for the gateway guards of any instance a task starts
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain,
         final ConditionEvaluator conditions)
@@ -111,7 +111,7 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * What the gateways of an instance a task starts are asked of.
+     * The engine's condition evaluator, handed to any instance a task starts.
      *
      * @return the engine's condition evaluator
      */

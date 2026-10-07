@@ -57,7 +57,7 @@ final class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
-    /** The domain event a passed deadline delivers, which the clock fires and no user can. */
+    /** The event a passed deadline delivers. */
     static final String TIMEOUT_EVENT = "timeout";
 
     /** The status a task carries until somebody completes it. */
@@ -94,7 +94,7 @@ final class TaskCompletion
      * @param event the incoming event
      * @param actor the user completing it
      * @param performer how the resumed instance performs any service task it meets
-     * @param conditions the evaluator the resumed instance's gateways are asked of
+     * @param conditions the evaluator for the resumed instance's gateway guards
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
@@ -134,23 +134,20 @@ final class TaskCompletion
     }
 
     /**
-     * Runs out this task's clock: the boundary event its deadline belongs to fires, the task is cancelled, and
-     * execution leaves down the timer's arc.
+     * Times out this task by firing the boundary timer its deadline belongs to.
      *
-     * <p>No performer check, deliberately. {@code performers} says who may make execution pass through a node, and
-     * a timer is passed through by time — there is nobody to check, and refusing the clock because it belongs to no
-     * group would leave the instance parked on a task that can never now be done.</p>
+     * <p>There is no performer check. {@code performers} says who may complete a task, and nobody completes a
+     * timeout. Checking would leave the instance stuck on a task nobody can finish.</p>
      *
-     * <p>What stands in for one is the deadline itself: a timeout that arrives before it is refused, whoever sends
-     * it. The event is the clock's, but any channel can deliver an event, and one sent early would take a task off
-     * somebody's desk, or down whatever path the process reserves for silence, with nothing having run out. Once the
-     * deadline has passed, a timeout from anywhere only does sooner what the next sweep would have done.</p>
+     * <p>The deadline is the check instead. Any channel can deliver an event, so a timeout that arrives early is
+     * refused, whoever sends it. After the deadline, a timeout from anywhere only does sooner what the next sweep
+     * would do.</p>
      *
      * @param resolver the engine's own session
      * @param task the task whose deadline has passed
      * @param definition the activity the task was raised from
      * @param performer how the resumed instance performs any service task it meets
-     * @param conditions the evaluator the resumed instance's gateways are asked of
+     * @param conditions the evaluator for the resumed instance's gateway guards
      * @throws WorkflowException when nothing is counting down to this task, its deadline has not passed yet, or the
      *     run cannot continue
      * @throws PersistenceException when the instance cannot be written
