@@ -24,8 +24,10 @@ import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 // Where a column's content goes on the compact card shown in the grid's narrow-screen list
 // mode: leading the card as its "title", as a "badge" beside the title (e.g. a status chip),
 // on the muted "caption" line under it (several caption columns join into one " • " line),
-// as a labeled "row" (the default), or nowhere ("omit").
-export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "omit";
+// as a labeled "row" (the default), at the end of the title's line as what can be done with the
+// entity ("actions": one compact control, such as a menu, since the card itself opens the entity),
+// or nowhere ("omit").
+export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "actions" | "omit";
 
 // A column of an entity grid: a regular MUI DataGrid column definition, optionally naming the
 // server-side entity property that server-side sorting should order by when this column's own
