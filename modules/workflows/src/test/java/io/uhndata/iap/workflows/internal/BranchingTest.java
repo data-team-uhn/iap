@@ -61,12 +61,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests of a process that runs more than one branch at once: a gateway forks a token per branch, and the join holds
- * them until the branches it is waiting for have arrived — every one of them for a parallel join, whichever ones can
- * still get there for an inclusive one.
+ * Tests of a process that runs more than one branch at once. A gateway forks a token per branch, and the join holds
+ * them until the branches it waits for have arrived.
  *
- * <p>Driven through the engine, like the rest of the runtime's tests, because what is being checked is what a
- * person sees — two tasks open at once, and a request that is not finished until both are done.</p>
+ * <p>The tests drive the engine and check what a person would see: which tasks are open, and whether the request is
+ * finished.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -94,7 +93,7 @@ class BranchingTest
 
     private static final WorkflowEvent DONE = new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of());
 
-    // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
+    // JCR-backed: the host points at its workflow with a real REFERENCE, which needs a JCR node
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     @BeforeEach
@@ -113,7 +112,6 @@ class BranchingTest
     {
         branching();
 
-        // Both halves of the work are on somebody's desk at once, which is the whole point of the fork
         assertEquals(2, instance().getTokens().size());
         assertEquals(List.of("Approve the request", "Book the cover"), openTasks());
     }
@@ -125,8 +123,6 @@ class BranchingTest
 
         engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
 
-        // One token is parked on the join and one is still on the second task: the process is not over because
-        // half of it is done
         assertEquals("active", instance().getStatus());
         assertEquals(2, instance().getTokens().size());
         assertEquals(1, instance().getTokens().stream()
@@ -142,7 +138,6 @@ class BranchingTest
         engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
         engine.receiveEvent(as(INSTANCE + "/cover", EngineFixture.REQUESTER), DONE);
 
-        // The two branches leave the join as one token, which then reaches the end and is spent
         assertEquals("completed", instance().getStatus());
         assertEquals(0, instance().getTokens().size());
         assertEquals(List.of(), openTasks());
@@ -153,8 +148,7 @@ class BranchingTest
     @Test
     void staysRunningWhileAnotherBranchIsStillGoing() throws Exception
     {
-        // A branch that reaches an end event of its own ends that branch and nothing more: the end event says this
-        // way through the process is over, not that the process is
+        // A third branch goes from the fork straight to an end event of its own
         createProcess();
         this.context.create().resource(PROCESS + "/" + FORK + "/toNote", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNote", TARGET_REF, "noted"));
@@ -171,13 +165,11 @@ class BranchingTest
     @Test
     void endsTheWholeInstanceAtATerminateEndEvent() throws Exception
     {
-        // "Withdrawn" is not "one branch finished": the other branch's work is moot, so its token goes and the task
-        // it was waiting on is cancelled rather than left on somebody's desk forever
         createProcess();
         this.context.create().resource(PROCESS + "/" + FORK + "/toWithdraw", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toWithdraw", TARGET_REF, "withdraw"));
         task("withdraw", "Withdraw the request");
-        // The withdrawal's own way out, which ends everything rather than joining
+        // The withdrawal leads to a terminate end event instead of the join
         this.context.resourceResolver().delete(
             this.context.resourceResolver().getResource(PROCESS + "/withdraw/toJoin"));
         this.context.create().resource(PROCESS + "/withdraw/toWithdrawn", Map.of(
@@ -199,8 +191,6 @@ class BranchingTest
     @Test
     void refusesAConditionOnAParallelArc() throws Exception
     {
-        // A parallel gateway takes every branch, so a guard on one of its arcs describes a gateway of another kind;
-        // running it anyway would do something the diagram does not say
         createProcess();
         this.context.create().resource(PROCESS + "/" + FORK + "/toApprove/cond:condition", Map.of(
             TYPE, "cond/SingleCondition", "comparator", "equals"));
@@ -234,9 +224,7 @@ class BranchingTest
     @Test
     void mergesAForkThatLeadsStraightIntoItsOwnJoin() throws Exception
     {
-        // Both branches arrive at the join in the same walk, so the first to be advanced merges the second away while
-        // it is still queued to be advanced itself. Nothing is left to move it, and trying to would write to a node
-        // that is no longer there
+        // Both branches reach the join in the same walk, so the second is merged away while it is still queued
         forkStraightIntoJoin(ParallelGateway.RESOURCE_TYPE);
 
         start();
@@ -250,8 +238,7 @@ class BranchingTest
     @Test
     void releasesAnInclusiveJoinWhenTheOtherBranchCannotReachIt() throws Exception
     {
-        // A third branch is still running, but it cannot get to the join — its way out is an end event of its own — so
-        // the join is not waiting for it and releases what has arrived
+        // A third branch leads to a task whose way out is an end event, not the join
         forkStraightIntoJoin(InclusiveGateway.RESOURCE_TYPE);
         this.context.create().resource(PROCESS + "/" + FORK + "/toAside", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toAside", TARGET_REF, "aside"));
@@ -265,7 +252,6 @@ class BranchingTest
 
         start();
 
-        // The join let its token through, so the request is approved, while the branch that cannot reach it carries on
         assertTrue(List.of(Objects.requireNonNull(this.context.resourceResolver().getResource(HOST),
             "The host always exists").getValueMap().get("tags", String[].class)).contains("approved"));
         assertEquals("active", instance().getStatus());
@@ -276,8 +262,7 @@ class BranchingTest
     @Test
     void fallsBackOnTheDefaultArcWhenNoInclusiveBranchApplies() throws Exception
     {
-        // Every arc asks for something, and nothing asked for holds: "otherwise" means the same for an inclusive
-        // gateway as for an exclusive one
+        // Every arc has a guard, the default's included, and none of them holds
         inclusive();
         outcomeIs(PROCESS + "/" + FORK + "/toApprove", "approved");
         outcomeIs(PROCESS + "/" + FORK + "/toCover", "approved");
@@ -289,7 +274,6 @@ class BranchingTest
 
         start();
 
-        // Only the default was taken, so nothing is on anybody's desk and the instance is over
         assertEquals("completed", instance().getStatus());
         assertEquals(List.of(), openTasks());
         assertTrue(List.of(Objects.requireNonNull(this.context.resourceResolver().getResource(HOST),
@@ -299,8 +283,7 @@ class BranchingTest
     @Test
     void takesOnlyTheInclusiveArcsThatApply() throws Exception
     {
-        // One arc asks nothing and is always taken; the other asks for an outcome this instance has not recorded, so
-        // it is not. An inclusive gateway takes as many branches as apply, which here is one
+        // The approval arc has no guard, and the cover arc asks for an outcome nothing has recorded
         inclusive();
         outcomeIs(PROCESS + "/" + FORK + "/toCover", "approved");
         start();
@@ -317,7 +300,6 @@ class BranchingTest
 
         engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
 
-        // The other task can still reach the join, so what has arrived is not yet all there is
         assertEquals("active", instance().getStatus());
         assertEquals(List.of("Book the cover"), openTasks());
 
@@ -330,9 +312,6 @@ class BranchingTest
     @Test
     void releasesAnInclusiveJoinOnceNoBranchCanStillReachIt() throws Exception
     {
-        // The branch that could have reached the join went the other way instead. Nothing arrives at the join to
-        // notice that, so the walk has to look again once every branch has stopped moving — otherwise the token
-        // already sitting on the join waits for a branch that is never coming
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
             TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
@@ -347,7 +326,7 @@ class BranchingTest
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "forkToJoin", TARGET_REF, JOIN));
         this.context.create().resource(PROCESS + "/" + FORK + "/toCheck", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toCheck", TARGET_REF, "check"));
-        // The second branch could reach the join, and does not: nothing has recorded an outcome, so it defaults
+        // The second branch could reach the join, but no outcome is recorded, so it leaves by the default arc instead
         this.context.create().resource(PROCESS + "/check", Map.of(
             TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "check"));
         this.context.create().resource(PROCESS + "/check/toJoinLate", Map.of(
@@ -384,8 +363,8 @@ class BranchingTest
     }
 
     /**
-     * Builds the smallest branching process there is: a gateway of the given kind whose two arcs both lead straight
-     * into the join that merges them, and one end event after it.
+     * Builds the smallest branching process: a gateway of the given kind whose two arcs lead straight into its join,
+     * then one end event.
      *
      * @param gatewayType the resource type of the gateway to fork and join with
      */
@@ -414,7 +393,7 @@ class BranchingTest
     }
 
     /**
-     * Turns the branching process's two gateways from parallel into inclusive ones, leaving its shape alone.
+     * Builds the branching process with inclusive gateways instead of parallel ones.
      */
     private void inclusive()
     {
@@ -427,7 +406,7 @@ class BranchingTest
     }
 
     /**
-     * Gives an arc the guard "the instance's outcome is this", the way a definition writes it.
+     * Puts a guard on an arc that holds when the instance's outcome is the given one.
      *
      * @param flowPath the arc to put the condition on
      * @param outcome the outcome the arc is taken for
@@ -503,7 +482,7 @@ class BranchingTest
     }
 
     /**
-     * Points the host at the process and runs the bootstrap that puts it under it.
+     * Starts an instance: points the host at the process and runs the bootstrap.
      *
      * @return the engine, ready for the next event
      * @throws Exception when the fixture cannot be built
@@ -518,7 +497,7 @@ class BranchingTest
     }
 
     /**
-     * The system workflow that puts a submission under its process, which is how an instance is started.
+     * Creates the system workflow that puts a submission under its process.
      */
     private void createBootstrap()
     {
@@ -543,7 +522,7 @@ class BranchingTest
     }
 
     /**
-     * The instance the engine started, read afresh so that what the engine committed is what is seen.
+     * Reads the instance the engine started, through a refreshed session.
      *
      * @return the running instance
      */
@@ -555,7 +534,7 @@ class BranchingTest
     }
 
     /**
-     * The labels of the tasks still waiting for somebody, in the order the instance holds them.
+     * The labels of the tasks still waiting for somebody, sorted.
      *
      * @return task labels
      */
@@ -569,7 +548,7 @@ class BranchingTest
     }
 
     /**
-     * Builds an engine wired as the DS runtime would wire it.
+     * Builds an engine with its services injected by hand.
      *
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
@@ -592,7 +571,7 @@ class BranchingTest
     }
 
     /**
-     * Makes a JCR REFERENCE from one node to another, the way a submission points at its workflow.
+     * Writes a JCR REFERENCE from one node to another.
      *
      * @param from the node to write on
      * @param property the property to write
@@ -608,7 +587,7 @@ class BranchingTest
     }
 
     /**
-     * A resource, as seen by the given user's session.
+     * Resolves a resource in a session that reports the given user.
      *
      * @param path what to resolve
      * @param actor who is asking

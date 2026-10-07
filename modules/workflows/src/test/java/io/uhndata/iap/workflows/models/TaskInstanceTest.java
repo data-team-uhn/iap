@@ -131,7 +131,6 @@ class TaskInstanceTest
         assertEquals(List.of(), task.getOfferedOutcomes());
         // Naming nobody admits nobody, the same way a definition that names no performers does
         assertEquals(List.of(), task.getPerformers());
-        // Nothing is counting down to it, and nothing has happened to it
         assertNull(task.getDueEventId());
         assertEquals(List.of(), task.getFiredEvents());
         assertNull(task.getWorkflowInstance());

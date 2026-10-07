@@ -76,8 +76,6 @@ class VariableOperandResolverTest
     @Test
     void resolvesTheStoredTypeRatherThanItsText()
     {
-        // The variable's dataType decides which typed property its value came from, and that type is what the
-        // evaluator unifies against the other side
         this.variable("requestedDays", "long", "longValue", 7L);
 
         assertEquals(7L, this.resolve("requestedDays", INSTANCE).get(0));
@@ -102,8 +100,6 @@ class VariableOperandResolverTest
     @Test
     void reportsAnythingThatIsNotAnInstanceAsEmpty()
     {
-        // A condition written for a workflow can be evaluated against anything; what it asks about is simply
-        // not there
         this.context.create().resource("/Submissions/request/outcome", Map.of(
             TYPE, "wf/Variable", "dataType", "string", "stringValue", "approved"));
 

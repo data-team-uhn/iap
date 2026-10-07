@@ -36,13 +36,11 @@ import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 
 /**
- * The shape questions the walk asks of a workflow graph: which nodes execution may pass through at all, which arcs
- * a node is left by, and when a join lets a token through.
+ * Answers the questions the walk asks of a workflow graph: which nodes execution may pass through, which arcs leave
+ * a node, and when a join lets a token through.
  *
- * <p>Separate from the walk that asks them because these are answers about the <em>definition</em> — they read the
- * graph and the conditions on its arcs, and write nothing. What follows from them, moving and spending tokens, is
- * the walk's business. Keeping the two apart is also what stops "how a parallel gateway differs from an exclusive
- * one" from being spread through a loop that is really about tokens.</p>
+ * <p>These answers read the definition and the conditions on its arcs, and write nothing. Moving and spending tokens
+ * is the walk's business.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,13 +60,12 @@ final class FlowRouting
     }
 
     /**
-     * Whether the walk knows how to carry execution through a node without stopping. End events and activities are
-     * handled before this is asked; what is left is the nodes execution merely passes: a start event it began at, a
-     * gateway it routes through, and a boundary event that has just fired.
+     * Whether the walk may carry execution through a node without stopping. The walk handles end events and
+     * activities before it asks. The passable nodes are a start event, a gateway, and a boundary event that has just
+     * fired.
      *
-     * <p>A free-standing catching event is deliberately <em>not</em> passable: it is reached by an arc and has to
-     * wait, and nothing can yet wake it. Anything else — a throwing event, say — is a node the engine has no
-     * meaning for, and passing it silently would be worse than refusing it.</p>
+     * <p>A free-standing catching event is not passable: it is reached by an arc and has to wait, and nothing can wake
+     * it yet. Any other node, such as a throwing event, has no meaning for the engine and is refused.</p>
      *
      * @param node the node execution is standing on
      * @return {@code true} if the walk may carry on through it
@@ -81,9 +78,8 @@ final class FlowRouting
     /**
      * Whether a node is a join that can hold a token until other branches arrive.
      *
-     * <p>A parallel and an inclusive gateway both do, by different rules — see {@link #releases}. An exclusive merge
-     * is not a synchronisation point at all: each token that arrives passes straight through, which is what makes it
-     * the merge to use after a decision, exactly one branch of which was ever taken.</p>
+     * <p>Parallel and inclusive gateways are joins, released by different rules: see {@link #releases}. An exclusive
+     * merge is not: each token that arrives there passes straight through.</p>
      *
      * @param node the node execution is standing on
      * @return {@code true} if arriving there may mean waiting for the others
@@ -97,15 +93,12 @@ final class FlowRouting
     /**
      * Whether a join has everything it was waiting for.
      *
-     * <p>A parallel join counts: it takes one token per incoming arc, because a parallel fork took every branch and
-     * every branch therefore owes it one. An inclusive join cannot count — its fork took only the branches that
-     * applied, and how many that was is not written anywhere — so it asks the question that actually matters
-     * instead: <em>can any branch still get here?</em> When none of the tokens elsewhere in the instance can reach
-     * it, whatever arrived is all that ever will, and the join releases.</p>
+     * <p>A parallel join waits for one token per incoming arc, since its fork took every branch. An inclusive join
+     * cannot count, because nothing records how many branches its fork took. It releases when no other token in the
+     * instance can still reach it.</p>
      *
-     * <p>Asking about reachability rather than remembering the fork is what makes this survive the process being
-     * re-entered, a branch being cut short by a boundary event, or the instance being resumed days later by somebody
-     * else: the answer is read from the graph and the tokens on it, which is all there is to go on.</p>
+     * <p>The answer comes from the graph and the tokens on it, not from a record of the fork. It stays right when the
+     * process is re-entered, when a boundary event cuts a branch short, and when the instance resumes days later.</p>
      *
      * @param gateway the join a token is standing on
      * @param arrived how many tokens are standing on it
@@ -123,11 +116,10 @@ final class FlowRouting
     /**
      * Whether execution standing on one node could still arrive at another by following the graph.
      *
-     * <p>Boundary events count as ways onwards as well as sequence flows: a token waiting on a task can be taken
-     * away from it by a deadline, and where that leads is somewhere it can still get to. Erring towards "yes" is
-     * the safe direction — it makes an inclusive join wait when it might not have needed to, where erring the other
-     * way would release it while a branch was still coming and leave that branch's token stranded on a join
-     * nothing would look at again.</p>
+     * <p>Sequence flows and boundary events both count as ways onwards, since a deadline can move a token off a
+     * task. Erring towards "yes" is safe: an inclusive join may wait longer than it needed to. Erring towards "no"
+     * would release the join while a branch was still coming, and strand that branch's token on a join nothing looks
+     * at again.</p>
      *
      * @param from where execution is
      * @param targetId the element identifier being asked about
@@ -155,8 +147,8 @@ final class FlowRouting
     }
 
     /**
-     * Where a node leads: every arc for a parallel gateway, the chosen one for any other gateway, the only one for
-     * everything else.
+     * Where a node leads: every arc for a parallel gateway, the applicable ones for an inclusive gateway, the chosen
+     * one for any other gateway, and the only one for everything else.
      *
      * @param node the node being left
      * @param instance the running instance, consulted for what a gateway routes on
@@ -187,10 +179,6 @@ final class FlowRouting
     /**
      * Every way out of a parallel gateway, all of which are taken at once.
      *
-     * <p>No conditions are asked, deliberately: a parallel gateway takes every branch by definition, so a condition
-     * on one of its arcs is a statement about a different kind of gateway. Ignoring it silently would be worse than
-     * refusing it, since the diagram would then say something the engine does not do.</p>
-     *
      * @param gateway the gateway being left
      * @param flows its outgoing arcs
      * @return every arc
@@ -210,11 +198,8 @@ final class FlowRouting
     }
 
     /**
-     * The ways out of an inclusive gateway that apply: every arc whose condition holds, and every arc that carries
-     * no condition at all, since an arc that asks nothing is always taken.
-     *
-     * <p>Falls back on the default arc when nothing applies, the same way an exclusive gateway does — "otherwise"
-     * means the same thing whether one branch is being chosen or several.</p>
+     * The ways out of an inclusive gateway that apply: every arc whose condition holds, and every arc with no
+     * condition. When nothing applies, the default arc is taken.
      *
      * @param gateway the gateway being left
      * @param flows its outgoing arcs
@@ -257,13 +242,10 @@ final class FlowRouting
 
     /**
      * Picks a gateway's outgoing arc: the first whose condition holds, or the one marked as the default when none
-     * does.
+     * does. An arc with no condition is taken only if it is the default.
      *
-     * <p>The condition is the ordinary structured one, evaluated by the conditions module against the
-     * <em>instance</em> — so a guard reads what the execution knows, such as the {@code outcome} the last completed
-     * task recorded, through the {@code variable} operand source. An arc with no condition at all holds trivially,
-     * which is why the default arc is a separate flag rather than simply the unconditional one: a gateway needs a
-     * way to say "otherwise" that does not depend on where in the list it sits.</p>
+     * <p>Conditions are evaluated against the instance, so a guard reads the instance's variables through the
+     * {@code variable} operand source.</p>
      *
      * @param gateway the gateway being passed
      * @param flows its outgoing arcs
@@ -287,9 +269,8 @@ final class FlowRouting
      * Whether the walk is standing on a boundary event because it has just fired, rather than having arrived at
      * something it must wait for.
      *
-     * <p>Position is what tells the two apart, and it is enough: an event attached to an activity is never reached
-     * by an arc — nothing points at it — so the only way execution can be standing there is that the event
-     * happened, and what remains is to leave down its own arc.</p>
+     * <p>No arc points at an event attached to an activity, so execution stands on one only after the event has
+     * happened. What remains is to leave down its own arc.</p>
      *
      * @param node the node the walk is standing on
      * @return {@code true} if this is a boundary event that has fired

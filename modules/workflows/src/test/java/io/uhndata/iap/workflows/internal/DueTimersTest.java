@@ -82,7 +82,7 @@ class DueTimersTest
         Mockito.when(session.getValueFactory()).thenReturn(Mockito.mock(ValueFactory.class));
         final ResourceResolver resolver = Mockito.spy(this.context.resourceResolver());
         Mockito.doReturn(session).when(resolver).adaptTo(Session.class);
-        // Closing the spy would close the context's own resolver, which every later assertion reads through
+        // Closing the spy would close the context's resolver, which later assertions read through
         Mockito.doNothing().when(resolver).close();
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
@@ -113,7 +113,6 @@ class DueTimersTest
         final ArgumentCaptor<WorkflowEvent> event = ArgumentCaptor.forClass(WorkflowEvent.class);
         Mockito.verify(this.engine).receiveEvent(Mockito.argThat(task -> TASK.equals(task.getPath())),
             event.capture());
-        // Through the engine's own door, as an ordinary event: the clock is a translator like any other
         assertEquals("timeout", event.getValue().getName());
     }
 
@@ -137,7 +136,6 @@ class DueTimersTest
 
         this.sweep.run();
 
-        // One broken definition must not stop every other deadline in the repository from being met
         Mockito.verify(this.engine, Mockito.times(2)).receiveEvent(Mockito.any(), Mockito.any());
     }
 

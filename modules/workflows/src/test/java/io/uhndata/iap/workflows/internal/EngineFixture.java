@@ -271,9 +271,10 @@ public final class EngineFixture
     }
 
     /**
-     * A condition evaluator wired the way the platform wires it, with the operand sources a workflow's own guards
-     * use: literals, tags, and the variables of the instance being routed. Built by hand because the bundle plugin
-     * only generates the DS metadata at packaging time, the same way the conditions module tests its own evaluator.
+     * Builds a condition evaluator with the operand sources a workflow's guards use: literals, tags, and the
+     * instance's variables.
+     *
+     * <p>Wired by hand, because the bundle plugin generates the DS metadata only at packaging time.</p>
      *
      * @return an evaluator a gateway's guards can be asked of
      * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture

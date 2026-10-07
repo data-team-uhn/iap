@@ -64,9 +64,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * Starting an instance and resuming a parked one are that same walk from different starting points. Both live
  * here.</p>
  *
- * <p>An instance holds as many tokens as it has branches in progress. A parallel gateway forks one into several
- * and joins them back, so the walk is a queue of positions to advance rather than a single path, and the instance
- * finishes when the last token is spent rather than when the first end event is reached.</p>
+ * <p>An instance holds one token for each branch in progress. A parallel gateway forks a token into several and
+ * joins them back. The walk is therefore a queue of positions rather than a single path, and the instance finishes
+ * when its last token is spent.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -77,10 +77,9 @@ final class InstanceRunner
     static final String OUTCOME_VARIABLE = "outcome";
 
     /**
-     * How many nodes one delivery may pass through before the definition is declared broken. Counted across every
-     * branch of the delivery rather than along one path, since a fork multiplies the visits: it bounds the whole
-     * walk, which is what has to terminate. Far above anything a real workflow needs, so a definition whose arcs
-     * form a cycle fails fast instead of spinning.
+     * How many nodes one delivery may pass through, counted across all its branches, before the definition is
+     * declared broken. Far above anything a real workflow needs, so a definition whose arcs form a cycle fails fast
+     * instead of spinning.
      */
     static final int MAX_STEPS = 200;
 
@@ -115,7 +114,7 @@ final class InstanceRunner
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
-     * @param conditions the evaluator a gateway's guards are asked of
+     * @param conditions the evaluator for the guards on a gateway's arcs
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
         final ConditionEvaluator conditions)
@@ -179,21 +178,18 @@ final class InstanceRunner
             setOutcome(instanceResource, outcome);
         }
 
-        // An activity has exactly one way out, so leaving it is unambiguous; if that way is a gateway, the walk
-        // forks there rather than here
+        // An activity has exactly one way out. If it leads to a gateway, the walk forks there
         run(instanceResource, token, this.routing.targets(definition, instance).get(0));
     }
 
     /**
-     * Walks the instance from a node until every branch of it has to stop: a user task to wait at, a join still
-     * missing a branch, or an end event to spend the token on.
+     * Walks the instance from a node until every branch has to stop: at a user task, at a join still missing a
+     * branch, or at an end event.
      *
-     * <p>A queue rather than a loop along one path, because a fork turns one position into several and each has to
-     * be walked. Once it empties, a join that could not release when its token arrived may be able to now — the
-     * other branches have moved as far as they can, and an inclusive join is waiting on what can still reach it
-     * rather than on a count — so the queue is refilled from the parked joins and drained again, until nothing can
-     * move at all. That fixed point is what stops the order the branches happen to be walked in from deciding
-     * whether the process gets stuck.</p>
+     * <p>When the queue empties, a join that could not release when its token arrived may be able to now. An
+     * inclusive join waits on the branches that can still reach it, and the others have since moved as far as they
+     * can. The walk carries on from such a join until nothing can move. This keeps the order the branches are walked
+     * in from deciding whether the process gets stuck.</p>
      *
      * @param instance the running instance
      * @param token the token being moved
@@ -213,7 +209,7 @@ final class InstanceRunner
                     + MAX_STEPS + " steps; its sequence flows probably form a cycle");
             }
             if (!step(instance, pending.remove(), pending)) {
-                // The whole instance is over, so whatever else was queued has nowhere to go
+                // A terminating end event ended the whole instance, so nothing else queued may move
                 return;
             }
             if (pending.isEmpty()) {
@@ -248,7 +244,7 @@ final class InstanceRunner
             return true;
         }
         if (node instanceof Activity && ((Activity) node).getHandler() == null) {
-            // Nothing can perform it automatically, so it is a user task: park here and wait for a person
+            // No handler means a user task. Park here and wait for a person
             createTask(instance, (Activity) node);
             return true;
         }
@@ -286,13 +282,11 @@ final class InstanceRunner
         if (!this.routing.releases(node, arrived.size(), elsewhere(instance, node.getElementId()))) {
             return false;
         }
-        // The branches are merged back into the one token that carries on; the others have arrived and are done
         for (final Resource spent : arrived) {
             if (!spent.getPath().equals(token.getPath())) {
                 this.resolver.delete(spent);
-                // A fork leading straight into its own join queues every branch before any of them is walked, so a
-                // token can be merged away while it is still waiting its turn. Leaving it queued would have the walk
-                // move a token that no longer exists, which a repository is entitled to refuse
+                // A fork leading straight into its own join queues every branch before any is walked, so a merged
+                // token may still be queued. Left there, the walk would move a token that no longer exists
                 pending.removeIf(queued -> queued.token().getPath().equals(spent.getPath()));
             }
         }
@@ -300,8 +294,8 @@ final class InstanceRunner
     }
 
     /**
-     * Where every token that is not standing on a given node has got to, which is what an inclusive join has to
-     * know: whatever cannot reach it is not something it is waiting for.
+     * Where the tokens that are not on a given node are standing. An inclusive join uses this to tell which branches
+     * can still reach it.
      *
      * @param instance the running instance
      * @param elementId the node to leave out
@@ -317,8 +311,8 @@ final class InstanceRunner
     }
 
     /**
-     * A join that can release now although it could not when its tokens arrived, because the branches that might
-     * have reached it have since gone elsewhere.
+     * Finds a join that can release now, though it could not when its tokens arrived. The branches that might have
+     * reached it have since gone elsewhere.
      *
      * @param instance the running instance
      * @return a position to carry on from, or empty when nothing more can move
@@ -358,9 +352,8 @@ final class InstanceRunner
     /**
      * One token's position: the token, and the node it is next to be advanced through.
      *
-     * <p>The node is carried here rather than read back from the token, even though the token records it: a model
-     * adapted from a resource is cached on that resource, so a position written and then read back through the same
-     * resource answers with the one it had before. Carrying it is also simply what the queue is for.</p>
+     * <p>The node is carried here rather than read back from the token. A model adapted from a resource is cached on
+     * that resource, so reading a position back through the same resource returns the one it had before.</p>
      *
      * @param token the token's resource
      * @param node where it has got to
@@ -387,8 +380,7 @@ final class InstanceRunner
     }
 
     /**
-     * Creates a token resting on a node. Named freely rather than fixed, since an instance holds one per branch in
-     * progress and they are all alike.
+     * Creates a token resting on a node.
      *
      * @param instance the running instance
      * @param elementId the node it starts on
@@ -402,9 +394,8 @@ final class InstanceRunner
     }
 
     /**
-     * Spends a token on the end event it reached: that branch is over. The instance is closed only once the last
-     * token is gone, since an end event ends a branch rather than the process — a diagram with two of them, or one
-     * reached by two branches, is finished when nothing is left running.
+     * Spends a token on the end event it reached, ending that branch. An end event ends a branch, not the process,
+     * so the instance closes only when its last token is gone.
      *
      * @param instance the running instance
      * @param token the token that arrived
@@ -419,8 +410,8 @@ final class InstanceRunner
     }
 
     /**
-     * Tells the host what reaching an end event means, when the end event says. Whichever branch reaches it: each
-     * ending is a statement about the host, and the instance closing is not.
+     * Tells the host what reaching an end event means, if the end event says so. Every branch that reaches an end
+     * event does this, not only the last one.
      *
      * @param instance the running instance
      * @param end the end event reached
@@ -440,10 +431,8 @@ final class InstanceRunner
      * Ends the whole instance at once: every remaining token is discarded, and every task still waiting for
      * somebody is cancelled.
      *
-     * <p>This is what {@code terminate} on an end event means, and why it is a property of an end event rather than
-     * a kind of its own: the difference is entirely in what happens to the <em>other</em> branches. The open tasks
-     * have to go with their tokens — a task whose token has been discarded can never be completed, and leaving it
-     * open would put work on somebody's desk that nothing will ever take off it again.</p>
+     * <p>This is what {@code terminate} on an end event means. Open tasks are cancelled along with their tokens. A
+     * task whose token is gone can never be completed, and would otherwise stay on somebody's desk for good.</p>
      *
      * @param instance the running instance
      * @throws PersistenceException when the instance cannot be written
@@ -499,15 +488,11 @@ final class InstanceRunner
     /**
      * Starts the clock on the deadline a boundary timer gives this task, if one watches it.
      *
-     * <p>Written onto the task rather than left to be worked out later, for the reason every other copy on a task
-     * exists: when the waiting started is a fact about this run, and reading it back from the definition would
-     * answer a different question — how long the wait is, not when it ends. It also puts the deadline where
-     * anything looking for overdue work can see it without running the engine.</p>
+     * <p>The deadline is written onto the task, where anything looking for overdue work can find it without running
+     * the engine. The earliest timer that has not fired yet is the one armed.</p>
      *
-     * <p>The earliest timer that has not already fired wins, since that is the one that will actually fire next. A
-     * task can outlive one of its deadlines now that a non-interrupting event leaves it open, so which timers are
-     * spent is part of the answer, and the durations are measured from when the task started rather than from now:
-     * "remind them after three days, give up after five" means five days from the start, not from the reminder.</p>
+     * <p>Every duration counts from when the task started, not from now. "Remind them after three days, give up after
+     * five" means five days from the start, not from the reminder.</p>
      *
      * @param activity the user task being raised
      * @param started when the task began waiting, which every deadline is measured from
@@ -526,20 +511,17 @@ final class InstanceRunner
                 properties.put("dueDate", due);
                 properties.put("dueEventId", timer.getElementId());
             }, () -> {
-                // Nothing is counting down to it any more, which is what stops the sweep looking at it again
+                // No deadline is left, so the sweep stops finding this task
                 properties.remove("dueDate");
                 properties.remove("dueEventId");
             });
     }
 
     /**
-     * Fires the boundary timer a task's deadline belongs to: the task is cancelled, and execution leaves down the
-     * timer's own arc rather than the activity's.
+     * Fires the boundary timer a task's deadline belongs to.
      *
-     * <p>An interrupting timer gives up on the work: the task is cancelled and its own token leaves down the timer's
-     * arc. A non-interrupting one does not — the work carries on, and the timer's arc is a <em>second</em> branch
-     * beside it, with a token of its own. "Remind them after three days" and "give up after five" are different
-     * processes, and which one a diagram means is the only thing {@code interrupting} says.</p>
+     * <p>An interrupting timer cancels the task, and the task's token leaves along the timer's arc. A non-interrupting
+     * timer leaves the task open and starts a second branch along the timer's arc, with a token of its own.</p>
      *
      * @param task the task whose deadline has passed
      * @param timer the boundary event counting down to it
@@ -559,13 +541,11 @@ final class InstanceRunner
         if (timer.isInterrupting()) {
             properties.put(STATUS_PROPERTY, CANCELLED_STATUS);
             properties.put(END_TIME_PROPERTY, Calendar.getInstance());
-            // Deliberately no assignee and no outcome: nobody did this, and nothing was decided. A gateway reading
-            // the outcome downstream therefore sees whatever the last decision was, or nothing at all, which is why
-            // a process that wants to know it timed out routes from the timer's own arc rather than on an outcome.
+            // No assignee and no outcome: nobody acted, and nothing was decided. Gateways downstream see the last
+            // recorded outcome, if there is one
             run(instanceResource, tokenAt(instanceResource, definition.getElementId()), timer);
             return;
         }
-        // The task keeps its own token and stays on somebody's desk; what the deadline starts is a branch beside it
         final List<String> fired = new ArrayList<>(task.getFiredEvents());
         fired.add(timer.getElementId());
         properties.put("firedEvents", fired.toArray(String[]::new));

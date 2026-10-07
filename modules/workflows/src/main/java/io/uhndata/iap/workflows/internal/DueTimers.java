@@ -46,17 +46,16 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 
 /**
- * Delivers the deadlines that have passed: the clock's side of the engine's door.
+ * Delivers the deadlines that have passed to the workflow engine.
  *
- * <p>A boundary timer is the one thing in a workflow that nobody fires. Every other event arrives because somebody
- * did something — posted, decided, completed — and the engine's entry point takes the actor from the session that
- * asked. Time has no session, so this is what stands in for one: it finds the tasks whose deadline has passed and
- * hands each to {@link WorkflowEngine#receiveEvent} as an ordinary {@code timeout} event, so that a timer firing
- * goes through the same door, the same authorization rules and the same one-commit guarantee as everything else.</p>
+ * <p>A boundary timer is the one thing in a workflow that happens automatically without a user involved. Every other
+ * event arrives because somebody did something, and the engine's entry point takes the actor from the session that
+ * asked. Time has no session, so this sweep stands in for one. It finds the tasks whose deadline has passed and hands
+ * each to {@link WorkflowEngine#receiveEvent} as an ordinary {@code timeout} event. A timer firing therefore goes
+ * through the same entry point, authorization rules and single commit as everything else.</p>
  *
- * <p>Polling rather than a scheduled job per deadline: a deadline lives in the repository, so it survives a restart
- * and a failover, which a scheduler's in-memory job does not. The cost is that a timer fires at the first sweep
- * after it is due rather than to the second, which is the right trade for deadlines measured in days.</p>
+ * <p>The deadlines are polled because a deadline stored in the repository survives a restart and a failover. A
+ * scheduler's in-memory job per deadline does not. A timer fires at the first sweep after it is due.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -75,10 +74,7 @@ public class DueTimers implements Runnable
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DueTimers.class);
 
-    /**
-     * The open tasks whose deadline has passed. Ordered by deadline so that a sweep finding more than it can
-     * deliver leaves the newest waiting rather than an arbitrary set.
-     */
+    /** The open tasks whose deadline has passed, oldest deadline first. */
     private static final String DUE_TASKS =
         "SELECT * FROM [wf:TaskInstance] AS task WHERE task.[status] = 'created' AND task.[dueDate] <= $now"
             + " ORDER BY task.[dueDate] ASC";
@@ -97,8 +93,8 @@ public class DueTimers implements Runnable
     {
         final ScheduleOptions options = this.scheduler.EXPR(DEFAULT_SCHEDULE);
         options.name(JOB_NAME);
-        // One sweep at a time: two overlapping ones would both find the same overdue task, and the second would
-        // deliver a timeout to a task the first has already cancelled
+        // One sweep at a time. Two overlapping sweeps would find the same overdue task, and the second would deliver
+        // a timeout to a task the first has already cancelled.
         options.canRunConcurrently(false);
         this.scheduler.schedule(this, options);
         LOGGER.info("Scheduled the workflow deadline sweep");
@@ -129,12 +125,10 @@ public class DueTimers implements Runnable
     }
 
     /**
-     * The paths of the tasks whose deadline has passed, read through the engine's own session. Paths rather than
-     * resources, and read out in one go, because the query's own session is the wrong thing to be holding while
-     * each delivery opens, writes and commits its own.
+     * Find the paths of the tasks whose deadline has passed, read through the engine's own session.
      *
-     * <p>The deadline is bound as a value rather than written into the statement: it is a timestamp the engine
-     * itself produced, but a query built by concatenation is a habit worth not having.</p>
+     * <p>Paths rather than resources, and read in one go, because the query's own session should not be held open while
+     * each delivery opens, writes and commits its own session.</p>
      *
      * @param resolver the engine's session
      * @return the overdue tasks' paths, in deadline order
@@ -154,8 +148,10 @@ public class DueTimers implements Runnable
     }
 
     /**
-     * Delivers one passed deadline. A failure is logged and the sweep carries on: one broken definition must not
-     * stop every other deadline in the repository from being met.
+     * Delivers one passed deadline, as a {@code timeout} event sent to the workflow engine.
+     *
+     * <p>A failure is logged and the sweep carries on: one broken definition must not stop every other deadline in the
+     * repository from being met.</p>
      *
      * @param task the overdue task
      */

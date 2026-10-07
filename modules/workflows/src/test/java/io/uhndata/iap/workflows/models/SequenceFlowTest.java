@@ -66,8 +66,6 @@ class SequenceFlowTest
             "targetRef", "task_1",
             "label", "Approved",
             "isDefault", true));
-        // The guard is the cond:condition child the cond:Conditionable supertype brings, the same way a schema
-        // item carries the condition saying when it applies
         this.context.create().resource(resource.getPath() + "/cond:condition",
             TYPE, "cond/SingleCondition");
         final SequenceFlow flow = resource.adaptTo(SequenceFlow.class);
