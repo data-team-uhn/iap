@@ -94,7 +94,7 @@ class CreateSubmissionHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(CreateSubmissionHandler.NAME, this.handler.getName());
+        assertEquals(CreateSubmissionHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test
@@ -180,7 +180,7 @@ class CreateSubmissionHandlerTest
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(context(Map.of(
                 "title", "My day off", "schemaVersion", VERSION_PATH), sabotaged)));
-        assertTrue(failure.getMessage().contains("Could not reference"));
+        assertTrue(failure.getMessage().contains("Cannot point"));
     }
 
     @Test

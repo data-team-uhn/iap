@@ -20,9 +20,6 @@ package io.uhndata.iap.submissions.internal;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
@@ -32,6 +29,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -52,7 +50,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class CreateSubmissionHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "createSubmission";
+    public static final String HANDLER_NAME = "createSubmission";
 
     /** The payload entry naming the submission to create. */
     private static final String TITLE_PARAMETER = "title";
@@ -75,7 +73,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override
@@ -86,7 +84,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         final Resource submission = context.getResourceResolver().create(context.getTarget(),
             freeName(context.getTarget(), title),
             Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
-        setSchemaVersion(submission, schemaVersion);
+        ReferenceUtils.setReference(submission, SCHEMA_VERSION_PROPERTY, schemaVersion);
         draft(submission);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
     }
@@ -107,29 +105,6 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         // Every resource adapts to Taggable where the tags bundle is installed, and it starts first
         Objects.requireNonNull(submission.adaptTo(Taggable.class), "A submission is taggable")
             .tag(Submission.DRAFT_TAG);
-    }
-
-    /**
-     * Points the submission at its schema version with a real {@code REFERENCE}. This must go through the JCR API,
-     * since the Sling API does not support {@code REFERENCE} properties. A plain string property would carry the right
-     * identifier but the wrong type, and the strict {@code sub:Submission} definition rejects it at commit.
-     *
-     * @param submission the submission just created
-     * @param schemaVersion the vetted schema version
-     * @throws PersistenceException when the repository refuses the reference
-     */
-    private void setSchemaVersion(final Resource submission, final Resource schemaVersion)
-        throws PersistenceException
-    {
-        final Node node = Objects.requireNonNull(submission.adaptTo(Node.class),
-            "A freshly created submission is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(schemaVersion.adaptTo(Node.class),
-            "A vetted schema version is always backed by a JCR node");
-        try {
-            node.setProperty(SCHEMA_VERSION_PROPERTY, target);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not reference the schema version", e);
-        }
     }
 
     /**

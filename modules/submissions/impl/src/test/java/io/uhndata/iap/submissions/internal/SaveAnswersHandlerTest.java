@@ -116,7 +116,7 @@ class SaveAnswersHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(SaveAnswersHandler.NAME, this.handler.getName());
+        assertEquals(SaveAnswersHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test
@@ -268,7 +268,7 @@ class SaveAnswersHandlerTest
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"), REQUESTER, sabotaged)));
-        assertTrue(failure.getMessage().contains("Could not reference"));
+        assertTrue(failure.getMessage().contains("Cannot point"));
     }
 
     /**
