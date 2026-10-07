@@ -23,6 +23,7 @@ import { Box, Button } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
+import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -31,7 +32,7 @@ import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 import NewSchemaDialog from "./NewSchemaDialog";
 import SchemaActions from "./SchemaActions";
 import { SCHEMA_OF, SCHEMA_TYPE } from "./schemaGrid";
-import { schemaNameFromRoute, SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
+import { labelOf, schemaNameFromRoute, SCHEMAS_ROOT, titleOf, type JcrNode } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import { schemaPageUrl } from "./useSchemaList";
 
@@ -47,7 +48,8 @@ function SchemaManager() {
     field: "__actions__",
     headerName: "Actions",
     width: 280,
-    cardSlot: "omit",
+    // On a phone, one menu at the end of a schema's card
+    cardSlot: "actions",
     renderCell: params => {
       const row = params.row;
       const parent = row[SCHEMA_OF] as JcrNode | undefined;
@@ -62,8 +64,12 @@ function SchemaManager() {
       return (
         <Box onClick={event => event.stopPropagation()}>
           { version
-            ? <SchemaVersionActions place="versionList" version={version} {...shared} />
-            : <SchemaActions {...shared} /> }
+            ? (
+              <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
+                <SchemaVersionActions place="versionList" version={version} {...shared} />
+              </ActionsMenu>
+            )
+            : <ActionsMenu label={`Actions for “${titleOf(schema)}”`}><SchemaActions {...shared} /></ActionsMenu> }
         </Box>
       );
     },

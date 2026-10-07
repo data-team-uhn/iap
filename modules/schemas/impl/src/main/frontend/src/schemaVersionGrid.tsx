@@ -16,21 +16,34 @@
  * limitations under the License.
  */
 
-import { Link, type LinkProps, Stack, Typography } from "@mui/material";
+import { Link, type LinkProps } from "@mui/material";
 import { Link as RouterLink } from "react-router";
 
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { descriptionOf, type JcrNode, labelOf, nameOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
+import { type JcrNode, labelOf, nameOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
 
-const dateValue = (value: unknown) => typeof value === "string" ? new Date(value) : null;
+// The schema a version belongs to, by name, from where the version lives
+const schemaNameOf = (version: JcrNode): string => String(version["@path"]).split("/").at(-2) ?? "";
+
+// A version's label displayed as a link to its page
+function VersionLink({ row, children }: { row: JcrNode } & Pick<LinkProps, "children">) {
+  return (
+    <Link component={RouterLink} to={versionPageUrl(schemaNameOf(row), nameOf(row))} underline="hover"
+      onClick={event => event.stopPropagation()}>
+      {children}
+    </Link>
+  );
+}
 
 // The versions of one schema, as its page lists them: rows it already has, sorted in the browser. The
-// default order is the order they were made in; by label, numbers compare as numbers (2.0 before 10.0).
+// default order is the order they were made in; by label, numbers compare as numbers (2.0 before 10.0). On a
+// phone, a version's card leads with its label and lifecycle tags, its description and creation day under them.
 const COLUMNS: EntityGridColumn[] = [
   {
     field: "version",
@@ -39,6 +52,8 @@ const COLUMNS: EntityGridColumn[] = [
     valueGetter: (_value, row) => labelOf(row),
     sortComparator: (one: string, other: string) => one.localeCompare(other, undefined, { numeric: true }),
     renderCell: params => <VersionLink row={params.row}>{labelOf(params.row)}</VersionLink>,
+    cardSlot: "title",
+    cardValue: row => <VersionLink row={row}>{`Version ${labelOf(row)}`}</VersionLink>,
   },
   {
     field: "state",
@@ -47,42 +62,19 @@ const COLUMNS: EntityGridColumn[] = [
     sortable: false,
     filterable: false,
     renderCell: params => <LifecycleChip tags={tagsOf(params.row)} />,
+    cardSlot: "badge",
   },
-  { field: "description", headerName: "Description", flex: 2, minWidth: 180 },
+  { field: "description", headerName: "Description", flex: 2, minWidth: 180, cardSlot: "caption" },
   {
     field: "jcr:created",
     headerName: "Created",
     width: 170,
     type: "dateTime",
     valueGetter: value => dateValue(value),
+    cardSlot: "caption",
+    cardValue: row => dayOf(row["jcr:created"]),
   },
 ];
-
-// The schema a version belongs to, by name, from where the version lives
-const schemaNameOf = (version: JcrNode): string => String(version["@path"]).split("/").at(-2) ?? "";
-
-// A version's label displayed as a link to its page
-function VersionLink({ row, children, variant }: { row: JcrNode } & Pick<LinkProps, "children" | "variant">) {
-  return (
-    <Link component={RouterLink} to={versionPageUrl(schemaNameOf(row), nameOf(row))} underline="hover"
-      variant={variant} onClick={event => event.stopPropagation()}>
-      {children}
-    </Link>
-  );
-}
-
-// A version on a phone: its label and lifecycle tags, and its description
-function VersionCard({ row }: { row: JcrNode }) {
-  return (
-    <Stack spacing={0.5} sx={{ py: 1 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <VersionLink row={row} variant="body1">{`Version ${labelOf(row)}`}</VersionLink>
-        <LifecycleChip tags={tagsOf(row)} />
-      </Stack>
-      { descriptionOf(row) && <Typography variant="description">{descriptionOf(row)}</Typography> }
-    </Stack>
-  );
-}
 
 // Registered at import, so any grid importing this module can list versions
 registerEntityType(SCHEMA_VERSION_TYPE, {
@@ -90,5 +82,4 @@ registerEntityType(SCHEMA_VERSION_TYPE, {
   columns: COLUMNS,
   defaultSort: { field: "jcr:created", sort: "asc" },
   rowLink: row => versionPageUrl(schemaNameOf(row), nameOf(row)),
-  listItem: row => <VersionCard row={row} />,
 });
