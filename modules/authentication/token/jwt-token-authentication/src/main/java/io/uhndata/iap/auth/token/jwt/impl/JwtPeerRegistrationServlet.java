@@ -146,6 +146,8 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
                     "This key is already registered, as " + path);
                 return;
             }
+
+            // Store + reply success
             resolver.create(parent, key.fingerprint(), Map.of(
                 "jcr:primaryType", "rep:Unstructured",
                 IapJwtTokenManagerImpl.VERIFY_PROP, key.encoded(),

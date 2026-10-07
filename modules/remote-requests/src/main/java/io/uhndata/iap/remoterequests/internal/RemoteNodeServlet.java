@@ -52,13 +52,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * the token authentication: {@code POST /system/remote} with a JWT in the {@code Authorization} header and a body
  * of {@code {"path": "<name>"}} creates an empty node at {@code /remote/<name>}.
  *
- * <p>What it creates is a placeholder; what matters is the shape of the gate in front of it. The peer gets no
- * session, so the token is the whole of the authentication: {@link TokenManager#parse} verifies the signature
- * against a key this instance knows, and the issuer and audience claims against who the key says the peer is.
- * The write that follows is done by a service user whose rights end at {@code /remote}, and the requested name
- * is confined to a single alphanumeric segment, so neither a slash nor a {@code ..} can carry the peer out of
- * that subtree. Authentication alone is not containment: a trusted peer with a valid token is still only
- * entitled to the one thing this endpoint does.</p>
+ * <p>Currently mostly a placeholder, to showcase the cross-site authentication work. The write that follows is done
+ * by a service user whose rights end at {@code /remote}, and the requested name is confined to a single alphanumeric
+ * segment, to prevent subtree traversal. JWT usage is limited to this endpoint currently.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -84,10 +80,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     private static final String ERROR = "error";
 
     /**
-     * What the body's {@code path} may be: one segment, ASCII letters and digits only. That excludes the slash
-     * that would address another subtree, the period that {@code ..} is built from, and the colon a JCR namespace
-     * prefix needs, so the name can be appended to {@link #ROOT} without further escaping. The length cap is
-     * arbitrary, and only there so that a name cannot be used to bloat the repository.
+     * What the body's {@code path} may be: one segment, ASCII letters and digits only.
      */
     private static final Pattern SAFE_NAME = Pattern.compile("\\p{Alnum}{1,64}");
 
@@ -196,6 +189,8 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
                 reply(response, HttpServletResponse.SC_CONFLICT, ERROR, path + " already exists");
                 return;
             }
+
+            // Actually create the node + return success
             resolver.create(parent, name, Map.of("jcr:primaryType", "nt:unstructured"));
             resolver.commit();
             response.setHeader("Location", path);
