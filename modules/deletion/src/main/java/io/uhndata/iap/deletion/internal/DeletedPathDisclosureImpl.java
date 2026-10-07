@@ -45,14 +45,13 @@ import io.uhndata.iap.utils.UserIds;
  * Looks a dead link up in the archive on behalf of the 404 page, and decides what its reader may be told.
  *
  * <p>
- * Three answers, by who is asking. A reader who can read the archive entry, which today means an administrator,
- * learns when it went, who deleted it, and where to look at it. The person who deleted it learns when it went, and
- * is offered no link to an archive they cannot open. Anybody else is told nothing and sees an ordinary 404.
+ * Three different responses: A reader who can read the archive learns when it was archived, who
+ * deleted it, and a link to the archive entry. The person who deleted it learns when it was archived.
+ * Anybody else is told nothing and sees an ordinary 404.
  * </p>
  *
  * <p>
- * The archive test is a plain read through the requester's own session. That is the repository's answer rather
- * than a second notion of who may see the archive.
+ * The archive test is a plain read through the requester's own session to use JCR's permission system.
  * </p>
  *
  * @version $Id$

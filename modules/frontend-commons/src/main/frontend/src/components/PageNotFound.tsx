@@ -28,16 +28,15 @@ import ErrorPage from './ErrorPage';
  * `data-deleted-*` attributes the 404 error handler carries.
  */
 interface PageNotFoundProps {
-  /** When the path was deleted, ISO-8601. Absent unless it was, so its presence is what says it was. */
+  /** When it was deleted. ISO-8601. Only present for a page that used to exist and if the user should know that. */
   deletedAt?: string;
   /** Who deleted it. Only disclosed to a reader who can read the archive entry. */
   deletedBy?: string;
-  /** Where to look at the entry. Only disclosed to a reader who can read it. */
+  /** Where to look at the archived entry. Only disclosed to a reader who can read it. */
   entryUrl?: string;
 }
 
-// The date a reader is shown, or null when the attribute holds something unreadable. "Deleted", with no date,
-// is still worth saying.
+// The date a reader is shown, or null when the attribute holds something unreadable.
 function deletionDate(deletedAt: string): string | null {
   const date = new Date(deletedAt);
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
@@ -65,7 +64,7 @@ export default function PageNotFound({ deletedAt, deletedBy, entryUrl }: PageNot
       >
         { /* `component` because MUI renders subtitle1 as an h6, and neither of these is a heading:
              they would join the page's outline between the title and nothing at all. */ }
-        {deletedBy && <Typography variant="subtitle1" component="p" color="textSecondary">
+        {deletedBy && <Typography variant="description" component="p">
           Deleted by {deletedBy}
         </Typography> }
         {entryUrl && <Typography variant="subtitle1" component="p">

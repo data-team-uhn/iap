@@ -305,29 +305,19 @@ unavailable rather than shown three zeros.
 ### Telling a reader that a resource was deleted
 
 A link to something that has been archived is a dead link, and a bare "this page does not exist" is
-both unhelpful and untrue. The platform's 404 page says what became of the path instead, and it says
-it in the response the reader was already getting: `DeletionMetadata`
-(`io.uhndata.iap.deletion.scripting`) is a HTL helper that the error handler declares, which looks the
-requested path up while the page is being rendered and leaves the answer on the mount container as
-`data-deleted-at`, `data-deleted-by` and `data-entry-url`. HTL drops an attribute whose value is
-empty, so a path that was never there carries none of the three.
+unhelpful to users who have access to the archive or the user who deleted it. For these users,
+modify the 404 page to add the relevant data. `DeletionMetadata` (`io.uhndata.iap.deletion.scripting`)
+is a HTL helper that the error handler declares which adds the relevant data as  `data-deleted-at`,
+`data-deleted-by` and `data-entry-url`.
 
 **It is split in two.** `DeletionMetadata` handles the request; `DeletedPathDisclosure` reads the
 archive and decides what this reader may be told, an OSGi service implemented in this bundle.
 
-The lookup runs through the deletion service session, because the readers it exists for are exactly
-the ones who cannot resolve `/Archive` at all, and the service decides for itself what to disclose.
-There are three answers, by who is asking. **A reader who can read the archive entry** gets
-`deletedAt`, `deletedBy` and a link through to the entry's own page. **The person who deleted it**
-gets `deletedAt` and no link: an archive they cannot open is nothing to send them to. **Anybody
-else** is told nothing at all, and the page stays an ordinary "not found".
-
-The archive test is a plain read of the entry through the requester's own session, so there is no
-second notion of who may see the archive to keep in step with the repository's.
-
-Nothing here offers to restore anything. The entry's own page already states what a restore or a
-purge would do before either is attempted, and that is where the decision belongs; the 404 page
-links to it rather than growing a second, unguarded copy of the action.
+The lookup runs through the deletion service session for access to the archive and the service decides
+what to disclose.
+- **A reader who can read the archive entry** gets `deletedAt`, `deletedBy` and a link through to the entry's own page.
+- **The person who deleted the original entry** gets `deletedAt` and no link as they cannot access the archive.
+- **Anybody else** gets a standard "not found" page.
 
 The client half is `PageNotFound`, in `frontend-commons` — a pure component that renders what the
 entry point read off the container. It knows nothing about deletion beyond those three attributes,
