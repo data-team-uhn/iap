@@ -26,7 +26,8 @@ import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
-  getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
+  getActions: (point: string, place?: string) =>
+    import("./actions.fixture").then(fixture => fixture.actionsFor(point, place)),
 }));
 
 afterEach(() => {

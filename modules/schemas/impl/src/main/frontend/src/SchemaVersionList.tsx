@@ -30,9 +30,9 @@ import SchemaVersionActions from "./SchemaVersionActions";
 import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 import { comparisonPageUrl } from "./useSchemaList";
 
-// A schema's versions, each with where it stands and what can be done with it. The schema's page has
-// already read them, with what the server offers on each, so the grid lists them as they are. Two of them can be
-// picked to be compared, the older the one the newer is compared with.
+// A schema's versions, with where each stands and what can be done with it. The schema's page has already read
+// them, so the grid lists them without fetching. Edit opens a version's own page, where it is edited. Any two can be
+// picked and compared.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: JcrNode;
   reload: () => void;
@@ -48,7 +48,7 @@ function SchemaVersionList({ schema, reload, comparisonDefaults }: {
       // Kept from the row: a click on an action, or inside its dialog, is not a click on the version
       <Box onClick={event => event.stopPropagation()}>
         <SchemaVersionActions version={params.row} schema={schema} reload={reload}
-          comparisonDefaults={comparisonDefaults} />
+          comparisonDefaults={comparisonDefaults} place="versionList" />
       </Box>
     ),
   } ], [ schema, reload, comparisonDefaults ]);

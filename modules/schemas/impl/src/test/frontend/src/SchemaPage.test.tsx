@@ -27,7 +27,8 @@ import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { HOMEPAGE, serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
-  getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
+  getActions: (point: string, place?: string) =>
+    import("./actions.fixture").then(fixture => fixture.actionsFor(point, place)),
 }));
 
 afterEach(() => {
@@ -121,33 +122,26 @@ describe("SchemaPage", () => {
     fireEvent.click((await screen.findAllByRole("button", { name: "Dismiss" }))[0]);
   });
 
-  it("edits a draft's details, sending only what changed", async () => {
-    const posted = serveSchemas();
+  it("opens a version to edit it from its row, a retired one too, as its wording can still be corrected", async () => {
+    serveSchemas();
     renderPage("study");
 
-    fireEvent.click(await within(await versionRow("3.0")).findByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
-    const save = within(dialog).getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-    fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: "3.1" } });
-    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: "Next" } });
-    fireEvent.click(save);
+    expect(await within(await versionRow("1.0")).findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(within(await versionRow("3.0")).queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    fireEvent.click(within(await versionRow("3.0")).getByRole("button", { name: "Edit" }));
 
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3.update.json"));
-    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ version: "3.1", description: "Next" });
+    await waitFor(() => expect(screen.queryByRole("grid")).not.toBeInTheDocument());
+    expect(await screen.findByText("Everything in this version can change until it is activated.")).toBeInTheDocument();
   });
 
-  it("removes an emptied description", async () => {
-    const posted = serveSchemas();
+  it("links each version's label to its page", async () => {
+    serveSchemas();
     renderPage("study");
 
-    fireEvent.click(await within(await versionRow("2.0")).findByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: " " } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    fireEvent.click(within(await versionRow("2.0")).getByRole("link", { name: "2.0" }));
 
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v2.update.json"));
-    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ description: null });
+    await waitFor(() => expect(screen.queryByRole("grid")).not.toBeInTheDocument());
+    expect(await screen.findByText("Current")).toBeInTheDocument();
   });
 
   it("will not save a required field left empty, and keeps a refused edit open", async () => {
