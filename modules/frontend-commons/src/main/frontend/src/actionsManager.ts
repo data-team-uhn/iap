@@ -29,22 +29,30 @@ import { loadExtensions } from "@iap/ui-extension/extensionManager";
 // site, not here.
 export type ActionComponent = ComponentType<Record<string, unknown>>;
 
-// The resolved components, per extension point, and the in-flight request for the ones being
-// resolved: an extension point is fetched once per page load, however many components ask for it.
-const actions = new Map<string, ActionComponent[]>();
-const requests = new Map<string, Promise<ActionComponent[]>>();
+// An action as its extension contributes it: its component, and the places it is shown in, if it names any
+interface ContributedAction {
+  component: ActionComponent;
+  places?: string[];
+}
 
-// The action components registered on an extension point, in the order the repository lists them.
-//
-// Failures are absorbed, not surfaced: a broken extension is skipped, and an unreadable extension
-// point yields no actions. A page's action bar failing never hides the page itself.
-//
-// @param extensionPoint the extension point node name, e.g. "WorkflowVersionActions"
-// @return the components to render, empty if the point has none or could not be read
-export async function getActions(extensionPoint: string): Promise<ActionComponent[]> {
+// The resolved actions, per extension point, and the in-flight request for the ones being
+// resolved: an extension point is fetched once per page load, however many components ask for it.
+const actions = new Map<string, ContributedAction[]>();
+const requests = new Map<string, Promise<ContributedAction[]>>();
+
+// The places an extension names, if any. A repository multi-value property arrives as an array, but a single value
+// may arrive bare.
+function placesOf(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  return (Array.isArray(value) ? value : [ value ]).map(String);
+}
+
+function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
   const resolved = actions.get(extensionPoint);
   if (resolved) {
-    return resolved;
+    return Promise.resolve(resolved);
   }
   const pending = requests.get(extensionPoint);
   if (pending) {
@@ -52,11 +60,12 @@ export async function getActions(extensionPoint: string): Promise<ActionComponen
   }
   const request = loadExtensions(extensionPoint)
     .then(extensions => {
-      const components = extensions
-        .map(extension => extension["ext:render"] as ActionComponent | undefined)
-        .filter((component): component is ActionComponent => component != undefined);
-      actions.set(extensionPoint, components);
-      return components;
+      const contributed = extensions.flatMap((extension): ContributedAction[] => {
+        const component = extension["ext:render"] as ActionComponent | undefined;
+        return component ? [ { component, places: placesOf(extension["ext:places"]) } ] : [];
+      });
+      actions.set(extensionPoint, contributed);
+      return contributed;
     })
     .catch((error: unknown) => {
       console.error(`Failed to resolve the ${extensionPoint} actions`, error);
@@ -65,6 +74,21 @@ export async function getActions(extensionPoint: string): Promise<ActionComponen
     .finally(() => requests.delete(extensionPoint));
   requests.set(extensionPoint, request);
   return request;
+}
+
+// The action components registered on an extension point, in the order the repository lists them. An extension
+// naming the `ext:places` it is shown in is left out of any other; one naming none is shown everywhere.
+//
+// Failures are absorbed, not surfaced: a broken extension is skipped, and an unreadable extension
+// point yields no actions. A page's action bar failing never hides the page itself.
+//
+// @param extensionPoint the extension point node name, e.g. "WorkflowVersionActions"
+// @param place where the actions are shown, e.g. "versionList", if the page tells its places apart
+// @return the components to render, empty if the point has none or could not be read
+export async function getActions(extensionPoint: string, place?: string): Promise<ActionComponent[]> {
+  return (await contributedTo(extensionPoint))
+    .filter(action => !action.places || (place !== undefined && action.places.includes(place)))
+    .map(action => action.component);
 }
 
 // Resets resolved actions between tests, so one test's extension points don't leak into the next.

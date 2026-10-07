@@ -113,6 +113,10 @@
   // repository, independently of which persona is active.
   - ext:personas (STRING) multiple
 
+  // Where an action shown in more than one place belongs, e.g. "versionList" for a list of things rather than
+  // each thing's own page, as the page showing it names its place. Absent means every place.
+  - ext:places (STRING) multiple
+
   // And any other properties
   - * (undefined) multiple
   - * (undefined)
