@@ -44,9 +44,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
-import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
-import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
@@ -154,11 +151,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
         inject(impl, "handlers", allHandlers);
-        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
-        inject(impl, "conditionEvaluator", evaluator);
+        inject(impl, "conditionEvaluator", EngineFixture.conditions());
         return impl;
     }
 

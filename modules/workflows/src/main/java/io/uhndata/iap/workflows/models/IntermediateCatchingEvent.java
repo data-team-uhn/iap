@@ -17,12 +17,17 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Sling Model wrapping a {@code wf:IntermediateCatchingEvent} node: a point mid-process where the workflow waits.
@@ -41,6 +46,8 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     /** The {@code sling:resourceType} of a {@code wf:IntermediateCatchingEvent} node. */
     public static final String RESOURCE_TYPE = "wf/IntermediateCatchingEvent";
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(IntermediateCatchingEvent.class);
+
     // The node type autocreates this as true, so it is normally present. The annotation is what covers the node
     // that got past that -- one of another type carrying this resource type, or one written before the property was
     // autocreated -- which would otherwise read as false here: the exact inversion of the BPMN cancelActivity
@@ -48,6 +55,9 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     @ValueMapValue
     @Default(booleanValues = true)
     private boolean interrupting;
+
+    @ValueMapValue
+    private String timerDuration;
 
     /**
      * Whether firing this event cancels the activity being watched, or merely starts a parallel branch and lets the
@@ -60,6 +70,32 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     public boolean isInterrupting()
     {
         return this.interrupting;
+    }
+
+    /**
+     * How long this event waits before firing, which is what makes it a timer: an event with a duration is fired
+     * by the clock, and one without waits for something to be delivered to it.
+     *
+     * <p>Relative rather than absolute, because a definition is shared by every instance that runs it: when the
+     * waiting started is a fact about the run, recorded where the run is. Stored as an ISO-8601 duration, and
+     * reported as absent when it is not one — a deadline nobody can read is not a deadline, and guessing at what
+     * {@code five days} might have meant would arm the wrong one.</p>
+     *
+     * @return how long the wait lasts, or {@code null} if this event is not a timer
+     */
+    @Nullable
+    public Duration getTimerDuration()
+    {
+        if (this.timerDuration == null) {
+            return null;
+        }
+        try {
+            return Duration.parse(this.timerDuration);
+        } catch (final DateTimeParseException e) {
+            LOGGER.warn("The event {} declares {} as its timer duration, which is not an ISO-8601 duration",
+                this.getPath(), this.timerDuration);
+            return null;
+        }
     }
 
     /**

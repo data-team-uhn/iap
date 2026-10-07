@@ -70,10 +70,16 @@ public class TaskInstance extends Entity
     private String outcome;
 
     @ValueMapValue
+    private String dueEventId;
+
+    @ValueMapValue
     private String[] offeredOutcomes;
 
     @ValueMapValue
     private String[] performers;
+
+    @ValueMapValue
+    private String[] firedEvents;
 
     /**
      * The {@link FlowNode#getElementId() element identifier} of the {@link Activity} this task was raised from.
@@ -169,6 +175,19 @@ public class TaskInstance extends Entity
     }
 
     /**
+     * The boundary event whose timer set this task's {@link #getDueDate() deadline}, named by its element
+     * identifier. Recorded because an activity may be watched by several events, and what happens when the
+     * deadline passes is where execution goes next — read from the definition rather than guessed at.
+     *
+     * @return an element identifier, or {@code null} when nothing is counting down to this task
+     */
+    @Nullable
+    public String getDueEventId()
+    {
+        return this.dueEventId;
+    }
+
+    /**
      * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
      * offered them when the task was raised.
      *
@@ -199,6 +218,22 @@ public class TaskInstance extends Entity
     public List<String> getPerformers()
     {
         return this.performers == null ? List.of() : List.of(this.performers);
+    }
+
+    /**
+     * The boundary events watching this task that have already fired, named by their
+     * {@link FlowNode#getElementId() element identifiers}.
+     *
+     * <p>Only a non-interrupting event can fire and leave the task open behind it, which is what makes this needed:
+     * the deadline that has passed would otherwise be delivered again on every sweep, and a task watched by several
+     * events would have no way to say which of them {@link #getDueDate() its deadline} now belongs to.</p>
+     *
+     * @return the identifiers of the events that have fired, empty for a task nothing has happened to yet
+     */
+    @NotNull
+    public List<String> getFiredEvents()
+    {
+        return this.firedEvents == null ? List.of() : List.of(this.firedEvents);
     }
 
     /**

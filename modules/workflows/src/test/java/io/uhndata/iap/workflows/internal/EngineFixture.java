@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,6 +46,10 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -139,9 +144,13 @@ final class EngineFixture
      */
     static ServiceTaskDispatcher noFurtherTasks()
     {
-        return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
-            throw new IllegalStateException("No event was expected to be sent here");
-        });
+        try {
+            return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
+                throw new IllegalStateException("No event was expected to be sent here");
+            }, conditions());
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("The fixture could not build its condition evaluator", e);
+        }
     }
 
     /**
@@ -234,6 +243,24 @@ final class EngineFixture
             throw new IllegalStateException(e);
         }
         return factory;
+    }
+
+    /**
+     * A condition evaluator wired the way the platform wires it, with the operand sources a workflow's own guards
+     * use: literals, tags, and the variables of the instance being routed. Built by hand because the bundle plugin
+     * only generates the DS metadata at packaging time, the same way the conditions module tests its own evaluator.
+     *
+     * @return an evaluator a gateway's guards can be asked of
+     * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
+     */
+    static ConditionEvaluator conditions() throws ReflectiveOperationException
+    {
+        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
+        resolvers.setAccessible(true);
+        resolvers.set(evaluator,
+            List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
+        return evaluator;
     }
 
     /**

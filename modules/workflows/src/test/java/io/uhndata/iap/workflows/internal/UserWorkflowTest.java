@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -54,6 +56,7 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -92,6 +95,8 @@ class UserWorkflowTest
     private static final String BOOTSTRAP = "/SystemWorkflows/putUnderWorkflow/v1";
 
     private static final WorkflowEvent START = new WorkflowEvent("start", Map.of());
+
+    private static final WorkflowEvent TIMEOUT = new WorkflowEvent("timeout", Map.of());
 
     private static final WorkflowEvent APPROVED =
         new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved"));
@@ -133,8 +138,9 @@ class UserWorkflowTest
         this.context.create().resource(PROCESS + "/decision", Map.of(
             TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "decision"));
         this.context.create().resource(PROCESS + "/decision/toApproved", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved",
-            "conditionExpression", "approved"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
+        // The guard reads what the execution knows: the outcome the completed task recorded
+        outcomeIs(PROCESS + "/decision/toApproved", "approved");
         this.context.create().resource(PROCESS + "/decision/toRejected", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRejected", TARGET_REF, "requestRejected",
             "isDefault", true));
@@ -142,6 +148,281 @@ class UserWorkflowTest
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
         this.context.create().resource(PROCESS + "/requestRejected", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+    }
+
+    /**
+     * Gives an arc the guard "the instance's outcome is this", written the way a definition writes it: a single
+     * condition comparing the {@code outcome} variable with a literal.
+     *
+     * @param flowPath the arc to put the condition on
+     * @param outcome the outcome the arc is taken for
+     */
+    private void outcomeIs(final String flowPath, final String outcome)
+    {
+        this.context.create().resource(flowPath + "/cond:condition", Map.of(
+            TYPE, "cond/SingleCondition", "comparator", "equals"));
+        this.context.create().resource(flowPath + "/cond:condition/operandA", Map.of(
+            TYPE, "cond/ConditionOperand", "source", "variable", "value", "outcome"));
+        this.context.create().resource(flowPath + "/cond:condition/operandB", Map.of(
+            TYPE, "cond/ConditionOperand", "value", outcome));
+    }
+
+    @Test
+    void startsTheClockOnATaskADeadlineWatches() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        started();
+
+        final Map<String, Object> task = read(TASK);
+        // The deadline is a fact about this run, so it is on the task rather than worked out later from the
+        // definition, which only says how long the wait is
+        assertEquals("approvalOverdue", task.get("dueEventId"));
+        final Calendar due = (Calendar) task.get("dueDate");
+        assertNotNull(due);
+        final long days = (due.getTimeInMillis() - System.currentTimeMillis()) / 86400000L;
+        assertEquals(4, days, "Five days out, give or take the moment of measuring");
+    }
+
+    @Test
+    void leavesATaskNothingIsCountingDownToWithoutADeadline() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        started();
+
+        assertNull(read(TASK).get("dueDate"));
+        assertNull(read(TASK).get("dueEventId"));
+    }
+
+    @Test
+    void ignoresABoundaryEventThatIsNotATimer() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        // An event with no duration waits for something to be delivered to it, and nothing yet delivers one, so
+        // there is no deadline to start
+        this.context.create().resource(PROCESS + "/" + APPROVE + "/cancelled", Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "cancelled", "messageName", "withdraw"));
+        started();
+
+        assertNull(read(TASK).get("dueDate"));
+    }
+
+    @Test
+    void takesTheEarliestOfSeveralDeadlines() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        watchApprovalWith("PT36H", "escalate", "escalated");
+        started();
+
+        // The earliest is the one that will actually fire; the others would have needed a token each anyway
+        assertEquals("escalate", read(TASK).get("dueEventId"));
+    }
+
+    @Test
+    void carriesTheInstanceDownTheTimersArcWhenTheDeadlinePasses() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        final WorkflowEngine engine = started();
+        deadlinePassed();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        // The task is cancelled rather than completed, and nothing decided it: no assignee, no outcome
+        assertEquals("cancelled", read(TASK).get("status"));
+        assertNull(read(TASK).get("assignee"));
+        assertNull(read(TASK).get("outcome"));
+        // Execution left down the timer's own arc, so the host ends in the state that arc leads to
+        assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+    }
+
+    @Test
+    void remindsWithoutEndingTheWorkWhenTheTimerDoesNotInterrupt() throws Exception
+    {
+        // "Remind them but let them carry on": the approval stays on somebody's desk, and the reminder is a second
+        // branch beside it rather than what became of it
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE + "/approvalSlow/toEndapprovalSlow"));
+        this.context.create().resource(PROCESS + "/" + APPROVE + "/approvalSlow/toChase", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toChase", TARGET_REF, "chaseApprover"));
+        this.context.create().resource(PROCESS + "/chaseApprover", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "chaseApprover", "label", "Chase the approver",
+            "performers", new String[] {EngineFixture.REQUESTERS}));
+        this.context.create().resource(PROCESS + "/chaseApprover/toDecision", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "chaseToDecision", TARGET_REF, "decision"));
+        final WorkflowEngine engine = started();
+        deadlinePassed();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        // The approval is untouched and there are now two things to do
+        assertEquals("created", read(TASK).get("status"));
+        assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get("status"));
+        assertEquals("active", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+        // Recorded as spent, and nothing is counting down any more, which is what stops the sweep delivering it again
+        assertArrayEquals(new String[] {"approvalSlow"}, (String[]) read(TASK).get("firedEvents"));
+        assertNull(read(TASK).get("dueDate"));
+        assertNull(read(TASK).get("dueEventId"));
+    }
+
+    @Test
+    void armsTheNextDeadlineOnceAReminderHasFired() throws Exception
+    {
+        // "Remind them after a day and a half, give up after five days": the second deadline is measured from when
+        // the task started, not from when the reminder went out
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        watchApprovalWith("P5D", "approvalOverdue", "expired");
+        final WorkflowEngine engine = started();
+        final Calendar started = (Calendar) read(TASK).get("startTime");
+        deadlinePassed();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertEquals("approvalOverdue", read(TASK).get("dueEventId"));
+        final Calendar due = (Calendar) read(TASK).get("dueDate");
+        final Calendar fromTheStart = (Calendar) started.clone();
+        fromTheStart.add(Calendar.DATE, 5);
+        assertEquals(fromTheStart.getTimeInMillis(), due.getTimeInMillis());
+
+        // And the later deadline still gives up on the task when it passes
+        deadlinePassed();
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertEquals("cancelled", read(TASK).get("status"));
+        assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
+    void deliversAReminderOnlyOnce() throws Exception
+    {
+        // The sweep looks for tasks whose deadline has passed, and a task a non-interrupting event fired on is still
+        // open; nothing is counting down to it any more, so there is nothing left to deliver
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        final WorkflowEngine engine = started();
+        deadlinePassed();
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    @Test
+    void refusesADeadlineNothingIsCountingDownTo() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        // Nothing armed this task, so there is no boundary event to leave through: the sweep must not be able to
+        // cancel a task by aiming a timeout at it
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    @Test
+    void letsTheClockPassThroughWhereAPersonMayNot() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        // performers says who may make execution pass through a node, and time belongs to no group: a deadline
+        // that could be refused for that would park the instance on a task nobody can ever do
+        watchApprovalWith("P5D");
+        final WorkflowEngine engine = started();
+        deadlinePassed();
+
+        engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT);
+
+        assertEquals("cancelled", read(TASK).get("status"));
+    }
+
+    @Test
+    void refusesATimeoutBeforeTheDeadline() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        final WorkflowEngine engine = started();
+
+        // Any channel can deliver an event, and a timeout sent early would take the decision off the approver's
+        // desk with nothing having run out: the deadline is what stands in for a performer check
+        assertThrows(InvalidStateException.class,
+            () -> engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+        assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
+    void refusesATimeoutOnATaskThatDoesNotSayWhenItRunsOut() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        final WorkflowEngine engine = started();
+        this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class).remove("dueDate");
+
+        assertThrows(InvalidStateException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    /**
+     * Moves the approval task's deadline into the past, which is what has happened by the time the clock fires.
+     */
+    private void deadlinePassed()
+    {
+        final Calendar past = Calendar.getInstance();
+        past.add(Calendar.HOUR, -1);
+        this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class).put("dueDate", past);
+    }
+
+    /**
+     * Attaches a boundary timer to the approval task, leading to an end event that says the request expired.
+     *
+     * @param duration how long the timer waits, as an ISO-8601 duration
+     */
+    private void watchApprovalWith(final String duration)
+    {
+        watchApprovalWith(duration, "approvalOverdue", "expired");
+    }
+
+    /**
+     * Attaches a boundary timer to the approval task, leading to an end event of its own.
+     *
+     * @param duration how long the timer waits, as an ISO-8601 duration
+     * @param elementId the timer's element identifier
+     * @param endTag the tag the end event it leads to places on the host
+     */
+    private void watchApprovalWith(final String duration, final String elementId, final String endTag)
+    {
+        watchApprovalWith(duration, elementId, endTag, true);
+    }
+
+    /**
+     * Attaches a boundary timer to the approval task, leading to an end event of its own.
+     *
+     * @param duration how long the timer waits, as an ISO-8601 duration
+     * @param elementId the timer's element identifier
+     * @param endTag the tag the end event it leads to places on the host, or {@code null} for none
+     * @param interrupting whether firing gives up on the task, or leaves it running alongside
+     */
+    private void watchApprovalWith(final String duration, final String elementId, final String endTag,
+        final boolean interrupting)
+    {
+        final String timer = PROCESS + "/" + APPROVE + "/" + elementId;
+        this.context.create().resource(timer, Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, elementId,
+            "timerDuration", duration, "interrupting", interrupting));
+        this.context.create().resource(timer + "/toEnd" + elementId, Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd" + elementId, TARGET_REF, "end" + elementId));
+        // A branch that runs beside the work rather than instead of it says nothing about the host's state, so it
+        // gets no tag: passing null is how a caller says the end event is not a lifecycle step
+        this.context.create().resource(PROCESS + "/end" + elementId, endTag == null
+            ? Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId)
+            : Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId, "hostTag", endTag));
     }
 
     /**
@@ -199,6 +480,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
+        inject(impl, "conditionEvaluator", EngineFixture.conditions());
         return impl;
     }
 
@@ -443,6 +725,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -610,6 +893,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
