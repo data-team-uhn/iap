@@ -42,6 +42,9 @@ export function treeRows(rows: EntityRow[], tree?: EntityGridChildren): EntityRo
 
 export const treeDataPath = (row: EntityRow): string[] => row[TREE_PATH] as string[];
 
+// What a row is called in the tree: its tree field, or its name when it has none
+export const treeName = (row: EntityRow, tree: EntityGridChildren): unknown => row[tree.treeField] ?? row["@name"];
+
 // A row is identified by where it lives. `@name` is only unique among siblings, but the rows of
 // one grid are siblings, so it stands in when a projection omits the path; falling through to
 // the row's position keeps two such rows apart, which a shared "undefined" would not -- the
@@ -72,7 +75,7 @@ export function groupingColumn(columns: EntityGridColumn[], tree: EntityGridChil
     minWidth: treeColumn?.minWidth,
     sortable: treeColumn?.sortable !== false,
     filterable: false,
-    valueGetter: (_value: never, row: EntityRow) => row[tree.treeField] ?? row["@name"],
+    valueGetter: (_value: never, row: EntityRow) => treeName(row, tree),
     cellClassName: params => (treeDataPath(params.row).length === 1 ? ENTITY_CELL : ""),
   };
 }

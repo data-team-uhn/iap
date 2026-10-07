@@ -237,7 +237,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     field: "__listItem__",
     renderCell: params => config.listItem
       ? bespoke(params.row, config.listItem)
-      : <EntityListItem row={params.row} columns={visibleColumns} />,
+      : <EntityListItem row={params.row} columns={visibleColumns} config={config} />,
   };
 
   // Clicking a row navigates to the entity's own page, when the entity type declares one
