@@ -82,7 +82,7 @@ function Items({ items, disabled, states, onAnswered }: {
 }
 
 // One requirement. One that holds no questions is still shown, and answered here where it can be: a
-// document is uploaded, and an approval is somebody else's step, so it only says it is waiting on them.
+// document is uploaded, and any other kind says it cannot be completed here yet.
 function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
@@ -106,7 +106,7 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
           )
           : (
             <Typography variant="placeholder">
-              This part of the request is somebody else&apos;s step, and cannot be completed here.
+              This part of the request cannot be completed here yet.
             </Typography>
           ) }
     </Panel>

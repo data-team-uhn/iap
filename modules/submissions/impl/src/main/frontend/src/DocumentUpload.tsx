@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 import { type DocumentRequirement, attachDocument } from "./submissionForm";
 
@@ -37,29 +38,33 @@ const OFFSCREEN = {
   whiteSpace: "nowrap" as const
 };
 
-// What a refused workflow event said, which the client already unwrapped from the engine's reply.
-function refusal(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// Answering a document requirement: what has been attached for it, the blank to start from if it
-// offers one, and a way to attach a file.
-//
-// The upload is an `attachDocument` event on the submission rather than a write, for the same reason
-// answering a question is: a submitter can read their own request and nothing more. What may be
-// attached and until when is the handler's decision. This control only reports the answer.
-function DocumentUpload({ path, requirement, disabled, onAttached }: {
+export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
   // Whether this reader may still change the request at all, which is the server's `editable`
   disabled: boolean;
   onAttached: () => void;
-}) {
+}
+
+// Answering a document requirement: what has been attached for it, the template it offers if any,
+// and a way to attach a file.
+function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
   const accepted = requirement.acceptedFileTypes;
   const attached = requirement.attached;
+
+  // Leaving the page aborts an upload still on its way, so the browser asks first. Moving within the
+  // app does not abort it, and the file still arrives.
+  useEffect(() => {
+    if (!busy) {
+      return undefined;
+    }
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   const upload = (file: File) => {
     setBusy(true);
@@ -71,9 +76,8 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
       },
       (error: unknown) => {
         setBusy(false);
-        // The engine's own reason: a refusal here says which file type it would not take, which is
-        // the only actionable part of it
-        setFailure(refusal(error));
+        // The engine's own reason, such as which file type it would not take
+        setFailure(messageOf(error));
       }
     );
   };
@@ -89,7 +93,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
           </Typography>
         )}
       {requirement.template
-        ? <Link href={requirement.template} download>Download the blank form</Link>
+        ? <Link href={requirement.template} download>Download the template</Link>
         : null}
       <Button
         component="label"
@@ -103,8 +107,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
           component="input"
           type="file"
           sx={OFFSCREEN}
-          // What the requirement says it takes, so the file dialog offers those first. The refusal
-          // that matters is still the server's: this is a hint to a dialog, not a check.
+          // Only a hint for the file dialog. The server checks the type
           accept={accepted.length > 0 ? accepted.join(",") : undefined}
           disabled={disabled || busy}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {

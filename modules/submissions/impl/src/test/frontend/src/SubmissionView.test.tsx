@@ -414,8 +414,6 @@ describe("SubmissionView", () => {
   });
 
   describe("the documents section", () => {
-    // Reading only: a document is attached while the request is being filled in, which is the
-    // editor's job. What this page owes is an accurate account of where things stand.
     const PROTOCOL = {
       name: "Protocol",
       type: "sch/DocumentRequirement",

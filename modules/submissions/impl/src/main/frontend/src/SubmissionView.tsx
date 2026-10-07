@@ -150,9 +150,7 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
   );
 }
 
-// What the schema asks for and what has been attached against it. Reading only: a document is
-// attached while the request is being filled in, which is what the editor is for, so this page says
-// where things stand rather than offering a second way to change them.
+// What the schema asks for and what has been attached against it.
 //
 // The requirements come from the form projection rather than from the submission this page already
 // holds, because a document requirement can be conditional, and conditions are resolved on the

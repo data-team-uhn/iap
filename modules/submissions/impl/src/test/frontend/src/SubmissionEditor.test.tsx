@@ -160,8 +160,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("shows a requirement that holds no questions, rather than dropping it", async () => {
-    // An approval is still something the request waits on, and leaving it out would say the request
-    // asks less than it does. It is somebody else's step, so it is only reported.
+    // Leaving it out would say the request asks less than it does
     vi.stubGlobal("fetch", serving(form({
       requirements: [ { name: "approval", type: "sch/ApprovalRequirement", label: "Approval" } ],
     })));
@@ -169,7 +168,7 @@ describe("SubmissionEditor", () => {
     render(<SubmissionEditor path={PATH} />);
 
     expect(await screen.findByText("Approval")).toBeInTheDocument();
-    expect(screen.getByText(/somebody else's step/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
   });
 
   describe("answering a document requirement", () => {
@@ -192,7 +191,7 @@ describe("SubmissionEditor", () => {
       return new File([ "%PDF" ], name, { type });
     }
 
-    it("offers to attach a file, with the types it takes and the blank to start from", async () => {
+    it("offers to attach a file, with the types it takes and the template to start from", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
       render(<SubmissionEditor path={PATH} />);
@@ -200,17 +199,17 @@ describe("SubmissionEditor", () => {
       const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
       expect(input).toHaveAttribute("accept", "application/pdf,image/png");
       expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Download the blank form" }))
+      expect(screen.getByRole("link", { name: "Download the template" }))
         .toHaveAttribute("href", "/Schemas/timeOffRequest/v1/doctorsNote/template");
     });
 
-    it("says nothing about types or blanks where the requirement offers none", async () => {
+    it("says nothing about types or a template where the requirement offers none", async () => {
       vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [], template: undefined })));
 
       render(<SubmissionEditor path={PATH} />);
 
       expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
-      expect(screen.queryByRole("link", { name: "Download the blank form" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Download the template" })).toBeNull();
     });
 
     it("says skipping it is allowed when the form says so", async () => {
@@ -318,6 +317,31 @@ describe("SubmissionEditor", () => {
       await userEvent.upload(input, pick());
 
       await waitFor(() => expect(screen.queryByText("The server was busy")).toBeNull());
+    });
+
+    it("has the browser warn before a page with an upload on its way is left", async () => {
+      let land: () => void = () => undefined;
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? new Promise<Response>(resolve => {
+            land = () => resolve(json({}));
+          })
+          : json(asked())));
+      const leave = () => {
+        const event = new Event("beforeunload", { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+
+      render(<SubmissionEditor path={PATH} />);
+      const input = await screen.findByLabelText(/Attach a file/);
+      expect(leave()).toBe(false);
+
+      await userEvent.upload(input, pick());
+      expect(leave()).toBe(true);
+
+      land();
+      await waitFor(() => expect(leave()).toBe(false));
     });
 
     it("does nothing when the file dialog was dismissed without a choice", async () => {

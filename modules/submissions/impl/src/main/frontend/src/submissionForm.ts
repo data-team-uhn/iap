@@ -89,7 +89,7 @@ export interface DocumentRequirement extends Requirement {
   // Empty means no restriction, which is why the key is there at all: a reader has to tell "takes
   // anything" from "takes nothing".
   acceptedFileTypes: string[];
-  // A blank to start from, where the requirement offers one
+  // A document to start from, where the requirement offers one
   template?: string;
   // What has been attached already, by title. Present so that reopening the form shows a document
   // that is there rather than an empty control implying it is not.
