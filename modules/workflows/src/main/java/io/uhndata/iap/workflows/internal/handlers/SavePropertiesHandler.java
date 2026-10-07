@@ -19,17 +19,13 @@ package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.utils.VersioningUtils;
-import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.spi.Payloads;
+import io.uhndata.iap.workflows.spi.AbstractPropertiesHandler;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -37,23 +33,17 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * Writes plain text properties from the payload onto the thing the event was aimed at — renaming a workflow, and
  * whatever else a deployment decides is editable that way.
  *
- * <p>Which properties those are is the activity's business, not this handler's: {@code editable} lists the ones a
- * caller may set, and {@code required} the subset that has to arrive with something in it. A payload entry not
- * named in {@code editable} is ignored rather than refused, so a client sending a field this deployment does not
- * accept is simply not granted it. That listing is the whole of the safety here — without it the handler would be
- * an open write to whatever the caller cared to name, {@code jcr:primaryType} included, which is exactly the
- * direct-CRUD door the workflows are replacing.</p>
- *
- * <p>An editable property that arrives blank is removed rather than stored empty: a title cleared in a form is a
- * property the entity no longer carries, not one it carries the empty string in. One the payload does not mention
- * at all is left as it stands, so a caller may send only the fields it is changing. A property named as required is
- * the exception to both, refused unless it arrives with something in it.</p>
+ * <p>Which properties those are is the activity's business: {@code editable} lists the ones a caller may set, and
+ * {@code required} the ones that may not be cleared. That listing is the whole of the safety here — without it the
+ * handler would be an open write to whatever the caller cared to name, {@code jcr:primaryType} included. A payload
+ * entry not named in {@code editable} is ignored rather than refused, since a form carries entries that are not
+ * properties at all.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = ServiceTaskHandler.class)
-public class SavePropertiesHandler implements ServiceTaskHandler
+public class SavePropertiesHandler extends AbstractPropertiesHandler
 {
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "saveProperties";
@@ -61,7 +51,7 @@ public class SavePropertiesHandler implements ServiceTaskHandler
     /** The activity property listing which payload entries may be written. */
     private static final String EDITABLE_PARAMETER = "editable";
 
-    /** The activity property listing which of them must arrive with a value. */
+    /** The activity property listing which of them may not be cleared. */
     private static final String REQUIRED_PARAMETER = "required";
 
     @Override
@@ -71,30 +61,30 @@ public class SavePropertiesHandler implements ServiceTaskHandler
     }
 
     @Override
-    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
+    @NotNull
+    protected List<String> allowed(@NotNull final WorkflowTaskContext context)
     {
-        final List<String> editable = names(context, EDITABLE_PARAMETER);
-        if (editable.isEmpty()) {
-            throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " does not list which properties it is editable to write");
-        }
-        final List<String> required = names(context, REQUIRED_PARAMETER);
-        VersioningUtils.checkOut(context.getTarget());
-        final ModifiableValueMap properties = Objects.requireNonNull(
-            context.getTarget().adaptTo(ModifiableValueMap.class),
-            "A target the engine is writing should always be modifiable");
-        for (final String name : editable) {
-            final String value = Payloads.text(context.getEvent(), name);
-            if (value != null) {
-                properties.put(name, value);
-            } else if (required.contains(name)) {
-                throw new InvalidPayloadException("A " + name + " is required");
-            } else if (context.getEvent().getPayload().containsKey(name)) {
-                // Only a property the caller named and left empty is cleared: one the payload never mentions is
-                // not the caller's to clear, so a client may send just the fields it is changing
-                properties.remove(name);
-            }
-        }
+        return names(context, EDITABLE_PARAMETER);
+    }
+
+    @Override
+    @NotNull
+    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final String name)
+    {
+        return new TextProperty(name, names(context, REQUIRED_PARAMETER).contains(name));
+    }
+
+    @Override
+    @NotNull
+    protected Map<String, Object> requested(@NotNull final WorkflowTaskContext context)
+    {
+        return context.getEvent().getPayload();
+    }
+
+    @Override
+    protected boolean refusesUnlisted()
+    {
+        return false;
     }
 
     /**
@@ -112,5 +102,23 @@ public class SavePropertiesHandler implements ServiceTaskHandler
             return Arrays.asList((String[]) configured);
         }
         return configured instanceof String ? List.of((String) configured) : List.of();
+    }
+
+    /**
+     * A property holding text.
+     *
+     * @param name the property's name
+     * @param mandatory whether it may not be cleared
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record TextProperty(@NotNull String name, boolean mandatory) implements EditableProperty
+    {
+        @Override
+        @Nullable
+        public String referenceType()
+        {
+            return null;
+        }
     }
 }

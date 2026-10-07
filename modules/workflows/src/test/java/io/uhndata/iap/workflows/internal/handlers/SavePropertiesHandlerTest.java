@@ -138,7 +138,7 @@ class SavePropertiesHandlerTest
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(this.save(Map.of(TITLE, "  "),
                 new String[] { TITLE }, new String[] { TITLE })));
-        assertTrue(refusal.getMessage().contains("A title is required"));
+        assertTrue(refusal.getMessage().contains("title cannot be empty"));
     }
 
     @Test
@@ -146,7 +146,7 @@ class SavePropertiesHandlerTest
     {
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(this.save(Map.of(TITLE, "Annual leave"), null, null)));
-        assertTrue(refusal.getMessage().contains("does not list which properties"));
+        assertTrue(refusal.getMessage().contains("does not list the properties"));
     }
 
     /**

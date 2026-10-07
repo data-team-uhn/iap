@@ -21,23 +21,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.jetbrains.annotations.NotNull;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.utils.VersioningUtils;
-import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.spi.AbstractPropertiesHandler;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -46,13 +41,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code fields} configuration: which fields may change in which state is decided by the workflows, one per
  * state, rather than here.
  *
- * <p>The whole patch is checked before anything is written, so a refusal leaves the content as it was.</p>
- *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = ServiceTaskHandler.class)
-public class UpdateSchemaContentHandler implements ServiceTaskHandler
+public class UpdateSchemaContentHandler extends AbstractPropertiesHandler
 {
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "updateSchemaContent";
@@ -64,111 +57,51 @@ public class UpdateSchemaContentHandler implements ServiceTaskHandler
     }
 
     @Override
-    public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
+    @NotNull
+    protected List<String> allowed(@NotNull final WorkflowTaskContext context) throws WorkflowException
     {
-        final Resource target = context.getTarget();
-        final SchemaVersion version = SchemaContent.asVersion(target);
-        if (version == null && SchemaContent.asSchema(target) == null) {
-            throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
-        }
-        final String type = version != null ? SchemaVersion.RESOURCE_TYPE : Schema.RESOURCE_TYPE;
-        final List<String> allowed = allowedFields(context);
-        final Map<SchemaFields.Field, Object> changes = new LinkedHashMap<>();
+        typeOf(context.getTarget());
+        return SchemaFields.allowedBy(context.getActivity());
+    }
+
+    @Override
+    @NotNull
+    protected EditableProperty property(@NotNull final WorkflowTaskContext context, @NotNull final String name)
+        throws WorkflowException
+    {
+        final String type = typeOf(context.getTarget());
+        return SchemaFields.find(type, name).orElseThrow(() -> new WorkflowDefinitionException("The activity "
+            + context.getActivity().getPath() + " allows " + name + ", which is not a field of " + type));
+    }
+
+    @Override
+    @NotNull
+    protected Map<String, Object> requested(@NotNull final WorkflowTaskContext context) throws WorkflowException
+    {
+        final Map<String, Object> requested = new LinkedHashMap<>();
         for (final Map.Entry<String, JsonValue> entry : SchemaPatch.read(context).entrySet()) {
-            if (!allowed.contains(entry.getKey())) {
-                throw new InvalidPayloadException(entry.getKey() + " cannot be edited here");
-            }
-            final SchemaFields.Field field = SchemaFields.find(type, entry.getKey())
-                .orElseThrow(() -> new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                    + " allows " + entry.getKey() + ", which is not a field of " + type));
-            changes.put(field, value(context, field, entry.getValue()));
+            final JsonValue value = entry.getValue();
+            requested.put(entry.getKey(), value instanceof JsonString ? ((JsonString) value).getString()
+                : value.getValueType() == JsonValue.ValueType.NULL ? null : value);
         }
-        VersioningUtils.checkOut(target);
-        for (final Map.Entry<SchemaFields.Field, Object> change : changes.entrySet()) {
-            write(target, change.getKey(), change.getValue());
-        }
+        return requested;
     }
 
     /**
-     * The fields the activity lets a patch change.
+     * Which kind of schema content the target is.
      *
-     * @param context the executing task's context
-     * @return the field names
-     * @throws WorkflowDefinitionException when the activity lists none
+     * @param target the workflow's target
+     * @return the resource type its fields are listed under
+     * @throws WorkflowDefinitionException when it is neither a schema nor a schema version
      */
-    private List<String> allowedFields(final WorkflowTaskContext context) throws WorkflowDefinitionException
+    private static String typeOf(final Resource target) throws WorkflowDefinitionException
     {
-        final List<String> fields = SchemaFields.allowedBy(context.getActivity());
-        if (fields.isEmpty()) {
-            throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " must configure the " + SchemaFields.FIELDS_PARAMETER + " a patch may change");
+        if (SchemaContent.asVersion(target) != null) {
+            return SchemaVersion.RESOURCE_TYPE;
         }
-        return fields;
-    }
-
-    /**
-     * Validates one requested value.
-     *
-     * @param context the executing task's context
-     * @param field the field being set
-     * @param value the requested value
-     * @return the string or the referenced resource to store, or {@code null} to remove the property
-     * @throws InvalidPayloadException when the value does not suit the field
-     */
-    private Object value(final WorkflowTaskContext context, final SchemaFields.Field field, final JsonValue value)
-        throws InvalidPayloadException
-    {
-        if (value.getValueType() != JsonValue.ValueType.NULL && !(value instanceof JsonString)) {
-            throw new InvalidPayloadException(field.name() + " must be a string");
+        if (SchemaContent.asSchema(target) != null) {
+            return Schema.RESOURCE_TYPE;
         }
-        final String text = value instanceof JsonString ? ((JsonString) value).getString().trim() : "";
-        if (text.isEmpty()) {
-            if (field.mandatory()) {
-                throw new InvalidPayloadException(field.name() + " cannot be empty");
-            }
-            return null;
-        }
-        if (field.kind() == SchemaFields.Kind.TEXT) {
-            return text;
-        }
-        final Resource referenced = context.getResourceResolver().getResource(text);
-        if (referenced == null || !referenced.isResourceType(field.referenceType())) {
-            throw new InvalidPayloadException("There is nothing " + field.name() + " can point to at " + text);
-        }
-        return referenced;
-    }
-
-    /**
-     * Writes one validated value.
-     *
-     * @param target the content being edited
-     * @param field the field being set
-     * @param value what {@link #value} made of the request
-     * @throws PersistenceException when the content cannot be modified
-     */
-    private void write(final Resource target, final SchemaFields.Field field, final Object value)
-        throws PersistenceException
-    {
-        final ModifiableValueMap values = target.adaptTo(ModifiableValueMap.class);
-        if (values == null) {
-            throw new PersistenceException("The resource " + target.getPath() + " cannot be modified");
-        }
-        if (value == null) {
-            values.remove(field.name());
-        } else if (value instanceof Resource) {
-            // The Sling API cannot write a REFERENCE property, only a string holding an identifier
-            final Node node = target.adaptTo(Node.class);
-            final Node referenced = ((Resource) value).adaptTo(Node.class);
-            if (node == null || referenced == null) {
-                throw new PersistenceException("Cannot set " + field.name() + " on " + target.getPath());
-            }
-            try {
-                node.setProperty(field.name(), referenced);
-            } catch (final RepositoryException e) {
-                throw new PersistenceException("Cannot set " + field.name() + " on " + target.getPath(), e);
-            }
-        } else {
-            values.put(field.name(), value);
-        }
+        throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
     }
 }

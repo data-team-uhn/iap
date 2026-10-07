@@ -3,7 +3,7 @@
 **Module:** `modules/workflows` · **Bundle:** `iap-workflows` · **API:**
 `io.uhndata.iap.workflows.api` (`WorkflowEngine`, `WorkflowEvent`, `WorkflowResult`) ·
 **SPI:** `io.uhndata.iap.workflows.spi` (`ServiceTaskHandler`, `WorkflowTaskContext`,
-`ExecutionHost`, `Payloads`) ·
+`ExecutionHost`, `Payloads`, `AbstractPropertiesHandler`) ·
 **Models:** `io.uhndata.iap.workflows.models`
 
 A workflow is the process a piece of content is put through: who has to look at a
@@ -768,6 +768,12 @@ which live privately in `internal.handlers`. `ExecutionHost.of` is what a task a
 what an earlier step of the same run created, or else the target, which is how
 `createEntity` followed by `addTag` tags the entity it just made. `Payloads` reads one
 payload entry: text trimmed, with blank counted as absent, or an uploaded file.
+
+A handler that writes properties onto its target extends `AbstractPropertiesHandler`,
+saying which properties the activity allows, what each may hold and what the request
+asks for. The base checks the whole request before writing anything, removes a property
+sent empty unless it is mandatory, and stores a reference as a `REFERENCE`.
+`saveProperties` and the schemas' `updateSchemaContent` both work this way.
 
 The first built-in handler is `createEntity`: create a node of the configured
 `entityType` under the target, named by camel-casing the payload's `title`, dodging

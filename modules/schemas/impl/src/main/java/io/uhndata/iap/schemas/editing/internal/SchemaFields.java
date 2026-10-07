@@ -26,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.spi.AbstractPropertiesHandler;
 
 /**
  * The fields a patch may set on each kind of schema content, and how each is stored. Which of them a given
@@ -63,6 +64,7 @@ final class SchemaFields
      * @since 0.1.0
      */
     record Field(String name, String label, Kind kind, boolean mandatory, boolean multiline, String referenceType)
+        implements AbstractPropertiesHandler.EditableProperty
     {
     }
 
