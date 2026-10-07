@@ -38,6 +38,7 @@ import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ExecutionHost;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -76,12 +77,12 @@ public class CopyContentHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Object path = context.getEvent().get(SOURCE_PARAMETER);
-        if (path == null) {
+        if (context.getEvent().get(SOURCE_PARAMETER) == null) {
             return;
         }
-        final Resource source = path instanceof String ? context.getResourceResolver().getResource((String) path)
-            : null;
+        final String path =
+            Payloads.requireText(context.getEvent(), SOURCE_PARAMETER, "A source must name what to copy");
+        final Resource source = context.getResourceResolver().getResource(path);
         final Object type = context.getActivity().get("sourceType");
         if (source == null || type instanceof String && !source.isResourceType((String) type)) {
             throw new InvalidPayloadException("There is nothing at " + path + " that can be copied here");

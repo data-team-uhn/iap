@@ -31,6 +31,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
  * Completes a user task: records what the person decided, and carries their instance on from there.
@@ -110,8 +111,6 @@ final class TaskCompletion
         }
         PerformerCheck.verify(resolver, definition, actor);
 
-        final Object outcome = event.get(OUTCOME_PARAMETER);
-        new InstanceRunner(resolver, performer, actor)
-            .complete(task, outcome instanceof String ? (String) outcome : null);
+        new InstanceRunner(resolver, performer, actor).complete(task, Payloads.text(event, OUTCOME_PARAMETER));
     }
 }

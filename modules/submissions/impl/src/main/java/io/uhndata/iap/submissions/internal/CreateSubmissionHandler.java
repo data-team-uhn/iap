@@ -35,6 +35,7 @@ import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -80,13 +81,10 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Object title = context.getEvent().get(TITLE_PARAMETER);
-        if (!(title instanceof String) || ((String) title).isBlank()) {
-            throw new InvalidPayloadException("A title is required");
-        }
+        final String title = Payloads.requireText(context.getEvent(), TITLE_PARAMETER, "A title is required");
         final Resource schemaVersion = resolveSchemaVersion(context);
         final Resource submission = context.getResourceResolver().create(context.getTarget(),
-            freeName(context.getTarget(), (String) title),
+            freeName(context.getTarget(), title),
             Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
         setSchemaVersion(submission, schemaVersion);
         draft(submission);
@@ -146,11 +144,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      */
     private Resource resolveSchemaVersion(final WorkflowTaskContext context) throws InvalidPayloadException
     {
-        final Object path = context.getEvent().get(SCHEMA_VERSION_PARAMETER);
-        if (!(path instanceof String) || ((String) path).isBlank()) {
-            throw new InvalidPayloadException("A schemaVersion is required");
-        }
-        final Resource resource = context.getResourceResolver().getResource((String) path);
+        final String path = Payloads.requireText(context.getEvent(), SCHEMA_VERSION_PARAMETER,
+            "A schemaVersion is required");
+        final Resource resource = context.getResourceResolver().getResource(path);
         if (resource == null || !resource.isResourceType(SchemaVersion.RESOURCE_TYPE)) {
             throw new InvalidPayloadException("There is no schema version at " + path);
         }

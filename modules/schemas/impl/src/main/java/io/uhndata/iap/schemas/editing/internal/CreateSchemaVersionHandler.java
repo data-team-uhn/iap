@@ -29,6 +29,7 @@ import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -79,13 +80,9 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
      */
     private static String label(final WorkflowTaskContext context, final int number) throws InvalidPayloadException
     {
-        final Object label = context.getEvent().get(VERSION_PARAMETER);
-        if (label == null) {
+        if (context.getEvent().get(VERSION_PARAMETER) == null) {
             return VersionNumbers.defaultLabel(number);
         }
-        if (!(label instanceof String) || ((String) label).isBlank()) {
-            throw new InvalidPayloadException("The version label cannot be blank");
-        }
-        return ((String) label).trim();
+        return Payloads.requireText(context.getEvent(), VERSION_PARAMETER, "The version label cannot be blank");
     }
 }

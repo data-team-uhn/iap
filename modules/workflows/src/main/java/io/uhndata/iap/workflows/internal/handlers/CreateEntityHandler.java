@@ -28,6 +28,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -67,12 +68,9 @@ public class CreateEntityHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not configure which entityType to create");
         }
-        final Object title = context.getEvent().get(TITLE_PARAMETER);
-        if (!(title instanceof String) || ((String) title).isBlank()) {
-            throw new InvalidPayloadException("A title is required");
-        }
+        final String title = Payloads.requireText(context.getEvent(), TITLE_PARAMETER, "A title is required");
         final Resource created = context.getResourceResolver().create(context.getTarget(),
-            NodeNameUtils.findFreeName(context.getTarget(), camelCase((String) title)),
+            NodeNameUtils.findFreeName(context.getTarget(), camelCase(title)),
             Map.of("jcr:primaryType", entityType, TITLE_PARAMETER, title));
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
     }
