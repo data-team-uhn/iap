@@ -52,7 +52,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
+import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
 import io.uhndata.iap.links.models.Linkable;
@@ -105,8 +107,15 @@ class LinkManagerImplTest
     void setUp()
         throws ReflectiveOperationException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
+        this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
+            ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class, Linkable.class);
+        // Both kinds of definition answer to the shared link/Definition type through /libs content, which the
+        // mock repository does not load
+        this.context.create().resource("/libs/link/InternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
+        this.context.create().resource("/libs/link/ExternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
         // The bundle plugin only generates the DS metadata at packaging time, so the service is
         // instantiated directly and its references are injected by hand.
         this.manager = new LinkManagerImpl();
@@ -127,25 +136,24 @@ class LinkManagerImplTest
     private void createDefinitions()
     {
         this.context.create().resource("/LinkTypes/references", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, REFERENCES_ID,
             "backlink", "/LinkTypes/referencedBy"));
         this.context.create().resource("/LinkTypes/referencedBy", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, REFERENCED_BY_ID,
             "backlink", "/LinkTypes/references",
             "backlinkOnly", true));
         this.context.create().resource("/LinkTypes/simple", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, SIMPLE_ID));
         this.context.create().resource("/LinkTypes/weak", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "55555555-5555-5555-5555-555555555555",
             "weak", true));
         this.context.create().resource("/LinkTypes/ehrChart", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, ExternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, EXTERNAL_ID,
-            "external", true,
             "valuePattern", "[0-9]+"));
     }
 
@@ -206,7 +214,7 @@ class LinkManagerImplTest
 
         assertNull(this.manager.getDefinition("late"));
         this.context.create().resource("/LinkTypes/late", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "88888888-8888-8888-8888-888888888888"));
         // The definitions are cached, so the addition is only picked up when the listener fires
         assertNull(this.manager.getDefinition("late"));
@@ -352,7 +360,7 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
         this.context.create().resource("/LinkTypes/typed", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "66666666-6666-6666-6666-666666666666",
             "requiredSourceTypes", new String[]{ "data:Entity" },
             "requiredDestinationTypes", new String[]{ "mix:referenceable" }));
@@ -384,7 +392,7 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Session session = this.mockSession();
         this.context.create().resource("/LinkTypes/typed", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "66666666-6666-6666-6666-666666666666",
             "requiredSourceTypes", new String[]{ "data:Entity" }));
         final Resource thing = this.createThings();
@@ -557,7 +565,7 @@ class LinkManagerImplTest
 
         // A backlink definition path that doesn't resolve
         this.context.create().resource("/LinkTypes/dangling", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "77777777-7777-7777-7777-777777777777",
             "backlink", "/LinkTypes/nowhere"));
         this.mockNode(this.context.resourceResolver().adaptTo(Session.class),

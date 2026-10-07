@@ -92,14 +92,27 @@ public abstract class Link extends Content
     }
 
     /**
-     * The definition of this link's type.
+     * The definition of this link's type. Left to the concrete kinds, which each narrow it to the kind of
+     * definition they can only have been created from.
      *
      * @return a link definition, or {@code null} if it cannot be resolved
      */
     @Nullable
-    public LinkDefinition getDefinition()
+    public abstract LinkDefinition getDefinition();
+
+    /**
+     * The definition of this link's type, as a specific kind of definition. Subclasses narrow
+     * {@link #getDefinition()} through this, since a link of a given kind can only have been created from a
+     * definition of the matching kind.
+     *
+     * @param <T> the definition type
+     * @param definitionType the definition model class to resolve as
+     * @return a link definition, or {@code null} if it cannot be resolved or is of another kind
+     */
+    @Nullable
+    protected <T extends LinkDefinition> T getDefinition(@NotNull final Class<T> definitionType)
     {
-        return this.getReference(this.type, LinkDefinition.class);
+        return this.getReference(this.type, definitionType);
     }
 
     /**

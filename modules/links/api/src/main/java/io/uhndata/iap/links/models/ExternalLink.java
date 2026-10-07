@@ -56,16 +56,29 @@ public class ExternalLink extends Link
     }
 
     /**
+     * The definition of this link's type. Always an external one: a link recording a value can only have been
+     * created from a definition describing such values.
+     *
+     * @return a link definition, or {@code null} if it cannot be resolved
+     */
+    @Override
+    @Nullable
+    public ExternalLinkDefinition getDefinition()
+    {
+        return this.getDefinition(ExternalLinkDefinition.class);
+    }
+
+    /**
      * A navigable address for the external target, rendered through the definition's
-     * {@link LinkDefinition#getUrlTemplate() URL template}. The recorded value is substituted as-is, so templates
-     * are responsible for any encoding their target system needs.
+     * {@link ExternalLinkDefinition#getUrlTemplate() URL template}. The recorded value is substituted as-is, so
+     * templates are responsible for any encoding their target system needs.
      *
      * @return a URL, or {@code null} if the definition sets no URL template
      */
     @Nullable
     public String getTargetUrl()
     {
-        final LinkDefinition definition = this.getDefinition();
+        final ExternalLinkDefinition definition = this.getDefinition();
         final String template = definition == null ? null : definition.getUrlTemplate();
         if (template == null || this.value == null) {
             return null;

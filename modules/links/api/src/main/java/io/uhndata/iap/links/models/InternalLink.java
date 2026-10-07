@@ -65,6 +65,19 @@ public class InternalLink extends Link
     }
 
     /**
+     * The definition of this link's type. Always an internal one: a link referencing content in the repository
+     * can only have been created from a definition describing such references.
+     *
+     * @return a link definition, or {@code null} if it cannot be resolved
+     */
+    @Override
+    @Nullable
+    public InternalLinkDefinition getDefinition()
+    {
+        return this.getDefinition(InternalLinkDefinition.class);
+    }
+
+    /**
      * Whether this is a weak link, which may break when the linked resource is deleted, instead of a hard one,
      * which prevents that deletion.
      *
@@ -77,7 +90,7 @@ public class InternalLink extends Link
 
     /**
      * The reverse of this link, held by the linked resource and pointing back at the linking resource, when the
-     * definitions of the two links declare each other as {@link LinkDefinition#getBacklink() backlinks}.
+     * definitions of the two links declare each other as {@link InternalLinkDefinition#getBacklink() backlinks}.
      *
      * @return the reverse link, or {@code null} if there is none (yet)
      */
@@ -106,7 +119,7 @@ public class InternalLink extends Link
      * Create the reverse of this link, if its definition declares a backlink and the reverse doesn't exist yet.
      * The reverse is created in memory through this link's own resolver, only when that session may write to the
      * linked resource, and committing it stays the caller's responsibility; this is the one legitimate way
-     * {@link LinkDefinition#isBacklinkOnly() backlink-only} definitions are instantiated.
+     * {@link InternalLinkDefinition#isBacklinkOnly() backlink-only} definitions are instantiated.
      *
      * @return {@code true} if the reverse link now exists in this link's session, {@code false} if there is
      *         nothing to create or the session may not create it
@@ -144,16 +157,16 @@ public class InternalLink extends Link
 
     private boolean definitionsCrossMatch(final InternalLink other)
     {
-        final LinkDefinition thisType = this.getDefinition();
-        final LinkDefinition otherType = other.getDefinition();
+        final InternalLinkDefinition thisType = this.getDefinition();
+        final InternalLinkDefinition otherType = other.getDefinition();
         if (thisType == null || otherType == null) {
             return false;
         }
         if (thisType.hasBacklink()) {
-            final LinkDefinition backlink = thisType.getBacklink();
+            final InternalLinkDefinition backlink = thisType.getBacklink();
             return backlink != null && backlink.getPath().equals(otherType.getPath());
         }
-        final LinkDefinition otherBacklink = otherType.hasBacklink() ? otherType.getBacklink() : null;
+        final InternalLinkDefinition otherBacklink = otherType.hasBacklink() ? otherType.getBacklink() : null;
         return otherBacklink != null && otherBacklink.getPath().equals(thisType.getPath());
     }
 
@@ -164,7 +177,7 @@ public class InternalLink extends Link
      */
     public boolean isSymmetric()
     {
-        final LinkDefinition definition = this.getDefinition();
+        final InternalLinkDefinition definition = this.getDefinition();
         return definition != null && definition.hasBacklink() && this.getBacklink() != null;
     }
 

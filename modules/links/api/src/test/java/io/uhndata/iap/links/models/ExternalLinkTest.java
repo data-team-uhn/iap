@@ -58,7 +58,8 @@ class ExternalLinkTest
     void setUp()
         throws RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
+        this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
+            ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class);
         final Session session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
@@ -73,9 +74,8 @@ class ExternalLinkTest
     private Resource createFixture(final Map<String, Object> definitionSettings)
     {
         final Map<String, Object> definition = new HashMap<>(Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
-            "jcr:uuid", DEFINITION_ID,
-            "external", true));
+            SLING_RESOURCE_TYPE, ExternalLinkDefinition.RESOURCE_TYPE,
+            "jcr:uuid", DEFINITION_ID));
         definition.putAll(definitionSettings);
         this.context.create().resource("/LinkTypes/ehrChart", definition);
         this.context.create().resource("/Things/a");

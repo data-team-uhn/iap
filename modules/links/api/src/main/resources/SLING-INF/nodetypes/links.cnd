@@ -55,15 +55,34 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains link definitions
-  + * (link:Definition) = link:Definition
+  // Contains link definitions. No default type, since link:Definition is
+  // abstract: a definition node must name the kind it is.
+  + * (link:Definition)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// The definition of a type of link.
+// The definition of a type of link: what a connection means, what it may
+// connect, and how it behaves.
+//
+// Abstract, because most of what a definition says only makes sense for one
+// kind of link: where the target lives decides whether backlinks, deletion
+// policies and destination types apply at all, or whether value patterns and
+// URL templates do. Concrete kinds declare their own settings, so the model
+// serving a definition offers only the ones that mean something for it, and a
+// deployment states which kind it is authoring rather than implying it from a
+// flag. Adding a kind — a federated link, say — is a new subtype here, not
+// another flag on a shared node type.
+//
+// Note that this arrangement makes the split explicit; it does not enforce it.
+// Every IAP node type carries residual property definitions for extensibility,
+// and a subtype inherits them, so a stray setting from the other kind is
+// accepted by the repository and ignored by the model.
 [link:Definition] > data:Content, mix:referenceable, mix:lastModified
+  // This is an abstract node type; use one of the concrete kinds below.
+  abstract
+
   - sling:resourceType (STRING) = "link/Definition" mandatory autocreated protected
 
   // An optional label for the link type. If not defined, the node name is used.
@@ -80,20 +99,10 @@
   // the growth path is a display condition, not more values here.
   - displayed (BOOLEAN) = true
 
-  // Whether links of this type point outside the repository (a recorded value,
-  // e.g. an identifier in an external system) instead of referencing another
-  // resource. External definitions must not declare reference-only settings:
-  // weak, requiredDestinationTypes, backlink, backlinkOnly, onDelete.
-  - external (BOOLEAN) = false
-
-  // Whether the link should be a hard or a weak reference. Hard references
-  // prevent the deletion of the linked resource; weak references may break.
-  - weak (BOOLEAN) = false
-
-  // Required node types for the source or destination. Optional, no
-  // restrictions are imposed when missing.
+  // Required node types for the linking resource. Optional, no restrictions
+  // are imposed when missing. The destination end is constrained by the
+  // internal kind, which is the only one that has a destination.
   - requiredSourceTypes (NAME) multiple
-  - requiredDestinationTypes (NAME) multiple
 
   // An optional template rendering a nicer label for the link target, e.g.
   // "{typeLabel}: {name}". Supported placeholders: {name} and {property:xyz}
@@ -103,6 +112,33 @@
   // recorded value). When not set, the target's node name (or the recorded
   // value) is used.
   - targetLabelTemplate (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A link type whose targets are resources in this repository, instantiated as
+// link:Link or link:WeakLink nodes. Everything about referential integrity —
+// what may be pointed at, what happens when it is deleted, whether the target
+// points back — lives here, since none of it means anything without a target
+// the repository knows about.
+[link:InternalDefinition] > link:Definition
+  - sling:resourceType (STRING) = "link/InternalDefinition" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "link/Definition" mandatory autocreated protected
+
+  // Whether the link should be a hard or a weak reference. Hard references
+  // prevent the deletion of the linked resource; weak references may break.
+  // A property rather than a further subtype: it changes the value stored, not
+  // which settings apply.
+  - weak (BOOLEAN) = false
+
+  // Required node types for the linked resource. Optional, no restrictions are
+  // imposed when missing.
+  - requiredDestinationTypes (NAME) multiple
 
   // An optional reverse link to be added automatically from the linked
   // resource back to the linking resource, named as a path to another link
@@ -124,20 +160,23 @@
   // Enforced by the deletion service; see docs/deletion.md.
   - onDelete (STRING) = "REMOVE_LINK" mandatory autocreated
 
-  // For external definitions, an optional regular expression that recorded
-  // values must fully match, validated when the link is created.
+//-----------------------------------------------------------------------------
+// A link type recording a value that means something outside this repository —
+// an identifier in another system — instantiated as link:ExternalLink nodes.
+// There is no target the repository can resolve, so the settings here are about
+// the value itself: what a valid one looks like, and how to turn it into an
+// address somebody can follow.
+[link:ExternalDefinition] > link:Definition
+  - sling:resourceType (STRING) = "link/ExternalDefinition" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "link/Definition" mandatory autocreated protected
+
+  // An optional regular expression that recorded values must fully match,
+  // validated when the link is created.
   - valuePattern (STRING)
 
-  // For external definitions, an optional URL template turning the recorded
-  // value into a navigable address, e.g. "https://ehr.example.org/chart/{value}".
+  // An optional URL template turning the recorded value into a navigable
+  // address, e.g. "https://ehr.example.org/chart/{value}".
   - urlTemplate (STRING)
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 // Marks content that holds links: the mixin declares the link:links container

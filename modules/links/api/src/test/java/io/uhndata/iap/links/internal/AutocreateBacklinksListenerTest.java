@@ -47,7 +47,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
+import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.LinkDefinition;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,8 +90,15 @@ class AutocreateBacklinksListenerTest
     void setUp()
         throws ReflectiveOperationException, RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
+        this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
+            ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class);
+        // Both kinds of definition answer to the shared link/Definition type through /libs content, which the
+        // mock repository does not load
+        this.context.create().resource("/libs/link/InternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
+        this.context.create().resource("/libs/link/ExternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
         this.manager = new LinkManagerImpl();
         this.inject(this.manager, LinkManagerImpl.class, "resolverFactory",
             this.context.getService(ResourceResolverFactory.class));
@@ -127,11 +136,11 @@ class AutocreateBacklinksListenerTest
         final Resource root = committer.getResource("/");
         final Resource linkTypes = committer.create(root, "LinkTypes", Map.of());
         committer.create(linkTypes, "references", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, REFERENCES_ID,
             "backlink", "/LinkTypes/referencedBy"));
         committer.create(linkTypes, "referencedBy", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, REFERENCED_BY_ID,
             "backlink", "/LinkTypes/references",
             "backlinkOnly", true));
