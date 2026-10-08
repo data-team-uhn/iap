@@ -115,7 +115,7 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One extraction run against one answer or risk assessment: what a model read out of the submitted
+// One extraction run against one answer: what a model read out of the submitted
 // documents, and what it read to get there. The run's own existence is the
 // record that extraction happened, so a run that found nothing is a node
 // without an extractedAnswer rather than a flag, and jcr:created is when it ran.
@@ -156,14 +156,23 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One passage backing an extracted answer, kept as a node rather than a plain
-// string so the quote stays linked to the page it came from and the UI can
-// send the reader to that spot in the source document.
+// One passage a model quoted, backing an extracted answer or a screening's
+// finding. A node rather than a plain string, so the quote stays linked to
+// where it came from and the UI can send the reader to that spot.
 [sub:Evidence] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
 
+  // The document revision the quote comes from. Weak, so a revision can be
+  // removed without first deleting every quote taken from it.
+  - source (WEAKREFERENCE)
+
   // The quoted text
   - quote (STRING)
+
+  // A little of the text just before and after the quote, so the passage can
+  // still be found when the same words occur more than once
+  - prefix (STRING)
+  - suffix (STRING)
 
   // The nearest detected header of the quoted text
   - header (STRING)
@@ -294,11 +303,11 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// The assessment of a single sch:Risk, the way a sub:Answer answers a
-// sch:Question. Referenceable so that review comments can target it.
+// A reviewer's assessment of a single sch:Risk. Referenceable so that review
+// comments can target it.
 [sub:RiskAssessment] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The extraction runs are orderable, so they are presented in the order they
-  // ran, the newest last.
+  // The screenings are orderable, so they are presented in the order they ran,
+  // the newest last.
   orderable
 
   - sling:resourceType (STRING) = "sub/RiskAssessment" mandatory autocreated protected
@@ -309,8 +318,75 @@
   // The reviewer's assessment
   - value (STRING)
 
-  // What extraction made of this risk, one child per run, populated by AI
-  + * (sub:Extraction) = sub:Extraction
+  // The AI screenings of this risk, one per run
+  + * (sub:Screening) = sub:Screening
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One AI screening of a risk: a first look at what the submission says about
+// it, shown to the submitter while the request is being written and to the
+// reviewer beside their own assessment. It is a guide, never a decision. A run
+// that found nothing is a screening with no findings, and jcr:created is when
+// it ran.
+[sub:Screening] > data:EntityPart
+  // The findings are orderable, so they are shown in the order the model
+  // reported them.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Screening" mandatory autocreated protected
+
+  // What this run read: document revisions and answers. A newer revision or a
+  // changed answer makes the screening stale. Weak, so a source can be removed
+  // without first deleting the screenings that read it.
+  - sources (WEAKREFERENCE) multiple
+
+  // A short overall summary
+  - summary (STRING)
+
+  // How sure the model is, 0..1
+  - confidence (DOUBLE)
+
+  // The problems found
+  + * (sub:Finding) = sub:Finding
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One problem a screening found, with what it concerns and the passages that
+// show it. Either may be empty: something missing quotes nothing.
+[sub:Finding] > data:EntityPart
+  // The evidence is orderable, so it is shown in the order the model quoted it.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Finding" mandatory autocreated protected
+
+  // What is wrong, written for the submitter
+  - statement (STRING) mandatory
+
+  // What kind of problem: gap, conflict or concern
+  - kind (STRING)
+
+  // What would fix it, when the model can say
+  - suggestion (STRING)
+
+  // The answers, questions or requirements this finding concerns. Something
+  // missing points at the question or requirement where it belongs. Weak, so
+  // a question can be removed without first unlinking it from every finding.
+  - subjects (WEAKREFERENCE) multiple
+
+  // The passages that show the problem
+  + * (sub:Evidence) = sub:Evidence
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
