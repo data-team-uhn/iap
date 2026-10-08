@@ -21,22 +21,14 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-token-authentication-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-jwt-token-authentication</artifactId>
+  <artifactId>iap-remote-requests</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - JWT Token Authentication</name>
-
-  <properties>
-    <jjwt.version>0.13.0</jjwt.version>
-    <!-- Module-aggregate (BUNDLE-scoped) minimum instruction coverage enforced by jacoco:check.
-         Only the JWT create/parse classes and the peer registration endpoint are built here (the Oak
-         and Sling authentication integration classes are not ported yet); this floor sits just under
-         the measured coverage of that slice. -->
-    <coverage.instructionRatio>0.75</coverage.instructionRatio>
-  </properties>
+  <name>IAP - Remote requests</name>
+  <description>The endpoint a trusted remote instance posts to, authenticated by a token rather than a session</description>
 
   <build>
     <plugins>
@@ -61,76 +53,41 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-java-utils</artifactId>
+      <artifactId>iap-token-authentication-support</artifactId>
       <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.servlets.annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>jakarta.json</groupId>
-      <artifactId>jakarta.json-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.service.component.annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.jackrabbit</groupId>
-      <artifactId>oak-jackrabbit-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.jackrabbit</groupId>
-      <artifactId>oak-security-spi</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>javax.jcr</groupId>
-      <artifactId>jcr</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.service.metatype.annotations</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
     <dependency>
-      <!-- Both servlet APIs appear in Sling ResourceResolver method signatures; needed to compile against it
-           and for Mockito to instrument it in tests. -->
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
-      <scope>provided</scope>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
     </dependency>
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
-      <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>commons-codec</groupId>
-      <artifactId>commons-codec</artifactId>
-      <version>1.22.1</version>
+      <!-- TokenInfo, which IapToken extends, is declared here; needed to compile against the parsed token -->
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-security-spi</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
-    <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-api</artifactId>
-      <version>${jjwt.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.uhndata.iap</groupId>
-      <artifactId>iap-token-authentication-support</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <!-- Not used by this module's own (unexported) code, but SpotBugs needs the annotation classes on the
-         analysis classpath to check this implementation against the annotated TokenManager contract. -->
+    <!-- Not used by this bundle's own code, but SpotBugs needs the annotation classes on the analysis
+         classpath to check the calls into the annotated TokenManager contract. -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -138,41 +95,26 @@
 
     <!-- TEST -->
     <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-impl</artifactId>
-      <version>${jjwt.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-jackson</artifactId>
-      <version>${jjwt.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-junit-jupiter</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-simple</artifactId>
-      <version>${slf4j.version}</version>
+      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
+        mocked in tests -->
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
