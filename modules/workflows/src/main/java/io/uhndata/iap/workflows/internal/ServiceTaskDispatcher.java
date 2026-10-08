@@ -45,6 +45,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * @version $Id$
  * @since 0.1.0
  */
+// One over the fan-out limit, by the Actor it hands on, until the engine is split into smaller parts
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 final class ServiceTaskDispatcher
 {
     private final List<ServiceTaskHandler> handlers;
@@ -91,10 +93,10 @@ final class ServiceTaskDispatcher
      * @param variables the execution's variables, which say what it created
      * @throws WorkflowDefinitionException when the event names an unknown subject
      */
-    void throwMessage(final Event source, final Resource target, final WorkflowEvent cause, final String actor,
+    void throwMessage(final Event source, final Resource target, final WorkflowEvent cause, final Actor actor,
         final Map<String, Object> variables) throws WorkflowDefinitionException
     {
-        this.consequences.hold(source, target, variables, cause, actor);
+        this.consequences.hold(source, target, variables, cause, actor.effectiveUser());
     }
 
     /**
@@ -136,7 +138,7 @@ final class ServiceTaskDispatcher
      * @param start the start event of the system workflow that caught it
      * @return the action
      */
-    RecordedAction recordedAsSystemWorkflow(final String actor, final WorkflowEvent event, final StartEvent start)
+    RecordedAction recordedAsSystemWorkflow(final Actor actor, final WorkflowEvent event, final StartEvent start)
     {
         return this.consequences.recordedAsSystemWorkflow(actor, event, start);
     }
@@ -149,7 +151,7 @@ final class ServiceTaskDispatcher
      * @param task the task the event completed, as the event left it
      * @return the action
      */
-    RecordedAction recordedAsTask(final String actor, final WorkflowEvent event, final Resource task)
+    RecordedAction recordedAsTask(final Actor actor, final WorkflowEvent event, final Resource task)
     {
         return this.consequences.recordedAsTask(actor, event, task);
     }
@@ -177,7 +179,7 @@ final class ServiceTaskDispatcher
      * @throws PersistenceException when a write fails
      */
     Map<String, Object> runSystemWorkflow(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor, final int depth) throws WorkflowException, PersistenceException
+        final Actor actor, final int depth) throws WorkflowException, PersistenceException
     {
         return new SystemWorkflowRunner(this, this.routing).run(target, event, start, actor, depth);
     }
@@ -216,7 +218,7 @@ final class ServiceTaskDispatcher
      * @param actor the user the instance is being moved for
      * @return a performer bound to this delivery
      */
-    InstanceRunner.StepPerformer performer(final WorkflowEvent event, final String actor)
+    InstanceRunner.StepPerformer performer(final WorkflowEvent event, final Actor actor)
     {
         return new InstanceSteps(this, event, actor);
     }
@@ -229,9 +231,9 @@ final class ServiceTaskDispatcher
      * @param actor the user the execution acts for
      * @return the runner
      */
-    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
+    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final Actor actor)
     {
-        return this.runners.createRunner(resolver, performer(event, actor), actor);
+        return this.runners.createRunner(resolver, performer(event, actor), actor.effectiveUser());
     }
 
     /**
@@ -245,7 +247,7 @@ final class ServiceTaskDispatcher
      * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
      * @throws PersistenceException when the workflow's writes fail
      */
-    void send(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+    void send(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
         throws WorkflowException, PersistenceException
     {
         runSystemWorkflow(target, event, this.chain.admit(target, event, actor, depth), actor, depth);
@@ -271,6 +273,6 @@ final class ServiceTaskDispatcher
          * @return the start event to run the waiting workflow from
          * @throws WorkflowException when the event is refused, or events are sent too deep
          */
-        StartEvent admit(Resource target, WorkflowEvent event, String actor, int depth) throws WorkflowException;
+        StartEvent admit(Resource target, WorkflowEvent event, Actor actor, int depth) throws WorkflowException;
     }
 }

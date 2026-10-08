@@ -110,7 +110,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         // authenticated, so it is the authority on who is asking. Canonical, because a login resolves
         // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
         // is recorded here, and would otherwise refuse the person who raised the request
-        final String actor = UserIds.canonical(target.getResourceResolver());
+        final Actor actor = Actor.of(UserIds.canonical(target.getResourceResolver()));
         try (ResourceResolver serviceResolver = this.sessions.open()) {
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
@@ -150,7 +150,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @return an empty result: ending a task creates nothing to send the caller to
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
-    private WorkflowResult resume(final Resource task, final WorkflowEvent event, final String actor)
+    private WorkflowResult resume(final Resource task, final WorkflowEvent event, final Actor actor)
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
@@ -159,7 +159,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             try {
                 final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
                     "A task is never deleted while its instance runs");
-                this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
+                this.taskCompletion.apply(resolver, current, event, actor.effectiveUser(),
+                    attempt.performer(event, actor));
                 this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
                 return attempt;
             } catch (final PersistenceException e) {
@@ -185,7 +186,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
     private WorkflowResult execute(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor) throws WorkflowException
+        final Actor actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final ServiceTaskDispatcher dispatcher = dispatcher();
@@ -216,7 +217,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @return the start event of the system workflow waiting for it
      * @throws WorkflowException when the event is refused, or events are sent too deep
      */
-    private StartEvent admit(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+    private StartEvent admit(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
         throws WorkflowException
     {
         if (depth > MAX_SENT_EVENTS_DEPTH) {
@@ -226,7 +227,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         }
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
-        this.performers.createCheck(resolver, actor).verify(start, target);
+        this.performers.createCheck(resolver, actor.effectiveUser()).verify(start, target);
         return start;
     }
 
