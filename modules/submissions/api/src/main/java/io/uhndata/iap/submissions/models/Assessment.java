@@ -124,13 +124,13 @@ public class Assessment extends EntityPart
     }
 
     /**
-     * The concerns raised about these criteria, in the order they were raised.
+     * The comments raised about these criteria, the AI's concerns among them, in the order they were raised.
      *
-     * @return a list of findings, empty if none
+     * @return a list of comments, empty if none
      */
     @NotNull
-    public List<Finding> getFindings()
+    public List<Comment> getComments()
     {
-        return this.getChildren(Finding.RESOURCE_TYPE, Finding.class);
+        return this.getChildren(Comment.RESOURCE_TYPE, Comment.class);
     }
 }

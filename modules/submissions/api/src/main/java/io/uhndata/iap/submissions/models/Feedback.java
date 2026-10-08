@@ -66,7 +66,7 @@ public abstract class Feedback extends EntityPart implements Referenceable
     }
 
     /**
-     * The comments raised in this feedback, those about its findings included, that the submitter has not yet
+     * The comments raised in this feedback, those on its assessments included, that the submitter has not yet
      * addressed.
      *
      * @return a list of unresolved comments, empty if none
@@ -74,10 +74,9 @@ public abstract class Feedback extends EntityPart implements Referenceable
     @NotNull
     public List<Comment> getUnresolvedComments()
     {
-        final Stream<Comment> aboutFindings = this.getAssessments().stream()
-            .flatMap(assessment -> assessment.getFindings().stream())
-            .flatMap(finding -> finding.getComments().stream());
-        return Stream.concat(this.getComments().stream(), aboutFindings)
+        final Stream<Comment> onAssessments = this.getAssessments().stream()
+            .flatMap(assessment -> assessment.getComments().stream());
+        return Stream.concat(this.getComments().stream(), onAssessments)
             .filter(comment -> !comment.isResolved())
             .collect(Collectors.toList());
     }

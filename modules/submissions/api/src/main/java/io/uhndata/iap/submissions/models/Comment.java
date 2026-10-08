@@ -17,7 +17,10 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -29,8 +32,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Comment} node: a single comment or question raised in some feedback, or about
- * one of its findings.
+ * A Sling Model wrapping a {@code sub:Comment} node: a comment or question raised in some feedback, a concern the AI
+ * found among them, with what it is about and the passages that show it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +52,13 @@ public class Comment extends EntityPart
     private String author;
 
     @ValueMapValue
-    private String subject;
+    private String[] subjects;
+
+    @ValueMapValue
+    private String kind;
+
+    @ValueMapValue
+    private String suggestion;
 
     @ValueMapValue
     private String selectionStart;
@@ -85,19 +94,59 @@ public class Comment extends EntityPart
     }
 
     /**
-     * The identifier of the part of the submission this comment is about, e.g. a {@code sub:Answer} or a
-     * {@code sub:Document}.
+     * What this comment is about: answers or documents of the submission, or the questions and requirements of its
+     * schema. The link is weak, so one removed since is skipped.
      *
-     * @return an UUID, or {@code null} if this is a general comment not tied to a specific part
+     * @return the parts concerned, empty for a general comment or when none of them resolve
      */
-    @Nullable
-    public String getSubject()
+    @NotNull
+    public List<EntityPart> getSubjects()
     {
-        return this.subject;
+        if (this.subjects == null) {
+            return List.of();
+        }
+        return Arrays.stream(this.subjects)
+            .map(identifier -> this.getReference(identifier, EntityPart.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     /**
-     * The start of the anchor narrowing this comment down to a specific selection within the subject.
+     * What kind of point this comment makes, e.g. a gap, a conflict or a concern.
+     *
+     * @return the kind, or {@code null} if not said
+     */
+    @Nullable
+    public String getKind()
+    {
+        return this.kind;
+    }
+
+    /**
+     * What would address this comment, when its author can say.
+     *
+     * @return a suggestion, or {@code null} if there is none
+     */
+    @Nullable
+    public String getSuggestion()
+    {
+        return this.suggestion;
+    }
+
+    /**
+     * The passages that show what this comment is about, in the order they were quoted.
+     *
+     * @return a list of evidence, empty if none
+     */
+    @NotNull
+    public List<Evidence> getEvidence()
+    {
+        return this.getChildren(Evidence.RESOURCE_TYPE, Evidence.class);
+    }
+
+    /**
+     * The start of the anchor narrowing this comment down to a specific selection within its subject, when it has
+     * just one.
      *
      * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
      */
@@ -108,7 +157,8 @@ public class Comment extends EntityPart
     }
 
     /**
-     * The end of the anchor narrowing this comment down to a specific selection within the subject.
+     * The end of the anchor narrowing this comment down to a specific selection within its subject, when it has
+     * just one.
      *
      * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
      */

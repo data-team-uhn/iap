@@ -67,7 +67,7 @@ class AssessmentTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Assessment.class, AssessmentCriteria.class,
-            Finding.class, Answer.class);
+            Comment.class, Answer.class);
     }
 
     @Test
@@ -113,7 +113,7 @@ class AssessmentTest
         assertNull(assessment.getSummary());
         assertNull(assessment.getConfidence());
         assertTrue(assessment.getSources().isEmpty());
-        assertTrue(assessment.getFindings().isEmpty());
+        assertTrue(assessment.getComments().isEmpty());
     }
 
     @Test
@@ -139,21 +139,22 @@ class AssessmentTest
     }
 
     @Test
-    void listsFindingsInTheOrderTheyWereRaised()
+    void listsCommentsInTheOrderTheyWereRaised()
     {
         final Resource resource = this.context.create().resource(ASSESSMENT_PATH,
             "sling:resourceType", Assessment.RESOURCE_TYPE);
-        this.context.create().resource(ASSESSMENT_PATH + "/finding0", Map.of(
-            "sling:resourceType", Finding.RESOURCE_TYPE, "statement", "No consent form is attached"));
-        this.context.create().resource(ASSESSMENT_PATH + "/finding1", Map.of(
-            "sling:resourceType", Finding.RESOURCE_TYPE, "statement", "The retention period is not stated"));
+        this.context.create().resource(ASSESSMENT_PATH + "/comment0", Map.of(
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "No consent form is attached", "author", "ai"));
+        this.context.create().resource(ASSESSMENT_PATH + "/comment1", Map.of(
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "The retention period is not stated",
+            "author", "ai"));
         this.context.create().resource(ASSESSMENT_PATH + "/other",
             "sling:resourceType", "nt:unstructured");
 
-        final List<Finding> findings = resource.adaptTo(Assessment.class).getFindings();
+        final List<Comment> comments = resource.adaptTo(Assessment.class).getComments();
 
-        assertEquals(2, findings.size());
-        assertEquals("No consent form is attached", findings.get(0).getStatement());
-        assertEquals("The retention period is not stated", findings.get(1).getStatement());
+        assertEquals(2, comments.size());
+        assertEquals("No consent form is attached", comments.get(0).getText());
+        assertEquals("The retention period is not stated", comments.get(1).getText());
     }
 }
