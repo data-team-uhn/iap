@@ -23,6 +23,8 @@ import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-c
 
 import {
   CATCHER_STATUS_PATH,
+  CATCHER_TOGGLE_PATH,
+  CATCHING_CHANGED_EVENT,
   type CatcherStatus,
   type CaughtMessage,
   messagePath,
@@ -77,10 +79,19 @@ const readNode = (fetchUtil: AuthenticatedFetch, url: string): Promise<Serialize
  * sentence. The described failure still reaches the console, which is where an administrator
  * diagnosing an unreadable status endpoint will look.
  */
-export function useCatcherStatus(): { status: CatcherStatus | null; settled: boolean } {
+export function useCatcherStatus(): {
+  status: CatcherStatus | null;
+  settled: boolean;
+  reload: () => void;
+} {
   const doFetch = useAuthenticatedFetch();
   const [ status, setStatus ] = useState<CatcherStatus | null>(null);
   const [ settled, setSettled ] = useState(false);
+  // Bumped to ask again. The switch writes a setting the component restarts to pick up, so the
+  // caller needs a way to read the state back rather than assume the write took.
+  const [ asked, setAsked ] = useState(0);
+
+  const reload = useCallback(() => setAsked(previous => previous + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,9 +100,9 @@ export function useCatcherStatus(): { status: CatcherStatus | null; settled: boo
       .catch(() => { if (!cancelled) { setStatus(null); } })
       .finally(() => { if (!cancelled) { setSettled(true); } });
     return () => { cancelled = true; };
-  }, [ doFetch ]);
+  }, [ doFetch, asked ]);
 
-  return { status, settled };
+  return { status, settled, reload };
 }
 
 export interface CaughtMessageRead {
@@ -160,4 +171,38 @@ export function useCaughtMessage(name: string | null): CaughtMessageRead {
   }, [ reload ]);
 
   return { message, loadError, settled, reload };
+}
+
+/**
+ * Switches mail catching on and off.
+ *
+ * The write goes to the same OSGi setting the Felix console offers, so there is one switch however
+ * it is reached. What comes back is what was *asked for*: the component takes a moment to restart
+ * and re-register, so the caller re-reads the status rather than trusting the answer.
+ *
+ * @returns the writer, and the last failure worded for a reader
+ */
+export function useCatcherToggle(): {
+  setCatching: (enabled: boolean) => Promise<void>;
+  failure: string | null;
+} {
+  const doFetch = useAuthenticatedFetch();
+  const [ failure, setFailure ] = useState<string | null>(null);
+
+  const setCatching = useCallback(async (enabled: boolean): Promise<void> => {
+    setFailure(null);
+    try {
+      const body = new URLSearchParams();
+      body.set("enabled", String(enabled));
+      checkOk(await doFetch(CATCHER_TOGGLE_PATH, { method: "POST", body }));
+      // The banner reads the endpoint once on mount, and the person who just switched catching on is
+      // looking at the page that is supposed to warn them about it.
+      window.dispatchEvent(new Event(CATCHING_CHANGED_EVENT));
+    } catch (error: unknown) {
+      setFailure(describeRequestFailure(error));
+      throw error;
+    }
+  }, [ doFetch ]);
+
+  return { setCatching, failure };
 }
