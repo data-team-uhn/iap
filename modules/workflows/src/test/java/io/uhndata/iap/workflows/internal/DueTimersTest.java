@@ -36,12 +36,15 @@ import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -68,6 +71,10 @@ class DueTimersTest
 
     private final WorkflowEngine engine = Mockito.mock(WorkflowEngine.class);
 
+    private final ScheduleOptions options = Mockito.mock(ScheduleOptions.class);
+
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
     private QueryManager queries;
 
     @BeforeEach
@@ -90,7 +97,14 @@ class DueTimersTest
         inject("scheduler", this.scheduler);
         inject("resolverFactory", factory);
         inject("engine", this.engine);
-        Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(Mockito.mock(ScheduleOptions.class));
+        Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(this.options);
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     @Test
@@ -99,8 +113,17 @@ class DueTimersTest
         this.sweep.activate();
         this.sweep.deactivate();
 
-        Mockito.verify(this.scheduler).schedule(Mockito.same(this.sweep), Mockito.any());
+        Mockito.verify(this.scheduler).schedule(Mockito.same(this.sweep), Mockito.same(this.options));
         Mockito.verify(this.scheduler).unschedule(Mockito.anyString());
+    }
+
+    @Test
+    void sweepsOnceAtATimeOnOneInstance()
+    {
+        this.sweep.activate();
+
+        Mockito.verify(this.options).canRunConcurrently(false);
+        Mockito.verify(this.options).onLeaderOnly(true);
     }
 
     @Test
@@ -137,6 +160,8 @@ class DueTimersTest
         this.sweep.run();
 
         Mockito.verify(this.engine, Mockito.times(2)).receiveEvent(Mockito.any(), Mockito.any());
+        Mockito.verify(this.errors).logError(Mockito.any(WorkflowFailedException.class),
+            Mockito.argThat(recorded -> TASK.equals(recorded.getSubject())));
     }
 
     @Test
@@ -147,6 +172,7 @@ class DueTimersTest
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
+        Mockito.verify(this.errors).logError(Mockito.any(RepositoryException.class), Mockito.any());
     }
 
     @Test
@@ -159,6 +185,7 @@ class DueTimersTest
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
+        Mockito.verify(this.errors).logError(Mockito.any(LoginException.class), Mockito.any());
     }
 
     /**
