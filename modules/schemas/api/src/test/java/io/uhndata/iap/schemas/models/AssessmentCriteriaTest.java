@@ -44,15 +44,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Risk}.
+ * Unit tests for {@link AssessmentCriteria}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class RiskTest
+class AssessmentCriteriaTest
 {
-    private static final String RISK_PATH = "/Schemas/schema/1.0/reb/privacy";
+    private static final String CRITERIA_PATH = "/Schemas/schema/1.0/reb/privacy";
 
     private static final String QUESTION_PATH = "/Schemas/schema/1.0/form/q1";
 
@@ -69,36 +69,34 @@ class RiskTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Risk.class, Question.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, AssessmentCriteria.class, Question.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource(RISK_PATH,
-            "sling:resourceType", Risk.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(Risk.class));
+        final Resource resource = this.context.create().resource(CRITERIA_PATH,
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(AssessmentCriteria.class));
     }
 
     @Test
-    void exposesRiskProperties()
+    void exposesItsProperties()
     {
-        final Resource resource = this.context.create().resource(RISK_PATH, Map.of(
-            "sling:resourceType", Risk.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource(CRITERIA_PATH, Map.of(
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE,
             "text", "Participant privacy",
             "description", "Could a participant be identified?",
-            "purpose", "Judge whether the data is safely de-identified",
             "assessmentPrompt", "Assess the privacy risk to participants"));
-        final Risk risk = resource.adaptTo(Risk.class);
+        final AssessmentCriteria criteria = resource.adaptTo(AssessmentCriteria.class);
 
-        assertEquals("Participant privacy", risk.getText());
-        assertEquals("Could a participant be identified?", risk.getDescription());
-        assertEquals("Judge whether the data is safely de-identified", risk.getPurpose());
-        assertEquals("Assess the privacy risk to participants", risk.getAssessmentPrompt());
+        assertEquals("Participant privacy", criteria.getText());
+        assertEquals("Could a participant be identified?", criteria.getDescription());
+        assertEquals("Assess the privacy risk to participants", criteria.getAssessmentPrompt());
     }
 
     @Test
-    void readsRequirementsAndQuestionsAsSubjects()
+    void readsRequirementsAndQuestionsAsSources()
         throws RepositoryException
     {
         this.context.create().resource(QUESTION_PATH,
@@ -112,30 +110,29 @@ class RiskTest
         final Node requirement = Mockito.mock(Node.class);
         Mockito.when(requirement.getPath()).thenReturn(REQUIREMENT_PATH);
         Mockito.when(session.getNodeByIdentifier(REQUIREMENT_ID)).thenReturn(requirement);
-        // The link is weak, so a subject may have been removed since
+        // The link is weak, so a source may have been removed since
         Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
-        final Resource resource = this.context.create().resource(RISK_PATH, Map.of(
-            "sling:resourceType", Risk.RESOURCE_TYPE,
-            "subjects", new String[]{ REQUIREMENT_ID, GONE_ID, QUESTION_ID }));
-        final List<EntityPart> subjects = resource.adaptTo(Risk.class).getSubjects();
+        final Resource resource = this.context.create().resource(CRITERIA_PATH, Map.of(
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE,
+            "sources", new String[]{ REQUIREMENT_ID, GONE_ID, QUESTION_ID }));
+        final List<EntityPart> sources = resource.adaptTo(AssessmentCriteria.class).getSources();
 
         assertEquals(List.of(REQUIREMENT_PATH, QUESTION_PATH),
-            subjects.stream().map(EntityPart::getPath).collect(Collectors.toList()));
+            sources.stream().map(EntityPart::getPath).collect(Collectors.toList()));
     }
 
     @Test
     void toleratesMissingOptionalProperties()
     {
-        final Resource resource = this.context.create().resource(RISK_PATH,
-            "sling:resourceType", Risk.RESOURCE_TYPE);
-        final Risk risk = resource.adaptTo(Risk.class);
+        final Resource resource = this.context.create().resource(CRITERIA_PATH,
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE);
+        final AssessmentCriteria criteria = resource.adaptTo(AssessmentCriteria.class);
 
-        assertNotNull(risk);
-        assertNull(risk.getDescription());
-        assertNull(risk.getPurpose());
-        assertNull(risk.getAssessmentPrompt());
-        assertTrue(risk.getSubjects().isEmpty());
+        assertNotNull(criteria);
+        assertNull(criteria.getDescription());
+        assertNull(criteria.getAssessmentPrompt());
+        assertTrue(criteria.getSources().isEmpty());
     }
 }

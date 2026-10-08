@@ -57,17 +57,7 @@ class ReviewTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, ReviewComment.class,
-            Review.class, ApprovalRequirement.class, RiskAssessment.class);
-    }
-
-    @Test
-    void exposesItsIdentifier()
-    {
-        final Resource resource = this.context.create().resource("/Submissions/submission/identified", Map.of(
-            ResourceResolver.PROPERTY_RESOURCE_TYPE, Review.RESOURCE_TYPE,
-            "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
-
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(Review.class).getIdentifier());
+            Review.class, ApprovalRequirement.class, Assessment.class);
     }
 
     @Test
@@ -150,20 +140,20 @@ class ReviewTest
     }
 
     @Test
-    void listsOnlyRiskAssessments()
+    void listsOnlyAssessments()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/privacy", Map.of(
-            "sling:resourceType", RiskAssessment.RESOURCE_TYPE, "value", "Low"));
+            "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Looked at"));
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
             "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Not an assessment"));
         final Review review = resource.adaptTo(Review.class);
 
-        final List<RiskAssessment> assessments = review.getRiskAssessments();
+        final List<Assessment> assessments = review.getAssessments();
 
         assertEquals(1, assessments.size());
-        assertEquals("Low", assessments.get(0).getValue());
+        assertEquals("Looked at", assessments.get(0).getValue());
     }
 
     @Test

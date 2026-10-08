@@ -307,7 +307,7 @@
 // An approval that must be granted before a submission is accepted,
 // e.g. "REB approval".
 [sch:ApprovalRequirement] > sch:Requirement
-  // The list of risks is orderable, so they are shown in a deliberate sequence.
+  // The criteria are orderable, so they are shown in a deliberate sequence.
   orderable
 
   - sling:resourceType (STRING) = "sch/ApprovalRequirement" mandatory autocreated protected
@@ -315,32 +315,28 @@
   // Principal name of the group whose members may grant this approval
   - approverGroup (STRING)
 
-  // The risks the approvers want assessed
-  + * (sch:Risk) = sch:Risk
+  // What the approvers want assessed
+  + * (sch:AssessmentCriteria) = sch:AssessmentCriteria
 
 //-----------------------------------------------------------------------------
-// A risk the approvers want assessed before they grant an approval.
-// Referenceable so that sub:RiskAssessment nodes can point back to it.
-[sch:Risk] > data:EntityPart, mix:referenceable
-  - sling:resourceType (STRING) = "sch/Risk" mandatory autocreated protected
+// Something the approvers want assessed before they grant an approval.
+// Referenceable so that sub:Assessment nodes can point back to it.
+[sch:AssessmentCriteria] > data:EntityPart, mix:referenceable
+  - sling:resourceType (STRING) = "sch/AssessmentCriteria" mandatory autocreated protected
 
-  // The risk as shown to the submitter
+  // The criteria as shown to the submitter
   - text (STRING) mandatory
 
   // Optional longer explanation displayed to the submitter
   - description (STRING)
 
-  // What the assessment is used to judge, in the reviewer's terms rather than
-  // the submitter's
-  - purpose (STRING)
-
-  // The prompt an LLM is given to assess this risk from the submitted documents
+  // The prompt an LLM is given to assess these criteria from the submission
   - assessmentPrompt (STRING)
 
-  // The requirements and questions that bear on this risk: where a reviewer
-  // and a screening look first. Weak, so one can be removed without first
-  // unlinking it from every risk.
-  - subjects (WEAKREFERENCE) multiple
+  // The requirements and questions that bear on these criteria: where a
+  // reviewer and the AI look first. Weak, so one can be removed without first
+  // unlinking it from every criteria.
+  - sources (WEAKREFERENCE) multiple
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
