@@ -38,7 +38,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
  * @version $Id$
  * @since 0.1.0
  */
-final class SchemaFixture
+public final class SchemaFixture
 {
     private final SlingContext context;
 
@@ -48,7 +48,7 @@ final class SchemaFixture
      * @param context an Oak-backed context
      * @throws PersistenceException when the homepage cannot be created
      */
-    SchemaFixture(final SlingContext context) throws PersistenceException
+    public SchemaFixture(final SlingContext context) throws PersistenceException
     {
         this.context = context;
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
@@ -66,7 +66,7 @@ final class SchemaFixture
      * @return the schema
      * @throws PersistenceException when it cannot be created
      */
-    Resource schema(final String name, final String... tags) throws PersistenceException
+    public Resource schema(final String name, final String... tags) throws PersistenceException
     {
         return create("/Schemas", name, "sch:Schema", Map.of("title", "The " + name + " schema"), tags);
     }
@@ -80,7 +80,7 @@ final class SchemaFixture
      * @return the version
      * @throws PersistenceException when it cannot be created
      */
-    Resource version(final Resource schema, final String name, final String... tags) throws PersistenceException
+    public Resource version(final Resource schema, final String name, final String... tags) throws PersistenceException
     {
         return create(schema.getPath(), name, "sch:SchemaVersion", Map.of("version", name), tags);
     }
@@ -96,7 +96,7 @@ final class SchemaFixture
      * @return the node
      * @throws PersistenceException when it cannot be created
      */
-    Resource create(final String parent, final String name, final String primaryType,
+    public Resource create(final String parent, final String name, final String primaryType,
         final Map<String, Object> properties, final String... tags) throws PersistenceException
     {
         final Map<String, Object> all = new HashMap<>(properties);
@@ -116,7 +116,7 @@ final class SchemaFixture
      * @param path the resource's path
      * @return the resource, or {@code null} if it is gone
      */
-    Resource get(final String path)
+    public Resource get(final String path)
     {
         return this.context.resourceResolver().getResource(path);
     }
