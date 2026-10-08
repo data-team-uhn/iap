@@ -49,7 +49,8 @@ class ApprovalRequirementTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class, Risk.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class,
+            AssessmentCriteria.class);
     }
 
     @Test
@@ -82,26 +83,26 @@ class ApprovalRequirementTest
 
         assertNotNull(requirement);
         assertNull(requirement.getApproverGroup());
-        assertTrue(requirement.getRisks().isEmpty());
+        assertTrue(requirement.getAssessmentCriteria().isEmpty());
     }
 
     @Test
-    void listsOnlyRisksInOrder()
+    void listsOnlyItsAssessmentCriteriaInOrder()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/approval",
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/approval/privacy", Map.of(
-            "sling:resourceType", Risk.RESOURCE_TYPE, "text", "Participant privacy"));
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE, "text", "Participant privacy"));
         this.context.create().resource("/Schemas/schema/1.0/approval/harm", Map.of(
-            "sling:resourceType", Risk.RESOURCE_TYPE, "text", "Physical harm"));
+            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE, "text", "Physical harm"));
         this.context.create().resource("/Schemas/schema/1.0/approval/other",
             "sling:resourceType", "nt:unstructured");
         final ApprovalRequirement requirement = resource.adaptTo(ApprovalRequirement.class);
 
-        final List<Risk> risks = requirement.getRisks();
+        final List<AssessmentCriteria> criteria = requirement.getAssessmentCriteria();
 
-        assertEquals(2, risks.size());
-        assertEquals("Participant privacy", risks.get(0).getText());
-        assertEquals("Physical harm", risks.get(1).getText());
+        assertEquals(2, criteria.size());
+        assertEquals("Participant privacy", criteria.get(0).getText());
+        assertEquals("Physical harm", criteria.get(1).getText());
     }
 }

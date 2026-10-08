@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.submissions.models;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,83 +32,69 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:Risk} node: a risk the approvers want assessed before they grant an
- * {@link ApprovalRequirement approval}.
+ * A Sling Model wrapping a {@code sub:Finding} node: one concern raised in an {@link Assessment}, with what it
+ * concerns and the passages that show it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Risk.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Finding.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Risk extends EntityPart
+public class Finding extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sch:Risk} node. */
-    public static final String RESOURCE_TYPE = "sch/Risk";
+    /** The {@code sling:resourceType} of a {@code sub:Finding} node. */
+    public static final String RESOURCE_TYPE = "sub/Finding";
 
     @ValueMapValue
-    private String text;
+    private String statement;
 
     @ValueMapValue
-    private String description;
+    private String kind;
 
     @ValueMapValue
-    private String purpose;
-
-    @ValueMapValue
-    private String assessmentPrompt;
+    private String suggestion;
 
     @ValueMapValue
     private String[] subjects;
 
     /**
-     * The risk as shown to the submitter.
+     * The concern, written for the submitter.
      *
-     * @return the risk text
+     * @return the statement
      */
     @NotNull
-    public String getText()
+    public String getStatement()
     {
-        return this.text;
+        return this.statement;
     }
 
     /**
-     * An optional longer explanation displayed to the submitter.
+     * What kind of problem this is: a gap, a conflict or a concern.
      *
-     * @return a description, or {@code null} if not set
+     * @return the kind, or {@code null} if not said
      */
     @Nullable
-    public String getDescription()
+    public String getKind()
     {
-        return this.description;
+        return this.kind;
     }
 
     /**
-     * What the assessment is used to judge, in the reviewer's terms rather than the submitter's.
+     * What would address the concern.
      *
-     * @return a purpose, or {@code null} if not stated
+     * @return a suggestion, or {@code null} if there is none
      */
     @Nullable
-    public String getPurpose()
+    public String getSuggestion()
     {
-        return this.purpose;
+        return this.suggestion;
     }
 
     /**
-     * The prompt an LLM is given to assess this risk from the submitted documents.
+     * The answers, questions or requirements this finding concerns. The link is weak, so one removed since is
+     * skipped.
      *
-     * @return a prompt, or {@code null} if this risk is not assessed by an LLM
-     */
-    @Nullable
-    public String getAssessmentPrompt()
-    {
-        return this.assessmentPrompt;
-    }
-
-    /**
-     * The requirements and questions that bear on this risk. They may be of any requirement kind, so they are read
-     * as {@link EntityPart}s. The link is weak, so one removed since is skipped.
-     *
-     * @return a list of schema parts, empty if none are linked or none of them resolve
+     * @return the parts concerned, empty if none are linked or none of them resolve
      */
     @NotNull
     public List<EntityPart> getSubjects()
@@ -120,5 +106,27 @@ public class Risk extends EntityPart
             .map(identifier -> this.getReference(identifier, EntityPart.class))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * The passages that show the problem, in the order they were quoted.
+     *
+     * @return a list of evidence, empty if none
+     */
+    @NotNull
+    public List<Evidence> getEvidence()
+    {
+        return this.getChildren(Evidence.RESOURCE_TYPE, Evidence.class);
+    }
+
+    /**
+     * The questions and replies about this finding, in the order they were added.
+     *
+     * @return a list of comments, empty if none
+     */
+    @NotNull
+    public List<ReviewComment> getComments()
+    {
+        return this.getChildren(ReviewComment.RESOURCE_TYPE, ReviewComment.class);
     }
 }

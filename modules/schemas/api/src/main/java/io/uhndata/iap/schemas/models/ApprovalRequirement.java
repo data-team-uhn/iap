@@ -55,13 +55,13 @@ public class ApprovalRequirement extends Requirement
     }
 
     /**
-     * The risks the approvers want assessed, in the order they are listed.
+     * What the approvers want assessed, in the order it is listed.
      *
-     * @return a list of risks, empty if none
+     * @return a list of assessment criteria, empty if none
      */
     @NotNull
-    public List<Risk> getRisks()
+    public List<AssessmentCriteria> getAssessmentCriteria()
     {
-        return this.getChildren(Risk.RESOURCE_TYPE, Risk.class);
+        return this.getChildren(AssessmentCriteria.RESOURCE_TYPE, AssessmentCriteria.class);
     }
 }

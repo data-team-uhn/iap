@@ -77,8 +77,8 @@
   // Attached documents, e.g. the signed patient consent
   + * (sub:Document) = sub:Document
 
-  // Reviews added by reviewers
-  + * (sub:Review) = sub:Review
+  // Feedback on the submission: binding reviews, AI screenings and discussions
+  + * (sub:Feedback)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -156,8 +156,7 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One passage a model quoted, backing an extracted answer or a screening's
-// finding. A node rather than a plain string, so the quote stays linked to
+// One passage a model quoted, backing an extracted answer or a finding. A node rather than a plain string, so the quote stays linked to
 // where it came from and the UI can send the reader to that spot.
 [sub:Evidence] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
@@ -269,13 +268,34 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One reviewer's assessment of the submission. Referenceable so that review
-// comments can target it.
-[sub:Review] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The list of comments is orderable, so the review is presented in a
-  // deliberate (chronological) sequence.
+// Feedback on a submission, of one of three kinds: a reviewer's binding
+// sub:Review, the AI's sub:Screening, or a sub:Discussion that binds nothing.
+// Referenceable so that comments can target it.
+[sub:Feedback] > data:EntityPart, mix:referenceable, mix:lastModified
+  abstract
+
+  // The comments and assessments are orderable, so the feedback is presented
+  // in a deliberate (chronological) sequence.
   orderable
 
+  - sling:resourceSuperType (STRING) = "sub/Feedback" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Questions and comments raised in this feedback
+  + * (sub:ReviewComment) = sub:ReviewComment
+
+  // The assessments of the criteria the approval requirement lists
+  + * (sub:Assessment) = sub:Assessment
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A reviewer's binding feedback: it addresses a requirement, and can grant it.
+[sub:Review] > sub:Feedback
   - sling:resourceType (STRING) = "sub/Review" mandatory autocreated protected
 
   // Principal name of the reviewer
@@ -289,70 +309,47 @@
   // /Tags. Whoever opens a review is expected to tag it `in-progress`; a review whose tags name
   // no final decision (approved/rejected) counts as still open.
 
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Questions and comments raised during this review
-  + * (sub:ReviewComment) = sub:ReviewComment
-
-  // The reviewer's assessments of the risks listed by the approval requirement
-  + * (sub:RiskAssessment) = sub:RiskAssessment
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
 //-----------------------------------------------------------------------------
-// A reviewer's assessment of a single sch:Risk. Referenceable so that review
-// comments can target it.
-[sub:RiskAssessment] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The screenings are orderable, so they are presented in the order they ran,
-  // the newest last.
-  orderable
-
-  - sling:resourceType (STRING) = "sub/RiskAssessment" mandatory autocreated protected
-
-  // The sch:Risk this assesses
-  - risk (REFERENCE) mandatory
-
-  // The reviewer's assessment
-  - value (STRING)
-
-  // The AI screenings of this risk, one per run
-  + * (sub:Screening) = sub:Screening
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// One AI screening of a risk: a first look at what the submission says about
-// it, shown to the submitter while the request is being written and to the
-// reviewer beside their own assessment. It is a guide, never a decision. A run
-// that found nothing is a screening with no findings, and jcr:created is when
-// it ran.
-[sub:Screening] > data:EntityPart
-  // The findings are orderable, so they are shown in the order the model
-  // reported them.
-  orderable
-
+// The AI's feedback: a first look at what the submission says, shown to the
+// submitter while the request is being written and to the reviewers beside
+// their own. It is a guide, never a decision. jcr:created is when it ran.
+[sub:Screening] > sub:Feedback
   - sling:resourceType (STRING) = "sub/Screening" mandatory autocreated protected
+
+  // A short overall summary
+  - summary (STRING)
 
   // What this run read: document revisions and answers. A newer revision or a
   // changed answer makes the screening stale. Weak, so a source can be removed
   // without first deleting the screenings that read it.
   - sources (WEAKREFERENCE) multiple
 
-  // A short overall summary
-  - summary (STRING)
-
   // How sure the model is, 0..1
   - confidence (DOUBLE)
 
-  // The problems found
+//-----------------------------------------------------------------------------
+// A person's feedback that binds nothing: a question or a remark from someone
+// who is not deciding.
+[sub:Discussion] > sub:Feedback
+  - sling:resourceType (STRING) = "sub/Discussion" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// One assessment of a single sch:AssessmentCriteria, in a reviewer's review or
+// in the AI's feedback. Referenceable so that comments can target it.
+[sub:Assessment] > data:EntityPart, mix:referenceable, mix:lastModified
+  // The findings are orderable, so they are shown in the order they were
+  // raised.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Assessment" mandatory autocreated protected
+
+  // The sch:AssessmentCriteria this assesses
+  - assessmentCriteria (REFERENCE) mandatory
+
+  // Has the reviewer looked at the criteria for this assessment?
+  - value (STRING)
+
+  // The concerns raised about these criteria
   + * (sub:Finding) = sub:Finding
 
   // Allow any other properties for extensibility
@@ -363,15 +360,16 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One problem a screening found, with what it concerns and the passages that
-// show it. Either may be empty: something missing quotes nothing.
+// One concern raised about some assessment criteria, with what it concerns and
+// the passages that show it. Either may be empty: something missing quotes
+// nothing.
 [sub:Finding] > data:EntityPart
   // The evidence is orderable, so it is shown in the order the model quoted it.
   orderable
 
   - sling:resourceType (STRING) = "sub/Finding" mandatory autocreated protected
 
-  // What is wrong, written for the submitter
+  // What the AI is concerned about, written for the submitter
   - statement (STRING) mandatory
 
   // What kind of problem: gap, conflict or concern
@@ -387,6 +385,9 @@
 
   // The passages that show the problem
   + * (sub:Evidence) = sub:Evidence
+
+  // Questions and replies about this finding
+  + * (sub:ReviewComment) = sub:ReviewComment
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
