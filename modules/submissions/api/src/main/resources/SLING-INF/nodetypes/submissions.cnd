@@ -145,8 +145,8 @@
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
 
-  // The passages backing the extracted answer
-  + * (sub:Evidence) = sub:Evidence
+  // The context backing the extracted answer
+  + * (sub:Context) = sub:Context
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -156,13 +156,15 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One passage a model quoted, backing an extracted answer or a comment. A node rather than a plain string, so the quote stays linked to
-// where it came from and the UI can send the reader to that spot.
-[sub:Evidence] > data:EntityPart
-  - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
+// The context a quote comes from, backing an extracted answer or a comment: a
+// passage of a document, or an answer. A node rather than a plain string, so
+// the quote stays linked to where it came from and the UI can send the reader
+// to that spot.
+[sub:Context] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/Context" mandatory autocreated protected
 
-  // The document revision the quote comes from. Weak, so a revision can be
-  // removed without first deleting every quote taken from it.
+  // The document revision or the answer the quote comes from. Weak, so either
+  // can be removed without first deleting every quote taken from it.
   - source (WEAKREFERENCE)
 
   // The quoted text
@@ -370,10 +372,10 @@
 
 //-----------------------------------------------------------------------------
 // A comment or question raised in some feedback, a concern the AI found among
-// them, with what it is about and the passages that show it. Either may be
+// them, with what it is about and the context that shows it. Either may be
 // empty: something missing quotes nothing.
 [sub:Comment] > data:EntityPart, mix:lastModified
-  // The replies and the passages are orderable, so they are presented in a
+  // The replies and the context are orderable, so they are presented in a
   // deliberate (chronological) sequence.
   orderable
 
@@ -400,18 +402,6 @@
   // What would address it, when the author can say
   - suggestion (STRING)
 
-  // Optional anchors narrowing this comment down to a specific selection
-  // within its subject, when it has just one (e.g. a range of text within a
-  // sub:Answer, or a location within a document), instead of the subject as
-  // a whole. Not a
-  // numeric offset: subjects like Word documents have no stable character
-  // index to anchor to, especially once further edited, so these are
-  // expected to be flexible, URI-like anchors (e.g. holding a page number
-  // or surrounding text) whose exact format is still to be designed.
-  // Not yet used by the MVP.
-  - selectionStart (STRING)
-  - selectionEnd (STRING)
-
   // Whether the submitter has addressed this comment
   - resolved (BOOLEAN) = false
 
@@ -423,8 +413,8 @@
   // submitter replying back and forth
   + * (sub:Reply) = sub:Reply
 
-  // The passages that show what this comment is about
-  + * (sub:Evidence) = sub:Evidence
+  // The context that shows what this comment is about
+  + * (sub:Context) = sub:Context
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured

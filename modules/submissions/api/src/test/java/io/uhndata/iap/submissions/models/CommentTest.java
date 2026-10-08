@@ -65,7 +65,7 @@ class CommentTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, Comment.class, Answer.class,
-            Evidence.class);
+            Context.class);
     }
 
     @Test
@@ -94,8 +94,6 @@ class CommentTest
             "subjects", new String[] {ANSWER_ID, GONE_ID},
             "kind", "gap",
             "suggestion", "Attach the consent form",
-            "selectionStart", "page=2;offset=120",
-            "selectionEnd", "page=2;offset=180",
             "resolved", false));
         final Comment comment = resource.adaptTo(Comment.class);
 
@@ -105,8 +103,6 @@ class CommentTest
             comment.getSubjects().stream().map(EntityPart::getPath).collect(Collectors.toList()));
         assertEquals("gap", comment.getKind());
         assertEquals("Attach the consent form", comment.getSuggestion());
-        assertEquals("page=2;offset=120", comment.getSelectionStart());
-        assertEquals("page=2;offset=180", comment.getSelectionEnd());
         assertFalse(comment.isResolved());
     }
 
@@ -129,17 +125,17 @@ class CommentTest
     }
 
     @Test
-    void listsThePassagesItQuotes()
+    void listsTheContextItQuotes()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review/comment",
             "sling:resourceType", Comment.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/comment/e1",
-            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "Data is kept as needed");
+            "sling:resourceType", Context.RESOURCE_TYPE, "quote", "Data is kept as needed");
         this.context.create().resource("/Submissions/submission/review/comment/r1",
             "sling:resourceType", Reply.RESOURCE_TYPE, "text", "Not a passage");
 
-        assertEquals(List.of("Data is kept as needed"), resource.adaptTo(Comment.class).getEvidence().stream()
-            .map(Evidence::getQuote).collect(Collectors.toList()));
+        assertEquals(List.of("Data is kept as needed"), resource.adaptTo(Comment.class).getContext().stream()
+            .map(Context::getQuote).collect(Collectors.toList()));
     }
 
     @Test
@@ -151,7 +147,7 @@ class CommentTest
         assertTrue(comment.getSubjects().isEmpty());
         assertNull(comment.getKind());
         assertNull(comment.getSuggestion());
-        assertTrue(comment.getEvidence().isEmpty());
+        assertTrue(comment.getContext().isEmpty());
     }
 
     @Test

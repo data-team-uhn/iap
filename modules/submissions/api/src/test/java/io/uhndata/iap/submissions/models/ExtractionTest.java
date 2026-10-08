@@ -66,7 +66,7 @@ class ExtractionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Extraction.class, DocumentVersion.class,
-            Evidence.class);
+            Context.class);
     }
 
     @Test
@@ -144,20 +144,20 @@ class ExtractionTest
     }
 
     @Test
-    void listsTheEvidenceBackingTheAnswer()
+    void listsTheContextBackingTheAnswer()
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH,
             "sling:resourceType", Extraction.RESOURCE_TYPE);
-        this.context.create().resource(EXTRACTION_PATH + "/evidence0", Map.of(
-            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "42 participants will be recruited"));
-        this.context.create().resource(EXTRACTION_PATH + "/evidence1", Map.of(
-            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "of whom 42 complete the protocol"));
+        this.context.create().resource(EXTRACTION_PATH + "/context0", Map.of(
+            "sling:resourceType", Context.RESOURCE_TYPE, "quote", "42 participants will be recruited"));
+        this.context.create().resource(EXTRACTION_PATH + "/context1", Map.of(
+            "sling:resourceType", Context.RESOURCE_TYPE, "quote", "of whom 42 complete the protocol"));
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
-        final List<Evidence> evidence = extraction.getEvidence();
+        final List<Context> quoted = extraction.getContext();
 
-        assertEquals(2, evidence.size());
-        assertEquals("42 participants will be recruited", evidence.get(0).getQuote());
+        assertEquals(2, quoted.size());
+        assertEquals("42 participants will be recruited", quoted.get(0).getQuote());
     }
 
     @Test
@@ -175,7 +175,7 @@ class ExtractionTest
         assertNull(extraction.getEditDistance());
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());
-        assertTrue(extraction.getEvidence().isEmpty());
+        assertTrue(extraction.getContext().isEmpty());
     }
 
     private void registerVersion()
