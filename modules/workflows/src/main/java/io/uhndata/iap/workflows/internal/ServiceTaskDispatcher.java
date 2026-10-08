@@ -96,7 +96,7 @@ final class ServiceTaskDispatcher
      * @param actor the user the instance is being moved for
      * @return a performer bound to this delivery
      */
-    InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
+    InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final Actor actor)
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
@@ -113,7 +113,7 @@ final class ServiceTaskDispatcher
      * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
      * @throws PersistenceException when the workflow's writes fail
      */
-    void send(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+    void send(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
@@ -151,7 +151,7 @@ final class ServiceTaskDispatcher
          * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
          * @throws PersistenceException when the workflow's writes fail
          */
-        void send(Resource target, WorkflowEvent event, String actor, int depth)
+        void send(Resource target, WorkflowEvent event, Actor actor, int depth)
             throws WorkflowException, PersistenceException;
     }
 }

@@ -319,6 +319,6 @@ class StartWorkflowHandlerTest
             variables.put(WorkflowResult.CREATED_PATH_VARIABLE, created);
         }
         return new WorkflowTaskContextImpl(resolver.getResource(target), new WorkflowEvent("create", Map.of()),
-            activity, variables, "demo-requester", EngineFixture.noFurtherTasks(), 0);
+            activity, variables, Actor.of("demo-requester"), EngineFixture.noFurtherTasks(), 0);
     }
 }

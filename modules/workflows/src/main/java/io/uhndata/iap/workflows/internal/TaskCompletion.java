@@ -90,7 +90,7 @@ final class TaskCompletion
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer)
         throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName())) {
@@ -108,7 +108,7 @@ final class TaskCompletion
             throw new WorkflowDefinitionException("The task " + task.getPath()
                 + " no longer has a definition, so who may complete it cannot be established");
         }
-        PerformerCheck.verify(resolver, definition, actor);
+        PerformerCheck.verify(resolver, definition, actor.effectiveUser());
 
         final Object outcome = event.get(OUTCOME_PARAMETER);
         new InstanceRunner(resolver, performer, actor)

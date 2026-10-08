@@ -126,7 +126,7 @@ class CreateEntityHandlerTest
             TYPE, Activity.RESOURCE_TYPE, "elementId", "misconfigured", "handler", CreateEntityHandler.HANDLER_NAME));
         final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), ACTOR,
+            adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), Actor.of(ACTOR),
             EngineFixture.noFurtherTasks(), 0);
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
@@ -140,7 +140,8 @@ class CreateEntityHandlerTest
             "entityType", " "));
         final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/blank"), new HashMap<>(), ACTOR, EngineFixture.noFurtherTasks(), 0);
+            adaptActivity(EngineFixture.VERSION + "/blank"), new HashMap<>(), Actor.of(ACTOR),
+            EngineFixture.noFurtherTasks(), 0);
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
     }
@@ -212,7 +213,8 @@ class CreateEntityHandlerTest
     {
         final Map<String, Object> payload = title == null ? Map.of() : Map.of("title", title);
         return new WorkflowTaskContextImpl(this.target, new WorkflowEvent("create", payload),
-            adaptActivity(EngineFixture.VERSION + "/create"), variables, ACTOR, EngineFixture.noFurtherTasks(), 0);
+            adaptActivity(EngineFixture.VERSION + "/create"), variables, Actor.of(ACTOR),
+            EngineFixture.noFurtherTasks(), 0);
     }
 
     private Activity adaptActivity(final String path)

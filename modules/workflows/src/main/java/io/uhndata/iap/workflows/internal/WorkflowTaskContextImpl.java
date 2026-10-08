@@ -46,7 +46,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
 
     private final Map<String, Object> variables;
 
-    private final String actor;
+    private final Actor actor;
 
     /** How the execution performs service tasks, which the events it sends and the instances it starts share. */
     private final ServiceTaskDispatcher dispatcher;
@@ -66,7 +66,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
      * @param depth how many sent events deep the execution is, 0 for an event that came in
      */
     WorkflowTaskContextImpl(final Resource target, final WorkflowEvent event, final Activity activity,
-        final Map<String, Object> variables, final String actor, final ServiceTaskDispatcher dispatcher,
+        final Map<String, Object> variables, final Actor actor, final ServiceTaskDispatcher dispatcher,
         final int depth)
     {
         this.target = target;
@@ -87,7 +87,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     @Override
     public String getActor()
     {
-        return this.actor;
+        return this.actor.effectiveUser();
     }
 
     @Override
@@ -132,6 +132,6 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     {
         new InstanceRunner(getResourceResolver(), this.dispatcher.performer(this.event, this.actor), this.actor)
             .start(host, version);
-        HostAccess.grantReaders(getResourceResolver(), host, version, this.actor);
+        HostAccess.grantReaders(getResourceResolver(), host, version, this.actor.effectiveUser());
     }
 }
