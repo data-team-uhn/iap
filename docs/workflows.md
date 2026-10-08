@@ -773,6 +773,12 @@ leaves down the timer's own arc: that is how a process says what running out of 
 means. There is no performer check, since time belongs to no group; instead, a `timeout`
 arriving before the deadline is refused as a conflict, whoever sends it.
 
+A `timerDuration` is an ISO-8601 duration, years and months included, counted in the
+server's calendar from when the task started. The sweep runs on the cluster's leader
+only. A task closed since the sweep found it is skipped. A delivery that fails is
+recorded and counted on the task as `deliveryFailures`; after three, the sweep leaves
+the task alone and records that it gave up.
+
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be, since no engine can run a workflow per query row. So
 the engine writes an ACL granting read to the person the instance runs for and to the
@@ -787,8 +793,10 @@ rather than a single path.
 **A parallel gateway forks and joins.** Leaving one takes every arc: the arriving token
 moves onto the first and a new one is created for each of the rest. With several arcs
 leading in it is a join, holding arriving tokens until one has come from every arc, then
-merging them into one. A condition on one of its arcs is a definition error, since a
-parallel gateway takes every arc regardless.
+merging one per arc into one. A token records the arc it arrived by as `arrivedBy`, so a
+second token down the same arc waits for the next round instead of standing in for a
+missing branch. A condition on one of its arcs is a definition error, since a parallel
+gateway takes every arc regardless.
 
 A parallel join placed after a fork that did *not* take every branch — an exclusive or
 inclusive one — waits for a token that was never created, and the instance stays active
@@ -796,13 +804,22 @@ with nothing able to move it. Merge conditionally taken branches with an inclusi
 instead.
 
 **An inclusive gateway forks as widely as applies:** every arc whose condition holds,
-and every arc with no condition, falling back on the default when nothing applies; with
-no default either, the diagram is in error. Its join cannot count arrivals, since how
-many branches the fork took is recorded nowhere, so it asks whether any other token in
-the instance can still reach it by following the graph, boundary events included. The
-walk re-checks parked joins once every branch has stopped moving, and because the answer
-comes from the graph rather than from the fork, it holds for an instance resumed days
-later.
+and every other arc with no condition, falling back on the default only when nothing
+applies; with no default either, the diagram is in error. Its join cannot count
+arrivals, since how many branches the fork took is recorded nowhere, so it asks whether
+any other token in the instance can still reach it by following the graph, boundary
+events included. The walk re-checks parked joins once every branch has stopped moving,
+and because the answer comes from the graph rather than from the fork, it holds for an
+instance resumed days later.
+
+**An exclusive gateway takes one arc:** the first whose condition holds, else the
+default. One with a single unconditioned way out is a merge, and passes a token straight
+through.
+
+**Two events on one instance cannot both commit.** Every event aimed at a task stamps
+its instance with a new `walkId`, so two requests moving branches of one instance at
+once conflict, and the loser is reverted and run again on top of the winner. Without
+this, two branches reaching a join in two requests would each see only itself arrive.
 
 **An end event ends a branch, not the process.** The instance closes when its last token
 is spent. A `terminate` end event discards every remaining token and cancels every task
@@ -820,6 +837,10 @@ each completed on its own.
 
 ## Known gaps
 
+- **One `outcome` per instance.** Every completed task overwrites it, so a gateway after
+  a join routes on whichever branch finished last.
+- **A timeout acts as whoever delivered it**: the sweep's service user, or a person
+  sending `timeout` after the deadline. Nothing yet says who a timer acts for.
 - **Instance variables are not exposed to handlers.** `outcome` persists as a
   `wf:Variable`, but a service task inside an instance sees variables that last only for
   that delivery.
@@ -831,9 +852,11 @@ each completed on its own.
 - **A gateway's guards can only ask about the execution.** They are evaluated against
   the instance, so the `variable` operand reaches what the run knows, and nothing yet
   reaches the host, which routing on a request's own answers would need.
-- **The parser cannot yet fill in an event's payload.** BPMN keeps a timer's duration in
-  a nested `timeDuration` element and resolves a message through a document-level
-  `<bpmn:message>`, while the vocabulary can only copy attributes.
+- **A BPMN `conditionExpression` is refused, not translated.** The arc is created
+  without it and the problem is recorded; a guard is written as a `cond:condition` in
+  the arc's `extensionElements`.
+- **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is imported with no
+  duration and never fires.
 - **Widening a `performers` list on a workflow-authoring definition needs an ACL to
   match.** Sling resolves the posted-to resource before dispatching, and the only read
   granted under `/Workflows` is the homepage node itself, restricted by node type — so a

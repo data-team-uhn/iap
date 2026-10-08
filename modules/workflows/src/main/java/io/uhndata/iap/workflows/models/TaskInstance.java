@@ -45,6 +45,9 @@ public class TaskInstance extends Entity
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";
 
+    /** The {@link #getStatus() status} a task carries until it is completed or cancelled. */
+    public static final String OPEN_STATUS = "created";
+
     @ValueMapValue
     private String taskDefinitionId;
 

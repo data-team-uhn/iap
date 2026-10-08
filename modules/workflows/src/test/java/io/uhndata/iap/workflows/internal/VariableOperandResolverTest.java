@@ -22,13 +22,17 @@ import java.util.Map;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -51,12 +55,21 @@ class VariableOperandResolverTest
 
     private final VariableOperandResolver resolver = new VariableOperandResolver();
 
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
     @BeforeEach
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
         this.context.create().resource(INSTANCE, Map.of(
             TYPE, "wf/WorkflowInstance", "status", "active"));
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     @Test
@@ -95,6 +108,8 @@ class VariableOperandResolverTest
         final Content instance = this.context.resourceResolver().getResource(INSTANCE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand.adaptTo(ConditionOperand.class), instance).isEmpty());
+        Mockito.verify(this.errors).logProblem(Mockito.anyString(),
+            Mockito.argThat(recorded -> "/operand".equals(recorded.getSubject())));
     }
 
     @Test
@@ -104,6 +119,19 @@ class VariableOperandResolverTest
             TYPE, "wf/Variable", "dataType", "string", "stringValue", "approved"));
 
         assertTrue(this.resolve("outcome", "/Submissions/request").isEmpty());
+        Mockito.verify(this.errors).logProblem(Mockito.anyString(), Mockito.any());
+    }
+
+    @Test
+    void resolvesAVariableOfAKindOfInstance()
+    {
+        final String review = "/Submissions/request/wf:instances/review";
+        this.context.create().resource(review, Map.of(
+            TYPE, "wf/ReviewInstance", "sling:resourceSuperType", "wf/WorkflowInstance", "status", "active"));
+        this.context.create().resource(review + "/outcome", Map.of(
+            TYPE, "wf/Variable", "dataType", "string", "stringValue", "approved"));
+
+        assertEquals("approved", this.resolve("outcome", review).get(0));
     }
 
     private void variable(final String name, final String dataType, final String property, final Object value)

@@ -48,6 +48,65 @@ final class RepositoryFailures
     }
 
     /**
+     * Runs something that commits, and runs it again when it lost a race with another commit. Each attempt must
+     * start from a fresh view of the repository, so that the retry sees what the other commit did.
+     *
+     * @param <T> what the attempt returns
+     * @param retries how many times to run it again after a lost race
+     * @param attempt what to run
+     * @return what the successful attempt returned
+     * @throws WorkflowException what the last attempt threw, or the first failure that was not a lost race
+     */
+    static <T> T retryingConflicts(final int retries, final Attempt<T> attempt) throws WorkflowException
+    {
+        int left = retries;
+        while (true) {
+            try {
+                return attempt.run();
+            } catch (final InvalidStateException e) {
+                if (left-- <= 0 || !isConflict(e)) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether a failure was a lost race: another session committed a change to something this one changed too.
+     *
+     * @param failure the failure
+     * @return {@code true} if the repository refused the commit over a conflicting change
+     */
+    static boolean isConflict(final Throwable failure)
+    {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof InvalidItemStateException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * One attempt at something that commits.
+     *
+     * @param <T> what it returns
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    interface Attempt<T>
+    {
+        /**
+         * Runs the attempt.
+         *
+         * @return its result
+         * @throws WorkflowException when it fails
+         */
+        T run() throws WorkflowException;
+    }
+
+    /**
      * Puts the right name on a failed repository operation.
      *
      * @param failure the repository failure

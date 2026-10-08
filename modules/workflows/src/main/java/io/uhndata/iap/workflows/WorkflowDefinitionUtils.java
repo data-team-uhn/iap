@@ -179,7 +179,7 @@ public final class WorkflowDefinitionUtils
 
     private static final String TARGET_REF_PROPERTY = "targetRef";
 
-    private static final String CONDITION_EXPRESSION_PROPERTY = "conditionExpression";
+    private static final String CONDITION_EXPRESSION_ELEMENT = "conditionExpression";
 
     private static final String ID_ATTRIBUTE = "id";
 
@@ -1085,7 +1085,7 @@ public final class WorkflowDefinitionUtils
         flow.setProperty(ELEMENT_ID_PROPERTY, id);
         flow.setProperty(TARGET_REF_PROPERTY, targetRef);
         setIfNotBlank(flow, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
-        setIfNotBlank(flow, CONDITION_EXPRESSION_PROPERTY, getConditionExpression(element));
+        refuseConditionExpression(element, id, context);
         applyExtensionNodes(element, flow, context);
         final Element sourceElement = elementsById.get(sourceRef);
         if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
@@ -1094,17 +1094,34 @@ public final class WorkflowDefinitionUtils
         applySystemProperties(flow, SEQUENCE_FLOW_NODETYPE, context);
     }
 
-    private static String getConditionExpression(final Element sequenceFlow)
+    /**
+     * Reports a guard written as a BPMN {@code conditionExpression}. The engine evaluates a {@code cond:condition}
+     * subtree, carried in the arc's {@code extensionElements}, and has no expression language to run the BPMN form
+     * in. The arc is still created, without the guard.
+     *
+     * @param sequenceFlow the BPMN sequence flow
+     * @param id its identifier
+     * @param context the parse in progress
+     */
+    private static void refuseConditionExpression(final Element sequenceFlow, final String id,
+        final ParseContext context)
     {
         final NodeList children = sequenceFlow.getChildNodes();
         // Only a direct child counts: a conditionExpression buried in extensionElements belongs to whatever
         // extension put it there, not to this arc.
-        return IntStream.range(0, children.getLength())
+        IntStream.range(0, children.getLength())
             .mapToObj(children::item)
-            .filter(child -> isBpmnElement(child, CONDITION_EXPRESSION_PROPERTY))
-            .findFirst()
+            .filter(child -> isBpmnElement(child, CONDITION_EXPRESSION_ELEMENT))
             .map(child -> child.getTextContent().trim())
-            .orElse(null);
+            .filter(expression -> !expression.isEmpty())
+            .findFirst()
+            .ifPresent(expression -> {
+                LOGGER.warn("SequenceFlow {} guards with the expression {}, which the engine cannot evaluate;"
+                    + " write it as a cond:condition in its extensionElements", id, expression);
+                ErrorLogger.logProblem("sequence flow guard is a conditionExpression, not a cond:condition",
+                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                        .with(ELEMENT_DETAIL, id).with("conditionExpression", expression));
+            });
     }
 
     /**

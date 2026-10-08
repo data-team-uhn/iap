@@ -47,6 +47,9 @@ public class WorkflowToken extends EntityPart
     @ValueMapValue
     private String currentNodeId;
 
+    @ValueMapValue
+    private String arrivedBy;
+
     /**
      * The {@link FlowNode#getElementId() element identifier} of the node this token is resting on. Stored rather
      * than referenced, since it names a node of the workflow definition, not one of the instance.
@@ -57,6 +60,18 @@ public class WorkflowToken extends EntityPart
     public String getCurrentNodeId()
     {
         return this.currentNodeId;
+    }
+
+    /**
+     * The {@link SequenceFlow#getElementId() element identifier} of the arc this token last arrived by. A parallel
+     * join counts the arcs its tokens came by, not the tokens.
+     *
+     * @return an arc's identifier, or {@code null} for a token that has not travelled along an arc yet
+     */
+    @Nullable
+    public String getArrivedBy()
+    {
+        return this.arrivedBy;
     }
 
     /**

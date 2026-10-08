@@ -20,7 +20,6 @@ package io.uhndata.iap.workflows.internal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +35,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -58,15 +56,16 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * {@code wf:WorkflowInstance} inside the resource it drives, a {@code wf:WorkflowToken} for each branch in
  * progress, and a {@code wf:TaskInstance} for each thing a person still has to do.</p>
  *
- * <p>Running one is always the same walk. From wherever the token rests, through whatever can be passed
- * automatically, until it has to stop. It stops at a user task, where the token parks and the walk returns,
- * possibly for days. Or at an end event, where the instance finishes and tells the host what the outcome meant.
- * Starting an instance and resuming a parked one are that same walk from different starting points. Both live
- * here.</p>
+ * <p>Running one is always the same walk. From wherever a token rests, through whatever can be passed
+ * automatically, until it has to stop. A token stops at a user task, where it parks and the walk returns, possibly
+ * for days. It stops at a join that is still waiting for another branch. Or it reaches an end event, which ends its
+ * branch and tells the host what the outcome meant. A terminating end event ends the whole instance. Starting an
+ * instance, completing one of its tasks and firing a task's deadline are that same walk from different starting
+ * points. All three live here.</p>
  *
- * <p>An instance holds one token for each branch in progress. A parallel gateway forks a token into several and
- * joins them back. The walk is therefore a queue of positions rather than a single path, and the instance finishes
- * when its last token is spent.</p>
+ * <p>An instance holds one token for each branch in progress. Parallel and inclusive gateways fork a token into
+ * several and join them back. The walk is therefore a queue of positions rather than a single path, and the instance
+ * finishes when its last token is spent.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -91,10 +90,9 @@ final class InstanceRunner
 
     private static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
 
-    private static final String START_TIME_PROPERTY = "startTime";
+    private static final String ARRIVED_BY_PROPERTY = "arrivedBy";
 
-    /** The status a task carries until it is completed or cancelled. */
-    private static final String OPEN_STATUS = "created";
+    private static final String START_TIME_PROPERTY = "startTime";
 
     private static final String CANCELLED_STATUS = "cancelled";
 
@@ -114,15 +112,15 @@ final class InstanceRunner
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
-     * @param conditions the evaluator for the guards on a gateway's arcs
+     * @param routing what decides where tokens go, with the evaluator for the guards on a gateway's arcs
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final ConditionEvaluator conditions)
+        final FlowRouting routing)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
-        this.routing = new FlowRouting(conditions);
+        this.routing = routing;
     }
 
     /**
@@ -147,7 +145,7 @@ final class InstanceRunner
                 + version.getPath() + " has " + starts.size());
         }
         final Resource instance = createInstance(host, version);
-        run(instance, createToken(instance, starts.get(0).getElementId()), starts.get(0));
+        run(instance, createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
         return instance;
     }
 
@@ -179,7 +177,8 @@ final class InstanceRunner
         }
 
         // An activity has exactly one way out. If it leads to a gateway, the walk forks there
-        run(instanceResource, token, this.routing.targets(definition, instance).get(0));
+        final FlowRouting.Exit exit = this.routing.exits(definition, instance).get(0);
+        run(instanceResource, token, exit.target(), exit.arc());
     }
 
     /**
@@ -194,14 +193,15 @@ final class InstanceRunner
      * @param instance the running instance
      * @param token the token being moved
      * @param from where to carry on from
+     * @param via the arc the token took to get there, or {@code null} if it did not arrive along one
      * @throws WorkflowException when the definition cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
-    private void run(final Resource instance, final Resource token, final FlowNode from)
+    private void run(final Resource instance, final Resource token, final FlowNode from, final String via)
         throws WorkflowException, PersistenceException
     {
         final Deque<Step> pending = new ArrayDeque<>();
-        pending.add(new Step(token, from));
+        pending.add(new Step(token, from, via));
         int budget = MAX_STEPS;
         while (!pending.isEmpty()) {
             if (budget-- <= 0) {
@@ -233,7 +233,13 @@ final class InstanceRunner
     {
         final Resource token = step.token();
         final FlowNode node = step.node();
-        modifiable(token).put(CURRENT_NODE_ID_PROPERTY, node.getElementId());
+        final ModifiableValueMap position = modifiable(token);
+        position.put(CURRENT_NODE_ID_PROPERTY, node.getElementId());
+        if (step.via() == null) {
+            position.remove(ARRIVED_BY_PROPERTY);
+        } else {
+            position.put(ARRIVED_BY_PROPERTY, step.via());
+        }
         if (node instanceof EndEvent) {
             tellHost(instance, (EndEvent) node);
             if (((EndEvent) node).isTerminate()) {
@@ -254,7 +260,7 @@ final class InstanceRunner
             throw new WorkflowDefinitionException("The engine cannot yet carry an instance through "
                 + node.getPath());
         }
-        if (!merged(instance, node, token, pending)) {
+        if (!merged(instance, node, token, step.via(), pending)) {
             // A join still waiting for another branch; this token stays on it
             return true;
         }
@@ -268,29 +274,43 @@ final class InstanceRunner
      * @param instance the running instance
      * @param node the node the token is standing on
      * @param token the token that arrived
+     * @param via the arc it arrived by
      * @param pending the queue, which must not be left holding a token that has been merged away
      * @return {@code true} if the token may carry on, {@code false} while a branch is still missing
      * @throws PersistenceException when the merged tokens cannot be removed
      */
-    private boolean merged(final Resource instance, final FlowNode node, final Resource token,
+    private boolean merged(final Resource instance, final FlowNode node, final Resource token, final String via,
         final Deque<Step> pending) throws PersistenceException
     {
         if (!this.routing.synchronises(node)) {
             return true;
         }
-        final List<Resource> arrived = tokensAt(instance, node.getElementId());
-        if (!this.routing.releases(node, arrived.size(), elsewhere(instance, node.getElementId()))) {
+        if (!ready(instance, node)) {
             return false;
         }
-        for (final Resource spent : arrived) {
-            if (!spent.getPath().equals(token.getPath())) {
-                this.resolver.delete(spent);
-                // A fork leading straight into its own join queues every branch before any is walked, so a merged
-                // token may still be queued. Left there, the walk would move a token that no longer exists
-                pending.removeIf(queued -> queued.token().getPath().equals(spent.getPath()));
-            }
+        final List<WorkflowToken> arrived = tokensAt(instance, node.getElementId());
+        for (final WorkflowToken spent : this.routing.absorbed(node, token.getPath(), via, arrived)) {
+            this.resolver.delete(resourceOf(spent.getPath()));
+            // A fork leading straight into its own join queues every branch before any is walked, so a merged
+            // token may still be queued. Left there, the walk would move a token that no longer exists
+            pending.removeIf(queued -> queued.token().getPath().equals(spent.getPath()));
         }
         return true;
+    }
+
+    /**
+     * Whether a join has everything it was waiting for, by the tokens standing on it now.
+     *
+     * @param instance the running instance
+     * @param join the join to ask about
+     * @return {@code true} if it may release
+     */
+    private boolean ready(final Resource instance, final FlowNode join)
+    {
+        final List<String> arrivedBy = tokensAt(instance, join.getElementId()).stream()
+            .map(WorkflowToken::getArrivedBy)
+            .toList();
+        return this.routing.releases(join, arrivedBy, elsewhere(instance, join.getElementId()));
     }
 
     /**
@@ -323,10 +343,12 @@ final class InstanceRunner
             .map(WorkflowToken::getCurrentNode)
             .filter(Objects::nonNull)
             .filter(this.routing::synchronises)
-            .filter(join -> this.routing.releases(join, tokensAt(instance, join.getElementId()).size(),
-                elsewhere(instance, join.getElementId())))
+            .filter(join -> ready(instance, join))
             .findFirst()
-            .map(join -> new Step(tokensAt(instance, join.getElementId()).get(0), join));
+            .map(join -> {
+                final WorkflowToken first = tokensAt(instance, join.getElementId()).get(0);
+                return new Step(resourceOf(first.getPath()), join, first.getArrivedBy());
+            });
     }
 
     /**
@@ -342,10 +364,11 @@ final class InstanceRunner
     private void fork(final Resource instance, final Resource token, final FlowNode node,
         final Deque<Step> pending) throws WorkflowException, PersistenceException
     {
-        final List<FlowNode> targets = this.routing.targets(node, adapt(instance));
-        pending.add(new Step(token, targets.get(0)));
-        for (final FlowNode branch : targets.subList(1, targets.size())) {
-            pending.add(new Step(createToken(instance, branch.getElementId()), branch));
+        final List<FlowRouting.Exit> exits = this.routing.exits(node, adapt(instance));
+        pending.add(new Step(token, exits.get(0).target(), exits.get(0).arc()));
+        for (final FlowRouting.Exit branch : exits.subList(1, exits.size())) {
+            pending.add(new Step(createToken(instance, branch.target().getElementId()), branch.target(),
+                branch.arc()));
         }
     }
 
@@ -357,10 +380,11 @@ final class InstanceRunner
      *
      * @param token the token's resource
      * @param node where it has got to
+     * @param via the arc it took to get there, or {@code null} if it did not arrive along one
      * @version $Id$
      * @since 0.1.0
      */
-    private record Step(Resource token, FlowNode node)
+    private record Step(Resource token, FlowNode node, String via)
     {
     }
 
@@ -369,13 +393,12 @@ final class InstanceRunner
      *
      * @param instance the running instance
      * @param elementId the node to look at
-     * @return their resources, in the order the instance holds them
+     * @return the tokens, in the order the instance holds them
      */
-    private List<Resource> tokensAt(final Resource instance, final String elementId)
+    private List<WorkflowToken> tokensAt(final Resource instance, final String elementId)
     {
         return adapt(instance).getTokens().stream()
             .filter(candidate -> elementId.equals(candidate.getCurrentNodeId()))
-            .map(candidate -> resourceOf(candidate.getPath()))
             .toList();
     }
 
@@ -444,7 +467,7 @@ final class InstanceRunner
             this.resolver.delete(resourceOf(token.getPath()));
         }
         for (final TaskInstance task : model.getTaskInstances()) {
-            if (OPEN_STATUS.equals(task.getStatus())) {
+            if (TaskInstance.OPEN_STATUS.equals(task.getStatus())) {
                 final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
                 properties.put(STATUS_PROPERTY, CANCELLED_STATUS);
                 properties.put(END_TIME_PROPERTY, Calendar.getInstance());
@@ -479,7 +502,7 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
-            STATUS_PROPERTY, OPEN_STATUS,
+            STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
         this.resolver.create(instance, name, properties);
@@ -492,7 +515,8 @@ final class InstanceRunner
      * the engine. The earliest timer that has not fired yet is the one armed.</p>
      *
      * <p>Every duration counts from when the task started, not from now. "Remind them after three days, give up after
-     * five" means five days from the start, not from the reminder.</p>
+     * five" means five days from the start, not from the reminder. Days and months are counted in the server's own
+     * calendar, so a deadline re-armed from the stored start time lands where the first one would have.</p>
      *
      * @param activity the user task being raised
      * @param started when the task began waiting, which every deadline is measured from
@@ -502,19 +526,17 @@ final class InstanceRunner
     private static void arm(final Activity activity, final Calendar started, final List<String> fired,
         final Map<String, Object> properties)
     {
-        activity.getBoundaryEvents().stream()
-            .filter(event -> event.getTimerDuration() != null && !fired.contains(event.getElementId()))
-            .min(Comparator.comparing(IntermediateCatchingEvent::getTimerDuration))
-            .ifPresentOrElse(timer -> {
-                final Calendar due = (Calendar) started.clone();
-                due.add(Calendar.SECOND, (int) Objects.requireNonNull(timer.getTimerDuration()).toSeconds());
-                properties.put("dueDate", due);
-                properties.put("dueEventId", timer.getElementId());
-            }, () -> {
-                // No deadline is left, so the sweep stops finding this task
-                properties.remove("dueDate");
-                properties.remove("dueEventId");
-            });
+        final Calendar local = Calendar.getInstance();
+        local.setTimeInMillis(started.getTimeInMillis());
+        final IntermediateCatchingEvent timer = activity.getNextTimer(local, fired);
+        if (timer == null) {
+            // No deadline is left, so the sweep stops finding this task
+            properties.remove("dueDate");
+            properties.remove("dueEventId");
+        } else {
+            properties.put("dueDate", timer.getDeadline(local));
+            properties.put("dueEventId", timer.getElementId());
+        }
     }
 
     /**
@@ -543,14 +565,14 @@ final class InstanceRunner
             properties.put(END_TIME_PROPERTY, Calendar.getInstance());
             // No assignee and no outcome: nobody acted, and nothing was decided. Gateways downstream see the last
             // recorded outcome, if there is one
-            run(instanceResource, tokenAt(instanceResource, definition.getElementId()), timer);
+            run(instanceResource, tokenAt(instanceResource, definition.getElementId()), timer, null);
             return;
         }
         final List<String> fired = new ArrayList<>(task.getFiredEvents());
         fired.add(timer.getElementId());
         properties.put("firedEvents", fired.toArray(String[]::new));
         arm(definition, Objects.requireNonNullElseGet(task.getStartTime(), Calendar::getInstance), fired, properties);
-        run(instanceResource, createToken(instanceResource, timer.getElementId()), timer);
+        run(instanceResource, createToken(instanceResource, timer.getElementId()), timer, null);
     }
 
     /**
@@ -611,8 +633,7 @@ final class InstanceRunner
      */
     private Resource tokenAt(final Resource instance, final String elementId) throws WorkflowDefinitionException
     {
-        return adapt(instance).getTokens().stream()
-            .filter(candidate -> elementId.equals(candidate.getCurrentNodeId()))
+        return tokensAt(instance, elementId).stream()
             .findFirst()
             .map(candidate -> resourceOf(candidate.getPath()))
             .orElseThrow(() -> new WorkflowDefinitionException("The instance " + instance.getPath()
