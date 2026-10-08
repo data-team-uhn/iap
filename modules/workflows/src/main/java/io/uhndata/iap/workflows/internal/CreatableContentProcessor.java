@@ -42,6 +42,11 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.internal.handlers.ContentFields;
+import io.uhndata.iap.workflows.internal.handlers.ContentNames;
+import io.uhndata.iap.workflows.internal.handlers.ContentTypes;
+import io.uhndata.iap.workflows.internal.handlers.CreateContentHandler;
+import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
