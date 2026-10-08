@@ -2746,6 +2746,8 @@
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-content-api</ignoredNonTestScopedDependency>
               <!-- Same for EntityPart, which the flow node models extend -->
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-entities-api</ignoredNonTestScopedDependency>
+              <!-- Same for Conditionable, which the schema models a submission's answers point at implement -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-conditions</ignoredNonTestScopedDependency>
               <!-- VersioningUtils.checkOut is overloaded for a Node: a module calling it with a Resource needs JCR
                    to compile, though its own code may name nothing from it -->
               <ignoredNonTestScopedDependency>javax.jcr:jcr</ignoredNonTestScopedDependency>

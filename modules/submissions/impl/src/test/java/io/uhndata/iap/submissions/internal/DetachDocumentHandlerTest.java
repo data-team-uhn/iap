@@ -49,6 +49,7 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -109,8 +110,8 @@ class DetachDocumentHandlerTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class, Submission.class,
-            Activity.class);
+            SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class,
+            DocumentVersion.class, Submission.class, Activity.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -222,6 +223,20 @@ class DetachDocumentHandlerTest
     }
 
     @Test
+    void leavesTheEmptyDocumentWaitingForARequirement()
+    {
+        // As completeness keeps one for a requirement nothing has been uploaded for: there is still nothing to remove
+        final Resource waiting = this.context.create().resource(SUBMISSION_PATH + "/waiting",
+            Map.of(TYPE, Document.RESOURCE_TYPE, "jcr:primaryType", "sub:Document"));
+        reference(waiting, NOTE_PATH, "fulfills");
+
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
+        assertTrue(failure.getMessage().contains("nothing to remove"));
+        assertNotNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/waiting"));
+    }
+
+    @Test
     void passesOverADocumentThatFulfillsNothing()
     {
         this.context.create().resource(SUBMISSION_PATH + "/stray",
@@ -277,20 +292,27 @@ class DetachDocumentHandlerTest
     }
 
     /**
-     * The submission's documents, after giving each the {@code sling:resourceType} a real repository autocreates
-     * and the mock does not.
+     * The submission's documents, after giving each, and each of its versions, the {@code sling:resourceType} a real
+     * repository autocreates and the mock does not.
      */
     private List<Document> documents()
     {
         this.context.resourceResolver().refresh();
         final Resource submission = present(this.context.resourceResolver().getResource(SUBMISSION_PATH));
         submission.getChildren().forEach(child -> {
-            if ("sub:Document".equals(child.getValueMap().get("jcr:primaryType", String.class))
-                && child.getValueMap().get(TYPE) == null) {
-                modify(child, TYPE, Document.RESOURCE_TYPE);
-            }
+            stamp(child, "sub:Document", Document.RESOURCE_TYPE);
+            child.getChildren().forEach(
+                version -> stamp(version, "sub:DocumentVersion", DocumentVersion.RESOURCE_TYPE));
         });
         return present(submission.adaptTo(Submission.class)).getDocuments();
+    }
+
+    private void stamp(final Resource resource, final String primaryType, final String resourceType)
+    {
+        if (primaryType.equals(resource.getValueMap().get("jcr:primaryType", String.class))
+            && resource.getValueMap().get(TYPE) == null) {
+            modify(resource, TYPE, resourceType);
+        }
     }
 
     private <T> T present(final T found)

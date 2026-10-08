@@ -26,7 +26,6 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -37,7 +36,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
@@ -369,57 +367,27 @@ class SubmissionTest
     }
 
     @Test
-    void reportsNoMissingRequirementsWhenAllFulfilled()
-        throws RepositoryException
+    void takesEverythingToApplyWithoutTheConditionService()
     {
-        // Whether the approval requirement is met is read from a tag on the review itself
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
-        // An answer with no question set is ignored rather than breaking the fulfillment check.
-        this.context.create().resource("/Submissions/submission/a3",
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/d1", Map.of(
-            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
-        this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
-        final Submission submission = resource.adaptTo(Submission.class);
+        final Submission submission = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE).adaptTo(Submission.class);
 
-        assertTrue(submission.getMissingRequirements().isEmpty());
+        assertTrue(submission.isApplicable(Mockito.mock(Conditionable.class)));
     }
 
     @Test
-    void reportsMissingFormRequirementWhenAQuestionIsUnanswered()
-        throws RepositoryException
+    void asksTheConditionServiceWhetherSomethingApplies()
     {
-        // Whether the approval requirement is met is read from a tag on the review itself
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        // The nested section's question is answered; the direct question (q2) has an empty value, which
-        // doesn't count as answered.
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[0]));
-        this.context.create().resource("/Submissions/submission/d1", Map.of(
-            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
-        this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
-        final Submission submission = resource.adaptTo(Submission.class);
+        // Registered before the submission is adapted, since the model keeps the service it was given
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        this.context.registerService(ConditionEvaluator.class, conditions);
+        final Submission submission = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE).adaptTo(Submission.class);
+        final Conditionable asked = Mockito.mock(Conditionable.class);
 
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        assertEquals(1, missing.size());
-        assertEquals(FormRequirement.class, missing.get(0).getClass());
+        assertFalse(submission.isApplicable(asked));
+        Mockito.when(conditions.applies(asked, submission)).thenReturn(true);
+        assertTrue(submission.isApplicable(asked));
     }
 
     @Test
@@ -448,7 +416,7 @@ class SubmissionTest
     }
 
     @Test
-    void countsAnAnswerHoldingNothingAsNoAnswerAtAll()
+    void reportsABlankAnswerAsStored()
         throws RepositoryException
     {
         Tagging.enable(this.context);
@@ -457,9 +425,6 @@ class SubmissionTest
 
         // The index reports what is stored, since that is what a form shows
         assertEquals(List.of("   "), submission.getAnswersByQuestion().get(QUESTION_2_PATH));
-        final List<Requirement> missing = submission.getMissingRequirements();
-        assertEquals(1, missing.size());
-        assertEquals(FormRequirement.class, missing.get(0).getClass());
     }
 
     @Test
@@ -477,57 +442,6 @@ class SubmissionTest
 
         assertEquals(List.of("yes"),
             Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion().get(QUESTION_1_PATH));
-    }
-
-    @Test
-    void doesNotMissAnOptionalQuestionLeftBlank()
-        throws RepositoryException
-    {
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        this.demand(0);
-        final Submission submission = this.createFulfilledExceptQ2(new String[0]);
-
-        assertTrue(submission.getMissingRequirements().isEmpty());
-    }
-
-    @Test
-    void reportsMissingWhileAQuestionHasFewerAnswersThanItDemands()
-        throws RepositoryException
-    {
-        // The blank value does not count towards the two
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        this.demand(2);
-        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", " " });
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        assertEquals(1, missing.size());
-        assertEquals(FormRequirement.class, missing.get(0).getClass());
-    }
-
-    @Test
-    void reportsFulfilledOnceAQuestionHasAsManyAnswersAsItDemands()
-        throws RepositoryException
-    {
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        this.demand(2);
-        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", "tuesday" });
-
-        assertTrue(submission.getMissingRequirements().isEmpty());
-    }
-
-    /**
-     * Sets how many values the second question demands.
-     *
-     * @param minimum the question's {@code minAnswers}
-     */
-    private void demand(final long minimum)
-    {
-        Objects.requireNonNull(this.context.resourceResolver().getResource(QUESTION_2_PATH)
-            .adaptTo(ModifiableValueMap.class)).put("minAnswers", minimum);
     }
 
     /**
@@ -551,196 +465,6 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/r1", Map.of(
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
         return Objects.requireNonNull(resource.adaptTo(Submission.class));
-    }
-
-    @Test
-    void reportsMissingDocumentRequirementWhenNoDocumentIsAttached()
-        throws RepositoryException
-    {
-        // Whether the approval requirement is met is read from a tag on the review itself
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
-        // This document fulfills a different requirement (the REB approval), not the consent form.
-        this.context.create().resource("/Submissions/submission/d1", Map.of(
-            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", REB_ID));
-        this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
-        final Submission submission = resource.adaptTo(Submission.class);
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        assertEquals(1, missing.size());
-        assertEquals(DocumentRequirement.class, missing.get(0).getClass());
-    }
-
-    @Test
-    void doesNotMissAnOptionalDocumentNobodyAttached()
-        throws RepositoryException
-    {
-        // Optional is not conditional: it stays on the form, but skipping it blocks nothing
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/consent")
-            .adaptTo(ModifiableValueMap.class)).put("required", false);
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
-        this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
-        final Submission submission = resource.adaptTo(Submission.class);
-
-        assertTrue(submission.getMissingRequirements().isEmpty());
-    }
-
-    @Test
-    void reportsMissingApprovalRequirementWhenReviewIsNotApproved()
-        throws RepositoryException
-    {
-        // Whether the approval requirement is met is read from a tag on the review itself
-        Tagging.enable(this.context);
-        this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
-        this.context.create().resource("/Submissions/submission/d1", Map.of(
-            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
-        this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "in-progress" }));
-        // This review is approved, but addresses a different requirement (the consent document).
-        this.context.create().resource("/Submissions/submission/r2", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", CONSENT_ID, "tags", new String[] { "approved" }));
-        final Submission submission = resource.adaptTo(Submission.class);
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        assertEquals(1, missing.size());
-        assertEquals(ApprovalRequirement.class, missing.get(0).getClass());
-    }
-
-    @Test
-    void failsToComputeMissingRequirementsWhenSchemaVersionIsUnresolvable()
-    {
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
-        final Submission submission = resource.adaptTo(Submission.class);
-
-        assertThrows(NullPointerException.class, submission::getMissingRequirements);
-    }
-
-    /**
-     * Registers a {@link ConditionEvaluator} treating any present condition as unsatisfied, so tests can toggle
-     * "doesn't apply" per requirement/item simply by giving it a condition child.
-     */
-    private void registerConditionEvaluator()
-    {
-        this.context.registerService(ConditionEvaluator.class, new ConditionEvaluator()
-        {
-            @Override
-            public boolean isSatisfied(final Condition condition, final Content context)
-            {
-                return condition == null;
-            }
-
-            @Override
-            public boolean applies(final Conditionable conditionable, final Content context)
-            {
-                return conditionable.getCondition() == null;
-            }
-        });
-    }
-
-    private Submission createBareSubmission()
-    {
-        return this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID))
-            .adaptTo(Submission.class);
-    }
-
-    @Test
-    void consultsTheConditionEvaluatorWhenAvailable()
-        throws RepositoryException
-    {
-        this.registerConditionEvaluator();
-        this.createSchemaVersionWithRequirements();
-        final Submission submission = this.createBareSubmission();
-
-        // No conditions anywhere: everything applies, nothing is fulfilled.
-        assertEquals(3, submission.getMissingRequirements().size());
-    }
-
-    @Test
-    void skipsRequirementsWhoseConditionDoesNotHold()
-        throws RepositoryException
-    {
-        this.registerConditionEvaluator();
-        this.createSchemaVersionWithRequirements();
-        this.context.create().resource("/Schemas/schema/1.0/consent/cond:condition", Map.of(
-            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
-        final Submission submission = this.createBareSubmission();
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        // The consent document requirement doesn't apply; the form and approval are still missing.
-        assertEquals(2, missing.size());
-        assertEquals(FormRequirement.class, missing.get(0).getClass());
-        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
-    }
-
-    @Test
-    void skipsSectionsWhoseConditionDoesNotHold()
-        throws RepositoryException
-    {
-        this.registerConditionEvaluator();
-        this.createSchemaVersionWithRequirements();
-        this.context.create().resource("/Schemas/schema/1.0/form/section/cond:condition", Map.of(
-            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
-        final Submission submission = this.createBareSubmission();
-        // Only the direct question (q2) is answered; q1 sits in the non-applicable section.
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        // The form requirement is fulfilled without q1; only the document and approval are missing.
-        assertEquals(2, missing.size());
-        assertEquals(DocumentRequirement.class, missing.get(0).getClass());
-        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
-    }
-
-    @Test
-    void skipsQuestionsWhoseConditionDoesNotHold()
-        throws RepositoryException
-    {
-        this.registerConditionEvaluator();
-        this.createSchemaVersionWithRequirements();
-        this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
-            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
-        final Submission submission = this.createBareSubmission();
-        // Only the nested question (q1) is answered; q2 doesn't apply.
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
-            new String[]{ "yes" }));
-
-        final List<Requirement> missing = submission.getMissingRequirements();
-
-        assertEquals(2, missing.size());
-        assertEquals(DocumentRequirement.class, missing.get(0).getClass());
-        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
     }
 
     @Test

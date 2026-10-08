@@ -120,4 +120,15 @@ public class Document extends EntityPart
         final List<DocumentVersion> versions = this.getVersions();
         return versions.isEmpty() ? null : versions.get(versions.size() - 1);
     }
+
+    /**
+     * Whether anything has been uploaded into this document. An empty one stands for a requirement nobody has
+     * answered yet.
+     *
+     * @return {@code true} once it has a version, which is where an upload is stored
+     */
+    public boolean isAttached()
+    {
+        return !this.getVersions().isEmpty();
+    }
 }

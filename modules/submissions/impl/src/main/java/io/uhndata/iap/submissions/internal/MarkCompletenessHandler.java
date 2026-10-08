@@ -17,14 +17,21 @@
  */
 package io.uhndata.iap.submissions.internal;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -33,8 +40,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that records whether a submission still lacks something its author has to supply, as the
+ * The service task that marks the parts of a submission still lacking something its author has to supply, with the
  * {@code incomplete} tag.
+ *
+ * <p>Every registered {@link CompletenessEvaluator} judges its own kind of part. The parts they report are tagged,
+ * and the submission's other parts lose the tag. The tag is aggregated, so the submission carries it while any of
+ * its parts does.</p>
  *
  * <p>It acts on the submission an earlier step of the run created, if there is one, and otherwise on the event's
  * target. So the create workflow marks a new submission from the start, and the save and attach workflows mark the
@@ -49,8 +60,12 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "markCompleteness";
 
-    /** The tag saying that something the submission is asked for has not been supplied. */
+    /** The tag saying that something a part of a submission is asked for has not been supplied. */
     public static final String INCOMPLETE_TAG = "incomplete";
+
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
+        policyOption = ReferencePolicyOption.GREEDY)
+    private volatile List<CompletenessEvaluator> evaluators;
 
     @Override
     public String getName()
@@ -66,17 +81,23 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The markCompleteness task only applies to submissions, not to "
                 + target.getResourceType());
         }
-        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "A submission resource always reads as a submission");
-        final Taggable taggable = Objects.requireNonNull(target.adaptTo(Taggable.class),
-            "Any resource can be read as taggable content");
-        // An approval is given by somebody else, later, so counting it would keep every draft incomplete
-        final boolean incomplete = submission.getMissingRequirements().stream()
-            .anyMatch(requirement -> !(requirement instanceof ApprovalRequirement));
-        if (incomplete) {
-            taggable.tag(INCOMPLETE_TAG, true);
-        } else {
-            taggable.untag(INCOMPLETE_TAG, true);
+        final Set<String> incomplete = new HashSet<>();
+        for (final CompletenessEvaluator evaluator : this.evaluators) {
+            for (final Resource part : evaluator.evaluate(target)) {
+                incomplete.add(part.getPath());
+                taggable(part).tag(INCOMPLETE_TAG, true);
+            }
         }
+        for (final Resource part : target.getChildren()) {
+            final Taggable taggable = part.adaptTo(Taggable.class);
+            if (taggable != null && !incomplete.contains(part.getPath()) && taggable.hasOwnTag(INCOMPLETE_TAG)) {
+                taggable.untag(INCOMPLETE_TAG, true);
+            }
+        }
+    }
+
+    private static Taggable taggable(final Resource part)
+    {
+        return Objects.requireNonNull(part.adaptTo(Taggable.class), "A part of a submission can be tagged");
     }
 }

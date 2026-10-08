@@ -172,4 +172,24 @@ class DocumentTest
         assertTrue(document.getVersions().isEmpty());
         assertNull(document.getCurrentVersion());
     }
+
+    @Test
+    void isNotAttachedWhileEmpty()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/empty",
+            "sling:resourceType", Document.RESOURCE_TYPE);
+
+        assertFalse(resource.adaptTo(Document.class).isAttached());
+    }
+
+    @Test
+    void isAttachedOnceAVersionHoldsTheUpload()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/consent",
+            "sling:resourceType", Document.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/consent/v0",
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(Document.class).isAttached());
+    }
 }

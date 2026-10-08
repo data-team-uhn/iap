@@ -1,10 +1,10 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Incomplete",
-  "description": "Something this record is asked for has not been provided yet.",
+  "description": "Something this part of a request is asked for has not been provided yet. A request carries it while any of its parts does.",
   "category": ["completeness"],
-  "targetResourceTypes": ["sub/Submission"],
   "system": true,
+  "aggregated": true,
   "color": "#8a5a1f",
   "icon": "RuleOutlined",
   "order": 10

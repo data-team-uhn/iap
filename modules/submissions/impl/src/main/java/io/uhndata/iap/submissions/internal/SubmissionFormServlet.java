@@ -219,6 +219,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // upload control looks the same before and after, and the way to check would be to leave the page
         final JsonArrayBuilder attached = Json.createArrayBuilder();
         documents.stream()
+            .filter(Document::isAttached)
             .filter(document -> document.isFulfilling(requirement))
             .map(this::describeAttachment)
             .forEach(attached::add);
