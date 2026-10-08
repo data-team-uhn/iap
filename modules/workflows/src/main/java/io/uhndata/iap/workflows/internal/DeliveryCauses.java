@@ -51,11 +51,11 @@ final class DeliveryCauses
      * @param startedInstance the path of the content workflow instance the delivery started, {@code null} if none
      * @return the cause, to which the delivery adds what its steps did
      */
-    static RecordedAction.Builder ofSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start,
+    static RecordedAction.Builder ofSystemWorkflow(final Actor actor, final WorkflowEvent event, final FlowNode start,
         final String startedInstance)
     {
         final WorkflowVersion version = start.getWorkflowVersion();
-        return RecordedAction.by(actor, event.getName())
+        return RecordedAction.by(actor.id(), event.getName())
             .event(event.getName())
             .workflow(startedInstance, version == null ? null : version.getIdentifier())
             .activity(start.getElementId(), start.getLabel());
@@ -69,13 +69,13 @@ final class DeliveryCauses
      * @param task the task the event completed, as the event left it
      * @return the cause, to which the delivery adds what its steps did
      */
-    static RecordedAction.Builder ofTask(final String actor, final WorkflowEvent event, final Resource task)
+    static RecordedAction.Builder ofTask(final Actor actor, final WorkflowEvent event, final Resource task)
     {
         final TaskInstance instanceTask = Objects.requireNonNull(task.adaptTo(TaskInstance.class),
             "A task the engine resumes is a task");
         final WorkflowInstance instance = Objects.requireNonNull(instanceTask.getWorkflowInstance(),
             "A task the engine resumes belongs to an instance");
-        return RecordedAction.by(actor, event.getName())
+        return RecordedAction.by(actor.id(), event.getName())
             .event(event.getName())
             .workflow(instance.getPath(), instance.getWorkflowVersionIdentifier())
             .activity(instanceTask.getTaskDefinitionId(), instanceTask.getLabel())

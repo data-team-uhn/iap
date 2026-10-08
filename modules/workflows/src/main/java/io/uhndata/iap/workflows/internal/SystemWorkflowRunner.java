@@ -81,7 +81,7 @@ final class SystemWorkflowRunner
      * @throws PersistenceException when a write fails
      */
     Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor, final int depth) throws WorkflowException, PersistenceException
+        final Actor actor, final int depth) throws WorkflowException, PersistenceException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final Map<String, Object> variables = new LinkedHashMap<>();
@@ -96,7 +96,7 @@ final class SystemWorkflowRunner
                     variables, actor, this.dispatcher, depth));
                 // After each activity rather than at the end: a later activity may start a workflow on what this one
                 // created, and @creator there reads createdBy
-                recordActor(resolver, variables, actor);
+                recordActor(resolver, variables, actor.effectiveUser());
             } else if (node instanceof IntermediateThrowingEvent) {
                 this.dispatcher.throwMessage((Event) node, target, event, actor, variables);
             } else if (!(node instanceof StartEvent) || step > 0) {
@@ -118,7 +118,7 @@ final class SystemWorkflowRunner
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
+     * @param actor the user the execution counts as
      * @throws PersistenceException when the created node cannot be written to
      */
     private static void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
