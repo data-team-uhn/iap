@@ -73,7 +73,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">extractionStatus == failed</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:endEvent id="endReadingFailed" name="The document could not be classified">
       <bpmn:incoming>toEndReadingFailed</bpmn:incoming>
@@ -108,7 +107,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">is_proposal/decision == yes</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toMarkNotAProposal" name="No" sourceRef="isProposal" targetRef="markNotAProposal">
       <bpmn:extensionElements>
@@ -140,7 +138,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">is_proposal/decision == no</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toMarkProposalUnsettled" name="Not settled" sourceRef="isProposal" targetRef="markProposalUnsettled" />
     <bpmn:exclusiveGateway id="studyType" default="toMarkCategoryUnsettled" name="Prospective or retrospective?">
@@ -188,7 +185,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">proposal_category/decision in Prospective, Observational, SurveysEducation, SensitiveDataClinical, Interventional, Behavioral, SocTrials, ClinicalTrials</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRetrospective" name="Retrospective" sourceRef="studyType" targetRef="askRetrospective">
       <bpmn:extensionElements>
@@ -222,7 +218,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">proposal_category/decision in Retrospective, RetrospectiveData, RetrospectiveBiospecimen</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toAskCommon" name="Another study type" sourceRef="studyType" targetRef="askCommon">
       <bpmn:extensionElements>
@@ -246,7 +241,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">proposal_category/decision is not empty</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toMarkCategoryUnsettled" name="Not settled" sourceRef="studyType" targetRef="markCategoryUnsettled" />
     <bpmn:serviceTask id="askProspective" iap:handler="intakeAnswers" iap:requirement="common,prospective" name="Read what prospective studies are asked">

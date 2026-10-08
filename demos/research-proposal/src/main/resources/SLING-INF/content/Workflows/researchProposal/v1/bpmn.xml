@@ -82,7 +82,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="rejected" />
     <bpmn:endEvent id="approved" iap:hostTag="approved" name="Proposal approved">

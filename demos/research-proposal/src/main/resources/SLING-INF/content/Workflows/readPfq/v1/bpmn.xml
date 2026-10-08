@@ -73,7 +73,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">extractionStatus == failed</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:endEvent id="endReadingFailed" name="The document could not be classified">
       <bpmn:incoming>toEndReadingFailed</bpmn:incoming>
@@ -108,7 +107,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">is_questionnaire/decision == yes</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toMarkNotAQuestionnaire" name="No" sourceRef="isQuestionnaire" targetRef="markNotAQuestionnaire">
       <bpmn:extensionElements>
@@ -140,7 +138,6 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">is_questionnaire/decision == no</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toMarkUnsettled" name="Not settled" sourceRef="isQuestionnaire" targetRef="markUnsettled" />
     <bpmn:serviceTask id="askTheModel" iap:handler="intakeAnswers" iap:requirement="extracted" iap:documents="preamble,questionnaire" name="Read the questionnaire">
