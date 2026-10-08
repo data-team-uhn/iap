@@ -64,7 +64,7 @@ final class InstanceRunner
 {
     private final ServiceTaskPerformer performer;
 
-    private final String actor;
+    private final Actor actor;
 
     private final FlowRouting routing;
 
@@ -81,7 +81,7 @@ final class InstanceRunner
      * @param routing what decides where tokens go
      * @param hostAccess grants read access on the resource an instance drives
      */
-    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final String actor,
+    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final Actor actor,
         final FlowRouting routing, final HostAccess hostAccess)
     {
         this.records = records;
@@ -115,7 +115,7 @@ final class InstanceRunner
         }
         final Resource instance = this.records.createInstance(host, version);
         runFrom(instance, this.records.createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
-        this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor);
+        this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor.effectiveUser());
         return instance;
     }
 
@@ -136,7 +136,8 @@ final class InstanceRunner
             "A task is only completed once its definition has been found");
         final Resource instanceResource = this.records.getResource(instance.getPath());
         final Resource token = this.records.findTokenAt(instanceResource, definition.getElementId());
-        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()), this.actor, outcome);
+        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()),
+            this.actor.effectiveUser(), outcome);
 
         // An activity has exactly one way out. If it leads to a gateway, the walk forks there
         final SequenceFlow flow = this.routing.selectOutgoingFlows(definition, instance).get(0);

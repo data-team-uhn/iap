@@ -63,7 +63,7 @@ public class InstanceRunners
      * @return the runner
      */
     InstanceRunner createRunner(final ResourceResolver resolver, final InstanceRunner.ServiceTaskPerformer performer,
-        final String actor)
+        final Actor actor)
     {
         return new InstanceRunner(new InstanceRecords(resolver, this.performers), performer, actor, this.routing,
             this.hostAccess);

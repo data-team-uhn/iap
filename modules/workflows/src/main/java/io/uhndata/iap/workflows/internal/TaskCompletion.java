@@ -121,7 +121,7 @@ public class TaskCompletion
      * @throws PersistenceException when the instance cannot be written
      */
     void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer)
         throws WorkflowException, PersistenceException
     {
         final TaskEvent kind = TaskEvent.of(event);
@@ -129,7 +129,7 @@ public class TaskCompletion
         final Activity definition = readDefinition(task);
         stamp(taskResource);
         final Resource host = findHost(taskResource);
-        final PerformerCheck check = this.performers.createCheck(resolver, actor);
+        final PerformerCheck check = this.performers.createCheck(resolver, actor.effectiveUser());
         final InstanceRunner runner = this.runners.createRunner(resolver, performer, actor);
         if (kind == TaskEvent.TIMEOUT) {
             final IntermediateCatchingEvent timer = findRunningTimer(task, definition);
