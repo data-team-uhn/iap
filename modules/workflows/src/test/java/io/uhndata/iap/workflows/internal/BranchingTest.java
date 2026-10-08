@@ -28,7 +28,6 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -44,12 +43,14 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.ExclusiveGateway;
 import io.uhndata.iap.workflows.models.InclusiveGateway;
+import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.models.WorkflowToken;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
@@ -57,6 +58,9 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -362,6 +366,123 @@ class BranchingTest
         assertTrue(refusal.getMessage().contains("none is marked as the default"), refusal.getMessage());
     }
 
+    @Test
+    void stampsTheInstanceAnewOnEveryEventAimedAtATask() throws Exception
+    {
+        final WorkflowEngine engine = branching();
+        engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
+        final String approved = walkId();
+
+        engine.receiveEvent(as(INSTANCE + "/cover", EngineFixture.REQUESTER), DONE);
+
+        assertNotNull(approved);
+        assertNotEquals(approved, walkId());
+    }
+
+    @Test
+    void leavesTheDefaultArcOfAnInclusiveGatewayAloneWhileAnotherArcApplies() throws Exception
+    {
+        // Neither branch has a guard, and nor does the default, as BPMN draws one
+        inclusive();
+        this.context.create().resource(PROCESS + "/" + FORK + "/toNoted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoted", TARGET_REF, "noted", "isDefault", true));
+        this.context.create().resource(PROCESS + "/noted", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted", "hostTag", "expired"));
+
+        start();
+
+        assertEquals(2, instance().getTokens().size());
+        assertEquals(List.of("Approve the request", "Book the cover"), openTasks());
+        assertFalse(hostTags().contains("expired"));
+    }
+
+    @Test
+    void passesStraightThroughAnExclusiveMerge() throws Exception
+    {
+        forkStraightIntoJoin(ParallelGateway.RESOURCE_TYPE);
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + JOIN)
+            .adaptTo(ModifiableValueMap.class)).put(TYPE, ExclusiveGateway.RESOURCE_TYPE);
+
+        start();
+
+        assertEquals("completed", instance().getStatus());
+        assertTrue(hostTags().contains("approved"));
+    }
+
+    @Test
+    void countsTheArcsAParallelJoinIsReachedBy() throws Exception
+    {
+        // Two of the fork's three branches meet at an exclusive merge before the join, so they reach it by one arc
+        createProcess();
+        this.context.create().resource(PROCESS + "/" + FORK + "/toMergeFirst", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toMergeFirst", TARGET_REF, "gather"));
+        this.context.create().resource(PROCESS + "/" + FORK + "/toMergeSecond", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toMergeSecond", TARGET_REF, "gather"));
+        this.context.resourceResolver().delete(this.context.resourceResolver().getResource(PROCESS + "/" + FORK
+            + "/toCover"));
+        this.context.resourceResolver().delete(this.context.resourceResolver().getResource(PROCESS + "/cover"));
+        this.context.create().resource(PROCESS + "/gather", Map.of(
+            TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "gather"));
+        this.context.create().resource(PROCESS + "/gather/toJoin", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "gatherToJoin", TARGET_REF, JOIN));
+        final WorkflowEngine engine = start();
+
+        assertEquals("active", instance().getStatus());
+        assertFalse(hostTags().contains("approved"));
+
+        engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
+
+        // One token per arc was merged; the second one down the shared arc waits for the next round
+        assertTrue(hostTags().contains("approved"));
+        assertEquals(List.of(JOIN), instance().getTokens().stream().map(WorkflowToken::getCurrentNodeId).toList());
+    }
+
+    @Test
+    void holdsAnInclusiveJoinWhileATimerCouldStillBringABranchToIt() throws Exception
+    {
+        // The cover task ends on its own, but if it runs out of time, its timer leads to the join
+        inclusive();
+        this.context.resourceResolver().delete(this.context.resourceResolver().getResource(PROCESS
+            + "/cover/toJoin"));
+        this.context.create().resource(PROCESS + "/cover/toNoted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "coverToNoted", TARGET_REF, "noted"));
+        this.context.create().resource(PROCESS + "/noted", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted"));
+        this.context.create().resource(PROCESS + "/cover/coverOverdue", Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "coverOverdue", "timerDuration", "P5D"));
+        this.context.create().resource(PROCESS + "/cover/coverOverdue/toJoin", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "overdueToJoin", TARGET_REF, JOIN));
+        final WorkflowEngine engine = start();
+
+        engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
+
+        assertEquals("active", instance().getStatus());
+        assertFalse(hostTags().contains("approved"));
+    }
+
+    /**
+     * The identifier the instance's latest walk stamped it with, through a refreshed session.
+     *
+     * @return the walk identifier
+     */
+    private String walkId()
+    {
+        this.context.resourceResolver().refresh();
+        return this.context.resourceResolver().getResource(INSTANCE).getValueMap().get("walkId", String.class);
+    }
+
+    /**
+     * The tags on the host, through a refreshed session.
+     *
+     * @return the host's tags
+     */
+    private List<String> hostTags()
+    {
+        this.context.resourceResolver().refresh();
+        return List.of(Objects.requireNonNull(Objects.requireNonNull(this.context.resourceResolver().getResource(HOST),
+            "The host always exists").getValueMap().get("tags", String[].class), "The host is always tagged"));
+    }
+
     /**
      * Builds the smallest branching process: a gateway of the given kind whose two arcs lead straight into its join,
      * then one end event.
@@ -597,14 +718,7 @@ class BranchingTest
     {
         this.context.resourceResolver().refresh();
         final Resource resource = this.context.resourceResolver().getResource(path);
-        final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public String getUserID()
-            {
-                return actor;
-            }
-        };
+        final ResourceResolver resolver = EngineFixture.actingAs(this.context.resourceResolver(), actor);
         return new ResourceWrapper(resource)
         {
             @Override

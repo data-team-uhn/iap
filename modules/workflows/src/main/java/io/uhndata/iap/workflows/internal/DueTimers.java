@@ -29,6 +29,8 @@ import javax.jcr.Session;
 import javax.jcr.query.Query;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -46,6 +48,7 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.models.TaskInstance;
 
 /**
  * Delivers the deadlines that have passed to the workflow engine.
@@ -54,10 +57,14 @@ import io.uhndata.iap.workflows.api.WorkflowException;
  * event arrives because somebody did something, and the engine's entry point takes the actor from the session that
  * asked. Time has no session, so this sweep stands in for one. It finds the tasks whose deadline has passed and hands
  * each to {@link WorkflowEngine#receiveEvent} as an ordinary {@code timeout} event. A timer firing therefore goes
- * through the same entry point, authorization rules and single commit as everything else.</p>
+ * through the same entry point and the same single commit as everything else. The passed deadline takes the place
+ * of a performer check.</p>
  *
  * <p>The deadlines are polled because a deadline stored in the repository survives a restart and a failover. A
  * scheduler's in-memory job per deadline does not. A timer fires at the first sweep after it is due.</p>
+ *
+ * <p>A delivery that fails is tried again by the next sweep, up to {@value #MAX_DELIVERY_FAILURES} times. After
+ * that the task keeps its deadline but is left alone, and the give-up is recorded for an administrator.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -68,21 +75,28 @@ public class DueTimers implements Runnable
     /** How often the deadlines are swept, by default: every five minutes. */
     static final String DEFAULT_SCHEDULE = "0 0/5 * * * ?";
 
+    /** How many failed deliveries of one deadline the sweep makes before it leaves the task alone. */
+    static final long MAX_DELIVERY_FAILURES = 3;
+
+    /** Where a task counts its failed deliveries. */
+    static final String DELIVERY_FAILURES_PROPERTY = "deliveryFailures";
+
     /** The name the sweep is scheduled under, so that it replaces itself rather than accumulating. */
     private static final String JOB_NAME = "iap-workflow-due-timers";
-
-    /** The service user everything the engine reads and writes goes through. */
-    private static final String SUBSERVICE = "workflows";
 
     /** The operation a failure is recorded under, when the sweep as a whole fails. */
     private static final String SWEEP = "sweep";
 
+    private static final String STATUS_PROPERTY = "status";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(DueTimers.class);
 
-    /** The open tasks whose deadline has passed, oldest deadline first. */
-    private static final String DUE_TASKS =
-        "SELECT * FROM [wf:TaskInstance] AS task WHERE task.[status] = 'created' AND task.[dueDate] <= $now"
-            + " ORDER BY task.[dueDate] ASC";
+    /** The open tasks whose deadline has passed and not been given up on, oldest deadline first. */
+    private static final String DUE_TASKS = "SELECT * FROM [wf:TaskInstance] AS task"
+        + " WHERE task.[status] = '" + TaskInstance.OPEN_STATUS + "' AND task.[dueDate] <= $now"
+        + " AND (task.[" + DELIVERY_FAILURES_PROPERTY + "] IS NULL"
+        + " OR task.[" + DELIVERY_FAILURES_PROPERTY + "] < " + MAX_DELIVERY_FAILURES + ")"
+        + " ORDER BY task.[dueDate] ASC";
 
     @Reference
     private Scheduler scheduler;
@@ -115,13 +129,10 @@ public class DueTimers implements Runnable
     @Override
     public void run()
     {
-        try (ResourceResolver resolver =
-            this.resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
+        try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
+            Map.of(ResourceResolverFactory.SUBSERVICE, WorkflowEngineImpl.SUBSERVICE_NAME))) {
             for (final String path : overdue(resolver)) {
-                final Resource task = resolver.getResource(path);
-                if (task != null) {
-                    fire(task);
-                }
+                fire(resolver, path);
             }
         } catch (final LoginException e) {
             LOGGER.error("The workflow engine's service user is not available, so no deadline can be delivered", e);
@@ -135,8 +146,8 @@ public class DueTimers implements Runnable
     /**
      * Find the paths of the tasks whose deadline has passed, read through the engine's own session.
      *
-     * <p>Paths rather than resources, and read in one go, because the query's own session should not be held open while
-     * each delivery opens, writes and commits its own session.</p>
+     * <p>Read in one go, so the query's results are not still being iterated while deliveries commit. Each task is
+     * looked at again just before its delivery, since an earlier delivery or a person may have closed it since.</p>
      *
      * @param resolver the engine's session
      * @return the overdue tasks' paths, in deadline order
@@ -158,19 +169,74 @@ public class DueTimers implements Runnable
     /**
      * Delivers one passed deadline, as a {@code timeout} event sent to the workflow engine.
      *
-     * <p>A failure is logged and the sweep carries on: one broken definition must not stop every other deadline in the
-     * repository from being met.</p>
+     * <p>A failure is counted on the task, and the sweep carries on: one broken definition must not stop every other
+     * deadline in the repository from being met. A task that is no longer open was closed by somebody else in the
+     * meantime, which is not a failure.</p>
      *
-     * @param task the overdue task
+     * @param resolver the sweep's session
+     * @param path the overdue task
      */
-    private void fire(final Resource task)
+    private void fire(final ResourceResolver resolver, final String path)
     {
+        if (!stillOpen(resolver, path)) {
+            LOGGER.debug("The task {} was closed before its passed deadline was delivered", path);
+            return;
+        }
         try {
-            this.engine.receiveEvent(task, new WorkflowEvent(TaskCompletion.TIMEOUT_EVENT, Map.of()));
-            LOGGER.debug("Delivered the passed deadline of {}", task.getPath());
-        } catch (final WorkflowException e) {
-            LOGGER.error("Could not deliver the passed deadline of {}: {}", task.getPath(), e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, "deliver").about(task));
+            this.engine.receiveEvent(Objects.requireNonNull(resolver.getResource(path), "An open task exists"),
+                new WorkflowEvent(TaskCompletion.TIMEOUT_EVENT, Map.of()));
+            LOGGER.debug("Delivered the passed deadline of {}", path);
+        } catch (final WorkflowException | RuntimeException e) {
+            if (stillOpen(resolver, path)) {
+                LOGGER.error("Could not deliver the passed deadline of {}: {}", path, e.getMessage(), e);
+                ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, "deliver").about(path));
+                countFailure(resolver, path);
+            } else {
+                LOGGER.debug("The task {} was closed while its passed deadline was being delivered", path);
+            }
+        }
+    }
+
+    /**
+     * Whether a task is still waiting, as the repository has it now.
+     *
+     * @param resolver the sweep's session
+     * @param path the task
+     * @return {@code true} if it exists and is open
+     */
+    private static boolean stillOpen(final ResourceResolver resolver, final String path)
+    {
+        resolver.refresh();
+        final Resource task = resolver.getResource(path);
+        return task != null
+            && TaskInstance.OPEN_STATUS.equals(task.getValueMap().get(STATUS_PROPERTY, String.class));
+    }
+
+    /**
+     * Counts one more failed delivery on a task, in a commit of its own, and gives up on the task at the limit.
+     *
+     * @param resolver the sweep's session
+     * @param path the task
+     */
+    private static void countFailure(final ResourceResolver resolver, final String path)
+    {
+        final ModifiableValueMap task = Objects.requireNonNull(
+            Objects.requireNonNull(resolver.getResource(path), "An open task exists").adaptTo(ModifiableValueMap.class),
+            "The engine's own session can write its tasks");
+        final long failures = task.get(DELIVERY_FAILURES_PROPERTY, 0L) + 1;
+        task.put(DELIVERY_FAILURES_PROPERTY, failures);
+        try {
+            resolver.commit();
+        } catch (final PersistenceException e) {
+            resolver.revert();
+            LOGGER.error("Could not count a failed delivery of the deadline of {}: {}", path, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, "countFailure").about(path));
+            return;
+        }
+        if (failures >= MAX_DELIVERY_FAILURES) {
+            LOGGER.error("Gave up delivering the passed deadline of {} after {} failures", path, failures);
+            ErrorLogger.logProblem("passed deadline abandoned after repeated failures",
+                ErrorContext.of(DueTimers.class, "deliver").about(path).with(DELIVERY_FAILURES_PROPERTY, failures));
         }
     }
 }

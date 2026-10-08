@@ -18,6 +18,8 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -34,6 +36,7 @@ import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.models.WorkflowToken;
 
 /**
  * Answers the questions the walk asks of a workflow graph: which nodes execution may pass through, which arcs leave
@@ -93,24 +96,51 @@ final class FlowRouting
     /**
      * Whether a join has everything it was waiting for.
      *
-     * <p>A parallel join waits for one token per incoming arc, since its fork took every branch. An inclusive join
-     * cannot count, because nothing records how many branches its fork took. It releases when no other token in the
-     * instance can still reach it.</p>
+     * <p>A parallel join waits for a token from every incoming arc, since its fork took every branch. It counts arcs,
+     * not tokens: a second token down an arc that has already delivered one waits for the join's next round. An
+     * inclusive join cannot count, because nothing records how many branches its fork took. It releases when no
+     * other token in the instance can still reach it.</p>
      *
-     * <p>The answer comes from the graph and the tokens on it, not from a record of the fork. It stays right when the
-     * process is re-entered, when a boundary event cuts a branch short, and when the instance resumes days later.</p>
+     * <p>The answer comes from the graph and the tokens on it, not from a record of the fork. It stays right when a
+     * boundary event cuts a branch short, and when the instance resumes days later.</p>
      *
      * @param gateway the join a token is standing on
-     * @param arrived how many tokens are standing on it
+     * @param arrivedBy the arcs the tokens standing on it arrived by
      * @param elsewhere where every other token in the instance has got to
      * @return {@code true} if the join may release
      */
-    boolean releases(final FlowNode gateway, final int arrived, final List<FlowNode> elsewhere)
+    boolean releases(final FlowNode gateway, final Collection<String> arrivedBy, final List<FlowNode> elsewhere)
     {
         if (gateway instanceof ParallelGateway) {
-            return arrived >= gateway.getIncomingFlows().size();
+            return gateway.getIncomingFlows().stream().map(SequenceFlow::getElementId).allMatch(arrivedBy::contains);
         }
         return elsewhere.stream().noneMatch(node -> canReach(node, gateway.getElementId()));
+    }
+
+    /**
+     * The tokens a releasing join merges into the one that leaves it.
+     *
+     * <p>An inclusive join takes every token standing on it. A parallel join takes one from each of its other arcs,
+     * and leaves any extra token from an arc to wait for the next round.</p>
+     *
+     * @param join the join being released
+     * @param leavingPath the path of the token that carries on
+     * @param leavingArc the arc that token arrived by
+     * @param arrived every token standing on the join, the leaving one included
+     * @return the tokens to remove
+     */
+    List<WorkflowToken> absorbed(final FlowNode join, final String leavingPath, final String leavingArc,
+        final List<WorkflowToken> arrived)
+    {
+        final List<WorkflowToken> others = arrived.stream()
+            .filter(token -> !token.getPath().equals(leavingPath))
+            .toList();
+        if (!(join instanceof ParallelGateway)) {
+            return others;
+        }
+        final Set<String> arcs = new HashSet<>();
+        arcs.add(leavingArc);
+        return others.stream().filter(token -> arcs.add(token.getArrivedBy())).toList();
     }
 
     /**
@@ -147,15 +177,15 @@ final class FlowRouting
     }
 
     /**
-     * Where a node leads: every arc for a parallel gateway, the applicable ones for an inclusive gateway, the chosen
+     * How a node is left: every arc for a parallel gateway, the applicable ones for an inclusive gateway, the chosen
      * one for any other gateway, and the only one for everything else.
      *
      * @param node the node being left
      * @param instance the running instance, consulted for what a gateway routes on
-     * @return the nodes to carry on at, never empty
+     * @return the arcs taken and where each leads, never empty
      * @throws WorkflowDefinitionException when an arc leads nowhere, or there is no way onwards
      */
-    List<FlowNode> targets(final FlowNode node, final WorkflowInstance instance)
+    List<Exit> exits(final FlowNode node, final WorkflowInstance instance)
         throws WorkflowDefinitionException
     {
         final List<SequenceFlow> flows = node.getOutgoingFlows();
@@ -167,13 +197,28 @@ final class FlowRouting
         } else {
             taken = List.of(node instanceof Gateway ? choose((Gateway) node, flows, instance) : only(node, flows));
         }
+        final List<Exit> exits = new ArrayList<>();
         for (final SequenceFlow flow : taken) {
-            if (flow.getTarget() == null) {
+            final FlowNode target = flow.getTarget();
+            if (target == null) {
                 throw new WorkflowDefinitionException("The sequence flow " + flow.getPath() + " points at "
                     + flow.getTargetRef() + ", which does not exist in this workflow");
             }
+            exits.add(new Exit(flow.getElementId(), target));
         }
-        return taken.stream().map(SequenceFlow::getTarget).toList();
+        return exits;
+    }
+
+    /**
+     * One way out of a node: the arc taken, and the node it leads to.
+     *
+     * @param arc the element identifier of the sequence flow
+     * @param target where it leads
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Exit(String arc, FlowNode target)
+    {
     }
 
     /**
@@ -198,8 +243,8 @@ final class FlowRouting
     }
 
     /**
-     * The ways out of an inclusive gateway that apply: every arc whose condition holds, and every arc with no
-     * condition. When nothing applies, the default arc is taken.
+     * The ways out of an inclusive gateway that apply: every arc whose condition holds, and every other arc with no
+     * condition. The default arc is taken only when nothing else applies.
      *
      * @param gateway the gateway being left
      * @param flows its outgoing arcs
@@ -211,6 +256,7 @@ final class FlowRouting
         final WorkflowInstance instance) throws WorkflowDefinitionException
     {
         final List<SequenceFlow> applicable = flows.stream()
+            .filter(flow -> !flow.isDefault())
             .filter(flow -> flow.getCondition() == null
                 || this.conditions.isSatisfied(flow.getCondition(), instance))
             .toList();
@@ -242,7 +288,8 @@ final class FlowRouting
 
     /**
      * Picks a gateway's outgoing arc: the first whose condition holds, or the one marked as the default when none
-     * does. An arc with no condition is taken only if it is the default.
+     * does. An arc with no condition is taken only if it is the default, or if it is the gateway's only way out:
+     * that gateway is a merge, with nothing to choose.
      *
      * <p>Conditions are evaluated against the instance, so a guard reads the instance's variables through the
      * {@code variable} operand source.</p>
@@ -256,6 +303,9 @@ final class FlowRouting
     private SequenceFlow choose(final Gateway gateway, final List<SequenceFlow> flows,
         final WorkflowInstance instance) throws WorkflowDefinitionException
     {
+        if (flows.size() == 1 && flows.get(0).getCondition() == null) {
+            return flows.get(0);
+        }
         return flows.stream()
             .filter(flow -> flow.getCondition() != null
                 && this.conditions.isSatisfied(flow.getCondition(), instance))

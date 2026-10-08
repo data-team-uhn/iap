@@ -70,9 +70,6 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkflowEventServletRegistrar.class);
 
-    /** The subservice name under which the engine's service user is mapped. */
-    private static final String SUBSERVICE_NAME = "workflows";
-
     /** Where a system workflow version names the resource type whose events it handles. */
     private static final String TARGET_TYPE_PROPERTY = "targetResourceType";
 
@@ -143,8 +140,8 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     {
         final Set<String> found = new TreeSet<>();
         found.add(TaskInstance.RESOURCE_TYPE);
-        try (ResourceResolver resolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
+        try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
+            Map.of(ResourceResolverFactory.SUBSERVICE, WorkflowEngineImpl.SUBSERVICE_NAME))) {
             final Resource home = resolver.getResource(SystemWorkflowsHomepage.PATH);
             if (home != null) {
                 // Read as resources, not as models. Sling Models withdraws its adapters while it restarts, and a

@@ -18,6 +18,8 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
@@ -278,9 +280,9 @@ class UserWorkflowTest
 
         assertEquals("approvalOverdue", read(TASK).get("dueEventId"));
         final Calendar due = (Calendar) read(TASK).get("dueDate");
-        final Calendar fromTheStart = (Calendar) started.clone();
-        fromTheStart.add(Calendar.DATE, 5);
-        assertEquals(fromTheStart.getTimeInMillis(), due.getTimeInMillis());
+        // Five calendar days in the server's own zone, which is 121 or 119 hours across a change of clocks
+        assertEquals(ZonedDateTime.ofInstant(started.toInstant(), ZoneId.systemDefault()).plusDays(5).toInstant(),
+            due.toInstant());
 
         // The later deadline still cancels the task when it passes
         deadlinePassed();
@@ -326,6 +328,22 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT);
 
         assertEquals("cancelled", read(TASK).get("status"));
+    }
+
+    @Test
+    void ignoresADeadlineThatPassesAfterTheTaskWasDecided() throws Exception
+    {
+        // "Refuse the request after five days", but it was approved in time
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        final WorkflowEngine engine = started();
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+        deadlinePassed();
+
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
