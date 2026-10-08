@@ -36,10 +36,6 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that records whether a submission still lacks something its author has to supply, as the
  * {@code incomplete} tag.
  *
- * <p>A tag rather than a check made wherever it is needed, so that anything reading a submission sees it: a listing
- * of drafts, the control offering to send one, a workflow condition. It is a system tag, so only this task places
- * or removes it.</p>
- *
  * <p>It acts on the submission an earlier step of the run created, if there is one, and otherwise on the event's
  * target. So the create workflow marks a new submission from the start, and the save and attach workflows mark the
  * submission they changed.</p>
