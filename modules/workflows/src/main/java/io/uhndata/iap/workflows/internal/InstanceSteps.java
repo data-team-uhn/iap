@@ -43,7 +43,7 @@ final class InstanceSteps implements InstanceRunner.StepPerformer
 
     private final WorkflowEvent event;
 
-    private final String actor;
+    private final Actor actor;
 
     private final Map<String, Object> variables = new LinkedHashMap<>();
 
@@ -54,7 +54,7 @@ final class InstanceSteps implements InstanceRunner.StepPerformer
      * @param event the event being delivered
      * @param actor the user the instance is being moved for
      */
-    InstanceSteps(final ServiceTaskDispatcher dispatcher, final WorkflowEvent event, final String actor)
+    InstanceSteps(final ServiceTaskDispatcher dispatcher, final WorkflowEvent event, final Actor actor)
     {
         this.dispatcher = dispatcher;
         this.event = event;
