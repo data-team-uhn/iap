@@ -28,6 +28,22 @@ const answering = (body: unknown, status = 200) => vi.fn<FetchStub>(url => Promi
   ok: status < 400, status, url, json: () => Promise.resolve(body),
 } as unknown as Response));
 
+// A server holding each answer back until the test gives it, so that answers can arrive in any order
+function holding() {
+  const answers = new Map<string, (body: unknown, status: number) => void>();
+  const fetch = vi.fn<FetchStub>(url => new Promise(resolve => {
+    answers.set(url, (body, status) => resolve({
+      ok: status < 400, status, url, json: () => Promise.resolve(body),
+    } as unknown as Response));
+  }));
+  // Gives one held answer, and lets all it sets in motion finish before the test looks
+  const answer = (url: string, body: unknown, status = 200) => act(async () => {
+    answers.get(url)?.(body, status);
+    await new Promise(settled => { setTimeout(settled, 0); });
+  });
+  return { fetch, answer };
+}
+
 // Defined once rather than inline, since a new parser on every render would be a new read every time
 const titleOf = (node: Record<string, unknown>) => node.title;
 
@@ -95,5 +111,66 @@ describe("useNode", () => {
 
     expect(result.current.value).toBe("Consent");
     expect(result.current.loadError).toBeUndefined();
+  });
+
+  // A page moving from one node to another must not show, and offer actions on, the node before as if it
+  // were the new one while the new one loads
+  it("starts from nothing when asked for another node", async () => {
+    const server = holding();
+    vi.stubGlobal("fetch", server.fetch);
+    const { result, rerender } = renderHook(({ path }) => useNode(path, "1", titleOf),
+      { initialProps: { path: "/Schemas/consent" } });
+    await server.answer("/Schemas/consent.1.json", { title: "Consent" });
+    expect(result.current.value).toBe("Consent");
+
+    rerender({ path: "/Schemas/intake" });
+
+    expect(result.current.value).toBeUndefined();
+    expect(result.current.loading).toBe(true);
+    await server.answer("/Schemas/intake.1.json", { title: "Intake" });
+    expect(result.current.value).toBe("Intake");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("drops an answer about a node it is no longer asked for", async () => {
+    const server = holding();
+    vi.stubGlobal("fetch", server.fetch);
+    const { result, rerender } = renderHook(({ path }) => useNode(path, "1", titleOf),
+      { initialProps: { path: "/Schemas/consent" } });
+    rerender({ path: "/Schemas/intake" });
+
+    await server.answer("/Schemas/intake.1.json", { title: "Intake" });
+    await server.answer("/Schemas/consent.1.json", { title: "Consent" });
+
+    expect(result.current.value).toBe("Intake");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("drops a failure about a node it is no longer asked for", async () => {
+    const server = holding();
+    vi.stubGlobal("fetch", server.fetch);
+    const { result, rerender } = renderHook(({ path }) => useNode(path, "1", titleOf),
+      { initialProps: { path: "/Schemas/consent" } });
+    rerender({ path: "/Schemas/intake" });
+
+    await server.answer("/Schemas/intake.1.json", { title: "Intake" });
+    await server.answer("/Schemas/consent.1.json", null, 403);
+
+    expect(result.current.value).toBe("Intake");
+    expect(result.current.loadError).toBeUndefined();
+  });
+
+  it("keeps nothing of the node before when reading another one fails", async () => {
+    vi.stubGlobal("fetch", answering({ title: "Consent" }));
+    const { result, rerender } = renderHook(({ path }) => useNode(path, "1", titleOf),
+      { initialProps: { path: "/Schemas/consent" } });
+    await waitFor(() => { expect(result.current.value).toBe("Consent"); });
+
+    vi.stubGlobal("fetch", answering(null, 404));
+    rerender({ path: "/Schemas/gone" });
+    await waitFor(() => { expect(result.current.loading).toBe(false); });
+
+    expect(result.current.value).toBeUndefined();
+    expect(result.current.loadError).toMatch("could not be found");
   });
 });
