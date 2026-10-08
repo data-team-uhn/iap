@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAuthenticatedFetch, type AuthenticatedFetch } from "./reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "./requestFailure";
@@ -37,27 +37,45 @@ export async function readNode(doFetch: AuthenticatedFetch, path: string, select
   }
 }
 
-// What a page reading one node needs: the parsed value, whether the first read is still going, what
-// went wrong with the last one, and a way to read again. A failed re-read keeps the last good value, so
-// the page stays readable under the error.
+// What came of reading one node, and which node it was: the path and selectors it was asked through
+interface Read<T> {
+  of: string;
+  value?: T;
+  error?: string;
+}
+
+// What a page reading one node needs: the parsed value, whether that node is still being read, what
+// went wrong with the last read, and a way to read again. A failed re-read keeps the last good value, so
+// the page stays readable under the error. Asked for another node, it starts from nothing, as loading:
+// a page showing the node before as this one would send whatever is done on it to the wrong node.
 export function useNode<T>(path: string, selectors: string, parse: (node: JcrNode) => T) {
   const doFetch = useAuthenticatedFetch();
-  const [ value, setValue ] = useState<T>();
-  const [ loading, setLoading ] = useState(true);
-  const [ loadError, setLoadError ] = useState<string>();
+  const of = `${path}.${selectors}`;
+  const [ read, setRead ] = useState<Read<T>>();
+  // The node the page asks for now: an answer about one it asked for before arrives too late to count
+  const asked = useRef(of);
+
+  useEffect(() => {
+    asked.current = of;
+  }, [ of ]);
 
   const reload = useCallback((): Promise<void> =>
     readNode(doFetch, path, selectors)
       .then(node => {
-        setValue(parse(node));
-        setLoadError(undefined);
+        if (asked.current === of) {
+          setRead({ of, value: parse(node) });
+        }
       })
-      .catch((error: unknown) => setLoadError(messageOf(error)))
-      .finally(() => setLoading(false)), [ doFetch, path, selectors, parse ]);
+      .catch((error: unknown) => {
+        if (asked.current === of) {
+          setRead(last => ({ of, value: last?.of === of ? last.value : undefined, error: messageOf(error) }));
+        }
+      }), [ doFetch, path, selectors, of, parse ]);
 
   useEffect(() => {
     void reload();
   }, [ reload ]);
 
-  return { value, loading, loadError, reload, doFetch };
+  const current = read?.of === of ? read : undefined;
+  return { value: current?.value, loading: current === undefined, loadError: current?.error, reload, doFetch };
 }
