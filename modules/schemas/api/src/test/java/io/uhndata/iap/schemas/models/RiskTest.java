@@ -19,6 +19,7 @@ package io.uhndata.iap.schemas.models;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.jcr.ItemNotFoundException;
 import javax.jcr.Node;
@@ -57,6 +58,10 @@ class RiskTest
 
     private static final String QUESTION_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
 
+    private static final String REQUIREMENT_PATH = "/Schemas/schema/1.0/protocol";
+
+    private static final String REQUIREMENT_ID = "1b2c3d4e-0000-4a7e-8c3f-abcdef012345";
+
     private static final String GONE_ID = "00000000-0000-0000-0000-000000000000";
 
     private final SlingContext context = new SlingContext();
@@ -93,26 +98,31 @@ class RiskTest
     }
 
     @Test
-    void skipsQuestionsThatNoLongerResolve()
+    void readsRequirementsAndQuestionsAsSubjects()
         throws RepositoryException
     {
         this.context.create().resource(QUESTION_PATH,
             "sling:resourceType", Question.RESOURCE_TYPE, "text", "Will you collect names?");
-        final Node targetNode = Mockito.mock(Node.class);
-        Mockito.when(targetNode.getPath()).thenReturn(QUESTION_PATH);
+        this.context.create().resource(REQUIREMENT_PATH,
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE, "label", "Study protocol");
         final Session session = Mockito.mock(Session.class);
-        Mockito.when(session.getNodeByIdentifier(QUESTION_ID)).thenReturn(targetNode);
-        // The link is weak, so the question may have been removed since
+        final Node question = Mockito.mock(Node.class);
+        Mockito.when(question.getPath()).thenReturn(QUESTION_PATH);
+        Mockito.when(session.getNodeByIdentifier(QUESTION_ID)).thenReturn(question);
+        final Node requirement = Mockito.mock(Node.class);
+        Mockito.when(requirement.getPath()).thenReturn(REQUIREMENT_PATH);
+        Mockito.when(session.getNodeByIdentifier(REQUIREMENT_ID)).thenReturn(requirement);
+        // The link is weak, so a subject may have been removed since
         Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
         final Resource resource = this.context.create().resource(RISK_PATH, Map.of(
             "sling:resourceType", Risk.RESOURCE_TYPE,
-            "questions", new String[]{ QUESTION_ID, GONE_ID }));
-        final List<Question> questions = resource.adaptTo(Risk.class).getQuestions();
+            "subjects", new String[]{ REQUIREMENT_ID, GONE_ID, QUESTION_ID }));
+        final List<EntityPart> subjects = resource.adaptTo(Risk.class).getSubjects();
 
-        assertEquals(1, questions.size());
-        assertEquals("Will you collect names?", questions.get(0).getText());
+        assertEquals(List.of(REQUIREMENT_PATH, QUESTION_PATH),
+            subjects.stream().map(EntityPart::getPath).collect(Collectors.toList()));
     }
 
     @Test
@@ -126,6 +136,6 @@ class RiskTest
         assertNull(risk.getDescription());
         assertNull(risk.getPurpose());
         assertNull(risk.getAssessmentPrompt());
-        assertTrue(risk.getQuestions().isEmpty());
+        assertTrue(risk.getSubjects().isEmpty());
     }
 }

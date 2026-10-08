@@ -17,8 +17,10 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -56,7 +58,7 @@ public class Risk extends EntityPart
     private String assessmentPrompt;
 
     @ValueMapValue
-    private String[] questions;
+    private String[] subjects;
 
     /**
      * The risk as shown to the submitter.
@@ -103,23 +105,20 @@ public class Risk extends EntityPart
     }
 
     /**
-     * The questions whose answers bear on this risk. The link is weak, so a question removed since is skipped.
+     * The requirements and questions that bear on this risk. They may be of any requirement kind, so they are read
+     * as {@link EntityPart}s. The link is weak, so one removed since is skipped.
      *
-     * @return a list of questions, empty if none are linked or none of them resolve
+     * @return a list of schema parts, empty if none are linked or none of them resolve
      */
     @NotNull
-    public List<Question> getQuestions()
+    public List<EntityPart> getSubjects()
     {
-        if (this.questions == null) {
+        if (this.subjects == null) {
             return List.of();
         }
-        final List<Question> result = new ArrayList<>();
-        for (final String identifier : this.questions) {
-            final Question question = this.getReference(identifier, Question.class);
-            if (question != null) {
-                result.add(question);
-            }
-        }
-        return result;
+        return Arrays.stream(this.subjects)
+            .map(identifier -> this.getReference(identifier, EntityPart.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 }
