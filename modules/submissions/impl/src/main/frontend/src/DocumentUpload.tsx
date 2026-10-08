@@ -22,10 +22,10 @@ import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
-import { validateUpload } from "./fileValidation";
 import {
   type DocumentRequirement,
   attachDocument,

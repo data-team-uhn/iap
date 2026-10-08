@@ -22,8 +22,8 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, DialogContent, IconButton, Typography } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { loadPdfjs } from "@iap/frontend-commons/pdfjsClient";
 
-import { loadPdfjs } from "./pdfjsClient";
 import {
   findQuoteRects,
   pageSearchOrder,
