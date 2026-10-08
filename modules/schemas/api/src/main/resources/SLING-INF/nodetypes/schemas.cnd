@@ -319,8 +319,11 @@
   + * (sch:AssessmentCriteria) = sch:AssessmentCriteria
 
 //-----------------------------------------------------------------------------
-// Something the approvers want assessed before they grant an approval.
-// Referenceable so that sub:Assessment nodes can point back to it.
+// A broad area the approvers want assessed before they grant an approval, such
+// as consent: is it needed, clear, informed, free of coercion, in both
+// languages. One area rather than a checkbox per point, so the reviewer is
+// not overwhelmed; the description and the sources to look at say what to
+// look for. Referenceable so that sub:Assessment nodes can point back to it.
 [sch:AssessmentCriteria] > data:EntityPart, mix:referenceable
   - sling:resourceType (STRING) = "sch/AssessmentCriteria" mandatory autocreated protected
 

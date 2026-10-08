@@ -17,19 +17,11 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:Screening} node: the AI's feedback on a submission. It is a guide, never a
@@ -48,14 +40,8 @@ public class Screening extends Feedback
     @ValueMapValue
     private String summary;
 
-    @ValueMapValue
-    private String[] sources;
-
-    @ValueMapValue
-    private Double confidence;
-
     /**
-     * A short overall summary.
+     * A short summary of the whole screening.
      *
      * @return the summary, or {@code null} if the run gave none
      */
@@ -63,34 +49,5 @@ public class Screening extends Feedback
     public String getSummary()
     {
         return this.summary;
-    }
-
-    /**
-     * What this run read: document revisions and answers. A newer revision or a changed answer makes the screening
-     * stale. The link is weak, so one removed since is skipped.
-     *
-     * @return the parts of the submission read, empty if none are recorded or none of them resolve
-     */
-    @NotNull
-    public List<EntityPart> getSources()
-    {
-        if (this.sources == null) {
-            return List.of();
-        }
-        return Arrays.stream(this.sources)
-            .map(identifier -> this.getReference(identifier, EntityPart.class))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * How sure the model is.
-     *
-     * @return a value between 0 and 1, or {@code null} if the model did not say
-     */
-    @Nullable
-    public Double getConfidence()
-    {
-        return this.confidence;
     }
 }

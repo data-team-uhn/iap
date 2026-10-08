@@ -125,8 +125,8 @@ public class Finding extends EntityPart
      * @return a list of comments, empty if none
      */
     @NotNull
-    public List<ReviewComment> getComments()
+    public List<Comment> getComments()
     {
-        return this.getChildren(ReviewComment.RESOURCE_TYPE, ReviewComment.class);
+        return this.getChildren(Comment.RESOURCE_TYPE, Comment.class);
     }
 }

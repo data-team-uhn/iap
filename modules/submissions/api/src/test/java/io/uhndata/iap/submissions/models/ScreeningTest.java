@@ -17,30 +17,19 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import javax.jcr.ItemNotFoundException;
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link Screening}.
@@ -53,51 +42,29 @@ class ScreeningTest
 {
     private static final String PATH = "/Submissions/submission/screening";
 
-    private static final String ANSWER_PATH = "/Submissions/submission/a1";
-
-    private static final String ANSWER_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
-
-    private static final String GONE_ID = "00000000-0000-0000-0000-000000000000";
-
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Screening.class, Answer.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Screening.class);
     }
 
     @Test
-    void exposesWhatTheRunReported() throws RepositoryException
+    void exposesItsSummary()
     {
-        this.context.create().resource(ANSWER_PATH, "sling:resourceType", Answer.RESOURCE_TYPE);
-        final Session session = Mockito.mock(Session.class);
-        final Node answer = Mockito.mock(Node.class);
-        Mockito.when(answer.getPath()).thenReturn(ANSWER_PATH);
-        Mockito.when(session.getNodeByIdentifier(ANSWER_ID)).thenReturn(answer);
-        // The link is weak, so a source may have been removed since
-        Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
-        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
-
-        final Resource resource = this.context.create().resource(PATH, Map.of(
-            "sling:resourceType", Screening.RESOURCE_TYPE, "summary", "Mostly complete", "confidence", 0.8,
-            "sources", new String[] {GONE_ID, ANSWER_ID}));
-        final Screening screening = resource.adaptTo(Screening.class);
+        final Screening screening = this.context.create().resource(PATH, Map.of(
+            "sling:resourceType", Screening.RESOURCE_TYPE, "summary", "Mostly complete")).adaptTo(Screening.class);
 
         assertEquals("Mostly complete", screening.getSummary());
-        assertEquals(0.8, screening.getConfidence());
-        assertEquals(List.of(ANSWER_PATH),
-            screening.getSources().stream().map(EntityPart::getPath).collect(Collectors.toList()));
     }
 
     @Test
-    void toleratesMissingOptionalProperties()
+    void toleratesAMissingSummary()
     {
         final Screening screening = this.context.create().resource(PATH, "sling:resourceType",
             Screening.RESOURCE_TYPE).adaptTo(Screening.class);
 
         assertNull(screening.getSummary());
-        assertNull(screening.getConfidence());
-        assertTrue(screening.getSources().isEmpty());
     }
 }
