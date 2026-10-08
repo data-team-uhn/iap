@@ -337,9 +337,10 @@
   // The prompt an LLM is given to assess this risk from the submitted documents
   - assessmentPrompt (STRING)
 
-  // The sch:Question nodes whose answers bear on this risk. Weak, so a
-  // question can be removed without first unlinking it from every risk.
-  - questions (WEAKREFERENCE) multiple
+  // The requirements and questions that bear on this risk: where a reviewer
+  // and a screening look first. Weak, so one can be removed without first
+  // unlinking it from every risk.
+  - subjects (WEAKREFERENCE) multiple
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
