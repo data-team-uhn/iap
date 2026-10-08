@@ -19,7 +19,9 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.entities.models.EntityPart;
@@ -37,26 +39,44 @@ public abstract class Feedback extends EntityPart
     /** The {@code sling:resourceSuperType} of every kind of {@code sub:Feedback} node. */
     public static final String RESOURCE_TYPE = "sub/Feedback";
 
+    @ValueMapValue
+    private boolean binding;
+
+    /**
+     * Whether this feedback decides anything, as a reviewer's review does. Each kind of feedback says so itself, so
+     * a new binding kind counts without code naming it.
+     *
+     * @return {@code true} for binding feedback
+     */
+    public boolean isBinding()
+    {
+        return this.binding;
+    }
+
     /**
      * Every comment raised in this feedback, in the order they were added.
      *
      * @return a list of comments, empty if none
      */
     @NotNull
-    public List<ReviewComment> getComments()
+    public List<Comment> getComments()
     {
-        return this.getChildren(ReviewComment.RESOURCE_TYPE, ReviewComment.class);
+        return this.getChildren(Comment.RESOURCE_TYPE, Comment.class);
     }
 
     /**
-     * The comments raised in this feedback that the submitter has not yet addressed.
+     * The comments raised in this feedback, those about its findings included, that the submitter has not yet
+     * addressed.
      *
      * @return a list of unresolved comments, empty if none
      */
     @NotNull
-    public List<ReviewComment> getUnresolvedComments()
+    public List<Comment> getUnresolvedComments()
     {
-        return this.getComments().stream()
+        final Stream<Comment> aboutFindings = this.getAssessments().stream()
+            .flatMap(assessment -> assessment.getFindings().stream())
+            .flatMap(finding -> finding.getComments().stream());
+        return Stream.concat(this.getComments().stream(), aboutFindings)
             .filter(comment -> !comment.isResolved())
             .collect(Collectors.toList());
     }

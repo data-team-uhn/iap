@@ -17,7 +17,10 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -49,6 +52,15 @@ public class Assessment extends EntityPart
     @ValueMapValue
     private String value;
 
+    @ValueMapValue
+    private String summary;
+
+    @ValueMapValue
+    private String[] sources;
+
+    @ValueMapValue
+    private Double confidence;
+
     /**
      * The criteria this assesses.
      *
@@ -69,6 +81,46 @@ public class Assessment extends EntityPart
     public String getValue()
     {
         return this.value;
+    }
+
+    /**
+     * A short summary of this assessment.
+     *
+     * @return the summary, or {@code null} if none was given
+     */
+    @Nullable
+    public String getSummary()
+    {
+        return this.summary;
+    }
+
+    /**
+     * What the assessment read: document revisions and answers. A newer revision or a changed answer makes it
+     * stale. The link is weak, so one removed since is skipped.
+     *
+     * @return the parts of the submission read, empty if none are recorded or none of them resolve
+     */
+    @NotNull
+    public List<EntityPart> getSources()
+    {
+        if (this.sources == null) {
+            return List.of();
+        }
+        return Arrays.stream(this.sources)
+            .map(identifier -> this.getReference(identifier, EntityPart.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * How sure an automated assessment is.
+     *
+     * @return a value between 0 and 1, or {@code null} if not given
+     */
+    @Nullable
+    public Double getConfidence()
+    {
+        return this.confidence;
     }
 
     /**

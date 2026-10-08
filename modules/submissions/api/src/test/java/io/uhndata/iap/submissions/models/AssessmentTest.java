@@ -19,7 +19,9 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import javax.jcr.ItemNotFoundException;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -53,13 +55,19 @@ class AssessmentTest
 {
     private static final String ASSESSMENT_PATH = "/Submissions/submission/review/privacy";
 
+    private static final String ANSWER_PATH = "/Submissions/submission/a1";
+
+    private static final String ANSWER_ID = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f00000001";
+
+    private static final String GONE_ID = "00000000-0000-0000-0000-000000000000";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Assessment.class, AssessmentCriteria.class,
-            Finding.class);
+            Finding.class, Answer.class);
     }
 
     @Test
@@ -102,7 +110,32 @@ class AssessmentTest
         assertNotNull(assessment);
         assertNull(assessment.getAssessmentCriteria());
         assertNull(assessment.getValue());
+        assertNull(assessment.getSummary());
+        assertNull(assessment.getConfidence());
+        assertTrue(assessment.getSources().isEmpty());
         assertTrue(assessment.getFindings().isEmpty());
+    }
+
+    @Test
+    void exposesWhatTheAssessmentRead() throws RepositoryException
+    {
+        this.context.create().resource(ANSWER_PATH, "sling:resourceType", Answer.RESOURCE_TYPE);
+        final Session session = Mockito.mock(Session.class);
+        final Node answer = Mockito.mock(Node.class);
+        Mockito.when(answer.getPath()).thenReturn(ANSWER_PATH);
+        Mockito.when(session.getNodeByIdentifier(ANSWER_ID)).thenReturn(answer);
+        // The link is weak, so a source may have been removed since
+        Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
+        final Assessment assessment = this.context.create().resource(ASSESSMENT_PATH, Map.of(
+            "sling:resourceType", Assessment.RESOURCE_TYPE, "summary", "Consent is unclear", "confidence", 0.8,
+            "sources", new String[] {GONE_ID, ANSWER_ID})).adaptTo(Assessment.class);
+
+        assertEquals("Consent is unclear", assessment.getSummary());
+        assertEquals(0.8, assessment.getConfidence());
+        assertEquals(List.of(ANSWER_PATH),
+            assessment.getSources().stream().map(EntityPart::getPath).collect(Collectors.toList()));
     }
 
     @Test

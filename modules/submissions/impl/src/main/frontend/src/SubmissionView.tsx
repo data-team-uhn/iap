@@ -157,7 +157,7 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
     <Stack spacing={2} divider={<Divider />}>
       {reviews.map((review, index) => {
         const requirement = isNode(review.requirement) ? review.requirement : undefined;
-        const comments = childrenOfType(review, "sub/ReviewComment");
+        const comments = childrenOfType(review, "sub/Comment");
         return (
           <Box key={"review-" + index}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>

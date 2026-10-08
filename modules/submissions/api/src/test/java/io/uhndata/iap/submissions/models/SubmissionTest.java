@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.models;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -70,6 +71,10 @@ class SubmissionTest
 {
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
 
+    private static final String SLING_RESOURCE_SUPER_TYPE = "sling:resourceSuperType";
+
+    private static final String BINDING = "binding";
+
     private static final String SUBMISSION_PATH = "/Submissions/submission";
 
     private static final String SCHEMA_VERSION_ID = "schema-version-uuid";
@@ -90,7 +95,7 @@ class SubmissionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
-            Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
+            Document.class, Review.class, Discussion.class, Comment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
             SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class);
         this.created = Calendar.getInstance();
@@ -340,24 +345,33 @@ class SubmissionTest
     }
 
     @Test
-    void aggregatesUnresolvedCommentsAcrossReviews()
+    void aggregatesUnresolvedCommentsAcrossAllFeedbackAndSeparatelyAcrossBindingFeedback()
     {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/r1", SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/r1", Map.of(SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE,
+            SLING_RESOURCE_SUPER_TYPE, Feedback.RESOURCE_TYPE, BINDING, true));
         this.context.create().resource("/Submissions/submission/r1/c1", Map.of(
-            SLING_RESOURCE_TYPE, ReviewComment.RESOURCE_TYPE, "text", "From r1", "author", "reviewer1",
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "From r1", "author", "reviewer1",
             "resolved", false));
-        this.context.create().resource("/Submissions/submission/r2", SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
+        // A discussion binds nothing, so its comments hold no decision up
+        this.context.create().resource("/Submissions/submission/r2", Map.of(
+            SLING_RESOURCE_TYPE, Discussion.RESOURCE_TYPE, SLING_RESOURCE_SUPER_TYPE, Feedback.RESOURCE_TYPE));
         this.context.create().resource("/Submissions/submission/r2/c2", Map.of(
-            SLING_RESOURCE_TYPE, ReviewComment.RESOURCE_TYPE, "text", "From r2", "author", "reviewer2",
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "From r2", "author", "reviewer2",
             "resolved", false));
         this.context.create().resource("/Submissions/submission/r2/c3", Map.of(
-            SLING_RESOURCE_TYPE, ReviewComment.RESOURCE_TYPE, "text", "Resolved", "author", "reviewer2",
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Resolved", "author", "reviewer2",
             "resolved", true));
+        // Not feedback at all, so not read as such
+        this.context.create().resource("/Submissions/submission/a1", SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         final Submission submission = resource.adaptTo(Submission.class);
 
-        assertEquals(2, submission.getUnresolvedComments().size());
+        assertEquals(2, submission.getFeedback().size());
+        assertEquals(List.of("From r1", "From r2"),
+            submission.getUnresolvedComments().stream().map(Comment::getText).collect(Collectors.toList()));
+        assertEquals(List.of("From r1"),
+            submission.getUnresolvedBindingComments().stream().map(Comment::getText).collect(Collectors.toList()));
     }
 
     @Test

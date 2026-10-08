@@ -56,7 +56,7 @@ class ReviewTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, ReviewComment.class,
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, Comment.class,
             Review.class, ApprovalRequirement.class, Assessment.class);
     }
 
@@ -98,12 +98,12 @@ class ReviewTest
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         this.context.create().resource("/Submissions/submission/review/c2", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
         final Review review = resource.adaptTo(Review.class);
 
-        final List<ReviewComment> comments = review.getComments();
+        final List<Comment> comments = review.getComments();
         assertEquals(2, comments.size());
     }
 
@@ -113,14 +113,14 @@ class ReviewTest
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         this.context.create().resource("/Submissions/submission/review/c2", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
         this.context.create().resource("/Submissions/submission/review/c3", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Also open", "resolved", false));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Also open", "resolved", false));
         final Review review = resource.adaptTo(Review.class);
 
-        final List<ReviewComment> unresolved = review.getUnresolvedComments();
+        final List<Comment> unresolved = review.getUnresolvedComments();
 
         assertEquals(2, unresolved.size());
         assertEquals("Still open", unresolved.get(0).getText());
@@ -133,7 +133,7 @@ class ReviewTest
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.getUnresolvedComments().isEmpty());
@@ -147,7 +147,7 @@ class ReviewTest
         this.context.create().resource("/Submissions/submission/review/privacy", Map.of(
             "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Looked at"));
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Not an assessment"));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Not an assessment"));
         final Review review = resource.adaptTo(Review.class);
 
         final List<Assessment> assessments = review.getAssessments();

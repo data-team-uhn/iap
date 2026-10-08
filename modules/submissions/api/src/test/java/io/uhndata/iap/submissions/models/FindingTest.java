@@ -65,7 +65,7 @@ class FindingTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Finding.class, Answer.class,
-            Evidence.class, ReviewComment.class);
+            Evidence.class, Comment.class);
     }
 
     @Test
@@ -100,12 +100,12 @@ class FindingTest
         this.context.create().resource(PATH + "/e1", Map.of(
             "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "Data is kept as needed"));
         this.context.create().resource(PATH + "/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "It is in section 4", "author", "a"));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "It is in section 4", "author", "a"));
         final Finding finding = resource.adaptTo(Finding.class);
 
         assertEquals(1, finding.getEvidence().size());
         assertEquals(List.of("It is in section 4"),
-            finding.getComments().stream().map(ReviewComment::getText).collect(Collectors.toList()));
+            finding.getComments().stream().map(Comment::getText).collect(Collectors.toList()));
     }
 
     @Test

@@ -29,17 +29,18 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:ReviewComment} node: a single comment or question raised by a reviewer.
+ * A Sling Model wrapping a {@code sub:Comment} node: a single comment or question raised in some feedback, or about
+ * one of its findings.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = ReviewComment.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Comment.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class ReviewComment extends EntityPart
+public class Comment extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sub:ReviewComment} node. */
-    public static final String RESOURCE_TYPE = "sub/ReviewComment";
+    /** The {@code sling:resourceType} of a {@code sub:Comment} node. */
+    public static final String RESOURCE_TYPE = "sub/Comment";
 
     @ValueMapValue
     private String text;
@@ -71,7 +72,7 @@ public class ReviewComment extends EntityPart
     }
 
     /**
-     * Identifies the reviewer who wrote this comment. Not necessarily the same as {@code jcr:createdBy}: comments
+     * Identifies who wrote this comment. Not necessarily the same as {@code jcr:createdBy}: comments
      * and replies can originate from an external site, created here by an integration service user on the actual
      * author's behalf.
      *

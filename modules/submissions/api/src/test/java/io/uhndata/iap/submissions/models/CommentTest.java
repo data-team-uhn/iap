@@ -36,42 +36,42 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ReviewComment}.
+ * Unit tests for {@link Comment}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ReviewCommentTest
+class CommentTest
 {
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, ReviewComment.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, Comment.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review/comment",
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(ReviewComment.class));
+            "sling:resourceType", Comment.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(Comment.class));
     }
 
     @Test
-    void exposesReviewCommentProperties()
+    void exposesCommentProperties()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review/comment", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE,
+            "sling:resourceType", Comment.RESOURCE_TYPE,
             "text", "Please clarify the consent process",
             "author", "reviewer1",
             "subject", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "selectionStart", "page=2;offset=120",
             "selectionEnd", "page=2;offset=180",
             "resolved", false));
-        final ReviewComment comment = resource.adaptTo(ReviewComment.class);
+        final Comment comment = resource.adaptTo(Comment.class);
 
         assertEquals("Please clarify the consent process", comment.getText());
         assertEquals("reviewer1", comment.getAuthor());
@@ -85,12 +85,12 @@ class ReviewCommentTest
     void listsReplies()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review/comment",
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE);
+            "sling:resourceType", Comment.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/comment/r1",
             "sling:resourceType", Reply.RESOURCE_TYPE, "text", "First reply");
         this.context.create().resource("/Submissions/submission/review/comment/r2",
             "sling:resourceType", Reply.RESOURCE_TYPE, "text", "Second reply");
-        final ReviewComment comment = resource.adaptTo(ReviewComment.class);
+        final Comment comment = resource.adaptTo(Comment.class);
 
         final List<Reply> replies = comment.getReplies();
 
@@ -103,8 +103,8 @@ class ReviewCommentTest
     void listsNoRepliesWhenNoneExist()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review/empty",
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE);
-        final ReviewComment comment = resource.adaptTo(ReviewComment.class);
+            "sling:resourceType", Comment.RESOURCE_TYPE);
+        final Comment comment = resource.adaptTo(Comment.class);
 
         assertTrue(comment.getReplies().isEmpty());
     }

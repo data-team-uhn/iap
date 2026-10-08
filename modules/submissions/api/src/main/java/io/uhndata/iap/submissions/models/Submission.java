@@ -188,15 +188,40 @@ public class Submission extends Entity
     }
 
     /**
-     * Every unresolved comment raised across all of this submission's reviews.
+     * Every kind of feedback on this submission: reviews, screenings and discussions.
      *
-     * @return a list of unresolved review comments, empty if none
+     * @return a list of feedback, empty if none
      */
     @NotNull
-    public List<ReviewComment> getUnresolvedComments()
+    public List<Feedback> getFeedback()
     {
-        return this.getReviews().stream()
-            .flatMap(review -> review.getUnresolvedComments().stream())
+        return this.getChildren(Feedback.RESOURCE_TYPE, Feedback.class);
+    }
+
+    /**
+     * Every unresolved comment raised across all of this submission's feedback.
+     *
+     * @return a list of unresolved comments, empty if none
+     */
+    @NotNull
+    public List<Comment> getUnresolvedComments()
+    {
+        return this.getFeedback().stream()
+            .flatMap(feedback -> feedback.getUnresolvedComments().stream())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The unresolved comments raised in binding feedback, which are the ones a decision waits on.
+     *
+     * @return a list of unresolved comments, empty if none
+     */
+    @NotNull
+    public List<Comment> getUnresolvedBindingComments()
+    {
+        return this.getFeedback().stream()
+            .filter(Feedback::isBinding)
+            .flatMap(feedback -> feedback.getUnresolvedComments().stream())
             .collect(Collectors.toList());
     }
 

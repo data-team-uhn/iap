@@ -32,6 +32,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,7 +54,7 @@ class FeedbackTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Review.class, Screening.class,
-            Discussion.class, ReviewComment.class, Assessment.class);
+            Discussion.class, Comment.class, Assessment.class, Finding.class);
     }
 
     @Test
@@ -65,18 +66,44 @@ class FeedbackTest
     }
 
     @Test
+    void saysWhetherItBindsAsItsNodeSays()
+    {
+        // The node type autocreates the flag; a mock repository does not, so the review states its own
+        final Resource review = this.context.create().resource(PATH + "binding", Map.of(
+            "sling:resourceType", Review.RESOURCE_TYPE, "binding", true));
+
+        assertTrue(review.adaptTo(Feedback.class).isBinding());
+        assertFalse(feedback("discussion", Discussion.RESOURCE_TYPE).isBinding());
+    }
+
+    @Test
+    void countsCommentsAboutItsFindingsAmongItsUnresolvedOnes()
+    {
+        final Feedback screening = feedback("screening", Screening.RESOURCE_TYPE);
+        this.context.create().resource(PATH + "screening/consent", Map.of(
+            "sling:resourceType", Assessment.RESOURCE_TYPE));
+        this.context.create().resource(PATH + "screening/consent/f1", Map.of(
+            "sling:resourceType", Finding.RESOURCE_TYPE, "statement", "Coercion is not addressed"));
+        this.context.create().resource(PATH + "screening/consent/f1/c1", Map.of(
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Section 3 covers it", "author", "a"));
+
+        assertEquals(List.of("Section 3 covers it"),
+            screening.getUnresolvedComments().stream().map(Comment::getText).collect(Collectors.toList()));
+    }
+
+    @Test
     void listsCommentsAndTheUnresolvedOnes()
     {
         final Feedback discussion = feedback("discussion", Discussion.RESOURCE_TYPE);
         this.context.create().resource(PATH + "discussion/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Who keeps the data?", "author", "a"));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Who keeps the data?", "author", "a"));
         this.context.create().resource(PATH + "discussion/c2", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Answered", "author", "a",
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Answered", "author", "a",
             "resolved", true));
 
         assertEquals(2, discussion.getComments().size());
         assertEquals(List.of("Who keeps the data?"),
-            discussion.getUnresolvedComments().stream().map(ReviewComment::getText).collect(Collectors.toList()));
+            discussion.getUnresolvedComments().stream().map(Comment::getText).collect(Collectors.toList()));
     }
 
     @Test
@@ -86,7 +113,7 @@ class FeedbackTest
         this.context.create().resource(PATH + "screening/privacy", Map.of(
             "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Looked at"));
         this.context.create().resource(PATH + "screening/c1", Map.of(
-            "sling:resourceType", ReviewComment.RESOURCE_TYPE, "text", "Not an assessment", "author", "a"));
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Not an assessment", "author", "a"));
 
         assertEquals(List.of("Looked at"),
             screening.getAssessments().stream().map(Assessment::getValue).collect(Collectors.toList()));
