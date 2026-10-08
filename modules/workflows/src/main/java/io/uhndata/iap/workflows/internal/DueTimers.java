@@ -53,12 +53,12 @@ import io.uhndata.iap.workflows.models.TaskInstance;
 /**
  * Delivers the deadlines that have passed to the workflow engine.
  *
- * <p>A boundary timer is the one thing in a workflow that happens automatically without a user involved. Every other
- * event arrives because somebody did something, and the engine's entry point takes the actor from the session that
- * asked. Time has no session, so this sweep stands in for one. It finds the tasks whose deadline has passed and hands
- * each to {@link WorkflowEngine#receiveEvent} as an ordinary {@code timeout} event. A timer firing therefore goes
- * through the same entry point and the same single commit as everything else. The passed deadline takes the place
- * of a performer check.</p>
+ * <p>A boundary timer is the one thing in a workflow that happens without a user involved. Every other event
+ * arrives because somebody did something, and the engine takes the actor from the session that asked. This sweep
+ * finds the tasks whose deadline has passed. It hands each to {@link WorkflowEngine#receiveEvent} as an ordinary
+ * {@code timeout} event, through a session of the {@value TaskCompletion#TIMER_USER} service user. A timer firing
+ * therefore meets the same performer check and the same single commit as any other event. What it does is
+ * recorded as the clock's doing.</p>
  *
  * <p>The deadlines are polled because a deadline stored in the repository survives a restart and a failover. A
  * scheduler's in-memory job per deadline does not. A timer fires at the first sweep after it is due.</p>
@@ -80,6 +80,9 @@ public class DueTimers implements Runnable
 
     /** Where a task counts its failed deliveries. */
     static final String DELIVERY_FAILURES_PROPERTY = "deliveryFailures";
+
+    /** The subservice deadlines are delivered through, mapped to the {@value TaskCompletion#TIMER_USER} user. */
+    static final String TIMER_SUBSERVICE = "timer";
 
     /** The name the sweep is scheduled under, so that it replaces itself rather than accumulating. */
     private static final String JOB_NAME = "iap-workflow-due-timers";
@@ -129,18 +132,30 @@ public class DueTimers implements Runnable
     @Override
     public void run()
     {
-        try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
-            Map.of(ResourceResolverFactory.SUBSERVICE, WorkflowEngineImpl.SUBSERVICE_NAME))) {
+        try (ResourceResolver resolver = login(WorkflowEngineImpl.SUBSERVICE_NAME);
+            ResourceResolver timer = login(TIMER_SUBSERVICE)) {
             for (final String path : overdue(resolver)) {
-                fire(resolver, path);
+                fire(resolver, timer, path);
             }
         } catch (final LoginException e) {
-            LOGGER.error("The workflow engine's service user is not available, so no deadline can be delivered", e);
+            LOGGER.error("A service user the sweep needs is not available, so no deadline can be delivered", e);
             ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
         } catch (final RepositoryException e) {
             LOGGER.error("Could not look for passed deadlines", e);
             ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
         }
+    }
+
+    /**
+     * Opens a session of one of this bundle's service users.
+     *
+     * @param subservice which one
+     * @return the session, to be closed by the caller
+     * @throws LoginException when that service user is not available
+     */
+    private ResourceResolver login(final String subservice) throws LoginException
+    {
+        return this.resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, subservice));
     }
 
     /**
@@ -174,16 +189,18 @@ public class DueTimers implements Runnable
      * meantime, which is not a failure.</p>
      *
      * @param resolver the sweep's session
+     * @param timer the session the deadline is delivered through
      * @param path the overdue task
      */
-    private void fire(final ResourceResolver resolver, final String path)
+    private void fire(final ResourceResolver resolver, final ResourceResolver timer, final String path)
     {
         if (!stillOpen(resolver, path)) {
             LOGGER.debug("The task {} was closed before its passed deadline was delivered", path);
             return;
         }
         try {
-            this.engine.receiveEvent(Objects.requireNonNull(resolver.getResource(path), "An open task exists"),
+            timer.refresh();
+            this.engine.receiveEvent(Objects.requireNonNull(timer.getResource(path), "The timer can see every task"),
                 new WorkflowEvent(TaskCompletion.TIMEOUT_EVENT, Map.of()));
             LOGGER.debug("Delivered the passed deadline of {}", path);
         } catch (final WorkflowException | RuntimeException e) {

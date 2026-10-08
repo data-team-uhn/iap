@@ -618,7 +618,8 @@ That is the whole answer to "who can create a workflow", editable per deployment
 shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` for
 `/Submissions`. The rules:
 
-- **An empty or absent list admits nobody.** Silence is never permission.
+- **An empty or absent list admits nobody.** Silence is never permission. The one
+  exception is a boundary timer, whose empty list admits the `iap-timer` service user.
 - **`everyone` means any authenticated user**, matched by name since it is a dynamic
   principal.
 - **Groups are matched transitively**, so a group also admits its member groups'
@@ -767,11 +768,15 @@ defining activity.
 when the task is raised: the deadline is recorded on the task, as `dueDate` with
 `dueEventId` naming the timer, so overdue work can be found without the engine and the
 deadline survives a restart. A sweep every five minutes (`DueTimers.DEFAULT_SCHEDULE`)
-hands each overdue task to `receiveEvent` as an ordinary `timeout` event. An
-interrupting timer cancels the task, with no assignee and no outcome, and execution
-leaves down the timer's own arc: that is how a process says what running out of time
-means. There is no performer check, since time belongs to no group; instead, a `timeout`
-arriving before the deadline is refused as a conflict, whoever sends it.
+hands each overdue task to `receiveEvent` as an ordinary `timeout` event, delivered as
+the `iap-timer` service user. An interrupting timer cancels the task, with no assignee
+and no outcome, and execution leaves down the timer's own arc: that is how a process
+says what running out of time means.
+
+The timer is asked who may fire it, like any other node, and not the task: deciding the
+work is not the same as declaring it late. A timer whose `performers` is empty admits
+`iap-timer`, so by default only the clock fires it. A `timeout` arriving before the
+deadline is refused as a conflict, whoever sends it.
 
 A `timerDuration` is an ISO-8601 duration, years and months included, counted in the
 server's calendar from when the task started. The sweep runs on the cluster's leader
@@ -839,8 +844,6 @@ each completed on its own.
 
 - **One `outcome` per instance.** Every completed task overwrites it, so a gateway after
   a join routes on whichever branch finished last.
-- **A timeout acts as whoever delivered it**: the sweep's service user, or a person
-  sending `timeout` after the deadline. Nothing yet says who a timer acts for.
 - **Instance variables are not exposed to handlers.** `outcome` persists as a
   `wf:Variable`, but a service task inside an instance sees variables that last only for
   that delivery.

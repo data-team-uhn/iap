@@ -94,7 +94,23 @@ final class PerformerCheck
     static void verify(final ResourceResolver serviceResolver, final FlowNode node, final String actor)
         throws WorkflowException
     {
-        if (!of(serviceResolver, actor).admits(node)) {
+        verify(serviceResolver, node.getPerformers(), actor);
+    }
+
+    /**
+     * Refuses the actor unless the list admits them. For a node whose performers default to someone when it names
+     * nobody.
+     *
+     * @param serviceResolver the engine's own session, used to look the actor up
+     * @param performers the principals admitted
+     * @param actor the user who fired the event, as their repository user id
+     * @throws NotAuthorizedException when the list does not admit this actor
+     * @throws WorkflowFailedException when the repository cannot say who the actor is
+     */
+    static void verify(final ResourceResolver serviceResolver, final List<String> performers, final String actor)
+        throws WorkflowException
+    {
+        if (!of(serviceResolver, actor).admits(performers)) {
             throw new NotAuthorizedException(REFUSAL_MESSAGE);
         }
     }
@@ -108,6 +124,18 @@ final class PerformerCheck
      */
     boolean admits(final FlowNode node) throws WorkflowFailedException
     {
+        return admits(node.getPerformers());
+    }
+
+    /**
+     * Whether the list admits the actor.
+     *
+     * @param performers the principals admitted
+     * @return {@code true} if the actor is among them
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    private boolean admits(final List<String> performers) throws WorkflowFailedException
+    {
         if (this.authorizable == null) {
             return false;
         }
@@ -116,7 +144,6 @@ final class PerformerCheck
         if (this.authorizable instanceof User && ((User) this.authorizable).isAdmin()) {
             return true;
         }
-        final List<String> performers = node.getPerformers();
         // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
         // not necessarily report belonging to it
         return performers.contains(EVERYONE_GROUP)
