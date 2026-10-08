@@ -171,9 +171,9 @@ class StartWorkflowHandlerTest
     {
         reference(HOST, LINK, VERSION);
         this.context.create().resource("/Workflows/other", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Other", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Other"));
         this.context.create().resource("/Workflows/other/v1", Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         final String other = activeInstance("other");
         reference(other, "workflowVersion", "/Workflows/other/v1");
 

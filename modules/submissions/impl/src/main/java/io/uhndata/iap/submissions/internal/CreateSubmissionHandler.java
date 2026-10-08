@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;

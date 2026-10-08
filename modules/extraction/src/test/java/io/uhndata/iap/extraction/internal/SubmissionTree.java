@@ -81,10 +81,10 @@ final class SubmissionTree
     {
         this.context.create().resource("/Schemas/proposal", Map.of(TYPE, "sch/Schema", "title", "Proposal"));
         final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
-            "version", "1.0", "active", true));
+            "version", "1.0", "tags", new String[] {"active"}));
         // Names a reading workflow, since only a schema that reads its documents has them parsed
         reference(version, ParseDocumentsHandler.READING_WORKFLOW, this.context.create().resource(READING_PATH,
-            Map.of(TYPE, "wf/WorkflowVersion", "version", "1.0", "active", true)));
+            Map.of(TYPE, "wf/WorkflowVersion", "version", "1.0", "tags", new String[] {"active"})));
         // A mock repository has no /libs/sch hierarchy to inherit from, so each item carries its super type
         this.context.create().resource(FORM_PATH,
             Map.of(TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Study"));

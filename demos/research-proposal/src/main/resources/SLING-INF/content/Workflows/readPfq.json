@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Read a patient facing questionnaire",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "description": "Classifies an uploaded document as a patient facing questionnaire or not, then reads it only once that pick is settled: a settled yes reads the questionnaire and preamble together, a settled no skips reading, and an unsettled pick pauses for the requester to confirm. Started by the extractAnswers system workflow whenever a parse lands, so a preamble uploaded later triggers a re-read that fills only what is still unanswered.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",

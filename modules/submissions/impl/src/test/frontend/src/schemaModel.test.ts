@@ -138,8 +138,8 @@ describe("categoryChoices", () => {
 
 describe("submissionChoices", () => {
   const unbound = {
-    "jcr:primaryType": "sch:Schema", "@path": "/Schemas/leave", "@name": "leave", "title": "Leave", "active": true,
-    "v2": { "jcr:primaryType": "sch:SchemaVersion", "@path": "/Schemas/leave/v2", "version": "2.0", "active": true },
+    "jcr:primaryType": "sch:Schema", "@path": "/Schemas/leave", "@name": "leave", "title": "Leave",
+    "v2": { "jcr:primaryType": "sch:SchemaVersion", "@path": "/Schemas/leave/v2", "version": "2.0", "tags": [ "active" ] },
   };
 
   it("offers the top categories first, then the open schemas no category offers", () => {

@@ -434,7 +434,7 @@ describe("SubmissionEditor", () => {
     // The browser-side check, which is there so a person finds out at once rather than after a slow
     // upload. The server checks again; this only saves the wait.
     it("refuses a file it can see is wrong before sending it", async () => {
-      const fetchMock = serving(asked({ acceptedFileTypes: undefined }));
+      const fetchMock = serving(asked({ acceptedFileTypes: [] }));
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} />);

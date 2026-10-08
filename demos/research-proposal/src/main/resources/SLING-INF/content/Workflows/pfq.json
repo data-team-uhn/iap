@@ -1,12 +1,11 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Patient facing questionnaire",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "bpmnAuthoritative": true,
-    "active": true,
+    "tags": ["active"],
     "description": "A requester answers the screening questions, uploads the questionnaire, checks what was read, and sends it. The PFQ Council then accepts or refuses it.",
     "created": {
       "jcr:primaryType": "wf:StartEvent",

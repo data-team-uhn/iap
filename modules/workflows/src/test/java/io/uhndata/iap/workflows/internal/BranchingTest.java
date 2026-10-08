@@ -39,6 +39,7 @@ import io.uhndata.iap.tags.internal.TagOperations;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.ExclusiveGateway;
@@ -210,9 +211,9 @@ class BranchingTest
     void refusesAParallelGatewayWithNowhereToGo() throws Exception
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
@@ -326,9 +327,9 @@ class BranchingTest
         // notice that, so the walk has to look again once every branch has stopped moving — otherwise the token
         // already sitting on the join waits for a branch that is never coming
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
@@ -384,9 +385,9 @@ class BranchingTest
     private void forkStraightIntoJoin(final String gatewayType)
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
@@ -441,9 +442,9 @@ class BranchingTest
     private void createProcess()
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
@@ -516,9 +517,9 @@ class BranchingTest
     {
         this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
         this.context.create().resource("/SystemWorkflows/putUnderWorkflow", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow"));
         this.context.create().resource(BOOTSTRAP, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true,
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"},
             "targetResourceType", "sub/Submission"));
         this.context.create().resource(BOOTSTRAP + "/raised", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "raised", "messageName", "start",

@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Read for ethics review only",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "description": "A minimal reading workflow that demos the ethicsReview requirement on its own: no proposal/category classification, just the TCPS2 check against the uploaded document. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",

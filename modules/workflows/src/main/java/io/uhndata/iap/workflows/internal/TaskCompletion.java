@@ -133,9 +133,9 @@ final class TaskCompletion
 
         final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
         // A decision left blank would let the next gateway route on whatever an earlier task decided
-        if (outcome == null && !definition.getOutcomes().isEmpty()) {
+        if (outcome == null && !definition.getOutcomeOptions().isEmpty()) {
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
-                + String.join(", ", definition.getOutcomes()));
+                + String.join(", ", definition.getOutcomeOptions()));
         }
         new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
             .complete(task, outcome, Payloads.text(event, OUTCOME_NOTE));

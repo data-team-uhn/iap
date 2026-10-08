@@ -19,9 +19,9 @@
 import { render, screen } from "@testing-library/react";
 
 import ApprovalState from "@iap/submissions/ApprovalState";
-import { type Requirement } from "@iap/submissions/submissionForm";
+import { type ApprovalRequirement } from "@iap/submissions/submissionForm";
 
-function show(overrides: Omit<Partial<Requirement>, "label">) {
+function show(overrides: Omit<Partial<ApprovalRequirement>, "label">) {
   render(<ApprovalState requirement={{
     name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...overrides, }} />);
 }

@@ -1,12 +1,11 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Research proposal",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "bpmnAuthoritative": true,
-    "active": true,
+    "tags": ["active"],
     "description": "A researcher uploads a proposal, checks what was read into the form, and sends it for review. A reviewer then accepts or refuses it.",
     "created": {
       "jcr:primaryType": "wf:StartEvent",

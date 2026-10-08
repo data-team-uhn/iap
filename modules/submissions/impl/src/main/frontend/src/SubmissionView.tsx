@@ -88,15 +88,6 @@ const READING_TICK_MS = 400;
 
 const READING_LABELS = READING_PHASES.map(name => PHASE_LABEL[name]);
 
-
-// A single-valued property is serialized as a bare string, not as a one-element array.
-function asList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return (value as unknown[]).filter((entry): entry is string => typeof entry === "string");
-  }
-  return typeof value === "string" ? [value] : [];
-}
-
 // Whether the request is still missing an answer, read from the submission this page already holds
 // rather than by asking for its form: the save workflow worked it out and recorded it.
 function isIncomplete(submission: JsonNode | undefined): boolean {
@@ -126,7 +117,7 @@ function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | und
   const documents = submission ? childrenOfType(submission, "sub/Document") : [];
   const asked = (form?.requirements ?? []).filter(isDocumentRequirement);
   const missing = asked.find(requirement =>
-    requirement.required === true && documentsFulfilling(requirement, documents).length === 0);
+    requirement.required && documentsFulfilling(requirement, documents).length === 0);
   if (missing) {
     return `Attach the ${missing.label || missing.name} before going on.`;
   }

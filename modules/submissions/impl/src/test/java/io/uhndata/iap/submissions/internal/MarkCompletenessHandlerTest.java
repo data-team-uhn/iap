@@ -124,9 +124,9 @@ class MarkCompletenessHandlerTest
         this.context.registerService(ConditionEvaluator.class, evaluator);
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
-            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
+            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(VERSION_PATH + "/" + DETAILS, Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
         this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(

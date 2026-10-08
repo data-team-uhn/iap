@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Read a research proposal",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "description": "Classifies an uploaded document as a research proposal and, if so, its study type, then reads the matching questions only once both picks are settled: a settled no skips reading, and an unsettled pick pauses for the researcher to confirm. Started by the extractAnswers system workflow when the parse lands, following schemaVersion/readingWorkflow from the submission.",
     "started": {
       "jcr:primaryType": "wf:StartEvent",

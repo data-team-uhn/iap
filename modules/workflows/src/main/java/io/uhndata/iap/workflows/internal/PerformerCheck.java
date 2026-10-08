@@ -20,9 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -34,10 +32,7 @@ import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.principals.api.PrincipalLookupException;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -65,9 +60,6 @@ import io.uhndata.iap.workflows.models.FlowNode;
  */
 final class PerformerCheck
 {
-    /** The performer name that means whoever raised the resource being worked on. */
-    static final String CREATOR = "@creator";
-
     /** The built-in group that stands for every authenticated user. */
     private static final String EVERYONE_GROUP = "everyone";
 
@@ -131,39 +123,6 @@ final class PerformerCheck
         } catch (final PrincipalLookupException e) {
             throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
         }
-    }
-
-    /**
-     * Who the engine recorded as having raised a resource.
-     *
-     * @param host the resource being worked on
-     * @return their user id, or {@code null} if nothing raised it, a homepage say, which is nobody's
-     */
-    @Nullable
-    static String creatorOf(final Resource host)
-    {
-        final Content content = host.adaptTo(Content.class);
-        return content == null ? null : content.getCreatedBy();
-    }
-
-    /**
-     * Turns the principals a node names into principals that stand on their own.
-     *
-     * <p>Only {@code @creator} needs it: it means "whoever raised this", which is answerable about a particular host
-     * and meaningless without one. Everything else, a user id, a group, {@code everyone}, already names a principal
-     * and is passed through untouched.</p>
-     *
-     * @param host the resource the workflow drives
-     * @param performers the principals a node names
-     * @return the same principals with {@code @creator} answered, in the order they were declared
-     */
-    @NotNull
-    static List<String> resolve(final Resource host, final List<String> performers)
-    {
-        return performers.stream()
-            .map(name -> CREATOR.equals(name) ? creatorOf(host) : name)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
     }
 
     /**

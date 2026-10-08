@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Read a submission's documents again",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "tags": ["active"],
     "targetResourceType": "sub/Submission",
     "description": "Queues the reading of an already parsed submission again, after the model failed. Fired by the submitter through POST <submission>.readAgain.json; the reading then runs as a background job, the same as after a parse.",
     "requested": {

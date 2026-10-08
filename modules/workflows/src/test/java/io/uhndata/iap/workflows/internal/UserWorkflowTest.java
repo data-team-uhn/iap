@@ -889,7 +889,7 @@ class UserWorkflowTest
     {
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
-            .adaptTo(ModifiableValueMap.class).put("outcomes", new String[] {"approved", "rejected"});
+            .adaptTo(ModifiableValueMap.class).put("outcomeOptions", new String[] {"approved", "rejected"});
         final WorkflowEngine engine = started();
 
         // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
@@ -1063,9 +1063,9 @@ class UserWorkflowTest
     void routesOnAVariableAServiceTaskLeftBehind() throws Exception
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toRecord", Map.of(

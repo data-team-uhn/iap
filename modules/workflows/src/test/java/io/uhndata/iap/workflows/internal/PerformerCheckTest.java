@@ -42,6 +42,7 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.FlowNode;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -211,6 +212,24 @@ class PerformerCheckTest
 
         assertThrows(WorkflowFailedException.class,
             () -> verify(resolver, host(), node(REQUESTERS), REQUESTER));
+    }
+
+    @Test
+    void offersNothingToAnActorTheRepositoryDoesNotKnow() throws Exception
+    {
+        final ResourceResolver resolver = repositoryWith(user(REQUESTER, false));
+
+        assertFalse(PerformerCheck.of(resolver, "a-stranger").admits(node("everyone")));
+    }
+
+    @Test
+    void failsToOfferAnythingWhenGroupMembershipCannotBeRead() throws Exception
+    {
+        final User actor = user(REQUESTER, false);
+        Mockito.when(actor.memberOf()).thenThrow(new RepositoryException("the group index is corrupt"));
+        final PerformerCheck check = PerformerCheck.of(repositoryWith(actor), REQUESTER);
+
+        assertThrows(WorkflowFailedException.class, () -> check.admits(node(REQUESTERS)));
     }
 
     /**
