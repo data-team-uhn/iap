@@ -54,7 +54,7 @@ class FeedbackTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Review.class, Screening.class,
-            Discussion.class, Comment.class, Assessment.class, Finding.class);
+            Discussion.class, Comment.class, Assessment.class);
     }
 
     @Test
@@ -77,17 +77,15 @@ class FeedbackTest
     }
 
     @Test
-    void countsCommentsAboutItsFindingsAmongItsUnresolvedOnes()
+    void countsCommentsOnItsAssessmentsAmongItsUnresolvedOnes()
     {
         final Feedback screening = feedback("screening", Screening.RESOURCE_TYPE);
         this.context.create().resource(PATH + "screening/consent", Map.of(
             "sling:resourceType", Assessment.RESOURCE_TYPE));
-        this.context.create().resource(PATH + "screening/consent/f1", Map.of(
-            "sling:resourceType", Finding.RESOURCE_TYPE, "statement", "Coercion is not addressed"));
-        this.context.create().resource(PATH + "screening/consent/f1/c1", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Section 3 covers it", "author", "a"));
+        this.context.create().resource(PATH + "screening/consent/c1", Map.of(
+            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Coercion is not addressed", "author", "ai"));
 
-        assertEquals(List.of("Section 3 covers it"),
+        assertEquals(List.of("Coercion is not addressed"),
             screening.getUnresolvedComments().stream().map(Comment::getText).collect(Collectors.toList()));
     }
 

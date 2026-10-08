@@ -19,13 +19,21 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import javax.jcr.ItemNotFoundException;
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
@@ -33,6 +41,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -44,12 +53,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class CommentTest
 {
+    private static final String ANSWER_PATH = "/Submissions/submission/a1";
+
+    private static final String ANSWER_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
+
+    private static final String GONE_ID = "00000000-0000-0000-0000-000000000000";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, Comment.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, Comment.class, Answer.class,
+            Evidence.class);
     }
 
     @Test
@@ -61,13 +77,23 @@ class CommentTest
     }
 
     @Test
-    void exposesCommentProperties()
+    void exposesCommentProperties() throws RepositoryException
     {
+        this.context.create().resource(ANSWER_PATH, "sling:resourceType", Answer.RESOURCE_TYPE);
+        final Session session = Mockito.mock(Session.class);
+        final Node answer = Mockito.mock(Node.class);
+        Mockito.when(answer.getPath()).thenReturn(ANSWER_PATH);
+        Mockito.when(session.getNodeByIdentifier(ANSWER_ID)).thenReturn(answer);
+        // The link is weak, so a subject may have been removed since
+        Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
         final Resource resource = this.context.create().resource("/Submissions/submission/review/comment", Map.of(
             "sling:resourceType", Comment.RESOURCE_TYPE,
             "text", "Please clarify the consent process",
             "author", "reviewer1",
-            "subject", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
+            "subjects", new String[] {ANSWER_ID, GONE_ID},
+            "kind", "gap",
+            "suggestion", "Attach the consent form",
             "selectionStart", "page=2;offset=120",
             "selectionEnd", "page=2;offset=180",
             "resolved", false));
@@ -75,7 +101,10 @@ class CommentTest
 
         assertEquals("Please clarify the consent process", comment.getText());
         assertEquals("reviewer1", comment.getAuthor());
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", comment.getSubject());
+        assertEquals(List.of(ANSWER_PATH),
+            comment.getSubjects().stream().map(EntityPart::getPath).collect(Collectors.toList()));
+        assertEquals("gap", comment.getKind());
+        assertEquals("Attach the consent form", comment.getSuggestion());
         assertEquals("page=2;offset=120", comment.getSelectionStart());
         assertEquals("page=2;offset=180", comment.getSelectionEnd());
         assertFalse(comment.isResolved());
@@ -97,6 +126,32 @@ class CommentTest
         assertEquals(2, replies.size());
         assertEquals("First reply", replies.get(0).getText());
         assertEquals("Second reply", replies.get(1).getText());
+    }
+
+    @Test
+    void listsThePassagesItQuotes()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/review/comment",
+            "sling:resourceType", Comment.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/review/comment/e1",
+            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "Data is kept as needed");
+        this.context.create().resource("/Submissions/submission/review/comment/r1",
+            "sling:resourceType", Reply.RESOURCE_TYPE, "text", "Not a passage");
+
+        assertEquals(List.of("Data is kept as needed"), resource.adaptTo(Comment.class).getEvidence().stream()
+            .map(Evidence::getQuote).collect(Collectors.toList()));
+    }
+
+    @Test
+    void toleratesMissingOptionalProperties()
+    {
+        final Comment comment = this.context.create().resource("/Submissions/submission/review/plain",
+            "sling:resourceType", Comment.RESOURCE_TYPE).adaptTo(Comment.class);
+
+        assertTrue(comment.getSubjects().isEmpty());
+        assertNull(comment.getKind());
+        assertNull(comment.getSuggestion());
+        assertTrue(comment.getEvidence().isEmpty());
     }
 
     @Test

@@ -156,7 +156,7 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One passage a model quoted, backing an extracted answer or a finding. A node rather than a plain string, so the quote stays linked to
+// One passage a model quoted, backing an extracted answer or a comment. A node rather than a plain string, so the quote stays linked to
 // where it came from and the UI can send the reader to that spot.
 [sub:Evidence] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
@@ -335,7 +335,7 @@
 // One assessment of a single sch:AssessmentCriteria, in a reviewer's review or
 // in the AI's feedback. Referenceable so that comments can target it.
 [sub:Assessment] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The findings are orderable, so they are shown in the order they were
+  // The comments are orderable, so they are shown in the order they were
   // raised.
   orderable
 
@@ -358,44 +358,7 @@
   // How sure an automated assessment is, 0..1
   - confidence (DOUBLE)
 
-  // The concerns raised about these criteria
-  + * (sub:Finding) = sub:Finding
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// One concern raised about some assessment criteria, with what it concerns and
-// the passages that show it. Either may be empty: something missing quotes
-// nothing.
-[sub:Finding] > data:EntityPart
-  // The evidence is orderable, so it is shown in the order the model quoted it.
-  orderable
-
-  - sling:resourceType (STRING) = "sub/Finding" mandatory autocreated protected
-
-  // What the AI is concerned about, written for the submitter
-  - statement (STRING) mandatory
-
-  // What kind of problem: gap, conflict or concern
-  - kind (STRING)
-
-  // What would fix it, when the model can say
-  - suggestion (STRING)
-
-  // The answers, questions or requirements this finding concerns. Something
-  // missing points at the question or requirement where it belongs. Weak, so
-  // a question can be removed without first unlinking it from every finding.
-  - subjects (WEAKREFERENCE) multiple
-
-  // The passages that show the problem
-  + * (sub:Evidence) = sub:Evidence
-
-  // Questions and replies about this finding
+  // The comments raised about these criteria, the AI's concerns among them
   + * (sub:Comment) = sub:Comment
 
   // Allow any other properties for extensibility
@@ -406,9 +369,11 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single comment or question raised by a reviewer.
+// A comment or question raised in some feedback, a concern the AI found among
+// them, with what it is about and the passages that show it. Either may be
+// empty: something missing quotes nothing.
 [sub:Comment] > data:EntityPart, mix:lastModified
-  // The list of replies is orderable, so the discussion is presented in a
+  // The replies and the passages are orderable, so they are presented in a
   // deliberate (chronological) sequence.
   orderable
 
@@ -423,13 +388,22 @@
   // actual author's behalf.
   - author (STRING) mandatory
 
-  // The part of the submission this comment is about,
-  // e.g. a sub:Answer or a sub:Document
-  - subject (REFERENCE)
+  // What this comment is about: answers or documents of the submission, or
+  // the questions and requirements of its schema. Something missing points at
+  // the question or requirement where it belongs. Weak, so a part can be
+  // removed without first unlinking it from every comment.
+  - subjects (WEAKREFERENCE) multiple
+
+  // What kind of point it makes, e.g. a gap, a conflict or a concern
+  - kind (STRING)
+
+  // What would address it, when the author can say
+  - suggestion (STRING)
 
   // Optional anchors narrowing this comment down to a specific selection
-  // within the subject (e.g. a range of text within a sub:Answer, or a
-  // location within a document), instead of the subject as a whole. Not a
+  // within its subject, when it has just one (e.g. a range of text within a
+  // sub:Answer, or a location within a document), instead of the subject as
+  // a whole. Not a
   // numeric offset: subjects like Word documents have no stable character
   // index to anchor to, especially once further edited, so these are
   // expected to be flexible, URI-like anchors (e.g. holding a page number
@@ -448,6 +422,9 @@
   // The discussion thread attached to this comment: the reviewer and the
   // submitter replying back and forth
   + * (sub:Reply) = sub:Reply
+
+  // The passages that show what this comment is about
+  + * (sub:Evidence) = sub:Evidence
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
