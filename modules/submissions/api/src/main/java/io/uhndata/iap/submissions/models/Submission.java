@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,14 +34,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
-import io.uhndata.iap.schemas.models.ApprovalRequirement;
-import io.uhndata.iap.schemas.models.DocumentRequirement;
-import io.uhndata.iap.schemas.models.FormItem;
-import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
@@ -203,25 +196,6 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
-     * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with a question given fewer values than its
-     * {@code minAnswers}. Requirements, sections and
-     * questions whose condition doesn't currently hold for this submission don't apply, so they are never
-     * reported as missing.
-     *
-     * @return a list of unfulfilled requirements, empty if none are missing
-     */
-    @NotNull
-    public List<Requirement> getMissingRequirements()
-    {
-        return this.getSchemaVersion().getRequirements().stream()
-            .filter(this::isApplicable)
-            .filter(requirement -> !this.isFulfilled(requirement))
-            .collect(Collectors.toList());
-    }
-
-    /**
      * Whether a requirement, section or question is asked of this submission, i.e. its condition holds for it.
      *
      * @param item the requirement, section or question
@@ -232,63 +206,11 @@ public class Submission extends Entity
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
     }
 
-    private boolean isFulfilled(final Requirement requirement)
-    {
-        if (requirement instanceof DocumentRequirement) {
-            // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
-            // it is asked at all is its condition's decision, made before this is ever reached.
-            return !((DocumentRequirement) requirement).isRequired()
-                || this.getDocuments().stream().anyMatch(document -> document.isFulfilling(requirement));
-        }
-        if (requirement instanceof ApprovalRequirement) {
-            return this.getReviews().stream().anyMatch(review -> {
-                if (!review.isApproved()) {
-                    return false;
-                }
-                final Requirement reviewed = review.getRequirement();
-                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
-            });
-        }
-        // FormRequirement is the only other concrete requirement type today.
-        return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
-    }
-
-    private List<Question> getQuestionsOf(final FormRequirement form)
-    {
-        final List<Question> result = new ArrayList<>();
-        form.getChildren().forEach(item -> this.collectQuestions(item, result));
-        return result;
-    }
-
-    private void collectQuestions(final FormItem item, final List<Question> result)
-    {
-        // An item whose condition doesn't hold is not presented to the submitter, so it (and,
-        // for a section, everything inside it) doesn't need an answer.
-        if (!this.isApplicable(item)) {
-            return;
-        }
-        // Section is the only other concrete item type today.
-        if (item instanceof Question) {
-            result.add((Question) item);
-        } else {
-            ((Section) item).getChildren().forEach(child -> this.collectQuestions(child, result));
-        }
-    }
-
-    private boolean isAnswered(final Question question)
-    {
-        // A blank value is no answer. Clearing a field can leave an answer holding an empty string
-        final long given = this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
-            .filter(value -> !value.isBlank())
-            .count();
-        return given >= question.getMinAnswers();
-    }
-
     /**
      * What has been answered, by the path of the question each answer is for.
      *
-     * <p>Both the completeness of a form requirement and the form shown to the submitter are read from this, so the
-     * two count the same answers. An answer whose question no longer resolves is left out. When two answers are for
+     * <p>Both the completeness of a question and the form shown to the submitter are read from this, so the two count
+     * the same answers. An answer whose question no longer resolves is left out. When two answers are for
      * the same question, the one holding values wins.</p>
      *
      * @return the values given, by question path; empty for a submission nobody has answered

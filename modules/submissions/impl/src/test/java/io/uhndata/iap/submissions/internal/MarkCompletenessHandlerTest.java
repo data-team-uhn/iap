@@ -17,37 +17,24 @@
  */
 package io.uhndata.iap.submissions.internal;
 
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import javax.jcr.Node;
-
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.content.models.Content;
-import io.uhndata.iap.entities.models.Entity;
-import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.schemas.models.ApprovalRequirement;
-import io.uhndata.iap.schemas.models.DocumentRequirement;
-import io.uhndata.iap.schemas.models.FormRequirement;
-import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.schemas.models.Schema;
-import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -56,13 +43,12 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link MarkCompletenessHandler}: that a submission is left carrying the {@code incomplete} tag
- * exactly while something it is asked for has not been answered.
+ * Unit tests for {@link MarkCompletenessHandler}: that the parts its evaluators report carry the {@code incomplete}
+ * tag, and the submission's other parts do not.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,19 +58,11 @@ class MarkCompletenessHandlerTest
 {
     private static final String TYPE = "sling:resourceType";
 
-    /** Autocreated by a real repository from the node type, and by nothing in a mock one. */
-    private static final String SUPER_TYPE = "sling:resourceSuperType";
-
-    private static final String REQUIREMENT = "sch/Requirement";
-
-    private static final String FORM_ITEM = "sch/FormItem";
-
-    private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
-
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
 
-    /** The attachment fulfilling the schema's document requirement. */
-    private static final String NOTE = "note";
+    private static final String ANSWER = SUBMISSION_PATH + "/answer";
+
+    private static final String DOCUMENT = SUBMISSION_PATH + "/document";
 
     /** Where the create workflow's own event lands, which is not a submission. */
     private static final String HOMEPAGE_PATH = "/Submissions";
@@ -94,58 +72,18 @@ class MarkCompletenessHandlerTest
 
     private static final String REQUESTER = "demo-requester";
 
-    private static final String DETAILS = "details";
-
-    private static final String START_DATE = "details/startDate";
-
-    private static final String REASON = "details/why/reason";
-
-    /** The schema parts these tests hide; everything else applies. */
-    private final Set<String> hidden = new HashSet<>();
-
-    // JCR-backed: a submission points at its schema version, and an answer at its question, with real REFERENCEs
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+    private final SlingContext context = new SlingContext();
 
     private final MarkCompletenessHandler handler = new MarkCompletenessHandler();
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Section.class, Question.class,
-            Answer.class, Document.class, Submission.class);
         Tagging.enable(this.context);
-        // The submission model asks for the evaluator through @OSGiService
-        final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
-        Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
-            .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        this.context.registerService(ConditionEvaluator.class, evaluator);
-
-        this.context.create().resource("/Schemas/timeOffRequest", Map.of(
-            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
-        this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0"));
-        this.context.create().resource(VERSION_PATH + "/" + DETAILS, Map.of(
-            TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
-        this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(
-            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Which day?", "minAnswers", 1L));
-        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/note", Map.of(
-            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Anything to add?"));
-        // A required question one level down, so that the walk is shown to go through a section
-        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/why", Map.of(
-            TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Why"));
-        this.context.create().resource(VERSION_PATH + "/" + REASON, Map.of(
-            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "minAnswers", 1L));
-        // Fulfilled here, so that the tests below are about the questions they name
-        this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
-            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
-
-        this.context.create().resource(SUBMISSION_PATH, Map.of(
-            TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
-            "tags", new String[] {"draft", MarkCompletenessHandler.INCOMPLETE_TAG}));
-        reference(SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
-        this.context.create().resource(SUBMISSION_PATH + "/" + NOTE, Map.of(TYPE, Document.RESOURCE_TYPE));
-        reference(SUBMISSION_PATH + "/" + NOTE, VERSION_PATH + "/doctorsNote", "fulfills");
+        this.context.create().resource(SUBMISSION_PATH, Map.of(TYPE, Submission.RESOURCE_TYPE));
+        this.context.create().resource(ANSWER, Map.of(TYPE, Answer.RESOURCE_TYPE));
+        this.context.create().resource(DOCUMENT, Map.of(TYPE, Document.RESOURCE_TYPE,
+            "tags", new String[] {"reviewed", MarkCompletenessHandler.INCOMPLETE_TAG}));
     }
 
     @Test
@@ -155,112 +93,55 @@ class MarkCompletenessHandlerTest
     }
 
     @Test
-    void leavesTheTagOnWhileSomethingRequiredIsUnanswered() throws Exception
+    void tagsWhatEveryEvaluatorReports() throws Exception
     {
-        answer(START_DATE, "2026-10-06");
+        evaluators(reporting(ANSWER), reporting(DOCUMENT));
 
         this.handler.execute(context());
 
-        // The reason, one section down, has not been given
-        assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-        assertTrue(tags().contains("draft"));
+        assertEquals(Set.of(MarkCompletenessHandler.INCOMPLETE_TAG), tags(ANSWER));
+        assertTrue(tags(DOCUMENT).contains(MarkCompletenessHandler.INCOMPLETE_TAG));
     }
 
     @Test
-    void takesTheTagOffOnceEverythingRequiredIsAnswered() throws Exception
+    void untagsAPartNoLongerReported() throws Exception
     {
-        answer(START_DATE, "2026-10-06");
-        answer(REASON, "A wedding");
+        evaluators(reporting(ANSWER));
 
         this.handler.execute(context());
 
-        // The optional question is still unanswered
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-        assertTrue(tags().contains("draft"));
+        // Its other tags stay
+        assertEquals(Set.of("reviewed"), tags(DOCUMENT));
     }
 
     @Test
-    void doesNotAskForAnOptionalDocument() throws Exception
+    void untagsEveryPartWhenNothingIsMissing() throws Exception
     {
-        this.context.create().resource(VERSION_PATH + "/sponsorLetter", Map.of(
-            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Sponsor letter",
-            "required", false));
-        answer(START_DATE, "2026-10-06");
-        answer(REASON, "A wedding");
+        evaluators();
 
         this.handler.execute(context());
 
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
-    void doesNotAskForAQuestionThatDoesNotApply() throws Exception
-    {
-        this.hidden.add("why");
-        answer(START_DATE, "2026-10-06");
-
-        this.handler.execute(context());
-
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
-    void doesNotAskForAnythingUnderARequirementThatDoesNotApply() throws Exception
-    {
-        this.hidden.add(DETAILS);
-
-        this.handler.execute(context());
-
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
-    void countsABlankAnswerAsNoAnswer() throws Exception
-    {
-        answer(START_DATE, "");
-        answer(REASON, "   ");
-
-        this.handler.execute(context());
-
-        assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
-    void passesOverAnswersThatAnswerNothing() throws Exception
-    {
-        answer(START_DATE, "2026-10-06");
-        answer(REASON, "A wedding");
-        // An answer to a question the schema no longer has, and one carrying no value at all
-        this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
-            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"stale"}));
-        final Resource valueless = this.context.create().resource(SUBMISSION_PATH + "/valueless",
-            Map.of(TYPE, Answer.RESOURCE_TYPE));
-        reference(valueless.getPath(), VERSION_PATH + "/" + START_DATE, "question");
-
-        this.handler.execute(context());
-
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
+        assertEquals(Set.of(), tags(ANSWER));
+        assertEquals(Set.of("reviewed"), tags(DOCUMENT));
+        assertEquals(Set.of(), tags(SUBMISSION_PATH));
     }
 
     @Test
     void judgesWhatTheCreateWorkflowJustMadeRatherThanItsOwnTarget() throws Exception
     {
         // The target is not a submission at all, so reading it instead of the created path would fail outright
-        final Resource homepage = this.context.create().resource(HOMEPAGE_PATH,
-            Map.of(TYPE, "sub/SubmissionsHomepage"));
-        answer(START_DATE, "2026-11-23");
-        answer(REASON, "A break");
+        final Resource homepage = homepage();
+        evaluators(reporting(ANSWER));
 
         this.handler.execute(context(homepage, SUBMISSION_PATH));
 
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
+        assertEquals(Set.of(MarkCompletenessHandler.INCOMPLETE_TAG), tags(ANSWER));
     }
 
     @Test
     void refusesWhenTheRecordedPathLeadsNowhere()
     {
-        final Resource homepage = this.context.create().resource(HOMEPAGE_PATH,
-            Map.of(TYPE, "sub/SubmissionsHomepage"));
+        final Resource homepage = homepage();
 
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(context(homepage, MISSING_PATH)));
@@ -269,37 +150,9 @@ class MarkCompletenessHandlerTest
     }
 
     @Test
-    void holdsTheTagOnWhileADocumentTheSchemaAsksForIsMissing() throws Exception
-    {
-        // Every question is answered, so only the missing attachment can hold the tag on
-        answer(START_DATE, "2026-11-23");
-        answer(REASON, "A break");
-        this.context.resourceResolver().delete(
-            Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/" + NOTE)));
-
-        this.handler.execute(context());
-
-        assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
-    void doesNotWaitForAnApprovalSomebodyElseGives() throws Exception
-    {
-        this.context.create().resource(VERSION_PATH + "/approval", Map.of(
-            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Manager approval"));
-        answer(START_DATE, "2026-11-23");
-        answer(REASON, "A break");
-
-        this.handler.execute(context());
-
-        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE_TAG));
-    }
-
-    @Test
     void refusesToJudgeSomethingThatIsNotASubmission()
     {
-        final Resource homepage = this.context.create().resource(HOMEPAGE_PATH,
-            Map.of(TYPE, "sub/SubmissionsHomepage"));
+        final Resource homepage = homepage();
 
         final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
             () -> this.handler.execute(context(homepage, null)));
@@ -308,39 +161,43 @@ class MarkCompletenessHandlerTest
     }
 
     /**
-     * The tags the submission carries now, read back through a fresh look at the node.
+     * The homepage the submission lives under, which the mock repository created along with it.
      *
-     * @return its tag names
+     * @return the homepage
      */
-    private Set<String> tags()
+    private Resource homepage()
     {
-        return Set.of(Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
-            .getValueMap().get("tags", new String[0]));
+        final Resource homepage = Objects.requireNonNull(this.context.resourceResolver().getResource(HOMEPAGE_PATH));
+        Objects.requireNonNull(homepage.adaptTo(ModifiableValueMap.class)).put(TYPE, "sub/SubmissionsHomepage");
+        return homepage;
+    }
+
+    private void evaluators(final CompletenessEvaluator... evaluators) throws ReflectiveOperationException
+    {
+        CompletenessFixture.inject(this.handler, "evaluators", List.of(evaluators));
     }
 
     /**
-     * Records an answer to one of the schema's questions.
+     * An evaluator reporting one part as incomplete.
      *
-     * @param questionPath the question's path, relative to the schema version
-     * @param value what was answered
-     * @throws Exception when the reference cannot be written
+     * @param path the part
+     * @return the evaluator
      */
-    private void answer(final String questionPath, final String value) throws Exception
+    private CompletenessEvaluator reporting(final String path)
     {
-        final Resource answer = this.context.create().resource(
-            SUBMISSION_PATH + "/" + questionPath.replace('/', '-'),
-            Map.of(TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
-        reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+        return submission -> List.of(Objects.requireNonNull(submission.getResourceResolver().getResource(path)));
     }
 
-    private void reference(final String fromPath, final String toPath, final String property) throws Exception
+    /**
+     * The tags a resource carries now.
+     *
+     * @param path the resource
+     * @return its tag names
+     */
+    private Set<String> tags(final String path)
     {
-        final Node source = Objects.requireNonNull(
-            this.context.resourceResolver().getResource(fromPath)).adaptTo(Node.class);
-        final Node target = Objects.requireNonNull(
-            this.context.resourceResolver().getResource(toPath)).adaptTo(Node.class);
-        Objects.requireNonNull(source).setProperty(property, Objects.requireNonNull(target));
-        this.context.resourceResolver().commit();
+        return Set.of(Objects.requireNonNull(this.context.resourceResolver().getResource(path))
+            .getValueMap().get("tags", new String[0]));
     }
 
     private WorkflowTaskContext context()

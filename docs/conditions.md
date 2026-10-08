@@ -38,9 +38,9 @@ boolean applies   = evaluator.applies(requirement, submission);     // Condition
 
 Both sides are always models, never raw resources. `applies()` evaluates the
 `cond:condition` of any `Conditionable`; a null condition is satisfied, so unguarded
-content always applies. `Submission.getMissingRequirements()` is one caller to look
-at for reference — requirements, sections and questions whose condition doesn't hold
-are not reported as missing.
+content always applies. The submissions module's `QuestionCompletenessEvaluator` is one
+caller to look at for reference: requirements, sections and questions whose condition
+doesn't hold are not asked of the submitter.
 
 Evaluation **fails closed**. An unknown comparator, unknown operand source,
 unrecognized condition type, or incompatible operand types all yield *not satisfied*,

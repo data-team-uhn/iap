@@ -70,6 +70,8 @@ public class DetachDocumentHandler implements ServiceTaskHandler
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));
         final Document attached = submission.getDocuments().stream()
+            // The empty document kept for a requirement nothing was uploaded for is no attachment to remove
+            .filter(Document::isAttached)
             .filter(document -> document.isFulfilling(requirement))
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(
