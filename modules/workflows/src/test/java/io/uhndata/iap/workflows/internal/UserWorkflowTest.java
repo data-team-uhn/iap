@@ -227,7 +227,7 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertEquals("cancelled", read(TASK).get("status"));
         assertNull(read(TASK).get("assignee"));
@@ -254,7 +254,7 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertEquals("created", read(TASK).get("status"));
         assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get("status"));
@@ -276,7 +276,7 @@ class UserWorkflowTest
         final Calendar started = (Calendar) read(TASK).get("startTime");
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertEquals("approvalOverdue", read(TASK).get("dueEventId"));
         final Calendar due = (Calendar) read(TASK).get("dueDate");
@@ -286,7 +286,7 @@ class UserWorkflowTest
 
         // The later deadline still cancels the task when it passes
         deadlinePassed();
-        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertEquals("cancelled", read(TASK).get("status"));
         assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
@@ -299,10 +299,10 @@ class UserWorkflowTest
         watchApprovalWith("PT36H", "approvalSlow", null, false);
         final WorkflowEngine engine = started();
         deadlinePassed();
-        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
     }
 
@@ -313,19 +313,36 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
     }
 
     @Test
-    void letsTheClockPassThroughWhereAPersonMayNot() throws Exception
+    void refusesATimeoutFromSomeoneWhoMayOnlyDecideTheTask() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
         watchApprovalWith("P5D");
         final WorkflowEngine engine = started();
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT);
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    @Test
+    void letsATimerNameWhoMayFireIt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("P5D");
+        this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE + "/approvalOverdue")
+            .adaptTo(ModifiableValueMap.class).put("performers", new String[] {EngineFixture.REQUESTER});
+        final WorkflowEngine engine = started();
+        deadlinePassed();
+
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
 
         assertEquals("cancelled", read(TASK).get("status"));
     }
@@ -341,7 +358,7 @@ class UserWorkflowTest
         deadlinePassed();
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("completed", read(TASK).get("status"));
         assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
@@ -354,7 +371,7 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         assertThrows(InvalidStateException.class,
-            () -> engine.receiveEvent(as(TASK, "nobody-in-particular"), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
         assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
@@ -368,7 +385,7 @@ class UserWorkflowTest
         this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class).remove("dueDate");
 
         assertThrows(InvalidStateException.class,
-            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("created", read(TASK).get("status"));
     }
 

@@ -346,11 +346,14 @@ public final class EngineFixture
             // way to confuse Mockito
             final User admin = user(ADMIN, true);
             final User requester = user(REQUESTER, false);
+            final User timer = user(TaskCompletion.TIMER_USER, false);
+            Mockito.when(timer.memberOf()).thenAnswer(invocation -> List.<Group>of().iterator());
             final Group requesters = group();
             final AccessControlManager accessControl = accessControlManager();
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
+            Mockito.when(userManager.getAuthorizable(TaskCompletion.TIMER_USER)).thenReturn(timer);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
