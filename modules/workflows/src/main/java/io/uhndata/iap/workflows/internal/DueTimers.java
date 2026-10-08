@@ -41,6 +41,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -72,6 +74,9 @@ public class DueTimers implements Runnable
     /** The service user everything the engine reads and writes goes through. */
     private static final String SUBSERVICE = "workflows";
 
+    /** The operation a failure is recorded under, when the sweep as a whole fails. */
+    private static final String SWEEP = "sweep";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(DueTimers.class);
 
     /** The open tasks whose deadline has passed, oldest deadline first. */
@@ -93,9 +98,10 @@ public class DueTimers implements Runnable
     {
         final ScheduleOptions options = this.scheduler.EXPR(DEFAULT_SCHEDULE);
         options.name(JOB_NAME);
-        // One sweep at a time. Two overlapping sweeps would find the same overdue task, and the second would deliver
-        // a timeout to a task the first has already cancelled.
+        // One sweep at a time, on one instance of a cluster. Two overlapping sweeps would find the same overdue task,
+        // and the second would deliver a timeout to a task the first has already cancelled.
         options.canRunConcurrently(false);
+        options.onLeaderOnly(true);
         this.scheduler.schedule(this, options);
         LOGGER.info("Scheduled the workflow deadline sweep");
     }
@@ -119,8 +125,10 @@ public class DueTimers implements Runnable
             }
         } catch (final LoginException e) {
             LOGGER.error("The workflow engine's service user is not available, so no deadline can be delivered", e);
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
         } catch (final RepositoryException e) {
             LOGGER.error("Could not look for passed deadlines", e);
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
         }
     }
 
@@ -162,6 +170,7 @@ public class DueTimers implements Runnable
             LOGGER.debug("Delivered the passed deadline of {}", task.getPath());
         } catch (final WorkflowException e) {
             LOGGER.error("Could not deliver the passed deadline of {}: {}", task.getPath(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, "deliver").about(task));
         }
     }
 }
