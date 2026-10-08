@@ -92,7 +92,7 @@ final class InstanceRunner
 
     private final ServiceTaskPerformer performer;
 
-    private final String actor;
+    private final Actor actor;
 
     /**
      * Constructor.
@@ -101,7 +101,7 @@ final class InstanceRunner
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
      */
-    InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor)
+    InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final Actor actor)
     {
         this.resolver = resolver;
         this.performer = performer;
@@ -157,7 +157,7 @@ final class InstanceRunner
         final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
         properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
         properties.put(END_TIME_PROPERTY, Calendar.getInstance());
-        properties.put("assignee", this.actor);
+        properties.put("assignee", this.actor.effectiveUser());
         if (outcome != null) {
             properties.put(OUTCOME_VARIABLE, outcome);
             setOutcome(instanceResource, outcome);
