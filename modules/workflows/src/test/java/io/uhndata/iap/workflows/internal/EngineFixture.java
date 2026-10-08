@@ -166,7 +166,7 @@ public final class EngineFixture
     public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
         final Activity activity, final Map<String, Object> variables, final String actor)
     {
-        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+        return new WorkflowTaskContextImpl(target, event, activity, variables, Actor.of(actor), noFurtherTasks(), 0);
     }
 
     /**
