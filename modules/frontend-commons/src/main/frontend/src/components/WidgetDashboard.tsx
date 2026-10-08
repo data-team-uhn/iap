@@ -125,8 +125,9 @@ function WidgetGrid({ widgets }: { widgets: WidgetExtension[] }) {
           const span = WIDTH_SPAN[(widget["ext:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
           const title = (widget["ext:name"] as string | undefined) ?? "";
           const actionLabel = widget["ext:actionLabel"] as string | undefined;
-          const targetURL = widget["ext:targetURL"] as string | undefined;
-          const action = actionLabel && targetURL
+          // The target counts only alongside a label, as the action does
+          const targetURL = actionLabel ? widget["ext:targetURL"] as string | undefined : undefined;
+          const action = targetURL
             ? (
               <Button
                 size="small"
@@ -156,6 +157,8 @@ function WidgetGrid({ widgets }: { widgets: WidgetExtension[] }) {
             >
               <Widget
                 title={title}
+                // The title leads to the same place as the action, a larger target for the same move
+                titleHref={targetURL}
                 subtitle={widget["ext:subtitle"] ? (widget["ext:subtitle"] as string) : undefined}
                 action={action}
                 emphasis={Boolean(widget["ext:widgetEmphasis"])}
@@ -254,10 +257,11 @@ interface WidgetDashboardProps {
 //   - `ext:widgetHideHeader` — skip the title/subtitle header (the widget provides its own);
 //   - `ext:actionLabel` — render a header action in line with the title: a quiet text button
 //     with this label and a forward arrow (navigation, not an inline operation), leading to the
-//     widget's `ext:targetURL` (an in-app path); both must be set. Prefer a single verb naming
-//     what the tool behind the summary is for ("Manage", "Triage") — the title beside it already
-//     says which area it leads into, and it is repeated into the action's accessible name so that
-//     the same verb on several widgets still reads unambiguously out of context.
+//     widget's `ext:targetURL` (an in-app path); both must be set, and the title then links there
+//     too. Prefer a single verb naming what the tool behind the summary is for ("Manage",
+//     "Triage") — the title beside it already says which area it leads into, and it is repeated
+//     into the action's accessible name so that the same verb on several widgets still reads
+//     unambiguously out of context.
 //   - `ext:personas` — the personas the widget belongs to (absent means all of them), see personas.ts;
 //   - `ext:widgetGroup` — the node name of the widget group it is listed under.
 //

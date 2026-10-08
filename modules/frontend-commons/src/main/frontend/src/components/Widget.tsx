@@ -18,8 +18,15 @@
 
 import { type ReactNode } from "react";
 
-import { Box, Paper, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Link as MuiLink,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { styled } from "@mui/material/styles";
+import { Link as RouterLink } from "react-router";
 
 // The surface every dashboard widget sits on. Styling lives here (driven by theme tokens) rather
 // than in the dashboard layout, so the widget frame can grow more elaborate without cluttering the
@@ -42,6 +49,8 @@ interface WidgetProps {
   // Optional heading rendered at the top of the widget. When omitted, the widget's own content is
   // responsible for any heading.
   title?: string;
+  // Optional in-app path the title links to, normally wherever the action leads. Plain text when absent.
+  titleHref?: string;
   // Optional secondary line rendered under the title (e.g. a short description of the content).
   subtitle?: string;
   // Optional action (e.g. a Configure button) rendered in the header row, in line with the title.
@@ -60,7 +69,7 @@ interface WidgetProps {
 // The frame wrapping one dashboard widget's content: a styled surface with an optional title and
 // subtitle, and an optional action beside them. Title and subtitle form one header block, kept
 // tight together and separated from the content below; the action sits at the header's end.
-function Widget({ title, subtitle, action, emphasis, borderless, hideHeader, children }: WidgetProps) {
+function Widget({ title, titleHref, subtitle, action, emphasis, borderless, hideHeader, children }: WidgetProps) {
   return (
     <WidgetSurface emphasis={emphasis} borderless={borderless}>
       {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
@@ -69,7 +78,13 @@ function Widget({ title, subtitle, action, emphasis, borderless, hideHeader, chi
       { !hideHeader && (title || subtitle || action) && (
         <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 1, mb: 2 }}>
           <Box>
-            { title && <Typography variant="h6">{title}</Typography> }
+            { title && (
+              <Typography variant="h6">
+                { titleHref
+                  ? <MuiLink component={RouterLink} to={titleHref} color="inherit" underline="hover">{title}</MuiLink>
+                  : title }
+              </Typography>
+            ) }
             { subtitle && <Typography variant="caption">{subtitle}</Typography> }
           </Box>
           {action}

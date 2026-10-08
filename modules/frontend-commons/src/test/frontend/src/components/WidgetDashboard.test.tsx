@@ -95,7 +95,7 @@ describe("WidgetDashboard", () => {
     expect(await screen.findByText("A short hint")).toBeInTheDocument();
   });
 
-  it("renders a header action linking to the widget's target when ext:actionLabel is set", async () => {
+  it("renders a header action and title linking to the widget's target when ext:actionLabel is set", async () => {
     mockedLoadExtensions.mockResolvedValue([
       { ...widget("Categories", 0), "ext:actionLabel": "Configure", "ext:targetURL": "/admin/categories" },
       // Without a label there is no action, even with a target
@@ -109,7 +109,9 @@ describe("WidgetDashboard", () => {
     const action = await screen.findByRole("link", { name: "Configure: Categories" });
     expect(action).toHaveTextContent("Configure");
     expect(action).toHaveAttribute("href", "/admin/categories");
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Categories" })).toHaveAttribute("href", "/admin/categories");
+    // Neither the action nor the title link is rendered without a label
+    expect(screen.getAllByRole("link")).toHaveLength(2);
   });
 
   it("names a header action by its label alone when the widget has no title", async () => {
