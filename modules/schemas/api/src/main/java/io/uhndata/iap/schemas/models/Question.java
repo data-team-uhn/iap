@@ -18,6 +18,7 @@
 package io.uhndata.iap.schemas.models;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
@@ -268,5 +269,26 @@ public class Question extends FormItem
     public String getResponseShape()
     {
         return this.responseShape;
+    }
+
+    /**
+     * The answers this question offers, as the form, the model and the matching all see them.
+     *
+     * <p>From {@link #getOptionsFrom()} when that path is set, otherwise from the declared
+     * {@link #getOptions() children}. One list, so a category tree an administrator edits is the same list
+     * a submitter picks from, a model is shown, and a reply is matched against.</p>
+     *
+     * @return the offered options, an empty list if the question is answered freely
+     */
+    @NotNull
+    public List<OfferedOption> getOfferedOptions()
+    {
+        if (this.optionsFrom != null && !this.optionsFrom.isBlank()) {
+            return OptionCatalog.read(this.resource.getResourceResolver(), this.optionsFrom);
+        }
+        return getOptions().stream()
+            .map(option -> new OfferedOption(option.getValue(), option.getLabel(),
+                Objects.requireNonNullElse(option.getDescription(), "")))
+            .toList();
     }
 }

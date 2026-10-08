@@ -49,6 +49,12 @@ How content is shaped, related, and moved through its process.
 | [links.md](links.md) | Ad-hoc typed connections between resources, for the relations that are not part of a node type's own shape |
 | [deletion.md](deletion.md) | Deleting a resource together with everything that depends on it: the impact analysis, the archive at `/Archive`, restoring, and purging |
 
+## Reading documents
+
+| Document | What it covers |
+| --- | --- |
+| [extraction.md](extraction.md) | How an uploaded document is parsed, classified and read by a language model into pre-filled answers: every step, who calls whom, and the checks that keep the model's answers honest |
+
 ## The user interface
 
 | Document | What it covers |

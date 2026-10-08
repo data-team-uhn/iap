@@ -72,13 +72,14 @@ POST /parse?path=/shared-docs/.../file.pdf
 ```
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
-request body is ignored. The daemon also serves `GET /health`, and `POST /shutdown` when
-started with `--enable-shutdown`.
+request body is ignored. The daemon also serves `GET /health`, `POST /cancel?job_id=...` to stop
+an accepted parse (one not started is dropped, one converting is abandoned between page batches and
+sends no callback), and `POST /shutdown` when started with `--enable-shutdown`.
 
-`/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
+`/parse`, `/cancel` and `/shutdown` change state, so they refuse any request carrying an `Origin`
 header — nothing that legitimately drives the daemon is a web page, and loopback binding is
 no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` additionally
-requires it as a bearer token on those two endpoints. `GET /health` stays open so container
+requires it as a bearer token on those endpoints. `GET /health` stays open so container
 probes need no credential.
 
 **Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a

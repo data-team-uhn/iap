@@ -341,6 +341,28 @@ class UserWorkflowTest
     }
 
     @Test
+    void endsTheWholeInstanceAtATerminateEndEvent() throws Exception
+    {
+        // Nothing may stay on somebody's desk once the instance is over, even a task this walk did not park on
+        createProcess(EngineFixture.REQUESTERS);
+        this.context.resourceResolver().getResource(PROCESS + "/requestApproved")
+            .adaptTo(ModifiableValueMap.class).put("terminate", true);
+        final WorkflowEngine engine = started();
+        final String waiting = HOST + "/wf:instances/timeOffRequest/stillWaiting";
+        this.context.create().resource(waiting, Map.of(TYPE, "wf/TaskInstance", "status", "created"));
+        this.context.resourceResolver().commit();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+        assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals("cancelled", read(waiting).get("status"));
+        assertNotNull(read(waiting).get("endTime"));
+        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
     void refusesADecisionFromSomeoneTheTaskDoesNotName() throws Exception
     {
         createProcess("someone-else");

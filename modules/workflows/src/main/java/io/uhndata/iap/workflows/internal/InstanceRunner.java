@@ -44,6 +44,7 @@ import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
+import io.uhndata.iap.workflows.models.WorkflowToken;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -82,9 +83,16 @@ final class InstanceRunner
 
     private static final String COMPLETED_STATUS = "completed";
 
+    private static final String ACTIVE_STATUS = "active";
+
     private static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
 
     private static final String START_TIME_PROPERTY = "startTime";
+
+    /** The status a task carries until it is completed or cancelled. */
+    private static final String OPEN = "created";
+
+    private static final String CANCELLED = "cancelled";
 
     private static final String END_TIME_PROPERTY = "endTime";
 
@@ -134,6 +142,39 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowToken", CURRENT_NODE_ID_PROPERTY, starts.get(0).getElementId()));
         run(instance, token, starts.get(0));
         return instance;
+    }
+
+    /**
+     * Cancels every instance of the same workflow still active on a host, along with the tasks it was waiting on,
+     * so a new start replaces it rather than running beside it. Any version of the workflow counts.
+     *
+     * @param host the resource the workflow drives
+     * @param version the version about to be started
+     * @throws PersistenceException when an instance cannot be written
+     */
+    void cancelActive(final Resource host, final WorkflowVersion version) throws PersistenceException
+    {
+        final Resource container = host.getChild(WorkflowInstances.NODE_NAME);
+        if (container == null) {
+            return;
+        }
+        final String definition = getParentPath(version.getPath());
+        for (final Resource child : container.getChildren()) {
+            final WorkflowInstance instance = child.adaptTo(WorkflowInstance.class);
+            if (instance == null || !ACTIVE_STATUS.equals(instance.getStatus())) {
+                continue;
+            }
+            final WorkflowVersion running = instance.getWorkflowVersion();
+            if (running != null && definition.equals(getParentPath(running.getPath()))) {
+                terminate(child);
+                modifiable(child).put(STATUS_PROPERTY, CANCELLED);
+            }
+        }
+    }
+
+    private static String getParentPath(final String path)
+    {
+        return path.substring(0, Math.max(path.lastIndexOf('/'), 0));
     }
 
     /**
@@ -271,8 +312,8 @@ final class InstanceRunner
     }
 
     /**
-     * Ends the instance. The token is spent. An end event that says what finishing this way means also tells the
-     * host.
+     * Ends the instance. The token is spent, or at a terminate end event every token goes and every task still
+     * waiting is cancelled. An end event that says what finishing this way means also tells the host.
      *
      * @param instance the running instance
      * @param token the token that arrived
@@ -282,16 +323,58 @@ final class InstanceRunner
     private void finish(final Resource instance, final Resource token, final EndEvent end)
         throws PersistenceException
     {
-        this.resolver.delete(token);
-        final ModifiableValueMap properties = modifiable(instance);
-        properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
-        properties.put(END_TIME_PROPERTY, Calendar.getInstance());
+        if (end.isTerminate()) {
+            terminate(instance);
+        } else {
+            this.resolver.delete(token);
+            close(instance);
+        }
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
             Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
                 "A workflow's host is taggable").tag(hostTag, true);
         }
+    }
+
+    /**
+     * Ends the whole instance at once: every remaining token is discarded, and every task still waiting for
+     * somebody is cancelled.
+     *
+     * <p>This is what {@code terminate} on an end event means, and why it is a property of an end event rather than
+     * a kind of its own: the difference is entirely in what happens to the <em>other</em> branches. The open tasks
+     * have to go with their tokens — a task whose token has been discarded can never be completed, and leaving it
+     * open would put work on somebody's desk that nothing will ever take off it again.</p>
+     *
+     * @param instance the running instance
+     * @throws PersistenceException when the instance cannot be written
+     */
+    private void terminate(final Resource instance) throws PersistenceException
+    {
+        final WorkflowInstance model = adapt(instance);
+        for (final WorkflowToken token : model.getTokens()) {
+            this.resolver.delete(resourceOf(token.getPath()));
+        }
+        for (final TaskInstance task : model.getTaskInstances()) {
+            if (OPEN.equals(task.getStatus())) {
+                final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
+                properties.put(STATUS_PROPERTY, CANCELLED);
+                properties.put(END_TIME_PROPERTY, Calendar.getInstance());
+            }
+        }
+        close(instance);
+    }
+
+    /**
+     * Marks an instance as finished.
+     *
+     * @param instance the instance to close
+     */
+    private void close(final Resource instance)
+    {
+        final ModifiableValueMap properties = modifiable(instance);
+        properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
+        properties.put(END_TIME_PROPERTY, Calendar.getInstance());
     }
 
     /**
@@ -332,7 +415,7 @@ final class InstanceRunner
         final String name = NodeNameUtils.findFreeName(container, definitionName(version));
         final Resource instance = this.resolver.create(container, name, Map.of(
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
-            STATUS_PROPERTY, "active",
+            STATUS_PROPERTY, ACTIVE_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
         // right identifier as the wrong type
