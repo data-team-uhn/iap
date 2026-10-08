@@ -18,6 +18,7 @@
 
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import Widget from "@iap/frontend-commons/components/Widget";
@@ -35,6 +36,14 @@ describe("Widget", () => {
     render(<Widget title="My widget"><div>body</div></Widget>);
 
     expect(screen.getByRole("heading", { name: "My widget" })).toBeInTheDocument();
+  });
+
+  it("links the title when titleHref is given", () => {
+    render(<MemoryRouter><Widget title="My widget" titleHref="/admin/mine"><div>body</div></Widget></MemoryRouter>);
+
+    const link = screen.getByRole("link", { name: "My widget" });
+    expect(link).toHaveAttribute("href", "/admin/mine");
+    expect(screen.getByRole("heading", { name: "My widget" })).toContainElement(link);
   });
 
   it("renders no heading when no title is given", () => {

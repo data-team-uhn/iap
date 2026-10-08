@@ -167,8 +167,9 @@ Tiled on the homepage dashboard in a responsive grid, each framed with a title
 (`ext:name`) and optional `ext:subtitle`. Frame tuning: `ext:widgetWidth`
 (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`,
 `ext:widgetHideHeader`, and `ext:actionLabel` (a header action button leading to
-`ext:targetURL`, an in-app path — both must be set). `ext:personas` restricts a
-widget, and `ext:widgetGroup` files it under a [widget group](#widget-groups).
+`ext:targetURL`, an in-app path — both must be set; the title then links there too).
+`ext:personas` restricts a widget, and `ext:widgetGroup` files it under a
+[widget group](#widget-groups).
 
 The layout is the shared `WidgetDashboard`
 (`@iap/frontend-commons/components/WidgetDashboard`), parameterized by point. The
