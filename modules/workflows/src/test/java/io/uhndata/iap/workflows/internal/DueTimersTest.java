@@ -30,6 +30,8 @@ import javax.jcr.query.QueryManager;
 import javax.jcr.query.QueryResult;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
@@ -45,12 +47,14 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link DueTimers}.
@@ -77,22 +81,24 @@ class DueTimersTest
 
     private QueryManager queries;
 
+    private ResourceResolver resolver;
+
     @BeforeEach
     void setUp() throws Exception
     {
-        this.context.create().resource(TASK, "sling:resourceType", "wf/TaskInstance");
+        this.context.create().resource(TASK, "sling:resourceType", "wf/TaskInstance", "status", "created");
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         this.queries = Mockito.mock(QueryManager.class);
         Mockito.when(session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getQueryManager()).thenReturn(this.queries);
         Mockito.when(session.getValueFactory()).thenReturn(Mockito.mock(ValueFactory.class));
-        final ResourceResolver resolver = Mockito.spy(this.context.resourceResolver());
-        Mockito.doReturn(session).when(resolver).adaptTo(Session.class);
+        this.resolver = Mockito.spy(this.context.resourceResolver());
+        Mockito.doReturn(session).when(this.resolver).adaptTo(Session.class);
         // Closing the spy would close the context's resolver, which later assertions read through
-        Mockito.doNothing().when(resolver).close();
+        Mockito.doNothing().when(this.resolver).close();
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(this.resolver);
 
         inject("scheduler", this.scheduler);
         inject("resolverFactory", factory);
@@ -165,6 +171,79 @@ class DueTimersTest
     }
 
     @Test
+    void carriesOnAfterADeliveryThatFailsUnexpectedly() throws Exception
+    {
+        expectDue(TASK, TASK);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenThrow(new IllegalStateException("a handler gave up"))
+            .thenReturn(null);
+
+        assertDoesNotThrow(this.sweep::run);
+
+        Mockito.verify(this.engine, Mockito.times(2)).receiveEvent(Mockito.any(), Mockito.any());
+        Mockito.verify(this.errors).logError(Mockito.any(IllegalStateException.class), Mockito.any());
+    }
+
+    @Test
+    void givesUpOnADeadlineAfterRepeatedFailures() throws Exception
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenThrow(new WorkflowFailedException("that workflow is broken", null));
+
+        for (int failures = 1; failures <= DueTimers.MAX_DELIVERY_FAILURES; failures++) {
+            expectDue(TASK);
+            this.sweep.run();
+            assertEquals(failures, task().get(DueTimers.DELIVERY_FAILURES_PROPERTY, 0L));
+        }
+
+        Mockito.verify(this.errors, Mockito.times(3)).logError(Mockito.any(), Mockito.any());
+        Mockito.verify(this.errors).logProblem(Mockito.anyString(),
+            Mockito.argThat(recorded -> TASK.equals(recorded.getSubject())));
+    }
+
+    @Test
+    void recordsAFailureItCouldNotCount() throws Exception
+    {
+        expectDue(TASK);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenThrow(new WorkflowFailedException("that workflow is broken", null));
+        final PersistenceException full = new PersistenceException("the disk is full");
+        Mockito.doThrow(full).when(this.resolver).commit();
+
+        assertDoesNotThrow(this.sweep::run);
+
+        Mockito.verify(this.errors).logError(Mockito.same(full), Mockito.any());
+        Mockito.verify(this.resolver).revert();
+    }
+
+    @Test
+    void skipsATaskClosedBeforeItsDeadlineIsDelivered() throws Exception
+    {
+        expectDue(TASK);
+        task().put("status", "completed");
+
+        this.sweep.run();
+
+        Mockito.verifyNoInteractions(this.engine);
+        Mockito.verifyNoInteractions(this.errors);
+    }
+
+    @Test
+    void doesNotCountADeliveryRefusedBecauseTheTaskClosedMeanwhile() throws Exception
+    {
+        expectDue(TASK);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            task().put("status", "completed");
+            throw new NoApplicableWorkflowException("The task is already completed");
+        });
+
+        this.sweep.run();
+
+        Mockito.verifyNoInteractions(this.errors);
+        assertNull(task().get(DueTimers.DELIVERY_FAILURES_PROPERTY));
+    }
+
+    @Test
     void survivesARepositoryThatCannotBeQueried() throws Exception
     {
         Mockito.when(this.queries.createQuery(Mockito.anyString(), Mockito.anyString()))
@@ -218,6 +297,16 @@ class DueTimersTest
             Mockito.when(nodes.nextNode()).thenReturn(found[0],
                 java.util.Arrays.copyOfRange(found, 1, found.length));
         }
+    }
+
+    /**
+     * The overdue task's properties, writable.
+     *
+     * @return its properties
+     */
+    private ModifiableValueMap task()
+    {
+        return this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class);
     }
 
     private void inject(final String name, final Object value) throws ReflectiveOperationException

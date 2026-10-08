@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
@@ -92,5 +95,22 @@ public class Activity extends FlowNode
     public List<IntermediateCatchingEvent> getBoundaryEvents()
     {
         return this.getChildren(IntermediateCatchingEvent.RESOURCE_TYPE, IntermediateCatchingEvent.class);
+    }
+
+    /**
+     * The boundary timer that fires first, of those that have not fired yet.
+     *
+     * @param started when the activity began waiting, which every timer counts from
+     * @param fired the element identifiers of the boundary events that have already fired
+     * @return the timer, or {@code null} if no unfired timer watches this activity
+     */
+    @Nullable
+    public IntermediateCatchingEvent getNextTimer(@NotNull final Calendar started,
+        @NotNull final Collection<String> fired)
+    {
+        return getBoundaryEvents().stream()
+            .filter(event -> !fired.contains(event.getElementId()) && event.getDeadline(started) != null)
+            .min(Comparator.comparing(event -> event.getDeadline(started)))
+            .orElse(null);
     }
 }

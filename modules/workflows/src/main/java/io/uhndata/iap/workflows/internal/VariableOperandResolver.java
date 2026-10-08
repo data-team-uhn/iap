@@ -25,6 +25,8 @@ import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 
@@ -43,6 +45,9 @@ public class VariableOperandResolver implements OperandResolver
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(VariableOperandResolver.class);
 
+    /** The operation a problem is recorded under. */
+    private static final String RESOLVE = "resolve";
+
     @Override
     public String getSource()
     {
@@ -55,17 +60,22 @@ public class VariableOperandResolver implements OperandResolver
         final String[] value = operand.getValue();
         if (value == null || value.length == 0) {
             LOGGER.warn("Variable operand at {} does not name a variable", operand.getPath());
+            ErrorLogger.logProblem("variable operand names no variable",
+                ErrorContext.of(VariableOperandResolver.class, RESOLVE).about(operand.getPath()));
             return Operand.EMPTY;
         }
         // Check the resource type, not just the adaptation. Adapting does not filter by type: a model registered for
         // one type is handed back for any resource when nothing else claims the class. An unrelated node with a child
         // of the right name would otherwise answer as if it were an instance.
-        final WorkflowInstance instance = WorkflowInstance.RESOURCE_TYPE.equals(context.getType())
+        final WorkflowInstance instance = context.isOfType(WorkflowInstance.RESOURCE_TYPE)
             ? context.as(WorkflowInstance.class) : null;
         if (instance == null) {
             // Not a definition error: the condition was evaluated against something that has no variables
             LOGGER.warn("Variable operand at {} was evaluated against {}, which is not a workflow instance",
                 operand.getPath(), context.getPath());
+            ErrorLogger.logProblem("variable operand evaluated against something other than a workflow instance",
+                ErrorContext.of(VariableOperandResolver.class, RESOLVE).about(operand.getPath())
+                    .with("context", context.getPath()));
             return Operand.EMPTY;
         }
         final Variable variable = instance.getVariable(value[0]);
