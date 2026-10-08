@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -63,6 +64,9 @@ final class TaskCompletion
 
     /** The event a passed deadline delivers. */
     static final String TIMEOUT_EVENT = "timeout";
+
+    /** The service user that delivers passed deadlines, and who a boundary timer admits when it names nobody. */
+    static final String TIMER_USER = "iap-timer";
 
     private static final String WALK_ID_PROPERTY = "walkId";
 
@@ -123,7 +127,7 @@ final class TaskCompletion
         }
         stamp(resolver, task);
         if (TIMEOUT_EVENT.equals(event.getName())) {
-            expire(resolver, task, definition, performer, conditions);
+            expire(resolver, task, definition, actor, performer, conditions);
             return;
         }
         PerformerCheck.verify(resolver, definition, actor);
@@ -158,24 +162,24 @@ final class TaskCompletion
     /**
      * Times out this task by firing the boundary timer its deadline belongs to.
      *
-     * <p>There is no performer check. {@code performers} says who may complete a task, and nobody completes a
-     * timeout. Checking would leave the instance stuck on a task nobody can finish.</p>
+     * <p>The timer is asked who may fire it, as any other node is. The task's own performers do not count: they
+     * may decide the work, which is not the same as declaring it late. A timer that names nobody admits the
+     * {@value #TIMER_USER} service user, which is who the deadline sweep delivers as.</p>
      *
-     * <p>The deadline is the check instead. Any channel can deliver an event, so a timeout that arrives early is
-     * refused, whoever sends it. After the deadline, a timeout from anywhere only does sooner what the next sweep
-     * would do.</p>
+     * <p>The deadline is checked as well, so even an admitted actor cannot fire a timer early.</p>
      *
      * @param resolver the engine's own session
      * @param task the task whose deadline has passed
      * @param definition the activity the task was raised from
+     * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator for the resumed instance's gateway guards
-     * @throws WorkflowException when nothing is counting down to this task, its deadline has not passed yet, or the
-     *     run cannot continue
+     * @throws WorkflowException when nothing is counting down to this task, the timer does not admit the actor, its
+     *     deadline has not passed yet, or the run cannot continue
      * @throws PersistenceException when the instance cannot be written
      */
     private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
-        final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
         throws WorkflowException, PersistenceException
     {
         final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
@@ -183,10 +187,12 @@ final class TaskCompletion
             .findFirst()
             .orElseThrow(() -> new NoApplicableWorkflowException("The task " + task.getPath()
                 + " has no deadline to run out: nothing is counting down to it"));
+        final List<String> performers = timer.getPerformers();
+        PerformerCheck.verify(resolver, performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
         final Calendar due = task.getDueDate();
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, task.getAssignee(), new FlowRouting(conditions)).expire(task, timer);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).expire(task, timer);
     }
 }

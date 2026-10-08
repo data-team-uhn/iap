@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
+import java.util.Map;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -52,6 +53,7 @@ import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 
+import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -83,6 +85,8 @@ class DueTimersTest
 
     private ResourceResolver resolver;
 
+    private ResourceResolver timer;
+
     @BeforeEach
     void setUp() throws Exception
     {
@@ -97,8 +101,12 @@ class DueTimersTest
         Mockito.doReturn(session).when(this.resolver).adaptTo(Session.class);
         // Closing the spy would close the context's resolver, which later assertions read through
         Mockito.doNothing().when(this.resolver).close();
+        this.timer = Mockito.spy(this.context.resourceResolver());
+        Mockito.doNothing().when(this.timer).close();
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(this.resolver);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation ->
+            DueTimers.TIMER_SUBSERVICE.equals(invocation.getArgument(0, Map.class).get(SUBSERVICE))
+                ? this.timer : this.resolver);
 
         inject("scheduler", this.scheduler);
         inject("resolverFactory", factory);
@@ -143,6 +151,17 @@ class DueTimersTest
         Mockito.verify(this.engine).receiveEvent(Mockito.argThat(task -> TASK.equals(task.getPath())),
             event.capture());
         assertEquals("timeout", event.getValue().getName());
+    }
+
+    @Test
+    void deliversThroughTheTimersOwnSession() throws Exception
+    {
+        expectDue(TASK);
+
+        this.sweep.run();
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.argThat(task -> task.getResourceResolver() == this.timer),
+            Mockito.any());
     }
 
     @Test
@@ -261,6 +280,24 @@ class DueTimersTest
         Mockito.when(refusing.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         inject("resolverFactory", refusing);
+
+        assertDoesNotThrow(this.sweep::run);
+        Mockito.verifyNoInteractions(this.engine);
+        Mockito.verify(this.errors).logError(Mockito.any(LoginException.class), Mockito.any());
+    }
+
+    @Test
+    void deliversNothingWithoutTheTimerUser() throws Exception
+    {
+        expectDue(TASK);
+        final ResourceResolverFactory partial = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(partial.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
+            if (DueTimers.TIMER_SUBSERVICE.equals(invocation.getArgument(0, Map.class).get(SUBSERVICE))) {
+                throw new LoginException("no such service user");
+            }
+            return this.resolver;
+        });
+        inject("resolverFactory", partial);
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
