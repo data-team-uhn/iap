@@ -33,7 +33,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:Comment} node: a comment or question raised in some feedback, a concern the AI
- * found among them, with what it is about and the passages that show it.
+ * found among them, with what it is about and the context that shows it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,12 +59,6 @@ public class Comment extends EntityPart
 
     @ValueMapValue
     private String suggestion;
-
-    @ValueMapValue
-    private String selectionStart;
-
-    @ValueMapValue
-    private String selectionEnd;
 
     @ValueMapValue
     private boolean resolved;
@@ -134,38 +128,14 @@ public class Comment extends EntityPart
     }
 
     /**
-     * The passages that show what this comment is about, in the order they were quoted.
+     * The context that shows what this comment is about, in the order it was quoted.
      *
-     * @return a list of evidence, empty if none
+     * @return a list of context, empty if none
      */
     @NotNull
-    public List<Evidence> getEvidence()
+    public List<Context> getContext()
     {
-        return this.getChildren(Evidence.RESOURCE_TYPE, Evidence.class);
-    }
-
-    /**
-     * The start of the anchor narrowing this comment down to a specific selection within its subject, when it has
-     * just one.
-     *
-     * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
-     */
-    @Nullable
-    public String getSelectionStart()
-    {
-        return this.selectionStart;
-    }
-
-    /**
-     * The end of the anchor narrowing this comment down to a specific selection within its subject, when it has
-     * just one.
-     *
-     * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
-     */
-    @Nullable
-    public String getSelectionEnd()
-    {
-        return this.selectionEnd;
+        return this.getChildren(Context.RESOURCE_TYPE, Context.class);
     }
 
     /**

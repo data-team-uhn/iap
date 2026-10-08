@@ -143,14 +143,14 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * The passages backing the extracted answer.
+     * The context backing the extracted answer.
      *
-     * @return a list of evidence, empty if the run cited nothing
+     * @return a list of context, empty if the run cited nothing
      */
     @NotNull
-    public List<Evidence> getEvidence()
+    public List<Context> getContext()
     {
-        return this.getChildren(Evidence.RESOURCE_TYPE, Evidence.class);
+        return this.getChildren(Context.RESOURCE_TYPE, Context.class);
     }
 
     /**

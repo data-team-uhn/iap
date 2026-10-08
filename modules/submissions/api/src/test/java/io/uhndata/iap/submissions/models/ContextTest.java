@@ -34,58 +34,58 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link Evidence}.
+ * Unit tests for {@link Context}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class EvidenceTest
+class ContextTest
 {
-    private static final String EVIDENCE_PATH = "/Submissions/submission/answer/evidence0";
+    private static final String CONTEXT_PATH = "/Submissions/submission/answer/context0";
 
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Evidence.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Context.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource(EVIDENCE_PATH,
-            "sling:resourceType", Evidence.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(Evidence.class));
+        final Resource resource = this.context.create().resource(CONTEXT_PATH,
+            "sling:resourceType", Context.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(Context.class));
     }
 
     @Test
-    void exposesEvidenceProperties()
+    void exposesItsProperties()
     {
-        final Resource resource = this.context.create().resource(EVIDENCE_PATH, Map.of(
-            "sling:resourceType", Evidence.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource(CONTEXT_PATH, Map.of(
+            "sling:resourceType", Context.RESOURCE_TYPE,
             "quote", "42 participants will be recruited",
             "header", "3.2 Recruitment",
             "page", 7L));
-        final Evidence evidence = resource.adaptTo(Evidence.class);
+        final Context quoted = resource.adaptTo(Context.class);
 
-        assertEquals("42 participants will be recruited", evidence.getQuote());
-        assertEquals("3.2 Recruitment", evidence.getHeader());
-        assertEquals(7L, evidence.getPage());
+        assertEquals("42 participants will be recruited", quoted.getQuote());
+        assertEquals("3.2 Recruitment", quoted.getHeader());
+        assertEquals(7L, quoted.getPage());
     }
 
     @Test
     void toleratesMissingOptionalProperties()
     {
-        final Resource resource = this.context.create().resource(EVIDENCE_PATH,
-            "sling:resourceType", Evidence.RESOURCE_TYPE);
-        final Evidence evidence = resource.adaptTo(Evidence.class);
+        final Resource resource = this.context.create().resource(CONTEXT_PATH,
+            "sling:resourceType", Context.RESOURCE_TYPE);
+        final Context quoted = resource.adaptTo(Context.class);
 
-        assertNotNull(evidence);
-        assertNull(evidence.getQuote());
-        assertNull(evidence.getHeader());
+        assertNotNull(quoted);
+        assertNull(quoted.getQuote());
+        assertNull(quoted.getHeader());
         // A quote from a source with no page markers, e.g. anything that came in as DOCX
-        assertNull(evidence.getPage());
+        assertNull(quoted.getPage());
     }
 }

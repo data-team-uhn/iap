@@ -26,19 +26,19 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Evidence} node: one passage backing the extracted answer of an
- * {@link Answer}, kept as a node rather than a plain string so the quote stays linked to the page and section it
- * was taken from.
+ * A Sling Model wrapping a {@code sub:Context} node: the context a quote comes from, backing an {@link Extraction}
+ * or a {@link Comment}: a passage of a document, or an answer. Kept as a node rather than a plain string, so the quote
+ * stays linked to the page and section it was taken from.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Evidence.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Context.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Evidence extends EntityPart
+public class Context extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sub:Evidence} node. */
-    public static final String RESOURCE_TYPE = "sub/Evidence";
+    /** The {@code sling:resourceType} of a {@code sub:Context} node. */
+    public static final String RESOURCE_TYPE = "sub/Context";
 
     @ValueMapValue
     private String quote;
