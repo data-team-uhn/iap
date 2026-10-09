@@ -427,6 +427,7 @@ describe("SubmissionView", () => {
       type: "sch/DocumentRequirement",
       label: "Study protocol",
       description: "The full protocol, signed",
+      required: true,
       acceptedFileTypes: ["application/pdf"],
       attached: [] as string[],
     };
@@ -467,6 +468,14 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
       expect(screen.getByText("The full protocol, signed")).toBeInTheDocument();
       expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+    });
+
+    it("says when a document nobody has attached was optional", async () => {
+      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, required: false }])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Nothing attached yet — optional")).toBeInTheDocument();
     });
 
     it("never offers to attach one, whoever is reading", async () => {

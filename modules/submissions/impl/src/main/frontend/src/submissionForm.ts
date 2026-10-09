@@ -118,6 +118,11 @@ export function isDocumentRequirement(requirement: Requirement): requirement is 
   return requirement.type === DOCUMENT_REQUIREMENT;
 }
 
+// What an empty document slot says. An optional one says so, or it reads as a gap.
+export function describeNothingAttached(requirement: DocumentRequirement): string {
+  return requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional";
+}
+
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
 export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Promise<SubmissionForm> {

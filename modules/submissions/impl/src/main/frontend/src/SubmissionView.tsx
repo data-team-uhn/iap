@@ -40,7 +40,13 @@ import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requ
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
-import { type DocumentRequirement, type SubmissionForm, fetchForm, isDocumentRequirement } from "./submissionForm";
+import {
+  type DocumentRequirement,
+  type SubmissionForm,
+  describeNothingAttached,
+  fetchForm,
+  isDocumentRequirement
+} from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 
 // The extension that asks for the editor rather than the read-only page
@@ -209,7 +215,7 @@ function Documents({ path, documents }: { path: string; documents: JsonNode[] })
             {attached.length > 0
               ? attached.map((document, position) =>
                 <Attachment key={"attached-" + position} document={document} named={false} />)
-              : <Typography variant="placeholder">Nothing attached yet</Typography>}
+              : <Typography variant="placeholder">{describeNothingAttached(requirement)}</Typography>}
           </Stack>
         );
       })}

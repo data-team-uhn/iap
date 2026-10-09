@@ -24,7 +24,7 @@ import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
-import { type DocumentRequirement, attachDocument } from "./submissionForm";
+import { type DocumentRequirement, attachDocument, describeNothingAttached } from "./submissionForm";
 
 // Taken out of the page without being taken out of the document: the file input is the real control,
 // so it has to remain focusable and nameable. `hidden` or `display: none` would drop it out of the
@@ -89,7 +89,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
         ? <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
         : (
           <Typography variant="placeholder">
-            {requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional"}
+            {describeNothingAttached(requirement)}
           </Typography>
         )}
       {requirement.template
