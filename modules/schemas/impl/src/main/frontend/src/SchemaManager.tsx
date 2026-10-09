@@ -27,12 +27,13 @@ import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import NewSchemaDialog from "./NewSchemaDialog";
 import SchemaActions from "./SchemaActions";
 import { SCHEMA_OF, SCHEMA_TYPE } from "./schemaGrid";
-import { labelOf, schemaNameFromRoute, SCHEMAS_ROOT, titleOf, type JcrNode } from "./schemaModel";
+import { labelOf, schemaNameFromRoute, SCHEMAS_ROOT, titleOf } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import { schemaPageUrl } from "./useSchemaList";
 
@@ -52,7 +53,7 @@ function SchemaManager() {
     cardSlot: "actions",
     renderCell: params => {
       const row = params.row;
-      const parent = row[SCHEMA_OF] as JcrNode | undefined;
+      const parent = row[SCHEMA_OF] as SerializedNode | undefined;
       const schema = parent ?? row;
       const version = parent && row;
       const shared = {

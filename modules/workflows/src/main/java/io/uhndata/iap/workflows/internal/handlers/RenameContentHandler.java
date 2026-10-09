@@ -64,7 +64,7 @@ public class RenameContentHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Node node = Nodes.of(target);
         final String name = ContentNames.requested(context.getEvent().get(ContentNames.NAME_PARAMETER),
-            context.getActivity().get(ContentNames.NAME_PATTERN, String.class));
+            context.getActivity().get(ContentNames.NAME_PATTERN_PARAMETER, String.class));
         if (name == null) {
             throw new InvalidPayloadException("A new name is needed");
         }

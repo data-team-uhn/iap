@@ -24,10 +24,11 @@ import { useLocation, useNavigate } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 
 import SchemaActions from "./SchemaActions";
-import { type JcrNode, schemaNameFromRoute, tagsOf, titleOf, versionNameFromRoute } from "./schemaModel";
+import { schemaNameFromRoute, tagsOf, titleOf, versionNameFromRoute } from "./schemaModel";
 import SchemaVersionComparison from "./SchemaVersionComparison";
 import SchemaVersionList from "./SchemaVersionList";
 import { strings } from "./schemaVersionTreeModel";
@@ -36,7 +37,7 @@ import { useSchema } from "./useSchema";
 
 // What stays true of the schema on its page and on each of its versions' pages
 function SchemaNotices({ schema, loadError, reload }: {
-  schema: JcrNode;
+  schema: SerializedNode;
   loadError?: string;
   reload: () => Promise<void>;
 }) {

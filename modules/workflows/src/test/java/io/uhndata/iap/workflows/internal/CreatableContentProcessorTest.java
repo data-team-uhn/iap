@@ -39,11 +39,10 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
-import io.uhndata.iap.workflows.internal.handlers.ContentNames;
 import io.uhndata.iap.workflows.internal.handlers.CreateContentHandler;
 import io.uhndata.iap.workflows.internal.handlers.FieldsFixture;
+import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,8 +87,10 @@ class CreatableContentProcessorTest
     void listsWhatTheCreateWorkflowWouldMakeHere() throws Exception
     {
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
-        Mockito.when(version.getFlowNodes()).thenReturn(
-            List.of(Mockito.mock(FlowNode.class), this.fixture.creating(), this.fixture.activity()));
+        Mockito.when(version.getActivities(CreateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(this.fixture.creating()));
+        Mockito.when(version.getActivities(UpdateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(this.fixture.activity()));
         FieldsFixture.inspecting(this.engine, "create", version);
 
         final JsonArray creatable = serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable");
@@ -114,10 +115,10 @@ class CreatableContentProcessorTest
     {
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
         final Activity other = Mockito.mock(Activity.class);
-        Mockito.when(other.getHandler()).thenReturn(CreateContentHandler.HANDLER_NAME);
-        Mockito.when(version.getFlowNodes()).thenReturn(List.of(other, this.fixture.creating()));
-        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
-        Mockito.when(this.fixture.creating().get(ContentNames.NAME_HINT, String.class)).thenReturn("Small letters.");
+        Mockito.when(version.getActivities(CreateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(other, this.fixture.creating()));
+        Mockito.when(this.fixture.creating().get("namePattern", String.class)).thenReturn("^[a-z]+$");
+        Mockito.when(this.fixture.creating().get("nameHint", String.class)).thenReturn("Small letters.");
         FieldsFixture.inspecting(this.engine, "create", version);
 
         final JsonObject item =
@@ -127,7 +128,7 @@ class CreatableContentProcessorTest
         assertEquals("Small letters.", item.getString("nameHint"));
 
         // A type that takes no name of its own has no rule for one
-        this.fixture.session().getNode("/create/types/item").setProperty(ContentNames.NAMED, false);
+        this.fixture.session().getNode("/create/types/item").setProperty("named", false);
         this.fixture.session().save();
         final JsonObject unnamed =
             serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable").getJsonObject(0);
@@ -148,6 +149,15 @@ class CreatableContentProcessorTest
     {
         Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.any()))
             .thenThrow(new WorkflowDefinitionException("broken"));
+
+        assertFalse(serialize(this.fixture.session().getNode("/box")).containsKey("@creatable"));
+    }
+
+    @Test
+    void listsNothingWhenTheEngineFailsUnexpectedly() throws Exception
+    {
+        Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.any()))
+            .thenThrow(new IllegalStateException("the engine's session was closed"));
 
         assertFalse(serialize(this.fixture.session().getNode("/box")).containsKey("@creatable"));
     }

@@ -187,6 +187,24 @@ class WorkflowVersionTest
     }
 
     @Test
+    void listsTheActivitiesOneHandlerPerforms()
+    {
+        final WorkflowVersion version = this.createGraph();
+        this.context.create().resource(VERSION_PATH + "/tag_1", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, "elementId", "tag_1", "handler", "addTag"));
+        this.context.create().resource(VERSION_PATH + "/update_1", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, "elementId", "update_1", "handler", "updateContent"));
+        this.context.create().resource(VERSION_PATH + "/tag_2", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, "elementId", "tag_2", "handler", "addTag"));
+
+        assertEquals(List.of("tag_1", "tag_2"), elementIds(version.getActivities("addTag")));
+        assertEquals(List.of("update_1"), elementIds(version.getActivities("updateContent")));
+        // No handler performs the user task, nor the events and the gateway, which are no activities
+        assertEquals(List.of("task_1"), elementIds(version.getActivities(null)));
+        assertTrue(version.getActivities("startWorkflow").isEmpty());
+    }
+
+    @Test
     void findsFlowNodesByElementId()
     {
         final WorkflowVersion version = this.createGraph();
@@ -273,6 +291,17 @@ class WorkflowVersionTest
         this.context.create().resource(VERSION_PATH + "/end_1", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, "elementId", "end_1"));
         return resource.adaptTo(WorkflowVersion.class);
+    }
+
+    /**
+     * Names flow nodes by their element identifiers, so a failed comparison says which nodes were listed.
+     *
+     * @param nodes the nodes to name
+     * @return their element identifiers, in order
+     */
+    private static List<String> elementIds(final List<? extends FlowNode> nodes)
+    {
+        return nodes.stream().map(FlowNode::getElementId).toList();
     }
 
     /**

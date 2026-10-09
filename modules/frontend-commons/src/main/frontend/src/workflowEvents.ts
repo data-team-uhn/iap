@@ -28,7 +28,8 @@ import type { AuthenticatedFetch } from "./reLogin";
 // The parameters go as a form, or as the FormData given, for an event that brings a file.
 //
 // Resolves with the path of what the event created, when it created something: the engine answers
-// with a redirect, which fetch has already followed.
+// with a redirect, which fetch has already followed. The path is given as the repository names it,
+// not percent-encoded as the URL has it, so it compares with the `@path` the serialization gives.
 export async function sendEvent(
   doFetch: AuthenticatedFetch,
   path: string,
@@ -45,7 +46,7 @@ export async function sendEvent(
     throw new Error(describeRequestFailure(error));
   }
   if (response.redirected) {
-    return new URL(response.url).pathname;
+    return decodeURIComponent(new URL(response.url).pathname);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: unknown };

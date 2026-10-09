@@ -16,16 +16,13 @@
  * limitations under the License.
  */
 
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
 import { WORKFLOWS_ROOT, adminUrl } from "./workflowModel";
 
 // The entity type listed by workflow grids, as registered with the entity grid registry.
 export const WORKFLOW_TYPE = "wf/WorkflowDefinition";
-
-function dateValue(value: unknown): Date | null {
-  return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
-}
 
 // The columns of a workflow listing. Deliberately no "enabled" column: that reads off a workflow's
 // versions, which this listing's definition-node page does not carry.
@@ -57,7 +54,7 @@ const WORKFLOW_COLUMNS: EntityGridColumn[] = [
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
     // The full timestamp shown in the grid is too long for the caption line; the day is enough
-    cardValue: row => dateValue(row["jcr:lastModified"])?.toLocaleDateString(),
+    cardValue: row => dayOf(row["jcr:lastModified"]),
   },
 ];
 

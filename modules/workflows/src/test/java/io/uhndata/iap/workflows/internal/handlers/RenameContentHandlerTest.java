@@ -104,7 +104,7 @@ class RenameContentHandlerTest
     @Test
     void keepsToTheActivitysPattern() throws WorkflowException, PersistenceException, RepositoryException
     {
-        Mockito.when(this.activity.get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
+        Mockito.when(this.activity.get(ContentNames.NAME_PATTERN_PARAMETER, String.class)).thenReturn("^[a-z]+$");
 
         assertThrows(InvalidPayloadException.class, () -> rename("/box/b", "B2"));
         assertEquals("/box/bee", rename("/box/b", "bee"));

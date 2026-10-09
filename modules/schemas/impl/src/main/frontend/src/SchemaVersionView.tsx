@@ -26,10 +26,11 @@ import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 
 import {
-  descriptionOf, type JcrNode, labelOf, nameOf, noticeOf, pathOf, titleOf, versionsOf,
+  descriptionOf, labelOf, nameOf, noticeOf, pathOf, titleOf, versionsOf,
 } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import SchemaVersionTree from "./SchemaVersionTree";
@@ -37,7 +38,7 @@ import { schemaPageUrl } from "./useSchemaList";
 import { useSchemaVersionTree } from "./useSchemaVersionTree";
 
 interface SchemaVersionViewProps {
-  schema: JcrNode;
+  schema: SerializedNode;
   versionName: string;
   // What the schema's own page would say about it, such as that it is retired
   pageNotices: ReactNode;

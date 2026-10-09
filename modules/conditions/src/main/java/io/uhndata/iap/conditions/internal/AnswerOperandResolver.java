@@ -24,6 +24,7 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
@@ -63,8 +64,12 @@ public class AnswerOperandResolver implements OperandResolver
     /** The property holding a question node's declared data type. */
     private static final String DATA_TYPE_PROPERTY = "dataType";
 
-    private static final Pattern UUID_FORMAT = Pattern
-        .compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", Pattern.CASE_INSENSITIVE);
+    /**
+     * An identifier as the repository writes it, in lower case. What depends on a question is found by that spelling
+     * (see {@link AnswerDependencies}), so no other may name it.
+     */
+    private static final Pattern UUID_FORMAT =
+        Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AnswerOperandResolver.class);
 

@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 
-import type { JcrNode } from "./schemaModel";
+const asNode = (node: SerializedNode): SerializedNode => node;
 
-const asNode = (node: JcrNode): JcrNode => node;
-
-// One version with everything in it, and what may be changed, added and removed in each part. The workflow
-// reference stays an identifier: the version's content is what is shown, not the workflow's.
+// One version with everything in it, in order, and what may be changed, added and removed in each part. The
+// workflow reference stays an identifier: the version's content is what is shown, not the workflow's.
 export function useSchemaVersionTree(path: string) {
-  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable", asNode);
+  const { value, loading, loadError, reload } =
+    useNode(path, "deep.-dereference.events.fields.creatable.order", asNode);
   return { tree: value, loading, loadError, reload };
 }

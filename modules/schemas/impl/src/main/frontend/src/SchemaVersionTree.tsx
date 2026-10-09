@@ -26,12 +26,13 @@ import { type SystemStyleObject } from "@mui/system";
 import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
 import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
+import CodePill from "@iap/frontend-commons/components/CodePill";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
-import CodePill from "./CodePill";
 import { offeredOf, schemaSources } from "./conditionModel";
-import { type JcrNode, nameIfAny, nameOf, pathOf } from "./schemaModel";
+import { nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
   MoveMode, MoveSpot, useMoveHighlight,
 } from "./schemaMove";
@@ -56,11 +57,11 @@ function FactChip({ chip, open, onToggle }: { chip: SchemaPartChip; open: boolea
 }
 
 interface PartCardProps {
-  part: JcrNode;
+  part: SerializedNode;
   // What holds it
-  parent: JcrNode;
+  parent: SerializedNode;
   // Every part the parent holds, in order
-  siblings: JcrNode[];
+  siblings: SerializedNode[];
 }
 
 // One requirement, section or question, with what it contains nested inside. Containers start open and
@@ -169,8 +170,8 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
 }
 
 interface PartListProps {
-  parent: JcrNode;
-  parts: JcrNode[];
+  parent: SerializedNode;
+  parts: SerializedNode[];
 }
 
 // A list of parts. While something is moving, it also shows the places between and after them where it may go.
@@ -189,7 +190,7 @@ function PartList({ parent, parts }: PartListProps) {
 }
 
 interface SchemaVersionTreeProps {
-  version: JcrNode;
+  version: SerializedNode;
   reload: () => Promise<void>;
 }
 

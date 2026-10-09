@@ -24,10 +24,11 @@ import { useNavigate } from "react-router";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import NewSchemaVersionDialog from "./NewSchemaVersionDialog";
-import { type JcrNode, lastSegmentOf, latestVersion, nameOf, pathOf } from "./schemaModel";
+import { lastSegmentOf, latestVersion, nameOf, pathOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 import type { SchemaActionProps } from "./SchemaActions";
@@ -35,7 +36,7 @@ import type { SchemaActionProps } from "./SchemaActions";
 interface NewVersionActionProps extends SchemaActionProps {
   label: string;
   // The version it starts as a copy of, unless another is chosen: by default the one made last
-  source?: JcrNode;
+  source?: SerializedNode;
 }
 
 // Adds a version to a schema, empty or as a copy of one of its existing versions, and opens it.

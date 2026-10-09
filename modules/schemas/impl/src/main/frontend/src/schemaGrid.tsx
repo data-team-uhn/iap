@@ -18,9 +18,10 @@
 
 import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { type JcrNode, labelOf, listing, nameOf, SCHEMAS_ROOT, tagsOf, versionsOf } from "./schemaModel";
+import { labelOf, listing, nameOf, SCHEMAS_ROOT, tagsOf, versionsOf } from "./schemaModel";
 import { schemaPageUrl, versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_TYPE = "sch/Schema";
@@ -28,9 +29,9 @@ export const SCHEMA_TYPE = "sch/Schema";
 // The schema a version row belongs to, as the grid's child rows carry it
 export const SCHEMA_OF = "@schema";
 
-const isVersion = (row: JcrNode): boolean => row["jcr:primaryType"] === "sch:SchemaVersion";
+const isVersion = (row: SerializedNode): boolean => row["jcr:primaryType"] === "sch:SchemaVersion";
 
-const versionRows = (row: JcrNode): JcrNode[] =>
+const versionRows = (row: SerializedNode): SerializedNode[] =>
   versionsOf(row).map(version => ({ ...version, title: `Version ${labelOf(version)}`, [SCHEMA_OF]: row }));
 
 // On a phone, a schema's card leads with its title and lifecycle tags, the day it last changed under them, and
@@ -65,6 +66,6 @@ registerEntityType(SCHEMA_TYPE, {
   children: { selectors: listing(1), rows: versionRows, treeField: "title",
     countLabel: count => (count === 1 ? "1 version" : `${count} versions`) },
   rowLink: row => (isVersion(row)
-    ? versionPageUrl(nameOf(row[SCHEMA_OF] as JcrNode), nameOf(row))
+    ? versionPageUrl(nameOf(row[SCHEMA_OF] as SerializedNode), nameOf(row))
     : schemaPageUrl(nameOf(row))),
 });

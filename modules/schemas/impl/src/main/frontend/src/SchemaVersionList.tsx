@@ -25,8 +25,9 @@ import { useNavigate } from "react-router";
 import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { createdOf, type JcrNode, labelOf, nameOf, versionsOf } from "./schemaModel";
+import { createdOf, labelOf, nameOf, versionsOf } from "./schemaModel";
 import SchemaVersionActions from "./SchemaVersionActions";
 import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 import { comparisonPageUrl } from "./useSchemaList";
@@ -34,7 +35,7 @@ import { comparisonPageUrl } from "./useSchemaList";
 // A schema's versions, with where each stands and what can be done with it. The schema's page has already read
 // them, so the grid lists them without fetching. Any two can be picked and compared.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
-  schema: JcrNode;
+  schema: SerializedNode;
   reload: () => void;
   // The rules choosing what a version is compared with by default
   comparisonDefaults: string[];

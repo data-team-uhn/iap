@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
@@ -41,10 +42,6 @@ export function faultLabel(row: Record<string, unknown>): string {
     return problem;
   }
   return simpleName(row.type);
-}
-
-function dateValue(value: unknown): Date | null {
-  return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
 const ERROR_COLUMNS: EntityGridColumn[] = [
@@ -110,7 +107,7 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
     // The full timestamp is too long for the caption line; the day is enough there
-    cardValue: row => dateValue(row.lastOccurrence)?.toLocaleDateString(),
+    cardValue: row => dayOf(row.lastOccurrence),
   },
   {
     field: "jcr:created",

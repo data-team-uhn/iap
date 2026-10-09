@@ -21,13 +21,14 @@ import { useContext } from "react";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode, pathOf } from "./schemaModel";
+import { pathOf } from "./schemaModel";
 import { ReloadTree } from "./schemaTree";
 
 // Moves a part or an answer option of a draft to the archive, when the server offers it
-function SchemaNodeDiscardAction({ node, what }: { node: JcrNode; what: string }) {
+function SchemaNodeDiscardAction({ node, what }: { node: SerializedNode; what: string }) {
   const reload = useContext(ReloadTree);
   if (!offers(node, "discard")) {
     return null;

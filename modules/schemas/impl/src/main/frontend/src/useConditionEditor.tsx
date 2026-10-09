@@ -19,11 +19,11 @@
 import { type ReactNode, useState } from "react";
 
 import ConditionDialog from "@iap/conditions/ConditionDialog";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
 import { questionsFor } from "./conditionModel";
 import QuestionPicker from "./QuestionPicker";
-import { type JcrNode } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { useTreeEvent } from "./schemaTree";
 import { conditionOf } from "./schemaVersionTreeModel";
@@ -40,7 +40,7 @@ export interface ConditionEditor {
 // Sets when a part applies. Its condition is built from the answers to the version's other questions, how a
 // submission is tagged, and its properties, and is written whole in one event. A card opens the dialog from its
 // actions, and from the line saying when the part applies.
-export function useConditionEditor(node: JcrNode, what: string): ConditionEditor {
+export function useConditionEditor(node: SerializedNode, what: string): ConditionEditor {
   const [ editing, setEditing ] = useState(false);
   const { index, offered } = useVersionConditions();
   const { moving } = useMoveMode();

@@ -80,7 +80,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
         final List<ContentFields.Description> described = ContentFields.describedBy(context.getActivity());
         if (described.isEmpty()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " must list the " + ContentFields.FIELDS + " a patch may change");
+                + " must list the " + ContentFields.FIELDS_CHILD + " a patch may change");
         }
         final Resource host = ExecutionHost.of(context);
         final Node node = Nodes.of(host);
@@ -140,7 +140,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
                     changes.put(field, List.of());
                 }
             } else if (field.mandatory() && !changes.containsKey(field) && !node.hasProperty(field.name())) {
-                // Content just created has none of its mandatory fields yet
+                // Content just created has only the mandatory fields its type gives a default; the rest must be given
                 throw new InvalidPayloadException(field.name() + " cannot be empty");
             }
         }

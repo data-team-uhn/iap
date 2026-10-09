@@ -18,7 +18,6 @@
 
 import {
   applicableFields, applies, blockingFields, candidateOf, changesOf, type ContentField, creatableOf, fieldsOf,
-  firstValueOf,
   initialValue, initialValues, isValid, newContentOf, patchValueOf, referenceQuery,
 } from "@iap/frontend-commons/fields/fieldsModel";
 
@@ -131,6 +130,7 @@ describe("patchValueOf", () => {
     expect(patchValueOf(COUNT, "99999999999999999999")).toBeUndefined();
     expect(patchValueOf(BOUND, "many")).toBeUndefined();
     expect(patchValueOf(BOUND, "Infinity")).toBeUndefined();
+    expect(patchValueOf(BOUND, "0x10")).toBeUndefined();
     expect(isValid(COUNT, "x")).toBe(false);
     expect(isValid(COUNT, "")).toBe(true);
   });
@@ -195,13 +195,9 @@ describe("references", () => {
     expect(candidateOf({ "@path": "/Elsewhere/v1" }, "/Workflows")).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ "@path": "/Elsewhere/v1" })).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ title: "No path" })).toBeUndefined();
-  });
-});
-
-describe("firstValueOf", () => {
-  it("reads what the first field holds, if there is a first field", () => {
-    expect(firstValueOf([ TITLE, COUNT ], { title: "Age", maxAnswers: 2 })).toBe("Age");
-    expect(firstValueOf([], { title: "Age" })).toBeUndefined();
+    // What a reference stored as an identifier names it by
+    expect(candidateOf({ "@path": "/Workflows/fast/v2", "jcr:uuid": "uuid-fast", "title": "Fast track" }))
+      .toEqual({ path: "/Workflows/fast/v2", label: "Fast track", identifier: "uuid-fast" });
   });
 });
 

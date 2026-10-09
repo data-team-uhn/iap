@@ -32,12 +32,14 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
  * Adds {@code @order} to a node whose type keeps its children in order. It lists the names of the children, in that
- * order. Where the order of the children matters, as for the options of a question, a reader takes it from here, not
- * from the order of the keys. The name of this processor is {@code order}.
+ * order. Where the order of the children matters, as for the parts of a schema version and the options of a question, a
+ * reader takes it from here, not from the order of the keys. The name of this processor is {@code order}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -63,7 +65,9 @@ public class OrderProcessor implements ResourceJsonProcessor
     public void leave(final Node node, final JsonObjectBuilder json,
         final Function<Node, JsonValue> serializeNode)
     {
+        String path = null;
         try {
+            path = node.getPath();
             if (!node.getPrimaryNodeType().hasOrderableChildNodes()) {
                 return;
             }
@@ -75,6 +79,7 @@ public class OrderProcessor implements ResourceJsonProcessor
         } catch (final RepositoryException e) {
             // Not fatal: the node is serialized without @order
             LOGGER.warn("Could not list the children of {} in order: {}", node, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave").about(path));
         }
     }
 }

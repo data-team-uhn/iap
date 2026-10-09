@@ -19,8 +19,9 @@
 import { diffArrays } from "diff";
 
 import { compareFields, type FieldDifference } from "@iap/frontend-commons/diff/contentDiffModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { type JcrNode, nameOf } from "./schemaModel";
+import { nameOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, partsOf, resourceTypeOf } from "./schemaVersionTreeModel";
 
 // What changed between two versions of a schema, as one outline of one version, with what the other held put back
@@ -45,8 +46,8 @@ export interface ComparisonSettings {
   optionFields: NamedField[];
   // A part's condition, in the version it is in
   conditionOf: {
-    before: (part: JcrNode) => ConditionSaid | undefined;
-    after: (part: JcrNode) => ConditionSaid | undefined;
+    before: (part: SerializedNode) => ConditionSaid | undefined;
+    after: (part: SerializedNode) => ConditionSaid | undefined;
   };
 }
 
@@ -96,12 +97,12 @@ export interface VersionComparison {
 }
 
 interface Placed {
-  node: JcrNode;
-  parent: JcrNode;
+  node: SerializedNode;
+  parent: SerializedNode;
   path: string;
 }
 
-const placesOf = (holder: JcrNode, path = ""): Placed[] => partsOf(holder).flatMap(part => {
+const placesOf = (holder: SerializedNode, path = ""): Placed[] => partsOf(holder).flatMap(part => {
   const at = `${path}/${nameOf(part)}`;
   return [ { node: part, parent: holder, path: at }, ...placesOf(part, at) ];
 });
@@ -127,7 +128,7 @@ function withRemoved<T, K>(listed: { item: T; old?: K }[], before: K[], gone: (o
 }
 
 // The fields that differ between two snapshots, each by the name it is edited under
-const differencesOf = (old: JcrNode, node: JcrNode, fields: NamedField[]): LabelledDifference[] =>
+const differencesOf = (old: SerializedNode, node: SerializedNode, fields: NamedField[]): LabelledDifference[] =>
   fields.flatMap(field => compareFields(old, node, [ field.name ])
     .map(difference => ({ ...difference, label: field.label })));
 
@@ -144,12 +145,13 @@ const summarized = (parts: PartComparison[], summary: ComparisonSummary): Compar
 // identifier alone, when exactly one unmatched part of its type goes by it in each version. That part moved. A part
 // of another type is another part. An option is matched by its name among its question's options, so that an edited
 // value shows as an edited option.
-export function compareVersions(before: JcrNode, after: JcrNode, settings: ComparisonSettings): VersionComparison {
+export function compareVersions(before: SerializedNode, after: SerializedNode,
+  settings: ComparisonSettings): VersionComparison {
   const olds = placesOf(before);
   const news = placesOf(after);
-  const matched = new Map<JcrNode, Placed>();
-  const taken = new Set<JcrNode>();
-  const match = (node: JcrNode, old: Placed) => {
+  const matched = new Map<SerializedNode, Placed>();
+  const taken = new Set<SerializedNode>();
+  const match = (node: SerializedNode, old: Placed) => {
     matched.set(node, old);
     taken.add(old.node);
   };
@@ -173,9 +175,9 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
     }
   });
 
-  const optionOf = (change: Change, option: JcrNode, fields: LabelledDifference[] = [], reordered = false) =>
+  const optionOf = (change: Change, option: SerializedNode, fields: LabelledDifference[] = [], reordered = false) =>
     ({ name: nameOf(option), label: optionLabelOf(option), change, reordered, fields });
-  const compareOptions = (question?: JcrNode, old?: JcrNode): OptionComparison[] => {
+  const compareOptions = (question?: SerializedNode, old?: SerializedNode): OptionComparison[] => {
     const previous = old ? optionsOf(old) : [];
     const current = question ? optionsOf(question) : [];
     const oldByName = new Map(previous.map(option => [ nameOf(option), option ]));
@@ -196,11 +198,12 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
     return withRemoved(listed, previous, option => !names.has(nameOf(option)), option => optionOf("removed", option));
   };
 
-  const part = (node: JcrNode, change: Change, parts: PartComparison[], options: OptionComparison[]): PartComparison =>
+  const part = (node: SerializedNode, change: Change, parts: PartComparison[],
+    options: OptionComparison[]): PartComparison =>
     ({ name: nameOf(node), type: resourceTypeOf(node), heading: headingOf(node), change, reordered: false,
       fields: [], options, parts });
   // The fields and condition of an added or removed part, but not its heading, which the outline shows already
-  const saidOf = (node: JcrNode, side: "before" | "after") => {
+  const saidOf = (node: SerializedNode, side: "before" | "after") => {
     const others = side === "before" ? [ node, {} ] : [ {}, node ];
     const said = settings.conditionOf[side](node);
     return {
@@ -209,15 +212,15 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
       ...said?.words === undefined ? {} : { condition: { [side]: said.words } },
     };
   };
-  const removedPart = (node: JcrNode): PartComparison => ({
+  const removedPart = (node: SerializedNode): PartComparison => ({
     ...part(node, "removed", partsOf(node).filter(child => !taken.has(child)).map(removedPart),
       compareOptions(undefined, node)),
     ...saidOf(node, "before"),
   });
-  const holderName = (holder: JcrNode) => (holder === before ? null : headingOf(holder));
+  const holderName = (holder: SerializedNode) => (holder === before ? null : headingOf(holder));
 
   // What a part of `after` holds, compared with what its counterpart held, if it has one
-  const compareChildren = (holder: JcrNode, oldHolder?: JcrNode): PartComparison[] => {
+  const compareChildren = (holder: SerializedNode, oldHolder?: SerializedNode): PartComparison[] => {
     const listed = partsOf(holder).map(child => {
       const old = matched.get(child);
       return old ? { item: comparePart(child, old, oldHolder), old: old.node } : { item: addedPart(child) };
@@ -233,9 +236,9 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
     });
     return withRemoved(listed, partsOf(oldHolder), child => !taken.has(child), removedPart);
   };
-  const addedPart = (node: JcrNode): PartComparison =>
+  const addedPart = (node: SerializedNode): PartComparison =>
     ({ ...part(node, "added", compareChildren(node), compareOptions(node)), ...saidOf(node, "after") });
-  const comparePart = (node: JcrNode, old: Placed, oldHolder?: JcrNode): PartComparison => {
+  const comparePart = (node: SerializedNode, old: Placed, oldHolder?: SerializedNode): PartComparison => {
     const fields = differencesOf(old.node, node, settings.partFields);
     const [ was, is ] = [ settings.conditionOf.before(old.node), settings.conditionOf.after(node) ];
     const condition = was?.key === is?.key ? undefined : { before: was?.words, after: is?.words };

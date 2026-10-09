@@ -18,7 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import CodePill from "@iap/schemas/CodePill";
+import CodePill from "@iap/frontend-commons/components/CodePill";
 
 // Sets how wide the pill's text is and how wide the pill may be, since jsdom lays nothing out
 const widths = (scroll: number, client: number) => {

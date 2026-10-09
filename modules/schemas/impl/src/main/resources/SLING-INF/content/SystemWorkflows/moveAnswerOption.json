@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/AnswerOption",
-    "description": "Moves an answer option of a draft version among a question's options in that version.",
+    "description": "Moves an answer option of a draft version among its question's options.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -38,8 +38,7 @@
       "elementId": "move",
       "label": "Move the option",
       "handler": "moveContent",
-      "within": "sch/SchemaVersion",
-      "orderProperty": "defaultOrder",
+      "within": "sch/Question",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

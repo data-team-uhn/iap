@@ -23,11 +23,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { InputAdornment, Stack, TextField, Typography } from "@mui/material";
 
+import CodePill from "@iap/frontend-commons/components/CodePill";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
-
-import CodePill from "./CodePill";
 
 interface SchemaNodeIdentifierProps {
   name: string;

@@ -21,37 +21,26 @@ import { useEffect, useState } from "react";
 import { Autocomplete, TextField } from "@mui/material";
 
 import { useAuthenticatedFetch } from "../reLogin";
-import { describeRequestFailure, RequestError } from "../requestFailure";
-import {
-  candidateOf, type ContentField, type ReferenceCandidate, referenceQuery, type SerializedNode,
-} from "./fieldsModel";
+import { describeRequestFailure } from "../requestFailure";
+import { type ContentField, type ReferenceCandidate } from "./fieldsModel";
+import { readCandidates } from "./referenceCandidates";
 
 // The nodes a reference field may point at, read once, sorted by what they are offered as
 function useCandidates(field: ContentField) {
   const doFetch = useAuthenticatedFetch();
   const [ candidates, setCandidates ] = useState<ReferenceCandidate[]>([]);
   const [ loadError, setLoadError ] = useState<string>();
-  const query = referenceQuery(field);
-  const root = field.referenceRoot;
+  const { referenceType, referenceRoot } = field;
 
   useEffect(() => {
-    if (!query) {
+    if (!referenceType) {
       return;
     }
     let current = true;
-    doFetch(`/search.json?${new URLSearchParams({ query, limit: "1000" }).toString()}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
-        }
-        return response.json() as Promise<{ rows?: SerializedNode[] }>;
-      })
-      .then(result => {
+    readCandidates(doFetch, { referenceType, referenceRoot })
+      .then(found => {
         if (current) {
-          setCandidates((result.rows ?? [])
-            .map(row => candidateOf(row, root))
-            .filter((candidate): candidate is ReferenceCandidate => candidate !== undefined)
-            .sort((a, b) => a.label.localeCompare(b.label)));
+          setCandidates(found);
         }
       })
       .catch((error: unknown) => {
@@ -62,7 +51,7 @@ function useCandidates(field: ContentField) {
     return () => {
       current = false;
     };
-  }, [ doFetch, query, root ]);
+  }, [ doFetch, referenceType, referenceRoot ]);
 
   return { candidates, loadError };
 }

@@ -19,9 +19,10 @@
 import { createContext, useCallback, useContext } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode, pathOf } from "./schemaModel";
+import { pathOf } from "./schemaModel";
 
 // How a change made anywhere in a version's tree re-reads the tree
 export const ReloadTree = createContext<() => void | Promise<void>>(() => undefined);
@@ -31,7 +32,7 @@ export const ReloadTree = createContext<() => void | Promise<void>>(() => undefi
 export function useTreeEvent() {
   const doFetch = useAuthenticatedFetch();
   const reload = useContext(ReloadTree);
-  return useCallback(async (node: JcrNode | string, event: string, params?: Record<string, string>) => {
+  return useCallback(async (node: SerializedNode | string, event: string, params?: Record<string, string>) => {
     const path = await sendEvent(doFetch, typeof node === "string" ? node : pathOf(node), event, params);
     await reload();
     return path;
