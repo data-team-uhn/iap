@@ -30,10 +30,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.schemas.models.AssessmentCriteria;
+import io.uhndata.iap.schemas.models.Topic;
 
 /**
- * A Sling Model wrapping a {@code sub:Assessment} node: one assessment of a single schema {@link AssessmentCriteria},
+ * A Sling Model wrapping a {@code sub:Assessment} node: one assessment of a single schema {@link Topic},
  * in a reviewer's {@link Review} or in the AI's {@link Screening}.
  *
  * @version $Id$
@@ -47,7 +47,7 @@ public class Assessment extends EntityPart
     public static final String RESOURCE_TYPE = "sub/Assessment";
 
     @ValueMapValue
-    private String assessmentCriteria;
+    private String topic;
 
     @ValueMapValue
     private String value;
@@ -62,18 +62,18 @@ public class Assessment extends EntityPart
     private Double confidence;
 
     /**
-     * The criteria this assesses.
+     * The topic this assesses.
      *
-     * @return the criteria, or {@code null} if not set or unresolvable
+     * @return the topic, or {@code null} if not set or unresolvable
      */
     @Nullable
-    public AssessmentCriteria getAssessmentCriteria()
+    public Topic getTopic()
     {
-        return this.getReference(this.assessmentCriteria, AssessmentCriteria.class);
+        return this.getReference(this.topic, Topic.class);
     }
 
     /**
-     * Whether the reviewer has looked at the criteria for this assessment.
+     * Whether the reviewer has looked at the topic for this assessment.
      *
      * @return the assessment, or {@code null} if not yet assessed
      */
@@ -124,7 +124,7 @@ public class Assessment extends EntityPart
     }
 
     /**
-     * The comments raised about these criteria, the AI's concerns among them, in the order they were raised.
+     * The comments raised about this topic, the AI's concerns among them, in the order they were raised.
      *
      * @return a list of comments, empty if none
      */

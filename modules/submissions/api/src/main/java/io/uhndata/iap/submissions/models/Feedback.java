@@ -82,7 +82,7 @@ public abstract class Feedback extends EntityPart implements Referenceable
     }
 
     /**
-     * The assessments of the criteria the approval requirement lists, in the order they were added.
+     * The assessments of the topics the approval requirement lists, in the order they were added.
      *
      * @return a list of assessments, empty if none
      */

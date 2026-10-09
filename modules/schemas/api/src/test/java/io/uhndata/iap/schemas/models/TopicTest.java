@@ -44,15 +44,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link AssessmentCriteria}.
+ * Unit tests for {@link Topic}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class AssessmentCriteriaTest
+class TopicTest
 {
-    private static final String CRITERIA_PATH = "/Schemas/schema/1.0/reb/privacy";
+    private static final String TOPIC_PATH = "/Schemas/schema/1.0/reb/privacy";
 
     private static final String QUESTION_PATH = "/Schemas/schema/1.0/form/q1";
 
@@ -69,30 +69,30 @@ class AssessmentCriteriaTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, AssessmentCriteria.class, Question.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Topic.class, Question.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource(CRITERIA_PATH,
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(AssessmentCriteria.class));
+        final Resource resource = this.context.create().resource(TOPIC_PATH,
+            "sling:resourceType", Topic.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(Topic.class));
     }
 
     @Test
     void exposesItsProperties()
     {
-        final Resource resource = this.context.create().resource(CRITERIA_PATH, Map.of(
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource(TOPIC_PATH, Map.of(
+            "sling:resourceType", Topic.RESOURCE_TYPE,
             "text", "Participant privacy",
             "description", "Could a participant be identified?",
             "assessmentPrompt", "Assess the privacy risk to participants"));
-        final AssessmentCriteria criteria = resource.adaptTo(AssessmentCriteria.class);
+        final Topic topic = resource.adaptTo(Topic.class);
 
-        assertEquals("Participant privacy", criteria.getText());
-        assertEquals("Could a participant be identified?", criteria.getDescription());
-        assertEquals("Assess the privacy risk to participants", criteria.getAssessmentPrompt());
+        assertEquals("Participant privacy", topic.getText());
+        assertEquals("Could a participant be identified?", topic.getDescription());
+        assertEquals("Assess the privacy risk to participants", topic.getAssessmentPrompt());
     }
 
     @Test
@@ -114,10 +114,10 @@ class AssessmentCriteriaTest
         Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
-        final Resource resource = this.context.create().resource(CRITERIA_PATH, Map.of(
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource(TOPIC_PATH, Map.of(
+            "sling:resourceType", Topic.RESOURCE_TYPE,
             "sources", new String[]{ REQUIREMENT_ID, GONE_ID, QUESTION_ID }));
-        final List<EntityPart> sources = resource.adaptTo(AssessmentCriteria.class).getSources();
+        final List<EntityPart> sources = resource.adaptTo(Topic.class).getSources();
 
         assertEquals(List.of(REQUIREMENT_PATH, QUESTION_PATH),
             sources.stream().map(EntityPart::getPath).collect(Collectors.toList()));
@@ -126,13 +126,13 @@ class AssessmentCriteriaTest
     @Test
     void toleratesMissingOptionalProperties()
     {
-        final Resource resource = this.context.create().resource(CRITERIA_PATH,
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE);
-        final AssessmentCriteria criteria = resource.adaptTo(AssessmentCriteria.class);
+        final Resource resource = this.context.create().resource(TOPIC_PATH,
+            "sling:resourceType", Topic.RESOURCE_TYPE);
+        final Topic topic = resource.adaptTo(Topic.class);
 
-        assertNotNull(criteria);
-        assertNull(criteria.getDescription());
-        assertNull(criteria.getAssessmentPrompt());
-        assertTrue(criteria.getSources().isEmpty());
+        assertNotNull(topic);
+        assertNull(topic.getDescription());
+        assertNull(topic.getAssessmentPrompt());
+        assertTrue(topic.getSources().isEmpty());
     }
 }

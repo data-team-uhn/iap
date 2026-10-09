@@ -57,11 +57,11 @@ public class ApprovalRequirement extends Requirement
     /**
      * What the approvers want assessed, in the order it is listed.
      *
-     * @return a list of assessment criteria, empty if none
+     * @return a list of topics, empty if none
      */
     @NotNull
-    public List<AssessmentCriteria> getAssessmentCriteria()
+    public List<Topic> getTopics()
     {
-        return this.getChildren(AssessmentCriteria.RESOURCE_TYPE, AssessmentCriteria.class);
+        return this.getChildren(Topic.RESOURCE_TYPE, Topic.class);
     }
 }
