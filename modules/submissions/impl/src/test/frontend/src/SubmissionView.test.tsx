@@ -430,7 +430,7 @@ describe("SubmissionView", () => {
       description: "The full protocol, signed",
       required: true,
       acceptedFileTypes: ["application/pdf"],
-      attached: [] as string[],
+      attached: [],
     };
 
     function formResponse(form: unknown) {

@@ -191,6 +191,8 @@ describe("SubmissionEditor", () => {
       attached: [],
     };
 
+    const NOTE_FILE = { title: "note.pdf", path: "/Submissions/x/d1/v1/file/uploadedFile" };
+
     function asked(note: Partial<DocumentRequirement> = {}, overrides: Partial<SubmissionForm> = {}) {
       return form({ requirements: [ { ...NOTE, ...note } ], ...overrides });
     }
@@ -199,57 +201,57 @@ describe("SubmissionEditor", () => {
       return new File([ "%PDF" ], name, { type });
     }
 
-    it("offers to attach a file, with the types it takes and the template to start from", async () => {
+    it("offers to attach a file, with the types it takes and nothing else", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
       render(<SubmissionEditor path={PATH} />);
 
       const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
       expect(input).toHaveAttribute("accept", "application/pdf,image/png");
-      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Download the template" }))
-        .toHaveAttribute("href", "/Schemas/timeOffRequest/v1/doctorsNote/template");
-      expect(screen.getByRole("link", { name: "Download the template" }))
-        .toHaveAttribute("download", "Doctor's note.docx");
+      expect(screen.queryByText(/Nothing attached yet/)).toBeNull();
+      expect(screen.queryByRole("link")).toBeNull();
     });
 
-    it("says nothing about types or a template where the requirement offers none", async () => {
-      vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [], template: undefined })));
+    it("says nothing about types where the requirement names none", async () => {
+      vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [] })));
 
       render(<SubmissionEditor path={PATH} />);
 
       expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
-      expect(screen.queryByRole("link", { name: "Download the template" })).toBeNull();
-    });
-
-    it("says skipping it is allowed when the form says so", async () => {
-      vi.stubGlobal("fetch", serving(asked({ required: false })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText("Nothing attached yet — optional")).toBeInTheDocument();
     });
 
     it("names what is already there, so a form reopened later does not look untouched", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.pdf" ] })));
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
       render(<SubmissionEditor path={PATH} />);
 
-      expect(await screen.findByText("Attached: note.pdf")).toBeInTheDocument();
+      const link = await screen.findByRole("link", { name: "note.pdf" });
+      expect(link).toHaveAttribute("href", NOTE_FILE.path);
+      expect(link).toHaveAttribute("download", "note.pdf");
       expect(screen.queryByText("Nothing attached yet")).toBeNull();
     });
 
-    it("offers to replace what is already there", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.pdf" ] })));
+    it("names an attachment with no file yet without linking it", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ { title: "note.pdf" } ] })));
 
       render(<SubmissionEditor path={PATH} />);
 
-      expect(await screen.findByLabelText(/Replace the file for "Doctor's note"/)).toBeInTheDocument();
+      expect(await screen.findByText(/note\.pdf/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
+    });
+
+    it("offers only removal while a file is attached", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByRole("button", { name: "Remove" })).toBeInTheDocument();
       expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+      expect(screen.queryByLabelText(/Replace the file/)).toBeNull();
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {
-      const fetchMock = serving(asked(), asked({ attached: [ "note.pdf" ] }));
+      const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} />);
@@ -265,7 +267,47 @@ describe("SubmissionEditor", () => {
       // No Content-Type of our own: only the browser knows the multipart boundary it generated
       expect(init.headers).toBeUndefined();
       // What the server now says is attached, rather than what this page hoped
-      expect(await screen.findByText("Attached: note.pdf")).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
+    });
+
+    it("removes an attached file as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked());
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+
+      const detach = fetchMock.mock.calls.find(call => call[0] === `${PATH}.detachDocument.json`);
+      expect(detach).toBeDefined();
+      const init = detach![1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect((init.body as URLSearchParams).get("requirement")).toBe("doctorsNote");
+      expect(await screen.findByLabelText(/Attach a file/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
+    });
+
+    it("does not offer to remove a file from a request that can no longer be changed", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] }, { editable: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByRole("button", { name: "Remove" })).toBeDisabled();
+    });
+
+    it("says why a file could not be removed", async () => {
+      let refusal: unknown = { error: "This request is already sent" };
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? json(refusal, { ok: false, status: 409 })
+          : json(asked({ attached: [ NOTE_FILE ] }))));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+      expect(await screen.findByText("This request is already sent")).toBeInTheDocument();
+
+      refusal = {};
+      await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+      expect(await screen.findByText("This file could not be removed (409)")).toBeInTheDocument();
     });
 
     it("says why the engine refused a file, in the engine's own words", async () => {

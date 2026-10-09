@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -51,6 +52,8 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.UserIds;
 
@@ -80,6 +83,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String NAME_KEY = "name";
 
     private static final String PATH_KEY = "path";
+
+    private static final String TITLE_KEY = "title";
 
     private static final String LABEL_KEY = "label";
 
@@ -146,7 +151,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
         return Json.createObjectBuilder()
             .add(PATH_KEY, submission.getPath())
-            .add("title", Objects.toString(submission.getTitle(), ""))
+            .add(TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
@@ -217,9 +222,26 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final JsonArrayBuilder attached = Json.createArrayBuilder();
         documents.stream()
             .filter(document -> document.isFulfilling(requirement))
-            .map(document -> Objects.toString(document.getTitle(), document.getName()))
+            .map(this::describeAttachment)
             .forEach(attached::add);
         json.add(ATTACHED_KEY, attached);
+    }
+
+    /**
+     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     *
+     * @param document the attached document
+     * @return the document's JSON, without a path when no file has landed yet
+     */
+    private JsonObjectBuilder describeAttachment(final Document document)
+    {
+        final JsonObjectBuilder json = Json.createObjectBuilder()
+            .add(TITLE_KEY, Objects.toString(document.getTitle(), document.getName()));
+        Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(File::getUploadedFile)
+            .ifPresent(file -> json.add(PATH_KEY, file.getPath()));
+        return json;
     }
 
     /**

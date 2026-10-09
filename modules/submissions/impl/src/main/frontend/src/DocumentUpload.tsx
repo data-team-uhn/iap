@@ -16,15 +16,21 @@
  * limitations under the License.
  */
 
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, Fragment, useEffect, useState } from "react";
 
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
-import { type DocumentRequirement, attachDocument, describeNothingAttached } from "./submissionForm";
+import {
+  type DocumentRequirement,
+  attachDocument,
+  detachDocument,
+  toFileUrl
+} from "./submissionForm";
 
 // Taken out of the page without being taken out of the document: the file input is the real control,
 // so it has to remain focusable and nameable. `hidden` or `display: none` would drop it out of the
@@ -46,8 +52,7 @@ export interface DocumentUploadProps {
   onAttached: () => void;
 }
 
-// Answering a document requirement: what has been attached for it, the template it offers if any,
-// and a way to attach a file.
+// Answering a document requirement: what has been attached for it, and a way to attach a file.
 function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -66,10 +71,11 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     return () => window.removeEventListener("beforeunload", warn);
   }, [busy]);
 
-  const upload = (file: File) => {
+  // Both reload the form on success, since what it asks and what is attached may have changed
+  const run = (change: () => Promise<void>) => {
     setBusy(true);
     setFailure(undefined);
-    attachDocument(doFetch, path, requirement.name, file).then(
+    change().then(
       () => {
         setBusy(false);
         onAttached();
@@ -82,46 +88,60 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     );
   };
 
+  const upload = (file: File) => run(() => attachDocument(doFetch, path, requirement.name, file));
+  const remove = () => run(() => detachDocument(doFetch, path, requirement.name));
+
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
       {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
       {attached.length > 0
-        ? <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
+        ? (
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <Typography variant="body2">
+              {"Attached: "}
+              {attached.map((document, index) => (
+                <Fragment key={document.path ?? document.title}>
+                  {index > 0 ? ", " : null}
+                  {document.path
+                    ? <Link href={toFileUrl(document.path)} download={document.title}>{document.title}</Link>
+                    : document.title}
+                </Fragment>
+              ))}
+            </Typography>
+            <Button size="small" color="inherit" startIcon={<DeleteIcon />} disabled={disabled || busy} onClick={remove}>
+              Remove
+            </Button>
+          </Stack>
+        )
         : (
-          <Typography variant="placeholder">
-            {describeNothingAttached(requirement)}
-          </Typography>
+          // Only offered while nothing is attached: a wrong file is removed first, then attached again
+          <Button
+            component="label"
+            size="small"
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            disabled={disabled || busy}
+          >
+            {`Attach a file for "${requirement.label || requirement.name}"`}
+            <Box
+              component="input"
+              type="file"
+              sx={OFFSCREEN}
+              // Only a hint for the file dialog. The server checks the type
+              accept={accepted.length > 0 ? accepted.join(",") : undefined}
+              disabled={disabled || busy}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  upload(file);
+                }
+                // Cleared so that picking the same file again is still a change. Without this, one
+                // failed upload cannot be retried with the file that failed.
+                event.target.value = "";
+              }}
+            />
+          </Button>
         )}
-      {requirement.template
-        ? <Link href={requirement.template} download={requirement.templateName ?? true}>Download the template</Link>
-        : null}
-      <Button
-        component="label"
-        size="small"
-        variant="outlined"
-        startIcon={<UploadIcon />}
-        disabled={disabled || busy}
-      >
-        {/* Uploading again adds a new version of the same document */}
-        {`${attached.length > 0 ? "Replace the file" : "Attach a file"} for "${requirement.label || requirement.name}"`}
-        <Box
-          component="input"
-          type="file"
-          sx={OFFSCREEN}
-          // Only a hint for the file dialog. The server checks the type
-          accept={accepted.length > 0 ? accepted.join(",") : undefined}
-          disabled={disabled || busy}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              upload(file);
-            }
-            // Cleared so that picking the same file again is still a change. Without this, one
-            // failed upload cannot be retried with the file that failed.
-            event.target.value = "";
-          }}
-        />
-      </Button>
     </Stack>
   );
 }

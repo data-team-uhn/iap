@@ -45,7 +45,8 @@ import {
   type SubmissionForm,
   describeNothingAttached,
   fetchForm,
-  isDocumentRequirement
+  isDocumentRequirement,
+  toFileUrl
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 
@@ -75,12 +76,6 @@ function formatValue(value: unknown): string {
   }
   // Anything else (nested objects, missing values) has no meaningful text form
   return ["string", "number"].includes(typeof value) ? String(value) : "";
-}
-
-// A repository path plus a file name as a usable URL. Every segment is percent-encoded, so names
-// containing #, ? or % survive as path characters instead of being parsed as syntax
-function fileHref(path: unknown, name: string): string {
-  return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
 
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
@@ -151,7 +146,7 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
       <Typography variant="subtitle2">
         {/* The stored file is always called `uploadedFile`, so the download is named after the title */}
         {file
-          ? <Link href={fileHref(file["@path"], "uploadedFile")} download={title}>{title}</Link>
+          ? <Link href={toFileUrl(`${String(file["@path"])}/uploadedFile`)} download={title}>{title}</Link>
           : title}
         {fulfills ? ` — fulfills "${fulfills}"` : ""}
       </Typography>

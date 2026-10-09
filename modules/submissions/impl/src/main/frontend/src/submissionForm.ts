@@ -95,9 +95,20 @@ export interface DocumentRequirement extends Requirement {
   template?: string;
   // The name to save the template under, since its node is always called `template`
   templateName?: string;
-  // What has been attached already, by title. Present so that reopening the form shows a document
-  // that is there rather than an empty control implying it is not.
-  attached: string[];
+  // What has been attached already. Present so that reopening the form shows a document that is
+  // there rather than an empty control implying it is not.
+  attached: AttachedDocument[];
+}
+
+// A document attached for a requirement. The path is its newest file's, absent until a file lands.
+export interface AttachedDocument {
+  title: string;
+  path?: string;
+}
+
+// A repository path as a URL. Each segment is percent-encoded, so names with #, ? or % survive.
+export function toFileUrl(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
 export interface SubmissionForm {
@@ -175,5 +186,18 @@ export async function attachDocument(
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
+  }
+}
+
+// Removes the document attached for a requirement, with all its versions, as a `detachDocument` event
+// on the submission.
+export async function detachDocument(
+  doFetch: AuthenticatedFetch, path: string, requirement: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("requirement", requirement);
+  const response = await doFetch(`${path}.detachDocument.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This file could not be removed (${response.status})`);
   }
 }

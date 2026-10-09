@@ -65,6 +65,8 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,7 +121,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, Answer.class, Document.class, Submission.class);
+            Section.class, Question.class, Answer.class, Document.class, DocumentVersion.class, File.class,
+            Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -249,10 +252,30 @@ class SubmissionFormServletTest
             TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
 
-        assertEquals(List.of("note.pdf"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
-            .stream()
-            .map(value -> ((JsonString) value).getString())
-            .collect(Collectors.toList()));
+        final JsonObject attached = requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
+            .getJsonObject(0);
+        assertEquals("note.pdf", attached.getString("title"));
+        // Nothing has been uploaded into it, so there is nothing to download
+        assertFalse(attached.containsKey("path"));
+    }
+
+    @Test
+    void pointsAtTheNewestFileOfAnAttachment() throws IOException
+    {
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d5", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+        for (final String version : List.of("old", "new")) {
+            this.context.create().resource(document.getPath() + "/" + version,
+                Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+            this.context.create().resource(document.getPath() + "/" + version + "/file",
+                Map.of(TYPE, File.RESOURCE_TYPE));
+            this.context.create().resource(document.getPath() + "/" + version + "/file/uploadedFile",
+                Map.of("jcr:primaryType", "nt:file"));
+        }
+
+        assertEquals(document.getPath() + "/new/file/uploadedFile", requirement(form(REQUESTER), "doctorsNote")
+            .getJsonArray("attached").getJsonObject(0).getString("path"));
     }
 
     @Test
@@ -264,9 +287,8 @@ class SubmissionFormServletTest
             TYPE, Document.RESOURCE_TYPE));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
 
-        assertEquals(List.of("d2"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").stream()
-            .map(value -> ((JsonString) value).getString())
-            .collect(Collectors.toList()));
+        assertEquals("d2", requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").getJsonObject(0)
+            .getString("title"));
     }
 
     @Test

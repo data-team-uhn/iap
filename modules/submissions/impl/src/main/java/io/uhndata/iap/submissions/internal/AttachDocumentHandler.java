@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.jcr.Node;
@@ -155,17 +156,29 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     {
         final String named = Payloads.requireText(context.getEvent(), REQUIREMENT_PARAMETER,
             "The upload does not say which requirement it answers");
+        return findRequirement(submission, named)
+            // One whose condition does not hold is not asked, and the form does not offer it
+            .filter(submission::isApplicable)
+            .orElseThrow(() -> new InvalidPayloadException(
+                "There is no document requirement " + named + " in this request"));
+    }
+
+    /**
+     * The document requirement of the submission's own schema version that a caller names, by path or by name.
+     *
+     * @param submission the submission
+     * @param named the requirement's path or name, as the caller sent it
+     * @return the requirement, or empty when the schema version has no such document requirement
+     */
+    static Optional<DocumentRequirement> findRequirement(final Submission submission, final String named)
+    {
         // The node type makes the reference mandatory and the model declares it non-null, so a submission always
         // knows what it is answering
         return submission.getSchemaVersion().getRequirements().stream()
             .filter(DocumentRequirement.class::isInstance)
             .map(DocumentRequirement.class::cast)
             .filter(candidate -> candidate.getPath().equals(named) || candidate.getName().equals(named))
-            // One whose condition does not hold is not asked, and the form does not offer it
-            .filter(submission::isApplicable)
-            .findFirst()
-            .orElseThrow(() -> new InvalidPayloadException(
-                "There is no document requirement " + named + " in this request"));
+            .findFirst();
     }
 
     /**
