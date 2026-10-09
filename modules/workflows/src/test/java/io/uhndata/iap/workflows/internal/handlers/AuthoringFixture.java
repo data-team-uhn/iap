@@ -242,6 +242,12 @@ final class AuthoringFixture
             }
 
             @Override
+            public long getSize()
+            {
+                return content.getBytes(StandardCharsets.UTF_8).length;
+            }
+
+            @Override
             public InputStream openStream()
             {
                 return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -268,6 +274,12 @@ final class AuthoringFixture
             public String getMimeType()
             {
                 return "application/xml";
+            }
+
+            @Override
+            public long getSize()
+            {
+                return 0;
             }
 
             @Override

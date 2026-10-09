@@ -75,6 +75,11 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The payload entry carrying the file itself. */
     static final String FILE_PARAMETER = "file";
 
+    /** The largest file taken, since the document pipeline later holds a whole file in memory to parse it. */
+    static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
+
+    private static final long MEGABYTE = 1024L * 1024;
+
     /** Where the document records what it fulfills. */
     private static final String FULFILLS_PROPERTY = "fulfills";
 
@@ -117,6 +122,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final DocumentRequirement requirement = requirement(submission, context);
         final String mimeType = getMimeType(file);
         checkAcceptedType(requirement, mimeType);
+        checkSize(file);
         final Resource fulfilled = context.getResourceResolver().getResource(requirement.getPath());
         if (fulfilled == null) {
             throw new PersistenceException("Could not read the requirement being fulfilled");
@@ -237,6 +243,21 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         if (accepted.stream().noneMatch(type -> type.equalsIgnoreCase(mimeType))) {
             throw new InvalidPayloadException("A " + Objects.requireNonNullElse(mimeType, "file with no declared type")
                 + " is not accepted here; " + requirement.getLabel() + " takes " + String.join(", ", accepted));
+        }
+    }
+
+    /**
+     * Refuses a file larger than {@link #MAX_FILE_BYTES}, before its content is opened.
+     *
+     * @param file the uploaded file
+     * @throws InvalidPayloadException when the file is too large
+     */
+    private static void checkSize(final EventAttachment file) throws InvalidPayloadException
+    {
+        if (file.getSize() > MAX_FILE_BYTES) {
+            // Rounded up, so a file just over the limit does not read as being at it
+            throw new InvalidPayloadException("That file is " + (file.getSize() + MEGABYTE - 1) / MEGABYTE
+                + " MB, and the limit is " + MAX_FILE_BYTES / MEGABYTE + " MB");
         }
     }
 

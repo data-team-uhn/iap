@@ -93,7 +93,9 @@ class AttachDocumentHandlerTest
 
     private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
 
-    private static final String NOTE_PATH = VERSION_PATH + "/doctorsNote";
+    private static final String NOTE = "doctorsNote";
+
+    private static final String NOTE_PATH = VERSION_PATH + "/" + NOTE;
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
 
@@ -155,7 +157,7 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheFileAsADocumentFulfillingTheRequirementItAnswers() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
 
         final Resource document = onlyDocument();
         assertEquals("note.pdf", document.getValueMap().get("title", String.class));
@@ -166,7 +168,7 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheContentAsTheDocumentsFirstVersion() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
 
         assertEquals(1, onlyDocument().adaptTo(Document.class).getVersions().size());
         final Resource file = uploadedFile();
@@ -179,9 +181,9 @@ class AttachDocumentHandlerTest
     @Test
     void addsAnotherUploadForTheSameRequirementAsANewVersion() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("wrong.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("wrong.pdf", PDF))));
         onlyDocument();
-        this.handler.execute(context(payload("doctorsNote", upload("right.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("right.pdf", PDF))));
 
         final Resource document = onlyDocument();
         assertEquals("right.pdf", document.getValueMap().get("title", String.class));
@@ -192,7 +194,7 @@ class AttachDocumentHandlerTest
     @Test
     void keepsTheDocumentsOfDifferentRequirementsApart() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
         documents();
         this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
 
@@ -252,7 +254,7 @@ class AttachDocumentHandlerTest
     void refusesATypeTheRequirementDoesNotAccept()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload("doctorsNote", upload("note.png", "image/png")))));
+            .execute(context(payload(NOTE, upload("note.png", "image/png")))));
 
         // Named, because a refusal that does not say what would have been accepted cannot be acted on
         assertTrue(failure.getMessage().contains(PDF));
@@ -263,7 +265,7 @@ class AttachDocumentHandlerTest
     void refusesAFileOfNoDeclaredTypeWhereTheTypeIsRestricted()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload("doctorsNote", upload("note", null)))));
+            .execute(context(payload(NOTE, upload("note", null)))));
 
         assertTrue(failure.getMessage().contains("no declared type"));
     }
@@ -271,7 +273,7 @@ class AttachDocumentHandlerTest
     @Test
     void comparesTypesWithoutCaseOrParameters() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", "Application/PDF; charset=binary"))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", "Application/PDF; charset=binary"))));
 
         // Stored the way it was compared
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
@@ -280,7 +282,7 @@ class AttachDocumentHandlerTest
     @Test
     void readsTheTypeFromTheExtensionWhenTheBrowserSentAGenericOne() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("Note.PDF", "application/octet-stream"))));
+        this.handler.execute(context(payload(NOTE, upload("Note.PDF", "application/octet-stream"))));
 
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
     }
@@ -288,7 +290,7 @@ class AttachDocumentHandlerTest
     @Test
     void readsTheTypeFromTheExtensionWhenTheBrowserSentNone() throws Exception
     {
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", null))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", null))));
 
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
     }
@@ -297,9 +299,26 @@ class AttachDocumentHandlerTest
     void refusesAGenericTypeWhoseExtensionSaysNothing()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload("doctorsNote", upload("scan.bin", "application/octet-stream")))));
+            .execute(context(payload(NOTE, upload("scan.bin", "application/octet-stream")))));
 
         assertTrue(failure.getMessage().contains("application/octet-stream"));
+    }
+
+    @Test
+    void refusesAFileOverTheLimitWithoutReadingIt()
+    {
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
+            .execute(context(payload(NOTE, sized(AttachDocumentHandler.MAX_FILE_BYTES + 1)))));
+
+        assertEquals("That file is 51 MB, and the limit is 50 MB", failure.getMessage());
+    }
+
+    @Test
+    void takesAFileExactlyAtTheLimit() throws Exception
+    {
+        this.handler.execute(context(payload(NOTE, sized(AttachDocumentHandler.MAX_FILE_BYTES))));
+
+        assertNotNull(uploadedFile());
     }
 
     @Test
@@ -320,7 +339,7 @@ class AttachDocumentHandlerTest
             return null;
         }).when(versions).checkout(SUBMISSION_PATH);
 
-        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
 
         Mockito.verify(versions).checkout(SUBMISSION_PATH);
     }
@@ -329,7 +348,7 @@ class AttachDocumentHandlerTest
     void refusesSomebodyElsesRequest()
     {
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note.pdf", PDF)), "somebody-else")));
+            context(payload(NOTE, upload("note.pdf", PDF)), "somebody-else")));
     }
 
     @Test
@@ -339,14 +358,14 @@ class AttachDocumentHandlerTest
         modify(this.target, "tags", new String[] {"submitted"});
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload("note.pdf", PDF)))));
     }
 
     @Test
     void refusesAnEventCarryingNoFile()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.REQUIREMENT_PARAMETER, "doctorsNote",
+            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.REQUIREMENT_PARAMETER, NOTE,
                 AttachDocumentHandler.FILE_PARAMETER, "note.pdf"))));
     }
 
@@ -383,7 +402,7 @@ class AttachDocumentHandlerTest
         this.context.registerService(ConditionEvaluator.class, conditions);
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload("note.pdf", PDF)))));
     }
 
     @Test
@@ -422,7 +441,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note.pdf", PDF)), REQUESTER, sabotaged)));
+            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Cannot point fulfills"));
     }
 
@@ -446,6 +465,12 @@ class AttachDocumentHandlerTest
             }
 
             @Override
+            public long getSize()
+            {
+                return CONTENT.length;
+            }
+
+            @Override
             public InputStream openStream() throws IOException
             {
                 throw new IOException("the connection went away");
@@ -453,7 +478,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(context(payload("doctorsNote", broken))));
+            () -> this.handler.execute(context(payload(NOTE, broken))));
         assertTrue(failure.getMessage().contains("Could not store"));
     }
 
@@ -472,7 +497,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload("doctorsNote", upload("note.pdf", PDF)), REQUESTER, blind)));
+            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, blind)));
         assertTrue(failure.getMessage().contains("Could not read"));
     }
 
@@ -501,8 +526,50 @@ class AttachDocumentHandlerTest
             }
 
             @Override
+            public long getSize()
+            {
+                return CONTENT.length;
+            }
+
+            @Override
             public InputStream openStream()
             {
+                return new ByteArrayInputStream(CONTENT);
+            }
+        };
+    }
+
+    /**
+     * A PDF claiming the given size. Over the limit, its content must never be read.
+     */
+    private EventAttachment sized(final long size)
+    {
+        return new EventAttachment()
+        {
+            @Override
+            public String getFileName()
+            {
+                return "huge.pdf";
+            }
+
+            @Override
+            public String getMimeType()
+            {
+                return PDF;
+            }
+
+            @Override
+            public long getSize()
+            {
+                return size;
+            }
+
+            @Override
+            public InputStream openStream()
+            {
+                if (size > AttachDocumentHandler.MAX_FILE_BYTES) {
+                    throw new AssertionError("A file over the limit was read");
+                }
                 return new ByteArrayInputStream(CONTENT);
             }
         };
