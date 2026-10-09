@@ -341,7 +341,7 @@ public class Submission extends Entity
     public List<Question> getQuestions()
     {
         return this.getSchemaVersion().getRequirements().stream()
-            .filter(this::applies)
+            .filter(this::isApplicable)
             .filter(FormRequirement.class::isInstance)
             .map(FormRequirement.class::cast)
             .map(this::getQuestionsOf)
@@ -370,7 +370,7 @@ public class Submission extends Entity
         }
         return this.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> name.equals(requirement.getName()) || name.equals(requirement.getPath()))
-            .filter(this::applies)
+            .filter(this::isApplicable)
             .filter(FormRequirement.class::isInstance)
             .map(FormRequirement.class::cast)
             .map(this::getQuestionsOf)

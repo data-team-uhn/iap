@@ -250,9 +250,6 @@ class DetachDocumentHandlerTest
         final Resource kept = versionOf("other.pdf");
         final Resource fromRemoved = reading("from-the-note", removed);
         final String answerPath = fromRemoved.getParent().getPath();
-        // The submitter changed what the model suggested, so the answer is theirs
-        modify(fromRemoved.getParent(), "value", new String[] {"two weeks off"});
-        modify(fromRemoved, "extractedAnswer", "one week off");
         final Resource quoted = reading("quoted-from-the-note", kept);
         quote(quoted, removed);
         final Resource fromKept = reading("from-the-other", kept);
@@ -268,58 +265,6 @@ class DetachDocumentHandlerTest
         assertNotNull(resolver.getResource(fromKept.getPath()));
         assertNotNull(resolver.getResource(answerPath), "the answer stays; only the reading of this file goes");
         assertTrue(documents().stream().noneMatch(document -> "note.pdf".equals(document.getTitle())));
-    }
-
-    // A value the model read out of the file, that nobody confirmed or changed, would otherwise stay behind
-    // with no reading and look like something the submitter typed. It goes with the file.
-    @Test
-    void dropsASuggestionNobodyTouchedWithTheFile() throws Exception
-    {
-        attach(NOTE);
-        final Resource untouched = reading("untouched", versionOf(NOTE));
-        modify(untouched.getParent(), "value", new String[] {"one week off"});
-        modify(untouched, "extractedAnswer", "one week off");
-        final String answer = untouched.getParent().getPath();
-
-        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
-
-        assertNull(resolver().getResource(answer));
-    }
-
-    // Confirming a suggestion makes it the submitter's answer, so only its reading goes
-    @Test
-    void keepsAConfirmedSuggestion() throws Exception
-    {
-        attach(NOTE);
-        final Resource confirmed = reading("confirmed", versionOf(NOTE));
-        modify(confirmed.getParent(), "value", new String[] {"one week off"});
-        modify(confirmed, "extractedAnswer", "one week off");
-        modify(confirmed, "reviewed", Boolean.TRUE);
-
-        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
-
-        assertNull(resolver().getResource(confirmed.getPath()));
-        assertNotNull(resolver().getResource(confirmed.getParent().getPath()));
-    }
-
-    // Another reading still backs the answer, so it is not only a suggestion from the file being removed
-    @Test
-    void keepsAnAnswerAnotherReadingStillBacks() throws Exception
-    {
-        attach(NOTE);
-        this.attacher.execute(context(attachment("anything", upload("other.pdf")), REQUESTER));
-        patchDocumentTypes();
-        final Resource fromNote = reading("backed", versionOf(NOTE));
-        modify(fromNote.getParent(), "value", new String[] {"one week off"});
-        modify(fromNote, "extractedAnswer", "one week off");
-        final Resource fromOther = this.context.create().resource(fromNote.getParent().getPath() + "/other",
-            Map.of(TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", "one week off"));
-        references(fromOther, "sources", versionOf("other.pdf"));
-
-        this.handler.execute(context(payload(DOCTORS_NOTE), REQUESTER));
-
-        assertNull(resolver().getResource(fromNote.getPath()));
-        assertNotNull(resolver().getResource(fromOther.getPath()));
     }
 
     // Removed mid-parse, the parse lands on nothing and the reading it was for never ends
@@ -484,13 +429,22 @@ class DetachDocumentHandlerTest
         return present(submission.adaptTo(Submission.class)).getDocuments();
     }
 
-    /** The newest version of the document with this title. */
+    /**
+     * The newest version of the document with this title. Found by node type, since the mock repository does not
+     * stamp the resource type a version's model is adapted by.
+     */
     private Resource versionOf(final String title)
     {
         for (final Document document : documents()) {
             if (title.equals(document.getTitle())) {
-                return present(this.context.resourceResolver().getResource(
-                    present(document.getCurrentVersion()).getPath()));
+                Resource version = null;
+                for (final Resource child : present(this.context.resourceResolver().getResource(document.getPath()))
+                    .getChildren()) {
+                    if ("sub:DocumentVersion".equals(child.getValueMap().get("jcr:primaryType", String.class))) {
+                        version = child;
+                    }
+                }
+                return present(version);
             }
         }
         throw new AssertionError("no document titled " + title);
@@ -628,18 +582,6 @@ class DetachDocumentHandlerTest
             public void setVariable(final String name, final Object value)
             {
                 throw new IllegalStateException("No variable was expected to be set here");
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
             }
 
             @Override

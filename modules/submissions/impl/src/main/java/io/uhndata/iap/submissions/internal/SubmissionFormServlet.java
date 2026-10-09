@@ -18,7 +18,6 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +44,6 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
-import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -54,9 +52,9 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
-import io.uhndata.iap.submissions.models.Review;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -105,14 +103,6 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String ATTACHED_KEY = "attached";
 
     private static final String REQUIRED_KEY = "required";
-
-    /** Where the extraction workflows record how far reading the documents got, and what they made of them. */
-    private static final String EXTRACTION_STATUS = "extractionStatus";
-
-    private static final String EXTRACTION_MESSAGE = "extractionMessage";
-
-    /** Set once a job has taken the reading, which is after every parse has been read in. */
-    private static final String READING_CLAIMED = "extractionReadingClaimed";
 
     /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
     private static final String READING_WORKFLOW = "readingWorkflow";
@@ -183,38 +173,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             // view cannot tell a form waiting for its reading from one that is simply unanswered.
             .add("readsDocuments", version.get(READING_WORKFLOW, String.class) != null)
             .add("requirements", requirements);
-        final JsonObjectBuilder extraction = extraction(submission);
+        final JsonObjectBuilder extraction = ReadingProjection.describe(submission);
         if (extraction != null) {
             json.add("extraction", extraction);
         }
         return json.build();
-    }
-
-    /**
-     * Where reading the answers out of the attached documents got to, once it has started: the state the view
-     * shows a progress bar or a banner for, the message that goes with it, and whether asking again would do
-     * anything. {@code parsed} and {@code reading} are the two moments the view can actually see: the daemon
-     * has answered, and a job has taken the reading. Written by the extraction system workflows,
-     * read back here by name.
-     *
-     * @param submission the submission being read
-     * @return the extraction block, or {@code null} when no reading was ever asked for
-     */
-    private static JsonObjectBuilder extraction(final Submission submission)
-    {
-        final String status = submission.get(EXTRACTION_STATUS, String.class);
-        if (status == null) {
-            return null;
-        }
-        final JsonObjectBuilder json = Json.createObjectBuilder().add("status", status);
-        final String message = submission.get(EXTRACTION_MESSAGE, String.class);
-        if (message != null) {
-            json.add("message", message);
-        }
-        json.add("retryable", ParseStatus.hasFailed(submission));
-        json.add("parsed", ParseStatus.isSettled(submission));
-        json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
-        return json;
     }
 
     /**
@@ -242,56 +205,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            final List<FormItem> children = ((FormRequirement) requirement).getChildren();
-            json.add(ITEMS_KEY, items(children, requirement.getName(), submission, answers, provenance, number));
-            // A section the model fills in, as opposed to one the submitter answers by hand. The editor
-            // keeps the two on different pages: the hand-filled page is where reading is started.
-            // A classification's model prompt sits on the requirement itself, not on its decision question, so
-            // it is extracted by definition -- there is no hand-filled form of "what kind of document is this".
-            json.add("extracted", requirement instanceof ClassificationRequirement || isExtracted(children));
+            final FormRequirement form = (FormRequirement) requirement;
+            json.add(ITEMS_KEY, items(form.getChildren(), requirement.getName(), submission, answers, provenance,
+                number));
+            json.add("extracted", ReadingProjection.isExtracted(form));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, documents, json);
         } else if (requirement instanceof ApprovalRequirement) {
-            describe((ApprovalRequirement) requirement, submission, json);
+            ApprovalProjection.describe((ApprovalRequirement) requirement, submission, json);
         }
         return json;
-    }
-
-    /**
-     * What an approval requirement adds: who it waits on, and the decision once somebody has made one.
-     *
-     * <p>Nobody fills an approval in here, so what the form can offer is an honest account of where it stands.
-     * That is worth projecting rather than leaving the reader to infer it, because the alternative — a section
-     * that says only that it cannot be completed here — is indistinguishable from a part of the form that is
-     * broken.</p>
-     *
-     * <p>Approved is the model's own predicate, an approved review naming this requirement, so the form and the
-     * completeness tag cannot disagree about what an approval means. The decision is reported from the same
-     * review; a rejection is a review that is not approved, which is why the reviewer and the date are given
-     * whenever a review exists rather than only when it granted the approval.</p>
-     *
-     * @param requirement the requirement being described
-     * @param submission the submission it is being resolved against
-     * @param json the requirement's JSON, added to in place
-     */
-    private void describe(final ApprovalRequirement requirement, final Submission submission,
-        final JsonObjectBuilder json)
-    {
-        // Always stated, empty meaning "not narrowed to a group": a reader has to tell that from "nobody has said
-        // who decides", and both are things the section says out loud
-        json.add("approverGroup", Objects.toString(requirement.getApproverGroup(), ""));
-        final List<Review> reviews = submission.getReviewsOf(requirement);
-        json.add("approved", reviews.stream().anyMatch(Review::isApproved));
-        // The last word rather than the first: an approval that was revisited is reported as it now stands
-        reviews.stream().reduce((first, second) -> second).ifPresent(review -> {
-            json.add("decidedBy", Objects.toString(review.getReviewer(), ""));
-            final Calendar decided = review.getCreated();
-            if (decided != null) {
-                // The same spelling the resource JSON uses for a date, so the reader parses one format
-                json.add("decidedAt", DateUtils.PREFERRED_DATETIME_FORMAT
-                    .format(decided.toInstant().atZone(decided.getTimeZone().toZoneId())));
-            }
-        });
     }
 
     /**
@@ -475,28 +398,6 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return json
             .add("options", options)
             .add("value", value);
-    }
-
-    /**
-     * Whether a form requirement is filled in from a document. True when any question in it, including one
-     * nested in a section, says how to ask a model. Questions meant for the submitter have no such prompt.
-     *
-     * @param children the requirement's items, as the schema stores them
-     * @return {@code true} when the model is asked to answer something here
-     */
-    private static boolean isExtracted(final List<FormItem> children)
-    {
-        for (final FormItem child : children) {
-            if (child instanceof Question) {
-                final String prompt = ((Question) child).getExtractionPrompt();
-                if (prompt != null && !prompt.isBlank()) {
-                    return true;
-                }
-            } else if (child instanceof Section && isExtracted(((Section) child).getChildren())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
