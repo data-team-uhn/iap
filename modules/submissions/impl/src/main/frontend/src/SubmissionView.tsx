@@ -24,6 +24,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Divider,
   Link,
   Stack,
@@ -367,13 +368,16 @@ function Documents({ form, failure, documents }: {
 // The approvals this request needs, and where each of them stands. Read from the same projection the
 // editor reads, so the two modes cannot disagree about what is still waiting — and shown in view mode
 // because a request parked on somebody else's decision is exactly what a reader has come to find out.
-function Approvals({ form, failure }: { form: SubmissionForm | undefined; failure: string | undefined }) {
-  if (!form) {
+function Approvals({ requirements, loaded, failure }: {
+  requirements: ApprovalRequirement[];
+  loaded: boolean;
+  failure: string | undefined;
+}) {
+  if (!loaded) {
     return failure
       ? <Typography variant="placeholder">Which approvals this request needs could not be read</Typography>
       : <CircularProgress size={24} aria-label="Loading the approvals" />;
   }
-  const requirements = form.requirements.filter(isApprovalRequirement);
   if (requirements.length === 0) {
     return <Typography variant="placeholder">This request needs no approvals</Typography>;
   }
@@ -719,7 +723,11 @@ function SubmissionView() {
         <Documents form={form} failure={formFailure} documents={documents} />
       </Panel>
       <Panel title="Approvals">
-        <Approvals form={form} failure={formFailure} />
+        <Approvals
+          requirements={(form?.requirements ?? []).filter(isApprovalRequirement)}
+          loaded={form !== undefined}
+          failure={formFailure}
+        />
       </Panel>
       <Panel title="Reviews">
         {reviews.length > 0

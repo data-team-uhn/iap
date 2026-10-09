@@ -255,11 +255,6 @@ describe("SubmissionEditor", () => {
     expect(screen.queryByText(/Waiting for approval/)).toBeNull();
   });
 
-  // One approval requirement, with whatever the projection is saying about it
-  function approval(state: Record<string, unknown>) {
-    return { name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...state };
-  }
-
   describe("answering a document requirement", () => {
     const NOTE: DocumentRequirement = {
       name: "doctorsNote",
@@ -294,7 +289,7 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} />);
 
       const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
-      expect(input).toHaveAttribute("accept", "application/pdf,image/png");
+      expect(input).toHaveAttribute("accept", ".doc,application/pdf");
       expect(screen.queryByText(/Nothing attached yet/)).toBeNull();
       expect(screen.queryByRole("link")).toBeNull();
     });
@@ -383,7 +378,8 @@ describe("SubmissionEditor", () => {
 
     // Removed mid-reading, the reading would wait for a parse that lands on nothing
     it("does not offer to remove a file while the documents are being read", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.doc" ] }, { extraction: { status: "running" } })));
+      vi.stubGlobal("fetch", serving(asked(
+        { attached: [ { title: "note.doc" } ] }, { extraction: { status: "running" } })));
 
       render(<SubmissionEditor path={PATH} />);
 
@@ -543,7 +539,7 @@ describe("SubmissionEditor", () => {
       // Attaching the last thing a request was waiting for makes it ready to send, which is the same
       // chain a saved answer walks
       const changed = vi.fn();
-      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.doc" ] })));
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ { title: "note.doc" } ] })));
 
       render(<SubmissionEditor path={PATH} onChanged={changed} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
@@ -696,19 +692,21 @@ describe("SubmissionEditor", () => {
 
   it("turns to the classification, then the answers the model fills in, with Next, and starts nothing", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
     };
     const classification = {
-      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
       extracted: true, items: [ duration([ "Yes" ]) ],
     };
     const study = {
-      name: "common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
+      name: "common", path: "/Schemas/proposal/v1/common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
       items: [ duration() ],
     };
     const admin = {
-      name: "administrative", type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
+      name: "administrative", path: "/Schemas/proposal/v1/administrative",
+      type: FORM_REQUIREMENT, label: "Administrative information", extracted: false,
       items: [ { ...endDate(), value: [ "2026-10-06" ] } ],
     };
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => {
@@ -752,8 +750,8 @@ describe("SubmissionEditor", () => {
 
   it("holds Next back until a required document is attached", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [] as string[],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [],
     };
     vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
       readsDocuments: true,
@@ -767,11 +765,12 @@ describe("SubmissionEditor", () => {
 
   it("asks a classification on the first page, and holds Next back until it is answered", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
     };
     const classification = {
-      name: "is_proposal", type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
       extracted: false, items: [ duration() ],
     };
     vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
@@ -788,8 +787,8 @@ describe("SubmissionEditor", () => {
 
   it("holds Next back until every required question on the page is answered", async () => {
     const proposal = {
-      name: "proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
-      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ "protocol.pdf" ],
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
     };
     vi.stubGlobal("fetch", vi.fn((url: string) => json(form({
       readsDocuments: true,

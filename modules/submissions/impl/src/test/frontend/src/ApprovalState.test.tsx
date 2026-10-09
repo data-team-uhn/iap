@@ -23,7 +23,8 @@ import { type ApprovalRequirement } from "@iap/submissions/submissionForm";
 
 function show(overrides: Omit<Partial<ApprovalRequirement>, "label">) {
   render(<ApprovalState requirement={{
-    name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...overrides, }} />);
+    name: "approval", path: "/Schemas/demo/v1/approval", type: "sch/ApprovalRequirement", label: "Approval",
+    ...overrides, }} />);
 }
 
 describe("ApprovalState", () => {
