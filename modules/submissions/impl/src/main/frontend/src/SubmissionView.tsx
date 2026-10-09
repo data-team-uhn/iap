@@ -23,6 +23,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   Alert,
   Box,
+  CircularProgress,
   Divider,
   Link,
   Stack,
@@ -163,15 +164,23 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
 // asked for.
 function Documents({ path, documents }: { path: string; documents: JsonNode[] }) {
   const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
 
   // The page rebuilds this section for each request it shows, so a projection can only ever land on
   // the request it was asked for
   useEffect(() => {
-    // A projection that cannot be read leaves the section showing what is attached and saying
-    // nothing about what was asked, which is the half that can still be trusted
-    fetchForm(doFetch, path).then(setForm, () => undefined);
+    fetchForm(doFetch, path).then(setForm, (error: unknown) => setFailure(describeRequestFailure(error)));
   }, [doFetch, path]);
+
+  // Until the projection arrives nothing can be said about what was asked
+  if (!form && !failure) {
+    return <CircularProgress size={24} aria-label="Loading the documents" />;
+  }
+  // A failed projection still leaves what is attached, which comes from the submission itself
+  const warning = failure
+    ? <Alert severity="warning">{`Which documents this request asks for could not be read: ${failure}`}</Alert>
+    : null;
 
   const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
   const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
@@ -183,11 +192,12 @@ function Documents({ path, documents }: { path: string; documents: JsonNode[] })
   const unattributed = documents.filter(document => !claimed.has(document["@path"]));
 
   if (requirements.length === 0 && documents.length === 0) {
-    return <Typography variant="placeholder">This request asks for no documents</Typography>;
+    return warning ?? <Typography variant="placeholder">This request asks for no documents</Typography>;
   }
 
   return (
     <Stack spacing={2} divider={<Divider />}>
+      {warning}
       {requirements.map(requirement => {
         const attached = fulfilling(requirement);
         return (

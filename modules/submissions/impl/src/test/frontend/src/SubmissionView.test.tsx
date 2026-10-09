@@ -339,7 +339,7 @@ describe("SubmissionView", () => {
 
     // The document with metadata: title, requirement, description, and a link to its newest file,
     // saved under the title since the stored file is always called `uploadedFile`
-    expect(screen.getByText(/— fulfills "Study protocol"/)).toBeInTheDocument();
+    expect(await screen.findByText(/— fulfills "Study protocol"/)).toBeInTheDocument();
     expect(screen.getByText("The full protocol")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Protocol document" });
     expect(link).toHaveAttribute("href", "/Submissions/demo-2/d1/v2/file/uploadedFile");
@@ -532,17 +532,32 @@ describe("SubmissionView", () => {
       expect(await screen.findByText("This request asks for no documents")).toBeInTheDocument();
     });
 
-    it("says nothing about what was asked when the projection cannot be read", async () => {
-      // The half that can still be trusted: what is attached comes from the submission itself
-      const otherwise = tagAwareFetch(DEEP_SUBMISSION);
+    it("says what was asked could not be read, rather than that nothing was", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const otherwise = tagAwareFetch({ ...DEEP_SUBMISSION, d1: attachment("note.pdf") });
       vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
         ? Promise.reject(new Error("no projection"))
         : otherwise(url)));
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-      expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
+      expect(await screen.findByText(/Which documents this request asks for could not be read/))
+        .toBeInTheDocument();
+      // What is attached comes from the submission itself, so it is still shown
+      expect(screen.getByText("note.pdf")).toBeInTheDocument();
+      expect(screen.queryByText("This request asks for no documents")).toBeNull();
+    });
+
+    it("says nothing about what was asked while the projection is on its way", async () => {
+      const otherwise = tagAwareFetch(DEEP_SUBMISSION);
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? new Promise<Response>(() => undefined)
+        : otherwise(url)));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("progressbar", { name: "Loading the documents" })).toBeInTheDocument();
+      expect(screen.queryByText("This request asks for no documents")).toBeNull();
     });
   });
 
