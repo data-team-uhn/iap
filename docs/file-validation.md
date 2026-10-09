@@ -25,7 +25,7 @@ if (problem !== undefined) {
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `file` | `File` | — | The file the person picked |
-| `accepted` | `string[]` | `[]` | Types taken, as MIME types (`application/pdf`) or extensions (`.pdf`). Empty means the three formats the document pipeline reads |
+| `accepted` | `string[]` | `[]` | The MIME types taken (`application/pdf`), compared as the server compares them. Empty takes any type |
 | `limits` | `UploadLimits` | `{}` | `maxFileSize` in bytes, `maxPdfPages`, and `maxUnzippedSize` in bytes. Each one left out keeps its default |
 
 It returns a `Promise<string | undefined>`. `undefined` means the file passed every
@@ -44,7 +44,7 @@ The module also exports:
 | `MAX_UNZIPPED_SIZE` | `512 * 1024 * 1024` (512 MB) |
 | `MEGABYTE` | `1024 * 1024` |
 | `MIME_TYPE_BY_EXTENSION` | `.pdf`, `.docx` and `.doc`, each with its MIME type (see [Accepted types](#accepted-types)) |
-| `ACCEPTED_EXTENSIONS` | Its keys: `[".pdf", ".docx", ".doc"]` |
+| `PIPELINE_TYPES` | Its values, for a caller that takes only what the document pipeline reads |
 | `getFileExtension(name)` | The last extension, lower case with the dot (`"v1.2.Final.DOCX"` → `".docx"`), or `undefined` when there is none (`"README"`, `"notes."`) |
 | `UploadLimits` | The type of the third argument |
 
@@ -54,9 +54,8 @@ The module also exports:
 validateUpload(file, accepted, limits)
 ├── 1. file.size === 0?                          → "<name> is empty."
 ├── 2. file.size > maxFileSize?                  → "<name> is N MB, and the limit is L MB."
-├── 3. accepted given?  isAccepted(file, …)      → "<name> is not a file of an accepted type: <types>."
-│      accepted empty?  extension in ACCEPTED_EXTENSIONS
-│                                                → "<name> is not a file of an accepted type: .pdf, .docx, .doc."
+├── 3. accepted given?  getMimeType(file, …) in accepted?
+│                                                → "<name> is not a file of an accepted type: <types>."
 └── 4. checkContent(file, extension, limits), picked by extension:
        ├── .pdf  → checkPdf
        │           ├── loadPdfjs()               (pdfjsClient.ts: import("pdfjs-dist"), set worker URL)
@@ -99,15 +98,18 @@ loading it.
 
 ## Accepted types
 
-**When `accepted` is empty**, the file needs one of the three extensions the document
-pipeline reads: `.pdf`, `.docx`, `.doc`. The browser's MIME type is ignored.
+The rules are the server's, so the browser refuses what the server would refuse and
+nothing more (`AttachDocumentHandler#getMimeType` and `#checkAcceptedType`).
 
-**When `accepted` is given**, a file passes if any one of these holds:
+**When `accepted` is empty**, any type passes, as a requirement that names no type takes
+any. A caller that wants only what the document pipeline reads passes `PIPELINE_TYPES`.
 
-1. An entry starts with `.` and equals the file's extension. Both sides are lower-cased.
-2. An entry is a MIME type and equals the browser's `file.type`. Case does not matter.
-3. The browser gave **no** type at all (`file.type === ""`), and the extension names a
-   type that is in the list. Only the three pipeline formats are known here:
+**When `accepted` is given**, the file's type has to be one of its entries, compared
+without case. The file's type is read like this:
+
+1. The browser's `file.type`, lower case and without parameters (`; charset=…`).
+2. When the browser sent no type, or only the generic `application/octet-stream`, the
+   type the extension names, if it is one of these:
 
 | Extension | MIME type it stands for |
 | --- | --- |
@@ -115,27 +117,27 @@ pipeline reads: `.pdf`, `.docx`, `.doc`. The browser's MIME type is ignored.
 | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
 | `.doc` | `application/msword` |
 
-Rule 3 exists because a browser that does not recognise a format reports an empty type.
-The name then says what the file is meant to be, and step 4 checks the content against
-that.
+Rule 2 exists because a browser that does not know a format sends no type, or the
+generic one. The name then says what the file is meant to be, and step 4 checks the
+content against that.
 
 Examples, with `accepted = ["application/pdf"]`:
 
 | File | `file.type` | Result |
 | --- | --- | --- |
-| `a.pdf` | `application/pdf` | passes, by rule 2 |
-| `a.pdf` | `""` | passes, by rule 3 |
-| `a.pdf` | `application/octet-stream` | **refused**: a type was given and it is not in the list |
+| `a.pdf` | `application/pdf` | passes |
+| `a.pdf` | `Application/PDF; x=y` | passes: case and parameters are ignored |
+| `a.pdf` | `""` or `application/octet-stream` | passes, by the extension |
 | `README` | `""` | refused: no extension, so nothing says what it is |
 | `note.png` | `image/png` | refused |
 
-With `accepted = [".docx"]`, a `.pdf` is refused even though the pipeline could read it.
-The caller's list wins over the pipeline's list.
+An entry written as an extension (`.pdf`) matches nothing, as on the server, which only
+compares MIME types.
 
 The refusal names the accepted types the way a person knows them. A MIME type the module
 knows is shown as its extension, so `application/msword` reads `.doc`, and a type listed
-both ways is named once. Any other type is shown as given: `notes.txt is not a file of
-an accepted type: .pdf, image/png.`
+twice is named once. Any other type is shown as given: `notes.txt is not a file of an
+accepted type: .pdf, image/png.`
 
 ## Looking inside the file
 
@@ -316,7 +318,7 @@ by `Extensions/DashboardWidget/FileValidation.json`).
 | Control | What it does |
 | --- | --- |
 | **Pick a file** | Picks the file to check. Nothing is uploaded |
-| **Accepts** | `Anything the pipeline reads` (`[]`), `PDF only` (`["application/pdf"]`), or `Word only` (`[".docx", ".doc"]`, written as extensions) |
+| **Accepts** | `Anything` (`[]`), `What the pipeline reads` (`PIPELINE_TYPES`), `PDF only`, or `Word only` (the `.docx` and `.doc` MIME types) |
 | **Size limit (MB)** | Passed as `maxFileSize`. Starts at 50 |
 | **Page limit** | Passed as `maxPdfPages`. Starts at 500 |
 | **Unzip limit (MB)** | Passed as `maxUnzippedSize`. Starts at 512 |
@@ -339,7 +341,7 @@ so the screen never shows a result for settings that are no longer selected.
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 44 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 45 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 9 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale answer is ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting

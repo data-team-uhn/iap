@@ -40,16 +40,22 @@ export const MAX_PDF_PAGES = 500;
 export const MAX_UNZIPPED_SIZE = 512 * MEGABYTE;
 
 // The types the pipeline reads, by the extension that names them
-export const MIME_TYPE_BY_EXTENSION: Partial<Record<string, string>> = {
+export const MIME_TYPE_BY_EXTENSION = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".doc": "application/msword",
-};
+} as const;
 
-export const ACCEPTED_EXTENSIONS = Object.keys(MIME_TYPE_BY_EXTENSION);
+// For a caller that takes only what the pipeline reads
+export const PIPELINE_TYPES: string[] = Object.values(MIME_TYPE_BY_EXTENSION);
 
-const EXTENSION_BY_MIME_TYPE = new Map(
-  Object.entries(MIME_TYPE_BY_EXTENSION).map(([ extension, type ]) => [ type, extension ] as const));
+const MIME_TYPES = new Map<string, string>(Object.entries(MIME_TYPE_BY_EXTENSION));
+
+const EXTENSIONS = new Map<string, string>(
+  Object.entries(MIME_TYPE_BY_EXTENSION).map(([ extension, type ]) => [ type, extension ]));
+
+// What a browser sends for a file whose type it does not know
+const GENERIC_TYPE = "application/octet-stream";
 
 /** Limits a caller can tighten or loosen; each one left out takes the default above. */
 export interface UploadLimits {
@@ -407,28 +413,20 @@ async function checkContent(
   return { valid: true };
 }
 
-/**
- * Whether a caller that takes these types takes this file.
- *
- * Types are best stated the way a server checks them, as MIME types, and that is what a browser
- * reports for a file it recognises. Entries written as extensions are honoured too.
- */
-function isAccepted(file: File, accepted: string[], extension: string | undefined): boolean {
-  const byExtension = accepted.some(type => type.startsWith(".") && type.toLowerCase() === extension);
-  const byType = file.type !== ""
-    && accepted.some(type => !type.startsWith(".") && type.toLowerCase() === file.type.toLowerCase());
-  if (byExtension || byType) {
-    return true;
+// The file's type read as the server reads it (AttachDocumentHandler#getMimeType): lower case, without
+// parameters, and from the extension when the browser sent no type or only the generic one.
+function getMimeType(file: File, extension: string | undefined): string | undefined {
+  const declared = file.type.split(";", 1)[0].trim().toLowerCase();
+  if (declared !== "" && declared !== GENERIC_TYPE) {
+    return declared;
   }
-  // A browser that does not know the format reports no type at all. The name then says which type it is
-  // meant to be, and the content is checked against that below.
-  const meant = extension === undefined ? undefined : MIME_TYPE_BY_EXTENSION[extension];
-  return file.type === "" && meant !== undefined && accepted.some(type => type.toLowerCase() === meant);
+  const fromName = extension === undefined ? undefined : MIME_TYPES.get(extension);
+  return fromName ?? (declared === "" ? undefined : declared);
 }
 
 // A known MIME type reads as its extension, so a person sees ".docx" rather than the long type name
 function describeWrongType(file: File, accepted: string[]): string {
-  const names = new Set(accepted.map(type => EXTENSION_BY_MIME_TYPE.get(type.toLowerCase()) ?? type.toLowerCase()));
+  const names = new Set(accepted.map(type => EXTENSIONS.get(type.toLowerCase()) ?? type.toLowerCase()));
   return `${file.name} is not a file of an accepted type: ${[ ...names ].join(", ")}.`;
 }
 
@@ -436,7 +434,7 @@ function describeWrongType(file: File, accepted: string[]): string {
  * What is wrong with an upload, or undefined when nothing is.
  *
  * @param file the file the person picked
- * @param accepted the types taken, as MIME types or extensions; empty takes what the pipeline reads
+ * @param accepted the MIME types taken, as the server compares them; empty takes any type
  * @param limits the size, length and unzipped-size limits, where the defaults do not fit
  */
 export async function validateUpload(
@@ -453,13 +451,9 @@ export async function validateUpload(
     return `${file.name} is ${size} MB, and the limit is ${formatMegabytes(maxFileSize)}.`;
   }
   const extension = getFileExtension(file.name);
-  if (accepted.length > 0) {
-    if (!isAccepted(file, accepted, extension)) {
-      return describeWrongType(file, accepted);
-    }
-  } else if (extension === undefined || !ACCEPTED_EXTENSIONS.includes(extension)) {
-    // Nothing stated, so the formats the pipeline can read at all
-    return describeWrongType(file, ACCEPTED_EXTENSIONS);
+  const type = getMimeType(file, extension);
+  if (accepted.length > 0 && !accepted.some(entry => entry.toLowerCase() === type)) {
+    return describeWrongType(file, accepted);
   }
   const content = await checkContent(file, extension, {
     maxFileSize,

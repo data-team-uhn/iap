@@ -22,13 +22,21 @@ import UploadIcon from "@mui/icons-material/Upload";
 import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
-import { MAX_FILE_SIZE, MAX_PDF_PAGES, MAX_UNZIPPED_SIZE, MEGABYTE, validateUpload } from "@iap/frontend-commons/fileValidation";
+import {
+  MAX_FILE_SIZE,
+  MAX_PDF_PAGES,
+  MAX_UNZIPPED_SIZE,
+  MEGABYTE,
+  MIME_TYPE_BY_EXTENSION,
+  PIPELINE_TYPES,
+  validateUpload,
+} from "@iap/frontend-commons/fileValidation";
 
 const ACCEPTS: Record<string, { label: string; types: string[] }> = {
-  pipeline: { label: "Anything the pipeline reads", types: [] },
-  pdf: { label: "PDF only", types: [ "application/pdf" ] },
-  // Written as extensions, which callers may use as well as MIME types
-  word: { label: "Word only", types: [ ".docx", ".doc" ] },
+  anything: { label: "Anything", types: [] },
+  pipeline: { label: "What the pipeline reads", types: PIPELINE_TYPES },
+  pdf: { label: "PDF only", types: [ MIME_TYPE_BY_EXTENSION[".pdf"] ] },
+  word: { label: "Word only", types: [ MIME_TYPE_BY_EXTENSION[".docx"], MIME_TYPE_BY_EXTENSION[".doc"] ] },
 };
 
 // How long the settings have to stay unchanged before the file is checked
@@ -61,7 +69,7 @@ function getByteLimit(value: string): number | undefined {
 // unzipped-size refusals easy to reach. Shown on the homepage when the app is started with --test.
 function FileValidationWidget() {
   const [file, setFile] = useState<File | undefined>(undefined);
-  const [accepts, setAccepts] = useState("pipeline");
+  const [accepts, setAccepts] = useState("anything");
   const [maxMegabytes, setMaxMegabytes] = useState(String(MAX_FILE_SIZE / MEGABYTE));
   const [maxPages, setMaxPages] = useState(String(MAX_PDF_PAGES));
   const [maxUnzipped, setMaxUnzipped] = useState(String(MAX_UNZIPPED_SIZE / MEGABYTE));

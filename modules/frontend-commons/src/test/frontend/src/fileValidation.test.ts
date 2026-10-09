@@ -19,10 +19,10 @@ import { GlobalWorkerOptions } from "pdfjs-dist";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  ACCEPTED_EXTENSIONS,
   MAX_FILE_SIZE,
   MAX_PDF_PAGES,
   MAX_UNZIPPED_SIZE,
+  PIPELINE_TYPES,
   getFileExtension,
   validateUpload,
 } from "@iap/frontend-commons/fileValidation";
@@ -295,18 +295,21 @@ describe("what an upload is refused for", () => {
     await expect(validateUpload(edge)).resolves.toBeUndefined();
   });
 
-  it("refuses a format the pipeline cannot read", async () => {
-    await expect(validateUpload(createUpload("proposal.txt")))
+  // As on the server, a requirement that names no type takes any
+  it("takes any type when none is asked for", async () => {
+    await expect(validateUpload(createUpload("notes.txt"))).resolves.toBeUndefined();
+    await expect(validateUpload(createUpload("README"))).resolves.toBeUndefined();
+  });
+
+  it("refuses what the pipeline cannot read, when asked for only that", async () => {
+    await expect(validateUpload(createUpload("proposal.txt"), PIPELINE_TYPES))
       .resolves.toBe("proposal.txt is not a file of an accepted type: .pdf, .docx, .doc.");
+    await expect(validateUpload(createUpload("proposal"), PIPELINE_TYPES)).resolves.toMatch(/accepted type/);
   });
 
-  it("refuses a name with no extension at all", async () => {
-    await expect(validateUpload(createUpload("proposal"))).resolves.toMatch(/not a/);
-  });
-
-  // The requirement says what it takes; the pipeline's own list is only the fallback
-  it("honours the formats the requirement asks for", async () => {
-    await expect(validateUpload(createUpload("proposal.pdf"), [ ".docx" ])).resolves.toMatch(/accepted type: .docx\.$/);
+  // The server compares MIME types only, so an entry written as an extension matches nothing there
+  it("does not read an entry written as an extension as a type", async () => {
+    await expect(validateUpload(createUpload("proposal.pdf"), [ ".pdf" ])).resolves.toMatch(/accepted type: .pdf\.$/);
   });
 
   // MIME types are what a server checks and what a browser reports for a file it knows
@@ -321,9 +324,16 @@ describe("what an upload is refused for", () => {
       .resolves.toBe("notes.txt is not a file of an accepted type: .pdf, image/png.");
   });
 
-  // A browser that does not know the format reports no type; the server checks again, so let it decide
-  it("does not refuse a file the browser could not type", async () => {
+  // A browser that does not know the format reports no type, or the generic one; the name then says
+  it("reads the type from the name when the browser could not tell", async () => {
     await expect(validateUpload(createUpload("proposal.pdf"), [ "application/pdf" ])).resolves.toBeUndefined();
+    await expect(validateUpload(createTypedUpload("proposal.pdf", "application/octet-stream"), [ "application/pdf" ]))
+      .resolves.toBeUndefined();
+  });
+
+  it("compares types without case or parameters", async () => {
+    await expect(validateUpload(createTypedUpload("proposal.pdf", "application/pdf; x=y"), [ "Application/PDF" ]))
+      .resolves.toBeUndefined();
   });
 });
 
@@ -408,7 +418,11 @@ describe("the limits themselves", () => {
     expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
     expect(MAX_PDF_PAGES).toBe(500);
     expect(MAX_UNZIPPED_SIZE).toBe(512 * 1024 * 1024);
-    expect(ACCEPTED_EXTENSIONS).toEqual([ ".pdf", ".docx", ".doc" ]);
+    expect(PIPELINE_TYPES).toEqual([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+    ]);
   });
 
   // Each check opens its own PDF.js worker holding the whole file, which has to go once it is done
