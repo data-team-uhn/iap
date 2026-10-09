@@ -159,9 +159,8 @@ const DOCX_DAMAGED = "The document is damaged, or it is not a .docx file.";
 
 const CONTENT_TYPES = "[Content_Types].xml";
 
-// A real one stores about 1 KB. The sizes a zip states can lie, and JSZip unzips past them, but
-// deflate unzips at most about a thousand times what is stored, so this caps it near 16 MB.
-const MAX_STORED_CONTENT_TYPES = 16 * 1024;
+// A real one is a few KB. Reading stops past this, whatever size the zip states.
+const MAX_CONTENT_TYPES_BYTES = 256 * 1024;
 
 // Zip record layouts, from the zip format's APPNOTE
 const END_RECORD = 0x06054B50;
@@ -173,16 +172,23 @@ const ZIP64_END_RECORD_SIZE = 56;
 const ZIP64_EXTRA_FIELD = 0x0001;
 const DIRECTORY_ENTRY = 0x02014B50;
 const DIRECTORY_ENTRY_SIZE = 46;
+const LOCAL_HEADER = 0x04034B50;
+const LOCAL_HEADER_SIZE = 30;
 const MAX_ZIP_COMMENT = 0xFFFF;
+const STORED = 0;
+const DEFLATED = 8;
 // A field holding its largest value has the real one in a ZIP64 record
 const ZIP64_COUNT = 0xFFFF;
 const ZIP64_MARKER = 0xFFFFFFFF;
 
 interface ZipEntry {
   name: string;
-  // Both as the directory states them
+  method: number;
+  // As the directory states them
   storedSize: number;
   unzippedSize: number;
+  // Where the entry's local header starts
+  offset: number;
 }
 
 function readUint64(view: DataView, at: number): number {
@@ -218,26 +224,26 @@ function findDirectory(view: DataView, end: number): { start: number; count: num
   return { start: readUint64(view, record + 48), count: readUint64(view, record + 32), limit: record };
 }
 
-// The real sizes of an entry whose plain fields hold the marker. The ZIP64 extra field lists only
-// the sizes that were marked, unzipped first.
-function readZip64Sizes(view: DataView, entry: ZipEntry, from: number, to: number): ZipEntry | undefined {
+// The real values of the fields that hold the marker. The ZIP64 extra field lists only those, in
+// this order.
+function readZip64Fields(view: DataView, entry: ZipEntry, from: number, to: number): ZipEntry | undefined {
   for (let at = from; at + 4 <= to; at += 4 + view.getUint16(at + 2, true)) {
     if (view.getUint16(at, true) !== ZIP64_EXTRA_FIELD) {
       continue;
     }
     const fieldEnd = Math.min(to, at + 4 + view.getUint16(at + 2, true));
     let next = at + 4;
-    const sizes = { ...entry };
-    for (const key of [ "unzippedSize", "storedSize" ] as const) {
-      if (sizes[key] === ZIP64_MARKER) {
+    const fields = { ...entry };
+    for (const key of [ "unzippedSize", "storedSize", "offset" ] as const) {
+      if (fields[key] === ZIP64_MARKER) {
         if (next + 8 > fieldEnd) {
           return undefined;
         }
-        sizes[key] = readUint64(view, next);
+        fields[key] = readUint64(view, next);
         next += 8;
       }
     }
-    return sizes;
+    return fields;
   }
   return undefined;
 }
@@ -245,7 +251,7 @@ function readZip64Sizes(view: DataView, entry: ZipEntry, from: number, to: numbe
 /**
  * A zip's entries as its central directory lists them, read without unzipping anything.
  *
- * @returns the entries, or undefined when the directory cannot be read
+ * @returns the entries, or undefined when the directory cannot be read or names an entry twice
  */
 function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
   const view = new DataView(data);
@@ -256,6 +262,7 @@ function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
   }
   const decoder = new TextDecoder();
   const entries: ZipEntry[] = [];
+  const names = new Set<string>();
   let at = directory.start;
   for (let index = 0; index < directory.count; index++) {
     if (at + DIRECTORY_ENTRY_SIZE > directory.limit || view.getUint32(at, true) !== DIRECTORY_ENTRY) {
@@ -269,23 +276,78 @@ function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
     }
     let entry: ZipEntry | undefined = {
       name: decoder.decode(new Uint8Array(data, at + DIRECTORY_ENTRY_SIZE, nameLength)),
+      method: view.getUint16(at + 10, true),
       storedSize: view.getUint32(at + 20, true),
       unzippedSize: view.getUint32(at + 24, true),
+      offset: view.getUint32(at + 42, true),
     };
-    if (entry.storedSize === ZIP64_MARKER || entry.unzippedSize === ZIP64_MARKER) {
-      entry = readZip64Sizes(view, entry, extraStart, extraEnd);
-      if (entry === undefined) {
-        return undefined;
-      }
+    if ([ entry.storedSize, entry.unzippedSize, entry.offset ].includes(ZIP64_MARKER)) {
+      entry = readZip64Fields(view, entry, extraStart, extraEnd);
     }
+    // With two entries of one name, which one counts is up to the reader, so this check and the
+    // parser could read different ones
+    if (entry === undefined || names.has(entry.name)) {
+      return undefined;
+    }
+    names.add(entry.name);
     entries.push(entry);
     at = extraEnd + view.getUint16(at + 32, true);
   }
   return entries;
 }
 
-// Everything is checked from the directory before anything is unzipped: a small file can unzip to
-// gigabytes, and reading even the content types out of such a file could hang the tab.
+// Unzips a deflated entry, giving up once it grows past the limit
+async function inflate(stored: Uint8Array<ArrayBuffer>, maxBytes: number): Promise<Uint8Array | undefined> {
+  const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
+    start(controller) {
+      controller.enqueue(stored);
+      controller.close();
+    },
+  });
+  const reader = source.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+    total += chunk.value.length;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return undefined;
+    }
+    chunks.push(chunk.value);
+  }
+  const bytes = new Uint8Array(total);
+  chunks.reduce((at, part) => {
+    bytes.set(part, at);
+    return at + part.length;
+  }, 0);
+  return bytes;
+}
+
+/**
+ * One entry's content, read straight from the zip and capped, whatever size the zip states.
+ *
+ * @returns the content, or undefined when it cannot be read or grows past the limit
+ */
+async function readZipEntry(data: ArrayBuffer, entry: ZipEntry, maxBytes: number): Promise<Uint8Array | undefined> {
+  const view = new DataView(data);
+  if (entry.offset + LOCAL_HEADER_SIZE > data.byteLength || view.getUint32(entry.offset, true) !== LOCAL_HEADER) {
+    return undefined;
+  }
+  // The local header carries its own name and extra field, whose lengths can differ from the directory's
+  const start = entry.offset + LOCAL_HEADER_SIZE + view.getUint16(entry.offset + 26, true)
+    + view.getUint16(entry.offset + 28, true);
+  if (start + entry.storedSize > data.byteLength) {
+    return undefined;
+  }
+  const stored = new Uint8Array(data, start, entry.storedSize);
+  if (entry.method === STORED) {
+    return stored.length <= maxBytes ? stored : undefined;
+  }
+  return entry.method === DEFLATED ? inflate(stored, maxBytes) : undefined;
+}
+
+// Everything is checked from the directory before anything is unzipped, and only the content types
+// are unzipped: a small file can unzip to gigabytes, which would hang the tab.
 async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCheck> {
   try {
     const data = await file.arrayBuffer();
@@ -300,16 +362,11 @@ async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCh
     if (listed === undefined) {
       return { valid: false, error: "It is not a Word document." };
     }
-    if (listed.storedSize > MAX_STORED_CONTENT_TYPES) {
+    const types = await readZipEntry(data, listed, MAX_CONTENT_TYPES_BYTES);
+    if (types === undefined) {
       return { valid: false, error: DOCX_DAMAGED };
     }
-    const JSZip = await loadLibrary(async () => (await import("jszip")).default, file);
-    if (JSZip === undefined) {
-      return { valid: true };
-    }
-    const zip = await JSZip.loadAsync(data);
-    const types = zip.file(CONTENT_TYPES);
-    if (!types || !(await types.async("string")).includes(WORD_MAIN_DOCUMENT)) {
+    if (!new TextDecoder().decode(types).includes(WORD_MAIN_DOCUMENT)) {
       return { valid: false, error: "It is not a Word document." };
     }
     return { valid: true };

@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import JSZip from "jszip";
 import { GlobalWorkerOptions } from "pdfjs-dist";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -32,16 +31,159 @@ import {
 // A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
 // because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password, and
 // one that starts with 0x27 meets a worker that did not load.
-// A .docx is a real zip made with JSZip, since the check reads the zip's own bytes.
+// A .docx is a real zip, written below byte by byte so a test can shape it exactly.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
-// Switches that make a library fail to load, as a chunk that 404s after a deploy would
-const missing = vi.hoisted(() => ({ pdfjs: false, jszip: false }));
+// A switch that makes PDF.js fail to load, as a chunk that 404s after a deploy would
+const missing = vi.hoisted(() => ({ pdfjs: false }));
 
 // The [Content_Types].xml of an Office zip whose main part is of this kind
 function getContentTypes(kind: string): string {
   return `<Types><Override ContentType="application/vnd.openxmlformats-officedocument.${kind}.main+xml"/></Types>`;
 }
+
+interface ZipPart {
+  name: string;
+  text: string;
+  // The unzipped size the zip states, when it lies
+  claimed?: number;
+  // Kept as it is rather than deflated
+  stored?: boolean;
+}
+
+// jsdom's Blob has no stream(), so the bytes are streamed by hand
+function createStream(bytes: Uint8Array<ArrayBuffer>): ReadableStream<Uint8Array<ArrayBuffer>> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+async function readStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array<ArrayBuffer>> {
+  const chunks: Uint8Array[] = [];
+  const reader = stream.getReader();
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+    chunks.push(chunk.value);
+  }
+  return joinBytes(chunks);
+}
+
+function joinBytes(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  parts.reduce((at, part) => {
+    bytes.set(part, at);
+    return at + part.length;
+  }, 0);
+  return bytes;
+}
+
+function createRecord(size: number, fill: (view: DataView, bytes: Uint8Array) => void): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(size);
+  fill(new DataView(bytes.buffer), bytes);
+  return bytes;
+}
+
+/**
+ * A zip of these parts. With `zip64`, every size and offset sits in a ZIP64 record, with the marker
+ * in the plain fields, the way a writer that always uses ZIP64 leaves them.
+ */
+async function createZip(
+  parts: ZipPart[],
+  options: { zip64?: boolean; comment?: string } = {},
+): Promise<Uint8Array<ArrayBuffer>> {
+  const encoder = new TextEncoder();
+  const zip64 = options.zip64 ?? false;
+  const marker = 0xFFFFFFFF;
+  const version = zip64 ? 45 : 20;
+  const pieces: Uint8Array[] = [];
+  const directory: Uint8Array[] = [];
+  let offset = 0;
+  for (const part of parts) {
+    const name = encoder.encode(part.name);
+    const raw = encoder.encode(part.text);
+    const data = part.stored
+      ? raw
+      : await readStream(createStream(raw).pipeThrough(new CompressionStream("deflate-raw")));
+    const method = part.stored ? 0 : 8;
+    const unzipped = part.claimed ?? raw.length;
+    const extraSize = zip64 ? 20 : 0;
+    pieces.push(createRecord(30 + name.length + extraSize, (view, bytes) => {
+      view.setUint32(0, 0x04034B50, true);
+      view.setUint16(4, version, true);
+      view.setUint16(8, method, true);
+      view.setUint32(18, zip64 ? marker : data.length, true);
+      view.setUint32(22, zip64 ? marker : unzipped, true);
+      view.setUint16(26, name.length, true);
+      view.setUint16(28, extraSize, true);
+      bytes.set(name, 30);
+      if (zip64) {
+        view.setUint16(30 + name.length, 1, true);
+        view.setUint16(32 + name.length, 16, true);
+        view.setBigUint64(34 + name.length, BigInt(unzipped), true);
+        view.setBigUint64(42 + name.length, BigInt(data.length), true);
+      }
+    }), data);
+    const entryOffset = offset;
+    directory.push(createRecord(46 + name.length + (zip64 ? 28 : 0), (view, bytes) => {
+      view.setUint32(0, 0x02014B50, true);
+      view.setUint16(4, version, true);
+      view.setUint16(6, version, true);
+      view.setUint16(10, method, true);
+      view.setUint32(20, zip64 ? marker : data.length, true);
+      view.setUint32(24, zip64 ? marker : unzipped, true);
+      view.setUint16(28, name.length, true);
+      view.setUint16(30, zip64 ? 28 : 0, true);
+      view.setUint32(42, zip64 ? marker : entryOffset, true);
+      bytes.set(name, 46);
+      if (zip64) {
+        view.setUint16(46 + name.length, 1, true);
+        view.setUint16(48 + name.length, 24, true);
+        view.setBigUint64(50 + name.length, BigInt(unzipped), true);
+        view.setBigUint64(58 + name.length, BigInt(data.length), true);
+        view.setBigUint64(66 + name.length, BigInt(entryOffset), true);
+      }
+    }));
+    offset += 30 + name.length + extraSize + data.length;
+  }
+  const directoryStart = offset;
+  const directorySize = directory.reduce((total, entry) => total + entry.length, 0);
+  const comment = encoder.encode(options.comment ?? "");
+  const ending: Uint8Array[] = [];
+  if (zip64) {
+    const record = directoryStart + directorySize;
+    ending.push(createRecord(56, view => {
+      view.setUint32(0, 0x06064B50, true);
+      view.setBigUint64(4, BigInt(44), true);
+      view.setUint16(12, version, true);
+      view.setUint16(14, version, true);
+      view.setBigUint64(24, BigInt(parts.length), true);
+      view.setBigUint64(32, BigInt(parts.length), true);
+      view.setBigUint64(40, BigInt(directorySize), true);
+      view.setBigUint64(48, BigInt(directoryStart), true);
+    }), createRecord(20, view => {
+      view.setUint32(0, 0x07064B50, true);
+      view.setBigUint64(8, BigInt(record), true);
+      view.setUint32(16, 1, true);
+    }));
+  }
+  ending.push(createRecord(22 + comment.length, (view, bytes) => {
+    view.setUint32(0, 0x06054B50, true);
+    view.setUint16(8, zip64 ? 0xFFFF : parts.length, true);
+    view.setUint16(10, zip64 ? 0xFFFF : parts.length, true);
+    view.setUint32(12, zip64 ? marker : directorySize, true);
+    view.setUint32(16, zip64 ? marker : directoryStart, true);
+    view.setUint16(20, comment.length, true);
+    bytes.set(comment, 22);
+  }));
+  return joinBytes([ ...pieces, ...directory, ...ending ]);
+}
+
+const WORD_PARTS: ZipPart[] = [
+  { name: "[Content_Types].xml", text: getContentTypes("wordprocessingml.document") },
+  { name: "word/document.xml", text: "<w:document/>" },
+];
 
 /** The bytes of a zip shaped like a .docx; `kind` null leaves out the content types. */
 async function createZipBytes(
@@ -49,17 +191,16 @@ async function createZipBytes(
   body = "<w:document/>",
   comment?: string,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const zip = new JSZip();
-  if (kind !== null) {
-    zip.file("[Content_Types].xml", getContentTypes(kind));
-  }
-  zip.file("word/document.xml", body);
-  // Copied so the bytes own their buffer from offset 0, which the tests below write into
-  return new Uint8Array(await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", comment }));
+  const types = kind === null ? [] : [ { name: "[Content_Types].xml", text: getContentTypes(kind) } ];
+  return createZip([ ...types, { name: "word/document.xml", text: body } ], { comment });
 }
 
 async function createDocx(kind?: string | null, body?: string, comment?: string): Promise<File> {
   return new File([ await createZipBytes(kind, body, comment) ], "proposal.docx");
+}
+
+async function createZip64(parts: ZipPart[]): Promise<File> {
+  return new File([ await createZip(parts, { zip64: true }) ], "proposal.docx");
 }
 
 // Where the first central directory entry starts: its signature, low byte first
@@ -67,96 +208,6 @@ function findDirectoryEntry(bytes: Uint8Array): number {
   return bytes.findIndex((value, at) =>
     value === 0x50 && bytes[at + 1] === 0x4B && bytes[at + 2] === 0x01 && bytes[at + 3] === 0x02);
 }
-
-/**
- * A stored (not compressed) zip written in the ZIP64 format, which JSZip cannot write. Every size
- * and offset sits in a ZIP64 record, with the marker in the plain fields, the way a writer that
- * always uses ZIP64 leaves them. `claimed` is the unzipped size the directory states, when it lies.
- */
-function createZip64(entries: { name: string; text: string; claimed?: number }[]): File {
-  const encoder = new TextEncoder();
-  const parts = entries.map(entry =>
-    ({ ...entry, name: encoder.encode(entry.name), data: encoder.encode(entry.text) }));
-  const localSize = parts.reduce((sum, part) => sum + 30 + part.name.length + 20 + part.data.length, 0);
-  const directorySize = parts.reduce((sum, part) => sum + 46 + part.name.length + 28, 0);
-  const bytes = new Uint8Array(localSize + directorySize + 56 + 20 + 22);
-  const view = new DataView(bytes.buffer);
-  let at = 0;
-  const offsets: number[] = [];
-  for (const part of parts) {
-    offsets.push(at);
-    view.setUint32(at, 0x04034B50, true);
-    view.setUint16(at + 4, 45, true);
-    view.setUint32(at + 18, 0xFFFFFFFF, true);
-    view.setUint32(at + 22, 0xFFFFFFFF, true);
-    view.setUint16(at + 26, part.name.length, true);
-    view.setUint16(at + 28, 20, true);
-    bytes.set(part.name, at + 30);
-    const extra = at + 30 + part.name.length;
-    view.setUint16(extra, 1, true);
-    view.setUint16(extra + 2, 16, true);
-    view.setBigUint64(extra + 4, BigInt(part.data.length), true);
-    view.setBigUint64(extra + 12, BigInt(part.data.length), true);
-    bytes.set(part.data, extra + 20);
-    at = extra + 20 + part.data.length;
-  }
-  const directoryStart = at;
-  parts.forEach((part, index) => {
-    view.setUint32(at, 0x02014B50, true);
-    view.setUint16(at + 4, 45, true);
-    view.setUint16(at + 6, 45, true);
-    view.setUint32(at + 20, 0xFFFFFFFF, true);
-    view.setUint32(at + 24, 0xFFFFFFFF, true);
-    view.setUint16(at + 28, part.name.length, true);
-    view.setUint16(at + 30, 28, true);
-    view.setUint32(at + 42, 0xFFFFFFFF, true);
-    bytes.set(part.name, at + 46);
-    const extra = at + 46 + part.name.length;
-    view.setUint16(extra, 1, true);
-    view.setUint16(extra + 2, 24, true);
-    view.setBigUint64(extra + 4, BigInt(part.claimed ?? part.data.length), true);
-    view.setBigUint64(extra + 12, BigInt(part.data.length), true);
-    view.setBigUint64(extra + 20, BigInt(offsets[index]), true);
-    at = extra + 28;
-  });
-  const zip64End = at;
-  view.setUint32(at, 0x06064B50, true);
-  view.setBigUint64(at + 4, BigInt(44), true);
-  view.setUint16(at + 12, 45, true);
-  view.setUint16(at + 14, 45, true);
-  view.setBigUint64(at + 24, BigInt(parts.length), true);
-  view.setBigUint64(at + 32, BigInt(parts.length), true);
-  view.setBigUint64(at + 40, BigInt(zip64End - directoryStart), true);
-  view.setBigUint64(at + 48, BigInt(directoryStart), true);
-  at += 56;
-  view.setUint32(at, 0x07064B50, true);
-  view.setBigUint64(at + 8, BigInt(zip64End), true);
-  view.setUint32(at + 16, 1, true);
-  at += 20;
-  view.setUint32(at, 0x06054B50, true);
-  view.setUint16(at + 8, 0xFFFF, true);
-  view.setUint16(at + 10, 0xFFFF, true);
-  view.setUint32(at + 12, 0xFFFFFFFF, true);
-  view.setUint32(at + 16, 0xFFFFFFFF, true);
-  return new File([ bytes ], "proposal.docx");
-}
-
-const WORD_PARTS = [
-  { name: "[Content_Types].xml", text: getContentTypes("wordprocessingml.document") },
-  { name: "word/document.xml", text: "<w:document/>" },
-];
-
-vi.mock("jszip", async importOriginal => {
-  const actual = await importOriginal<{ default: unknown }>();
-  return {
-    get default() {
-      if (missing.jszip) {
-        throw new Error("Loading chunk jszip failed");
-      }
-      return actual.default;
-    },
-  };
-});
 
 const workerOptions = vi.hoisted(() => ({ workerSrc: "" }));
 
@@ -425,34 +476,53 @@ describe("an untyped file with no extension", () => {
 describe("reading the zip directory", () => {
   // Some writers use ZIP64 for every archive, however small, and the parser reads them
   it("reads a small ZIP64 archive", async () => {
-    expect(await validateUpload(createZip64(WORD_PARTS))).toBeUndefined();
+    expect(await validateUpload(await createZip64(WORD_PARTS))).toBeUndefined();
   });
 
   it("refuses a ZIP64 archive that unzips to more than the limit", async () => {
     const [ types, document ] = WORD_PARTS;
-    const file = createZip64([ types, { ...document, claimed: 600 * 1024 * 1024 } ]);
+    const file = await createZip64([ types, { ...document, claimed: 600 * 1024 * 1024 } ]);
 
     expect(await validateUpload(file)).toMatch(/unzips to more than 512 MB/);
   });
 
-  // The stated sizes can lie, and JSZip unzips past them; deflate unzips at most about a
-  // thousand times what is stored, so a small stored part cannot unzip to much
-  it("refuses content types stored too large to be real", async () => {
-    // Random text does not compress, so it is stored at about its own size
-    const noise = Array.from(crypto.getRandomValues(new Uint8Array(50_000)), value =>
-      String.fromCharCode(33 + (value % 90))).join("");
-    const zip = new JSZip();
-    zip.file("[Content_Types].xml", getContentTypes("wordprocessingml.document") + noise);
-    const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  // The stated sizes can lie, so reading stops at a limit whatever the zip says
+  it("refuses content types that unzip past what a real one could hold", async () => {
+    const types = {
+      name: "[Content_Types].xml",
+      text: getContentTypes("wordprocessingml.document") + " ".repeat(300_000),
+      claimed: 1024,
+    };
 
-    expect(await validateUpload(new File([ new Uint8Array(bytes) ], "proposal.docx"))).toMatch(/damaged/);
+    expect(await validateUpload(new File([ await createZip([ types ]) ], "proposal.docx"))).toMatch(/damaged/);
+  });
+
+  // With two entries of one name, the check and the parser could read different ones
+  it("refuses a zip that names an entry twice", async () => {
+    const [ types ] = WORD_PARTS;
+    const file = new File([ await createZip([ ...WORD_PARTS, types ]) ], "proposal.docx");
+
+    expect(await validateUpload(file)).toMatch(/damaged/);
+  });
+
+  it("reads content types stored without compression", async () => {
+    const parts = WORD_PARTS.map(part => ({ ...part, stored: true }));
+
+    expect(await validateUpload(new File([ await createZip(parts) ], "proposal.docx"))).toBeUndefined();
+  });
+
+  it("refuses content types compressed some other way", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    // 12 is bzip2, which neither this check nor Word uses
+    new DataView(bytes.buffer).setUint16(findDirectoryEntry(bytes) + 10, 12, true);
+
+    expect(await validateUpload(new File([ bytes ], "proposal.docx"))).toMatch(/damaged/);
   });
 });
 
 describe("when what checks a file cannot load", () => {
   afterEach(() => {
     missing.pdfjs = false;
-    missing.jszip = false;
   });
 
   function spyOnErrors() {
@@ -473,21 +543,5 @@ describe("when what checks a file cannot load", () => {
 
     expect(await validateUpload(createUpload("proposal.pdf", [ 0x27 ]))).toBeUndefined();
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.pdf", expect.any(Error));
-  });
-
-  it("lets a .docx through when JSZip does not load", async () => {
-    const logged = spyOnErrors();
-    const file = await createDocx();
-    missing.jszip = true;
-
-    expect(await validateUpload(file)).toBeUndefined();
-    expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.docx", expect.any(Error));
-  });
-
-  // Reading the zip's list needs no library, so what it finds is still refused
-  it("still refuses a .docx whose list cannot be read", async () => {
-    missing.jszip = true;
-
-    expect(await validateUpload(createUpload("proposal.docx", [ 0x25, 1, 0 ]))).toMatch(/damaged/);
   });
 });

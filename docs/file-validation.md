@@ -71,10 +71,9 @@ validateUpload(file, accepted, limits)
        │           │     unreadable?             → "The document is damaged, or it is not a .docx file."
        │           │     sizes > maxUnzippedSize? → "It unzips to more than L MB."
        │           │     no [Content_Types].xml? → "It is not a Word document."
-       │           │     it stores over 16 KB?   → "The document is damaged, or it is not a .docx file."
-       │           ├── import("jszip")
-       │           ├── JSZip.loadAsync(data)
-       │           └── read [Content_Types].xml, look for the Word main document type
+       │           ├── readZipEntry(data, …)     (unzips [Content_Types].xml alone, stopping past 256 KB)
+       │           │     unreadable or too big?  → "The document is damaged, or it is not a .docx file."
+       │           └── look for the Word main document type in it
        ├── .doc  → checkDoc
        │           └── read the first 8 bytes, compare to the OLE signature
        └── other → passes, nothing to look inside
@@ -145,7 +144,7 @@ type whose name has no known extension gets no content check at all.
 
 ### PDF
 
-1. PDF.js is loaded (see [Loading PDF.js and JSZip](#loading-pdfjs-and-jszip)).
+1. PDF.js is loaded (see [Loading PDF.js](#loading-pdfjs)).
 2. The whole file is read into memory and handed to PDF.js. No password is passed.
 3. PDF.js opens it and counts the pages.
 4. The PDF.js task is destroyed in a `finally`, pass or fail. Each check starts its own
@@ -181,9 +180,9 @@ A `.docx` is a zip file. The check:
 1. Reads the whole file into memory.
 2. Reads the zip's list of entries, without unzipping anything.
 3. Adds up how big the entries are once unzipped.
-4. Finds `[Content_Types].xml` in the list, and checks it stores no more than 16 KB.
-5. Loads JSZip, opens the zip and reads `[Content_Types].xml`.
-6. Looks for the text `wordprocessingml.document.main+xml` in it.
+4. Finds `[Content_Types].xml` in the list and unzips that one entry, stopping if it
+   grows past 256 KB.
+5. Looks for the text `wordprocessingml.document.main+xml` in it.
 
 It looks at the content types and not at a fixed file name like `word/document.xml`,
 because some programs name the main part differently (`word/document2.xml`).
@@ -193,8 +192,7 @@ because some programs name the main part differently (`word/document2.xml`).
 | Zip opens, content types name a Word document | passes |
 | Unzips to more than `maxUnzippedSize` | `It unzips to more than 512 MB.` |
 | No `[Content_Types].xml`, or it names something else (an Excel file renamed `.docx`) | `It is not a Word document.` |
-| Not a zip, its directory does not add up, or `[Content_Types].xml` stores over 16 KB | `The document is damaged, or it is not a .docx file.` |
-| JSZip could not load | passes, unchecked (see [PDF](#pdf)) |
+| Not a zip, its directory does not add up, it names an entry twice, or `[Content_Types].xml` cannot be read or unzips past 256 KB | `The document is damaged, or it is not a .docx file.` |
 
 **Everything is checked from the list before anything is unzipped.** A small zip can
 unzip to gigabytes: 50 MB of the same byte repeated squeezes down to almost nothing.
@@ -208,22 +206,26 @@ each entry with its size before and after zipping. `readZipDirectory`:
 2. Reads from it how many entries there are and where the directory starts. When those
    fields hold their largest value (`FFFF`, `FFFFFFFF`), the real ones are in a ZIP64
    record, found through the ZIP64 locator just before the end record.
-3. Walks the entries (signature `PK 01 02`), reading each name and both sizes. A size of
-   `FFFFFFFF` means the real one is in the entry's ZIP64 extra field.
+3. Walks the entries (signature `PK 01 02`), reading each name, both sizes, how the
+   entry is compressed and where it starts. A field of `FFFFFFFF` means the real value
+   is in the entry's ZIP64 extra field.
 
 Some writers use ZIP64 for every archive, however small, so a ZIP64 `.docx` is read like
 any other. The parser reads the same numbers (`zipfile`'s `file_size`), so the two agree
 on what a file unzips to.
 
 The list is treated as damaged when there is no end record, an entry lacks its
-signature, an entry runs past the end of the directory, or a size is marked as ZIP64
-with no ZIP64 field to read it from.
+signature, an entry runs past the end of the directory, a field is marked as ZIP64 with
+no ZIP64 field to read it from, or two entries have the same name. With two of one name,
+which one counts is up to the reader, so this check and the parser could read different
+ones.
 
-**The sizes in the list can lie**, and JSZip does not stop at the stated size. It unzips
-everything and only then sees the lengths differ: a 200 KB file claiming 1 KB was
-unzipped to 200 MB. So the stored size of `[Content_Types].xml`, the one part JSZip
-unzips, is capped too. A real one stores about 1 KB. Deflate unzips at most about a
-thousand times what it stores, so 16 KB stored is at most about 16 MB unzipped.
+**The sizes in the list can lie.** A zip can say an entry unzips to 1 KB and hold
+gigabytes. So the one entry the check needs, `[Content_Types].xml`, is not trusted:
+`readZipEntry` finds its data through the entry's local header and unzips it with the
+browser's own `DecompressionStream`, stopping once it passes 256 KB. A real one is a few
+KB. An entry stored without compression is read as it is; any other method is treated as
+damaged.
 
 ### DOC
 
@@ -254,19 +256,16 @@ No content check. A file of another type that passed step 3 passes.
 There is no page limit for `.docx` or `.doc`. Their page count is not known until they
 are converted.
 
-## Loading PDF.js and JSZip
+## Loading PDF.js
 
-Both libraries are imported with `import()`, not at the top of the file. Webpack puts
-each in its own chunk, so a page only downloads PDF.js the first time a PDF is checked,
-and JSZip the first time a `.docx` is. That holds because the shared `vendor` chunk
-takes only libraries pages need up front (`chunks: 'initial'` in
-`webpack.config-template.js`). Without that, both would join it and every page would
-download them.
+PDF.js (`pdfjs-dist` 4.10.38) is imported with `import()`, not at the top of the file.
+Webpack puts it in its own chunk, so a page only downloads it the first time a PDF is
+checked. That holds because the shared `vendor` chunk takes only libraries pages need up
+front (`chunks: 'initial'` in `webpack.config-template.js`). Without that, it would join
+that chunk and every page would download it.
 
-| Library | Version | Added in |
-| --- | --- | --- |
-| `pdfjs-dist` | 4.10.38 | `aggregated-frontend/src/main/frontend/package.json` |
-| `jszip` | 3.10.1 | the same file |
+A `.docx` needs no library: the zip is read with the browser's own `DataView` and
+`DecompressionStream`.
 
 PDF.js reads PDFs in a web worker, a separate script file. It will not open anything
 until it is told where that file is. Two pieces set that up:
@@ -340,19 +339,18 @@ so the screen never shows a result for settings that are no longer selected.
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 43 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 44 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 9 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale answer is ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting
 with byte `0x25` is a PDF whose page count is in the next two bytes, low byte first, so
 501 pages fits. A file starting with `0x26` needs a password, and one starting with
 `0x27` meets a worker that would not start. Anything else is not a PDF. A switch makes
-PDF.js or JSZip fail to load, the way a missing chunk would.
+PDF.js fail to load, the way a missing chunk would.
 
-It does use real JSZip, to build real `.docx` zips, because the checks read the zip's
-own bytes. Bad zips are made by changing a few bytes of a good one: pointing the
-directory at the wrong place, or writing the ZIP64 marker into an entry's size. JSZip
-cannot write ZIP64, so `createZip64` builds those archives by hand.
+A `.docx` is a real zip, written byte by byte by `createZip`, so a test can shape it
+exactly: lying sizes, ZIP64 records, a comment, an entry stored or named twice. Bad zips
+are also made by changing a few bytes of a good one.
 
 The widget test replaces `validateUpload` itself, since the rules have their own tests.
 
@@ -363,7 +361,7 @@ The widget test replaces `validateUpload` itself, since the rules have their own
 | `modules/frontend-commons/src/main/frontend/src/fileValidation.ts` | `validateUpload` and every check |
 | `modules/frontend-commons/src/main/frontend/src/pdfjsClient.ts` | Loads PDF.js and tells it where its worker is |
 | `aggregated-frontend/src/main/frontend/webpack.config-template.js` | Emits the PDF.js worker as `/libs/iap/resources/pdf.worker.min.js` |
-| `aggregated-frontend/src/main/frontend/package.json` | The `pdfjs-dist` and `jszip` dependencies |
+| `aggregated-frontend/src/main/frontend/package.json` | The `pdfjs-dist` dependency |
 | `test-data/src/main/frontend/src/FileValidationWidget.tsx` | The demo widget |
 | `test-data/src/main/resources/SLING-INF/content/Extensions/DashboardWidget/FileValidation.json` | Puts the widget on the dashboard |
 
