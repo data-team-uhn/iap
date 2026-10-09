@@ -83,7 +83,7 @@ links, mirroring backlink completion.
 | `POST <entry>.restore.json` | Restore an archive entry |
 | `DELETE <entry>` | Purge an archive entry |
 | `GET /Archive.entries.json` | List entries, paged, filtered, sorted |
-| `GET /Archive.summary.json` | Counts for the last day, last week, and total |
+| `GET /Archive.adminSummary.json` | Counts for the last day, last week, and total |
 | `GET <entry>.entry.json` | Describe one entry, and whether restoring or purging would work |
 
 The deletion endpoint is bound to `data/Content`, i.e. every content resource; the
@@ -251,7 +251,7 @@ unrecognised column falls back to the default rather than failing the request. R
 carry `path`, `requestedPath`, `deletedBy`, `created`, `itemCount`, the `originalPaths`
 of everything in the entry, and `shortPath`.
 
-`summary.json` returns just three counts — `last24Hours`, `lastWeek` and `total` —
+`adminSummary.json` returns just three counts — `last24Hours`, `lastWeek` and `total` —
 for callers that want the size of the archive without fetching rows they will not
 display.
 
@@ -280,7 +280,7 @@ Three extensions in `modules/deletion/src/main/frontend`, no pages of their own:
 
 | Component | Point | Shows |
 |---|---|---|
-| `ArchiveWidget` | `iap/adminDashboard/entry` | The three `summary.json` counts. The way through is the dashboard frame's header action, declared by `ext:actionLabel`/`ext:targetURL` rather than drawn by the widget |
+| `ArchiveWidget` | `iap/adminDashboard/entry` | The three `adminSummary.json` counts. The way through is the dashboard frame's header action, declared by `ext:actionLabel`/`ext:targetURL` rather than drawn by the widget |
 | `ArchiveBrowser` | `iap/coreUI/view` at `/admin/archive` | Filterable, sortable table with per-entry restore and purge, in `AdminScreen` chrome |
 | `ArchiveEntryView` | `iap/coreUI/view` at `/admin/archive/*` | One entry, what it holds, and the preflight per item in words |
 

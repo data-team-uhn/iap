@@ -21,7 +21,6 @@ import {
   errorNameFromRoute,
   errorRoute,
   fetchLoggedError,
-  fetchTriageCounts,
   resolutionLabel,
 } from "@iap/error-tracking/errorTrackingApi";
 
@@ -31,15 +30,6 @@ import {
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
   headers: { "Content-Type": "application/json" },
-});
-
-const page = (totalrows: number, approximate = false) => ({
-  rows: [],
-  offset: 0,
-  limit: 1,
-  returnedrows: 0,
-  totalrows,
-  totalIsApproximate: approximate,
 });
 
 describe("errorNameFromRoute", () => {
@@ -85,47 +75,6 @@ describe("resolutionLabel", () => {
   it("falls back to the raw name for a marker it does not know", () => {
     // A deployment may add a triage tag of its own; showing its name beats showing nothing
     expect(resolutionLabel("escalated")).toBe("escalated");
-  });
-});
-
-describe("fetchTriageCounts", () => {
-  // Each call must get its OWN Response: a body can only be read once, and both requests go
-  // through the same fetch
-  const answering = (needing: number, total: number, approximate = false) => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(
-      jsonResponse(200, url.includes("fieldValue=unacknowledged")
-        ? page(needing, approximate)
-        : page(total, approximate))));
-    return fetchMock;
-  };
-
-  it("counts what needs attention and what there is in total", async () => {
-    const counts = await fetchTriageCounts(answering(3, 41));
-    expect(counts.needingAttention).toBe(3);
-    expect(counts.total).toBe(41);
-    expect(counts.approximate).toBe(false);
-  });
-
-  it("asks the errors' own homepage, filtering on the derived triage marker", async () => {
-    const fetchMock = answering(0, 0);
-    await fetchTriageCounts(fetchMock);
-
-    const urls = fetchMock.mock.calls.map(call => call[0]);
-    expect(urls).toHaveLength(2);
-    expect(urls.every(url => url.startsWith("/LoggedErrors.paginate.json?"))).toBe(true);
-    // There is deliberately no summary endpoint: the homepage is an data:EntityHomepage, so the
-    // pagination servlet already answers this
-    const filtered = urls.find(url => url.includes("fieldName=computedTags"));
-    expect(filtered).toContain("fieldValue=unacknowledged");
-  });
-
-  it("reports the counts as lower bounds when either scan stopped at the bound", async () => {
-    expect((await fetchTriageCounts(answering(1, 10000, true))).approximate).toBe(true);
-  });
-
-  it("fails when the errors cannot be read at all", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(new Response("", { status: 404 })));
-    await expect(fetchTriageCounts(fetchMock)).rejects.toThrow();
   });
 });
 

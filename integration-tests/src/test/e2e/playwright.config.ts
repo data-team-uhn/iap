@@ -63,7 +63,7 @@ const browsers = (): string[] => {
  *
  * **Specs observe, stories mutate**, so a suite's `<suite>-stories-<browser>` project depends on its
  * `<suite>-<browser>` one and runs only once that has finished. Much of what a spec asserts is what a
- * freshly launched deployment looks like — an empty taxonomy, "No workflows are defined yet.", an
+ * freshly launched deployment looks like — an empty taxonomy, a workflow count of zero, an
  * archive nothing has ever been put in — and a story that creates content has no business being in
  * flight while any of that is being checked. Left unsequenced the two do not in fact overlap, since the
  * story worker is queued behind the specs and is slower to create anything than they are to finish; the

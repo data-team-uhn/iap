@@ -52,12 +52,17 @@ describe("messageRoute and messageNameFromRoute", () => {
 });
 
 describe("parseCatcherStatus", () => {
+  const summary = (enabled: unknown, total: unknown) => ({
+    enabled: { label: "Catching mail", value: enabled },
+    total: { label: "Caught so far", value: total },
+  });
+
   it("reads whether mail is being caught, and how much has been", () => {
-    expect(parseCatcherStatus({ enabled: true, total: 3 })).toEqual({ enabled: true, total: 3 });
+    expect(parseCatcherStatus(summary(true, 3))).toEqual({ enabled: true, total: 3 });
   });
 
   it("reads an instance that is delivering normally", () => {
-    expect(parseCatcherStatus({ enabled: false, total: 0 })).toEqual({ enabled: false, total: 0 });
+    expect(parseCatcherStatus(summary(false, 0))).toEqual({ enabled: false, total: 0 });
   });
 
   it("treats an answer missing either half as the safe reading", () => {
@@ -66,8 +71,12 @@ describe("parseCatcherStatus", () => {
     expect(parseCatcherStatus({})).toEqual({ enabled: false, total: 0 });
   });
 
+  it("treats a figure with no value at all as the safe reading", () => {
+    expect(parseCatcherStatus({ enabled: { label: "Catching mail" } })).toEqual({ enabled: false, total: 0 });
+  });
+
   it("does not take a count, or a switch, of the wrong type", () => {
-    expect(parseCatcherStatus({ enabled: "yes", total: "3" })).toEqual({ enabled: false, total: 0 });
+    expect(parseCatcherStatus(summary("yes", "3"))).toEqual({ enabled: false, total: 0 });
   });
 });
 

@@ -16,36 +16,16 @@
  * limitations under the License.
  */
 
-import { Skeleton, Typography } from "@mui/material";
-
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
-import { useWorkflowCounts } from "./useWorkflowCounts";
-import { adminUrl } from "./workflowModel";
+import { WORKFLOWS_ROOT, adminUrl } from "./workflowModel";
 
-// The administration console widget summarizing the workflows: how many each homepage holds, each
-// homepage's name leading to its own listing. The frame's "Manage workflows" action, from the
-// extension node, leads to the one every deployment has.
+// The administration console widget summarizing the workflows: how many each homepage holds, and
+// a link to view the full details for each homepage.
+//
+// One homepage is asked, and it answers for every homepage of its kind the reader may see.
 function WorkflowsWidget() {
-  const { counts, loading } = useWorkflowCounts();
-
-  if (loading) {
-    return <Skeleton variant="rounded" height={96} aria-label="Loading the workflows" />;
-  }
-  if (counts.length === 0) {
-    return <Typography variant="placeholder">No workflows are defined yet.</Typography>;
-  }
-  return (
-    <WidgetStatList
-      stats={counts.map(homepage => ({
-        label: homepage.title,
-        value: homepage.count,
-        approximate: homepage.atLeast,
-        href: adminUrl(homepage.path),
-        unknownTitle: "The workflows here could not be counted",
-      }))}
-    />
-  );
+  return <WidgetStatList url={WORKFLOWS_ROOT} name="workflows" hrefFor={adminUrl} />;
 }
 
 export default WorkflowsWidget;

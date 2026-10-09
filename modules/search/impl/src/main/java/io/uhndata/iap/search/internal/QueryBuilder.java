@@ -26,6 +26,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.apache.sling.api.resource.Resource;
+
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
  * filtered by their own properties and by those of descendant nodes, ordered by one of their properties.
@@ -74,6 +76,34 @@ final class QueryBuilder
     {
         this.nodeType = checkName(nodeType);
         this.scopePath = Objects.requireNonNull(scopePath, "A pagination query needs a scope path");
+    }
+
+    /**
+     * Starts a query for the entities one homepage holds: nodes of its child type, under it.
+     *
+     * @param homepage the homepage whose entities are queried
+     * @return a builder scoped to that homepage
+     * @throws IllegalArgumentException if the homepage's child type is not a valid name
+     */
+    static QueryBuilder forEntitiesOf(final Resource homepage)
+    {
+        return new QueryBuilder(childNodeType(homepage), homepage.getPath());
+    }
+
+    /**
+     * The type of nodes a homepage lists. That is its {@code childNodeType} property when it has one. Otherwise it is
+     * derived from the resource type: {@code sub/SubmissionsHomepage} lists {@code sub:Submission}.
+     *
+     * @param homepage the homepage to read
+     * @return a node type name
+     */
+    static String childNodeType(final Resource homepage)
+    {
+        final String explicit = homepage.getValueMap().get("childNodeType", String.class);
+        if (explicit != null) {
+            return explicit;
+        }
+        return homepage.getResourceType().replace('/', ':').replaceFirst("sHomepage$", "");
     }
 
     /**
@@ -151,6 +181,21 @@ final class QueryBuilder
      */
     BoundStatement build()
     {
+        return build(true);
+    }
+
+    /**
+     * Assembles the statement without an ordering, for a caller that only counts the matches.
+     *
+     * @return a valid JCR-SQL2 statement together with the value of every bind variable it names
+     */
+    BoundStatement buildCount()
+    {
+        return build(false);
+    }
+
+    private BoundStatement build(final boolean ordered)
+    {
         final Map<String, String> bindings = new LinkedHashMap<>();
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
         int childIndex = 0;
@@ -171,7 +216,9 @@ final class QueryBuilder
         if (this.fullText != null && !this.fullText.isBlank()) {
             query.append(" and contains(n.*, ").append(bind(bindings, escapeFullText(this.fullText))).append(')');
         }
-        query.append(" order by n.[").append(this.sortBy).append(this.descending ? "] DESC" : "] ASC");
+        if (ordered) {
+            query.append(" order by n.[").append(this.sortBy).append(this.descending ? "] DESC" : "] ASC");
+        }
         return new BoundStatement(query.toString(), Map.copyOf(bindings));
     }
 

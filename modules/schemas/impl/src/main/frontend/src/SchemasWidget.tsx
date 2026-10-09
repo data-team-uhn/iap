@@ -16,34 +16,15 @@
  * limitations under the License.
  */
 
-import { Skeleton, Typography } from "@mui/material";
-
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
-import { countSchemas } from "./schemaModel";
-import { useSchemaList } from "./useSchemaList";
+import { SCHEMAS_ROOT } from "./schemaModel";
 
-// The administration console widget summarizing the schemas. The way through to the full tool is the
-// frame's own "Manage" action, from the extension node.
+// The administration console widget summarizing the schemas: how many versions are active or in draft, and how
+// many schemas are retired. The way through to the full tool is the frame's own "Manage" action, from the
+// extension node.
 function SchemasWidget() {
-  const { schemas, loading, loadError } = useSchemaList();
-
-  if (loading) {
-    return <Skeleton variant="rounded" height={96} aria-label="Loading the schemas" />;
-  }
-  if (loadError) {
-    return <Typography variant="placeholder">The schemas could not be loaded.</Typography>;
-  }
-  const counts = countSchemas(schemas);
-  return (
-    <WidgetStatList
-      stats={[
-        { label: "Active versions", value: counts.active },
-        { label: "Draft versions in progress", value: counts.drafts },
-        { label: "Retired schemas", value: counts.retired },
-      ]}
-    />
-  );
+  return <WidgetStatList url={SCHEMAS_ROOT} name="schemas" />;
 }
 
 export default SchemasWidget;

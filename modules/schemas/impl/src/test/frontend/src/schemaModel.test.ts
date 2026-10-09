@@ -17,8 +17,8 @@
  */
 
 import {
-  countSchemas, descriptionOf, fieldsOf, labelOf, latestVersion, nextVersionLabel, pathOf, schemaNameFromRoute,
-  schemasOf, tagsOf, titleOf, versionNameFromRoute, versionsOf,
+  descriptionOf, fieldsOf, labelOf, latestVersion, nextVersionLabel, pathOf, schemaNameFromRoute, schemasOf,
+  tagsOf, titleOf, versionNameFromRoute, versionsOf,
 } from "@iap/schemas/schemaModel";
 
 import { HOMEPAGE, withPaths } from "./schemaServer.fixture";
@@ -89,10 +89,6 @@ describe("schemaModel", () => {
     })!)).toBe("1.0");
     expect(labelOf(latestVersion({ a: version("1.0"), b: version("2.0") })!)).toBe("2.0");
     expect(latestVersion({})).toBeUndefined();
-  });
-
-  it("counts the lifecycle tags", () => {
-    expect(countSchemas(schemasOf(HOMEPAGE))).toEqual({ active: 2, drafts: 2, retired: 1 });
   });
 
   it("reads the schema name out of its page's route", () => {

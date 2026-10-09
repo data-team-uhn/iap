@@ -167,7 +167,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         // capitalised login
         final PrincipalContext asking =
             new PrincipalContext(homepage, UserIds.canonical(request.getResourceResolver()));
-        final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
+        final QueryBuilder builder = QueryBuilder.forEntitiesOf(homepage)
             .withFilters(parseFilters(request, "field", asking));
         for (final String suffix : getChildFilterSuffixes(request)) {
             builder.withChildFilters(request.getParameter("childType" + suffix),
@@ -180,23 +180,6 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         // Only the statement is logged, never the bindings. The bindings are the caller's search terms.
         LOGGER.debug("Pagination query: {}", bound.statement());
         return bound.createQuery(session);
-    }
-
-    /**
-     * The type of nodes listed by the targeted homepage: the {@code childNodeType} property if the homepage node has
-     * one, otherwise the resource type with {@code /} replaced by {@code :} and a trailing {@code sHomepage} cut,
-     * turning {@code sub/SubmissionsHomepage} into {@code sub:Submission}.
-     *
-     * @param homepage the homepage resource targeted by the request
-     * @return a node type name
-     */
-    private String getNodeType(final Resource homepage)
-    {
-        final String explicit = homepage.getValueMap().get("childNodeType", String.class);
-        if (explicit != null) {
-            return explicit;
-        }
-        return homepage.getResourceType().replace('/', ':').replaceFirst("sHomepage$", "");
     }
 
     /**
