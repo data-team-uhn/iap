@@ -17,14 +17,16 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.security.Principal;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -64,7 +66,17 @@ class PerformerCheckTest
     void admitsAnActorThroughTheirGroup() throws Exception
     {
         assertDoesNotThrow(() -> PerformerCheck.verify(
-            repositoryWith(user(REQUESTER, false, REQUESTERS)), node(REQUESTERS), REQUESTER));
+            repositoryWith(user(REQUESTER, false), REQUESTERS), node(REQUESTERS), REQUESTER));
+    }
+
+    @Test
+    void admitsAnActorThroughARoleThatExistsOnlyAsAPrincipal() throws Exception
+    {
+        // A Keycloak role under dynamic membership: a group principal with no group node, so memberOf() is empty
+        final User actor = user(REQUESTER, false);
+        Mockito.when(actor.memberOf()).thenAnswer(invocation -> List.of().iterator());
+
+        assertDoesNotThrow(() -> PerformerCheck.verify(repositoryWith(actor, "writer"), node("writer"), REQUESTER));
     }
 
     @Test
@@ -88,7 +100,7 @@ class PerformerCheckTest
     {
         final NotAuthorizedException refusal = assertThrows(NotAuthorizedException.class,
             () -> PerformerCheck.verify(
-                repositoryWith(user(REQUESTER, false, REQUESTERS)), node("time-off-approvers"), REQUESTER));
+                repositoryWith(user(REQUESTER, false), REQUESTERS), node("time-off-approvers"), REQUESTER));
         assertTrue(refusal.getMessage().contains("not allowed"));
     }
 
@@ -97,17 +109,17 @@ class PerformerCheckTest
     {
         // The fail-closed rule: a definition that forgot to say who may use it admits no one, rather than all
         assertThrows(NotAuthorizedException.class, () -> PerformerCheck.verify(
-            repositoryWith(user(REQUESTER, false, REQUESTERS)), node(), REQUESTER));
+            repositoryWith(user(REQUESTER, false), REQUESTERS), node(), REQUESTER));
     }
 
     @Test
     void looksNoGroupsUpForANodeNamingNobody() throws Exception
     {
-        final User actor = user(REQUESTER, false, REQUESTERS);
+        final User actor = user(REQUESTER, false);
 
         assertThrows(NotAuthorizedException.class,
-            () -> PerformerCheck.verify(repositoryWith(actor), node(), REQUESTER));
-        Mockito.verify(actor, Mockito.never()).memberOf();
+            () -> PerformerCheck.verify(repositoryWith(actor, REQUESTERS), node(), REQUESTER));
+        Mockito.verify(actor, Mockito.never()).getPrincipal();
     }
 
     @Test
@@ -152,7 +164,7 @@ class PerformerCheckTest
     {
         final User actor = Mockito.mock(User.class);
         Mockito.when(actor.getID()).thenReturn(REQUESTER);
-        Mockito.when(actor.memberOf()).thenThrow(new RepositoryException("the group index is corrupt"));
+        Mockito.when(actor.getPrincipal()).thenThrow(new RepositoryException("the principal index is corrupt"));
 
         assertThrows(WorkflowFailedException.class,
             () -> PerformerCheck.verify(repositoryWith(actor), node(REQUESTERS), REQUESTER));
@@ -172,56 +184,56 @@ class PerformerCheckTest
     }
 
     /**
-     * An actor, optionally an administrator, optionally belonging to some groups.
+     * An actor, optionally an administrator.
      *
-     * @param id the actor's user id
+     * @param id the actor's user id, also their principal name
      * @param admin whether the actor is an administrator
-     * @param groups the groups the actor belongs to
      * @return a stub user
      * @throws RepositoryException never, but the stubbed methods declare it
      */
-    private static User user(final String id, final boolean admin, final String... groups)
-        throws RepositoryException
+    private static User user(final String id, final boolean admin) throws RepositoryException
     {
+        final Principal principal = principal(id);
         final User actor = Mockito.mock(User.class);
         Mockito.when(actor.getID()).thenReturn(id);
+        Mockito.when(actor.getPrincipal()).thenReturn(principal);
         Mockito.when(actor.isAdmin()).thenReturn(admin);
-        Mockito.when(actor.memberOf()).thenAnswer(invocation -> List.of(groups).stream()
-            .map(PerformerCheckTest::group)
-            .iterator());
         return actor;
     }
 
     /**
-     * A group that knows its own name.
+     * A principal that knows its own name.
      *
-     * @param id the group's id
-     * @return a stub group
+     * @param name the principal name
+     * @return a stub principal
      */
-    private static Group group(final String id)
+    private static Principal principal(final String name)
     {
-        final Group group = Mockito.mock(Group.class);
-        try {
-            Mockito.when(group.getID()).thenReturn(id);
-        } catch (final RepositoryException e) {
-            throw new IllegalStateException(e);
-        }
-        return group;
+        final Principal principal = Mockito.mock(Principal.class);
+        Mockito.when(principal.getName()).thenReturn(name);
+        return principal;
     }
 
     /**
-     * A session whose user store knows exactly the given actor.
+     * A session whose user store knows exactly the given actor, and whose principal manager reports them as a
+     * member of the given groups.
      *
      * @param known the one user the repository has
+     * @param groups the principal names of the groups the actor belongs to
      * @return a resolver adapting to that repository
      * @throws RepositoryException never, but the stubbed methods declare it
      */
-    private static ResourceResolver repositoryWith(final Authorizable known) throws RepositoryException
+    private static ResourceResolver repositoryWith(final Authorizable known, final String... groups)
+        throws RepositoryException
     {
         final UserManager userManager = Mockito.mock(UserManager.class);
         Mockito.when(userManager.getAuthorizable(known.getID())).thenReturn(known);
+        final PrincipalManager principals = Mockito.mock(PrincipalManager.class);
+        Mockito.when(principals.getGroupMembership(Mockito.any())).thenAnswer(invocation ->
+            EngineFixture.principalIterator(Stream.of(groups).map(PerformerCheckTest::principal).toList()));
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
         Mockito.when(session.getUserManager()).thenReturn(userManager);
+        Mockito.when(session.getPrincipalManager()).thenReturn(principals);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
         return resolver;

@@ -31,9 +31,12 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalIterator;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.commons.iterator.RangeIteratorAdapter;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -295,13 +298,21 @@ final class EngineFixture
             final User requester = user(REQUESTER, false);
             final Group requesters = group();
             final AccessControlManager accessControl = accessControlManager();
+            final Principal requestersPrincipal = requesters.getPrincipal();
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
+            // The ordinary user belongs to REQUESTERS; the administrator belongs to nothing, since being an
+            // administrator is what gets them through
+            final PrincipalManager principals = Mockito.mock(PrincipalManager.class);
+            Mockito.when(principals.getGroupMembership(Mockito.any())).thenAnswer(invocation ->
+                principalIterator(REQUESTER.equals(((Principal) invocation.getArgument(0)).getName())
+                    ? List.of(requestersPrincipal) : List.of()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
+            Mockito.doReturn(principals).when(session).getPrincipalManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
             return session;
         } catch (final RepositoryException e) {
@@ -346,8 +357,18 @@ final class EngineFixture
     }
 
     /**
-     * One of the repository's users. The ordinary one belongs to {@link #REQUESTERS}; the administrator belongs
-     * to nothing, since being an administrator is what gets them through.
+     * Group principals, as a principal manager reports them.
+     *
+     * @param principals the principals to iterate over
+     * @return an iterator over them
+     */
+    static PrincipalIterator principalIterator(final List<Principal> principals)
+    {
+        return new Principals(principals);
+    }
+
+    /**
+     * One of the repository's users. Which groups each belongs to is the session's principal manager's business.
      *
      * @param id the user id
      * @param admin whether this user is an administrator
@@ -356,16 +377,12 @@ final class EngineFixture
      */
     private static User user(final String id, final boolean admin) throws RepositoryException
     {
-        final Group requesters = group();
         final Principal principal = Mockito.mock(Principal.class);
         Mockito.when(principal.getName()).thenReturn(id);
         final User user = Mockito.mock(User.class);
         Mockito.when(user.getPrincipal()).thenReturn(principal);
         Mockito.when(user.getID()).thenReturn(id);
         Mockito.when(user.isAdmin()).thenReturn(admin);
-        Mockito.when(user.memberOf()).thenAnswer(invocation -> admin
-            ? List.<Group>of().iterator()
-            : List.of(requesters).iterator());
         return user;
     }
 
@@ -416,5 +433,25 @@ final class EngineFixture
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
         context.create().resource(VERSION + "/done", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, "elementId", "done"));
+    }
+
+    /**
+     * The iterator a principal manager answers with: a range iterator that hands out principals.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class Principals extends RangeIteratorAdapter implements PrincipalIterator
+    {
+        Principals(final List<Principal> principals)
+        {
+            super(principals);
+        }
+
+        @Override
+        public Principal nextPrincipal()
+        {
+            return (Principal) next();
+        }
     }
 }
