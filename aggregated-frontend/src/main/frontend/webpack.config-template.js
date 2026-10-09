@@ -155,15 +155,12 @@ ENTRY_CONTENT
           use:['style-loader','css-loader']
         },
         {
-          // PDF.js parses in a web worker, which has to be a separately served file. It is emitted
-          // under a fixed name next to the rest of the frontend, where pdfjsClient.ts points
-          // PDF.js at it. The per-rule publicPath is needed because the global one is '/'. Named
-          // .js, not .mjs: Sling serves .mjs as application/octet-stream, which a module import
-          // refuses; the file is an ES module either way.
+          // PDF.js's worker, served as its own file. Hashed so it is cached like the rest and never
+          // pairs with another version's PDF.js; .js because Sling serves .mjs as octet-stream.
           test: /pdf\.worker\.min\.mjs$/,
           type: 'asset/resource',
           generator: {
-            filename: 'pdf.worker.min.js',
+            filename: 'pdf.worker.min.[contenthash].js',
             publicPath: '/libs/iap/resources/'
           }
         }
@@ -200,8 +197,8 @@ ENTRY_CONTENT
         chunks: 'all',
         cacheGroups: {
           defaultVendors: {
-            // Only what pages need up front. A library loaded through import() (PDF.js, JSZip)
-            // stays in its own chunk; in the vendor chunk every page would download it.
+            // Only what pages need up front, so a library loaded through import() (PDF.js) stays
+            // in its own chunk instead of every page downloading it.
             chunks: 'initial',
             minChunks: 1,
             minSize: 200,
