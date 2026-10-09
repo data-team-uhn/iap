@@ -21,17 +21,17 @@ import {
 } from "@iap/llm/llmConfigModel";
 
 const catalogJson = {
-  activeProvider: "local",
-  activeModel: "llama3.2-3b",
+  activeProvider: "example",
+  activeModel: "model-a",
   providers: [
     {
-      name: "local",
-      label: "Local (Ollama)",
+      name: "example",
+      label: "Example Provider",
       api: "openai",
-      endpoint: "http://localhost:11434/v1",
+      endpoint: "http://model-a.example.invalid/v1",
       timeoutSeconds: 600,
       models: [
-        { name: "llama3.2-3b", contextLimitTokens: 1024, temperature: 0, developer: "meta" },
+        { name: "model-a", contextLimitTokens: 1024, temperature: 0, developer: "meta" },
         { name: "other-model", contextLimitTokens: 2048 },
       ],
     },
@@ -47,22 +47,22 @@ describe("parseCatalog", () => {
   it("reads the providers, their models and the active selection", () => {
     const catalog = parseCatalog(catalogJson);
 
-    expect(catalog.activeProvider).toBe("local");
-    expect(catalog.activeModel).toBe("llama3.2-3b");
-    expect(catalog.providers.map(provider => provider.name)).toEqual(["local", "prompter"]);
-    expect(catalog.providers[0].models.map(model => model.name)).toEqual(["llama3.2-3b", "other-model"]);
+    expect(catalog.activeProvider).toBe("example");
+    expect(catalog.activeModel).toBe("model-a");
+    expect(catalog.providers.map(provider => provider.name)).toEqual(["example", "prompter"]);
+    expect(catalog.providers[0].models.map(model => model.name)).toEqual(["model-a", "other-model"]);
   });
 
   it("keeps every setting but the structural keys, as text", () => {
-    const [ local ] = parseCatalog(catalogJson).providers;
+    const [ provider ] = parseCatalog(catalogJson).providers;
 
-    expect(local.settings).toEqual([
-      { name: "label", value: "Local (Ollama)" },
+    expect(provider.settings).toEqual([
+      { name: "label", value: "Example Provider" },
       { name: "api", value: "openai" },
-      { name: "endpoint", value: "http://localhost:11434/v1" },
+      { name: "endpoint", value: "http://model-a.example.invalid/v1" },
       { name: "timeoutSeconds", value: "600" },
     ]);
-    expect(local.models[0].settings).toEqual([
+    expect(provider.models[0].settings).toEqual([
       { name: "contextLimitTokens", value: "1024" },
       { name: "temperature", value: "0" },
       { name: "developer", value: "meta" },
@@ -71,7 +71,7 @@ describe("parseCatalog", () => {
 
   it("keeps deployment-specific extras it knows nothing about", () => {
     const catalog = parseCatalog({
-      providers: [ { name: "local", apiVersion: "2024-02-01", verified: true, models: [] } ],
+      providers: [ { name: "example", apiVersion: "2024-02-01", verified: true, models: [] } ],
     });
 
     expect(catalog.providers[0].settings).toEqual([
@@ -82,7 +82,7 @@ describe("parseCatalog", () => {
 
   it("drops settings that are not plain values", () => {
     const catalog = parseCatalog({
-      providers: [ { name: "local", tags: ["a", "b"], nested: { deep: 1 }, missing: null, models: [] } ],
+      providers: [ { name: "example", tags: ["a", "b"], nested: { deep: 1 }, missing: null, models: [] } ],
     });
 
     expect(catalog.providers[0].settings).toEqual([]);
@@ -107,17 +107,17 @@ describe("parseCatalog", () => {
       providers: [
         "not a provider",
         { label: "nameless" },
-        { name: "local", models: [ { contextLimitTokens: 10 }, "not a model", { name: "fine" } ] },
+        { name: "example", models: [ { contextLimitTokens: 10 }, "not a model", { name: "fine" } ] },
       ],
     });
 
-    expect(catalog.providers.map(provider => provider.name)).toEqual(["local"]);
+    expect(catalog.providers.map(provider => provider.name)).toEqual(["example"]);
     expect(catalog.providers[0].models.map(model => model.name)).toEqual(["fine"]);
   });
 
   it("copes with providers that is not a list", () => {
     expect(parseCatalog({ providers: "some" }).providers).toEqual([]);
-    expect(parseCatalog({ providers: [ { name: "local", models: "some" } ] })
+    expect(parseCatalog({ providers: [ { name: "example", models: "some" } ] })
       .providers[0].models).toEqual([]);
   });
 });
@@ -126,26 +126,26 @@ describe("catalog lookups", () => {
   const catalog = parseCatalog(catalogJson);
 
   it("finds a provider and a model by name", () => {
-    expect(findProvider(catalog, "local")?.name).toBe("local");
-    expect(findModel(findProvider(catalog, "local"), "other-model")?.name).toBe("other-model");
+    expect(findProvider(catalog, "example")?.name).toBe("example");
+    expect(findModel(findProvider(catalog, "example"), "other-model")?.name).toBe("other-model");
   });
 
   it("finds nothing for a name that is absent or missing", () => {
     expect(findProvider(catalog, "anthropic")).toBeUndefined();
     expect(findProvider(catalog, undefined)).toBeUndefined();
-    expect(findModel(undefined, "llama3.2-3b")).toBeUndefined();
-    expect(findModel(findProvider(catalog, "local"), undefined)).toBeUndefined();
-    expect(findModel(findProvider(catalog, "local"), "absent")).toBeUndefined();
+    expect(findModel(undefined, "model-a")).toBeUndefined();
+    expect(findModel(findProvider(catalog, "example"), undefined)).toBeUndefined();
+    expect(findModel(findProvider(catalog, "example"), "absent")).toBeUndefined();
   });
 
   it("falls back to a provider's first model, when it has one", () => {
-    expect(firstModelName(findProvider(catalog, "local"))).toBe("llama3.2-3b");
+    expect(firstModelName(findProvider(catalog, "example"))).toBe("model-a");
     expect(firstModelName(findProvider(catalog, "prompter"))).toBeUndefined();
     expect(firstModelName(undefined)).toBeUndefined();
   });
 
   it("shows a provider's label, or its name when it has none", () => {
-    expect(providerLabel(catalog.providers[0])).toBe("Local (Ollama)");
+    expect(providerLabel(catalog.providers[0])).toBe("Example Provider");
     expect(providerLabel(catalog.providers[1])).toBe("prompter");
   });
 });

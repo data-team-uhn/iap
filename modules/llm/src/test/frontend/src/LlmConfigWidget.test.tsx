@@ -22,14 +22,14 @@ import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import LlmConfigWidget from "@iap/llm/LlmConfigWidget";
 
 const catalogJson = {
-  activeProvider: "local",
-  activeModel: "llama3.2-3b",
+  activeProvider: "example",
+  activeModel: "model-a",
   providers: [
     {
-      name: "local",
-      label: "Local (Ollama)",
-      endpoint: "http://localhost:11434/v1",
-      models: [ { name: "llama3.2-3b" }, { name: "other-model" } ],
+      name: "example",
+      label: "Example Provider",
+      endpoint: "http://model-a.example.invalid/v1",
+      models: [ { name: "model-a" }, { name: "other-model" } ],
     },
     { name: "prompter", models: [ { name: "GPT-OSS-120B" } ] },
   ],
@@ -55,20 +55,20 @@ describe("LlmConfigWidget", () => {
     stubFetch();
     render(<LlmConfigWidget />);
 
-    expect(await screen.findByText("Local (Ollama)")).toBeInTheDocument();
-    expect(screen.getByText("llama3.2-3b")).toBeInTheDocument();
+    expect(await screen.findByText("Example Provider")).toBeInTheDocument();
+    expect(screen.getByText("model-a")).toBeInTheDocument();
     expect(screen.getByText("2 providers, 3 models")).toBeInTheDocument();
   });
 
   it("says so when nothing is selected", async () => {
-    stubFetch({ providers: [ { name: "local", models: [] } ] });
+    stubFetch({ providers: [ { name: "example", models: [] } ] });
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("No LLM is selected.")).toBeInTheDocument();
   });
 
   it("says so when the selection names something the catalog does not offer", async () => {
-    stubFetch({ activeProvider: "local", activeModel: "absent", providers: [ { name: "local", models: [] } ] });
+    stubFetch({ activeProvider: "example", activeModel: "absent", providers: [ { name: "example", models: [] } ] });
     render(<LlmConfigWidget />);
 
     expect(await screen.findByText("No LLM is selected.")).toBeInTheDocument();
@@ -84,6 +84,6 @@ describe("LlmConfigWidget", () => {
     stubFetch();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    await waitFor(() => expect(screen.getByText("Local (Ollama)")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Example Provider")).toBeInTheDocument());
   });
 });

@@ -68,9 +68,9 @@ class LLMConfigServletTest
 
     private static final String ACTIVE_MODEL = "activeModel";
 
-    private static final String PROVIDER = "local";
+    private static final String PROVIDER = "example";
 
-    private static final String MODEL = "llama3.2-3b";
+    private static final String MODEL = "model-a";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
@@ -93,9 +93,9 @@ class LLMConfigServletTest
         this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "llm:Configuration"));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER, Map.of(
             "jcr:primaryType", "llm:Provider",
-            "label", "Local (Ollama)",
+            "label", "Example Provider",
             "api", "openai",
-            "endpoint", "http://localhost:11434/v1",
+            "endpoint", "http://model-a.example.invalid/v1",
             "timeoutSeconds", 600L));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
             "jcr:primaryType", "llm:Model",
@@ -142,7 +142,7 @@ class LLMConfigServletTest
 
         final JsonObject provider = body.getJsonArray("providers").getJsonObject(0);
         assertEquals(PROVIDER, provider.getString("name"));
-        assertEquals("Local (Ollama)", provider.getString("label"));
+        assertEquals("Example Provider", provider.getString("label"));
         assertEquals(600, provider.getJsonNumber("timeoutSeconds").longValue());
         assertEquals(2, provider.getJsonArray("models").size());
 

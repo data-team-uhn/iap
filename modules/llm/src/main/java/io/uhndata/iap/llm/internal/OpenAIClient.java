@@ -55,7 +55,7 @@ import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
 
 /**
- * {@link LLMClient} for OpenAI-compatible chat completions endpoints (Prompter, Ollama, LM Studio, etc.),
+ * {@link LLMClient} for OpenAI-compatible chat completions endpoints (such as Prompter),
  * registered for the {@code "openai"} API. Providers select it through their {@code api} property rather than by
  * name, so a single client serves every OpenAI-compatible provider. The request is dispatched with the
  * LangChain4j {@link OpenAiChatModel}, on its JDK-HTTP-client transport, wired explicitly to avoid an OSGi

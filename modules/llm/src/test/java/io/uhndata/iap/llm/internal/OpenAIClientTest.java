@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class OpenAIClientTest
 {
-    private static final String MODEL = "llama3.2-3b";
+    private static final String MODEL = "model-a";
 
     private static final String REPLY = "Hello there";
 
@@ -165,7 +165,7 @@ class OpenAIClientTest
         final String apiKeyEnvVar = (String) extra.remove("apiKeyEnvVar");
         final ProviderSettings provider = new ProviderSettings(endpoint(), apiKeyEnvVar, 10, extra);
         final ModelSettings model = new ModelSettings(0, 0.25, null, Map.of());
-        return new LLMSettings("local", provider, MODEL, model);
+        return new LLMSettings("example", provider, MODEL, model);
     }
 
     private TestClient client()
@@ -303,7 +303,7 @@ class OpenAIClientTest
         final ProviderSettings provider =
             new ProviderSettings(endpoint() + "/chat/completions/", null, 10, null);
         final ModelSettings model = new ModelSettings(0, 0.0, null, null);
-        final LLMSettings settings = new LLMSettings("local", provider, MODEL, model);
+        final LLMSettings settings = new LLMSettings("example", provider, MODEL, model);
 
         assertEquals(REPLY, say(new TestClient(settings, Map.of())));
     }
@@ -383,9 +383,9 @@ class OpenAIClientTest
     @Test
     void sendsTheModelIdentifierTheModelDeclares() throws IOException
     {
-        say(new TestClient(settingsWithModel(Map.of("modelId", "llama3.2:3b")), Map.of()));
+        say(new TestClient(settingsWithModel(Map.of("modelId", "model-a:v1")), Map.of()));
 
-        assertEquals("llama3.2:3b", request().getString("model"),
+        assertEquals("model-a:v1", request().getString("model"),
             "a JCR name cannot hold the colon, so the node name is not the identifier");
     }
 
@@ -432,6 +432,6 @@ class OpenAIClientTest
     {
         final ProviderSettings provider = new ProviderSettings(endpoint(), null, 10, Map.of());
         final ModelSettings model = new ModelSettings(0, 0.25, null, modelExtra);
-        return new LLMSettings("local", provider, MODEL, model);
+        return new LLMSettings("example", provider, MODEL, model);
     }
 }
