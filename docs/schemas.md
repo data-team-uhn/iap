@@ -86,8 +86,8 @@ version inherits from its schema; where it matters whether the schema is retired
 
 | Target | Event | Guard | Steps |
 |---|---|---|---|
-| `/Schemas` | `create` (`title`, optional `version`) | | create the schema, call `createVersion` on it |
-| a schema | `createVersion` (optional `version`) | not `retired` | add an empty version, tag it `draft` |
+| `/Schemas` | `create` (`title`, optional `version`, `source`) | | create the schema, call `createVersion` on it |
+| a schema | `createVersion` (optional `version`, `source`) | not `retired` | add a version, empty or a copy of `source`, tag it `draft` |
 | a schema | `update` (`patch`) | | edit `title` |
 | a schema | `retire` | not `retired` | tag it `retired` |
 | a schema | `activate` | `retired` | remove `retired` |
@@ -120,6 +120,16 @@ active at once.
 **Discarding** goes through the deletion service, into the archive: anything something else refers
 to, such as a version that submissions or a category point at, is refused, with the referrers
 listed. What is in use is retired instead.
+
+### Copying
+
+A new version, of an existing schema or of a new one, can start as a copy of any version, of any
+schema and in any state, named by its path in the event's `source`. `createVersion`'s workflow creates
+the version, then copies the source into it with the engine's `copyContent` task (see
+[workflows.md](workflows.md)), keeping the new version's own label, then tags it `draft`, which
+replaces where the source stood. The copy keeps every part, option, condition and template; references
+to anything outside it, such as the version's workflow, are kept, and a condition naming a question
+by path keeps that path, which now finds the copied question.
 
 ## In the admin console
 
