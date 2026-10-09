@@ -286,6 +286,9 @@
 // A document that the submitter is expected to provide, e.g. the patient
 // consent form, in an expected format described by this requirement.
 [sch:DocumentRequirement] > sch:Requirement
+  // The sections are orderable, so they are listed in the order the document
+  // is expected to present them.
+  orderable
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
 
   // Whether the document must be attached before the submission is complete.
@@ -302,6 +305,36 @@
 
   // Optional template document offered to submitters
   + template (nt:file)
+
+  // The sections the document is expected to contain
+  + * (sch:SectionRequirement) = sch:SectionRequirement
+
+//-----------------------------------------------------------------------------
+// A section a document is expected to contain, e.g. the funding section of a
+// study protocol. Submitters tend to put everything in one long document, and
+// this lets a topic point at the part worth reading. A requirement
+// in its own right, with a label, a description, a condition and an identity
+// to reference. Nothing is uploaded for it: it is looked for in the document
+// uploaded for the requirement it belongs to.
+[sch:SectionRequirement] > sch:Requirement
+  // The subsections are orderable, like the sections themselves.
+  orderable
+  - sling:resourceType (STRING) = "sch/SectionRequirement" mandatory autocreated protected
+
+  // Whether the document must contain this section. Defaults to true.
+  - required (BOOLEAN) = true autocreated
+
+  // The headings this section usually goes by, e.g. "Funding", "Budget" and
+  // "Sources of support". Documents name the same section differently, and a
+  // heading is the cheapest way to find one.
+  - headings (STRING) multiple
+
+  // The prompt an LLM is given to find where this section starts, when none of
+  // the document's headings is one of the above
+  - locationPrompt (STRING)
+
+  // The subsections it is expected to contain
+  + * (sch:SectionRequirement) = sch:SectionRequirement
 
 //-----------------------------------------------------------------------------
 // An approval that must be granted before a submission is accepted,
@@ -337,7 +370,8 @@
   - assessmentPrompt (STRING)
 
   // The requirements and questions that bear on this topic: where a reviewer
-  // and the AI look first. Weak, so one can be removed without first
+  // and the AI look first. A section requirement narrows a document down to
+  // the part of it worth reading. Weak, so one can be removed without first
   // unlinking it from every topic.
   - sources (WEAKREFERENCE) multiple
 

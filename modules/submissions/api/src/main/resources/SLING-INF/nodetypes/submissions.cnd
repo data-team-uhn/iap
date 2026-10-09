@@ -156,10 +156,10 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// The context a quote comes from, backing an extracted answer or a comment: a
-// passage of a document, or an answer. A node rather than a plain string, so
-// the quote stays linked to where it came from and the UI can send the reader
-// to that spot.
+// The context a quote comes from: a passage of a document, or an answer. It
+// backs an extracted answer or a comment, or marks where a section's passage
+// starts or ends. A node rather than a plain string, so the quote stays linked
+// to where it came from and the UI can send the reader to that spot.
 [sub:Context] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Context" mandatory autocreated protected
 
@@ -231,6 +231,9 @@
   // it is incomplete.
   + file (sub:File) = sub:File
 
+  // Where the sections the requirement expects are found in this revision
+  + * (sub:Section) = sub:Section
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -261,6 +264,64 @@
   // The renditions LibreOffice and Docling produced: the .md and other
   // versions of the document created during the parsing process
   + * (nt:file) = nt:file
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Where a section a document is expected to contain is found in one revision
+// of it, e.g. the funding section of a study protocol. Kept per revision,
+// because each upload is parsed into Markdown of its own. A section that was
+// looked for and not found is a section with no passages; one that was never
+// looked for has no node.
+[sub:Section] > data:EntityPart, mix:referenceable
+  // The passages are orderable, so they are kept in the order the document
+  // presents them.
+  orderable
+  - sling:resourceType (STRING) = "sub/Section" mandatory autocreated protected
+
+  // The sch:SectionRequirement this section fulfills
+  - fulfills (REFERENCE)
+
+  // How the passages were found: "heading" when one of the requirement's
+  // headings matched, "model" when an LLM located them, "pickedHeading" when a
+  // person named the heading that holds the section, "selectedText" when a
+  // person selected the text itself. A selection follows no heading, so it may
+  // be a deviation from the expected protocol.
+  - method (STRING)
+
+  // How sure the model that found the section is, 0..1. Only set by "model".
+  - confidence (DOUBLE)
+
+  // The person who checked where the section is: who picked or selected it,
+  // or who confirmed that a section not found is indeed missing
+  - checkedBy (STRING)
+
+  // The stretches of the document the section consists of: usually one, and
+  // several when it is split, e.g. a budget table moved to an appendix
+  + * (sub:Passage) = sub:Passage
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One stretch of a document's Markdown, from where it starts to where it ends.
+[sub:Passage] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/Passage" mandatory autocreated protected
+
+  // Its first words, usually a heading
+  + start (sub:Context) = sub:Context mandatory
+
+  // Its last words, included in the passage
+  + end (sub:Context) = sub:Context mandatory
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

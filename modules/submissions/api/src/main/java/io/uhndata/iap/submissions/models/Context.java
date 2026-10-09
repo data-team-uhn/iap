@@ -26,8 +26,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Context} node: the context a quote comes from, backing an {@link Extraction}
- * or a {@link Comment}: a passage of a document, or an answer. Kept as a node rather than a plain string, so the quote
+ * A Sling Model wrapping a {@code sub:Context} node: the context a quote comes from, a passage of a document or an
+ * answer. It backs an {@link Extraction} or a {@link Comment}, or marks where a {@link Passage} starts or ends. Kept as a node rather than a plain string, so the quote
  * stays linked to the page and section it was taken from.
  *
  * @version $Id$

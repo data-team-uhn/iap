@@ -17,17 +17,26 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -50,7 +59,7 @@ class DocumentVersionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, DocumentVersion.class, Document.class,
-            File.class);
+            File.class, Section.class, SectionRequirement.class);
     }
 
     @Test
@@ -107,5 +116,49 @@ class DocumentVersionTest
         final DocumentVersion version = resource.adaptTo(DocumentVersion.class);
 
         assertEquals(0, version.getNumber());
+    }
+
+    @Test
+    void listsTheSectionsLookedForInIt()
+    {
+        final String version = DOCUMENT_PATH + "/v1";
+        final Resource resource = this.context.create().resource(version,
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        this.context.create().resource(version + "/funding", "sling:resourceType", Section.RESOURCE_TYPE);
+        this.context.create().resource(version + "/file", "sling:resourceType", File.RESOURCE_TYPE);
+
+        assertEquals(List.of(version + "/funding"), resource.adaptTo(DocumentVersion.class).getSections().stream()
+            .map(Section::getPath).collect(Collectors.toList()));
+    }
+
+    @Test
+    void findsTheSectionFulfillingARequirement() throws RepositoryException
+    {
+        final String schema = "/Schemas/study/1.0/protocol";
+        final SectionRequirement funding = this.context.create().resource(schema + "/funding",
+            "sling:resourceType", SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        final SectionRequirement ethics = this.context.create().resource(schema + "/ethics",
+            "sling:resourceType", SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        this.context.create().resource(schema + "/budget", "sling:resourceType", SectionRequirement.RESOURCE_TYPE);
+        final Session session = Mockito.mock(Session.class);
+        for (final String name : new String[] {"funding", "budget"}) {
+            final Node node = Mockito.mock(Node.class);
+            Mockito.when(node.getPath()).thenReturn(schema + "/" + name);
+            Mockito.when(session.getNodeByIdentifier(name + "-id")).thenReturn(node);
+        }
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        final String version = DOCUMENT_PATH + "/v1";
+        final Resource resource = this.context.create().resource(version,
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        // One whose requirement is gone, then one for another requirement, then the one asked for
+        this.context.create().resource(version + "/orphan", "sling:resourceType", Section.RESOURCE_TYPE);
+        this.context.create().resource(version + "/budget",
+            "sling:resourceType", Section.RESOURCE_TYPE, "fulfills", "budget-id");
+        this.context.create().resource(version + "/funding",
+            "sling:resourceType", Section.RESOURCE_TYPE, "fulfills", "funding-id");
+        final DocumentVersion revision = resource.adaptTo(DocumentVersion.class);
+
+        assertEquals(version + "/funding", revision.getSection(funding).getPath());
+        assertNull(revision.getSection(ethics));
     }
 }

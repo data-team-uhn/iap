@@ -36,6 +36,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -57,7 +58,7 @@ class DocumentTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class, DocumentRequirement.class,
-            DocumentVersion.class);
+            DocumentVersion.class, Section.class, SectionRequirement.class);
     }
 
     @Test
@@ -137,5 +138,46 @@ class DocumentTest
 
         assertTrue(document.getVersions().isEmpty());
         assertNull(document.getCurrentVersion());
+    }
+
+    @Test
+    void readsASectionFromTheCurrentRevisionOnly() throws RepositoryException
+    {
+        final String funding = "/Schemas/study/1.0/protocol/funding";
+        final String fundingId = "0b2c4a1e-5f6d-4e7a-9b8c-1d2e3f405162";
+        final SectionRequirement requirement = this.context.create().resource(funding,
+            "sling:resourceType", SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        final Session session = Mockito.mock(Session.class);
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getPath()).thenReturn(funding);
+        Mockito.when(session.getNodeByIdentifier(fundingId)).thenReturn(node);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        final String protocol = "/Submissions/submission/protocol";
+        final Resource resource = this.context.create().resource(protocol,
+            "sling:resourceType", Document.RESOURCE_TYPE);
+        this.context.create().resource(protocol + "/v1", "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        this.context.create().resource(protocol + "/v1/funding",
+            "sling:resourceType", Section.RESOURCE_TYPE, "fulfills", fundingId);
+        this.context.create().resource(protocol + "/v2", "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        final Document document = resource.adaptTo(Document.class);
+
+        // The replacement has not been searched yet, so the old revision's answer does not count
+        assertNull(document.getSection(requirement));
+
+        this.context.create().resource(protocol + "/v2/funding",
+            "sling:resourceType", Section.RESOURCE_TYPE, "fulfills", fundingId);
+
+        assertEquals(protocol + "/v2/funding", document.getSection(requirement).getPath());
+    }
+
+    @Test
+    void hasNoSectionsBeforeAnythingIsUploaded()
+    {
+        final SectionRequirement requirement = this.context.create().resource("/Schemas/study/1.0/protocol/funding",
+            "sling:resourceType", SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        final Document document = this.context.create().resource("/Submissions/submission/empty",
+            "sling:resourceType", Document.RESOURCE_TYPE).adaptTo(Document.class);
+
+        assertNull(document.getSection(requirement));
     }
 }

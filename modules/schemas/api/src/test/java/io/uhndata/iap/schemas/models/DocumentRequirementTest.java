@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -50,7 +51,8 @@ class DocumentRequirementTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, DocumentRequirement.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, DocumentRequirement.class,
+            SectionRequirement.class);
     }
 
     @Test
@@ -126,5 +128,30 @@ class DocumentRequirementTest
         final DocumentRequirement requirement = resource.adaptTo(DocumentRequirement.class);
 
         assertNull(requirement.getAcceptedFileTypes());
+    }
+
+    @Test
+    void listsTheSectionsTheDocumentShouldContain()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/protocol",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/protocol/funding",
+            "sling:resourceType", SectionRequirement.RESOURCE_TYPE, "label", "Funding");
+        this.context.create().resource("/Schemas/schema/1.0/protocol/template",
+            "sling:resourceType", "nt:file");
+
+        final List<SectionRequirement> sections = resource.adaptTo(DocumentRequirement.class).getSections();
+
+        assertEquals(1, sections.size());
+        assertEquals("Funding", sections.get(0).getLabel());
+    }
+
+    @Test
+    void listsNoSectionsWhenNoneAreExpected()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(DocumentRequirement.class).getSections().isEmpty());
     }
 }
