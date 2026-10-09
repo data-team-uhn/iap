@@ -132,7 +132,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @param submission the submission being attached to
      * @param context the executing task's context
      * @return the requirement
-     * @throws InvalidPayloadException when the event names no requirement, or names one this submission lacks
+     * @throws InvalidPayloadException when the event names no requirement, or names one this submission is not asked
      */
     private DocumentRequirement requirement(final Submission submission, final WorkflowTaskContext context)
         throws InvalidPayloadException
@@ -145,6 +145,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             .filter(DocumentRequirement.class::isInstance)
             .map(DocumentRequirement.class::cast)
             .filter(candidate -> candidate.getPath().equals(named) || candidate.getName().equals(named))
+            // One whose condition does not hold is not asked, and the form does not offer it
+            .filter(submission::isApplicable)
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));

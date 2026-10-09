@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
@@ -336,6 +337,19 @@ class AttachDocumentHandlerTest
         // nothing on this submission ever asked for
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             context(payload("/Schemas/somethingElse/v1/aNote", upload("note.pdf", PDF)))));
+    }
+
+    @Test
+    void refusesARequirementWhoseConditionDoesNotHold()
+    {
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(invocation ->
+            !(invocation.getArgument(0) instanceof DocumentRequirement requirement)
+                || !NOTE_PATH.equals(requirement.getPath()));
+        this.context.registerService(ConditionEvaluator.class, conditions);
+
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
+            context(payload("doctorsNote", upload("note.pdf", PDF)))));
     }
 
     @Test

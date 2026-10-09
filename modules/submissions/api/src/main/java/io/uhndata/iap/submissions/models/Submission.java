@@ -213,12 +213,18 @@ public class Submission extends Entity
     public List<Requirement> getMissingRequirements()
     {
         return this.getSchemaVersion().getRequirements().stream()
-            .filter(this::applies)
+            .filter(this::isApplicable)
             .filter(requirement -> !this.isFulfilled(requirement))
             .collect(Collectors.toList());
     }
 
-    private boolean applies(final Conditionable item)
+    /**
+     * Whether a requirement, section or question is asked of this submission, i.e. its condition holds for it.
+     *
+     * @param item the requirement, section or question
+     * @return {@code true} if its condition holds or it has none, also when the condition service is unavailable
+     */
+    public boolean isApplicable(@NotNull final Conditionable item)
     {
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
     }
@@ -255,7 +261,7 @@ public class Submission extends Entity
     {
         // An item whose condition doesn't hold is not presented to the submitter, so it (and,
         // for a section, everything inside it) doesn't need an answer.
-        if (!this.applies(item)) {
+        if (!this.isApplicable(item)) {
             return;
         }
         // Section is the only other concrete item type today.
