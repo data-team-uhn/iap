@@ -1,7 +1,8 @@
 # File validation
 
 **Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`,
-`pdfjsClient.ts` · **Demo:** `test-data`'s `FileValidationWidget`
+`pdfjsClient.ts` · **Used by:** `DocumentUpload.tsx` (submissions) · **Demo:**
+`test-data`'s `FileValidationWidget`
 
 Checks a file in the browser before it is uploaded. It answers one question: is anything
 wrong with this file? It looks at the size and the type, and it opens the file to make
@@ -281,11 +282,13 @@ until it is told where that file is. Two pieces set that up:
   `GlobalWorkerOptions.workerSrc` to `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`.
 - `webpack.config-template.js`: a rule matching `pdf.worker.min.mjs` emits it as its own
-  file, `pdf.worker.min.js`, under `/libs/iap/resources/`, and rewrites the URL above to
-  point there.
+  file, `pdf.worker.min.<hash>.js`, under `/libs/iap/resources/`, and rewrites the URL
+  above to point there.
 
-The file is renamed from `.mjs` to `.js` because Sling serves `.mjs` as
-`application/octet-stream`, and the browser refuses to load a module with that type.
+The file ends in `.js`, not `.mjs`, because Sling serves `.mjs` as
+`application/octet-stream`, and the browser refuses to load a module with that type. The
+hash in its name lets it be cached like every other bundle, and keeps an open tab from
+pairing one version of PDF.js with another's worker, which PDF.js refuses.
 
 Use `loadPdfjs()` for any other PDF.js work too, such as showing a PDF. Importing
 `pdfjs-dist` directly skips the worker setup, and every PDF then fails to open.
@@ -293,6 +296,24 @@ Use `loadPdfjs()` for any other PDF.js work too, such as showing a PDF. Importin
 ## What happens after the browser
 
 This check is the first of several. The others do not trust it.
+
+**The upload calls it first.** `DocumentUpload.tsx` runs `validateUpload` with the
+requirement's `acceptedFileTypes` before it sends anything. A refusal is shown in place
+and nothing is sent. A check that takes over 30 seconds (`CHECK_TIMEOUT_MS`) is stopped
+through its `signal` and the file is sent unchecked, since the server decides anyway.
+
+**The server checks again.** `AttachDocumentHandler` (submissions) refuses what this
+module refuses on type and size, by the same rules:
+
+| Check | Server | Here |
+| --- | --- | --- |
+| Size | `MAX_FILE_BYTES`, 50 MB | `MAX_FILE_SIZE`, 50 MB |
+| Type | `checkAcceptedType`, after `getMimeType` | the same rules, see [Accepted types](#accepted-types) |
+| Extension to type | `TYPE_BY_EXTENSION` | `MIME_TYPE_BY_EXTENSION` |
+| Content | not looked at | opened, see [Looking inside the file](#looking-inside-the-file) |
+
+Each side names the other in a comment. They are in different languages, so nothing else
+keeps them in step: **a change to one needs the same change to the other.**
 
 **The parser checks again.** The Docling daemon (`modules/documents/processing`) runs
 its own checks on every `/parse` request, in `shared_docs.py`:
@@ -310,9 +331,9 @@ its own checks on every `/parse` request, in `shared_docs.py`:
 
 Setting a limit to 0 turns it off.
 
-**Whatever receives the upload has to check too.** There is no upload endpoint on `main`
-yet. Whoever adds one has to check at least the size and the type on the server, because
-a request that never went through a browser skips this module completely.
+**Any other upload has to check too.** A request that never went through a browser skips
+this module completely, so a new upload endpoint needs its own size and type check on
+the server.
 
 ## The demo widget
 
@@ -369,15 +390,16 @@ The widget test replaces `validateUpload` itself, since the rules have their own
 | --- | --- |
 | `modules/frontend-commons/src/main/frontend/src/fileValidation.ts` | `validateUpload` and every check |
 | `modules/frontend-commons/src/main/frontend/src/pdfjsClient.ts` | Loads PDF.js and tells it where its worker is |
-| `aggregated-frontend/src/main/frontend/webpack.config-template.js` | Emits the PDF.js worker as `/libs/iap/resources/pdf.worker.min.js` |
+| `modules/submissions/impl/src/main/frontend/src/DocumentUpload.tsx` | The upload that calls it |
+| `aggregated-frontend/src/main/frontend/webpack.config-template.js` | Emits the PDF.js worker as `/libs/iap/resources/pdf.worker.min.<hash>.js` |
 | `aggregated-frontend/src/main/frontend/package.json` | The `pdfjs-dist` dependency |
 | `test-data/src/main/frontend/src/FileValidationWidget.tsx` | The demo widget |
 | `test-data/src/main/resources/SLING-INF/content/Extensions/DashboardWidget/FileValidation.json` | Puts the widget on the dashboard |
 
 ## What is still missing
 
-- **No real caller on `main`.** The demo widget is the only code that calls
-  `validateUpload`. The submission upload that uses it lives on another branch.
-- **The browser and the parser disagree on size.** The browser stops at 50 MB and the
-  parser at 64 MiB. That is safe, since the stricter one runs first, but nothing keeps
-  the two in step. They are in different languages and are changed by hand.
+- **Three copies of the size limit.** The browser and the server stop at 50 MB, the
+  parser at 64 MiB. That is safe, since the strictest one runs first, but nothing but
+  the comments keeps the browser's and the server's copies in step.
+- **The server does not look inside a file.** A `.pdf` that is not a PDF is refused here
+  and by the parser, but stored by the server first.
