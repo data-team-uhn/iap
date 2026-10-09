@@ -203,9 +203,11 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         if (accepted.isEmpty()) {
             return;
         }
-        if (!accepted.contains(file.getMimeType())) {
-            throw new InvalidPayloadException("A " + file.getMimeType() + " is not accepted here; "
-                + requirement.getLabel() + " takes " + String.join(", ", accepted));
+        // Checked for null first: the accepted list is immutable, and asking it about null throws
+        final String declared = file.getMimeType();
+        if (declared == null || !accepted.contains(declared)) {
+            throw new InvalidPayloadException("A " + Objects.requireNonNullElse(declared, "file with no declared type")
+                + " is not accepted here; " + requirement.getLabel() + " takes " + String.join(", ", accepted));
         }
     }
 

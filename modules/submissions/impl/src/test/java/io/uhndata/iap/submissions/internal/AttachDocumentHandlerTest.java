@@ -259,6 +259,15 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void refusesAFileOfNoDeclaredTypeWhereTheTypeIsRestricted()
+    {
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
+            .execute(context(payload("doctorsNote", upload("note.pdf", null)))));
+
+        assertTrue(failure.getMessage().contains("no declared type"));
+    }
+
+    @Test
     void checksOutTheRequestBeforeAttachingToIt() throws Exception
     {
         // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no documents
