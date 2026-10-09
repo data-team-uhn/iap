@@ -76,7 +76,10 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The payload entry carrying the file itself. */
     static final String FILE_PARAMETER = "file";
 
-    /** The largest file taken, since the document pipeline later holds a whole file in memory to parse it. */
+    /**
+     * The largest file taken, since the document pipeline later holds a whole file in memory to parse it. The
+     * browser's check keeps its own copy, {@code MAX_FILE_SIZE} in frontend-commons' {@code fileValidation.ts}.
+     */
     static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
 
     private static final long MEGABYTE = 1024L * 1024;
@@ -90,7 +93,10 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final String GENERIC_TYPE = "application/octet-stream";
 
-    /** Types a browser may not know and send untyped, by the extension that names them. */
+    /**
+     * Types a browser may not know and send untyped, by the extension that names them. The browser's check keeps
+     * its own copy, {@code MIME_TYPE_BY_EXTENSION} in frontend-commons' {@code fileValidation.ts}.
+     */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
         "pdf", "application/pdf",
         "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

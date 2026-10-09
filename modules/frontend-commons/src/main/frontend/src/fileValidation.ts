@@ -23,7 +23,7 @@ import { loadPdfjs } from "./pdfjsClient";
 
 export const MEGABYTE = 1024 * 1024;
 
-// 50 MB. Above this an upload is slow enough to look broken, and the parser has to hold it in memory.
+// 50 MB, the server's limit (AttachDocumentHandler.MAX_FILE_BYTES): change both together.
 export const MAX_FILE_SIZE = 50 * MEGABYTE;
 
 // 500 pages. Past this the parse is long enough that a person would think it had failed.
@@ -33,7 +33,8 @@ export const MAX_PDF_PAGES = 500;
 // unzip to gigabytes.
 export const MAX_UNZIPPED_SIZE = 512 * MEGABYTE;
 
-// The types the pipeline reads, by the extension that names them
+// The types the pipeline reads, by the extension that names them; the server keeps the same map
+// (AttachDocumentHandler.TYPE_BY_EXTENSION), so change both together.
 export const MIME_TYPE_BY_EXTENSION = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
