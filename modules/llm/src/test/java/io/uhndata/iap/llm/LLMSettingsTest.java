@@ -177,11 +177,11 @@ class LLMSettingsTest
     @Test
     void sendsTheModelIdWhenTheModelDeclaresOneAndTheNodeNameOtherwise()
     {
-        // A JCR name has no colon in it, so an Ollama tag cannot be a node name.
-        assertEquals("llama3.2-3b", settingsWithModelExtra(Map.of()).getModelId());
-        assertEquals("llama3.2:3b",
-            settingsWithModelExtra(Map.of("modelId", "llama3.2:3b")).getModelId());
-        assertEquals("llama3.2-3b", settingsWithModelExtra(Map.of("modelId", "  ")).getModelId(),
+        // A JCR name has no colon in it, so a tagged model id cannot be a node name.
+        assertEquals("model-a", settingsWithModelExtra(Map.of()).getModelId());
+        assertEquals("model-a:v1",
+            settingsWithModelExtra(Map.of("modelId", "model-a:v1")).getModelId());
+        assertEquals("model-a", settingsWithModelExtra(Map.of("modelId", "  ")).getModelId(),
             "a blank identifier is not an identifier");
     }
 
@@ -219,7 +219,7 @@ class LLMSettingsTest
 
     private LLMSettings settingsWithModelExtra(final Map<String, Object> extra)
     {
-        return new LLMSettings("local", new ProviderSettings("http://localhost", null, 10, Map.of()),
-            "llama3.2-3b", new ModelSettings(131072, 0.0, "meta", extra));
+        return new LLMSettings("example", new ProviderSettings("http://localhost", null, 10, Map.of()),
+            "model-a", new ModelSettings(131072, 0.0, "meta", extra));
     }
 }

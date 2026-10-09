@@ -30,15 +30,15 @@ interface RecordedRequest {
 
 let requests: RecordedRequest[] = [];
 
-const catalogJson = (activeModel = "llama3.2-3b") => ({
-  activeProvider: "local",
+const catalogJson = (activeModel = "model-a") => ({
+  activeProvider: "example",
   activeModel,
   providers: [
     {
-      name: "local",
-      label: "Local (Ollama)",
-      endpoint: "http://localhost:11434/v1",
-      models: [ { name: "llama3.2-3b" }, { name: "other-model" } ],
+      name: "example",
+      label: "Example Provider",
+      endpoint: "http://model-a.example.invalid/v1",
+      models: [ { name: "model-a" }, { name: "other-model" } ],
     },
   ],
 });
@@ -92,7 +92,7 @@ describe("useLlmConfig", () => {
 
     expect(requests[0].url).toBe(CONFIG_URL);
     expect(requests[0].method).toBe("GET");
-    expect(result.current.catalog.activeProvider).toBe("local");
+    expect(result.current.catalog.activeProvider).toBe("example");
     expect(result.current.catalog.providers[0].models).toHaveLength(2);
     expect(result.current.loadError).toBeUndefined();
   });
@@ -101,11 +101,11 @@ describe("useLlmConfig", () => {
     stubFetch();
     const result = await loadedHook();
 
-    await act(() => result.current.save("local", "other-model"));
+    await act(() => result.current.save("example", "other-model"));
 
     const post = requests.filter(request => request.method === "POST").at(-1);
     expect(post?.url).toBe(CONFIG_URL);
-    expect(post?.params.get("activeProvider")).toBe("local");
+    expect(post?.params.get("activeProvider")).toBe("example");
     expect(post?.params.get("activeModel")).toBe("other-model");
   });
 
@@ -113,7 +113,7 @@ describe("useLlmConfig", () => {
     stubFetch();
     const result = await loadedHook();
 
-    await act(() => result.current.save("local", "other-model"));
+    await act(() => result.current.save("example", "other-model"));
 
     expect(result.current.catalog.activeModel).toBe("other-model");
   });
@@ -143,7 +143,7 @@ describe("useLlmConfig", () => {
     stubFetch(403);
     const result = await loadedHook();
 
-    await expect(result.current.save("local", "other-model")).rejects.toThrow();
+    await expect(result.current.save("example", "other-model")).rejects.toThrow();
     expect(result.current.loadError).toBeUndefined();
   });
 
@@ -157,6 +157,6 @@ describe("useLlmConfig", () => {
     await act(() => result.current.reload());
 
     expect(result.current.loadError).toBeUndefined();
-    expect(result.current.catalog.activeProvider).toBe("local");
+    expect(result.current.catalog.activeProvider).toBe("example");
   });
 });

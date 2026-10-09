@@ -94,7 +94,7 @@ class LLMClientFactoryImplTest
         this.openAiClient = new StubClient("from openai");
         this.factory.bindClient(this.openAiClient, Map.of(PROVIDER_PROPERTY, OPENAI));
         inject(this.factory, "configurationService",
-            (LLMConfigurationService) () -> settings("local", OPENAI));
+            (LLMConfigurationService) () -> settings("example", OPENAI));
     }
 
     @Test
@@ -125,8 +125,8 @@ class LLMClientFactoryImplTest
     void fallsBackToTheProviderNameWhenItDeclaresNoApi() throws Exception
     {
         final LLMClient named = new StubClient("by name");
-        this.factory.bindClient(named, Map.of(PROVIDER_PROPERTY, "ollama"));
-        inject(this.factory, "configurationService", (LLMConfigurationService) () -> settings("ollama", null));
+        this.factory.bindClient(named, Map.of(PROVIDER_PROPERTY, "example"));
+        inject(this.factory, "configurationService", (LLMConfigurationService) () -> settings("example", null));
 
         assertSame(named, this.factory.getActiveClient());
     }
