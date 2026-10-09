@@ -66,6 +66,13 @@ public interface EventAttachment
     String getMimeType();
 
     /**
+     * The file's size, so a handler can refuse a file too large before opening its content.
+     *
+     * @return the number of bytes the caller sent, as the container measured them
+     */
+    long getSize();
+
+    /**
      * Opens the file's content.
      *
      * @return a stream over the bytes, which the caller closes

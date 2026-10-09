@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Attach a document to a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Stores a file a submitter uploads for something their schema asks for, as a document recording which requirement it fulfills.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "File uploaded",
+      "messageName": "attachDocument",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toAttach": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toAttach",
+        "targetRef": "attach"
+      }
+    },
+    "attach": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "attach",
+      "label": "Store the document",
+      "handler": "attachDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Document attached",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

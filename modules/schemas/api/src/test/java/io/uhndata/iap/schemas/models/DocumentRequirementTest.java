@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -29,7 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -72,7 +72,7 @@ class DocumentRequirementTest
         final DocumentRequirement requirement = resource.adaptTo(DocumentRequirement.class);
 
         assertEquals("Patient consent", requirement.getLabel());
-        assertArrayEquals(new String[]{ "application/pdf" }, requirement.getAcceptedFileTypes());
+        assertEquals(List.of("application/pdf"), requirement.getAcceptedFileTypes());
         assertEquals("Confirm the document is signed and dated", requirement.getAiCheckPrompt());
     }
 
@@ -125,6 +125,6 @@ class DocumentRequirementTest
             "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
         final DocumentRequirement requirement = resource.adaptTo(DocumentRequirement.class);
 
-        assertNull(requirement.getAcceptedFileTypes());
+        assertTrue(requirement.getAcceptedFileTypes().isEmpty());
     }
 }

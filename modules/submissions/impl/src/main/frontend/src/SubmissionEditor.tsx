@@ -24,12 +24,14 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import DocumentUpload from "./DocumentUpload";
 import {
   type FormItem,
   type FormQuestion,
   type Requirement,
   type SubmissionForm,
   fetchForm,
+  isDocumentRequirement,
   isFormRequirement,
   isQuestion,
   saveAnswer,
@@ -79,24 +81,34 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. One that holds no questions, a document to provide or an approval to obtain, is
-// still shown. It is something the submitter has to do, and leaving it out would say the request
-// asks less than it does.
-function RequirementPanel({ requirement, disabled, states, onAnswered }: {
+// One requirement. One that holds no questions is still shown, and answered here where it can be: a
+// document is uploaded, and any other kind says it cannot be completed here yet.
+function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
+  path: string;
   requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onAttached: () => void;
 }) {
   return (
     <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
       { isFormRequirement(requirement)
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-        : (
-          <Typography variant="placeholder">
-            This part of the request cannot be completed here yet.
-          </Typography>
-        ) }
+        : isDocumentRequirement(requirement)
+          ? (
+            <DocumentUpload
+              path={path}
+              requirement={requirement}
+              disabled={disabled}
+              onAttached={onAttached}
+            />
+          )
+          : (
+            <Typography variant="placeholder">
+              This part of the request cannot be completed here yet.
+            </Typography>
+          ) }
     </Panel>
   );
 }
@@ -151,6 +163,14 @@ function SubmissionEditor({ path }: { path: string }) {
       .catch((e: unknown) => setError(message(e)));
   }, [ doFetch, path, reload ]);
 
+  // The form again, because what it asks can change with what was just attached: a requirement that
+  // is now answered, and a request that is no longer incomplete
+  const attached = useCallback(() => {
+    const token = latestFormRead.current + 1;
+    latestFormRead.current = token;
+    reload(token).catch((e: unknown) => setError(message(e)));
+  }, [ reload ]);
+
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
@@ -169,10 +189,12 @@ function SubmissionEditor({ path }: { path: string }) {
       { form.requirements.map(requirement => (
         <RequirementPanel
           key={requirement.name}
+          path={path}
           requirement={requirement}
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          onAttached={attached}
         />
       )) }
       { form.requirements.length === 0 && (

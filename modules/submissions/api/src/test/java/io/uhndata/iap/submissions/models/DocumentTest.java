@@ -38,6 +38,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,6 +92,39 @@ class DocumentTest
         assertEquals("Patient consent form", document.getDescription());
         assertEquals(DocumentRequirement.class, document.getFulfills().getClass());
         assertEquals("Signed consent form", document.getFulfills().getLabel());
+    }
+
+    @Test
+    void fulfilsOnlyTheRequirementItPointsAt()
+        throws RepositoryException
+    {
+        final Resource consent = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        final Resource protocol = this.context.create().resource("/Schemas/schema/1.0/protocol",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn(consent.getPath());
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
+        final Document document = this.context.create().resource("/Submissions/submission/consent",
+            "sling:resourceType", Document.RESOURCE_TYPE, "fulfills", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")
+            .adaptTo(Document.class);
+
+        assertTrue(document.isFulfilling(consent.adaptTo(DocumentRequirement.class)));
+        assertFalse(document.isFulfilling(protocol.adaptTo(DocumentRequirement.class)));
+    }
+
+    @Test
+    void fulfilsNothingWhenItPointsNowhere()
+    {
+        final Resource consent = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        final Document document = this.context.create().resource("/Submissions/submission/stray",
+            "sling:resourceType", Document.RESOURCE_TYPE).adaptTo(Document.class);
+
+        assertFalse(document.isFulfilling(consent.adaptTo(DocumentRequirement.class)));
     }
 
     @Test

@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -33,12 +34,14 @@ import javax.jcr.Session;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
+import org.apache.sling.commons.mime.MimeTypeService;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -61,6 +64,9 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,7 +121,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, Answer.class, Submission.class);
+            Section.class, Question.class, Answer.class, Document.class, DocumentVersion.class, File.class,
+            Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -124,7 +131,8 @@ class SubmissionFormServletTest
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        inject(this.servlet, evaluator);
+        inject(this.servlet, "conditions", evaluator);
+        inject(this.servlet, "mimeTypes", this.context.getService(MimeTypeService.class));
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -141,6 +149,14 @@ class SubmissionFormServletTest
             "text", "Which day are you back?", "dataType", "date"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
+        // The same kind of requirement, but saying what it takes and offering a blank to start from
+        this.context.create().resource(VERSION_PATH + "/signedForm", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Signed form",
+            "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
+        this.context.create().resource(VERSION_PATH + "/signedForm/template", Map.of(
+            "jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/signedForm/template/jcr:content", Map.of(
+            "jcr:primaryType", "nt:resource", "jcr:mimeType", "application/pdf"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -191,6 +207,7 @@ class SubmissionFormServletTest
     void leavesOutAWholeRequirementThatDoesNotApply() throws IOException
     {
         this.hidden.add("doctorsNote");
+        this.hidden.add("signedForm");
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -203,6 +220,133 @@ class SubmissionFormServletTest
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
         assertFalse(note.containsKey("items"));
+        // Restricted to nothing in particular, said as an empty list rather than by omission: a reader has to be
+        // able to tell "takes anything" from "the server did not say"
+        assertTrue(note.getJsonArray("acceptedFileTypes").isEmpty());
+        assertFalse(note.containsKey("template"));
+        assertTrue(note.getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void saysWhetherEachDocumentIsDemandedOrMerelyOffered() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/sponsorLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Sponsor letter",
+            "required", false));
+
+        final JsonObject form = form(REQUESTER);
+
+        // Absence of the flag on the node means demanded, and the wire says so explicitly
+        assertTrue(requirement(form, "doctorsNote").getBoolean("required"));
+        assertFalse(requirement(form, "sponsorLetter").getBoolean("required"));
+        // Only document requirements carry the key; a form's optionality lives in each of its questions
+        assertFalse(requirement(form, DETAILS).containsKey("required"));
+    }
+
+    @Test
+    void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
+    {
+        // Named rather than counted, so that a form reopened later says which document is there: an upload control
+        // that looks the same before and after leaves the only way to check outside the page
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d1", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        final JsonObject attached = requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
+            .getJsonObject(0);
+        assertEquals("note.pdf", attached.getString("title"));
+        // Nothing has been uploaded into it, so there is nothing to download
+        assertFalse(attached.containsKey("path"));
+    }
+
+    @Test
+    void pointsAtTheNewestFileOfAnAttachment() throws IOException
+    {
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d5", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+        for (final String version : List.of("old", "new")) {
+            this.context.create().resource(document.getPath() + "/" + version,
+                Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+            this.context.create().resource(document.getPath() + "/" + version + "/file",
+                Map.of(TYPE, File.RESOURCE_TYPE));
+            this.context.create().resource(document.getPath() + "/" + version + "/file/uploadedFile",
+                Map.of("jcr:primaryType", "nt:file"));
+        }
+
+        assertEquals(document.getPath() + "/new/file/uploadedFile", requirement(form(REQUESTER), "doctorsNote")
+            .getJsonArray("attached").getJsonObject(0).getString("path"));
+    }
+
+    @Test
+    void fallsBackOnANameForAnUntitledAttachment() throws IOException
+    {
+        // A document created by something other than the attach workflow may carry no title at all, and a form
+        // saying "Attached: " with nothing after it reads as broken rather than as untitled
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d2", Map.of(
+            TYPE, Document.RESOURCE_TYPE));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals("d2", requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").getJsonObject(0)
+            .getString("title"));
+    }
+
+    @Test
+    void leavesOutADocumentAttachedForSomeOtherRequirement() throws IOException
+    {
+        // The reference is what ties a document to a requirement, not being a child of the same submission
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d3", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "form.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+        assertFalse(requirement(form(REQUESTER), "signedForm").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void leavesOutADocumentThatFulfillsNothing() throws IOException
+    {
+        // A document with no reference at all: whatever it is, it is not the answer to this requirement
+        this.context.create().resource(SUBMISSION_PATH + "/d4", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "stray.pdf"));
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void saysWhatADocumentRequirementTakesAndWhatItOffersToStartFrom() throws IOException
+    {
+        // Both are here because an upload control cannot be drawn without them, and this projection is the only
+        // place that says which requirements currently apply
+        final JsonObject signed = requirement(form(REQUESTER), "signedForm");
+
+        assertEquals(List.of("application/pdf", "image/png"), signed.getJsonArray("acceptedFileTypes").stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+        assertEquals(VERSION_PATH + "/signedForm/template", signed.getString("template"));
+        assertEquals(VERSION_PATH + "/signedForm", signed.getString("path"));
+        // The node is called "template", so the download is named after the requirement, with its type's extension
+        assertEquals("Signed form.pdf", signed.getString("templateName"));
+    }
+
+    @Test
+    void namesATemplateOfNoKnownTypeAfterTheRequirementAlone() throws IOException
+    {
+        // No label and no declared type: the requirement's name, with nothing guessed after it
+        this.context.create().resource(VERSION_PATH + "/waiver", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT));
+        this.context.create().resource(VERSION_PATH + "/waiver/template", Map.of("jcr:primaryType", "nt:file"));
+        // A declared type with no known extension
+        this.context.create().resource(VERSION_PATH + "/scan", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Scan"));
+        this.context.create().resource(VERSION_PATH + "/scan/template", Map.of("jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/scan/template/jcr:content", Map.of(
+            "jcr:primaryType", "nt:resource", "jcr:mimeType", "application/x-iap-unknown"));
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals("waiver", requirement(form, "waiver").getString("templateName"));
+        assertEquals("Scan", requirement(form, "scan").getString("templateName"));
     }
 
     @Test
@@ -372,13 +516,13 @@ class SubmissionFormServletTest
         }
     }
 
-    private static void inject(final SubmissionFormServlet servlet, final ConditionEvaluator evaluator)
+    private static void inject(final SubmissionFormServlet servlet, final String name, final Object service)
         throws ReflectiveOperationException
     {
         // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
         // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField("conditions");
+        final var field = SubmissionFormServlet.class.getDeclaredField(name);
         field.setAccessible(true);
-        field.set(servlet, evaluator);
+        field.set(servlet, service);
     }
 }

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -32,14 +33,17 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
+import org.apache.sling.commons.mime.MimeTypeService;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -47,6 +51,9 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.UserIds;
 
@@ -75,6 +82,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String NAME_KEY = "name";
 
+    private static final String PATH_KEY = "path";
+
+    private static final String TITLE_KEY = "title";
+
     private static final String LABEL_KEY = "label";
 
     private static final String DESCRIPTION_KEY = "description";
@@ -83,8 +94,21 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String TYPE_KEY = "type";
 
+    private static final String ACCEPTED_FILE_TYPES_KEY = "acceptedFileTypes";
+
+    private static final String TEMPLATE_KEY = "template";
+
+    private static final String TEMPLATE_NAME_KEY = "templateName";
+
+    private static final String ATTACHED_KEY = "attached";
+
+    private static final String REQUIRED_KEY = "required";
+
     @Reference
     private transient ConditionEvaluator conditions;
+
+    @Reference
+    private transient MimeTypeService mimeTypes;
 
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request,
@@ -120,13 +144,14 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
         final Map<String, List<String>> answers = answersByQuestion(submission);
+        final List<Document> documents = submission.getDocuments();
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
+            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
         return Json.createObjectBuilder()
-            .add("path", submission.getPath())
-            .add("title", Objects.toString(submission.getTitle(), ""))
+            .add(PATH_KEY, submission.getPath())
+            .add(TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
@@ -140,13 +165,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @param requirement the requirement to describe
      * @param submission the submission it is being resolved against
      * @param answers the submission's answers, by the path of the question each answers
+     * @param documents the documents attached to the submission
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final List<Document> documents)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, requirement.getName())
+            // What a document's reference is compared against, since names repeat across schema versions
+            .add(PATH_KEY, requirement.getPath())
             // The resource type itself, not a vocabulary of our own. A requirement kind added later names
             // itself here without this servlet learning about it, and the reader already keys on resource types
             .add(TYPE_KEY, requirement.getType())
@@ -155,8 +183,82 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         if (requirement instanceof FormRequirement) {
             json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
                 submission, answers));
+        } else if (requirement instanceof DocumentRequirement) {
+            describe((DocumentRequirement) requirement, documents, json);
         }
         return json;
+    }
+
+    /**
+     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
+     * has already been attached for it.
+     *
+     * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
+     * only place that says which requirements currently apply — reading them off the schema instead would mean a
+     * control offering to answer something this submission is not being asked.</p>
+     *
+     * @param requirement the requirement being described
+     * @param documents the documents attached to the submission
+     * @param json the requirement's JSON, added to in place
+     */
+    private void describe(final DocumentRequirement requirement, final List<Document> documents,
+        final JsonObjectBuilder json)
+    {
+        // Stated always, not only when false: the upload control marks the optional case, and should do so
+        // because the form said so rather than because a key was missing
+        json.add(REQUIRED_KEY, requirement.isRequired());
+        final JsonArrayBuilder accepted = Json.createArrayBuilder();
+        // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
+        // empty — so the key is always there and it is the emptiness that carries the meaning
+        requirement.getAcceptedFileTypes().forEach(accepted::add);
+        json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
+        final Resource template = requirement.getTemplate();
+        if (template != null) {
+            json.add(TEMPLATE_KEY, template.getPath());
+            json.add(TEMPLATE_NAME_KEY, getTemplateFileName(requirement, template));
+        }
+        // Named rather than counted, so that a form reopened later says which document is there. Without this an
+        // upload control looks the same before and after, and the way to check would be to leave the page
+        final JsonArrayBuilder attached = Json.createArrayBuilder();
+        documents.stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .map(this::describeAttachment)
+            .forEach(attached::add);
+        json.add(ATTACHED_KEY, attached);
+    }
+
+    /**
+     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     *
+     * @param document the attached document
+     * @return the document's JSON, without a path when no file has landed yet
+     */
+    private JsonObjectBuilder describeAttachment(final Document document)
+    {
+        final JsonObjectBuilder json = Json.createObjectBuilder()
+            .add(TITLE_KEY, Objects.toString(document.getTitle(), document.getName()));
+        Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(File::getUploadedFile)
+            .ifPresent(file -> json.add(PATH_KEY, file.getPath()));
+        return json;
+    }
+
+    /**
+     * The name a downloaded template is saved under. The node is always called {@code template}, so the name is
+     * the requirement's label plus the extension of the template's type.
+     *
+     * @param requirement the requirement offering the template
+     * @param template the template file
+     * @return a file name
+     */
+    private String getTemplateFileName(final DocumentRequirement requirement, final Resource template)
+    {
+        final String label = Objects.toString(requirement.getLabel(), "");
+        final String base = label.isBlank() ? requirement.getName() : label;
+        final String mimeType = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
+        final String extension = mimeType == null ? null : this.mimeTypes.getExtension(mimeType);
+        return extension == null ? base : base + "." + extension;
     }
 
     /**
@@ -210,11 +312,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
-            .add("path", path)
+            .add(PATH_KEY, path)
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add("required", question.isRequired())
+            .add(REQUIRED_KEY, question.isRequired())
             .add("multiple", question.isMultiple())
             .add("value", value);
     }

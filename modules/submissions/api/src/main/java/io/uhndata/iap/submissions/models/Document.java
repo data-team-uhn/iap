@@ -86,6 +86,18 @@ public class Document extends EntityPart
     }
 
     /**
+     * Whether this document was attached in answer to the given requirement.
+     *
+     * @param requirement the requirement in question
+     * @return {@code true} if this document says it fulfills that requirement
+     */
+    public boolean isFulfilling(@NotNull final Requirement requirement)
+    {
+        final Requirement fulfilled = this.getFulfills();
+        return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
+    }
+
+    /**
      * The revisions of this document, oldest first. Uploading a replacement adds a revision rather than
      * overwriting the file a reviewer has already read, so this is the document's whole history.
      *

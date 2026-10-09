@@ -88,6 +88,10 @@
       <artifactId>org.apache.sling.servlets.annotations</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.commons.mime</artifactId>
+    </dependency>
+    <dependency>
       <groupId>jakarta.json</groupId>
       <artifactId>jakarta.json-api</artifactId>
     </dependency>

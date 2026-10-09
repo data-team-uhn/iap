@@ -201,7 +201,7 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet. A
+     * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
      * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
@@ -213,12 +213,18 @@ public class Submission extends Entity
     public List<Requirement> getMissingRequirements()
     {
         return this.getSchemaVersion().getRequirements().stream()
-            .filter(this::applies)
+            .filter(this::isApplicable)
             .filter(requirement -> !this.isFulfilled(requirement))
             .collect(Collectors.toList());
     }
 
-    private boolean applies(final Conditionable item)
+    /**
+     * Whether a requirement, section or question is asked of this submission, i.e. its condition holds for it.
+     *
+     * @param item the requirement, section or question
+     * @return {@code true} if its condition holds or it has none, also when the condition service is unavailable
+     */
+    public boolean isApplicable(@NotNull final Conditionable item)
     {
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
     }
@@ -226,10 +232,10 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
-            return this.getDocuments().stream().anyMatch(document -> {
-                final Requirement fulfilled = document.getFulfills();
-                return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
-            });
+            // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
+            // it is asked at all is its condition's decision, made before this is ever reached.
+            return !((DocumentRequirement) requirement).isRequired()
+                || this.getDocuments().stream().anyMatch(document -> document.isFulfilling(requirement));
         }
         if (requirement instanceof ApprovalRequirement) {
             return this.getReviews().stream().anyMatch(review -> {
@@ -255,7 +261,7 @@ public class Submission extends Entity
     {
         // An item whose condition doesn't hold is not presented to the submitter, so it (and,
         // for a section, everything inside it) doesn't need an answer.
-        if (!this.applies(item)) {
+        if (!this.isApplicable(item)) {
             return;
         }
         // Section is the only other concrete item type today.

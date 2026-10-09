@@ -28,6 +28,7 @@ import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 // The resource types the projection reports. It names the schema's own types rather than a
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
 export const FORM_REQUIREMENT = "sch/FormRequirement";
+export const DOCUMENT_REQUIREMENT = "sch/DocumentRequirement";
 export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
 
@@ -69,6 +70,8 @@ export type FormItem = FormQuestion | FormSection;
 // Anything a schema version asks of a submission, whatever form that takes.
 export interface Requirement {
   name: string;
+  // The repository path, which is what an attached document's `fulfills` points at
+  path: string;
   type: string;
   label: string;
   description?: string;
@@ -78,6 +81,34 @@ export interface Requirement {
 // way and carries no items, which is why they are not this type.
 export interface FormRequirement extends Requirement {
   items: FormItem[];
+}
+
+// The kind answered by attaching a file.
+export interface DocumentRequirement extends Requirement {
+  // Whether the submission is incomplete without it. An optional one is still asked, since whether it
+  // is asked at all was decided on the server, but skipping it blocks nothing.
+  required: boolean;
+  // Empty means no restriction, which is why the key is there at all: a reader has to tell "takes
+  // anything" from "takes nothing".
+  acceptedFileTypes: string[];
+  // A document to start from, where the requirement offers one
+  template?: string;
+  // The name to save the template under, since its node is always called `template`
+  templateName?: string;
+  // What has been attached already. Present so that reopening the form shows a document that is
+  // there rather than an empty control implying it is not.
+  attached: AttachedDocument[];
+}
+
+// A document attached for a requirement. The path is its newest file's, absent until a file lands.
+export interface AttachedDocument {
+  title: string;
+  path?: string;
+}
+
+// A repository path as a URL. Each segment is percent-encoded, so names with #, ? or % survive.
+export function toFileUrl(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
 export interface SubmissionForm {
@@ -94,6 +125,15 @@ export function isQuestion(item: FormItem): item is FormQuestion {
 
 export function isFormRequirement(requirement: Requirement): requirement is FormRequirement {
   return requirement.type === FORM_REQUIREMENT;
+}
+
+export function isDocumentRequirement(requirement: Requirement): requirement is DocumentRequirement {
+  return requirement.type === DOCUMENT_REQUIREMENT;
+}
+
+// What an empty document slot says. An optional one says so, or it reads as a gap.
+export function describeNothingAttached(requirement: DocumentRequirement): string {
+  return requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional";
 }
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
@@ -128,5 +168,36 @@ export async function saveAnswer(
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);
+  }
+}
+
+// Attaches a file to the requirement it answers, as an `attachDocument` event on the submission:
+// uploading is a workflow step for the same reason answering is, so what may be attached and until
+// when is the handler's answer rather than a permission on the folder.
+//
+// `FormData` rather than a query string, and deliberately without a `Content-Type`: the browser has
+// to set it, because only it knows the multipart boundary it just generated.
+export async function attachDocument(
+  doFetch: AuthenticatedFetch, path: string, requirement: string, file: File): Promise<void> {
+  const body = new FormData();
+  body.append("requirement", requirement);
+  body.append("file", file);
+  const response = await doFetch(`${path}.attachDocument.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
+  }
+}
+
+// Removes the document attached for a requirement, with all its versions, as a `detachDocument` event
+// on the submission.
+export async function detachDocument(
+  doFetch: AuthenticatedFetch, path: string, requirement: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("requirement", requirement);
+  const response = await doFetch(`${path}.detachDocument.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This file could not be removed (${response.status})`);
   }
 }

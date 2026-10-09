@@ -261,6 +261,12 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         }
 
         @Override
+        public long getSize()
+        {
+            return this.part.getSize();
+        }
+
+        @Override
         public InputStream openStream() throws IOException
         {
             // Sling declares this nullable, and the annotation is load-bearing rather than defensive: a part with

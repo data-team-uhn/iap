@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Remove a document from a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Removes the document a submitter attached for a requirement, with all its versions, while the submission is still a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "File removed",
+      "messageName": "detachDocument",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toDetach": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDetach",
+        "targetRef": "detach"
+      }
+    },
+    "detach": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "detach",
+      "label": "Remove the document",
+      "handler": "detachDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Document removed",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

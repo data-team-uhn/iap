@@ -376,6 +376,7 @@ class WorkflowEventServletTest
         Mockito.when(part.getFileName()).thenReturn("note.pdf");
         Mockito.when(part.getContentType()).thenReturn("application/pdf");
         Mockito.when(part.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] { 0x25, 0x50 }));
+        Mockito.when(part.getSize()).thenReturn(2L);
 
         final Object value = WorkflowEventServlet.value(new RequestParameter[] { part });
 
@@ -383,6 +384,7 @@ class WorkflowEventServletTest
         final EventAttachment attachment = (EventAttachment) value;
         assertEquals("note.pdf", attachment.getFileName());
         assertEquals("application/pdf", attachment.getMimeType());
+        assertEquals(2L, attachment.getSize());
         assertArrayEquals(new byte[] { 0x25, 0x50 }, attachment.openStream().readAllBytes());
     }
 

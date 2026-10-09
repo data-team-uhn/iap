@@ -23,6 +23,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   Alert,
   Box,
+  CircularProgress,
   Divider,
   Link,
   Stack,
@@ -39,6 +40,14 @@ import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requ
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
+import {
+  type DocumentRequirement,
+  type SubmissionForm,
+  describeNothingAttached,
+  fetchForm,
+  isDocumentRequirement,
+  toFileUrl
+} from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 
 // The extension that asks for the editor rather than the read-only page
@@ -67,12 +76,6 @@ function formatValue(value: unknown): string {
   }
   // Anything else (nested objects, missing values) has no meaningful text form
   return ["string", "number"].includes(typeof value) ? String(value) : "";
-}
-
-// A repository path plus a file name as a usable URL. Every segment is percent-encoded, so names
-// containing #, ? or % survive as path characters instead of being parsed as syntax
-function fileHref(path: unknown, name: string): string {
-  return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
 
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
@@ -123,30 +126,96 @@ function FormItems({ container, answers, level }: { container: JsonNode; answers
   );
 }
 
-// The documents attached to the submission, with download links for their files.
-function Documents({ documents }: { documents: JsonNode[] }) {
+// The `sub:File` of a document's newest version. Older versions are its history and stay unshown.
+function currentFile(document: JsonNode): JsonNode | undefined {
+  const file = childrenOfType(document, "sub/DocumentVersion").at(-1)?.file;
+  return isNode(file) && isNode(file.uploadedFile) ? file : undefined;
+}
+
+// One attached document: what it is called, as a link to download its current file.
+function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
+  const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
+  const title = String(document.title ?? document["@name"]);
+  const file = currentFile(document);
+  // A reference is serialized with whatever the referenced node holds, and a requirement need not
+  // carry a label. Worth saying only where the grouping does not already say it, and only where
+  // there is something to say: `fulfills "undefined"` is worse than nothing at all.
+  const fulfills = named && typeof requirement?.label === "string" ? requirement.label : undefined;
   return (
-    <Stack spacing={2}>
-      {documents.map((document, index) => {
-        const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-        const files = Object.entries(document)
-          .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+    <Box>
+      <Typography variant="subtitle2">
+        {/* The stored file is always called `uploadedFile`, so the download is named after the title */}
+        {file
+          ? <Link href={toFileUrl(`${String(file["@path"])}/uploadedFile`)} download={title}>{title}</Link>
+          : title}
+        {fulfills ? ` — fulfills "${fulfills}"` : ""}
+      </Typography>
+      {document.description
+        ? <Typography variant="description">{formatValue(document.description)}</Typography>
+        : null}
+    </Box>
+  );
+}
+
+// What the schema asks for and what has been attached against it.
+//
+// The requirements come from the form projection rather than from the submission this page already
+// holds, because a document requirement can be conditional, and conditions are resolved on the
+// server by design. Reading them off the schema instead would list documents this request was never
+// asked for.
+function Documents({ path, documents }: { path: string; documents: JsonNode[] }) {
+  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const doFetch = useAuthenticatedFetch();
+
+  // The page rebuilds this section for each request it shows, so a projection can only ever land on
+  // the request it was asked for
+  useEffect(() => {
+    fetchForm(doFetch, path).then(setForm, (error: unknown) => setFailure(describeRequestFailure(error)));
+  }, [doFetch, path]);
+
+  // Until the projection arrives nothing can be said about what was asked
+  if (!form && !failure) {
+    return <CircularProgress size={24} aria-label="Loading the documents" />;
+  }
+  // A failed projection still leaves what is attached, which comes from the submission itself
+  const warning = failure
+    ? <Alert severity="warning">{`Which documents this request asks for could not be read: ${failure}`}</Alert>
+    : null;
+
+  const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
+  const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
+  // Anything whose requirement does not currently apply, is gone from the schema, or that never named
+  // one: still somebody's evidence, so shown rather than silently dropped
+  const claimed = new Set(requirements.flatMap(requirement =>
+    fulfilling(requirement).map(document => document["@path"])));
+  const unattributed = documents.filter(document => !claimed.has(document["@path"]));
+
+  if (requirements.length === 0 && documents.length === 0) {
+    return warning ?? <Typography variant="placeholder">This request asks for no documents</Typography>;
+  }
+
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {warning}
+      {requirements.map(requirement => {
+        const attached = fulfilling(requirement);
         return (
-          <Box key={"document-" + index}>
-            <Typography variant="subtitle2">
-              {String(document.title ?? document["@name"])}
-              {requirement ? ` — fulfills "${String(requirement.label)}"` : ""}
-            </Typography>
-            {document.description
-              ? <Typography variant="description">{formatValue(document.description)}</Typography>
+          <Stack key={requirement.name} spacing={1}>
+            <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+            {requirement.description
+              ? <Typography variant="description">{requirement.description}</Typography>
               : null}
-            <Stack>
-              {files.map(([name]) =>
-                <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
-            </Stack>
-          </Box>
+            {attached.length > 0
+              ? attached.map((document, position) =>
+                <Attachment key={"attached-" + position} document={document} named={false} />)
+              : <Typography variant="placeholder">{describeNothingAttached(requirement)}</Typography>}
+          </Stack>
         );
       })}
+      {unattributed.map((document, index) =>
+        <Attachment key={"other-" + index} document={document} named />)}
     </Stack>
   );
 }
@@ -310,11 +379,6 @@ function SubmissionView() {
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
   const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];
-  const documentRequirements = schemaVersion ? childrenOfType(schemaVersion, "sch/DocumentRequirement") : [];
-  const missingDocuments = "No documents attached yet"
-    + (documentRequirements.length > 0
-      ? `; expected: ${documentRequirements.map(requirement => String(requirement.label)).join(", ")}`
-      : "");
 
   return (
     <Stack spacing={2}>
@@ -342,9 +406,7 @@ function SubmissionView() {
         </Panel>
       ))}
       <Panel title="Documents">
-        {documents.length > 0
-          ? <Documents documents={documents} />
-          : <Typography variant="placeholder">{missingDocuments}</Typography>}
+        <Documents path={path} documents={documents} />
       </Panel>
       <Panel title="Reviews">
         {reviews.length > 0
