@@ -37,7 +37,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.schemas.models.AssessmentCriteria;
+import io.uhndata.iap.schemas.models.Topic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -66,7 +66,7 @@ class AssessmentTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Assessment.class, AssessmentCriteria.class,
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Assessment.class, Topic.class,
             Comment.class, Answer.class);
     }
 
@@ -83,7 +83,7 @@ class AssessmentTest
         throws RepositoryException
     {
         this.context.create().resource("/Schemas/schema/1.0/reb/privacy",
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE, "text", "Participant privacy");
+            "sling:resourceType", Topic.RESOURCE_TYPE, "text", "Participant privacy");
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/reb/privacy");
         final Session session = Mockito.mock(Session.class);
@@ -92,11 +92,11 @@ class AssessmentTest
 
         final Resource resource = this.context.create().resource(ASSESSMENT_PATH, Map.of(
             "sling:resourceType", Assessment.RESOURCE_TYPE,
-            "assessmentCriteria", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
+            "topic", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "value", "Looked at"));
         final Assessment assessment = resource.adaptTo(Assessment.class);
 
-        assertEquals("Participant privacy", assessment.getAssessmentCriteria().getText());
+        assertEquals("Participant privacy", assessment.getTopic().getText());
         assertEquals("Looked at", assessment.getValue());
     }
 
@@ -108,7 +108,7 @@ class AssessmentTest
         final Assessment assessment = resource.adaptTo(Assessment.class);
 
         assertNotNull(assessment);
-        assertNull(assessment.getAssessmentCriteria());
+        assertNull(assessment.getTopic());
         assertNull(assessment.getValue());
         assertNull(assessment.getSummary());
         assertNull(assessment.getConfidence());

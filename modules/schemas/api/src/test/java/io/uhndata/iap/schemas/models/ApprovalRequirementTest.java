@@ -50,7 +50,7 @@ class ApprovalRequirementTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class,
-            AssessmentCriteria.class);
+            Topic.class);
     }
 
     @Test
@@ -83,26 +83,26 @@ class ApprovalRequirementTest
 
         assertNotNull(requirement);
         assertNull(requirement.getApproverGroup());
-        assertTrue(requirement.getAssessmentCriteria().isEmpty());
+        assertTrue(requirement.getTopics().isEmpty());
     }
 
     @Test
-    void listsOnlyItsAssessmentCriteriaInOrder()
+    void listsOnlyItsTopicsInOrder()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/approval",
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/approval/privacy", Map.of(
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE, "text", "Participant privacy"));
+            "sling:resourceType", Topic.RESOURCE_TYPE, "text", "Participant privacy"));
         this.context.create().resource("/Schemas/schema/1.0/approval/harm", Map.of(
-            "sling:resourceType", AssessmentCriteria.RESOURCE_TYPE, "text", "Physical harm"));
+            "sling:resourceType", Topic.RESOURCE_TYPE, "text", "Physical harm"));
         this.context.create().resource("/Schemas/schema/1.0/approval/other",
             "sling:resourceType", "nt:unstructured");
         final ApprovalRequirement requirement = resource.adaptTo(ApprovalRequirement.class);
 
-        final List<AssessmentCriteria> criteria = requirement.getAssessmentCriteria();
+        final List<Topic> topics = requirement.getTopics();
 
-        assertEquals(2, criteria.size());
-        assertEquals("Participant privacy", criteria.get(0).getText());
-        assertEquals("Physical harm", criteria.get(1).getText());
+        assertEquals(2, topics.size());
+        assertEquals("Participant privacy", topics.get(0).getText());
+        assertEquals("Physical harm", topics.get(1).getText());
     }
 }

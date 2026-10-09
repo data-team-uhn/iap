@@ -32,18 +32,18 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:AssessmentCriteria} node: something the approvers want assessed before they
- * grant an {@link ApprovalRequirement approval}.
+ * A Sling Model wrapping a {@code sch:Topic} node: a broad area the approvers want assessed before they grant an
+ * {@link ApprovalRequirement approval}, such as consent.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = AssessmentCriteria.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Topic.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class AssessmentCriteria extends EntityPart
+public class Topic extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sch:AssessmentCriteria} node. */
-    public static final String RESOURCE_TYPE = "sch/AssessmentCriteria";
+    /** The {@code sling:resourceType} of a {@code sch:Topic} node. */
+    public static final String RESOURCE_TYPE = "sch/Topic";
 
     @ValueMapValue
     private String text;
@@ -58,9 +58,9 @@ public class AssessmentCriteria extends EntityPart
     private String[] sources;
 
     /**
-     * The criteria as shown to the submitter.
+     * The topic as shown to the submitter.
      *
-     * @return the criteria text
+     * @return the topic's text
      */
     @NotNull
     public String getText()
@@ -80,9 +80,9 @@ public class AssessmentCriteria extends EntityPart
     }
 
     /**
-     * The prompt an LLM is given to assess these criteria from the submission.
+     * The prompt an LLM is given to assess this topic from the submission.
      *
-     * @return a prompt, or {@code null} if these criteria are not assessed by an LLM
+     * @return a prompt, or {@code null} if this topic is not assessed by an LLM
      */
     @Nullable
     public String getAssessmentPrompt()
@@ -91,7 +91,7 @@ public class AssessmentCriteria extends EntityPart
     }
 
     /**
-     * The requirements and questions that bear on these criteria. They may be of any requirement kind, so they are
+     * The requirements and questions that bear on this topic. They may be of any requirement kind, so they are
      * read as {@link EntityPart}s. The link is weak, so one removed since is skipped.
      *
      * @return a list of schema parts, empty if none are linked or none of them resolve

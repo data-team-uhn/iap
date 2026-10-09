@@ -293,7 +293,7 @@
   // Questions and comments raised in this feedback
   + * (sub:Comment) = sub:Comment
 
-  // The assessments of the criteria the approval requirement lists
+  // The assessments of the topics the approval requirement lists
   + * (sub:Assessment) = sub:Assessment
 
   // Allow any other children for extensibility
@@ -334,7 +334,7 @@
   - sling:resourceType (STRING) = "sub/Discussion" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// One assessment of a single sch:AssessmentCriteria, in a reviewer's review or
+// One assessment of a single sch:Topic, in a reviewer's review or
 // in the AI's feedback. Referenceable so that comments can target it.
 [sub:Assessment] > data:EntityPart, mix:referenceable, mix:lastModified
   // The comments are orderable, so they are shown in the order they were
@@ -343,10 +343,10 @@
 
   - sling:resourceType (STRING) = "sub/Assessment" mandatory autocreated protected
 
-  // The sch:AssessmentCriteria this assesses
-  - assessmentCriteria (REFERENCE) mandatory
+  // The sch:Topic this assesses
+  - topic (REFERENCE) mandatory
 
-  // Has the reviewer looked at the criteria for this assessment?
+  // Has the reviewer looked at the topic for this assessment?
   - value (STRING)
 
   // A short summary of this assessment
@@ -360,7 +360,7 @@
   // How sure an automated assessment is, 0..1
   - confidence (DOUBLE)
 
-  // The comments raised about these criteria, the AI's concerns among them
+  // The comments raised about this topic, the AI's concerns among them
   + * (sub:Comment) = sub:Comment
 
   // Allow any other properties for extensibility
