@@ -37,5 +37,5 @@ pypdf==6.19.0
 # pypdf's AES crypt provider. Signed / permission-restricted PDFs are often AES-encrypted
 # with an empty user password; without this, reading the page tree raises
 # DependencyError: cryptography>=3.1 is required for AES algorithm.
-cryptography==50.0.1
+cryptography==50.0.2
 psutil==7.2.2
