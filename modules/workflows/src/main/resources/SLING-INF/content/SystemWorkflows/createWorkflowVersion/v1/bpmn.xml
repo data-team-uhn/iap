@@ -36,7 +36,7 @@
       <bpmn:outgoing>toCopy</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toCopy" sourceRef="create" targetRef="copy" />
-    <bpmn:serviceTask id="copy" iap:handler="copyContent" iap:skipProperties="version" iap:sourceType="wf/WorkflowVersion" name="Copy the source version, if one is named">
+    <bpmn:serviceTask id="copy" iap:handler="copyContent" iap:skipProperties="version" iap:sourceType="wf/WorkflowVersion" name="Copy the source version, if specified">
       <bpmn:incoming>toCopy</bpmn:incoming>
       <bpmn:outgoing>toMarkDraft</bpmn:outgoing>
     </bpmn:serviceTask>

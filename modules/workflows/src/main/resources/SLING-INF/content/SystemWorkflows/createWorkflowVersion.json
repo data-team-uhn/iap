@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "wf/WorkflowDefinition",
-    "description": "Adds a version to a workflow, as a draft: a new one, or a copy of the version the event names as its source.",
+    "description": "Adds a version to a workflow, as a draft: a new one, or a copy of another version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -35,7 +35,7 @@
     "copy": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "copy",
-      "label": "Copy the source version, if one is named",
+      "label": "Copy the source version, if specified",
       "handler": "copyContent",
       "sourceType": "wf/WorkflowVersion",
       "skipProperties": ["version"],
