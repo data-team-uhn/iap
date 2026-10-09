@@ -75,7 +75,10 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 public class WorkflowEngineImpl implements WorkflowEngine
 {
     /** The subservice name under which the engine's service user is mapped. */
-    private static final String SUBSERVICE_NAME = "workflows";
+    static final String SUBSERVICE_NAME = "workflows";
+
+    /** How many times an event aimed at a task is run again after another walk of the same instance won a race. */
+    private static final int CONFLICT_RETRIES = 2;
 
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
@@ -86,6 +89,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    /** Evaluates every guard, on a start event and on a gateway's arcs alike. */
     @Reference
     private ConditionEvaluator conditionEvaluator;
 
@@ -148,27 +152,34 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * system workflow: the decision, the task's new state and what follows from it all happen, or none of them
      * do.
      *
-     * @param task the task being completed, resolved through the engine's session
+     * <p>Two walks of one instance at once conflict when the second commits. The loser is reverted, which also
+     * brings its session up to date, and run again on top of what the winner did.</p>
+     *
+     * @param task the task the event is aimed at, resolved through the engine's session
      * @param event the incoming event
-     * @param actor the user completing it
-     * @return an empty result: completing a task creates nothing to send the caller to
+     * @param actor the user who sent the event
+     * @return an empty result: ending a task creates nothing to send the caller to
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
     private WorkflowResult resume(final Resource task, final WorkflowEvent event, final String actor)
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
-        try {
-            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor));
-            resolver.commit();
-            return new WorkflowResult(Map.of());
-        } catch (final PersistenceException e) {
-            revert(resolver);
-            throw RepositoryFailures.translate(e);
-        } catch (final WorkflowException | RuntimeException e) {
-            revert(resolver);
-            throw e;
-        }
+        return RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
+            try {
+                TaskCompletion.apply(resolver, Objects.requireNonNull(resolver.getResource(task.getPath()),
+                    "A task is never deleted while its instance runs"), event, actor,
+                    dispatcher().performer(event, actor), this.conditionEvaluator);
+                resolver.commit();
+                return new WorkflowResult(Map.of());
+            } catch (final PersistenceException e) {
+                revert(resolver);
+                throw RepositoryFailures.translate(e);
+            } catch (final WorkflowException | RuntimeException e) {
+                revert(resolver);
+                throw e;
+            }
+        });
     }
 
     /**
@@ -272,7 +283,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ServiceTaskDispatcher dispatcher()
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain);
+        return new ServiceTaskDispatcher(this.handlers, this::chain, this.conditionEvaluator);
     }
 
     /**

@@ -32,6 +32,10 @@ import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -1218,7 +1222,7 @@ class BpmnXmlSyncEditorTest
         assertFalse(flow1.hasProperty("conditionExpression"));
 
         final NodeState flow2 = task.getChildNode(FLOW_2);
-        assertEquals("${approved}", flow2.getProperty("conditionExpression").getValue(Type.STRING));
+        assertFalse(flow2.hasProperty("conditionExpression"));
         assertEquals(true, flow2.getProperty("isDefault").getValue(Type.BOOLEAN));
 
         assertFalse(task.getChildNode("flowBad").exists());
@@ -1412,6 +1416,32 @@ class BpmnXmlSyncEditorTest
         assertTrue(start.exists());
         assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
         assertTrue(version.getChildNode(END_1).exists());
+    }
+
+    /** The engine evaluates a cond:condition; a BPMN expression is reported, and the arc made without it. */
+    @Test
+    void reportsAConditionExpressionItCannotEvaluate() throws Exception
+    {
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        final NodeState version;
+        try {
+            version = firstSave(
+                DEFS_OPEN
+                + PROCESS_OPEN
+                + "    <bpmn:startEvent id=\"start1\"/>\n"
+                + "    <bpmn:endEvent id=\"end1\"/>\n"
+                + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+                + "      <bpmn:conditionExpression>outcome == 'approved'</bpmn:conditionExpression>\n"
+                + "    </bpmn:sequenceFlow>\n"
+                + PROCESS_CLOSE
+                + DEFS_CLOSE);
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
+
+        assertTrue(version.getChildNode(START_1).getChildNode(FLOW_1).exists());
+        Mockito.verify(errors).logProblem(Mockito.contains("conditionExpression"), Mockito.any());
     }
 
     /** A guard belongs to the arc that declares it, not to whatever an extension nested further down. */

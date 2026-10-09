@@ -307,6 +307,10 @@
   // second token can reach.
   - interrupting (BOOLEAN) = true autocreated
 
+  // How long this event waits before firing, as an ISO-8601 duration such as
+  // P5D or PT48H. An event with one is a timer, fired by the clock.
+  - timerDuration (STRING)
+
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
@@ -334,8 +338,8 @@
   // tasks: nobody asks a service task what it decided.
   //
   // Declared because a task list has to know what to offer. Without it, the only
-  // record of which outcomes exist is the conditionExpression on some later
-  // gateway's arcs, which is where they are *consumed*; a task offering nothing
+  // record of which outcomes exist is in the conditions on some later gateway's
+  // arcs, which is where they are *consumed*; a task offering nothing
   // would be completed with no decision at all and quietly take the default arc.
   // So a task that names no outcomes is one there is nothing to decide about —
   // it is done or it is not — and that is the difference a task list needs.
@@ -387,7 +391,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > data:EntityPart
+[wf:SequenceFlow] > data:EntityPart, cond:Conditionable
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier
@@ -399,11 +403,9 @@
   // Optional label shown on the arc
   - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways.
-  // TODO: replace this raw expression with the structured conditions mechanism
-  // (the cond:Conditionable mixin plus a cond:condition child), the same way
-  // schema items express their conditions, once the conditions module lands.
-  - conditionExpression (STRING)
+  // The guard a gateway evaluates before taking this arc is the cond:condition
+  // child that cond:Conditionable brings. An inclusive gateway always takes an
+  // arc without one. An exclusive gateway takes it only if it is the default.
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)

@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,6 +46,10 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.models.Activity;
@@ -146,9 +151,13 @@ public final class EngineFixture
      */
     static ServiceTaskDispatcher noFurtherTasks()
     {
-        return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
-            throw new IllegalStateException("No event was expected to be sent here");
-        });
+        try {
+            return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
+                throw new IllegalStateException("No event was expected to be sent here");
+            }, conditions());
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("The fixture could not build its condition evaluator", e);
+        }
     }
 
     /**
@@ -262,6 +271,25 @@ public final class EngineFixture
     }
 
     /**
+     * Builds a condition evaluator with the operand sources a workflow's guards use: literals, tags, and the
+     * instance's variables.
+     *
+     * <p>Wired by hand, because the bundle plugin generates the DS metadata only at packaging time.</p>
+     *
+     * @return an evaluator a gateway's guards can be asked of
+     * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
+     */
+    static ConditionEvaluator conditions() throws ReflectiveOperationException
+    {
+        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
+        resolvers.setAccessible(true);
+        resolvers.set(evaluator,
+            List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
+        return evaluator;
+    }
+
+    /**
      * Supplies the {@code sling:resourceType} that a real repository autocreates from the node type, which is the
      * one thing the mock one cannot do for itself. It matters because the runtime may not write that property:
      * every {@code wf:} type declares it protected, so a repository refuses. And because the engine reads what it
@@ -318,11 +346,14 @@ public final class EngineFixture
             // way to confuse Mockito
             final User admin = user(ADMIN, true);
             final User requester = user(REQUESTER, false);
+            final User timer = user(TaskCompletion.TIMER_USER, false);
+            Mockito.when(timer.memberOf()).thenAnswer(invocation -> List.<Group>of().iterator());
             final Group requesters = group();
             final AccessControlManager accessControl = accessControlManager();
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
+            Mockito.when(userManager.getAuthorizable(TaskCompletion.TIMER_USER)).thenReturn(timer);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));

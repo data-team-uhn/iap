@@ -65,15 +65,16 @@ class SequenceFlowTest
             "elementId", "flow_1",
             "targetRef", "task_1",
             "label", "Approved",
-            "conditionExpression", "${outcome == 'approved'}",
             "isDefault", true));
+        this.context.create().resource(resource.getPath() + "/cond:condition",
+            TYPE, "cond/SingleCondition");
         final SequenceFlow flow = resource.adaptTo(SequenceFlow.class);
 
         assertNotNull(flow);
         assertEquals("flow_1", flow.getElementId());
         assertEquals("task_1", flow.getTargetRef());
         assertEquals("Approved", flow.getLabel());
-        assertEquals("${outcome == 'approved'}", flow.getConditionExpression());
+        assertNotNull(flow.getCondition());
         assertTrue(flow.isDefault());
     }
 
@@ -85,7 +86,7 @@ class SequenceFlowTest
         final SequenceFlow flow = resource.adaptTo(SequenceFlow.class);
 
         assertNull(flow.getLabel());
-        assertNull(flow.getConditionExpression());
+        assertNull(flow.getCondition());
         assertFalse(flow.isDefault());
     }
 
