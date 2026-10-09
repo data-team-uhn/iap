@@ -35,6 +35,7 @@ import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
+import org.apache.sling.commons.mime.MimeTypeService;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -90,12 +91,17 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String TEMPLATE_KEY = "template";
 
+    private static final String TEMPLATE_NAME_KEY = "templateName";
+
     private static final String ATTACHED_KEY = "attached";
 
     private static final String REQUIRED_KEY = "required";
 
     @Reference
     private transient ConditionEvaluator conditions;
+
+    @Reference
+    private transient MimeTypeService mimeTypes;
 
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request,
@@ -200,6 +206,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final Resource template = requirement.getTemplate();
         if (template != null) {
             json.add(TEMPLATE_KEY, template.getPath());
+            json.add(TEMPLATE_NAME_KEY, getTemplateFileName(requirement, template));
         }
         // Named rather than counted, so that a form reopened later says which document is there. Without this an
         // upload control looks the same before and after, and the way to check would be to leave the page
@@ -209,6 +216,23 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .map(document -> Objects.toString(document.getTitle(), document.getName()))
             .forEach(attached::add);
         json.add(ATTACHED_KEY, attached);
+    }
+
+    /**
+     * The name a downloaded template is saved under. The node is always called {@code template}, so the name is
+     * the requirement's label plus the extension of the template's type.
+     *
+     * @param requirement the requirement offering the template
+     * @param template the template file
+     * @return a file name
+     */
+    private String getTemplateFileName(final DocumentRequirement requirement, final Resource template)
+    {
+        final String label = Objects.toString(requirement.getLabel(), "");
+        final String base = label.isBlank() ? requirement.getName() : label;
+        final String mimeType = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
+        final String extension = mimeType == null ? null : this.mimeTypes.getExtension(mimeType);
+        return extension == null ? base : base + "." + extension;
     }
 
     /**

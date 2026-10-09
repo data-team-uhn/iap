@@ -180,6 +180,7 @@ describe("SubmissionEditor", () => {
       required: true,
       acceptedFileTypes: [ "application/pdf", "image/png" ],
       template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
+      templateName: "Doctor's note.docx",
       attached: [],
     };
 
@@ -201,6 +202,8 @@ describe("SubmissionEditor", () => {
       expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Download the template" }))
         .toHaveAttribute("href", "/Schemas/timeOffRequest/v1/doctorsNote/template");
+      expect(screen.getByRole("link", { name: "Download the template" }))
+        .toHaveAttribute("download", "Doctor's note.docx");
     });
 
     it("says nothing about types or a template where the requirement offers none", async () => {

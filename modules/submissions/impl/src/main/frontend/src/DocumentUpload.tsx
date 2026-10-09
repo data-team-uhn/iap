@@ -93,7 +93,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
           </Typography>
         )}
       {requirement.template
-        ? <Link href={requirement.template} download>Download the template</Link>
+        ? <Link href={requirement.template} download={requirement.templateName ?? true}>Download the template</Link>
         : null}
       <Button
         component="label"

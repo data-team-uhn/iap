@@ -91,6 +91,8 @@ export interface DocumentRequirement extends Requirement {
   acceptedFileTypes: string[];
   // A document to start from, where the requirement offers one
   template?: string;
+  // The name to save the template under, since its node is always called `template`
+  templateName?: string;
   // What has been attached already, by title. Present so that reopening the form shows a document
   // that is there rather than an empty control implying it is not.
   attached: string[];

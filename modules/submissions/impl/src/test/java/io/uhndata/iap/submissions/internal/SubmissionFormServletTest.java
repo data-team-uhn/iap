@@ -41,6 +41,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
+import org.apache.sling.commons.mime.MimeTypeService;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -127,7 +128,8 @@ class SubmissionFormServletTest
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        inject(this.servlet, evaluator);
+        inject(this.servlet, "conditions", evaluator);
+        inject(this.servlet, "mimeTypes", this.context.getService(MimeTypeService.class));
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -150,6 +152,8 @@ class SubmissionFormServletTest
             "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
         this.context.create().resource(VERSION_PATH + "/signedForm/template", Map.of(
             "jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/signedForm/template/jcr:content", Map.of(
+            "jcr:primaryType", "nt:resource", "jcr:mimeType", "application/pdf"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -298,6 +302,28 @@ class SubmissionFormServletTest
             .map(value -> ((JsonString) value).getString())
             .collect(Collectors.toList()));
         assertEquals(VERSION_PATH + "/signedForm/template", signed.getString("template"));
+        // The node is called "template", so the download is named after the requirement, with its type's extension
+        assertEquals("Signed form.pdf", signed.getString("templateName"));
+    }
+
+    @Test
+    void namesATemplateOfNoKnownTypeAfterTheRequirementAlone() throws IOException
+    {
+        // No label and no declared type: the requirement's name, with nothing guessed after it
+        this.context.create().resource(VERSION_PATH + "/waiver", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT));
+        this.context.create().resource(VERSION_PATH + "/waiver/template", Map.of("jcr:primaryType", "nt:file"));
+        // A declared type with no known extension
+        this.context.create().resource(VERSION_PATH + "/scan", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Scan"));
+        this.context.create().resource(VERSION_PATH + "/scan/template", Map.of("jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/scan/template/jcr:content", Map.of(
+            "jcr:primaryType", "nt:resource", "jcr:mimeType", "application/x-iap-unknown"));
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals("waiver", requirement(form, "waiver").getString("templateName"));
+        assertEquals("Scan", requirement(form, "scan").getString("templateName"));
     }
 
     @Test
@@ -467,13 +493,13 @@ class SubmissionFormServletTest
         }
     }
 
-    private static void inject(final SubmissionFormServlet servlet, final ConditionEvaluator evaluator)
+    private static void inject(final SubmissionFormServlet servlet, final String name, final Object service)
         throws ReflectiveOperationException
     {
         // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
         // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField("conditions");
+        final var field = SubmissionFormServlet.class.getDeclaredField(name);
         field.setAccessible(true);
-        field.set(servlet, evaluator);
+        field.set(servlet, service);
     }
 }
