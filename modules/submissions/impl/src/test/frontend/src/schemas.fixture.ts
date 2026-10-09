@@ -36,4 +36,51 @@ export const SCHEMAS = {
       "tags": ["active"],
     },
   },
+  "expenses": {
+    "jcr:primaryType": "sch:Schema",
+    "@path": "/Schemas/expenses",
+    "@name": "expenses",
+    "title": "Expenses",
+    "active": false,
+    "v1": {
+      "jcr:primaryType": "sch:SchemaVersion",
+      "@path": "/Schemas/expenses/v1",
+      "@name": "v1",
+      "version": "1.0",
+      "active": true,
+    },
+  },
+};
+
+// A /Categories tree, deep: a top category naming the open schema, one naming a schema that is not open,
+// and a retired one. The schema version arrives inlined by the dereference processor.
+export const CATEGORIES = {
+  "jcr:primaryType": "cat:CategoriesHomepage",
+  "@path": "/Categories",
+  "away": {
+    "jcr:primaryType": "cat:Category",
+    "@path": "/Categories/away",
+    "@name": "away",
+    "label": "Time away",
+    "description": "Any request to be away from work",
+    "schemaVersion": { "@path": "/Schemas/timeOffRequest/v1", "version": "1.0" },
+    "sick": {
+      "jcr:primaryType": "cat:Category",
+      "@path": "/Categories/away/sick",
+      "label": "Sick leave",
+    },
+  },
+  "closed": {
+    "jcr:primaryType": "cat:Category",
+    "@path": "/Categories/closed",
+    "label": "Closed",
+    "schemaVersion": { "@path": "/Schemas/expenses/v1", "version": "1.0" },
+  },
+  "retiredOne": {
+    "jcr:primaryType": "cat:Category",
+    "@path": "/Categories/retiredOne",
+    "label": "Retired",
+    "tags": [ "retired" ],
+    "schemaVersion": { "@path": "/Schemas/timeOffRequest/v1", "version": "1.0" },
+  },
 };

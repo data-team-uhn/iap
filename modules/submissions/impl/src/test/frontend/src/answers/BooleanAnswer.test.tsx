@@ -25,7 +25,7 @@ import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
 function renderBoolean(overrides: Partial<FormQuestion> = {}, values: string[] = []) {
   const question: FormQuestion = {
     name: "recurring", type: QUESTION, path: "details/recurring", text: "Does this repeat?",
-    dataType: "boolean", required: false, multiple: false, options: [], value: [], ...overrides,
+    dataType: "boolean", minAnswers: 0, maxAnswers: 1, options: [], value: [], ...overrides,
   };
   const onAnswered = vi.fn();
   render(<BooleanAnswer question={question} values={values} disabled={false}
@@ -70,7 +70,7 @@ describe("BooleanAnswer", () => {
   // Whether an answer is obligatory changes what the form insists on, never what it looks like:
   // a submitter should not have to learn a second control to answer the same kind of question
   it("asks the same way whether or not the answer is obligatory", () => {
-    renderBoolean({ required: true });
+    renderBoolean({ minAnswers: 1 });
 
     expect(screen.getByRole("radio", { name: "Yes" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "No" })).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("BooleanAnswer", () => {
 
   // Each input carries it: a FormControl never forwards required to a radio
   it("marks a required question's options required", () => {
-    renderBoolean({ required: true });
+    renderBoolean({ minAnswers: 1 });
 
     expect(screen.getByRole("radio", { name: "Yes" })).toBeRequired();
     expect(screen.getByRole("radio", { name: "No" })).toBeRequired();
@@ -102,5 +102,21 @@ describe("BooleanAnswer", () => {
     renderBoolean({ description: "Weekly, monthly, or not at all." });
 
     expect(screen.getByText("Weekly, monthly, or not at all.")).toBeInTheDocument();
+  });
+});
+
+describe("BooleanAnswer, as a suggestion", () => {
+  it("frames the pick a reading suggested", () => {
+    const question: FormQuestion = {
+      name: "recurring", type: QUESTION, path: "details/recurring", text: "Does this repeat?",
+      dataType: "boolean", minAnswers: 0, maxAnswers: 1, options: [], value: [],
+    };
+    const { rerender } = render(<BooleanAnswer question={question} values={[ "true" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Yes" })).toBeChecked();
+
+    rerender(<BooleanAnswer question={question} values={[ "false" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "No" })).toBeChecked();
   });
 });

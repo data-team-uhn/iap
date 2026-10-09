@@ -485,6 +485,9 @@ public final class WorkflowDefinitionUtils
                 // Worth raising: an unnamed message can not ever be passed as an event
                 LOGGER.warn("Message event {} in {} references message {} which declares no name",
                     element.getAttribute(ID_ATTRIBUTE), context.path(), ref);
+                ErrorLogger.logProblem("message event references a message that declares no name",
+                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                        .with(ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE)).with("references", ref));
             } else {
                 node.setProperty(MESSAGE_NAME_PROPERTY, name);
             }
@@ -545,6 +548,10 @@ public final class WorkflowDefinitionUtils
         if (StringUtils.isBlank(name)) {
             LOGGER.warn("An sv:node in {} declares no sv:name, skipping it and everything under it",
                 context.path());
+            // The worst of this family: the subtree an author wrote is a gateway's guard as often as not, and a
+            // gateway whose guard is silently absent does not fail — it takes its default arc, and decides
+            ErrorLogger.logProblem("an extension node declares no sv:name",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
             return;
         }
         // The primary type is a property in System View and the node's identity in Oak, so it is read out of the
@@ -556,6 +563,9 @@ public final class WorkflowDefinitionUtils
             .orElse(null);
         if (StringUtils.isBlank(primaryType)) {
             LOGGER.warn("The sv:node {} in {} declares no jcr:primaryType, skipping it", name, context.path());
+            ErrorLogger.logProblem("an extension node declares no jcr:primaryType",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, name));
             return;
         }
         final NodeBuilder child = parent.child(name);
@@ -579,6 +589,8 @@ public final class WorkflowDefinitionUtils
         final String name = svAttribute(svProperty, SV_NAME_ATTRIBUTE);
         if (StringUtils.isBlank(name)) {
             LOGGER.warn("An sv:property of a node in {} declares no sv:name, ignoring it", context.path());
+            ErrorLogger.logProblem("an extension property declares no sv:name",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
             return;
         }
         final List<String> values = svValues(svProperty);
@@ -590,22 +602,62 @@ public final class WorkflowDefinitionUtils
         if (values.isEmpty()) {
             return;
         }
-        setSvSingleValue(node, name, values.get(0), declaredType);
+        setSvSingleValue(node, name, values.get(0), declaredType, context);
     }
 
+    /**
+     * Sets one value in the type the diagram declared for it.
+     *
+     * <p>A number the diagram calls a number and that is not one is stored as the text it is, not thrown over.
+     * The parse rebuilds the whole graph in place, so a throw from here would leave the version holding the
+     * nodes parsed so far and none of the arcs - a working workflow replaced by a broken one over one mistyped
+     * property.</p>
+     */
     private static void setSvSingleValue(final NodeBuilder node, final String name, final String value,
-        final String declaredType)
+        final String declaredType, final ParseContext context)
     {
         switch (declaredType) {
             case "Boolean" -> node.setProperty(name, Boolean.parseBoolean(value));
-            case "Long" -> node.setProperty(name, Long.parseLong(value));
-            case "Double" -> node.setProperty(name, Double.parseDouble(value));
+            case "Long" -> setSvLong(node, name, value, context);
+            case "Double" -> setSvDouble(node, name, value, context);
             case "Name" -> node.setProperty(name, value, Type.NAME);
             // String, an absent type, and anything the engine has no use for: stored as written. A condition
             // operand's `value` is UNDEFINED in the node type precisely because the evaluator unifies types at
             // evaluation time rather than trusting what was stored.
             case null, default -> node.setProperty(name, value);
         }
+    }
+
+    /** Stores a declared whole number, falling back to the text when it does not parse as one. */
+    private static void setSvLong(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        try {
+            node.setProperty(name, Long.parseLong(value));
+        } catch (final RuntimeException e) {
+            storeAsText(node, name, value, context);
+        }
+    }
+
+    /** Stores a declared decimal, falling back to the text when it does not parse as one. */
+    private static void setSvDouble(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        try {
+            node.setProperty(name, Double.parseDouble(value));
+        } catch (final RuntimeException e) {
+            storeAsText(node, name, value, context);
+        }
+    }
+
+    private static void storeAsText(final NodeBuilder node, final String name, final String value,
+        final ParseContext context)
+    {
+        LOGGER.warn("The extension property {} of a node in {} is not the number it says it is,"
+            + " storing it as text", name, context.path());
+        ErrorLogger.logProblem("an extension property is not the number it declares",
+            ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
+        node.setProperty(name, value);
     }
 
     private static Type<Iterable<String>> svMultipleType(final String declaredType)

@@ -40,6 +40,9 @@ import io.uhndata.iap.utils.copy.CopyParticipant;
 @Component(service = CopyParticipant.class)
 public class AnswerOperandsCopyParticipant implements CopyParticipant
 {
+    /** The operand source naming a question, served by the submissions module. */
+    private static final String ANSWER_SOURCE = "answer";
+
     private static final String SOURCE_PROPERTY = "source";
 
     private static final String VALUE_PROPERTY = "value";
@@ -49,7 +52,7 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
         throws RepositoryException
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
-            && AnswerOperandResolver.SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
+            && ANSWER_SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
             final Value[] named = copy.getProperty(VALUE_PROPERTY).getValues();
             final String[] copied = new String[named.length];
             for (int i = 0; i < named.length; i++) {

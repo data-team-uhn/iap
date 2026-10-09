@@ -55,6 +55,7 @@ How content is shaped, related, and moved through its process.
 | --- | --- |
 | [ui-extensions.md](ui-extensions.md) | The extension points the UI is composed of, and how to contribute an extension or define a point of your own |
 | [administration.md](administration.md) | The administration console at `/admin`: one door for everything that configures the platform rather than uses it |
+| [file-validation.md](file-validation.md) | Checking a file in the browser before it is uploaded: size, type, and whether a PDF or Word file really is one, plus the checks the parser runs after it |
 | [autodoc.md](autodoc.md) | How configurable parts of the platform document themselves at runtime, straight from the running system, instead of drifting out of date |
 
 ## Identity and access

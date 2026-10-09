@@ -19,6 +19,7 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,12 +27,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -48,7 +51,12 @@ import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.Evidence;
+import io.uhndata.iap.submissions.models.Extraction;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -110,7 +118,7 @@ class DetachDocumentHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class, Submission.class,
-            Activity.class);
+            Activity.class, DocumentVersion.class, File.class, Answer.class, Extraction.class, Evidence.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -231,6 +239,134 @@ class DetachDocumentHandlerTest
         assertNotNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/stray"));
     }
 
+    // A reading holds strong references to the revisions it read, and Oak refuses to delete one still referenced.
+    // A reading of some other file stays, and so does the answer it filled in.
+    @Test
+    void dropsTheReadingOfTheFileBeingRemoved() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        attach("anything", "other.pdf");
+        final Resource removed = versionOf("note.pdf");
+        final Resource kept = versionOf("other.pdf");
+        final Resource fromRemoved = reading("from-the-note", removed);
+        final String answerPath = fromRemoved.getParent().getPath();
+        final Resource quoted = reading("quoted-from-the-note", kept);
+        quote(quoted, removed);
+        final Resource fromKept = reading("from-the-other", kept);
+        quote(fromKept, kept);
+        // A child that names no revision, so a missing reference is not treated as a hit
+        this.context.create().resource(fromKept.getPath() + "/note", Map.of("jcr:primaryType", "nt:unstructured"));
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        final ResourceResolver resolver = this.context.resourceResolver();
+        assertNull(resolver.getResource(fromRemoved.getPath()));
+        assertNull(resolver.getResource(quoted.getPath()));
+        assertNotNull(resolver.getResource(fromKept.getPath()));
+        assertNotNull(resolver.getResource(answerPath), "the answer stays; only the reading of this file goes");
+        assertTrue(documents().stream().noneMatch(document -> "note.pdf".equals(document.getTitle())));
+    }
+
+    // Removed mid-parse, the parse lands on nothing and the reading it was for never ends
+    @Test
+    void refusesWhileTheDocumentsAreBeingRead() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        modify(this.target, "extractionStatus", "running");
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
+        assertEquals(1, documents().size());
+    }
+
+    @Test
+    void dropsASuggestionNobodyTouchedWithTheFile() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        final Resource untouched = reading("untouched", versionOf("note.pdf"));
+        modify(untouched.getParent(), "value", new String[] {"one week off"});
+        modify(untouched, "extractedAnswer", "one week off");
+        final String answer = untouched.getParent().getPath();
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(answer));
+    }
+
+    @Test
+    void keepsAConfirmedSuggestion() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        final Resource confirmed = reading("confirmed", versionOf("note.pdf"));
+        modify(confirmed.getParent(), "value", new String[] {"one week off"});
+        modify(confirmed, "extractedAnswer", "one week off");
+        modify(confirmed, "reviewed", Boolean.TRUE);
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(confirmed.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(confirmed.getParent().getPath()));
+    }
+
+    @Test
+    void keepsAnAnswerAnotherReadingStillBacks() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        attach("anything", "other.pdf");
+        final Resource fromNote = reading("backed", versionOf("note.pdf"));
+        modify(fromNote.getParent(), "value", new String[] {"one week off"});
+        modify(fromNote, "extractedAnswer", "one week off");
+        final Resource fromOther = this.context.create().resource(fromNote.getParent().getPath() + "/other",
+            Map.of(TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", "one week off"));
+        references(fromOther, "sources", versionOf("other.pdf"));
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(fromNote.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(fromOther.getPath()));
+    }
+
+    @Test
+    void translatesAFailedReadingLookupIntoAPersistenceFailure() throws Exception
+    {
+        attach(NOTE, "note.pdf");
+        final String documentPath = documents().get(0).getPath();
+        final Node explosive = Mockito.mock(Node.class, invocation -> {
+            throw new RepositoryException("boom");
+        });
+        final ResourceResolver sabotaged = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource found = super.getResource(path);
+                if (found == null || !documentPath.equals(path)) {
+                    return found;
+                }
+                return new ResourceWrapper(found)
+                {
+                    @Override
+                    public Iterable<Resource> getChildren()
+                    {
+                        final List<Resource> children = new ArrayList<>();
+                        super.getChildren().forEach(child -> children.add(new ResourceWrapper(child)
+                        {
+                            @Override
+                            public <T> T adaptTo(final Class<T> type)
+                            {
+                                return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
+                            }
+                        }));
+                        return children;
+                    }
+                };
+            }
+        };
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> this.handler.execute(context(payload(NOTE), REQUESTER, sabotaged)));
+        assertTrue(failure.getMessage().contains("Could not drop the reading"));
+    }
+
     private void attach(final String requirement, final String fileName) throws Exception
     {
         final Map<String, Object> payload = payload(requirement);
@@ -293,6 +429,59 @@ class DetachDocumentHandlerTest
         return present(submission.adaptTo(Submission.class)).getDocuments();
     }
 
+    /**
+     * The newest version of the document with this title. Found by node type, since the mock repository does not
+     * stamp the resource type a version's model is adapted by.
+     */
+    private Resource versionOf(final String title)
+    {
+        for (final Document document : documents()) {
+            if (title.equals(document.getTitle())) {
+                Resource version = null;
+                for (final Resource child : present(this.context.resourceResolver().getResource(document.getPath()))
+                    .getChildren()) {
+                    if ("sub:DocumentVersion".equals(child.getValueMap().get("jcr:primaryType", String.class))) {
+                        version = child;
+                    }
+                }
+                return present(version);
+            }
+        }
+        throw new AssertionError("no document titled " + title);
+    }
+
+    /** An answer whose extraction read the given version. */
+    private Resource reading(final String name, final Resource version)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, "sub/Answer", "jcr:primaryType", "sub:Answer"));
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/run", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction"));
+        references(extraction, "sources", version);
+        return extraction;
+    }
+
+    /** Points a multi-valued reference property at one node. */
+    private void references(final Resource from, final String property, final Resource to)
+    {
+        try {
+            final Node source = present(from.adaptTo(Node.class));
+            source.setProperty(property, new Value[] {
+                source.getSession().getValueFactory().createValue(present(to.adaptTo(Node.class))) });
+            this.context.resourceResolver().commit();
+        } catch (final RepositoryException | PersistenceException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A quote in an extraction, taken from the given version. */
+    private void quote(final Resource extraction, final Resource version)
+    {
+        final Resource evidence = this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "one week off"));
+        reference(evidence, version.getPath(), "source");
+    }
+
     private <T> T present(final T found)
     {
         assertNotNull(found);
@@ -322,7 +511,12 @@ class DetachDocumentHandlerTest
 
     private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
     {
-        final ResourceResolver resolver = this.context.resourceResolver();
+        return context(payload, actor, this.context.resourceResolver());
+    }
+
+    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor,
+        final ResourceResolver resolver)
+    {
         final WorkflowEvent event = new WorkflowEvent(DetachDocumentHandler.HANDLER_NAME, payload);
         final Activity activity = Mockito.mock(Activity.class);
         // jcr-mock answers nothing about versioning, so the request reads as checked out
@@ -334,6 +528,12 @@ class DetachDocumentHandlerTest
         }
         final Resource submission = new ResourceWrapper(this.target)
         {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+
             @Override
             public <A> A adaptTo(final Class<A> type)
             {

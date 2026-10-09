@@ -18,6 +18,10 @@
 package io.uhndata.iap.submissions.models;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -41,13 +45,36 @@ public class SubmissionsHomepage extends EntityHomepage
     public static final String RESOURCE_TYPE = "sub/SubmissionsHomepage";
 
     /**
-     * The submissions filed under this homepage.
+     * The submissions filed under this homepage, wherever in its prefix tree they sit.
+     *
+     * <p>Submissions are spread over buckets named after the first characters of their names, so they are
+     * descendants rather than children and finding them all means walking the tree. Nothing bounds how many there
+     * are: this is for code that genuinely wants every one of them, and anything displaying a list should ask the
+     * paginated listing endpoint instead, which queries by node type and never materializes more than a page.</p>
      *
      * @return a list of submissions, empty if none
      */
     @NotNull
     public List<Submission> getSubmissions()
     {
-        return this.getChildren(Submission.RESOURCE_TYPE, Submission.class);
+        return filed(this.resource).collect(Collectors.toList());
+    }
+
+    /**
+     * The submissions at or below a node: the node's own submissions, plus whatever its buckets hold. A submission
+     * is never a bucket, so the walk stops as soon as it finds one and cannot be led into a submission's own
+     * children.
+     *
+     * @param node the node to look under
+     * @return the submissions found
+     */
+    @NotNull
+    private static Stream<Submission> filed(@NotNull final Resource node)
+    {
+        return StreamSupport.stream(node.getChildren().spliterator(), false)
+            .flatMap(child -> child.isResourceType(Submission.RESOURCE_TYPE)
+                ? Stream.of(child.adaptTo(Submission.class))
+                : filed(child))
+            .filter(Objects::nonNull);
     }
 }

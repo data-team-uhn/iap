@@ -219,6 +219,45 @@ class StaleParseJobSweeperTest
         assertTrue(this.discarded.isEmpty());
     }
 
+    // A handler may refuse only for now, such as for a file whose upload was not committed yet
+    @Test
+    void offersAnUntakenOutcomeAgain()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_FAILED, minutesAgo(10), TARGET);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(5));
+
+        this.sweeper.run();
+
+        assertEquals(1, this.handed.size());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken this time");
+        assertTrue(this.discarded.isEmpty(), "the handler clears the folder once it reads the parse in");
+    }
+
+    // The request that settled it may still be handing it over
+    @Test
+    void leavesAnOutcomeThatSettledMomentsAgo()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(10), TARGET);
+        edit(job).put(ParseJob.PN_FINISHED, Calendar.getInstance());
+
+        this.sweeper.run();
+
+        assertTrue(this.handed.isEmpty());
+    }
+
+    // A folder a worker still holds open is retried on the next sweep, and only the record names it
+    @Test
+    void keepsTheRecordOfAFolderItCouldNotRemove()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
+        edit(job).put(ParseJob.PN_PATH, "/shared-docs/busy/proposal.pdf");
+
+        this.sweeper.run();
+
+        assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
     @Test
     void survivesARecordItCannotDrop() throws Exception
     {
@@ -467,9 +506,10 @@ class StaleParseJobSweeperTest
         }
 
         @Override
-        public void discardStaging(final String stagedPath)
+        public boolean discardStaging(final String stagedPath)
         {
             this.discarded.add(stagedPath);
+            return !stagedPath.contains("busy");
         }
     }
 }

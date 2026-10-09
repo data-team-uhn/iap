@@ -30,8 +30,11 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalLookupException;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -45,6 +48,13 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * repository is being written with full privileges. The refusal happens here, before the first step. An actor
  * passes only if the definition named them, or named a group they belong to.</p>
  *
+ * <p>What a definition's names mean — {@code @creator} for whoever raised the resource being worked on,
+ * {@code everyone} for any authenticated user, a group however a deployment stores it — is the
+ * {@link PrincipalService}'s answer, so a task saying "yours" in a listing and this check refusing its completion
+ * cannot disagree about what a name means. The one judgement kept here is the administrator bypass: administrators
+ * pass everything, exactly as they bypass access control in the repository itself, since without it a deployment
+ * could write a definition that locks its own authors out with no way back in.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -53,7 +63,7 @@ final class PerformerCheck
     /** The built-in group that stands for every authenticated user. */
     private static final String EVERYONE_GROUP = "everyone";
 
-    /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
+    /** What an actor is told when the definition does not admit them; deliberately the same for every reason. */
     private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
 
     /** The actor, or {@code null} when the repository does not know them. */
@@ -85,17 +95,33 @@ final class PerformerCheck
      * Refuses the actor unless the node names them, directly or through a group they belong to. Both halves fail
      * closed: an actor the repository does not know is refused, and a node that names nobody admits nobody.
      *
+     * @param principals the vocabulary the node's names are read in
      * @param serviceResolver the engine's own session, used to look the actor up
+     * @param host the resource being worked on, which is what {@code @creator} is asked about
      * @param node the flow node execution wants to pass through
      * @param actor the user who fired the event, as their repository user id
      * @throws NotAuthorizedException when the node does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final FlowNode node, final String actor)
-        throws WorkflowException
+    static void verify(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final Resource host, final FlowNode node, final String actor) throws WorkflowException
     {
-        if (!of(serviceResolver, actor).admits(node)) {
+        final Authorizable authorizable = lookUp(serviceResolver, actor);
+        if (authorizable == null) {
             throw new NotAuthorizedException(REFUSAL_MESSAGE);
+        }
+        // Administrators pass everything, as they bypass access control in the repository itself. Without it, a
+        // definition can lock its own authors out with no way back in.
+        if (authorizable instanceof User && ((User) authorizable).isAdmin()) {
+            return;
+        }
+        try {
+            if (!principals.isOneOf(actor, principals.resolve(node.getPerformers(), host),
+                serviceResolver)) {
+                throw new NotAuthorizedException(REFUSAL_MESSAGE);
+            }
+        } catch (final PrincipalLookupException e) {
+            throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
         }
     }
 

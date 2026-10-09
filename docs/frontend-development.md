@@ -181,6 +181,11 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
 card per schema, so the card describes its versions.
 
+Before a file is uploaded, check it with `validateUpload` from
+`@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
+caller does not take, and a PDF or Word file whose content does not match its name; see
+[file validation](file-validation.md).
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme

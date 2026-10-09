@@ -32,9 +32,6 @@ const AUTHORIZATION = `Basic ${Buffer.from('admin:admin').toString('base64')}`;
 /** Health check outcomes that mean the instance is not usable yet. */
 const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAILABLE'];
 
-/** The tag the startup gate watches. Every check carrying it must be OK, a WARN included. */
-const GATE_TAG = 'systemalive';
-
 /**
  * How long the gate's checks must have been passing before an instance counts as ready.
  *
@@ -44,6 +41,13 @@ const GATE_TAG = 'systemalive';
  * sits above its own 30s settle period, and the two poll independently.
  */
 const GATE_SETTLED_MS = 40_000;
+
+/**
+ * The tag the startup gate itself watches. Every check carrying it has to be OK — a WARN included —
+ * before the gate stops serving the startup page, so this is the one question whose answer decides
+ * whether the instance serves anything at all.
+ */
+const GATE_TAG = 'systemalive';
 
 /**
  * Whether an instance is ready to be tested.

@@ -20,8 +20,10 @@ package io.uhndata.iap.principals.api;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * One vocabulary for saying who, shared by everything that names people: workflow performers, notification
@@ -79,16 +81,31 @@ public interface PrincipalService
     List<String> resolve(@NotNull List<String> names, @NotNull PrincipalContext context);
 
     /**
+     * Answers the special names in a list of names about a subject, with nobody acting: the common shape of the
+     * question, spared the context object.
+     *
+     * @param names the names to resolve: special names, user ids, groups, in any mix
+     * @param subject the resource the names are about
+     * @return the resolved principal names, empty when the names stand for nobody
+     */
+    @NotNull
+    default List<String> resolve(@NotNull final List<String> names, @Nullable final Resource subject)
+    {
+        return resolve(names, PrincipalContext.about(subject));
+    }
+
+    /**
      * Everything a session acts as: the person's own id, then every principal bound to their session, which is
      * what {@link #MY_PRINCIPALS} stands for.
      *
-     * <p>The other side of {@link #isOneOf}. A property naming who may act holds principals, not user ids, so
-     * somebody asking which of those properties concern them needs the list, not a yes or no about one name. Read
-     * from the session's bound principals, the one reading that carries roles an identity provider synchronises
-     * without leaving a group node behind.</p>
+     * <p>This is the other side of {@link #isOneOf}. A property naming who may act holds principals rather than
+     * user ids, so somebody asking which of those properties concern them needs the list itself, not a yes or a
+     * no about one name. Read from the bound principals, because those are the one reading that already carries
+     * the roles an identity provider synchronises without leaving a group node behind.</p>
      *
-     * <p>Never empty for an identified session. Somebody bound to nothing else still acts as themselves, so a
-     * caller filtering on this narrows the question rather than widening it.</p>
+     * <p>Never empty for an identified session: somebody bound to nothing else still acts as themselves, so a
+     * caller filtering on this answer narrows the question to their own rather than widening it to everybody's.
+     * </p>
      *
      * @param resolver the session to describe
      * @return the principal names, the person's own id first

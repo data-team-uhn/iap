@@ -27,6 +27,7 @@ import java.util.Map;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Value;
 import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
 
@@ -53,8 +54,10 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
@@ -70,6 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -103,6 +107,9 @@ class AttachDocumentHandlerTest
 
     private static final String PDF = "application/pdf";
 
+    /** The name most uploads in these tests arrive under. */
+    private static final String NOTE_FILE = "note.pdf";
+
     private static final byte[] CONTENT = new byte[] {0x25, 0x50, 0x44, 0x46};
 
     private static final Map<String, String> RESOURCE_TYPES = Map.of("sub:Document", Document.RESOURCE_TYPE,
@@ -126,7 +133,7 @@ class AttachDocumentHandlerTest
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
-            DocumentVersion.class, File.class, Submission.class, Activity.class);
+            DocumentVersion.class, File.class, Submission.class, Activity.class, Answer.class, Extraction.class);
         // Whether a request may still be changed is read from its lifecycle tag
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
@@ -157,10 +164,10 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheFileAsADocumentFulfillingTheRequirementItAnswers() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         final Resource document = onlyDocument();
-        assertEquals("note.pdf", document.getValueMap().get("title", String.class));
+        assertEquals(NOTE_FILE, document.getValueMap().get("title", String.class));
         // A real REFERENCE, holding the requirement node's own identifier
         assertEquals(identifierOf(NOTE_PATH), document.getValueMap().get("fulfills", String.class));
     }
@@ -168,11 +175,14 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheContentAsTheDocumentsFirstVersion() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         assertEquals(1, onlyDocument().adaptTo(Document.class).getVersions().size());
         final Resource file = uploadedFile();
         assertEquals("nt:file", file.getValueMap().get("jcr:primaryType", String.class));
+        // The node is always called uploadedFile, so the name it arrived under is kept beside it for the parser
+        assertEquals(NOTE_FILE,
+            present(file.getParent()).getValueMap().get(AttachDocumentHandler.FILE_NAME, String.class));
         final Resource content = child(file, "jcr:content");
         assertEquals(PDF, content.getValueMap().get("jcr:mimeType", String.class));
         assertArrayEquals(CONTENT, content.getValueMap().get("jcr:data", InputStream.class).readAllBytes());
@@ -191,10 +201,42 @@ class AttachDocumentHandlerTest
         assertNotNull(uploadedFile());
     }
 
+    // A reading leaves answered questions alone, so what the old file said has to go for the new one to be read
+    @Test
+    void dropsTheUntouchedSuggestionsOfTheFileItReplaces() throws Exception
+    {
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
+        final Resource first = present(this.context.resourceResolver().getResource(
+            present(onlyDocument().adaptTo(Document.class).getCurrentVersion()).getPath()));
+        final String untouched = reading("untouched", first, "one week off", "one week off");
+        final String changed = reading("changed", first, "two weeks off", "one week off");
+
+        this.handler.execute(context(payload(NOTE, upload("note-signed.pdf", PDF))));
+
+        assertNull(this.context.resourceResolver().getResource(untouched), "the new file is read for it");
+        assertNotNull(this.context.resourceResolver().getResource(changed), "what the submitter wrote stays");
+        assertNotNull(this.context.resourceResolver().getResource(changed + "/run"), "with its reading");
+    }
+
+    /** An answer read from a version: the value it holds now, and what the model suggested. */
+    private String reading(final String name, final Resource version, final String value, final String suggested)
+        throws Exception
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
+            TYPE, "sub/Answer", "jcr:primaryType", "sub:Answer", "value", new String[] {value}));
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/run", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction", "extractedAnswer", suggested));
+        final Node run = extraction.adaptTo(Node.class);
+        run.setProperty("sources", new Value[] {
+            run.getSession().getValueFactory().createValue(version.adaptTo(Node.class)) });
+        this.context.resourceResolver().commit();
+        return answer.getPath();
+    }
+
     @Test
     void keepsTheDocumentsOfDifferentRequirementsApart() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
         documents();
         this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
 
@@ -205,7 +247,7 @@ class AttachDocumentHandlerTest
     void takesARequirementNamedByItsFullPath() throws Exception
     {
         // What the UI has to hand is the path it rendered the requirement from, so both spellings work
-        this.handler.execute(context(payload(NOTE_PATH, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE_PATH, upload(NOTE_FILE, PDF))));
 
         assertEquals(identifierOf(NOTE_PATH), onlyDocument().getValueMap().get("fulfills", String.class));
     }
@@ -273,7 +315,7 @@ class AttachDocumentHandlerTest
     @Test
     void comparesTypesWithoutCaseOrParameters() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", "Application/PDF; charset=binary"))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, "Application/PDF; charset=binary"))));
 
         // Stored the way it was compared
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
@@ -290,7 +332,7 @@ class AttachDocumentHandlerTest
     @Test
     void readsTheTypeFromTheExtensionWhenTheBrowserSentNone() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", null))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, null))));
 
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
     }
@@ -339,7 +381,7 @@ class AttachDocumentHandlerTest
             return null;
         }).when(versions).checkout(SUBMISSION_PATH);
 
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         Mockito.verify(versions).checkout(SUBMISSION_PATH);
     }
@@ -348,7 +390,7 @@ class AttachDocumentHandlerTest
     void refusesSomebodyElsesRequest()
     {
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), "somebody-else")));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), "somebody-else")));
     }
 
     @Test
@@ -358,7 +400,7 @@ class AttachDocumentHandlerTest
         modify(this.target, "tags", new String[] {"submitted"});
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -366,21 +408,21 @@ class AttachDocumentHandlerTest
     {
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(AttachDocumentHandler.REQUIREMENT_PARAMETER, NOTE,
-                AttachDocumentHandler.FILE_PARAMETER, "note.pdf"))));
+                AttachDocumentHandler.FILE_PARAMETER, NOTE_FILE))));
     }
 
     @Test
     void refusesAnEventThatDoesNotSayWhatTheFileIsFor()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.FILE_PARAMETER, upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.FILE_PARAMETER, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
     void refusesABlankRequirementName()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("  ", upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(payload("  ", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -389,7 +431,7 @@ class AttachDocumentHandlerTest
         // Resolved through the schema rather than by trusting the path, or a caller could attach a document that
         // nothing on this submission ever asked for
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
-            context(payload("/Schemas/somethingElse/v1/aNote", upload("note.pdf", PDF)))));
+            context(payload("/Schemas/somethingElse/v1/aNote", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -402,7 +444,7 @@ class AttachDocumentHandlerTest
         this.context.registerService(ConditionEvaluator.class, conditions);
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -410,7 +452,7 @@ class AttachDocumentHandlerTest
     {
         // The form requirement is a child of the same version under a perfectly ordinary name
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("details", upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(payload("details", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -441,7 +483,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, sabotaged)));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Cannot point fulfills"));
     }
 
@@ -455,7 +497,7 @@ class AttachDocumentHandlerTest
             @Override
             public String getFileName()
             {
-                return "note.pdf";
+                return NOTE_FILE;
             }
 
             @Override
@@ -497,7 +539,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, blind)));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), REQUESTER, blind)));
         assertTrue(failure.getMessage().contains("Could not read"));
     }
 

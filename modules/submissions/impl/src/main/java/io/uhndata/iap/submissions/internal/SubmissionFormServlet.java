@@ -18,11 +18,11 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -43,6 +43,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -50,7 +51,6 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
-import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -104,6 +104,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String REQUIRED_KEY = "required";
 
+    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    private static final String READING_WORKFLOW = "readingWorkflow";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -143,20 +146,38 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
-        final Map<String, List<String>> answers = answersByQuestion(submission);
+        // The submission's own index, which is also what decides whether its form requirements are fulfilled:
+        // two indexes that disagreed about what counts as an answer would have the form and the decision to
+        // accept it disagree too
+        final Map<String, List<String>> answers = submission.getAnswersByQuestion();
         final List<Document> documents = submission.getDocuments();
+        // Where a pre-filled answer came from, for the questions a model answered. Read once here rather than
+        // per question, because it means walking every answer's extractions.
+        final Map<String, JsonObject> provenance = ProvenanceProjection.of(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
+        // Counts the questions as they are written out, so each carries the number it is asked under. One
+        // counter per rendering: the servlet is shared, and a field would have two readers counting together.
+        final AtomicInteger number = new AtomicInteger();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
-        return Json.createObjectBuilder()
+            .forEach(requirement -> requirements.add(
+                requirement(requirement, submission, answers, documents, provenance, number)));
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(PATH_KEY, submission.getPath())
             .add(TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            // Whether anything reads the attached documents: a schema version that names a reading workflow
+            // has answers filled in from them, one that names none never will. Without the difference the
+            // view cannot tell a form waiting for its reading from one that is simply unanswered.
+            .add("readsDocuments", version.get(READING_WORKFLOW, String.class) != null)
+            .add("requirements", requirements);
+        final JsonObjectBuilder extraction = ReadingProjection.describe(submission);
+        if (extraction != null) {
+            json.add("extraction", extraction);
+        }
+        return json.build();
     }
 
     /**
@@ -166,10 +187,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @param submission the submission it is being resolved against
      * @param answers the submission's answers, by the path of the question each answers
      * @param documents the documents attached to the submission
+     * @param provenance where each pre-filled answer came from, by question path
+     * @param number counts the questions written out so far
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers, final List<Document> documents)
+        final Map<String, List<String>> answers, final List<Document> documents,
+        final Map<String, JsonObject> provenance, final AtomicInteger number)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, requirement.getName())
@@ -181,10 +205,14 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers));
+            final FormRequirement form = (FormRequirement) requirement;
+            json.add(ITEMS_KEY, items(form.getChildren(), requirement.getName(), submission, answers, provenance,
+                number));
+            json.add("extracted", ReadingProjection.isExtracted(form));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, documents, json);
+        } else if (requirement instanceof ApprovalRequirement) {
+            ApprovalProjection.describe((ApprovalRequirement) requirement, submission, json);
         }
         return json;
     }
@@ -271,7 +299,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the items' JSON
      */
     private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder items = Json.createArrayBuilder();
         children.stream()
@@ -285,9 +314,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                         .add(TYPE_KEY, section.getType())
                         .add(LABEL_KEY, Objects.toString(section.getTitle(), ""))
                         .add(DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers)));
+                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers, provenance,
+                            number)));
                 } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
+                    items.add(question((Question) child, path, answers, provenance, number));
                 }
             });
         return items;
@@ -305,42 +335,69 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the question's JSON
      */
     private JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance,
+        final AtomicInteger number)
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
-        return Json.createObjectBuilder()
+        // Emitted even when empty, so that "answered freely" is something the form states rather than something a
+        // reader infers from a missing field
+        final JsonArrayBuilder options = Json.createArrayBuilder();
+        question.getOfferedOptions().forEach(option -> {
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add("value", option.value())
+                .add("label", option.label());
+            if (!option.description().isBlank()) {
+                json.add(DESCRIPTION_KEY, option.description());
+            }
+            options.add(json);
+        });
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
             .add(PATH_KEY, path)
+            .add("number", number.incrementAndGet())
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add(REQUIRED_KEY, question.isRequired())
-            .add("multiple", question.isMultiple())
-            .add("value", value);
-    }
-
-    /**
-     * The submission's answers, keyed by the absolute path of the question each one answers. Keyed by path rather
-     * than by name because two sections may ask questions of the same name.
-     *
-     * @param submission the submission to read
-     * @return the recorded values, by question path
-     */
-    private static Map<String, List<String>> answersByQuestion(final Submission submission)
-    {
-        final Map<String, List<String>> byQuestion = new HashMap<>();
-        for (final Answer answer : submission.getAnswers()) {
-            final Question question = answer.getQuestion();
-            final String[] value = answer.getValue();
-            // An answer whose question no longer resolves is the answer to nothing being asked now, and one
-            // holding no value has not been answered yet
-            if (question != null && value != null) {
-                byQuestion.putIfAbsent(question.getPath(), List.of(value));
-            }
+            // The pair itself rather than derived required/multiple flags: one vocabulary on the wire, read the
+            // same way it is stored, so the two sides cannot disagree about what a count means
+            .add("minAnswers", question.getMinAnswers())
+            .add("maxAnswers", question.getMaxAnswers());
+        // The constraints are stated only where the schema states them; the editor maps them onto the input's own
+        // hints, and the save is where they are enforced. Each is read once into a local, so the null check
+        // guards the very value that is written.
+        final Double minValue = question.getMinValue();
+        final Double maxValue = question.getMaxValue();
+        final String pattern = question.getPattern();
+        final String patternMessage = question.getPatternMessage();
+        if (minValue != null) {
+            json.add("minValue", minValue);
         }
-        return byQuestion;
+        if (maxValue != null) {
+            json.add("maxValue", maxValue);
+        }
+        if (pattern != null) {
+            json.add("pattern", pattern);
+        }
+        if (patternMessage != null) {
+            json.add("patternMessage", patternMessage);
+        }
+        // Why this is being asked at all, in the schema author's own words. Distinct from the description,
+        // which says how to answer: a submitter looking at a question they did not expect wants to know what
+        // the answer is for, and until this was carried across, the only place that was written down was the
+        // schema.
+        final String purpose = question.getPurpose();
+        if (purpose != null && !purpose.isBlank()) {
+            json.add("purpose", purpose);
+        }
+        final JsonObject where = provenance.get(question.getPath());
+        if (where != null) {
+            json.add("provenance", where);
+        }
+        return json
+            .add("options", options)
+            .add("value", value);
     }
 
     /**

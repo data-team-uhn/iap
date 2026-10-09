@@ -79,6 +79,9 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The largest file taken, since the document pipeline later holds a whole file in memory to parse it. */
     static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
 
+    /** Where the file keeps the name it arrived under, since its node cannot; the parser needs its extension. */
+    static final String FILE_NAME = "fileName";
+
     private static final long MEGABYTE = 1024L * 1024;
 
     /** Where the document records what it fulfills. */
@@ -206,6 +209,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             .map(document -> resolver.getResource(document.getPath()))
             .orElse(null);
         if (existing != null) {
+            // Otherwise the new file is never read for them: a reading leaves answered questions alone
+            DocumentReadings.dropSuggestions(resolver, existing);
             Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
                 "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
             return existing;
@@ -289,6 +294,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         throws PersistenceException
     {
         try (InputStream content = file.openStream()) {
+            stored.setProperty(FILE_NAME, Objects.requireNonNullElse(file.getFileName(), "attachment"));
             final Node fileNode = stored.addNode(UPLOADED_FILE_NODE, "nt:file");
             final Node resource = fileNode.addNode("jcr:content", "nt:resource");
             resource.setProperty("jcr:data",

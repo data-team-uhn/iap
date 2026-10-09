@@ -21,7 +21,7 @@ The ``docling_*`` conversion modules import the heavy ``docling`` package, so th
 skips when it is not installed — the rest of the suite still runs anywhere. What is covered
 here is the plumbing around Docling rather than Docling itself: shared-docs path allowlisting,
 health reporting, the parse-slot semaphore, and the batch-abandon path that runs when a page
-batch fails.
+batch fails, times out, or is cancelled.
 
 Because this file skips in CI, nothing that can be tested without Docling belongs here. The
 request guards were moved to :mod:`daemon_utils` for exactly that reason; see
@@ -30,6 +30,7 @@ request guards were moved to :mod:`daemon_utils` for exactly that reason; see
 
 import json
 import pathlib
+import re
 import sys
 import threading
 import time
@@ -149,6 +150,52 @@ class TestAbandonBatches:
         assert messages == []
 
 
+def _slow_chunk(seconds: float):
+    """A stand-in for ``parse_pdf_chunk`` that takes ``seconds`` to "convert" one page."""
+
+    def parse(args):
+        time.sleep(seconds)
+        _input_file, start_page, end_page = args
+        return (start_page, end_page, "ok", "md", 2, seconds, None)
+
+    return parse
+
+
+class TestRunPdfChunksAbandonsOnCancel:
+    """A cancelled parse frees its worker promptly instead of waiting out the conversion.
+
+    ``executor`` only needs ``.submit()``, so a ``ThreadPoolExecutor`` stands in for the real
+    ``ProcessPoolExecutor`` here: ``parse_pdf_chunk`` is monkeypatched, and a picklable
+    function is only required for an executor that actually forks.
+    """
+
+    def test_raises_once_should_abandon_says_stop(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser, "ABANDON_POLL_SECONDS", 0.02)
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", _slow_chunk(0.1))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(pdf_parser.ParseAbandonedError):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 1)],
+                    pool,
+                    log=lambda _message: None,
+                    should_abandon=lambda: True,
+                )
+
+    def test_a_short_timeout_still_raises_as_before(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser, "ABANDON_POLL_SECONDS", 0.02)
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", _slow_chunk(0.3))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(RuntimeError, match="exceeded"):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 1)],
+                    pool,
+                    log=lambda _message: None,
+                    timeout=0.05,
+                )
+
+
 # The body drain, the bearer-token comparison and the JSON reply helper moved to
 # daemon_utils.py, and their tests to test_daemon_utils.py, so they run in CI too -- this
 # module skips itself wherever Docling is absent. The end-to-end guard tests below stay
@@ -213,6 +260,16 @@ class TestResolveParsePath:
         with pytest.raises(daemon.ParseRequestError):
             daemon.resolve_parse_path(str(tmp_path / "missing.pdf"))
         assert issubclass(daemon.ParseRequestError, ValueError)
+
+
+class TestLogStderr:
+    """Every container log line is timestamped, since nothing upstream of it adds one."""
+
+    def test_prefixes_the_message_with_a_utc_timestamp(self, capsys):
+        daemon._log_stderr("parse job=abc done")
+
+        logged = capsys.readouterr().err
+        assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z parse job=abc done\n$", logged)
 
 
 class TestHealthReporting:
@@ -971,7 +1028,8 @@ def _parse_only_state(slots=daemon.MAX_CONCURRENT_PARSES):
     state = object.__new__(daemon.DaemonState)
     state.parse_executor = ThreadPoolExecutor(max_workers=slots, thread_name_prefix="parse")
     state.pending_parses = {}
-    state.pending_lock = threading.Lock()
+    state.cancelled_jobs = set()
+    state.pending_lock = threading.RLock()
     state.shutdown_requested = False
     state.pdf_executor_broken = False
     # A background parse takes this for the conversion itself, so that it cannot run

@@ -33,6 +33,7 @@ import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,21 @@ class PrincipalServiceImplTest
         this.vocabulary(resolver("@several", List.of(ALICE, "bob")));
         assertEquals(List.of(ALICE, "bob", "carol"),
             this.service.resolve(List.of("@several", "carol"), this.context));
+    }
+
+    // The subject-only shorthand asks the same question with nobody acting
+    @Test
+    void theSubjectShorthandResolvesAboutTheSubject() throws Exception
+    {
+        final SpecialNameResolver aware = mock(SpecialNameResolver.class);
+        when(aware.getName()).thenReturn("@aware");
+        when(aware.resolve(Mockito.any())).thenAnswer(call -> {
+            final PrincipalContext seen = call.getArgument(0, PrincipalContext.class);
+            return seen.subject() != null && seen.actingUser() == null ? List.of(ALICE) : List.of();
+        });
+        this.vocabulary(aware);
+        final Resource subject = mock(Resource.class);
+        assertEquals(List.of(ALICE), this.service.resolve(List.of("@aware"), subject));
     }
 
     @Test

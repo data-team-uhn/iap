@@ -20,9 +20,16 @@ import {
   QUESTION,
   SECTION,
   type FormItem,
+  type FormQuestion,
   fetchForm,
+  formatDate,
+  isMultiple,
   isQuestion,
+  isRequired,
+  readAgain,
+  reviewExtraction,
   saveAnswer,
+  stopProcessing,
 } from "@iap/submissions/submissionForm";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
@@ -42,6 +49,24 @@ describe("isQuestion", () => {
   });
 });
 
+describe("the answer-count pair", () => {
+  const counts = (minAnswers: number, maxAnswers: number) =>
+    ({ minAnswers, maxAnswers } as FormQuestion);
+
+  // The same readings the server derives, so the two sides cannot disagree about what a count means
+  it("reads a positive minimum as required", () => {
+    expect(isRequired(counts(1, 1))).toBe(true);
+    expect(isRequired(counts(0, 1))).toBe(false);
+  });
+
+  it("reads any maximum but one as taking several values", () => {
+    expect(isMultiple(counts(0, 1))).toBe(false);
+    expect(isMultiple(counts(0, 4))).toBe(true);
+    // Zero or negative means no cap at all
+    expect(isMultiple(counts(0, 0))).toBe(true);
+  });
+});
+
 describe("fetchForm", () => {
   it("reads the form projection of a submission", async () => {
     const form = { path: PATH, title: "A long weekend", editable: true, requirements: [] };
@@ -56,7 +81,68 @@ describe("fetchForm", () => {
   it("reports a form that would not load", async () => {
     const fetchMock = vi.fn(() => response({}, { ok: false, status: 404 }));
 
-    await expect(fetchForm(fetchMock, PATH)).rejects.toThrow(/could not be loaded \(404\)/);
+    await expect(fetchForm(fetchMock, PATH)).rejects.toThrow("HTTP 404");
+  });
+
+  it("refuses an HTML page that arrived where the form should be", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+    } as unknown as Response));
+
+    await expect(fetchForm(fetchMock, PATH)).rejects.toMatchObject({ name: "UnreadableResponseError", status: 200 });
+  });
+});
+
+describe("reviewExtraction", () => {
+  it("posts a confirmation as an event on the submission", async () => {
+    const fetchMock = vi.fn(() => response({}));
+
+    await reviewExtraction(fetchMock, PATH, "details/startDate", { confirmed: true });
+
+    const [ url, options ] = fetchMock.mock.calls[0] as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
+    expect(url).toBe(`${PATH}.reviewExtraction.json`);
+    expect(options.method).toBe("POST");
+    expect(options.body.get("question")).toBe("details/startDate");
+    expect(options.body.get("confirmed")).toBe("true");
+    expect(options.body.has("evidenceRejected")).toBe(false);
+  });
+
+  // The two verdicts mean different things, so a report about the quote must not settle the answer
+  it("posts a rejected passage without saying anything about the answer", async () => {
+    const fetchMock = vi.fn(() => response({}));
+
+    await reviewExtraction(fetchMock, PATH, "details/startDate", { evidenceRejected: true });
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.get("evidenceRejected")).toBe("true");
+    expect(options.body.has("confirmed")).toBe(false);
+  });
+
+  it("posts taking that back", async () => {
+    const fetchMock = vi.fn(() => response({}));
+
+    await reviewExtraction(fetchMock, PATH, "details/startDate", { evidenceRejected: false });
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.get("evidenceRejected")).toBe("false");
+  });
+
+  it("reports what the server refused with", async () => {
+    const fetchMock = vi.fn(() => response({ error: "Nothing was extracted for that" },
+      { ok: false, status: 400 }));
+
+    await expect(reviewExtraction(fetchMock, PATH, "details/startDate", { confirmed: true }))
+      .rejects.toThrow("Nothing was extracted for that");
+  });
+
+  it("falls back to the status when the refusal says nothing", async () => {
+    const fetchMock = vi.fn(() => response({}, { ok: false, status: 500 }));
+
+    await expect(reviewExtraction(fetchMock, PATH, "details/startDate", { confirmed: true }))
+      .rejects.toThrow("(500)");
   });
 });
 
@@ -114,5 +200,35 @@ describe("saveAnswer", () => {
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow(/could not be saved \(409\)/);
+  });
+});
+
+describe("asking the reading to stop or to run again", () => {
+  it("stops a reading, and says why it could not", async () => {
+    const doFetch = vi.fn()
+      .mockReturnValueOnce(response({}))
+      .mockReturnValueOnce(response({ error: "Nothing is being read" }, { ok: false, status: 409 }))
+      .mockReturnValueOnce(Promise.resolve(
+        { ok: false, status: 500, json: () => Promise.reject(new Error("html")) } as unknown as Response));
+
+    await stopProcessing(doFetch, PATH);
+    expect(doFetch).toHaveBeenCalledWith(`${PATH}.stopProcessing.json`, { method: "POST" });
+    await expect(stopProcessing(doFetch, PATH)).rejects.toThrow("Nothing is being read");
+    await expect(stopProcessing(doFetch, PATH)).rejects.toThrow("The reading could not be aborted (500)");
+  });
+
+  it("falls back on its own words when a refused retry says nothing", async () => {
+    const doFetch = vi.fn(() => Promise.resolve(
+      { ok: false, status: 409, json: () => Promise.reject(new Error("html")) } as unknown as Response));
+
+    await expect(readAgain(doFetch, PATH, false)).rejects.toThrow("The document could not be read again (409)");
+  });
+});
+
+describe("formatDate", () => {
+  it("formats nothing that is not a date", () => {
+    expect(formatDate(undefined)).toBe("");
+    expect(formatDate("")).toBe("");
+    expect(formatDate("2026-10-01T10:00:00.000Z")).not.toBe("");
   });
 });

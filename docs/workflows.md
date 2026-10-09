@@ -153,10 +153,13 @@ extension attributes wherever a version says its BPMN is authoritative, and set 
 - **`handler` on an activity** names the service task handler that performs it. An
   activity naming none is a user task: nothing can perform it automatically, so it waits
   for a person.
-- **`outcomes` on an activity** lists the decisions that person may complete the task
+- **`outcomeOptions` on an activity** lists the decisions that person may complete the task
   with — the values a gateway downstream then routes on. Declared because a task list has
-  to know what to offer. An empty list is a statement rather than a gap — this is a task
-  there is nothing to decide about, done or not done.
+  to know what to offer: the only other record of which outcomes exist is the
+  `cond:condition` on some later gateway's arcs, which is where they are *consumed* rather
+  than announced, and which whoever does the task cannot necessarily read. An empty list
+  is a statement rather than a gap — this is a task there is nothing to decide about, done
+  or not done.
 - **`hostTag` on a flow node** is the tag to place on the host when execution reaches
   that node: how a process says what being *here* means to the thing being processed,
   without needing a service task whose only job is to write it down. On any node rather
@@ -242,7 +245,7 @@ deleted along with it:
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
         └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
-                                                          outcome, offeredOutcomes, performers
+                                                          outcome, outcomeOptions, performers
 ```
 
 A **token** is one branch of an execution and the single fact of where it has got to.
@@ -259,7 +262,7 @@ because a task is something people go looking for: "what is on my desk" should b
 query over these, not a walk of every running workflow. Its `outcome` is recorded
 separately from its `status` because the two answer different questions — the status
 says the task is over, the outcome says how, and the gateway downstream routes on the
-latter. The terms it is decided on — `offeredOutcomes` and `performers` — are copied
+latter. The terms it is decided on — `outcomeOptions` and `performers` — are copied
 onto it from its defining activity as it is raised, rather than looked up: a task is
 decided on the terms it was raised with rather than on terms the definition may have
 grown since, and whoever owes the decision can rarely read the definition at all. Those
@@ -700,6 +703,12 @@ users are here for. The rules:
   it refuses everyone until it does; silence is never permission.
 - **`everyone` means any authenticated user**, matched by name because it is a dynamic
   principal an authorizable does not necessarily report belonging to.
+- **`@creator` means whoever raised the resource being worked on** — the person the
+  engine recorded when it created it, not `jcr:createdBy`, which names the engine's own
+  service user for everything it writes. It is the one rule a group can never express,
+  and the one most processes need: a request comes back to the person who made it, not
+  to everyone who could have made one. A resource nothing raised — a homepage — is
+  nobody's, so `@creator` admits nobody there.
 - **Groups are matched transitively**, so naming a group also admits the members of its
   member groups.
 - **Administrators pass regardless**, exactly as they bypass access control in the
@@ -826,7 +835,25 @@ bootstrapping: `/SystemWorkflows/saveAnswers` targets `sub/Submission` itself ra
 than a homepage, so filling a request in, a `POST` to `<submission>.save.json`, is a
 workflow event like any other. What a save is allowed to do — whose request it is, and
 whether it is still a draft — is decided by its handler rather than by the servlet that
-received the POST.
+received the POST. The definition runs `saveAnswers` (write the answers), then
+`validateAnswers` (put them past every registered `AnswerValidator`), then
+`markCompleteness` (record whether anything the schema still asks for is unanswered, as
+the `incomplete` tag). Each step can refuse, and a refusal on the way to the end event
+reverts the whole run — so a save that breaks a rule leaves nothing behind, and the tag
+is only ever written for answers that were accepted.
+
+That last step is why a control offering to send a request can refuse to: **whether a
+request is complete is recorded on it rather than worked out by whoever asks.** A
+required question that a condition hides is not missing, so completeness has to be judged
+against the resolved form by the same evaluator that decides what the form shows — done
+once, at save time, instead of by every reader. The tag is a system tag in its own
+`completeness` category: nobody can hand-place it, and it does not displace the lifecycle
+state.
+
+Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
+`iap:*` attributes: `messageName` on events (the domain event name), `targetResourceType` on versions
+(what a system workflow answers for), `performers` on flow nodes (who may pass through), and `handler`
+on activities (who performs a service task).
 
 ## Content workflows: the part that persists
 
@@ -842,11 +869,15 @@ be passed automatically, until it has to stop:
 ```
 POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
                                                                         │
-                                             wf:instances/timeOffRequest │  token parked on approveRequest
+                                             wf:instances/timeOffRequest │  token parked on fillIn
                                                                         ▼
+POST …/fillIn ──▶ complete ──▶ [task closed, instance walked on to the next wait]
+                                                        │
+                                                        ▼  hostTag: the submission is now tagged "submitted"
+
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │
-                                                        ▼  hostTag: the submission is now "approved"
+                                                        ▼  hostTag: the submission is now tagged "approved"
 ```
 
 **Starting is a service task, not a special case.** `startWorkflow` is built into the
@@ -865,9 +896,55 @@ the same `performers` mechanism as everywhere else, asked one step later — of 
 *defining activity* rather than of a start event. Seeing a task and being allowed to
 decide it are different questions, and this is where the second is answered.
 
-**Reaching an end event can mean something to the host.** An end event carries `hostTag`
-like any other flow node, so the way a process finishes is what places the host's last
-state.
+**A user task says what it may be decided with.** `outcomeOptions` on the activity lists the
+decisions on offer, and the engine copies them onto each task it raises under the same
+name. Copied rather than looked up, for the same reason the label is: a task is decided
+on the terms it was raised with, and whoever has to do it can read the task without being
+able to read the definition. A task that offers none is one there is *nothing* to decide
+about — it is done or it is not — and that distinction is what a task list needs, because
+a plain "done" button on a task that expected a decision would silently take the default
+arc of the gateway after it.
+
+**A user task also says who it is waiting for.** The engine records the defining
+activity's `performers` onto each task it raises, and answers `@creator` against the host
+while it does — so every entry names a principal that stands on its own, rather than a
+question only the host can settle. That is what makes "what is waiting for me" a question
+about *tasks*: a listing cannot run the engine per row to find out, and the person owing a
+decision usually cannot read the workflow the task came from. It is the answer to the
+first of the two questions above, and only that one — the copy describes, it does not
+permit. Every completion is still checked against the definition, so a task turning up in
+somebody's list is not what makes it theirs to decide.
+
+**Reaching a node can mean something to the host.** `hostTag` on a flow node is placed on
+the host as a tag when execution arrives there, which is how a process says what being
+*here* means to the thing being processed, without a service task whose only job is to
+write it down. On an end event that is what finishing this particular way meant; on a
+user task it is the state the host is in for as long as that task waits, which is what
+lets a process move its host between states without finishing — a request is a draft
+while it is being filled in, and submitted the moment it reaches the approver, and
+neither of those is an ending. Placing a tag retires whatever other tag the host carries
+in the same category: the categories are what make a set of tags a lifecycle rather than
+a pile of markers, so a submission that has just been approved stops being in review.
+Tags outside those categories are left alone, since a host is free to carry markers that
+have nothing to do with this process.
+
+**Submitting is a user task, not a separate mechanism.** A request that can be filled in
+is one whose process is parked on a task performed by `@creator`, tagged `draft`;
+completing that task is what sends it. There is no "submit" event, no submit endpoint and
+no submitted flag — which is why what the button says is the task's own label, and why a
+deployment that wants a request to go somewhere else first only edits its process.
+
+**A task can be given a deadline.** A boundary timer, an event stored inside the activity with a
+`timerDuration`, is armed when the task is raised: the engine works out when the wait ends and records it on
+the task itself, as `dueDate` and the `dueEventId` naming the timer. That puts the deadline where anything
+looking for overdue work can see it without running the engine, and it survives a restart, which a scheduled
+job in memory would not.
+
+When it passes, a periodic sweep hands the task to `receiveEvent` as an ordinary `timeout` event, so the
+clock comes through the same door as everything else. The task is cancelled, with no assignee and no outcome,
+because nobody did it and nothing was decided, and execution leaves down the timer's own arc rather than the
+activity's. There is no performer check: `performers` says who may make execution pass through a node, and
+time belongs to no group.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be — a query returns rows, and no engine can run a
@@ -876,14 +953,55 @@ is being run for, plus the performers of every user task in the version. Derivin
 from `performers` rather than inventing a second vocabulary means the two can never
 disagree.
 
+### More than one branch at once
+
+An instance holds a token per branch in progress, so the walk is a queue of positions rather than a single
+path. Four things follow from that, and they are the reason it was worth doing as one piece:
+
+**A parallel gateway forks and joins.** Leaving one takes *every* arc — the arriving token moves onto the
+first and a new one is created for each of the rest. A parallel gateway with several arcs leading in is a
+join: each token that arrives waits on it until one has come from every arc, and then they merge back into
+the one token that carries on.
+
+BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs whatever those say — so a
+condition on one could never decide anything. The engine treats that as an error in the diagram rather than
+quietly ignoring it, because the two readings are far apart: an author who guarded an arc believes that
+branch is sometimes not taken, and it always is.
+
+That counting is also how a diagram deadlocks: a parallel join placed after a fork that did *not* take every
+branch — an exclusive or inclusive one — waits for a token that was never created, and the instance stays
+active with nothing able to move it. Use an inclusive join to merge branches that were conditionally taken;
+it is exactly the case its reachability rule answers.
+
+**An inclusive gateway forks as widely as applies.** Every arc whose condition holds is taken, as is every
+arc that carries no condition, falling back on the default when nothing applies. Its join cannot count the
+way a parallel one does — the fork took only the branches that applied, and how many that was is written
+nowhere — so it asks the question that actually matters: *can any branch still get here?* When no other token
+in the instance can reach it by following the graph, what has arrived is all that ever will. Boundary events
+count as ways onwards, since a deadline can take a token off a task.
+
+That answer changes as the other branches move, and nothing arrives at the join to announce it, so the walk
+looks again at the parked joins once every branch has stopped moving, until nothing can move at all. Reading
+it from the graph rather than remembering it at the fork is what makes it survive an instance being resumed
+days later by somebody else.
+
+**An end event ends a branch, not the process.** The token that reached it is spent, and the instance closes
+only when the last one is gone. `terminate` on an end event is the other thing: it discards every remaining
+token and cancels every task still waiting for somebody, since a task whose token has been discarded can
+never be completed.
+
+**A non-interrupting boundary event runs beside the work.** An interrupting timer cancels the task it watches
+and execution leaves down the timer's arc. A non-interrupting one leaves the task exactly where it was and
+starts a second branch: "remind them after three days" as against "give up after five". Which deadlines have
+already fired is recorded on the task as `firedEvents`, so the sweep does not deliver the same one twice, and
+arming picks the earliest timer that has not fired — measured from when the task started, so "remind after a
+day and a half, give up after five days" means five days from the start rather than from the reminder.
+
+Tokens are interchangeable: nothing distinguishes one from another beyond where it rests, which is why two
+branches arriving at the same task simply mean two tasks, each completed on its own.
+
 ## Known gaps
 
-- **Gateway conditions are an interim placeholder.** An arc is taken when its
-  `conditionExpression` equals the instance's `outcome` variable, and the arc marked
-  default is taken when none matches. That covers the approve-or-reject shape and
-  deliberately nothing more; the demo's BPMN carries the real expression (`outcome ==
-  'approved'`) which the conditions module will compile, and the stored graph carries
-  the literal the engine can match today.
 - **One token at a time.** Parallel and inclusive gateways are rejected rather than
   forked, and `terminate` on an end event is not yet distinguished from an ordinary one,
   since with a single token there is nothing else to discard.
@@ -891,15 +1009,17 @@ disagree.
   a `wf:Variable`, but a service task inside an instance gets variables that live only
   for that delivery. Typed variables are already in the node types; wiring them to the
   SPI is what is missing.
-- **Nothing delivers a timer or a message.** An instance that reaches a mid-process
-  catching event is refused rather than parked, because nothing could ever wake it up
-  again.
+- **Nothing delivers a message.** A timer is delivered: a boundary timer on a user task is
+  armed when the task is raised and fired by a periodic sweep. An instance that reaches a
+  free-standing catching event is still refused rather than parked, because nothing could
+  then wake it.
 - **Read access is granted for the life of the instance**, not only while a task is
   open, and is never revoked. Narrowing it as state changes is a refinement for when
   there is a reason to want it.
-- **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the
-  structured conditions mechanism, the way schema items express their conditions; it is
-  left as an expression until the conditions module lands.
+- **A gateway's guards can only ask about the execution.** They are evaluated against
+  the instance, so the `variable` operand source reaches what the run knows — the
+  outcome a task recorded — and nothing yet reaches the host it is attached to, which is
+  what routing on a request's own answers would need.
 - **Event definitions carry no payload yet.** A timer event is recognized as a timer,
   but there is nowhere to put its duration, and a message event records its `messageRef`
   without resolving it to the `<bpmn:message>` declared at document level — which is

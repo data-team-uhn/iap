@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -35,6 +34,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -80,9 +80,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
 
-    /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
-    private static final String CREATED_BY_PROPERTY = "createdBy";
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -91,6 +88,14 @@ public class WorkflowEngineImpl implements WorkflowEngine
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
+
+    /** What a gateway's guards are asked of: the same evaluator, and the same conditions, schema items use. */
+    @Reference
+    private ConditionEvaluator conditions;
+
+    /** The vocabulary a definition's names are read in: special names, groups however a deployment stores them. */
+    @Reference
+    private PrincipalService principals;
 
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
@@ -110,7 +115,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             }
             final StartEvent start =
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            PerformerCheck.verify(serviceResolver, start, actor);
+            PerformerCheck.verify(this.principals, serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         }
     }
@@ -159,7 +164,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor));
+            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor),
+                this.conditions, this.principals);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -215,18 +221,19 @@ public class WorkflowEngineImpl implements WorkflowEngine
     private Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
         final String actor, final int depth) throws WorkflowException, PersistenceException
     {
-        final ResourceResolver resolver = target.getResourceResolver();
         final ServiceTaskDispatcher dispatcher = dispatcher();
         final Map<String, Object> variables = new LinkedHashMap<>();
         FlowNode node = start;
         for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
                 return variables;
             }
             if (node instanceof Activity) {
-                dispatcher.perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node,
-                    variables, actor, dispatcher, depth));
+                final WorkflowTaskContextImpl context = new WorkflowTaskContextImpl(target, event, (Activity) node,
+                    variables, actor, dispatcher, depth);
+                dispatcher.perform((Activity) node, context);
+                // Recorded right away: a later activity in the same walk may raise a task for `@creator`
+                context.recordActor();
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -260,7 +267,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         }
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
-        PerformerCheck.verify(resolver, start, actor);
+        PerformerCheck.verify(this.principals, resolver, target, start, actor);
         run(target, event, start, actor, depth);
     }
 
@@ -272,30 +279,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ServiceTaskDispatcher dispatcher()
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain);
-    }
-
-    /**
-     * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
-     * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
-     *
-     * @param resolver the engine's session, still uncommitted
-     * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
-     * @throws PersistenceException when the created node cannot be written to
-     */
-    private void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
-        final String actor) throws PersistenceException
-    {
-        final Object created = variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (!(created instanceof String)) {
-            return;
-        }
-        final Resource resource = Objects.requireNonNull(resolver.getResource((String) created),
-            "A handler reported creating something that is not there");
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
-            "A node the engine just created is always modifiable").put(CREATED_BY_PROPERTY, actor);
+        return new ServiceTaskDispatcher(this.handlers, this::chain, this.conditions, this.principals);
     }
 
     /**

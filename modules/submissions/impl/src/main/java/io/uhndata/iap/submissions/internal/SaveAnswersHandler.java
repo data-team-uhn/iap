@@ -19,18 +19,23 @@ package io.uhndata.iap.submissions.internal;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
@@ -88,7 +93,10 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         final Resource schemaVersion = schemaVersionOf(submission, target);
         final Map<Resource, String[]> answers = new LinkedHashMap<>();
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
-            answers.put(question(schemaVersion, entry.getKey()), values(entry.getKey(), entry.getValue()));
+            final Resource question = question(schemaVersion, entry.getKey());
+            final String[] values = values(entry.getKey(), entry.getValue());
+            checkOffered(question, values);
+            answers.put(question, values);
         }
         final Map<String, String> existing = answersByQuestion(submission);
         VersioningUtils.checkOut(target);
@@ -169,6 +177,37 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
+     * Refuses a value a question offering a fixed set of answers does not offer.
+     *
+     * <p>Checked here, unlike the {@code dataType}, because the difference is what the submitter can see: the form
+     * states the answers this question offers, so refusing one it does not is a refusal they can act on, whereas a
+     * type mismatch would be a refusal for a reason the form never showed them. It matters beyond tidiness — an
+     * option's value is what conditions compare against, so a value from outside the set would make a request
+     * ask questions nobody chose.</p>
+     *
+     * @param question the question being answered
+     * @param values the submitted values; empty ones clear the answer and are always allowed
+     * @throws InvalidPayloadException when a value is not one of the offered options
+     */
+    private void checkOffered(final Resource question, final String[] values) throws InvalidPayloadException
+    {
+        // Adapting cannot fail here: the caller has already established that this resource is a question
+        final List<OfferedOption> options = Objects.requireNonNull(question.adaptTo(Question.class),
+            "A question that does not read as one").getOfferedOptions();
+        if (options.isEmpty()) {
+            // Answered freely, in whatever the data type accepts
+            return;
+        }
+        final Set<String> offered = options.stream().map(OfferedOption::value).collect(Collectors.toSet());
+        for (final String value : values) {
+            if (!value.isEmpty() && !offered.contains(value)) {
+                throw new InvalidPayloadException(
+                    "\"" + value + "\" is not one of the answers this question offers");
+            }
+        }
+    }
+
+    /**
      * One answer's values, as the request gave them: a single parameter arrives as a string, a repeated one as an
      * array.
      *
@@ -222,13 +261,45 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             return;
         }
         if (existing != null) {
-            modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
+            final Resource answer = Objects.requireNonNull(target.getResourceResolver().getResource(existing),
+                "An answer the submission just reported is still where it said");
+            modifiable(answer).put(VALUE_PROPERTY, values);
+            final Answer model = answer.adaptTo(Answer.class);
+            if (model != null) {
+                markReviewed(target, model);
+            }
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
             Map.of("jcr:primaryType", "sub:Answer", VALUE_PROPERTY, values));
         ReferenceUtils.setReference(answer, QUESTION_PROPERTY, question);
+    }
+
+    /**
+     * Settles a pre-filled answer the submitter has just written over.
+     *
+     * <p>Typing over a suggestion is a verdict on it, and the commonest one: a submitter who corrects an answer
+     * has looked at what was proposed and decided against it. Without this, only the "looks right" button ever
+     * settled anything, so a corrected answer kept its "AI found" badge and its accept button for good, next to
+     * a value the person had already replaced.</p>
+     *
+     * <p>Nothing else about the run is touched. The confidence stays where it was, because what it says is how
+     * sure the model was, not how sure anybody is now, and the quote stays so the correction can be read against
+     * what prompted it.</p>
+     *
+     * @param target the submission, for the session everything else is written through
+     * @param answer the answer being written over
+     * @throws PersistenceException when the run cannot be written
+     */
+    private void markReviewed(final Resource target, final Answer answer) throws PersistenceException
+    {
+        final Extraction surest = answer.getSurestExtraction();
+        if (surest == null) {
+            // Nothing suggested this answer, so there is no verdict to record about it
+            return;
+        }
+        modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(surest.getPath()),
+            "A run the answer just reported is still where it said")).put("reviewed", Boolean.TRUE);
     }
 
     /**
