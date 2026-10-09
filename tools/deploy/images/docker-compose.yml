@@ -37,7 +37,7 @@ services:
     image: "postgres:18-alpine"
 
   mongo:
-    image: "mongo:8"
+    image: "mongo:9"
 
   keycloak:
     image: "quay.io/keycloak/keycloak:26.8.0-0"
