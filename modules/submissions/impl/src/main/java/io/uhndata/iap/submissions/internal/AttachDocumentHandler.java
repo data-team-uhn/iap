@@ -148,9 +148,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     private void checkAcceptedType(final DocumentRequirement requirement, final EventAttachment file)
         throws InvalidPayloadException
     {
-        // The model hands back the raw property, so absent arrives as null rather than as an empty array
-        final List<String> accepted =
-            List.of(Objects.requireNonNullElse(requirement.getAcceptedFileTypes(), new String[0]));
+        final List<String> accepted = requirement.getAcceptedFileTypes();
         // Accepting nothing in particular means accepting anything: a requirement that has not said what it wants
         // is not one that wants nothing
         if (accepted.isEmpty()) {

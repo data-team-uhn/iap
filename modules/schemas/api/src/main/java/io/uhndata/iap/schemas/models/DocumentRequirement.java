@@ -17,11 +17,14 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -63,13 +66,12 @@ public class DocumentRequirement extends Requirement
     /**
      * The accepted MIME types for the uploaded document, e.g. {@code application/pdf}.
      *
-     * @return a copy of the list of MIME types, or {@code null} if not restricted
+     * @return an unmodifiable list of MIME types, empty if any type is accepted
      */
-    @Nullable
-    public String[] getAcceptedFileTypes()
+    @NotNull
+    public List<String> getAcceptedFileTypes()
     {
-        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
-        return this.acceptedFileTypes == null ? null : this.acceptedFileTypes.clone();
+        return this.acceptedFileTypes == null ? List.of() : List.of(this.acceptedFileTypes);
     }
 
     /**

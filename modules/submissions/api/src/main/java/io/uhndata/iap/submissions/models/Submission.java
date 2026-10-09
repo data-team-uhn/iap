@@ -228,11 +228,8 @@ public class Submission extends Entity
         if (requirement instanceof DocumentRequirement) {
             // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
             // it is asked at all is its condition's decision, made before this is ever reached.
-            return !((DocumentRequirement) requirement).isRequired() || this.getDocuments().stream()
-                .anyMatch(document -> {
-                    final Requirement fulfilled = document.getFulfills();
-                    return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
-                });
+            return !((DocumentRequirement) requirement).isRequired()
+                || this.getDocuments().stream().anyMatch(document -> document.isFulfilling(requirement));
         }
         if (requirement instanceof ApprovalRequirement) {
             return this.getReviews().stream().anyMatch(review -> {

@@ -18,7 +18,6 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,10 +131,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
         final Map<String, List<String>> answers = answersByQuestion(submission);
+        final List<Document> documents = submission.getDocuments();
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
+            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
         return Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
@@ -152,10 +152,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @param requirement the requirement to describe
      * @param submission the submission it is being resolved against
      * @param answers the submission's answers, by the path of the question each answers
+     * @param documents the documents attached to the submission
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final List<Document> documents)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, requirement.getName())
@@ -168,7 +169,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
                 submission, answers));
         } else if (requirement instanceof DocumentRequirement) {
-            describe((DocumentRequirement) requirement, submission, json);
+            describe((DocumentRequirement) requirement, documents, json);
         }
         return json;
     }
@@ -182,10 +183,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * control offering to answer something this submission is not being asked.</p>
      *
      * @param requirement the requirement being described
-     * @param submission the submission it is being resolved against
+     * @param documents the documents attached to the submission
      * @param json the requirement's JSON, added to in place
      */
-    private void describe(final DocumentRequirement requirement, final Submission submission,
+    private void describe(final DocumentRequirement requirement, final List<Document> documents,
         final JsonObjectBuilder json)
     {
         // Stated always, not only when false: the upload control marks the optional case, and should do so
@@ -194,8 +195,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
         // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
         // empty — so the key is always there and it is the emptiness that carries the meaning
-        Arrays.stream(Objects.requireNonNullElse(requirement.getAcceptedFileTypes(), new String[0]))
-            .forEach(accepted::add);
+        requirement.getAcceptedFileTypes().forEach(accepted::add);
         json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
         final Resource template = requirement.getTemplate();
         if (template != null) {
@@ -204,24 +204,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // Named rather than counted, so that a form reopened later says which document is there. Without this an
         // upload control looks the same before and after, and the way to check would be to leave the page
         final JsonArrayBuilder attached = Json.createArrayBuilder();
-        submission.getDocuments().stream()
-            .filter(document -> fulfills(document, requirement))
+        documents.stream()
+            .filter(document -> document.isFulfilling(requirement))
             .map(document -> Objects.toString(document.getTitle(), document.getName()))
             .forEach(attached::add);
         json.add(ATTACHED_KEY, attached);
-    }
-
-    /**
-     * Whether one document was attached in answer to one requirement.
-     *
-     * @param document the attached document
-     * @param requirement the requirement in question
-     * @return {@code true} if the document says it fulfills that requirement
-     */
-    private boolean fulfills(final Document document, final Requirement requirement)
-    {
-        final Requirement fulfilled = document.getFulfills();
-        return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
     }
 
     /**
