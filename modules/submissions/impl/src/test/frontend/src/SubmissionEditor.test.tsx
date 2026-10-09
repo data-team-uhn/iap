@@ -229,6 +229,15 @@ describe("SubmissionEditor", () => {
       expect(screen.queryByText("Nothing attached yet")).toBeNull();
     });
 
+    it("offers to replace what is already there", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.pdf" ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Replace the file for "Doctor's note"/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+    });
+
     it("posts the file as an event on the submission, then reads the form again", async () => {
       const fetchMock = serving(asked(), asked({ attached: [ "note.pdf" ] }));
       vi.stubGlobal("fetch", fetchMock);

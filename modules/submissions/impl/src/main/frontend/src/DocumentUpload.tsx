@@ -102,7 +102,8 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
         startIcon={<UploadIcon />}
         disabled={disabled || busy}
       >
-        {`Attach a file for "${requirement.label || requirement.name}"`}
+        {/* Uploading again adds a new version of the same document */}
+        {`${attached.length > 0 ? "Replace the file" : "Attach a file"} for "${requirement.label || requirement.name}"`}
         <Box
           component="input"
           type="file"

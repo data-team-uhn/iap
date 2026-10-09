@@ -176,6 +176,29 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void addsAnotherUploadForTheSameRequirementAsANewVersion() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("wrong.pdf", PDF))));
+        onlyDocument();
+        this.handler.execute(context(payload("doctorsNote", upload("right.pdf", PDF))));
+
+        final Resource document = onlyDocument();
+        assertEquals("right.pdf", document.getValueMap().get("title", String.class));
+        assertEquals(2, document.adaptTo(Document.class).getVersions().size());
+        assertNotNull(uploadedFile());
+    }
+
+    @Test
+    void keepsTheDocumentsOfDifferentRequirementsApart() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        documents();
+        this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
+
+        assertEquals(2, documents().size());
+    }
+
+    @Test
     void takesARequirementNamedByItsFullPath() throws Exception
     {
         // What the UI has to hand is the path it rendered the requirement from, so both spellings work
@@ -434,11 +457,16 @@ class AttachDocumentHandlerTest
      */
     private Resource onlyDocument()
     {
-        this.context.resourceResolver().refresh();
-        stampResourceTypes(present(this.context.resourceResolver().getResource(SUBMISSION_PATH)));
-        final List<Document> documents = submission().getDocuments();
+        final List<Document> documents = documents();
         assertEquals(1, documents.size());
         return present(this.context.resourceResolver().getResource(documents.get(0).getPath()));
+    }
+
+    private List<Document> documents()
+    {
+        this.context.resourceResolver().refresh();
+        stampResourceTypes(present(this.context.resourceResolver().getResource(SUBMISSION_PATH)));
+        return submission().getDocuments();
     }
 
     /**

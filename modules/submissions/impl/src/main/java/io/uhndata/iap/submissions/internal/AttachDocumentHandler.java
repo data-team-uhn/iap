@@ -27,6 +27,7 @@ import java.util.UUID;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -78,6 +79,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
+    private static final String TITLE_PROPERTY = "title";
+
     /** The name the node type gives a version's file. */
     private static final String FILE_NODE = "file";
 
@@ -111,12 +114,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
-        // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
-        // taken from what somebody uploaded is a name chosen by them for a node in our tree
-        final Resource document = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Document", "title",
-                Objects.requireNonNullElse(file.getFileName(), "Attachment")));
-        ReferenceUtils.setReference(document, FULFILLS_PROPERTY, fulfilled);
+        final Resource document = findOrCreateDocument(target, submission, requirement, fulfilled, file, resolver);
         // Not named by its number, which is its position among the document's versions
         final Resource version = resolver.create(document, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
@@ -150,6 +148,43 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));
+    }
+
+    /**
+     * The document answering the requirement, created by the first upload for it. A later upload is a new version
+     * of the same document, so the document's title follows the newest file.
+     *
+     * @param target the submission's resource
+     * @param submission the submission being attached to
+     * @param requirement the requirement the file answers
+     * @param fulfilled the requirement's resource, for the reference
+     * @param file the uploaded file
+     * @param resolver the resolver to write with
+     * @return the document resource
+     * @throws PersistenceException when the document cannot be written
+     */
+    private Resource findOrCreateDocument(final Resource target, final Submission submission,
+        final DocumentRequirement requirement, final Resource fulfilled, final EventAttachment file,
+        final ResourceResolver resolver)
+        throws PersistenceException
+    {
+        final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
+        final Resource existing = submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .findFirst()
+            .map(document -> resolver.getResource(document.getPath()))
+            .orElse(null);
+        if (existing != null) {
+            Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
+                "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
+            return existing;
+        }
+        // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
+        // taken from what somebody uploaded is a name chosen by them for a node in our tree
+        final Resource document = resolver.create(target, UUID.randomUUID().toString(),
+            Map.of(PRIMARY_TYPE, "sub:Document", TITLE_PROPERTY, title));
+        ReferenceUtils.setReference(document, FULFILLS_PROPERTY, fulfilled);
+        return document;
     }
 
     /**
