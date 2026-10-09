@@ -96,4 +96,15 @@ public class DocumentRequirement extends Requirement
     {
         return this.resource.getChild("template");
     }
+
+    /**
+     * The sections the document is expected to contain.
+     *
+     * @return a list of section requirements in their stored order, empty if there are none
+     */
+    @NotNull
+    public List<SectionRequirement> getSections()
+    {
+        return this.getChildren(SectionRequirement.RESOURCE_TYPE, SectionRequirement.class);
+    }
 }
