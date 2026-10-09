@@ -222,7 +222,7 @@ class AttachDocumentHandlerTest
     {
         // The repository has to serve the file back with some type, and a wrong guess is worse than an honest
         // "bytes"
-        this.handler.execute(context(payload("anything", upload("note.pdf", null))));
+        this.handler.execute(context(payload("anything", upload("notes", null))));
 
         assertEquals("application/octet-stream",
             child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
@@ -263,9 +263,43 @@ class AttachDocumentHandlerTest
     void refusesAFileOfNoDeclaredTypeWhereTheTypeIsRestricted()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload("doctorsNote", upload("note.pdf", null)))));
+            .execute(context(payload("doctorsNote", upload("note", null)))));
 
         assertTrue(failure.getMessage().contains("no declared type"));
+    }
+
+    @Test
+    void comparesTypesWithoutCaseOrParameters() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", "Application/PDF; charset=binary"))));
+
+        // Stored the way it was compared
+        assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
+    }
+
+    @Test
+    void readsTheTypeFromTheExtensionWhenTheBrowserSentAGenericOne() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("Note.PDF", "application/octet-stream"))));
+
+        assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
+    }
+
+    @Test
+    void readsTheTypeFromTheExtensionWhenTheBrowserSentNone() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", null))));
+
+        assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
+    }
+
+    @Test
+    void refusesAGenericTypeWhoseExtensionSaysNothing()
+    {
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
+            .execute(context(payload("doctorsNote", upload("scan.bin", "application/octet-stream")))));
+
+        assertTrue(failure.getMessage().contains("application/octet-stream"));
     }
 
     @Test

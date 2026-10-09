@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -81,6 +82,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final String TITLE_PROPERTY = "title";
 
+    private static final String GENERIC_TYPE = "application/octet-stream";
+
+    /** Types a browser may not know and send untyped, by the extension that names them. */
+    private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
+        "pdf", "application/pdf",
+        "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc", "application/msword");
+
     /** The name the node type gives a version's file. */
     private static final String FILE_NODE = "file";
 
@@ -106,7 +115,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("No file was uploaded");
         }
         final DocumentRequirement requirement = requirement(submission, context);
-        checkAcceptedType(requirement, file);
+        final String mimeType = getMimeType(file);
+        checkAcceptedType(requirement, mimeType);
         final Resource fulfilled = context.getResourceResolver().getResource(requirement.getPath());
         if (fulfilled == null) {
             throw new PersistenceException("Could not read the requirement being fulfilled");
@@ -120,7 +130,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
         final Resource stored = resolver.create(version, FILE_NODE, Map.of(PRIMARY_TYPE, "sub:File"));
         write(Objects.requireNonNull(stored.adaptTo(Node.class),
-            "A freshly created file is always backed by a JCR node"), file);
+            "A freshly created file is always backed by a JCR node"), file, mimeType);
     }
 
     /**
@@ -190,13 +200,32 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
+     * The upload's type, lower-case and without parameters. Where the caller sent no type or only the generic one,
+     * the file's extension decides, since browsers often do not know the Office types.
+     *
+     * @param file the uploaded file
+     * @return the type, or {@code null} when none was sent and the extension is not a known one
+     */
+    private static String getMimeType(final EventAttachment file)
+    {
+        final String declared = Objects.toString(file.getMimeType(), "").split(";", 2)[0].trim()
+            .toLowerCase(Locale.ROOT);
+        if (!declared.isEmpty() && !GENERIC_TYPE.equals(declared)) {
+            return declared;
+        }
+        final String name = Objects.requireNonNullElse(file.getFileName(), "");
+        final String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        return TYPE_BY_EXTENSION.getOrDefault(extension, declared.isEmpty() ? null : declared);
+    }
+
+    /**
      * Refuses a file of a type the requirement does not accept.
      *
      * @param requirement the requirement being fulfilled
-     * @param file the uploaded file
-     * @throws InvalidPayloadException when the declared type is not among the accepted ones
+     * @param mimeType the upload's type, as {@link #getMimeType} reads it
+     * @throws InvalidPayloadException when the type is not among the accepted ones
      */
-    private void checkAcceptedType(final DocumentRequirement requirement, final EventAttachment file)
+    private void checkAcceptedType(final DocumentRequirement requirement, final String mimeType)
         throws InvalidPayloadException
     {
         final List<String> accepted = requirement.getAcceptedFileTypes();
@@ -205,10 +234,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         if (accepted.isEmpty()) {
             return;
         }
-        // Checked for null first: the accepted list is immutable, and asking it about null throws
-        final String declared = file.getMimeType();
-        if (declared == null || !accepted.contains(declared)) {
-            throw new InvalidPayloadException("A " + Objects.requireNonNullElse(declared, "file with no declared type")
+        if (accepted.stream().noneMatch(type -> type.equalsIgnoreCase(mimeType))) {
+            throw new InvalidPayloadException("A " + Objects.requireNonNullElse(mimeType, "file with no declared type")
                 + " is not accepted here; " + requirement.getLabel() + " takes " + String.join(", ", accepted));
         }
     }
@@ -221,9 +248,11 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      *
      * @param stored the {@code sub:File} node to store the upload under
      * @param file the uploaded file
+     * @param mimeType the upload's type, as {@link #getMimeType} reads it
      * @throws PersistenceException when the file cannot be stored
      */
-    private void write(final Node stored, final EventAttachment file) throws PersistenceException
+    private void write(final Node stored, final EventAttachment file, final String mimeType)
+        throws PersistenceException
     {
         try (InputStream content = file.openStream()) {
             final Node fileNode = stored.addNode(UPLOADED_FILE_NODE, "nt:file");
@@ -232,8 +261,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
                 fileNode.getSession().getValueFactory().createBinary(content));
             // Recorded because the repository has to serve the file back with a type, and it is the only statement
             // about what this is that anybody has made
-            resource.setProperty("jcr:mimeType",
-                Objects.requireNonNullElse(file.getMimeType(), "application/octet-stream"));
+            resource.setProperty("jcr:mimeType", Objects.requireNonNullElse(mimeType, GENERIC_TYPE));
         } catch (final RepositoryException | IOException e) {
             throw new PersistenceException("Could not store the uploaded file", e);
         }
