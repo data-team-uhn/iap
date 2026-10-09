@@ -143,8 +143,8 @@ public final class LLMSettings
      * property when it has one, otherwise its node name.
      *
      * <p>
-     * The two differ because a JCR name cannot contain a colon or a slash, so an Ollama tag
-     * ({@code llama3.2:3b}) or a HuggingFace-style identifier ({@code org/model}) cannot be a node name.
+     * The two differ because a JCR name cannot contain a colon or a slash, so a tagged model id
+     * ({@code model-a:v1}) or a HuggingFace-style identifier ({@code org/model}) cannot be a node name.
      * </p>
      *
      * @return the model identifier to send to the provider

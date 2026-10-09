@@ -96,7 +96,7 @@
   - sling:resourceType (STRING) = "llm/Model" mandatory autocreated protected
 
   // What the provider calls this model, when its node cannot be named that. A JCR name has no
-  // colon or slash in it, so an Ollama tag (llama3.2:3b) or a HuggingFace id (org/model) is
+  // colon or slash in it, so a tagged model id (model-a:v1) or a HuggingFace id (org/model) is
   // unrepresentable as a node name. Defaults to the node name when unset.
   - modelId (String)
 
