@@ -18,14 +18,8 @@
 
 import { loadPdfjs } from "./pdfjsClient";
 
-// Checks an upload in the browser, before it is sent.
-//
-// This is here so a person finds out in a moment rather than after a slow upload and a parse, and so
-// a corrupt file never reaches the document pipeline at all. It does not enforce anything: the server
-// has to check the size and the type again on arrival, where nobody can skip it.
-//
-// What only this side does is look inside the file rather than trusting its name. A .pdf that PDF.js
-// cannot open, or a .docx that is not a zip with the parts a Word document has, is refused here.
+// Checks an upload in the browser so a bad file is refused in a moment, not after a slow upload. It
+// only advises: the server checks again, where nobody can skip it.
 
 export const MEGABYTE = 1024 * 1024;
 
@@ -79,14 +73,11 @@ export function getFileExtension(fileName: string): string | undefined {
   return fileName.slice(dot).toLowerCase();
 }
 
-// Rounded up, so a file just over the limit never shows the limit as its own size.
-function roundUpToMegabytes(bytes: number): number {
-  return Math.ceil(bytes / MEGABYTE);
-}
-
-// A limit as given, so 1.5 MB stays 1.5 MB.
-function formatMegabytes(bytes: number): string {
-  return `${bytes / MEGABYTE} MB`;
+// A size for a person to read: KB under a megabyte, two decimals at most. A file's size rounds up and
+// a limit's down, so a file over a limit never shows the same number as the limit.
+function formatSize(bytes: number, rounding: (value: number) => number): string {
+  const [ unit, name ] = bytes < MEGABYTE ? [ 1024, "KB" ] : [ MEGABYTE, "MB" ];
+  return `${rounding(bytes / unit * 100) / 100} ${name}`;
 }
 
 // PDF.js names this exception when a file will not open without a password. An empty password
@@ -127,7 +118,8 @@ async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Pro
     const data = await file.arrayBuffer();
     signal?.throwIfAborted();
     // No password is passed. A file whose only password is empty opens; one that needs a password throws.
-    const task = pdfjs.getDocument({ data });
+    // isEvalSupported off: PDF.js then never runs code it builds from a file's fonts
+    const task = pdfjs.getDocument({ data, isEvalSupported: false });
     // Destroying the task ends a parse that would otherwise run on, and rejects its promise
     const stop = () => void task.destroy();
     signal?.addEventListener("abort", stop, { once: true });
@@ -379,7 +371,7 @@ async function checkDocx(file: File, maxUnzippedSize: number, signal?: AbortSign
       return { valid: false, error: DOCX_DAMAGED };
     }
     if (entries.reduce((total, entry) => total + entry.unzippedSize, 0) > maxUnzippedSize) {
-      return { valid: false, error: `It unzips to more than ${formatMegabytes(maxUnzippedSize)}.` };
+      return { valid: false, error: `It unzips to more than ${formatSize(maxUnzippedSize, Math.floor)}.` };
     }
     const listed = entries.find(entry => entry.name === CONTENT_TYPES);
     if (listed === undefined) {
@@ -417,7 +409,7 @@ async function checkDoc(file: File): Promise<ContentCheck> {
 async function checkContent(
   file: File,
   extension: string | undefined,
-  limits: Required<UploadLimits>,
+  limits: Required<Pick<UploadLimits, "maxPdfPages" | "maxUnzippedSize">>,
   signal?: AbortSignal,
 ): Promise<ContentCheck> {
   if (extension === ".pdf") {
@@ -469,8 +461,8 @@ export async function validateUpload(
     return `${file.name} is empty.`;
   }
   if (file.size > maxFileSize) {
-    const size = roundUpToMegabytes(file.size);
-    return `${file.name} is ${size} MB, and the limit is ${formatMegabytes(maxFileSize)}.`;
+    const size = formatSize(file.size, Math.ceil);
+    return `${file.name} is ${size}, and the limit is ${formatSize(maxFileSize, Math.floor)}.`;
   }
   const extension = getFileExtension(file.name);
   const type = getMimeType(file, extension);
@@ -478,7 +470,6 @@ export async function validateUpload(
     return describeWrongType(file, accepted);
   }
   const content = await checkContent(file, extension, {
-    maxFileSize,
     maxPdfPages: limits.maxPdfPages ?? MAX_PDF_PAGES,
     maxUnzippedSize: limits.maxUnzippedSize ?? MAX_UNZIPPED_SIZE,
   }, signal);

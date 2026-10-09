@@ -35,6 +35,9 @@ import {
 // A .docx is a real zip, written below byte by byte so a test can shape it exactly.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
+// What the last check asked PDF.js for
+const opened = vi.hoisted((): { options: Record<string, unknown> } => ({ options: {} }));
+
 // A switch that makes PDF.js fail to load, as a chunk that 404s after a deploy would
 const missing = vi.hoisted(() => ({ pdfjs: false }));
 
@@ -220,6 +223,7 @@ vi.mock("pdfjs-dist", () => ({
     return workerOptions;
   },
   getDocument: (args: { data: ArrayBuffer }) => {
+    opened.options = args;
     const bytes = new Uint8Array(args.data);
     const destroy = () => {
       destroyed.count++;
@@ -360,6 +364,12 @@ describe("what is inside the file", () => {
     expect(GlobalWorkerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs$/);
   });
 
+  it("never lets PDF.js run code built from a file", async () => {
+    await validateUpload(createPdf(3));
+
+    expect(opened.options).toMatchObject({ isEvalSupported: false });
+  });
+
   it("refuses a .pdf that is not a PDF", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     await expect(validateUpload(createUpload("proposal.pdf", [ 0x00, 1, 0 ])))
@@ -474,6 +484,23 @@ describe("the limits themselves", () => {
   it("refuses an untyped file whose name is not an accepted kind", async () => {
     expect(await validateUpload(createUpload("notes.xyz"), [ "application/pdf" ])).toMatch(/accepted type/);
     expect(await validateUpload(createUpload("proposal.pdf"), [ "application/pdf" ])).toBeUndefined();
+  });
+});
+
+describe("how sizes read", () => {
+  // Rounding both the same way could show the limit as the file's own size
+  it("never shows a file just over the limit at the limit's size", async () => {
+    const file = createPdf(1, 10_000_001);
+
+    expect(await validateUpload(file, [], { maxFileSize: 10_000_000 }))
+      .toBe("proposal.pdf is 9.54 MB, and the limit is 9.53 MB.");
+  });
+
+  it("gives a size under a megabyte in KB", async () => {
+    const file = createPdf(1, 20 * 1024);
+
+    expect(await validateUpload(file, [], { maxFileSize: 10 * 1024 }))
+      .toBe("proposal.pdf is 20 KB, and the limit is 10 KB.");
   });
 });
 

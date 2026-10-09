@@ -54,7 +54,7 @@ The module also exports:
 ```
 validateUpload(file, accepted, limits, signal)
 ├── 1. file.size === 0?                          → "<name> is empty."
-├── 2. file.size > maxFileSize?                  → "<name> is N MB, and the limit is L MB."
+├── 2. file.size > maxFileSize?                  → "<name> is <size>, and the limit is <limit>."
 ├── 3. accepted given?  getMimeType(file, …) in accepted?
 │                                                → "<name> is not a file of an accepted type: <types>."
 └── 4. checkContent(file, extension, limits), picked by extension:
@@ -86,13 +86,15 @@ A content failure is reported as `"<name>: <reason>"`.
 | # | Check | Fails when | Message |
 | --- | --- | --- | --- |
 | 1 | Empty | `file.size === 0` | `proposal.pdf is empty.` |
-| 2 | Size | `file.size > maxFileSize` | `proposal.pdf is 51 MB, and the limit is 50 MB.` |
+| 2 | Size | `file.size > maxFileSize` | `proposal.pdf is 50.2 MB, and the limit is 50 MB.` |
 | 3 | Type | see [Accepted types](#accepted-types) | `proposal.txt is not a file of an accepted type: .pdf, .docx, .doc.` |
 | 4 | Content | see [Looking inside the file](#looking-inside-the-file) | `proposal.pdf: The PDF is damaged, or it is not a PDF.` |
 
-The size in the message is **rounded up**. A 50.2 MB file says "51 MB". Rounding to the
-nearest made it say "is 50 MB, and the limit is 50 MB", which reads as a bug. The limit
-itself is printed as given, so a 1.5 MB limit prints "1.5 MB".
+Sizes read as a person would say them: in KB under a megabyte, with two decimals at
+most. **The file's size is rounded up and the limit's down**, so a file over a limit
+never shows the same number as the limit. A file of 10,000,001 bytes over a limit of
+10,000,000 reads "is 9.54 MB, and the limit is 9.53 MB"; rounded the same way, both
+would read 9.54 MB.
 
 The size is checked before anything is read, so an oversized file is refused without
 loading it.
@@ -148,7 +150,9 @@ type whose name has no known extension gets no content check at all.
 ### PDF
 
 1. PDF.js is loaded (see [Loading PDF.js](#loading-pdfjs)).
-2. The whole file is read into memory and handed to PDF.js. No password is passed.
+2. The whole file is read into memory and handed to PDF.js. No password is passed, and
+   `isEvalSupported: false` keeps PDF.js from running code it builds from the file's
+   fonts.
 3. PDF.js opens it and counts the pages.
 4. The PDF.js task is destroyed in a `finally`, pass or fail. Each check starts its own
    worker holding the whole file, and without this it would live as long as the tab.
@@ -343,7 +347,7 @@ that are no longer selected.
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 48 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, stopping a check, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 51 | Every check and message, the limits at and past the edge, how sizes read, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, stopping a check, the worker URL, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 10 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale check is stopped and its answer ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting
