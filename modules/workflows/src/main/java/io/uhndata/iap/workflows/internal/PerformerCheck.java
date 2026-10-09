@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -26,8 +25,9 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalIterator;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -59,12 +59,16 @@ final class PerformerCheck
     /** The actor, or {@code null} when the repository does not know them. */
     private final Authorizable authorizable;
 
+    /** The engine's session. */
+    private final JackrabbitSession session;
+
     /** The actor's own id and the groups they belong to, read the first time a node names anyone but everyone. */
     private Set<String> identities;
 
-    private PerformerCheck(final Authorizable authorizable)
+    private PerformerCheck(final Authorizable authorizable, final JackrabbitSession session)
     {
         this.authorizable = authorizable;
+        this.session = session;
     }
 
     /**
@@ -78,7 +82,15 @@ final class PerformerCheck
     static PerformerCheck of(final ResourceResolver serviceResolver, final String actor)
         throws WorkflowFailedException
     {
-        return new PerformerCheck(lookUp(serviceResolver, actor));
+        if (actor == null) {
+            return new PerformerCheck(null, null);
+        }
+        final Session session = serviceResolver.adaptTo(Session.class);
+        if (!(session instanceof JackrabbitSession)) {
+            throw new WorkflowFailedException("The repository cannot be asked who its users are");
+        }
+        final JackrabbitSession jackrabbitSession = (JackrabbitSession) session;
+        return new PerformerCheck(lookUp(jackrabbitSession, actor), jackrabbitSession);
     }
 
     /**
@@ -117,15 +129,15 @@ final class PerformerCheck
             return true;
         }
         final List<String> performers = node.getPerformers();
-        // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
-        // not necessarily report belonging to it
+        // Every known user is in "everyone", so their groups need not be read
         return performers.contains(EVERYONE_GROUP)
             || !performers.isEmpty() && performers.stream().anyMatch(identities()::contains);
     }
 
     /**
-     * The actor's own id and the ids of the groups they belong to, transitively: naming a group also admits the
-     * members of its member groups.
+     * The actor's own id and the principal names of the groups they belong to, transitively: naming a group also
+     * admits the members of its member groups. NB: misses Keycloak roles, as under dynamic membership those are
+     * group principals with no group node behind them.
      *
      * @return the actor's identities
      * @throws WorkflowFailedException when the actor's group membership cannot be read
@@ -136,8 +148,10 @@ final class PerformerCheck
             try {
                 final Set<String> found = new HashSet<>();
                 found.add(this.authorizable.getID());
-                for (final Iterator<Group> groups = this.authorizable.memberOf(); groups.hasNext();) {
-                    found.add(groups.next().getID());
+                final PrincipalManager principals = this.session.getPrincipalManager();
+                for (final PrincipalIterator groups = principals.getGroupMembership(this.authorizable.getPrincipal());
+                    groups.hasNext();) {
+                    found.add(groups.nextPrincipal().getName());
                 }
                 this.identities = found;
             } catch (final RepositoryException e) {
@@ -151,23 +165,16 @@ final class PerformerCheck
     /**
      * Finds the actor in the repository's user store.
      *
-     * @param serviceResolver the engine's own session
-     * @param actor the user id to look up, {@code null} for an unauthenticated caller
+     * @param session the engine's own session
+     * @param actor the user id to look up
      * @return the actor, or {@code null} if there is nobody by that name
      * @throws WorkflowFailedException when the user store cannot be reached
      */
-    private static Authorizable lookUp(final ResourceResolver serviceResolver, final String actor)
+    private static Authorizable lookUp(final JackrabbitSession session, final String actor)
         throws WorkflowFailedException
     {
-        if (actor == null) {
-            return null;
-        }
-        final Session session = serviceResolver.adaptTo(Session.class);
-        if (!(session instanceof JackrabbitSession)) {
-            throw new WorkflowFailedException("The repository cannot be asked who its users are");
-        }
         try {
-            final UserManager userManager = ((JackrabbitSession) session).getUserManager();
+            final UserManager userManager = session.getUserManager();
             return userManager.getAuthorizable(actor);
         } catch (final RepositoryException e) {
             throw new WorkflowFailedException("Could not look up the user " + actor, e);
