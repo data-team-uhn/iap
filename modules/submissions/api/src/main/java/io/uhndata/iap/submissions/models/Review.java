@@ -17,9 +17,6 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -27,19 +24,19 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * A Sling Model wrapping a {@code sub:Review} node: one reviewer's assessment of the submission.
+ * A Sling Model wrapping a {@code sub:Review} node: a reviewer's binding {@link Feedback} on the submission, which
+ * addresses a requirement and can grant it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Review.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = {Review.class, Feedback.class}, resourceType = Review.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Review extends EntityPart
+public class Review extends Feedback
 {
     /** The {@code sling:resourceType} of a {@code sub:Review} node. */
     public static final String RESOURCE_TYPE = "sub/Review";
@@ -71,30 +68,6 @@ public class Review extends EntityPart
     public Requirement getRequirement()
     {
         return this.getReference(this.requirement, Requirement.class);
-    }
-
-    /**
-     * Every comment raised during this review, in the order they were added.
-     *
-     * @return a list of review comments, empty if none
-     */
-    @NotNull
-    public List<ReviewComment> getComments()
-    {
-        return this.getChildren(ReviewComment.RESOURCE_TYPE, ReviewComment.class);
-    }
-
-    /**
-     * The comments raised during this review that the submitter has not yet addressed.
-     *
-     * @return a list of unresolved review comments, empty if none
-     */
-    @NotNull
-    public List<ReviewComment> getUnresolvedComments()
-    {
-        return this.getComments().stream()
-            .filter(comment -> !comment.isResolved())
-            .collect(Collectors.toList());
     }
 
     /**

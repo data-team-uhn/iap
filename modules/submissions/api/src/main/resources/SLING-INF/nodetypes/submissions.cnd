@@ -77,8 +77,8 @@
   // Attached documents, e.g. the signed patient consent
   + * (sub:Document) = sub:Document
 
-  // Reviews added by reviewers
-  + * (sub:Review) = sub:Review
+  // Feedback on the submission: binding reviews, AI screenings and discussions
+  + * (sub:Feedback)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -86,7 +86,7 @@
 //-----------------------------------------------------------------------------
 // The answer to a single schema question. Only simple storage: the value's
 // expected type and meaning are dictated by the referenced question.
-// Referenceable so that review comments can target it.
+// Referenceable so that comments can target it.
 [sub:Answer] > data:EntityPart, mix:referenceable, mix:lastModified
   // The extraction runs are orderable, so they are presented in the order they
   // ran, the newest last.
@@ -145,8 +145,8 @@
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
 
-  // The passages backing the extracted answer
-  + * (sub:Evidence) = sub:Evidence
+  // The context backing the extracted answer
+  + * (sub:Context) = sub:Context
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -156,14 +156,24 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One passage backing an extracted answer, kept as a node rather than a plain
-// string so the quote stays linked to the page it came from and the UI can
-// send the reader to that spot in the source document.
-[sub:Evidence] > data:EntityPart
-  - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
+// The context a quote comes from, backing an extracted answer or a comment: a
+// passage of a document, or an answer. A node rather than a plain string, so
+// the quote stays linked to where it came from and the UI can send the reader
+// to that spot.
+[sub:Context] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/Context" mandatory autocreated protected
+
+  // The document revision or the answer the quote comes from. Weak, so either
+  // can be removed without first deleting every quote taken from it.
+  - source (WEAKREFERENCE)
 
   // The quoted text
   - quote (STRING)
+
+  // A little of the text just before and after the quote, so the passage can
+  // still be found when the same words occur more than once
+  - prefix (STRING)
+  - suffix (STRING)
 
   // The nearest detected header of the quoted text
   - header (STRING)
@@ -181,7 +191,7 @@
 
 //-----------------------------------------------------------------------------
 // A document attached to the submission, e.g. the signed patient consent.
-// Referenceable so that review comments can target it.
+// Referenceable so that comments can target it.
 [sub:Document] > data:EntityPart, mix:referenceable, mix:lastModified
   // The list of versions is orderable, so the history is presented in a
   // deliberate (chronological) sequence.
@@ -230,7 +240,7 @@
 
 //-----------------------------------------------------------------------------
 // A single uploaded file plus everything the parsing pipeline derived from it.
-// Referenceable so that review comments and extracted answers can point at the
+// Referenceable so that comments and extracted answers can point at the
 // document they were read from.
 [sub:File] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
@@ -260,14 +270,41 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One reviewer's assessment of the submission. Referenceable so that review
-// comments can target it.
-[sub:Review] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The list of comments is orderable, so the review is presented in a
-  // deliberate (chronological) sequence.
+// Feedback on a submission, of one of three kinds: a reviewer's binding
+// sub:Review, the AI's sub:Screening, or a sub:Discussion that binds nothing.
+// Referenceable so that comments can target it.
+[sub:Feedback] > data:EntityPart, mix:referenceable, mix:lastModified
+  abstract
+
+  // The comments and assessments are orderable, so the feedback is presented
+  // in a deliberate (chronological) sequence.
   orderable
 
+  - sling:resourceSuperType (STRING) = "sub/Feedback" mandatory autocreated protected
+
+  // Whether this feedback decides anything. Each kind sets it, so that a new
+  // binding kind counts without code naming it.
+  - binding (BOOLEAN) = 'false' mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Questions and comments raised in this feedback
+  + * (sub:Comment) = sub:Comment
+
+  // The assessments of the topics the approval requirement lists
+  + * (sub:Assessment) = sub:Assessment
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A reviewer's binding feedback: it addresses a requirement, and can grant it.
+[sub:Review] > sub:Feedback
   - sling:resourceType (STRING) = "sub/Review" mandatory autocreated protected
+
+  - binding (BOOLEAN) = 'true' mandatory autocreated protected
 
   // Principal name of the reviewer
   - reviewer (STRING) mandatory
@@ -280,48 +317,90 @@
   // /Tags. Whoever opens a review is expected to tag it `in-progress`; a review whose tags name
   // no final decision (approved/rejected) counts as still open.
 
+//-----------------------------------------------------------------------------
+// The AI's feedback: a first look at what the submission says, shown to the
+// submitter while the request is being written and to the reviewers beside
+// their own. It is a guide, never a decision. jcr:created is when it ran.
+[sub:Screening] > sub:Feedback
+  - sling:resourceType (STRING) = "sub/Screening" mandatory autocreated protected
+
+  // A short summary of the whole screening
+  - summary (STRING)
+
+//-----------------------------------------------------------------------------
+// A person's feedback that binds nothing: a question or a remark from someone
+// who is not deciding.
+[sub:Discussion] > sub:Feedback
+  - sling:resourceType (STRING) = "sub/Discussion" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// One assessment of a single sch:Topic, in a reviewer's review or
+// in the AI's feedback. Referenceable so that comments can target it.
+[sub:Assessment] > data:EntityPart, mix:referenceable, mix:lastModified
+  // The comments are orderable, so they are shown in the order they were
+  // raised.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Assessment" mandatory autocreated protected
+
+  // The sch:Topic this assesses
+  - topic (REFERENCE) mandatory
+
+  // Has the reviewer looked at the topic for this assessment?
+  - value (STRING)
+
+  // A short summary of this assessment
+  - summary (STRING)
+
+  // What the assessment read: document revisions and answers. A newer revision
+  // or a changed answer makes it stale. Weak, so a source can be removed
+  // without first deleting the assessments that read it.
+  - sources (WEAKREFERENCE) multiple
+
+  // How sure an automated assessment is, 0..1
+  - confidence (DOUBLE)
+
+  // The comments raised about this topic, the AI's concerns among them
+  + * (sub:Comment) = sub:Comment
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
-
-  // Questions and comments raised during this review
-  + * (sub:ReviewComment) = sub:ReviewComment
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single comment or question raised by a reviewer.
-[sub:ReviewComment] > data:EntityPart, mix:lastModified
-  // The list of replies is orderable, so the discussion is presented in a
+// A comment or question raised in some feedback, a concern the AI found among
+// them, with what it is about and the context that shows it. Either may be
+// empty: something missing quotes nothing.
+[sub:Comment] > data:EntityPart, mix:lastModified
+  // The replies and the context are orderable, so they are presented in a
   // deliberate (chronological) sequence.
   orderable
 
-  - sling:resourceType (STRING) = "sub/ReviewComment" mandatory autocreated protected
+  - sling:resourceType (STRING) = "sub/Comment" mandatory autocreated protected
 
   // The comment text
   - text (STRING) mandatory
 
-  // Identifies the reviewer who wrote this comment. Not necessarily the
+  // Identifies who wrote this comment. Not necessarily the
   // same as jcr:createdBy: comments and replies can originate from an
   // external site, created here by an integration service user on the
   // actual author's behalf.
   - author (STRING) mandatory
 
-  // The part of the submission this comment is about,
-  // e.g. a sub:Answer or a sub:Document
-  - subject (REFERENCE)
+  // What this comment is about: answers or documents of the submission, or
+  // the questions and requirements of its schema. Something missing points at
+  // the question or requirement where it belongs. Weak, so a part can be
+  // removed without first unlinking it from every comment.
+  - subjects (WEAKREFERENCE) multiple
 
-  // Optional anchors narrowing this comment down to a specific selection
-  // within the subject (e.g. a range of text within a sub:Answer, or a
-  // location within a document), instead of the subject as a whole. Not a
-  // numeric offset: subjects like Word documents have no stable character
-  // index to anchor to, especially once further edited, so these are
-  // expected to be flexible, URI-like anchors (e.g. holding a page number
-  // or surrounding text) whose exact format is still to be designed.
-  // Not yet used by the MVP.
-  - selectionStart (STRING)
-  - selectionEnd (STRING)
+  // What kind of point it makes, e.g. a gap, a conflict or a concern
+  - kind (STRING)
+
+  // What would address it, when the author can say
+  - suggestion (STRING)
 
   // Whether the submitter has addressed this comment
   - resolved (BOOLEAN) = false
@@ -334,11 +413,14 @@
   // submitter replying back and forth
   + * (sub:Reply) = sub:Reply
 
+  // The context that shows what this comment is about
+  + * (sub:Context) = sub:Context
+
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single message in the discussion thread attached to a review comment,
+// A single message in the discussion thread attached to a comment,
 // e.g. the submitter responding to a reviewer's question, or the reviewer
 // following up.
 [sub:Reply] > data:EntityPart, mix:lastModified
@@ -348,7 +430,7 @@
   - text (STRING) mandatory
 
   // Identifies who wrote this reply (the reviewer or the submitter). Not
-  // necessarily the same as jcr:createdBy: see sub:ReviewComment.author.
+  // necessarily the same as jcr:createdBy: see sub:Comment.author.
   - author (STRING) mandatory
 
   // Allow any other properties for extensibility

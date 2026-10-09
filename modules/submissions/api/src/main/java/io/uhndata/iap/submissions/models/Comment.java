@@ -17,7 +17,10 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -29,17 +32,18 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:ReviewComment} node: a single comment or question raised by a reviewer.
+ * A Sling Model wrapping a {@code sub:Comment} node: a comment or question raised in some feedback, a concern the AI
+ * found among them, with what it is about and the context that shows it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = ReviewComment.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Comment.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class ReviewComment extends EntityPart
+public class Comment extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sub:ReviewComment} node. */
-    public static final String RESOURCE_TYPE = "sub/ReviewComment";
+    /** The {@code sling:resourceType} of a {@code sub:Comment} node. */
+    public static final String RESOURCE_TYPE = "sub/Comment";
 
     @ValueMapValue
     private String text;
@@ -48,13 +52,13 @@ public class ReviewComment extends EntityPart
     private String author;
 
     @ValueMapValue
-    private String subject;
+    private String[] subjects;
 
     @ValueMapValue
-    private String selectionStart;
+    private String kind;
 
     @ValueMapValue
-    private String selectionEnd;
+    private String suggestion;
 
     @ValueMapValue
     private boolean resolved;
@@ -71,7 +75,7 @@ public class ReviewComment extends EntityPart
     }
 
     /**
-     * Identifies the reviewer who wrote this comment. Not necessarily the same as {@code jcr:createdBy}: comments
+     * Identifies who wrote this comment. Not necessarily the same as {@code jcr:createdBy}: comments
      * and replies can originate from an external site, created here by an integration service user on the actual
      * author's behalf.
      *
@@ -84,37 +88,54 @@ public class ReviewComment extends EntityPart
     }
 
     /**
-     * The identifier of the part of the submission this comment is about, e.g. a {@code sub:Answer} or a
-     * {@code sub:Document}.
+     * What this comment is about: answers or documents of the submission, or the questions and requirements of its
+     * schema. The link is weak, so one removed since is skipped.
      *
-     * @return an UUID, or {@code null} if this is a general comment not tied to a specific part
+     * @return the parts concerned, empty for a general comment or when none of them resolve
      */
-    @Nullable
-    public String getSubject()
+    @NotNull
+    public List<EntityPart> getSubjects()
     {
-        return this.subject;
+        if (this.subjects == null) {
+            return List.of();
+        }
+        return Arrays.stream(this.subjects)
+            .map(identifier -> this.getReference(identifier, EntityPart.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     /**
-     * The start of the anchor narrowing this comment down to a specific selection within the subject.
+     * What kind of point this comment makes, e.g. a gap, a conflict or a concern.
      *
-     * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
+     * @return the kind, or {@code null} if not said
      */
     @Nullable
-    public String getSelectionStart()
+    public String getKind()
     {
-        return this.selectionStart;
+        return this.kind;
     }
 
     /**
-     * The end of the anchor narrowing this comment down to a specific selection within the subject.
+     * What would address this comment, when its author can say.
      *
-     * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
+     * @return a suggestion, or {@code null} if there is none
      */
     @Nullable
-    public String getSelectionEnd()
+    public String getSuggestion()
     {
-        return this.selectionEnd;
+        return this.suggestion;
+    }
+
+    /**
+     * The context that shows what this comment is about, in the order it was quoted.
+     *
+     * @return a list of context, empty if none
+     */
+    @NotNull
+    public List<Context> getContext()
+    {
+        return this.getChildren(Context.RESOURCE_TYPE, Context.class);
     }
 
     /**

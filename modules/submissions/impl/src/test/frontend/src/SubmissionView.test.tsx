@@ -155,7 +155,7 @@ const DEEP_SUBMISSION = {
     "tags": ["changes-requested"],
     "c1": {
       "@path": "/Submissions/demo-1/r1/c1",
-      "sling:resourceType": "sub/ReviewComment",
+      "sling:resourceType": "sub/Comment",
       "author": "jdoe",
       "text": "Please clarify the dosage",
       "resolved": false,
@@ -179,7 +179,7 @@ const DEEP_SUBMISSION = {
     },
     "c1": {
       "@path": "/Submissions/demo-1/r2/c1",
-      "sling:resourceType": "sub/ReviewComment",
+      "sling:resourceType": "sub/Comment",
       "author": "asmith",
       "text": "Formatting fixed",
       "resolved": true,

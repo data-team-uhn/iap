@@ -307,7 +307,43 @@
 // An approval that must be granted before a submission is accepted,
 // e.g. "REB approval".
 [sch:ApprovalRequirement] > sch:Requirement
+  // The topics are orderable, so they are shown in a deliberate sequence.
+  orderable
+
   - sling:resourceType (STRING) = "sch/ApprovalRequirement" mandatory autocreated protected
 
   // Principal name of the group whose members may grant this approval
   - approverGroup (STRING)
+
+  // What the approvers want assessed
+  + * (sch:Topic) = sch:Topic
+
+//-----------------------------------------------------------------------------
+// A broad area the approvers want assessed before they grant an approval, such
+// as consent: is it needed, clear, informed, free of coercion, in both
+// languages. One area rather than a checkbox per point, so the reviewer is
+// not overwhelmed; the description and the sources to look at say what to
+// look for. Referenceable so that sub:Assessment nodes can point back to it.
+[sch:Topic] > data:EntityPart, mix:referenceable
+  - sling:resourceType (STRING) = "sch/Topic" mandatory autocreated protected
+
+  // The topic as shown to the submitter
+  - text (STRING) mandatory
+
+  // Optional longer explanation displayed to the submitter
+  - description (STRING)
+
+  // The prompt an LLM is given to assess this topic from the submission
+  - assessmentPrompt (STRING)
+
+  // The requirements and questions that bear on this topic: where a reviewer
+  // and the AI look first. Weak, so one can be removed without first
+  // unlinking it from every topic.
+  - sources (WEAKREFERENCE) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
