@@ -17,11 +17,14 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -93,5 +96,16 @@ public class DocumentRequirement extends Requirement
     public Resource getTemplate()
     {
         return this.resource.getChild("template");
+    }
+
+    /**
+     * The sections the document is expected to contain.
+     *
+     * @return a list of section requirements in their stored order, empty if there are none
+     */
+    @NotNull
+    public List<SectionRequirement> getSections()
+    {
+        return this.getChildren(SectionRequirement.RESOURCE_TYPE, SectionRequirement.class);
     }
 }

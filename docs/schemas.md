@@ -20,6 +20,8 @@ is only a container with a name, while its actual content lives in versions.
         │   │       └── placebo  sch:AnswerOption     value, label
         │   └── cond:condition   (when this requirement applies)
         ├── consent              sch:DocumentRequirement  required, acceptedFileTypes, template
+        ├── protocol             sch:DocumentRequirement
+        │   └── funding          sch:SectionRequirement   label, required, headings, locationPrompt
         └── reb                  sch:ApprovalRequirement  approverGroup
 ```
 
@@ -45,6 +47,37 @@ at them.
 A question with `sch:AnswerOption` children is answered only with their values. The **value** is
 what an answer stores and what a condition compares against, so changing it changes the meaning
 of every answer already recorded; the **label** is only what the submitter reads.
+
+### Document sections
+
+Submitters tend to put everything in one long document. A `sch:SectionRequirement` under
+a document requirement names a section that document should contain, so that a topic can
+point at the funding section of the protocol rather than at the whole protocol. Sections
+nest, and they are requirements in their own right: they have a label, a description and
+a condition, and can be referenced. They are not among the version's requirements, and
+nothing is uploaded for them.
+
+| Property | Notes |
+|---|---|
+| `required` | Whether the document must contain the section. Defaults to true. |
+| `headings` | The headings the section usually goes by, e.g. `Funding`, `Budget`. |
+| `locationPrompt` | What an LLM is asked, to find the section when no heading matches. |
+
+Each revision of an uploaded document records where it found them, as `sub:Section`
+children of the `sub:DocumentVersion`; only the current revision is read. A section
+`fulfills` its requirement and consists of `sub:Passage`s, each with a `start` and an `end`
+`sub:Context` quoting its first and last words in the revision's Markdown. There are several
+when the section is split, none when it was looked for and not found. No node means it was
+never looked for.
+
+| Property | Notes |
+|---|---|
+| `method` | `heading` (an expected heading matched), `model` (an LLM located it), `pickedHeading` (a person named the heading), `selectedText` (a person selected the text). |
+| `confidence` | How sure the model was; only for `model`. |
+| `checkedBy` | Who picked or selected the section, or confirmed that it is missing. |
+
+A section whose text was selected by hand follows no heading, so it is reported as a
+potential deviation from the expected protocol.
 
 ### Resource types
 

@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 
 /**
  * A Sling Model wrapping a {@code sub:Document} node: a document attached to the submission, e.g. the signed
@@ -107,5 +108,19 @@ public class Document extends EntityPart
     {
         final List<DocumentVersion> versions = this.getVersions();
         return versions.isEmpty() ? null : versions.get(versions.size() - 1);
+    }
+
+    /**
+     * Where one section is found in this document. Only the current revision is read: it replaces the earlier
+     * ones.
+     *
+     * @param requirement the section requirement to look up
+     * @return the section fulfilling it, or {@code null} if nothing was uploaded or the section was never looked for
+     */
+    @Nullable
+    public Section getSection(@NotNull final SectionRequirement requirement)
+    {
+        final DocumentVersion current = this.getCurrentVersion();
+        return current == null ? null : current.getSection(requirement);
     }
 }

@@ -17,12 +17,16 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 
 /**
  * A Sling Model wrapping a {@code sub:DocumentVersion} node: one revision of a {@link Document}, holding exactly
@@ -51,6 +55,36 @@ public class DocumentVersion extends EntityPart
     public File getFile()
     {
         return this.getChild(FILE_CHILD, File.RESOURCE_TYPE, File.class);
+    }
+
+    /**
+     * Where the sections its requirement expects are found in this revision. A section never looked for is not
+     * listed.
+     *
+     * @return a list of sections, empty if none were looked for
+     */
+    @NotNull
+    public List<Section> getSections()
+    {
+        return this.getChildren(Section.RESOURCE_TYPE, Section.class);
+    }
+
+    /**
+     * Where one section is found in this revision.
+     *
+     * @param requirement the section requirement to look up
+     * @return the section fulfilling it, or {@code null} if it was never looked for
+     */
+    @Nullable
+    public Section getSection(@NotNull final SectionRequirement requirement)
+    {
+        return this.getSections().stream()
+            .filter(section -> {
+                final SectionRequirement fulfilled = section.getFulfills();
+                return fulfilled != null && fulfilled.getPath().equals(requirement.getPath());
+            })
+            .findFirst()
+            .orElse(null);
     }
 
     /**
