@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -98,10 +97,8 @@ record TreeProperty(String name, Value[] values, boolean multiple)
      */
     private static int declaredType(final NodeType type, final String name)
     {
-        return Arrays.stream(type.getPropertyDefinitions())
-            .filter(definition -> definition.getName().equals(name))
-            .mapToInt(PropertyDefinition::getRequiredType)
-            .findFirst()
+        return ContentFields.declaration(List.of(type), name)
+            .map(PropertyDefinition::getRequiredType)
             .orElse(PropertyType.UNDEFINED);
     }
 

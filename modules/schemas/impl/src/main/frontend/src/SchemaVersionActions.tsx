@@ -17,15 +17,14 @@
  */
 
 import ActionBar from "@iap/frontend-commons/components/ActionBar";
-
-import type { JcrNode } from "./schemaModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 // A module adds an action on schema versions by shipping an `ext:Extension` on this point.
 export const VERSION_ACTIONS_POINT = "SchemaVersionActions";
 
 export interface SchemaVersionActionProps {
-  version: JcrNode;
-  schema: JcrNode;
+  version: SerializedNode;
+  schema: SerializedNode;
   reload: () => void;
   removed?: () => void;
   // The rules choosing what a version is compared with by default, in order

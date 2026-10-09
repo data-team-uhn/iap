@@ -59,8 +59,7 @@
         "section": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:Section", "label": "Section" },
         "question": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:Question", "label": "Question" },
         "option": {
-          "jcr:primaryType": "nt:unstructured", "nodeType": "sch:AnswerOption", "label": "Option", "named": false,
-          "orderProperty": "defaultOrder"
+          "jcr:primaryType": "nt:unstructured", "nodeType": "sch:AnswerOption", "label": "Option", "named": false
         }
       },
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",

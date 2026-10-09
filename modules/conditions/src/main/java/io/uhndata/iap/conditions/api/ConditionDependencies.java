@@ -46,7 +46,8 @@ public final class ConditionDependencies
     /** The source of an operand naming a question whose answer it compares. */
     public static final String ANSWER_SOURCE = "answer";
 
-    private static final String VALUE = "value";
+    /** The property of an operand holding what it names. */
+    private static final String VALUE_PROPERTY = "value";
 
     private ConditionDependencies()
     {
@@ -149,7 +150,7 @@ public final class ConditionDependencies
         final List<Node> operands = new ArrayList<>();
         while (found.hasNext()) {
             final Node operand = found.nextNode();
-            if (operand.hasProperty(VALUE)) {
+            if (operand.hasProperty(VALUE_PROPERTY)) {
                 operands.add(operand);
             }
         }
@@ -167,7 +168,7 @@ public final class ConditionDependencies
     public static List<String> names(@NotNull final Node operand) throws RepositoryException
     {
         final List<String> names = new ArrayList<>();
-        for (final Value value : operand.getProperty(VALUE).getValues()) {
+        for (final Value value : operand.getProperty(VALUE_PROPERTY).getValues()) {
             names.add(value.getString());
         }
         return names;

@@ -20,7 +20,10 @@
 // its serialization. What counts as a part is what the server says: every requirement and form item
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
-import { childrenOf, isObject, type JcrNode, nameOf } from "./schemaModel";
+import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
+import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+
+import { nameOf } from "./schemaModel";
 
 const PART_SUPERTYPES = [ "sch/Requirement", "sch/FormItem" ];
 
@@ -28,12 +31,12 @@ export const OPTION_TYPE = "sch/AnswerOption";
 
 export const QUESTION_TYPE = "sch/Question";
 
-const text = (node: JcrNode, key: string): string | undefined => {
+const text = (node: SerializedNode, key: string): string | undefined => {
   const value = node[key];
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-const number = (node: JcrNode, key: string): number | undefined => {
+const number = (node: SerializedNode, key: string): number | undefined => {
   const value = node[key];
   return typeof value === "number" ? value : undefined;
 };
@@ -42,58 +45,57 @@ export const strings = (value: unknown): string[] => (Array.isArray(value) ? val
   .filter((item): item is string | number => typeof item === "string" || typeof item === "number")
   .map(String);
 
-export const resourceTypeOf = (node: JcrNode): string => String(node["sling:resourceType"]);
+export const resourceTypeOf = (node: SerializedNode): string => String(node["sling:resourceType"]);
 
 // Whether a node is a requirement or a form item, which has an identifier, as an option does not
-export const isPart = (node: JcrNode): boolean => PART_SUPERTYPES.includes(String(node["sling:resourceSuperType"]));
+export const isPart = (node: SerializedNode): boolean => PART_SUPERTYPES.includes(String(node["sling:resourceSuperType"]));
 
-export const partsOf = (node: JcrNode): JcrNode[] => childrenOf(node).filter(isPart);
+export const partsOf = (node: SerializedNode): SerializedNode[] => childrenOf(node).filter(isPart);
 
-export const isQuestion = (node: JcrNode): boolean => resourceTypeOf(node) === QUESTION_TYPE;
+export const isQuestion = (node: SerializedNode): boolean => resourceTypeOf(node) === QUESTION_TYPE;
 
-// Where an option stands among its question's, as the workflows placing options number it
-const placeOf = (option: JcrNode): number => (typeof option.defaultOrder === "number" ? option.defaultOrder : 0);
+// A question's options, in the order it keeps them
+export const optionsOf = (question: SerializedNode): SerializedNode[] => childrenOf(question)
+  .filter(child => resourceTypeOf(child) === OPTION_TYPE);
 
-// A question's options, by their places: not in the order of its keys, since a JavaScript object lists keys that
-// look like whole numbers first, whatever order they were written in, and options are named after their values
-export const optionsOf = (question: JcrNode): JcrNode[] => childrenOf(question)
-  .filter(child => resourceTypeOf(child) === OPTION_TYPE)
-  .sort((first, second) => placeOf(first) - placeOf(second));
-
-export const conditionOf = (part: JcrNode): JcrNode | undefined => {
+export const conditionOf = (part: SerializedNode): SerializedNode | undefined => {
   const condition = part["cond:condition"];
-  return isObject(condition) ? condition : undefined;
+  return isNode(condition) ? condition : undefined;
 };
 
 // What a part is called where it is shown: a requirement's label, a section's title, a question's text
-export const headingOf = (part: JcrNode): string =>
+export const headingOf = (part: SerializedNode): string =>
   text(part, "text") ?? text(part, "label") ?? text(part, "title") ?? nameOf(part);
 
-export const detailOf = (node: JcrNode, key: string): string | undefined => text(node, key);
+export const detailOf = (node: SerializedNode, key: string): string | undefined => text(node, key);
 
-export const optionLabelOf = (option: JcrNode): string => text(option, "label") ?? strings(option.value).at(0) ?? "";
+export const optionLabelOf = (option: SerializedNode): string => text(option, "label") ?? strings(option.value).at(0) ?? "";
 
 // What a part or an option is called where it is shown
-export const shownNameOf = (node: JcrNode): string =>
+export const shownNameOf = (node: SerializedNode): string =>
   resourceTypeOf(node) === OPTION_TYPE ? optionLabelOf(node) : headingOf(node);
 
-const DATA_TYPES: Record<string, string> = {
+// The words the workflows editing questions have for each type of answer, for a question no update describes
+const DATA_TYPES: Partial<Record<string, string>> = {
   text: "Text",
   long: "Whole number",
-  double: "Number",
+  double: "Decimal number",
   boolean: "Yes or no",
   date: "Date",
   file: "File",
 };
 
-export const dataTypeOf = (question: JcrNode): string => {
+// A question's type of answer, in the words of the update that would change it, as its edit dialog shows it
+export const dataTypeOf = (question: SerializedNode): string => {
   const dataType = text(question, "dataType") ?? "text";
-  return DATA_TYPES[dataType] ?? dataType;
+  const choices = fieldsOf(question).find(field => field.name === "dataType")?.choices ?? [];
+  return choices.find(choice => choice.value === dataType)?.label
+    ?? (Object.hasOwn(DATA_TYPES, dataType) ? DATA_TYPES[dataType] : undefined) ?? dataType;
 };
 
 // How many answers a question takes, in words: a positive minimum makes it required, and a maximum other
 // than one lets it take several, with zero or less meaning no limit
-export function answerCountOf(question: JcrNode): string[] {
+export function answerCountOf(question: SerializedNode): string[] {
   const min = number(question, "minAnswers") ?? 0;
   const max = number(question, "maxAnswers") ?? 1;
   const counts = [ min > 0 ? "Required" : "Optional" ];
@@ -109,7 +111,7 @@ export function answerCountOf(question: JcrNode): string[] {
 }
 
 // The range a numeric answer must fall in, in words, when it has one
-export function boundsOf(question: JcrNode): string | undefined {
+export function boundsOf(question: SerializedNode): string | undefined {
   const min = number(question, "minValue");
   const max = number(question, "maxValue");
   if (min !== undefined && max !== undefined) {
@@ -124,15 +126,15 @@ export function boundsOf(question: JcrNode): string | undefined {
 // Where conditions find the questions their answer operands name: by UUID, or by path relative to the
 // version, which is how conditions written by hand address them; and all of them, in the version's order
 export interface QuestionIndex {
-  find: (reference: string) => JcrNode | undefined;
-  questions: JcrNode[];
+  find: (reference: string) => SerializedNode | undefined;
+  questions: SerializedNode[];
 }
 
-export function indexQuestions(version: JcrNode): QuestionIndex {
+export function indexQuestions(version: SerializedNode): QuestionIndex {
   const root = `${String(version["@path"])}/`;
-  const byReference = new Map<string, JcrNode>();
-  const questions: JcrNode[] = [];
-  const visit = (node: JcrNode) => partsOf(node).forEach(part => {
+  const byReference = new Map<string, SerializedNode>();
+  const questions: SerializedNode[] = [];
+  const visit = (node: SerializedNode) => partsOf(node).forEach(part => {
     if (isQuestion(part)) {
       questions.push(part);
       byReference.set(String(part["jcr:uuid"]), part);

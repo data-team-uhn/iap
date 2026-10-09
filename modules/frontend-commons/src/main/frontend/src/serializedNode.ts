@@ -22,3 +22,12 @@ export type SerializedNode = Record<string, unknown>;
 // Whether a serialized value is a node, rather than a value or a list of values
 export const isNode = (value: unknown): value is SerializedNode =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+// What a node holds, in the order it keeps them when the `order` serialization says, or else as its keys come. Keys
+// are no order to count on: a JavaScript object lists the ones that look like whole numbers first, in numeric order
+export function childrenOf(node: SerializedNode): SerializedNode[] {
+  const order = node["@order"];
+  return Array.isArray(order)
+    ? order.map(name => node[String(name)]).filter(isNode)
+    : Object.values(node).filter(isNode);
+}

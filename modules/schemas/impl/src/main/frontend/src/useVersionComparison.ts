@@ -20,20 +20,21 @@ import { useEffect, useMemo, useState } from "react";
 
 import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
-import { candidateOf, referenceQuery } from "@iap/frontend-commons/fields/fieldsModel";
+import type { ReferenceCandidate } from "@iap/frontend-commons/fields/fieldsModel";
+import { readCandidates } from "@iap/frontend-commons/fields/referenceCandidates";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
-import { type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { readNode, useNode } from "@iap/frontend-commons/useNode";
 
 import { type ComparedField, fieldsOfDefinitions } from "./comparisonFields";
 import { conditionKeyOf, schemaSources } from "./conditionModel";
 import { compareVersions, type ConditionSaid, type VersionComparison } from "./schemaComparisonModel";
-import { type JcrNode, pathOf } from "./schemaModel";
+import { pathOf } from "./schemaModel";
 import { conditionOf, indexQuestions } from "./schemaVersionTreeModel";
 import { useOptionsFrom } from "./useOptionsFrom";
 
-const asNode = (node: JcrNode): JcrNode => node;
+const asNode = (node: SerializedNode): SerializedNode => node;
 
 // The workflow definitions describing the fields compared, for a version, its parts and their options
 export interface ComparedFieldSources {
@@ -84,34 +85,30 @@ export function useComparedFields(sources: ComparedFieldSources) {
   return { fields, loadError, reload };
 }
 
+// What a reference's target is called, by each name a reference may give it: its path, and its identifier
+const namesOf = ({ path, label, identifier }: ReferenceCandidate): [ string, string ][] =>
+  [ path, ...identifier ? [ identifier ] : [] ].map(name => [ name, label ]);
+
 // What the targets of the reference fields a comparison shows are called, by their paths and identifiers
 export function useReferenceNames(fields: ComparedField[]) {
   const doFetch = useAuthenticatedFetch();
   const [ names, setNames ] = useState<Record<string, string>>({});
-  const queries = JSON.stringify(fields.filter(field => field.referenceType !== undefined)
-    .map(field => [ referenceQuery(field), field.referenceRoot ]));
+  const targets = JSON.stringify(fields.filter(field => field.referenceType !== undefined)
+    .map(({ referenceType, referenceRoot }) => ({ referenceType, referenceRoot })));
   useEffect(() => {
-    void Promise.all((JSON.parse(queries) as [ string, string | undefined ][]).map(async ([ query, root ]) => {
-      const response = await doFetch(`/search.json?${new URLSearchParams({ query, limit: "1000" }).toString()}`);
-      if (!response.ok) {
-        throw new RequestError(response.status);
-      }
-      return ((await response.json()) as { rows: SerializedNode[] }).rows.flatMap((row): [ string, string ][] => {
-        const candidate = candidateOf(row, root);
-        return candidate ? [ [ candidate.path, candidate.label ], [ String(row["jcr:uuid"]), candidate.label ] ] : [];
-      });
-    }))
-      .then(found => setNames(Object.fromEntries(found.flat())))
+    void Promise.all((JSON.parse(targets) as Pick<ComparedField, "referenceType" | "referenceRoot">[])
+      .map(target => readCandidates(doFetch, target)))
+      .then(found => setNames(Object.fromEntries(found.flat().flatMap(namesOf))))
       // Unnamed, references show as where they point
       .catch(() => setNames({}));
-  }, [ doFetch, queries ]);
+  }, [ doFetch, targets ]);
   return names;
 }
 
 // Two versions of a schema, by their names, compared on the given fields once they are known
 export function useVersionComparison(schemaPath: string, names: [ string, string ], fields?: ComparedFields) {
-  const before = useNode(`${schemaPath}/${names[0]}`, "deep.-dereference", asNode);
-  const after = useNode(`${schemaPath}/${names[1]}`, "deep.-dereference", asNode);
+  const before = useNode(`${schemaPath}/${names[0]}`, "deep.-dereference.order", asNode);
+  const after = useNode(`${schemaPath}/${names[1]}`, "deep.-dereference.order", asNode);
   const indexBefore = useMemo(() => indexQuestions(before.value ?? {}), [ before.value ]);
   const indexAfter = useMemo(() => indexQuestions(after.value ?? {}), [ after.value ]);
   // Read once for both versions: the tags conditions name, and the items questions take their options from
@@ -122,9 +119,9 @@ export function useVersionComparison(schemaPath: string, names: [ string, string
     if (!fields || !before.value || !after.value) {
       return undefined;
     }
-    const saidIn = (version: JcrNode, index: typeof indexAfter) => {
+    const saidIn = (version: SerializedNode, index: typeof indexAfter) => {
       const sources = schemaSources(index, tags, items);
-      return (part: JcrNode): ConditionSaid | undefined => {
+      return (part: SerializedNode): ConditionSaid | undefined => {
         const condition = conditionOf(part);
         return condition && {
           key: conditionKeyOf(condition, index, pathOf(version)),

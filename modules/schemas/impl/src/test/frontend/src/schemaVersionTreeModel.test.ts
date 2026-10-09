@@ -37,17 +37,15 @@ describe("schemaVersionTreeModel", () => {
     expect(headingOf({ "@name": "unnamed", "label": " " })).toBe("unnamed");
   });
 
-  it("reads a question's options by their places, even under names that look like numbers", () => {
+  it("reads a question's options in the order it keeps them, even under names that look like numbers", () => {
     const question = withPaths("/q", {
-      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2", "defaultOrder": 20 },
-      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10", "defaultOrder": 10 },
-      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes", "defaultOrder": 30 },
+      "2": { "sling:resourceType": "sch/AnswerOption", "value": "2" },
+      "10": { "sling:resourceType": "sch/AnswerOption", "value": "10" },
+      "yes": { "sling:resourceType": "sch/AnswerOption", "value": "yes" },
       "cond:condition": { "jcr:primaryType": "cond:SingleCondition" },
+      "@order": [ "yes", "10", "2", "cond:condition" ],
     });
-    expect(optionsOf(question).map(option => option.value)).toEqual([ "10", "2", "yes" ]);
-    // Before the ones numbered, when read without a place
-    expect(optionsOf({ ...question, yes: { "sling:resourceType": "sch/AnswerOption", "value": "yes" } })
-      .map(option => option.value)).toEqual([ "yes", "10", "2" ]);
+    expect(optionsOf(question).map(option => option.value)).toEqual([ "yes", "10", "2" ]);
   });
 
   it("reads a question's options and condition", () => {
@@ -63,6 +61,12 @@ describe("schemaVersionTreeModel", () => {
     expect(dataTypeOf(age)).toBe("Whole number");
     expect(dataTypeOf(code)).toBe("exotic");
     expect(dataTypeOf({})).toBe("Text");
+    // In the words of the update that would change it, as its edit dialog shows them, else in the workflows' usual ones
+    const typed = { name: "dataType", label: "Answer type", kind: "text", multiple: false, mandatory: true,
+      multiline: false, choices: [ { value: "double", label: "Number with decimals" } ] };
+    expect(dataTypeOf({ "dataType": "double", "@fields": [ typed ] })).toBe("Number with decimals");
+    expect(dataTypeOf({ dataType: "double" })).toBe("Decimal number");
+    expect(dataTypeOf({ dataType: "constructor" })).toBe("constructor");
     expect(answerCountOf(arms)).toEqual([ "Required", "Any number of answers" ]);
     expect(answerCountOf(age)).toEqual([ "Required", "Up to 3 answers", "At least 2 answers" ]);
     expect(answerCountOf(note)).toEqual([ "Optional" ]);

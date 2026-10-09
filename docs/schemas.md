@@ -23,14 +23,14 @@ is only a container with a name, while its actual content lives in versions.
         └── reb                  sch:ApprovalRequirement  approverGroup
 ```
 
-Requirements, sections and questions are `orderable`: the order they are stored in is the order they
-are presented in. A question's answer options are presented by their `defaultOrder`, as UI
-extensions are: options are named after their values, often numbers, and a JavaScript object lists
-keys that look like whole numbers first, whatever order they were stored in. The workflows adding
-and moving options keep it (`orderProperty` in [workflows.md](workflows.md)). A schema's versions
-are not ordered, so they are listed by label, in numeric order (`1.0`, `2.0`, `10.0`). Every
-requirement and form item is `cond:Conditionable`, so it may carry one condition deciding whether it
-applies (see [conditions.md](conditions.md)).
+Requirements, sections and questions are `orderable`: the order they are stored in is
+the order they are presented in, a question's answer options included. Options are named
+after their values, often numbers, and a JavaScript object lists keys that look like
+whole numbers first, whatever order they were stored in, so the schema editor reads the
+order from `@order` (see [json-serialization.md](json-serialization.md)). A schema's
+versions are not ordered, so they are listed by label, in numeric order (`1.0`, `2.0`,
+`10.0`). Every requirement and form item is `cond:Conditionable`, so it may carry one
+condition deciding whether it applies (see [conditions.md](conditions.md)).
 Questions and requirements are referenceable, because answers, documents and reviews point back
 at them.
 
@@ -120,63 +120,77 @@ removes the property, anything else is the new value. The whole patch is checked
 written, and only the fields the workflow lists in its `fields` are accepted: a published version
 keeps everything submissions may depend on, and only its wording can change.
 
-While a version is a **draft**, its parts and answer options can change in anything they hold: a question's
-`dataType`, answer counts, bounds, pattern and `optionsFrom`, what a document requirement accepts and
-whether it is required, who approves an approval, an option's `value`, and all of their wording. Which
-fields a question offers follows its `dataType`: bounds only for numbers, a pattern only for text, and a
-field that stops applying when the `dataType` changes is removed. Templates come later.
+While a version is a **draft**, its parts and answer options can change in anything they
+hold: a question's `dataType`, answer counts, bounds, pattern and `optionsFrom`, what a
+document requirement accepts and whether it is required, who approves an approval, an
+option's `value`, and all of their wording. Which fields a question offers follows its
+`dataType`: bounds only for numbers, a pattern only for text, and a field that stops
+applying when the `dataType` changes is removed.
 
-Each of a version's two update workflows says what it allows as its `notice` (see [workflows.md](workflows.md)),
-which the version's page shows under its title: that anything can change in a draft, or that only the wording of a
-published version can be corrected, the rest needing a new version.
+Each of a version's two update workflows says what it allows as its `notice` (see
+[workflows.md](workflows.md)), which the version's page shows under its title: that
+anything can change in a draft, or that only the wording of a published version can be
+corrected, the rest needing a new version.
 
-Parts and options are **added** with the engine's `createContent` task (see [workflows.md](workflows.md)), where
-the node types say they may go: requirements in a version, sections and questions in a form or a section, options
-in a question. The new part goes before the sibling named in `before`, or else last, and is filled in from the
-`patch` with the fields a draft's update offers; `@creatable` tells an editor what may be added where. Parts and
-options are **removed** into the archive. A question that a condition elsewhere in the version names stays, and
-the refusal names the parts whose conditions depend on it (`ConditionDependencyVeto`, a deletion veto, which asks
-the conditions module what depends on what); removing the condition's own part along with the question is fine.
-Parts and options are **moved** with the engine's `moveContent` task, into the `parent` the event names, or within
-their own, before the sibling named in `before`, or else last, so one event both reorders and moves. They go only
-where the node types say they may, and never out of their version. A condition that names a moved question by its
-path names it by its identifier from then on, so a move breaks no condition.
-Parts are **renamed** with the engine's `renameContent` task, and created with the identifier asked for, to a name
-made of letters, digits, `-` and `_`, starting with a letter or a digit, which keeps dots out of paths, where they
-would read as selectors. The create workflows also say so in words, as their `nameHint`, which the editor shows
-under the identifier, and a test holds the create and rename workflows to the same pattern and words. The editor
-suggests an identifier from what a new part says, as `@creatable` allows it, until one is given. An option has no
-identifier of its own, which `createSchemaPart` says by listing it as not `named`: its `value` is what answers store,
-and a draft can edit it.
-When a part applies is **set** with the engine's `replaceContent` task: the event's `content` is its whole new
-`cond:condition`, or `null` to remove it, and only condition node types may be written. The editor builds it with the
-conditions module's `ConditionDialog` (see [conditions.md](conditions.md)), comparing the answer to a question of the
-version, named by its identifier, the submission's tags or one of its properties, with values typed as they hold. A question
-taking its options from elsewhere (`optionsFrom`) offers the items there, by their titles or labels, loaded once for
-the version.
-A question either lists its options or takes them from elsewhere, as `optionsFrom`, not both: `createSchemaPart` adds
-no option to a question with an `optionsFrom` (its guard reads the question's own property, as an `ownProperty`
-operand, see [conditions.md](conditions.md)), and a draft that has both is not published. No two options of a
-question share a `value`: the option workflows list it as `unique`, so a repeated value is refused as it is entered,
-and the publish check still refuses one that came another way.
-The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
-entity, which for a part or an option is its version.
+Parts and options are **added** with the engine's `createContent` task (see
+[workflows.md](workflows.md)), where the node types say they may go: requirements in a
+version, sections and questions in a form or a section, options in a question. The new
+part goes before the sibling named in `before`, or else last, and is filled in from the
+`patch` with the fields a draft's update offers; `@creatable` tells an editor what may
+be added where. Parts and options are **removed** into the archive. A question that a
+condition elsewhere in the version names stays, and the refusal names the parts whose
+conditions depend on it (`ConditionDependencyVeto`, a deletion veto, which asks the
+conditions module what depends on what); removing the condition's own part along with
+the question is fine. Parts and options are **moved** with the engine's `moveContent`
+task, into the `parent` the event names, or within their own, before the sibling named
+in `before`, or else last, so one event both reorders and moves. They go only where the
+node types say they may, and never out of their version. A condition that names a moved
+question by its path names it by its identifier from then on, so a move breaks no
+condition.
+Parts are **renamed** with the engine's `renameContent` task, and created with the
+identifier asked for, to a name made of letters, digits, `-` and `_`, starting with a
+letter or a digit, which keeps dots out of paths, where they would read as selectors.
+The create workflows also say so in words, as their `nameHint`, which the editor shows
+under the identifier, and a test holds the create and rename workflows to the same
+pattern and words. The editor suggests an identifier from what a new part says, as
+`@creatable` allows it, until one is given. An option has no identifier of its own,
+which `createSchemaPart` says by listing it as not `named`: its `value` is what answers
+store, and a draft can edit it.
+When a part applies is **set** with the engine's `replaceContent` task: the event's
+`content` is its whole new `cond:condition`, or `null` to remove it, and only condition
+node types may be written. The editor builds it with the conditions module's
+`ConditionDialog` (see [conditions.md](conditions.md)), comparing the answer to a
+question of the version, named by its `jcr:uuid`, the submission's tags or one of its
+properties, with values typed as they hold. A question taking its options from elsewhere
+(`optionsFrom`) offers the items there, by their titles or labels, loaded once for the
+version.
+A question either lists its options or takes them from elsewhere, as `optionsFrom`, not
+both: `createSchemaPart` adds no option to a question with an `optionsFrom` (its guard
+reads the question's own property, as an `ownProperty` operand, see
+[conditions.md](conditions.md)), and a draft that has both is not published. No two
+options of a question share a `value`: the option workflows list it as `unique`, so a
+repeated value is refused as it is entered, and the publish check still refuses one that
+came another way.
+The guards read the version's own tags: a condition's `property` and `tags` operands
+resolve on the enclosing entity, which for a part or an option is its version.
 
 Parts and answer options of a published version can only be **corrected**, and a
-correction reaches the submissions already filed against that version at once. A correction may not
-change what a stored answer means, which answers are valid, or which parts apply: those take a new
-version. What can be corrected is what people read and what guides reading answers out of documents:
-a requirement's `label` and `description`, a section's `title` and `description`, a question's `text`,
-`description`, `patternMessage`, `purpose` and `extractionPrompt`, a document requirement's
-`aiCheckPrompt`, and an option's `label` and `description`. An option's `value`, a question's data type,
-answer counts, bounds, pattern and conditions, and what a requirement requires, cannot.
+correction reaches the submissions already filed against that version at once. A
+correction may not change what a stored answer means, which answers are valid, or which
+parts apply: those take a new version. What can be corrected is what people read and
+what guides reading answers out of documents: a requirement's `label` and `description`,
+a section's `title` and `description`, a question's `text`, `description`,
+`patternMessage`, `purpose` and `extractionPrompt`, a document requirement's
+`aiCheckPrompt`, and an option's `label` and `description`. An option's `value`, a
+question's data type, answer counts, bounds, pattern and conditions, and what a
+requirement requires, cannot.
 
-An editor learns which fields it may offer from the `fields` serialization: `@fields` on each
-schema, version, part and option lists the fields the requesting user's `update` could change there,
-with their kind, the values they may take and when they apply (see `updateContent` in
-[workflows.md](workflows.md)). It is read from the configuration of the update workflow that would
-run, so no editor keeps a list of its own. A version's `workflow` may point only at a user workflow,
-under `/Workflows`.
+An editor learns which fields it may offer from the `fields` serialization: `@fields` on
+each schema, version, part and option lists the fields the requesting user's `update`
+could change there, with their kind, the values they may take and when they apply (see
+`updateContent` in [workflows.md](workflows.md)). It is read from the configuration of
+the update workflow that would run, so no editor keeps a list of its own. A version's
+`workflow` may point only at a user workflow, under `/Workflows`.
 
 A draft is **published** only when nothing in it would break once it is frozen: answer counts and
 value bounds that are not upside down, patterns that compile, option values that are present and
@@ -192,13 +206,14 @@ listed. What is in use is retired instead.
 
 ### Copying
 
-A new version, of an existing schema or of a new one, can start as a copy of any version, of any
-schema and in any state, named by its path in the event's `source`. `createVersion`'s workflow creates
-the version, then copies the source into it with the engine's `copyContent` task (see
-[workflows.md](workflows.md)), keeping the new version's own label, then tags it `draft`, which
-replaces where the source stood. The copy keeps every part, option, condition and template; references
-to anything outside it, such as the version's workflow, are kept, and a condition naming a question
-by path keeps that path, which now finds the copied question.
+A new version, of an existing schema or of a new one, can start as a copy of any
+version, of any schema and in any state, named by its path in the event's `source`.
+`createVersion`'s workflow creates the version, then copies the source into it with the
+engine's `copyContent` task (see [workflows.md](workflows.md)), keeping the new
+version's own label, then tags it `draft`, which replaces where the source stood. The
+copy keeps every part, option, condition and template; references to anything outside
+it, such as the version's workflow, are kept, and a condition naming a question by path
+keeps that path, which now finds the copied question.
 
 ## In the admin console
 

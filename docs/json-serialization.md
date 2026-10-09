@@ -83,10 +83,11 @@ that descends at all — so Sling-style URLs like `.1.json` work without naming 
 | `fields` | off | 50 | Adds `@fields`, the fields the requesting user's `update` event could change on the node (contributed by `workflows`, see `updateContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 | `creatable` | off | 50 | Adds `@creatable`, the types of content the requesting user's `create` event could add inside the node, each with the fields it starts with (contributed by `workflows`, see `createContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 
-`order` is for readers that need children in their stored order, such as the options of a question. The keys of a
-JSON object are no way to carry it: nothing promises a reader keeps them in order, and JavaScript lists keys that
-look like whole numbers first, in numeric order, so an option named `2` would come before one named `10` whatever
-order they were stored in.
+`order` is for readers that need children in their stored order, such as the schema
+editor, for the parts of a version and the options of a question. The keys of a JSON
+object are no way to carry it: nothing promises a reader keeps them in order, and
+JavaScript lists keys that look like whole numbers first, in numeric order, so an option
+named `2` would come before one named `10` whatever order they were stored in.
 
 `simple` is worth understanding before designing an endpoint. It removes every
 `sling:` property, which only say which scripts render the resource, and every `jcr:`

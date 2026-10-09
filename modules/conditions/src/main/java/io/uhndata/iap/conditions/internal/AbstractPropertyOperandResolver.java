@@ -27,7 +27,8 @@ import io.uhndata.iap.content.models.Content;
 
 /**
  * What resolves operands reading one property, named by the operand value, of some content the condition is about:
- * the subclass says which.
+ * the subclass says which. A subclass names {@code OperandResolver} as the service in its {@code @Component}, since
+ * DS does not look through this class for the interface it implements.
  *
  * @version $Id$
  * @since 0.1.0

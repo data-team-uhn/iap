@@ -32,6 +32,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -103,6 +104,9 @@ class AddLinkHandlerTest
     void linksNothingWhenTheEventNamesNothing() throws WorkflowException, PersistenceException
     {
         this.handler.execute(context(Map.of()));
+        // Blank, or something other than text, as for any entry an event gives
+        this.handler.execute(context(Map.of("source", " ")));
+        this.handler.execute(context(Map.of("source", 12)));
 
         Mockito.verifyNoInteractions(this.linkable);
     }
@@ -123,11 +127,19 @@ class AddLinkHandlerTest
     {
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of("source", "/Schemas/study/v9"))));
-        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(Map.of("source", 12))));
-        final Resource unknown = Mockito.mock(Resource.class);
-        Mockito.when(this.resolver.getResource("/elsewhere")).thenReturn(unknown);
-        assertThrows(InvalidPayloadException.class,
+    }
+
+    @Test
+    void failsWhileWhatIsThereCannotBeRead()
+    {
+        // As every model does for a moment while the models are registered again
+        final Resource unreadable = Mockito.mock(Resource.class);
+        Mockito.when(this.resolver.getResource("/elsewhere")).thenReturn(unreadable);
+        assertThrows(WorkflowFailedException.class,
             () -> this.handler.execute(context(Map.of("source", "/elsewhere"))));
+
+        Mockito.when(this.host.adaptTo(Linkable.class)).thenReturn(null);
+        assertThrows(WorkflowFailedException.class, () -> this.handler.execute(context(Map.of("source", SOURCE))));
     }
 
     @Test

@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import javax.jcr.Node;
-import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -26,9 +25,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * Where among its new siblings content goes, as the event of a task placing it says: before the sibling it names as
- * {@code before}, or else last. An activity may also have content numbered by its place, in the property it names as
- * {@code orderProperty}, for what reads content in an order a property gives rather than the order it is stored in,
- * as UI extensions are read by their {@code defaultOrder}.
+ * {@code before}, or else last. The parent keeps the order, and the {@code order} serialization reports it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,12 +34,6 @@ final class Placement
 {
     /** The payload entry naming the sibling content goes before. */
     static final String BEFORE_PARAMETER = "before";
-
-    /** The activity property naming the property that numbers content by its place. */
-    static final String ORDER_PROPERTY = "orderProperty";
-
-    /** How far apart places are numbered, which leaves room for content placed between them by hand. */
-    private static final long STEP = 10;
 
     private Placement()
     {
@@ -65,38 +56,13 @@ final class Placement
         if (before == null) {
             return null;
         }
-        if (!(before instanceof String) || !parent.hasNode((String) before)) {
+        // A sibling is named, never reached by a path, which hasNode would accept as well
+        if (!(before instanceof String name) || name.contains("/") || !parent.hasNode(name)) {
             throw new InvalidPayloadException("There is nothing called " + before + " to go before");
         }
         if (!parent.getPrimaryNodeType().hasOrderableChildNodes()) {
             throw new InvalidPayloadException(parent.getName() + " keeps no order to place content in");
         }
-        return (String) before;
-    }
-
-    /**
-     * Numbers the children of a node that are of one type by their places, {@value #STEP} apart, so that reading them
-     * in the order of that property finds them in the order the node keeps them.
-     *
-     * @param parent the node
-     * @param type the primary type of the children numbered
-     * @param property the property numbering them, or {@code null} to number nothing
-     * @throws RepositoryException when the children cannot be read or numbered
-     */
-    static void number(final Node parent, final String type, final String property) throws RepositoryException
-    {
-        if (property == null) {
-            return;
-        }
-        long place = 0;
-        for (final NodeIterator children = parent.getNodes(); children.hasNext();) {
-            final Node child = children.nextNode();
-            if (child.getPrimaryNodeType().getName().equals(type)) {
-                place += STEP;
-                if (!child.hasProperty(property) || child.getProperty(property).getLong() != place) {
-                    child.setProperty(property, place);
-                }
-            }
-        }
+        return name;
     }
 }

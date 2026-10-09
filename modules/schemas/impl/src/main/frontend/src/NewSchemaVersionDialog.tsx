@@ -22,13 +22,14 @@ import { Alert, Button, DialogActions, DialogContent, DialogContentText, Stack, 
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-import { type JcrNode, nextVersionLabel, titleOf } from "./schemaModel";
+import { nextVersionLabel, titleOf } from "./schemaModel";
 import SchemaVersionPicker from "./SchemaVersionPicker";
 
 interface NewSchemaVersionDialogProps {
-  schema: JcrNode;
+  schema: SerializedNode;
   // The path of the version it starts as a copy of, or nothing to start empty
   source: string;
   onClose: () => void;

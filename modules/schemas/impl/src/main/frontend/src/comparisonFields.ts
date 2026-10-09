@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
+import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+
 import { type NamedField } from "./schemaComparisonModel";
-import { childrenOf, isObject, type JcrNode, nameOf, tagsOf } from "./schemaModel";
+import { nameOf, tagsOf } from "./schemaModel";
 
 // The fields a comparison looks at, as the workflows editing drafts describe them: the names they are edited under,
 // and how their values read. No React, no fetch.
@@ -30,19 +32,25 @@ export interface ComparedField extends NamedField {
   referenceRoot?: string;
 }
 
-const labelOf = (node: JcrNode): string => (typeof node.label === "string" ? node.label : nameOf(node));
+const labelOf = (node: SerializedNode): string => (typeof node.label === "string" ? node.label : nameOf(node));
+
+// A choice's value and its words, as the server reads them: the value it names, or else its name, and its label, or
+// else its value
+function choiceOf(choice: SerializedNode): [ string, string ] {
+  const value = typeof choice.value === "string" ? choice.value : nameOf(choice);
+  return [ value, typeof choice.label === "string" ? choice.label : value ];
+}
 
 // Every field the versions of the given workflow definitions tagged active let an update change, the first
 // description of each name kept
-export function fieldsOfDefinitions(definitions: JcrNode[]): ComparedField[] {
+export function fieldsOfDefinitions(definitions: SerializedNode[]): ComparedField[] {
   const found = new Map<string, ComparedField>();
-  const visit = (node: JcrNode) => {
-    if (isObject(node.fields)) {
+  const visit = (node: SerializedNode) => {
+    if (isNode(node.fields)) {
       childrenOf(node.fields).filter(field => !found.has(nameOf(field))).forEach(field => found.set(nameOf(field), {
         name: nameOf(field),
         label: labelOf(field),
-        choices: Object.fromEntries(isObject(field.choices)
-          ? childrenOf(field.choices).map(choice => [ nameOf(choice), labelOf(choice) ]) : []),
+        choices: Object.fromEntries(isNode(field.choices) ? childrenOf(field.choices).map(choiceOf) : []),
         ...typeof field.referenceType === "string" ? { referenceType: field.referenceType } : {},
         ...typeof field.referenceRoot === "string" ? { referenceRoot: field.referenceRoot } : {},
       }));

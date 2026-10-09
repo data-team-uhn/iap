@@ -30,7 +30,6 @@ import io.uhndata.iap.content.models.Content;
  * @version $Id$
  * @since 0.1.0
  */
-// Named, since the service is implemented through the shared base class, which DS would not look through
 @Component(service = OperandResolver.class)
 public class OwnPropertyOperandResolver extends AbstractPropertyOperandResolver
 {

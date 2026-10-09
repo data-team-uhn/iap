@@ -236,10 +236,6 @@
   // detailing When this option applies
   - description (STRING)
 
-  // Its place among its question's options, lower first, as the workflows adding and moving options keep it:
-  // what reads the options orders them by it, not by the order of a JSON object's keys
-  - defaultOrder (LONG) = "0" mandatory autocreated
-
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple

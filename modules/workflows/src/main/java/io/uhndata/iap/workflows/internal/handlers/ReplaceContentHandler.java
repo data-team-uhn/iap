@@ -58,11 +58,11 @@ public class ReplaceContentHandler implements ServiceTaskHandler
     /** The payload entry holding the new tree. */
     static final String CONTENT_PARAMETER = "content";
 
-    /** The activity property naming the child replaced. */
-    static final String CHILD = "child";
+    /** The activity setting naming the child replaced. */
+    static final String CHILD_PARAMETER = "child";
 
-    /** The activity property listing the node types the tree may hold. */
-    static final String NODE_TYPES = "nodeTypes";
+    /** The activity setting listing the node types the tree may hold. */
+    static final String NODE_TYPES_PARAMETER = "nodeTypes";
 
     @Override
     public String getName()
@@ -73,11 +73,12 @@ public class ReplaceContentHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final String child = context.getActivity().get(CHILD, String.class);
-        final String[] listed = context.getActivity().get(NODE_TYPES, String[].class);
+        final String child = context.getActivity().get(CHILD_PARAMETER, String.class);
+        final String[] listed = context.getActivity().get(NODE_TYPES_PARAMETER, String[].class);
         if (child == null || listed == null) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " must name the " + CHILD + " it replaces and the " + NODE_TYPES + " it may hold");
+                + " must name the " + CHILD_PARAMETER + " it replaces and the " + NODE_TYPES_PARAMETER
+                + " it may hold");
         }
         final JsonObject content = EventJson.objectOrNull(context, CONTENT_PARAMETER);
         final Resource host = ExecutionHost.of(context);

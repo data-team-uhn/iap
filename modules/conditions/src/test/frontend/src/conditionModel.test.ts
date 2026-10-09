@@ -123,6 +123,9 @@ describe("conditionModel", () => {
       expect(valueProblem("1.5", "long")).toBe("Enter a whole number.");
       expect(valueProblem("1.5", "double")).toBeUndefined();
       expect(valueProblem(" ", "decimal")).toBe("Enter a number.");
+      // As the fields editor refuses them: too large to hold exactly, or not typed as a decimal
+      expect(valueProblem("9007199254740993", "long")).toBe("Enter a whole number.");
+      expect(valueProblem("0x10", "double")).toBe("Enter a number.");
       expect(valueProblem("2026-09-29", "date")).toBeUndefined();
       expect(valueProblem("2026-13-45", "date")).toBe("Enter a date.");
       expect(valueProblem("soon", "date")).toBe("Enter a date.");

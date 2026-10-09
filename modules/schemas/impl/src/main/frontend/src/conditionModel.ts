@@ -23,8 +23,9 @@ import {
   type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
   type ValueType,
 } from "@iap/conditions/conditionModel";
+import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { isObject, type JcrNode, nameOf, pathOf } from "./schemaModel";
+import { nameOf, pathOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
 // The comparison types of the question data types; a file compares as nothing in particular
@@ -41,16 +42,16 @@ const VALUE_TYPES: Record<string, ValueType | undefined> = {
 export type ItemChoices = Record<string, Choice[]>;
 
 // The items under a node, as its deep serialization gives them: each by its path, called by its title or label
-export function itemChoicesOf(node: JcrNode): Choice[] {
+export function itemChoicesOf(node: SerializedNode): Choice[] {
   return Object.entries(node)
-    .filter((entry): entry is [ string, JcrNode ] => isObject(entry[1]) && !entry[0].includes(":"))
+    .filter((entry): entry is [ string, SerializedNode ] => isNode(entry[1]) && !entry[0].includes(":"))
     .flatMap(([ name, item ]) => [
       { value: String(item["@path"]), label: strings(item.title ?? item.label).at(0) ?? name },
       ...itemChoicesOf(item),
     ]);
 }
 
-export function answerShapeOf(question: JcrNode, items: ItemChoices = {}): OperandShape {
+export function answerShapeOf(question: SerializedNode, items: ItemChoices = {}): OperandShape {
   const listed = optionsOf(question).map(option => ({
     value: strings(option.value).at(0) ?? "",
     label: optionLabelOf(option),
@@ -91,21 +92,22 @@ export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
   sources.filter(source => source.name !== "ownProperty");
 
 // The questions a part's condition can compare the answers to: any in its version, but itself and what it holds
-export const questionsFor = (part: JcrNode, index: QuestionIndex): JcrNode[] => index.questions
+export const questionsFor = (part: SerializedNode, index: QuestionIndex): SerializedNode[] => index.questions
   .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));
 
 // A condition as two versions can compare it: what it stores, without the repository's bookkeeping, and the
 // questions it compares the answers of by their identifiers in the version, which a copy keeps and a move does not
 // change, rather than by the identifiers a copy changes. A question whose identifier another shares goes by where it
 // stands. Keys are sorted, so that the order they were written in does not count.
-export function conditionKeyOf(condition: JcrNode, index: QuestionIndex, version: string): string {
-  const keyOf = (question: JcrNode) => (index.questions.filter(other => nameOf(other) === nameOf(question)).length === 1
-    ? nameOf(question) : pathOf(question).slice(version.length + 1));
-  const canonical = (node: JcrNode): JcrNode => Object.fromEntries(Object.entries(node)
+export function conditionKeyOf(condition: SerializedNode, index: QuestionIndex, version: string): string {
+  const keyOf = (question: SerializedNode) =>
+    (index.questions.filter(other => nameOf(other) === nameOf(question)).length === 1
+      ? nameOf(question) : pathOf(question).slice(version.length + 1));
+  const canonical = (node: SerializedNode): SerializedNode => Object.fromEntries(Object.entries(node)
     .filter(([ key ]) => !/^(jcr:|sling:|@)/.test(key))
     .sort(([ first ], [ second ]) => first.localeCompare(second))
     .map(([ key, value ]) => {
-      if (isObject(value)) {
+      if (isNode(value)) {
         return [ key, canonical(value) ];
       }
       if (key === "value" && node.source === "answer") {

@@ -24,17 +24,25 @@ import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
 import { creatableOf, fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode, lastSegmentOf, pathOf, renamedPath } from "./schemaModel";
+import { lastSegmentOf, pathOf, renamedPath } from "./schemaModel";
 import SchemaNodeIdentifier from "./SchemaNodeIdentifier";
 import { ReloadTree, useTreeEvent } from "./schemaTree";
 import { isPart } from "./schemaVersionTreeModel";
 
+interface SchemaNodeEditActionProps {
+  node: SerializedNode;
+  // What holds it, which says what it may be named
+  parent: SerializedNode;
+  title: string;
+}
+
 // Corrects what a part or an option says, when the server offers it: the fields are the ones its update
 // would change. A part's identifier is shown too, and renamed on its own where that is offered. The tree is read
 // again only once the dialog is done: the part's card holds the dialog, and would go with it, under its new name.
-function SchemaNodeEditAction({ node, parent, title }: { node: JcrNode; parent: JcrNode; title: string }) {
+function SchemaNodeEditAction({ node, parent, title }: SchemaNodeEditActionProps) {
   const [ editing, setEditing ] = useState(false);
   // Where the node is while the dialog is open, which renaming it changes
   const [ path, setPath ] = useState(pathOf(node));
@@ -62,8 +70,9 @@ function SchemaNodeEditAction({ node, parent, title }: { node: JcrNode; parent: 
           title={title}
           node={node}
           onSave={async changes => {
-            renamed.current = false;
             await send(path, "update", patch(changes));
+            // The update read the tree again, under the new name; one refused leaves that to closing
+            renamed.current = false;
           }}
           onClose={() => {
             setEditing(false);

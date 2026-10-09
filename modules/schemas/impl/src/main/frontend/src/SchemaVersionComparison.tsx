@@ -26,10 +26,11 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 import { type ComparisonSummary, type LabelledDifference } from "./schemaComparisonModel";
 import PartList, { FieldChanges } from "./SchemaComparisonOutline";
-import { type JcrNode, labelOf, nameOf, pathOf, titleOf, versionsOf } from "./schemaModel";
+import { labelOf, nameOf, pathOf, titleOf, versionsOf } from "./schemaModel";
 import { comparisonPageUrl, schemaPageUrl } from "./useSchemaList";
 import {
   type ComparedFields, type ComparedFieldSources, useComparedFields, useReferenceNames, useVersionComparison,
@@ -99,7 +100,7 @@ function ComparedVersions({ schemaPath, names, fields, referenceNames }: Compare
 }
 
 interface SchemaVersionComparisonProps {
-  schema: JcrNode;
+  schema: SerializedNode;
   // The version compared with, then the one compared
   names: [ string, string ];
   // The workflow definitions describing the fields compared

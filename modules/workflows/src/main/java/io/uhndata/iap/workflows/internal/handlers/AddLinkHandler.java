@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.Objects;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
@@ -28,6 +26,7 @@ import io.uhndata.iap.links.models.Linkable;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -61,40 +60,41 @@ public class AddLinkHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " needs a linkType and the event entry it links to");
         }
-        final Object path = context.getEvent().get((String) entry);
-        if (path == null) {
+        final Resource destination = EventPaths.resourceAt(context, (String) entry, "to link to");
+        if (destination == null) {
             return;
         }
-        final Content content = contentAt(context, path);
+        final Content content = contentOf(destination);
         final Resource host = ExecutionHost.of(context);
-        final Linkable linkable =
-            Objects.requireNonNull(host.adaptTo(Linkable.class), "Any resource adapts to Linkable");
+        final Linkable linkable = host.adaptTo(Linkable.class);
+        if (linkable == null) {
+            // Any resource adapts, except while the models are being registered again
+            throw new WorkflowFailedException("Cannot read " + host.getPath() + " as something links can be added to");
+        }
         final Object label = context.getActivity().get("linkLabel");
         try {
             linkable.addLink(content, (String) type, label instanceof String ? (String) label : null);
         } catch (final IllegalArgumentException e) {
-            throw new InvalidPayloadException("Cannot link " + host.getPath() + " to " + path + ": " + e.getMessage());
+            throw new InvalidPayloadException("Cannot link " + host.getPath() + " to " + destination.getPath() + ": "
+                + e.getMessage());
         } catch (final IllegalStateException e) {
-            throw new PersistenceException("Cannot link " + host.getPath() + " to " + path, e);
+            throw new PersistenceException("Cannot link " + host.getPath() + " to " + destination.getPath(), e);
         }
     }
 
     /**
      * The content an event names to link to.
      *
-     * @param context the task's context
-     * @param path what the event gives, expected to be a path
-     * @return the content there
-     * @throws InvalidPayloadException when there is no content there
+     * @param destination what is at the path the event gives
+     * @return it, as content
+     * @throws WorkflowFailedException when it cannot be read as content
      */
-    private static Content contentAt(final WorkflowTaskContext context, final Object path)
-        throws InvalidPayloadException
+    private static Content contentOf(final Resource destination) throws WorkflowFailedException
     {
-        final Resource destination = path instanceof String
-            ? context.getResourceResolver().getResource((String) path) : null;
-        final Content content = destination == null ? null : destination.adaptTo(Content.class);
+        final Content content = destination.adaptTo(Content.class);
         if (content == null) {
-            throw new InvalidPayloadException("There is nothing at " + path + " to link to");
+            // Any resource adapts, except while the models are being registered again
+            throw new WorkflowFailedException("Cannot read " + destination.getPath() + " as content to link to");
         }
         return content;
     }

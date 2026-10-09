@@ -18,7 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import CodePill from "@iap/schemas/CodePill";
+import CodePill from "@iap/frontend-commons/components/CodePill";
 
 // Which the test environment does not lay out: how wide the pill's text is, and how wide it may be
 const widths = (scroll: number, client: number) => {

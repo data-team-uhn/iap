@@ -113,7 +113,7 @@ operands elsewhere in its entity that use one of them, and the part each such co
 is on. The schema editor refuses to remove a question other parts' conditions depend on
 this way.
 
-## Aggregators
+### Aggregators
 
 An operand's `aggregate` folds its values into one before comparison — the
 principled way to use the single-value ordering comparators against a set, e.g.
@@ -192,38 +192,47 @@ comparison type, and the unquoted `10` is stored as a number regardless.
 
 ## Editing in the browser
 
-The module's frontend (`@iap/conditions`) reads and builds conditions for any module that stores them.
+The module's frontend (`@iap/conditions`) reads and builds conditions for any module
+that stores them.
 
-- `conditionModel.ts` is the pure half: the `COMPARATORS` and `AGGREGATES` catalogs, what an operand holds (an
-  `OperandShape`: its type, whether it holds several values, and the choices it can be compared with), a draft a
-  builder edits (`draftOf` a stored condition, always a group at the top), whether it can be written
-  (`isComplete`), the content a `replaceContent` event writes from it (`contentOf`, `null` for no condition), and
-  the words it reads as (`describeCondition`, `whenApplies`).
-- `ConditionBuilder` edits a draft: groups of which all or any must hold, each condition comparing what a source
-  reads, optionally folded by an aggregate, with values of the type it holds, or with what another source reads.
-  Comparators are offered by what the first operand holds: ordering ones for one value of a type with an order,
-  set ones for several values; a new condition starts from the first source, "is" and a value, and what a
-  condition still needs is marked required. Groups nest as deep as needed, each shaded a step deeper than the one
-  holding it, its conditions joined along a line by "And" or "Or", and each can be collapsed to what it says.
-  `ConditionDialog` edits a stored condition whole and says, once it is complete, when what it guards will apply, in the `AppliesWhenLine` a module shows where it lists what the condition guards; given an
-  `onEdit`, that line is also what is pressed to change the condition.
+- `conditionModel.ts` is the pure half: the `COMPARATORS` and `AGGREGATES` catalogs,
+  what an operand holds (an `OperandShape`: its type, whether it holds several values,
+  and the choices it can be compared with), a draft a builder edits (`draftOf` a stored
+  condition, always a group at the top), whether it can be written (`isComplete`), the
+  content a `replaceContent` event writes from it (`contentOf`, `null` for no
+  condition), and the words it reads as (`describeCondition`, `whenApplies`).
+- `ConditionBuilder` edits a draft: groups of which all or any must hold, each condition
+  comparing what a source reads, optionally folded by an aggregate, with values of the
+  type it holds, or with what another source reads. Comparators are offered by what the
+  first operand holds: ordering ones for one value of a type with an order, set ones for
+  several values; a new condition starts from the first source, "is" and a value, and
+  what a condition still needs is marked required. Groups nest as deep as needed, each
+  shaded a step deeper than the one holding it, its conditions joined along a line by
+  "And" or "Or", and each can be collapsed to what it says. `ConditionDialog` edits a
+  stored condition whole and says, once it is complete, when what it guards will apply,
+  in the `AppliesWhenLine` a module shows where it lists what the condition guards;
+  given an `onEdit`, that line is also what is pressed to change the condition.
 
-Operand sources are pluggable, as on the server. An `OperandSource` gives its `name` (the stored `source`), what
-choosing it reads as, what its `value` names if anything (`valueLabel`), the `shape` of what its operands hold,
-and how they read. The module ships `tagsSource` (given the tag choices `useTagChoices` loads), `propertySource` and
-`ownPropertySource`, each given what the using module calls what a condition is evaluated for ("submission"), so
-that they read "The submission's tags" rather than "its"; the schemas module adds its `answer` source, whose operands hold the
-answers to a question of the version, typed by its `dataType` and offering its options. A source whose operands
-name something picked rather than typed, such as a question, passes the builder a function rendering an editor for
-it.
+Operand sources are pluggable, as on the server. An `OperandSource` gives its `name`
+(the stored `source`), what choosing it reads as, what its `value` names if anything
+(`valueLabel`), the `shape` of what its operands hold, and how they read. The module
+ships `tagsSource` (given the tag choices `useTagChoices` loads), `propertySource` and
+`ownPropertySource`, each given what the using module calls what a condition is
+evaluated for ("submission"), so that they read "The submission's tags" rather than
+"its"; the schemas module adds its `answer` source, whose operands hold the answers to a
+question of the version, typed by its `dataType` and offering its options. A source
+whose operands name something picked rather than typed, such as a question, passes the
+builder a function rendering an editor for it.
 
-Each aggregate says which types it `accepts` and what it outputs, a fixed type or the one it folds (`"same"`),
-as the evaluator does; the builder offers one where an operand can hold several values of a type it accepts, and
-treats the operand as holding the output from then on. Only `count` is offered so far; `sum`, `avg`, `min` and
-`max` are one catalog entry each.
+Each aggregate says which types it `accepts` and what it outputs, a fixed type or the
+one it folds (`"same"`), as the evaluator does; the builder offers one where an operand
+can hold several values of a type it accepts, and treats the operand as holding the
+output from then on. Only `count` is offered so far; `sum`, `avg`, `min` and `max` are
+one catalog entry each.
 
-A comparator, source or aggregate the model does not know is shown by its stored name and kept; a condition of a
-kind it does not know is shown and can be removed, but a draft holding one cannot be written.
+A comparator, source or aggregate the model does not know is shown by its stored name
+and kept; a condition of a kind it does not know is shown and can be removed, but a
+draft holding one cannot be written.
 
 ## Future work
 

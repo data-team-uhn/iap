@@ -23,12 +23,12 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import { Box, ButtonBase, Chip, Stack, Typography } from "@mui/material";
 
+import CodePill from "@iap/frontend-commons/components/CodePill";
 import { compareText } from "@iap/frontend-commons/diff/contentDiffModel";
 import TextDiff from "@iap/frontend-commons/diff/TextDiff";
 import ValueChange from "@iap/frontend-commons/diff/ValueChange";
 import { TOUCH_TARGET } from "@iap/frontend-commons/touchTarget";
 
-import CodePill from "./CodePill";
 import { type ComparedField, isTextChange, shownValue } from "./comparisonFields";
 import {
   type Change, type LabelledDifference, type OptionComparison, type PartComparison,

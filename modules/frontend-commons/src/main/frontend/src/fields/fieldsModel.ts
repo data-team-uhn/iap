@@ -17,6 +17,7 @@
  */
 
 import { escapeJQL } from "../escape";
+import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
 // A field an update would change, as the `fields` serialization describes it (see updateContent in
@@ -97,12 +98,6 @@ export const creatableOf = (node: SerializedNode): CreatableType[] =>
       }))
     : [];
 
-// What the first of some fields holds among some values: for new content, what names it
-export function firstValueOf(fields: ContentField[], values: Record<string, unknown>): unknown {
-  const first = fields.at(0);
-  return first && values[first.name];
-}
-
 // What FieldsDialog edits to fill in new content of a type: nothing yet, and the fields it starts with
 export const newContentOf = (type: CreatableType): SerializedNode => ({ "@fields": type.fields });
 
@@ -163,10 +158,10 @@ function parse(field: ContentField, text: string): string | number | boolean | u
     return text === "true" || text === "false" ? text === "true" : undefined;
   }
   if (field.kind === "long") {
-    return /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text)) ? Number(text) : undefined;
+    return isWholeNumber(text) ? Number(text) : undefined;
   }
   if (field.kind === "double") {
-    return Number.isFinite(Number(text)) ? Number(text) : undefined;
+    return isDecimalNumber(text) ? Number(text) : undefined;
   }
   return text;
 }
@@ -228,6 +223,8 @@ export function referenceQuery(field: Pick<ContentField, "referenceType" | "refe
 export interface ReferenceCandidate {
   path: string;
   label: string;
+  // What a reference stored as an identifier holds, for a node that has one
+  identifier?: string;
 }
 
 // A node a reference may point at, as it is offered: by its title or label, else by its path under the root
@@ -239,5 +236,7 @@ export function candidateOf(node: SerializedNode, referenceRoot?: string): Refer
   const named = [ node.title, node.label ].find(name => typeof name === "string" && name.trim() !== "");
   const root = referenceRoot?.replace(/\/*$/, "/");
   const relative = root && path.startsWith(root) ? path.substring(root.length) : path;
-  return { path, label: typeof named === "string" ? named : relative };
+  const identifier = node["jcr:uuid"];
+  return { path, label: typeof named === "string" ? named : relative,
+    ...typeof identifier === "string" ? { identifier } : {} };
 }

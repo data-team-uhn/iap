@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
+import java.util.Arrays;
 import java.util.List;
 
 import javax.jcr.Node;
@@ -44,9 +45,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * event names as {@code before}, or else last. It takes the {@code name} the event asks for, when it asks, which
  * must be free and one the activity allows (see {@link ContentNames}); otherwise it is named after the first of the
  * fields the activity names in {@code nameFrom} that the event's {@code patch} gives, when that makes a name the
- * activity allows, or else after its type. It is empty: an {@code updateContent} task that follows fills it in from
- * the same patch, since it acts on what was created. A type with an {@code orderProperty} has the new content and its
- * siblings of its type numbered by their places in it (see {@link Placement}).
+ * activity allows, or else after its type. It starts with only what its type sets itself: an {@code updateContent}
+ * task that follows fills it in from the same patch, since it acts on what was created.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,8 +60,8 @@ public class CreateContentHandler implements ServiceTaskHandler
     /** The payload entry naming the node type to create. */
     static final String TYPE_PARAMETER = "type";
 
-    /** The activity property naming, in order, the fields a name is taken from. */
-    static final String NAME_FROM = "nameFrom";
+    /** The activity setting naming, in order, the fields a name is taken from. */
+    static final String NAME_FROM_PARAMETER = "nameFrom";
 
     @Override
     public String getName()
@@ -75,7 +75,7 @@ public class CreateContentHandler implements ServiceTaskHandler
         final List<ContentTypes.Type> listed = ContentTypes.listedBy(context.getActivity());
         if (listed.isEmpty()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
-                + " must list the " + ContentTypes.TYPES + " it may create");
+                + " must list the " + ContentTypes.TYPES_CHILD + " it may create");
         }
         final Resource target = context.getTarget();
         final Node parent = Nodes.of(target);
@@ -88,7 +88,6 @@ public class CreateContentHandler implements ServiceTaskHandler
             if (before != null) {
                 parent.orderBefore(name, before);
             }
-            Placement.number(parent, type.nodeType(), type.orderProperty());
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot create content in " + target.getPath() + ": " + e.getMessage(), e);
@@ -156,18 +155,16 @@ public class CreateContentHandler implements ServiceTaskHandler
     private static String derivedName(final WorkflowTaskContext context, final ContentTypes.Type type)
         throws InvalidPayloadException
     {
-        final String[] nameFrom = context.getActivity().get(NAME_FROM, String[].class);
+        final String[] nameFrom = context.getActivity().get(NAME_FROM_PARAMETER, String[].class);
         if (nameFrom == null || context.getEvent().get(UpdateContentHandler.PATCH_PARAMETER) == null) {
             return type.defaultName();
         }
         final JsonObject patch = UpdateContentHandler.patch(context);
-        for (final String field : nameFrom) {
-            final String name =
-                patch.get(field) instanceof JsonString ? ContentNames.fromText(patch.getString(field)) : "";
-            if (!name.isEmpty()) {
-                return name;
-            }
-        }
-        return type.defaultName();
+        return Arrays.stream(nameFrom)
+            .filter(field -> patch.get(field) instanceof JsonString)
+            .map(field -> ContentNames.fromText(patch.getString(field)))
+            .filter(name -> !name.isEmpty())
+            .findFirst()
+            .orElseGet(type::defaultName);
     }
 }
