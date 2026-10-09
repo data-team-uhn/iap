@@ -29,6 +29,7 @@ import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
@@ -75,6 +76,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** Where the document records what it fulfills. */
     private static final String FULFILLS_PROPERTY = "fulfills";
 
+    private static final String PRIMARY_TYPE = "jcr:primaryType";
+
+    /** The name the node type gives a version's file. */
+    private static final String FILE_NODE = "file";
+
+    /** The name the node type gives the upload inside a file. */
+    private static final String UPLOADED_FILE_NODE = "uploadedFile";
+
     @Override
     public String getName()
     {
@@ -101,14 +110,19 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         }
 
         VersioningUtils.checkOut(target);
+        final ResourceResolver resolver = context.getResourceResolver();
         // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
         // taken from what somebody uploaded is a name chosen by them for a node in our tree
-        final Resource document = context.getResourceResolver().create(target, UUID.randomUUID().toString(),
-            Map.of("jcr:primaryType", "sub:Document", "title",
+        final Resource document = resolver.create(target, UUID.randomUUID().toString(),
+            Map.of(PRIMARY_TYPE, "sub:Document", "title",
                 Objects.requireNonNullElse(file.getFileName(), "Attachment")));
         ReferenceUtils.setReference(document, FULFILLS_PROPERTY, fulfilled);
-        write(Objects.requireNonNull(document.adaptTo(Node.class),
-            "A freshly created document is always backed by a JCR node"), file);
+        // Not named by its number, which is its position among the document's versions
+        final Resource version = resolver.create(document, UUID.randomUUID().toString(),
+            Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
+        final Resource stored = resolver.create(version, FILE_NODE, Map.of(PRIMARY_TYPE, "sub:File"));
+        write(Objects.requireNonNull(stored.adaptTo(Node.class),
+            "A freshly created file is always backed by a JCR node"), file);
     }
 
     /**
@@ -161,36 +175,19 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * A file name turned into something a repository will accept as a node name.
-     *
-     * <p>A file name is somebody else's string, and a JCR name cannot hold {@code : / [ ] | *}, cannot be blank,
-     * and cannot be {@code .} or {@code ..}. A legitimate upload must not fail because of what its file happens to
-     * be called, so what cannot be part of a name becomes an underscore. Nothing is lost by it: the name the
-     * person gave is kept verbatim as the document's title, which is what anybody is shown.</p>
-     *
-     * @param fileName the name the file arrived under, possibly {@code null}
-     * @return a usable node name
-     */
-    private static String nodeName(final String fileName)
-    {
-        final String usable = Objects.requireNonNullElse(fileName, "").trim().replaceAll("[:/\\[\\]|*]", "_");
-        return usable.isEmpty() || usable.chars().allMatch(character -> character == '.') ? "attachment" : usable;
-    }
-
-    /**
-     * Stores the uploaded bytes as an {@code nt:file} child of the document.
+     * Stores the uploaded bytes as the {@code uploadedFile} of a {@code sub:File}.
      *
      * <p>Written through the JCR API rather than the resolver, because a binary is a {@code jcr:data} property on an
      * {@code nt:resource} child and streaming into it is what keeps the file out of the heap.</p>
      *
-     * @param document the node of the document to store the file under
+     * @param stored the {@code sub:File} node to store the upload under
      * @param file the uploaded file
      * @throws PersistenceException when the file cannot be stored
      */
-    private void write(final Node document, final EventAttachment file) throws PersistenceException
+    private void write(final Node stored, final EventAttachment file) throws PersistenceException
     {
         try (InputStream content = file.openStream()) {
-            final Node fileNode = document.addNode(nodeName(file.getFileName()), "nt:file");
+            final Node fileNode = stored.addNode(UPLOADED_FILE_NODE, "nt:file");
             final Node resource = fileNode.addNode("jcr:content", "nt:resource");
             resource.setProperty("jcr:data",
                 fileNode.getSession().getValueFactory().createBinary(content));

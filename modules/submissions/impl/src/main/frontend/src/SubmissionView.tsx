@@ -124,11 +124,17 @@ function FormItems({ container, answers, level }: { container: JsonNode; answers
   );
 }
 
-// One attached document: what it is called and links to download whatever files it holds.
+// The `sub:File` of a document's newest version. Older versions are its history and stay unshown.
+function currentFile(document: JsonNode): JsonNode | undefined {
+  const file = childrenOfType(document, "sub/DocumentVersion").at(-1)?.file;
+  return isNode(file) && isNode(file.uploadedFile) ? file : undefined;
+}
+
+// One attached document: what it is called, as a link to download its current file.
 function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
   const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-  const files = Object.entries(document)
-    .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+  const title = String(document.title ?? document["@name"]);
+  const file = currentFile(document);
   // A reference is serialized with whatever the referenced node holds, and a requirement need not
   // carry a label. Worth saying only where the grouping does not already say it, and only where
   // there is something to say: `fulfills "undefined"` is worse than nothing at all.
@@ -136,16 +142,15 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
   return (
     <Box>
       <Typography variant="subtitle2">
-        {String(document.title ?? document["@name"])}
+        {/* The stored file is always called `uploadedFile`, so the download is named after the title */}
+        {file
+          ? <Link href={fileHref(file["@path"], "uploadedFile")} download={title}>{title}</Link>
+          : title}
         {fulfills ? ` — fulfills "${fulfills}"` : ""}
       </Typography>
       {document.description
         ? <Typography variant="description">{formatValue(document.description)}</Typography>
         : null}
-      <Stack>
-        {files.map(([name]) =>
-          <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
-      </Stack>
     </Box>
   );
 }

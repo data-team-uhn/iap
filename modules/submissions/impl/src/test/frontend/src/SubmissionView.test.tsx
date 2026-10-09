@@ -206,20 +206,8 @@ const BARE_SUBMISSION = {
       "@path": "/Schemas/ClinicalTrial/1.0/Protocol",
       "label": "Study protocol",
     },
-    "protocol.pdf": {
-      "@path": "/Submissions/demo-2/d1/protocol.pdf",
-      "@name": "protocol.pdf",
-      "jcr:primaryType": "nt:file",
-      "contentType": "application/pdf",
-      "size": 12345,
-    },
-    "consent #2 100%.pdf": {
-      "@path": "/Submissions/demo-2/d1/consent #2 100%.pdf",
-      "@name": "consent #2 100%.pdf",
-      "jcr:primaryType": "nt:file",
-      "contentType": "application/pdf",
-      "size": 54321,
-    },
+    "v1": version("/Submissions/demo-2/d1", "v1"),
+    "v2": version("/Submissions/demo-2/d1", "v2"),
   },
   "d2": {
     "@path": "/Submissions/demo-2/d2",
@@ -228,6 +216,26 @@ const BARE_SUBMISSION = {
     // No title, description, requirement or files: everything optional is missing
   },
 };
+
+// A document version as the deep serialization shows it, holding one upload.
+function version(documentPath: string, name: string) {
+  return {
+    "@path": `${documentPath}/${name}`,
+    "@name": name,
+    "sling:resourceType": "sub/DocumentVersion",
+    "file": {
+      "@path": `${documentPath}/${name}/file`,
+      "@name": "file",
+      "sling:resourceType": "sub/File",
+      "uploadedFile": {
+        "@path": `${documentPath}/${name}/file/uploadedFile`,
+        "@name": "uploadedFile",
+        "jcr:primaryType": "nt:file",
+        "jcr:mimeType": "application/pdf",
+      },
+    },
+  };
+}
 
 // The form projection as the SubmissionFormServlet would serve it, asking nothing. Enough to tell
 // the editor apart from the read-only page, without restating what the editor's own tests cover.
@@ -329,14 +337,14 @@ describe("SubmissionView", () => {
     expect(screen.queryByText(/Created/)).toBeNull();
     expect(screen.queryByText(/Last modified/)).toBeNull();
 
-    // The document with metadata: title, requirement, description, and a download link
-    expect(screen.getByText(/Protocol document — fulfills "Study protocol"/)).toBeInTheDocument();
+    // The document with metadata: title, requirement, description, and a link to its newest file,
+    // saved under the title since the stored file is always called `uploadedFile`
+    expect(screen.getByText(/— fulfills "Study protocol"/)).toBeInTheDocument();
     expect(screen.getByText("The full protocol")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "protocol.pdf" });
-    expect(link).toHaveAttribute("href", "/Submissions/demo-2/d1/protocol.pdf");
-    // File names containing URL syntax characters are percent-encoded, not truncated at the #
-    const hostile = screen.getByRole("link", { name: "consent #2 100%.pdf" });
-    expect(hostile).toHaveAttribute("href", "/Submissions/demo-2/d1/consent%20%232%20100%25.pdf");
+    const link = screen.getByRole("link", { name: "Protocol document" });
+    expect(link).toHaveAttribute("href", "/Submissions/demo-2/d1/v2/file/uploadedFile");
+    expect(link).toHaveAttribute("download", "Protocol document");
+    expect(screen.getAllByRole("link", { name: "Protocol document" })).toHaveLength(1);
 
     // The bare document falls back to its node name; the schema reference is not expanded, so
     // there are no forms; no reviews yet either
@@ -491,13 +499,7 @@ describe("SubmissionView", () => {
     it("groups an attached document under the requirement it answers", async () => {
       const answered = {
         ...DEEP_SUBMISSION,
-        d1: attachment("protocol.pdf", {
-          "protocol.pdf": {
-            "@path": "/Submissions/demo-1/d1/protocol.pdf",
-            "@name": "protocol.pdf",
-            "jcr:primaryType": "nt:file",
-          },
-        }),
+        d1: attachment("protocol.pdf", { v1: version("/Submissions/demo-1/d1", "v1") }),
       };
       vi.stubGlobal("fetch", serving(projection(), answered));
 

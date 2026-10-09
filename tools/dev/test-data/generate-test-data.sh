@@ -169,16 +169,18 @@ for i in $(seq 1 "$COUNT"); do
       -F "reviewer=admin" \
       -F "tags=approved" \
       -F "tags@TypeHint=String[]"
-    # Approved submissions also carry a document fulfilling the protocol requirement, with an
-    # attached sample file (uploaded in a follow-up request: a file parameter would make the
-    # document creation POST treat all its parameters as node content)
+    # Approved submissions also carry a document fulfilling the protocol requirement, with a
+    # sample file as its one version (uploaded in a follow-up request: a file parameter would make
+    # the creation POST treat all its parameters as node content)
     post_node "/Submissions/demo-$i/Protocol" \
       -F "jcr:primaryType=sub:Document" \
-      --form-string "title=Study protocol" \
+      --form-string "title=protocol.txt" \
       -F "fulfills=$PROTOCOL_UUID" \
       -F "fulfills@TypeHint=Reference"
+    post_node "/Submissions/demo-$i/Protocol/v1" -F "jcr:primaryType=sub:DocumentVersion"
+    post_node "/Submissions/demo-$i/Protocol/v1/file" -F "jcr:primaryType=sub:File"
     STATUS_CODE="$(curl -s -o /dev/null -w '%{http_code}' -u "admin:$PASSWORD" -X POST \
-      -F "protocol.txt=@$SAMPLE_FILE;type=text/plain" "$URL/Submissions/demo-$i/Protocol")"
+      -F "uploadedFile=@$SAMPLE_FILE;type=text/plain" "$URL/Submissions/demo-$i/Protocol/v1/file")"
     if [ "$STATUS_CODE" -lt 200 ] || [ "$STATUS_CODE" -ge 300 ]; then
       echo "Failed with HTTP $STATUS_CODE while attaching a file to /Submissions/demo-$i/Protocol" >&2
       exit 1
