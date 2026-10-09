@@ -83,12 +83,14 @@ function FileValidationWidget() {
     }
     let current = true;
     const asked = { file, accepts, maxMegabytes, maxPages, maxUnzipped };
+    // A check the settings have moved on from is stopped, not only ignored
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       validateUpload(file, ACCEPTS[accepts].types, {
         maxFileSize: getByteLimit(maxMegabytes),
         maxPdfPages: getLimit(maxPages),
         maxUnzippedSize: getByteLimit(maxUnzipped),
-      }).then(
+      }, controller.signal).then(
         problem => {
           if (current) {
             setAnswer({ ...asked, problem });
@@ -104,6 +106,7 @@ function FileValidationWidget() {
     return () => {
       current = false;
       clearTimeout(timer);
+      controller.abort();
     };
   }, [file, accepts, maxMegabytes, maxPages, maxUnzipped]);
 

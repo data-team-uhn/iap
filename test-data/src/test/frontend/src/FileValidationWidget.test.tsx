@@ -67,7 +67,7 @@ describe("FileValidationWidget", () => {
       maxFileSize: 50 * 1024 * 1024,
       maxPdfPages: 500,
       maxUnzippedSize: 512 * 1024 * 1024,
-    });
+    }, expect.any(AbortSignal));
   });
 
   it("shows why a file is refused", async () => {
@@ -105,7 +105,7 @@ describe("FileValidationWidget", () => {
       maxFileSize: 2 * 1024 * 1024,
       maxPdfPages: 10,
       maxUnzippedSize: 3 * 1024 * 1024,
-    });
+    }, expect.any(AbortSignal));
   });
 
   // An empty or nonsense limit is not a limit of zero
@@ -123,7 +123,7 @@ describe("FileValidationWidget", () => {
       maxFileSize: undefined,
       maxPdfPages: undefined,
       maxUnzippedSize: undefined,
-    });
+    }, expect.any(AbortSignal));
   });
 
   // Each check reads the whole file, so typing "400" runs one check, not three
@@ -141,7 +141,22 @@ describe("FileValidationWidget", () => {
 
     await screen.findByText("proposal.pdf passes every check.");
     expect(validate).toHaveBeenCalledTimes(2);
-    expect(validate).toHaveBeenLastCalledWith(expect.anything(), [], expect.objectContaining({ maxPdfPages: 400 }));
+    expect(validate).toHaveBeenLastCalledWith(
+      expect.anything(), [], expect.objectContaining({ maxPdfPages: 400 }), expect.any(AbortSignal));
+  });
+
+  // Each check reads the whole file, so one the settings have moved on from is stopped
+  it("stops the check it has moved on from", async () => {
+    validate.mockReturnValueOnce(new Promise(() => undefined)).mockResolvedValueOnce(undefined);
+    renderWidget();
+
+    pick("first.pdf");
+    await waitFor(() => expect(validate).toHaveBeenCalledTimes(1));
+    pick("second.pdf");
+
+    await screen.findByText("second.pdf passes every check.");
+    const [ first ] = validate.mock.calls;
+    expect(first[3]?.aborted).toBe(true);
   });
 
   it("shows a check that failed outright", async () => {

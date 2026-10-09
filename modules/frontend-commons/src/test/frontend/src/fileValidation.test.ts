@@ -29,8 +29,9 @@ import {
 
 // PDF.js is loaded on demand, so the tests stand in for it rather than shipping real PDFs.
 // A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
-// because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password, and
-// one that starts with 0x27 meets a worker that did not load.
+// because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password, one
+// that starts with 0x27 meets a worker that did not load, and one that starts with 0x28 never finishes
+// until it is destroyed.
 // A .docx is a real zip, written below byte by byte so a test can shape it exactly.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
@@ -228,6 +229,20 @@ vi.mock("pdfjs-dist", () => ({
       const locked = new Error("No password given");
       locked.name = "PasswordException";
       return { promise: Promise.reject(locked), destroy };
+    }
+    if (bytes[0] === 0x28) {
+      let fail: (error: Error) => void = () => undefined;
+      const promise = new Promise((_resolve, reject: (error: Error) => void) => {
+        fail = reject;
+      });
+      return {
+        promise,
+        destroy: () => {
+          destroyed.count++;
+          fail(new Error("Worker was destroyed"));
+          return Promise.resolve();
+        },
+      };
     }
     if (bytes[0] === 0x27) {
       return { promise: Promise.reject(new Error("Setting up fake worker failed: \"Failed to fetch\".")), destroy };
@@ -531,6 +546,37 @@ describe("reading the zip directory", () => {
     new DataView(bytes.buffer).setUint16(findDirectoryEntry(bytes) + 10, 12, true);
 
     expect(await validateUpload(new File([ bytes ], "proposal.docx"))).toMatch(/damaged/);
+  });
+});
+
+describe("stopping a check", () => {
+  it("does not start one the caller has already given up on", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(validateUpload(createPdf(3), [], {}, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  // A PDF can keep PDF.js busy for good, so giving up has to end the parse, not only stop waiting
+  it("ends a PDF check that would never finish, and lets go of the PDF", async () => {
+    const controller = new AbortController();
+    const before = destroyed.count;
+    const pending = validateUpload(createUpload("proposal.pdf", [ 0x28 ]), [], {}, controller.signal);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(destroyed.count).toBeGreaterThan(before);
+  });
+
+  it("stops a .docx check too", async () => {
+    const controller = new AbortController();
+    const pending = validateUpload(await createDocx(), [], {}, controller.signal);
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
 });
 

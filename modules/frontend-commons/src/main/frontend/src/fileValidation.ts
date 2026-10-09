@@ -118,15 +118,19 @@ function isWorkerFailure(error: unknown): boolean {
 
 // Opens the PDF. A file PDF.js refuses is one the parser would refuse too, and counting its pages is
 // the only way to know the length before the upload.
-async function checkPdf(file: File, maxPages: number): Promise<ContentCheck> {
+async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Promise<ContentCheck> {
   const pdfjs = await loadLibrary(loadPdfjs, file);
   if (pdfjs === undefined) {
     return { valid: true };
   }
   try {
     const data = await file.arrayBuffer();
+    signal?.throwIfAborted();
     // No password is passed. A file whose only password is empty opens; one that needs a password throws.
     const task = pdfjs.getDocument({ data });
+    // Destroying the task ends a parse that would otherwise run on, and rejects its promise
+    const stop = () => void task.destroy();
+    signal?.addEventListener("abort", stop, { once: true });
     try {
       const pdf = await task.promise;
       // The parser refuses these too, and there is nothing in one to read
@@ -141,10 +145,12 @@ async function checkPdf(file: File, maxPages: number): Promise<ContentCheck> {
       }
       return { valid: true };
     } finally {
+      signal?.removeEventListener("abort", stop);
       // Each check has its own worker holding the whole file; left alone it lives as long as the tab
       void task.destroy();
     }
   } catch (error) {
+    signal?.throwIfAborted();
     if (isPasswordException(error)) {
       return { valid: false, error: "It is encrypted with a password." };
     }
@@ -303,7 +309,11 @@ function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
 }
 
 // Unzips a deflated entry, giving up once it grows past the limit
-async function inflate(stored: Uint8Array<ArrayBuffer>, maxBytes: number): Promise<Uint8Array | undefined> {
+async function inflate(
+  stored: Uint8Array<ArrayBuffer>,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array | undefined> {
   const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
     start(controller) {
       controller.enqueue(stored);
@@ -315,8 +325,9 @@ async function inflate(stored: Uint8Array<ArrayBuffer>, maxBytes: number): Promi
   let total = 0;
   for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
     total += chunk.value.length;
-    if (total > maxBytes) {
+    if (total > maxBytes || signal?.aborted) {
       await reader.cancel();
+      signal?.throwIfAborted();
       return undefined;
     }
     chunks.push(chunk.value);
@@ -334,7 +345,12 @@ async function inflate(stored: Uint8Array<ArrayBuffer>, maxBytes: number): Promi
  *
  * @returns the content, or undefined when it cannot be read or grows past the limit
  */
-async function readZipEntry(data: ArrayBuffer, entry: ZipEntry, maxBytes: number): Promise<Uint8Array | undefined> {
+async function readZipEntry(
+  data: ArrayBuffer,
+  entry: ZipEntry,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array | undefined> {
   const view = new DataView(data);
   if (entry.offset + LOCAL_HEADER_SIZE > data.byteLength || view.getUint32(entry.offset, true) !== LOCAL_HEADER) {
     return undefined;
@@ -349,14 +365,15 @@ async function readZipEntry(data: ArrayBuffer, entry: ZipEntry, maxBytes: number
   if (entry.method === STORED) {
     return stored.length <= maxBytes ? stored : undefined;
   }
-  return entry.method === DEFLATED ? inflate(stored, maxBytes) : undefined;
+  return entry.method === DEFLATED ? inflate(stored, maxBytes, signal) : undefined;
 }
 
 // Everything is checked from the directory before anything is unzipped, and only the content types
 // are unzipped: a small file can unzip to gigabytes, which would hang the tab.
-async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCheck> {
+async function checkDocx(file: File, maxUnzippedSize: number, signal?: AbortSignal): Promise<ContentCheck> {
   try {
     const data = await file.arrayBuffer();
+    signal?.throwIfAborted();
     const entries = readZipDirectory(data);
     if (entries === undefined) {
       return { valid: false, error: DOCX_DAMAGED };
@@ -368,7 +385,7 @@ async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCh
     if (listed === undefined) {
       return { valid: false, error: "It is not a Word document." };
     }
-    const types = await readZipEntry(data, listed, MAX_CONTENT_TYPES_BYTES);
+    const types = await readZipEntry(data, listed, MAX_CONTENT_TYPES_BYTES, signal);
     if (types === undefined) {
       return { valid: false, error: DOCX_DAMAGED };
     }
@@ -377,6 +394,7 @@ async function checkDocx(file: File, maxUnzippedSize: number): Promise<ContentCh
     }
     return { valid: true };
   } catch {
+    signal?.throwIfAborted();
     return { valid: false, error: DOCX_DAMAGED };
   }
 }
@@ -400,12 +418,13 @@ async function checkContent(
   file: File,
   extension: string | undefined,
   limits: Required<UploadLimits>,
+  signal?: AbortSignal,
 ): Promise<ContentCheck> {
   if (extension === ".pdf") {
-    return checkPdf(file, limits.maxPdfPages);
+    return checkPdf(file, limits.maxPdfPages, signal);
   }
   if (extension === ".docx") {
-    return checkDocx(file, limits.maxUnzippedSize);
+    return checkDocx(file, limits.maxUnzippedSize, signal);
   }
   if (extension === ".doc") {
     return checkDoc(file);
@@ -436,12 +455,15 @@ function describeWrongType(file: File, accepted: string[]): string {
  * @param file the file the person picked
  * @param accepted the MIME types taken, as the server compares them; empty takes any type
  * @param limits the size, length and unzipped-size limits, where the defaults do not fit
+ * @param signal stops the check, which then rejects with the signal's reason
  */
 export async function validateUpload(
   file: File,
   accepted: string[] = [],
   limits: UploadLimits = {},
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
+  signal?.throwIfAborted();
   const maxFileSize = limits.maxFileSize ?? MAX_FILE_SIZE;
   if (file.size === 0) {
     return `${file.name} is empty.`;
@@ -459,6 +481,6 @@ export async function validateUpload(
     maxFileSize,
     maxPdfPages: limits.maxPdfPages ?? MAX_PDF_PAGES,
     maxUnzippedSize: limits.maxUnzippedSize ?? MAX_UNZIPPED_SIZE,
-  });
+  }, signal);
   return content.valid ? undefined : `${file.name}: ${content.error}`;
 }

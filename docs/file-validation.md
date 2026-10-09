@@ -16,7 +16,7 @@ skip the browser, so whatever receives the upload has to check again.
 ```ts
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 
-const problem = await validateUpload(file, accepted, limits);
+const problem = await validateUpload(file, accepted, limits, signal);
 if (problem !== undefined) {
   showError(problem);   // e.g. "proposal.pdf: It is encrypted with a password."
 }
@@ -27,11 +27,12 @@ if (problem !== undefined) {
 | `file` | `File` | — | The file the person picked |
 | `accepted` | `string[]` | `[]` | The MIME types taken (`application/pdf`), compared as the server compares them. Empty takes any type |
 | `limits` | `UploadLimits` | `{}` | `maxFileSize` in bytes, `maxPdfPages`, and `maxUnzippedSize` in bytes. Each one left out keeps its default |
+| `signal` | `AbortSignal` | — | Stops the check: it then rejects with the signal's reason, and a PDF still being parsed is dropped |
 
 It returns a `Promise<string | undefined>`. `undefined` means the file passed every
 check. A string is the reason it failed, written for the person to read, and always
-starting with the file name. It never rejects in normal use: every failure it knows
-about becomes a message.
+starting with the file name. It rejects only when `signal` stops it: every failure it
+knows about becomes a message.
 
 It stops at the **first** check that fails, so a file with two problems reports one.
 
@@ -51,7 +52,7 @@ The module also exports:
 ## Who calls whom
 
 ```
-validateUpload(file, accepted, limits)
+validateUpload(file, accepted, limits, signal)
 ├── 1. file.size === 0?                          → "<name> is empty."
 ├── 2. file.size > maxFileSize?                  → "<name> is N MB, and the limit is L MB."
 ├── 3. accepted given?  getMimeType(file, …) in accepted?
@@ -334,21 +335,23 @@ the unzip limit to 0.01 (about 10 KB) and pick any real `.docx`.
 An empty limit, or 0, falls back to the default rather than meaning "nothing allowed".
 
 Each answer is kept with the file and settings it was checked under. If the settings
-change while a check is still running, that check's answer is ignored when it arrives,
-so the screen never shows a result for settings that are no longer selected.
+change while a check is still running, that check is stopped through its `signal`, and
+an answer that still arrives is ignored, so the screen never shows a result for settings
+that are no longer selected.
 
 ## Tests
 
 | File | Tests | What it covers |
 | --- | --- | --- |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 45 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, the worker URL, and that every PDF.js task is destroyed |
-| `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 9 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale answer is ignored |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 48 | Every check and message, the limits at and past the edge, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, stopping a check, the worker URL, and that every PDF.js task is destroyed |
+| `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 10 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale check is stopped and its answer ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting
 with byte `0x25` is a PDF whose page count is in the next two bytes, low byte first, so
-501 pages fits. A file starting with `0x26` needs a password, and one starting with
-`0x27` meets a worker that would not start. Anything else is not a PDF. A switch makes
-PDF.js fail to load, the way a missing chunk would.
+501 pages fits. A file starting with `0x26` needs a password, one starting with `0x27`
+meets a worker that would not start, and one starting with `0x28` never finishes until
+it is destroyed. Anything else is not a PDF. A switch makes PDF.js fail to load, the way
+a missing chunk would.
 
 A `.docx` is a real zip, written byte by byte by `createZip`, so a test can shape it
 exactly: lying sizes, ZIP64 records, a comment, an entry stored or named twice. Bad zips
