@@ -70,6 +70,8 @@ export type FormItem = FormQuestion | FormSection;
 // Anything a schema version asks of a submission, whatever form that takes.
 export interface Requirement {
   name: string;
+  // The repository path, which is what an attached document's `fulfills` points at
+  path: string;
   type: string;
   label: string;
   description?: string;

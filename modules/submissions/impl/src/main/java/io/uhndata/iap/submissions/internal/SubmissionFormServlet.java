@@ -79,6 +79,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String NAME_KEY = "name";
 
+    private static final String PATH_KEY = "path";
+
     private static final String LABEL_KEY = "label";
 
     private static final String DESCRIPTION_KEY = "description";
@@ -143,7 +145,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
         return Json.createObjectBuilder()
-            .add("path", submission.getPath())
+            .add(PATH_KEY, submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
@@ -166,6 +168,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, requirement.getName())
+            // What a document's reference is compared against, since names repeat across schema versions
+            .add(PATH_KEY, requirement.getPath())
             // The resource type itself, not a vocabulary of our own. A requirement kind added later names
             // itself here without this servlet learning about it, and the reader already keys on resource types
             .add(TYPE_KEY, requirement.getType())
@@ -286,7 +290,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
-            .add("path", path)
+            .add(PATH_KEY, path)
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))

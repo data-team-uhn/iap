@@ -424,6 +424,7 @@ describe("SubmissionView", () => {
   describe("the documents section", () => {
     const PROTOCOL = {
       name: "Protocol",
+      path: "/Schemas/ClinicalTrial/1.0/Protocol",
       type: "sch/DocumentRequirement",
       label: "Study protocol",
       description: "The full protocol, signed",
@@ -521,6 +522,19 @@ describe("SubmissionView", () => {
       await waitFor(() => expect(screen.queryByText("Nothing attached yet")).toBeNull());
       // The grouping already says which requirement it answers, so the document does not repeat it
       expect(screen.queryByText(/fulfills/)).toBeNull();
+    });
+
+    it("does not group a document under a requirement that only shares its name", async () => {
+      // The same name in another schema version is a different requirement
+      const elsewhere = attachment("old.pdf", {
+        fulfills: { "@path": "/Schemas/ClinicalTrial/0.9/Protocol", "@name": "Protocol" },
+      });
+      vi.stubGlobal("fetch", serving(projection(), { ...DEEP_SUBMISSION, d1: elsewhere }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("old.pdf")).toBeInTheDocument();
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
     });
 
     it("still shows a document whose requirement no longer applies", async () => {

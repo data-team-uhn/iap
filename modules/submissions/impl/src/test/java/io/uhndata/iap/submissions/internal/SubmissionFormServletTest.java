@@ -302,6 +302,7 @@ class SubmissionFormServletTest
             .map(value -> ((JsonString) value).getString())
             .collect(Collectors.toList()));
         assertEquals(VERSION_PATH + "/signedForm/template", signed.getString("template"));
+        assertEquals(VERSION_PATH + "/signedForm", signed.getString("path"));
         // The node is called "template", so the download is named after the requirement, with its type's extension
         assertEquals("Signed form.pdf", signed.getString("templateName"));
     }

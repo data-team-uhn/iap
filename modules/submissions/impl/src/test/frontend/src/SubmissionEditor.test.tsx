@@ -61,7 +61,10 @@ function duration(value: string[] = []) {
 
 // Typed as the subtype that holds questions, since the generic Requirement declares no items
 function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): FormRequirement {
-  return { name: "details", type: FORM_REQUIREMENT, label: "Request details", items, ...overrides };
+  return {
+    name: "details", path: "/Schemas/timeOffRequest/v1/details", type: FORM_REQUIREMENT, label: "Request details",
+    items, ...overrides
+  };
 }
 
 function endDate() {
@@ -162,7 +165,10 @@ describe("SubmissionEditor", () => {
   it("shows a requirement that holds no questions, rather than dropping it", async () => {
     // Leaving it out would say the request asks less than it does
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ { name: "approval", type: "sch/ApprovalRequirement", label: "Approval" } ],
+      requirements: [ {
+        name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: "sch/ApprovalRequirement",
+        label: "Approval"
+      } ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
@@ -174,6 +180,7 @@ describe("SubmissionEditor", () => {
   describe("answering a document requirement", () => {
     const NOTE: DocumentRequirement = {
       name: "doctorsNote",
+      path: "/Schemas/timeOffRequest/v1/doctorsNote",
       type: DOCUMENT_REQUIREMENT,
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",

@@ -190,7 +190,7 @@ function Documents({ path, documents }: { path: string; documents: JsonNode[] })
 
   const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
   const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
-    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+    isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
   // Anything whose requirement does not currently apply, is gone from the schema, or that never named
   // one: still somebody's evidence, so shown rather than silently dropped
   const claimed = new Set(requirements.flatMap(requirement =>
