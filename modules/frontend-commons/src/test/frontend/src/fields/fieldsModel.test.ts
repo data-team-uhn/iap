@@ -17,8 +17,8 @@
  */
 
 import {
-  applicableFields, applies, blockingFields, candidateOf, changesOf, type ContentField, fieldsOf, initialValue,
-  initialValues, isValid, patchValueOf, referenceQuery,
+  applicableFields, applies, blockingFields, candidateOf, changesOf, type ContentField, creatableOf, fieldsOf,
+  initialValue, initialValues, isValid, newContentOf, patchValueOf, referenceQuery,
 } from "@iap/frontend-commons/fields/fieldsModel";
 
 const field = (name: string, extra: Partial<ContentField> = {}): ContentField =>
@@ -65,6 +65,14 @@ describe("initialValue", () => {
     expect(initialValue({}, TITLE)).toBe("");
     expect(initialValue({}, TYPES)).toEqual([]);
     expect(initialValue({ title: { nothing: "here" } }, TITLE)).toBe("");
+  });
+
+  it("starts from what content of its type starts with when nothing is stored", () => {
+    expect(initialValue({}, { ...TYPE, default: "text" })).toBe("text");
+    expect(initialValue({}, { ...COUNT, default: 1 })).toBe("1");
+    expect(initialValue({}, { ...REQUIRED, default: true })).toBe(true);
+    expect(initialValue({}, { ...TYPES, default: [ "pdf" ] })).toEqual([ "pdf" ]);
+    expect(initialValue({ dataType: "long" }, { ...TYPE, default: "text" })).toBe("long");
   });
 
   it("turns a switch on only for true", () => {
@@ -186,5 +194,16 @@ describe("references", () => {
     expect(candidateOf({ "@path": "/Elsewhere/v1" }, "/Workflows")).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ "@path": "/Elsewhere/v1" })).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ title: "No path" })).toBeUndefined();
+  });
+});
+
+describe("creatableOf", () => {
+  it("reads the types a create event would add, with the fields each starts with", () => {
+    const question = { type: "sch:Question", label: "Question", fields: [ TITLE, { label: "No name" } ] };
+    const creatable = creatableOf({ "@creatable": [ question, { type: "sch:Section" }, "sch:Question" ] });
+
+    expect(creatable).toEqual([ { type: "sch:Question", label: "Question", fields: [ TITLE ] } ]);
+    expect(newContentOf(creatable[0])).toEqual({ "@fields": [ TITLE ] });
+    expect(creatableOf({})).toEqual([]);
   });
 });

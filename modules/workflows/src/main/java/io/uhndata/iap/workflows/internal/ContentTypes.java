@@ -1,0 +1,163 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.workflows.internal;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.nodetype.NodeType;
+import javax.jcr.nodetype.NodeTypeManager;
+
+import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.workflows.models.Activity;
+
+/**
+ * The types of content a creating activity offers. The activity lists them as the children of its {@code types}
+ * node, each with the {@code nodeType} to create and the {@code label} it is offered under; the node types of the
+ * parent decide the rest: a type is offered only where the parent's content type declares it holds children of that
+ * type. Definitions that merely tolerate children are not taken as saying what a node holds: those requiring no
+ * more than {@code nt:base}, and those JCR's and Sling's own types declare, such as {@code nt:folder}'s, which every
+ * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
+ * offering only what it is meant to hold.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+final class ContentTypes
+{
+    /** The activity's child listing the types. */
+    static final String TYPES = "types";
+
+    /** The name of a definition allowing children of any name. */
+    private static final String RESIDUAL = "*";
+
+    /** The type every node is, which a definition accepting anything requires. */
+    private static final String CATCH_ALL = "nt:base";
+
+    /** The namespaces of JCR's, Oak's and Sling's own types, which say how content is stored, not what it holds. */
+    private static final Set<String> BUILT_IN = Set.of("nt", "mix", "jcr", "rep", "oak", "sling");
+
+    /**
+     * One type of content an activity offers to create.
+     *
+     * @param nodeType the node type to create
+     * @param label what it is offered under
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Type(String nodeType, String label)
+    {
+        /**
+         * What new content of this type is called when nothing better names it: the type's name without its
+         * namespace, starting in lower case, e.g. {@code question} for {@code sch:Question}.
+         *
+         * @return a node name
+         */
+        String defaultName()
+        {
+            final String local = this.nodeType.substring(this.nodeType.indexOf(':') + 1);
+            return Character.toLowerCase(local.charAt(0)) + local.substring(1);
+        }
+    }
+
+    private ContentTypes()
+    {
+        // Utility class
+    }
+
+    /**
+     * The types an activity lists, in order.
+     *
+     * @param activity a creating activity
+     * @return the types, none when it lists none
+     */
+    static List<Type> listedBy(final Activity activity)
+    {
+        final Content types = activity.getChild(TYPES, Content.class);
+        if (types == null) {
+            return List.of();
+        }
+        return types.getChildren(Content.class).stream()
+            .filter(type -> type.get("nodeType", String.class) != null)
+            .map(type -> {
+                final String nodeType = type.get("nodeType", String.class);
+                return new Type(nodeType, Objects.requireNonNullElse(type.get("label", String.class), nodeType));
+            })
+            .toList();
+    }
+
+    /**
+     * The types listed that a parent's types declare it holds, in the listed order.
+     *
+     * @param listed the types an activity lists
+     * @param parent the node new content would be created under
+     * @return the types that may be created there
+     * @throws RepositoryException when the parent's types cannot be read
+     */
+    static List<Type> accepted(final List<Type> listed, final Node parent) throws RepositoryException
+    {
+        final List<NodeType> parentTypes = new ArrayList<>(List.of(parent.getMixinNodeTypes()));
+        parentTypes.add(0, parent.getPrimaryNodeType());
+        final NodeTypeManager nodeTypes = parent.getSession().getWorkspace().getNodeTypeManager();
+        final List<Type> accepted = new ArrayList<>();
+        for (final Type type : listed) {
+            if (nodeTypes.hasNodeType(type.nodeType())
+                && holds(parentTypes, nodeTypes.getNodeType(type.nodeType()))) {
+                accepted.add(type);
+            }
+        }
+        return accepted;
+    }
+
+    /**
+     * Whether some node types declare they hold children of a type.
+     *
+     * @param parentTypes the parent's types
+     * @param child the type of a child
+     * @return whether a child definition of their content types names a type the child is, other than
+     *     {@code nt:base}
+     */
+    private static boolean holds(final List<NodeType> parentTypes, final NodeType child)
+    {
+        if (child.isAbstract() || child.isMixin()) {
+            return false;
+        }
+        return parentTypes.stream()
+            .flatMap(parentType -> Arrays.stream(parentType.getChildNodeDefinitions()))
+            .filter(definition -> RESIDUAL.equals(definition.getName()) && !definition.isProtected()
+                && !BUILT_IN.contains(prefix(definition.getDeclaringNodeType().getName())))
+            .flatMap(definition -> Arrays.stream(definition.getRequiredPrimaryTypeNames()))
+            .anyMatch(required -> !CATCH_ALL.equals(required) && child.isNodeType(required));
+    }
+
+    /**
+     * The namespace prefix of a name.
+     *
+     * @param name a qualified name, such as {@code sch:Question}
+     * @return its prefix, empty for a name without one
+     */
+    private static String prefix(final String name)
+    {
+        return name.substring(0, Math.max(0, name.indexOf(':')));
+    }
+}
