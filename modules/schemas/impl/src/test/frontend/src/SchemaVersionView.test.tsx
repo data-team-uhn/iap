@@ -287,6 +287,26 @@ describe("SchemaVersionView", () => {
     await waitFor(() => expect(treeReads()).toBe(before + 1));
   });
 
+  it("reads the tree again when closed after a rename, even when the save that followed was refused", async () => {
+    serveSchemas({ answers: {
+      [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" },
+      "/Schemas/study/v3/intake/fullName.update.json": { status: 400, error: "text cannot be empty" },
+    } });
+    renderVersion("study", "v3");
+
+    const dialog = await editPart("Your name");
+    startRenaming(dialog);
+    renameTo(dialog, "fullName");
+    await within(dialog).findByText("fullName");
+    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your full name" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByText("text cannot be empty")).toBeInTheDocument();
+
+    const before = treeReads();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(treeReads()).toBe(before + 1));
+  });
+
   it("shows an identifier that cannot change, and none for an option", async () => {
     serveSchemas();
     renderVersion("study", "v2");
@@ -382,7 +402,7 @@ describe("SchemaVersionView", () => {
     expect(posted[0].params.get("name")).toBe("contact");
   });
 
-  it("sends the suggested identifier when none is given, and none for an option", async () => {
+  it("leaves the identifier to the server when none is given, as for an option", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
 
@@ -391,7 +411,8 @@ describe("SchemaVersionView", () => {
     const dialog = await screen.findByRole("dialog", { name: /Add question/ });
     fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Where do you live?" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posted[0]?.params.get("name")).toBe("whereDoYouLive"));
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
+    expect(posted[0].params.has("name")).toBe(false);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await expand("Your name");
@@ -631,9 +652,9 @@ describe("SchemaVersionView", () => {
     const short = screen.getByText("Short").closest("li") as HTMLElement;
     const down = within(short).getByRole("button", { name: "Move down" });
     // As the tree reads once the move is made
-    const options = CONTENT["study/v3"].intake as Record<string, Record<string, Record<string, unknown>>>;
-    const { short: stored } = options.name;
-    options.name.short = { ...stored, defaultOrder: 30 };
+    const intake = CONTENT["study/v3"].intake as Record<string, Record<string, unknown>>;
+    const { name: stored } = intake;
+    intake.name = { ...stored, "@order": [ "full", "short" ] };
     try {
       fireEvent.click(down);
       await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name/short.move.json"));
@@ -643,7 +664,7 @@ describe("SchemaVersionView", () => {
       // Now last, it can only go up again
       await waitFor(() => expect(document.activeElement).toBe(within(short).getByRole("button", { name: "Move up" })));
     } finally {
-      options.name.short = stored;
+      intake.name = stored;
     }
 
     fireEvent.click(within(screen.getByText("Full").closest("li") as HTMLElement)

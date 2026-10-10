@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
+import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
@@ -39,7 +39,7 @@ function SchemaVersionDetailsAction({ version, reload }: SchemaVersionActionProp
   }
   return (
     <>
-      <ActionIcon label="Edit details" icon={<EditNoteOutlinedIcon fontSize="small" />}
+      <ActionIcon label="Edit details" icon={<DriveFileRenameOutlineIcon fontSize="small" />}
         onClick={() => setEditing(true)} />
       { editing && (
         <FieldsDialog

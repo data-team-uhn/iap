@@ -16,22 +16,12 @@
  * limitations under the License.
  */
 
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
-import { useNode } from "@iap/frontend-commons/useNode";
+// Numbers as people type them. Number() reads more than that: hexadecimal, binary and octal literals, and whole
+// numbers too large to hold exactly, which it rounds without a word
 
-import { listing, SCHEMAS_ROOT } from "./schemaModel";
+// A whole number, maybe signed, that a number holds exactly
+export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text));
 
-const asNode = (node: SerializedNode): SerializedNode => node;
-
-// One schema and its versions. The changes made on its page are workflow events sent by its actions.
-export function useSchema(name: string) {
-  const path = `${SCHEMAS_ROOT}/${name}`;
-  const { value, loading, loadError, reload } = useNode(path, listing(1), asNode);
-
-  return {
-    schema: value,
-    loading,
-    loadError,
-    reload,
-  };
-}
+// A decimal number, maybe signed, with a point and an exponent if it has them, and not too large to hold
+export const isDecimalNumber = (text: string): boolean =>
+  /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));

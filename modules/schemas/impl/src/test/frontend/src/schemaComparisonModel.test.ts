@@ -16,26 +16,27 @@
  * limitations under the License.
  */
 
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import {
   compareVersions, type ComparisonSettings, keptInOrder, type PartComparison,
 } from "@iap/schemas/schemaComparisonModel";
-import { type JcrNode } from "@iap/schemas/schemaModel";
 
-const node = (name: string, properties: JcrNode, children: JcrNode[] = []): JcrNode => ({
+const node = (name: string, properties: SerializedNode, children: SerializedNode[] = []): SerializedNode => ({
   "@name": name, ...properties, ...Object.fromEntries(children.map(child => [ String(child["@name"]), child ])),
 });
-const version = (...parts: JcrNode[]) => node("v1", { "sling:resourceType": "sch/SchemaVersion" }, parts);
-const form = (name: string, label: string, ...items: JcrNode[]) => node(name,
+const version = (...parts: SerializedNode[]) => node("v1", { "sling:resourceType": "sch/SchemaVersion" }, parts);
+const form = (name: string, label: string, ...items: SerializedNode[]) => node(name,
   { "sling:resourceType": "sch/FormRequirement", "sling:resourceSuperType": "sch/Requirement", label }, items);
-const section = (name: string, title: string, ...items: JcrNode[]) => node(name,
+const section = (name: string, title: string, ...items: SerializedNode[]) => node(name,
   { "sling:resourceType": "sch/Section", "sling:resourceSuperType": "sch/FormItem", title }, items);
-const question = (name: string, text: string, properties: JcrNode = {}, ...options: JcrNode[]) => node(name,
-  { "sling:resourceType": "sch/Question", "sling:resourceSuperType": "sch/FormItem", text, ...properties }, options);
-const option = (value: string, place: number, label?: string, name = value) => node(name,
-  { "sling:resourceType": "sch/AnswerOption", value, label, defaultOrder: place });
+const question = (name: string, text: string, properties: SerializedNode = {}, ...options: SerializedNode[]) =>
+  node(name, { "sling:resourceType": "sch/Question", "sling:resourceSuperType": "sch/FormItem", text, ...properties },
+    options);
+const option = (value: string, label?: string, name = value) => node(name,
+  { "sling:resourceType": "sch/AnswerOption", value, label });
 
 // Conditions stand in as what they compare by and the sentences describing them, kept on the part for these tests
-const said = (part: JcrNode) => (typeof part.when === "string" || typeof part.whenKey === "string"
+const said = (part: SerializedNode) => (typeof part.when === "string" || typeof part.whenKey === "string"
   ? { key: String(part.whenKey ?? part.when), words: part.when as string | undefined } : undefined);
 const SETTINGS: ComparisonSettings = {
   versionFields: [ { name: "description", label: "Description" } ],
@@ -224,9 +225,9 @@ describe("compareVersions", () => {
 
   it("matches a question's options by their names, and says what became of each", () => {
     const before = version(form("intake", "Intake", question("arm", "Which arm?", {},
-      option("drug", 10, "Drug"), option("placebo", 20, "Placebo"), option("none", 30, "None"))));
+      option("drug", "Drug"), option("placebo", "Placebo"), option("none", "None"))));
     const after = version(form("intake", "Intake", question("arm", "Which arm?", {},
-      option("placebo", 10, "Placebo arm"), option("drug", 20, "Drug"), option("device", 30, "Device"))));
+      option("placebo", "Placebo arm"), option("drug", "Drug"), option("device", "Device"))));
 
     const [ arm ] = compareVersions(before, after, SETTINGS).parts[0].parts;
 
@@ -240,9 +241,9 @@ describe("compareVersions", () => {
   });
 
   it("shows an option's edited value as a change of it", () => {
-    const before = version(form("intake", "Intake", question("arm", "Which arm?", {}, option("drug", 10, "Drug"))));
+    const before = version(form("intake", "Intake", question("arm", "Which arm?", {}, option("drug", "Drug"))));
     const after = version(form("intake", "Intake",
-      question("arm", "Which arm?", {}, option("medication", 10, "Drug", "drug"))));
+      question("arm", "Which arm?", {}, option("medication", "Drug", "drug"))));
 
     const [ arm ] = compareVersions(before, after, SETTINGS).parts[0].parts;
 
@@ -253,9 +254,9 @@ describe("compareVersions", () => {
 
   it("counts a question whose options were only reordered as changed", () => {
     const before = version(form("intake", "Intake", question("arm", "Which arm?", {},
-      option("drug", 10, "Drug"), option("placebo", 20, "Placebo"))));
+      option("drug", "Drug"), option("placebo", "Placebo"))));
     const after = version(form("intake", "Intake", question("arm", "Which arm?", {},
-      option("placebo", 10, "Placebo"), option("drug", 20, "Drug"))));
+      option("placebo", "Placebo"), option("drug", "Drug"))));
 
     const comparison = compareVersions(before, after, SETTINGS);
 
@@ -281,8 +282,8 @@ describe("compareVersions", () => {
   });
 
   it("lists an added or removed question's options as added or removed with it", () => {
-    const before = version(form("intake", "Intake", question("old", "Old?", {}, option("yes", 10))));
-    const after = version(form("intake", "Intake", question("new", "New?", {}, option("no", 10))));
+    const before = version(form("intake", "Intake", question("old", "Old?", {}, option("yes"))));
+    const after = version(form("intake", "Intake", question("new", "New?", {}, option("no"))));
 
     const [ removed, added ] = compareVersions(before, after, SETTINGS).parts[0].parts;
 

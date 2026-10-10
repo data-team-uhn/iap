@@ -19,13 +19,13 @@
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 
 // Starts moving a part of a draft, or, while it is the one moving, stops.
-function SchemaNodeMoveAction({ node, what }: { node: JcrNode; what: string }) {
+function SchemaNodeMoveAction({ node, what }: { node: SerializedNode; what: string }) {
   const { isMoving, start, cancel } = useMoveMode();
   if (!offers(node, "move")) {
     return null;

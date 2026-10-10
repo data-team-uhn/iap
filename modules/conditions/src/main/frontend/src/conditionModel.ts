@@ -21,6 +21,7 @@
 // replaceContent event writes from it, and the words it reads as. Operand sources are pluggable: a module offering
 // one says what its operands hold and how they read. No React, no fetch.
 
+import { isDecimalNumber, isWholeNumber } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 // The comparison types of the conditions module's OperandType
@@ -149,10 +150,10 @@ export function valuesTaken(comparator: Comparator | undefined, shape: OperandSh
 export function valueProblem(value: string, type?: ValueType): string | undefined {
   switch (type) {
     case "long":
-      return /^-?\d+$/.test(value.trim()) ? undefined : "Enter a whole number.";
+      return isWholeNumber(value.trim()) ? undefined : "Enter a whole number.";
     case "double":
     case "decimal":
-      return value.trim() !== "" && Number.isFinite(Number(value)) ? undefined : "Enter a number.";
+      return isDecimalNumber(value.trim()) ? undefined : "Enter a number.";
     case "date":
       return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? undefined : "Enter a date.";
     case "boolean":
@@ -273,7 +274,7 @@ function secondIsComplete(condition: DraftSingle, sources: OperandSource[]): boo
     return true;
   }
   if (condition.b.source !== LITERAL) {
-    return !named(condition.b, sources) || condition.b.value.length > 0;
+    return isChosen(condition.b, sources);
   }
   const type = secondShapeOf(condition, sources).type;
   return (taken === "one" ? condition.b.value.length === 1 : condition.b.value.length > 0)

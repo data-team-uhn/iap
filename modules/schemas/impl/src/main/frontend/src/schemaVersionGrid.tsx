@@ -21,18 +21,19 @@ import { Link as RouterLink } from "react-router";
 
 import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { type JcrNode, labelOf, nameOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
+import { labelOf, nameOf, SCHEMAS_ROOT, tagsOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
 
 // The schema a version belongs to, by name, from where the version lives
-const schemaNameOf = (version: JcrNode): string => String(version["@path"]).split("/").at(-2) ?? "";
+const schemaNameOf = (version: SerializedNode): string => String(version["@path"]).split("/").at(-2) ?? "";
 
 // A version's label displayed as a link to its page
-function VersionLink({ row, children }: { row: JcrNode } & Pick<LinkProps, "children">) {
+function VersionLink({ row, children }: { row: SerializedNode } & Pick<LinkProps, "children">) {
   return (
     <Link component={RouterLink} to={versionPageUrl(schemaNameOf(row), nameOf(row))} underline="hover"
       onClick={event => event.stopPropagation()}>

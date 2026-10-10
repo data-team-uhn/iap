@@ -20,15 +20,16 @@ import { Autocomplete, Box, TextField, Typography } from "@mui/material";
 
 import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
 import { withCurrent } from "@iap/conditions/conditionModel";
+import CodePill from "@iap/frontend-commons/components/CodePill";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import CodePill from "./CodePill";
-import { type JcrNode, nameOf } from "./schemaModel";
+import { nameOf } from "./schemaModel";
 import { headingOf } from "./schemaVersionTreeModel";
 import { useVersionConditions } from "./versionConditions";
 
 interface QuestionPickerProps extends OperandEditorProps {
   // The questions that may be picked, in the version's order
-  questions: JcrNode[];
+  questions: SerializedNode[];
 }
 
 // Picks the question an answer operand reads, found by what it asks and named by its identifier, which is how

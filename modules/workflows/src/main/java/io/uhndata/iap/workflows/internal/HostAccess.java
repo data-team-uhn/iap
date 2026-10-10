@@ -36,7 +36,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -74,9 +73,8 @@ final class HostAccess
     {
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
-        readers.addAll(version.getAllFlowNodes().stream()
-            .filter(node -> node instanceof Activity && ((Activity) node).getHandler() == null)
-            .flatMap(node -> node.getPerformers().stream())
+        readers.addAll(version.getActivities(null).stream()
+            .flatMap(task -> task.getPerformers().stream())
             .collect(Collectors.toSet()));
         grant(resolver, host.getPath(), readers);
     }

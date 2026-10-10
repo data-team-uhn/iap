@@ -121,12 +121,10 @@ public final class FieldsFixture
         Mockito.when(this.creating.getChild("types", Content.class))
             .thenAnswer(invocation -> create.getChild("types").adaptTo(Content.class));
         Mockito.when(this.creating.get("nameFrom", String[].class)).thenReturn(new String[] { "note", "title" });
-        Mockito.when(this.creating.getHandler()).thenReturn(CreateContentHandler.HANDLER_NAME);
         final Resource update = context.resourceResolver().getResource("/update");
         Mockito.when(this.activity.getPath()).thenReturn("/update");
         Mockito.when(this.activity.getChild("fields", Content.class))
             .thenAnswer(invocation -> update.getChild("fields").adaptTo(Content.class));
-        Mockito.when(this.activity.getHandler()).thenReturn(UpdateContentHandler.HANDLER_NAME);
     }
 
     public Session session()

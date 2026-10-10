@@ -26,7 +26,9 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
 import { Box, Stack, Typography, type SvgIconProps } from "@mui/material";
 
-import CodePill from "./CodePill";
+import CodePill from "@iap/frontend-commons/components/CodePill";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+
 import { nameOf } from "./schemaModel";
 import { useMoveHighlight } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
@@ -35,11 +37,8 @@ import {
   answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings, QUESTION_TYPE,
 } from "./schemaVersionTreeModel";
 
-
-import type { JcrNode } from "./schemaModel";
-
 // A fact shown as a chip; one naming what the part's details show opens and closes them
-export type SchemaPartChip = string | { label: string; opensDetails: true };
+export type SchemaPartChip = string | { label: string };
 
 // How one type of schema part is shown: what it is called, its icon and accent, the facts worth seeing
 // at a glance, and what else it says once opened. A type not listed here is still shown, as itself.
@@ -50,9 +49,9 @@ export interface SchemaPartType {
   accent: string;
   // How much its heading stands out, so that what holds reads above what it holds
   weight?: "fontWeightMedium" | "fontWeightBold";
-  chips?: (part: JcrNode) => SchemaPartChip[];
+  chips?: (part: SerializedNode) => SchemaPartChip[];
   // What else it says, or null when there is nothing more
-  details?: (part: JcrNode) => ReactNode;
+  details?: (part: SerializedNode) => ReactNode;
 }
 
 function Detail({ children }: { children: string }) {
@@ -60,7 +59,7 @@ function Detail({ children }: { children: string }) {
 }
 
 // What an option says: what the submitter reads, and what an answer stores when it differs
-function OptionText({ option }: { option: JcrNode }) {
+function OptionText({ option }: { option: SerializedNode }) {
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
       <span>{optionLabelOf(option)}</span>
@@ -69,8 +68,15 @@ function OptionText({ option }: { option: JcrNode }) {
   );
 }
 
+interface OptionRowProps {
+  option: SerializedNode;
+  // The question it is an option of, and all of its options, in order
+  question: SerializedNode;
+  options: SerializedNode[];
+}
+
 // One of a question's options in its details, with what may be done to it
-function OptionRow({ option, question, options }: { option: JcrNode; question: JcrNode; options: JcrNode[] }) {
+function OptionRow({ option, question, options }: OptionRowProps) {
   const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option);
   const description = detailOf(option, "description");
   return (
@@ -95,7 +101,7 @@ function OptionRow({ option, question, options }: { option: JcrNode; question: J
 
 // A question's options in its details, each with what it describes and what may be done to it, the actions lined
 // up just after the widest option
-function OptionList({ options, question }: { options: JcrNode[]; question: JcrNode }) {
+function OptionList({ options, question }: { options: SerializedNode[]; question: SerializedNode }) {
   return (
     <Box
       component="ul"
@@ -112,7 +118,7 @@ function OptionList({ options, question }: { options: JcrNode[]; question: JcrNo
   );
 }
 
-function questionDetails(part: JcrNode): ReactNode {
+function questionDetails(part: SerializedNode): ReactNode {
   const options = optionsOf(part);
   const bounds = boundsOf(part);
   const pattern = detailOf(part, "pattern");
@@ -133,31 +139,28 @@ function questionDetails(part: JcrNode): ReactNode {
   );
 }
 
-function documentDetails(part: JcrNode): ReactNode {
+function documentDetails(part: SerializedNode): ReactNode {
   const types = strings(part.acceptedFileTypes);
   return types.length > 0 ? <Detail>{`Accepts ${types.join(", ")}.`}</Detail> : null;
 }
 
-function approvalDetails(part: JcrNode): ReactNode {
+function approvalDetails(part: SerializedNode): ReactNode {
   const group = detailOf(part, "approverGroup");
   return <Detail>{group ? `Approved by ${group}.` : "No approver group is set."}</Detail>;
 }
 
-function questionChips(part: JcrNode): SchemaPartChip[] {
+function questionChips(part: SerializedNode): SchemaPartChip[] {
   const options = optionsOf(part);
   const displayMode = detailOf(part, "displayMode");
   return [
     dataTypeOf(part),
     ...displayMode ? [ `Shown as ${displayMode}` ] : [],
     ...answerCountOf(part),
-    ...options.length > 0 ? [ {
-      label: options.length === 1 ? "1 option" : `${options.length} options`,
-      opensDetails: true as const,
-    } ] : [],
+    ...options.length > 0 ? [ { label: options.length === 1 ? "1 option" : `${options.length} options` } ] : [],
   ];
 }
 
-const documentChips = (part: JcrNode): string[] => [
+const documentChips = (part: SerializedNode): string[] => [
   part.required === false ? "Optional" : "Required",
   ...typeof part.template === "object" ? [ "Template provided" ] : [],
 ];

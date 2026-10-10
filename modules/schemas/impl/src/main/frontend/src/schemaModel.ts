@@ -16,13 +16,12 @@
  * limitations under the License.
  */
 
+import { childrenOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
 
 // Reading schemas and versions straight from the repository's JSON serialization, which is the one
 // description of their shape. Where each stands is its tags; what may be done with it is the events
 // the server offers on it; what may be edited is the fields it describes. No React, no fetch.
-
-export type JcrNode = Record<string, unknown>;
 
 export const SCHEMAS_ROOT = "/Schemas";
 
@@ -32,21 +31,18 @@ export const SCHEMAS_ROOT = "/Schemas";
 // schema serialization leaves out of a listing by default.
 export const listing = (depth: number): string => `${depth}.simple.events.fields.-active`;
 
-const isNode = (value: unknown, primaryType: string): value is JcrNode =>
-  typeof value === "object" && value !== null && (value as JcrNode)["jcr:primaryType"] === primaryType;
+const isOfType = (value: unknown, primaryType: string): value is SerializedNode =>
+  typeof value === "object" && value !== null && (value as SerializedNode)["jcr:primaryType"] === primaryType;
 
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-const text = (node: JcrNode, key: string): string | undefined => {
+const text = (node: SerializedNode, key: string): string | undefined => {
   const value = node[key];
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-export const isObject = (value: unknown): value is JcrNode => typeof value === "object" && value !== null
-  && !Array.isArray(value);
-
-export const pathOf = (node: JcrNode): string => String(node["@path"]);
+export const pathOf = (node: SerializedNode): string => String(node["@path"]);
 
 // The last step of a path: the name of what it leads to
 export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
@@ -54,47 +50,44 @@ export const lastSegmentOf = (path: string): string => path.slice(path.lastIndex
 // Where a node would be, renamed where it stands
 export const renamedPath = (path: string, name: string): string => `${path.slice(0, path.lastIndexOf("/"))}/${name}`;
 
-export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
+export const tagsOf = (node: SerializedNode): string[] => strings(node.tags);
 
-export const nameOf = (node: JcrNode): string => String(node["@name"]);
-
-// What a node holds, as its keys come
-export const childrenOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject);
+export const nameOf = (node: SerializedNode): string => String(node["@name"]);
 
 // The names of what a node holds
-export const childNamesOf = (node: JcrNode): string[] => childrenOf(node).map(nameOf);
+export const childNamesOf = (node: SerializedNode): string[] => childrenOf(node).map(nameOf);
 
 // The name of a node that may not be there, such as the one after the last
-export const nameIfAny = (node?: JcrNode): string | undefined => node && nameOf(node);
+export const nameIfAny = (node?: SerializedNode): string | undefined => node && nameOf(node);
 
-export const titleOf = (schema: JcrNode): string => text(schema, "title") ?? nameOf(schema);
+export const titleOf = (schema: SerializedNode): string => text(schema, "title") ?? nameOf(schema);
 
-export const labelOf = (version: JcrNode): string => text(version, "version") ?? nameOf(version);
+export const labelOf = (version: SerializedNode): string => text(version, "version") ?? nameOf(version);
 
-export const descriptionOf = (version: JcrNode): string | undefined => text(version, "description");
+export const descriptionOf = (version: SerializedNode): string | undefined => text(version, "description");
 
 // In label order, numbers compared as numbers: a schema does not order its versions itself
-export const versionsOf = (schema: JcrNode): JcrNode[] => Object.values(schema)
-  .filter(value => isNode(value, "sch:SchemaVersion"))
+export const versionsOf = (schema: SerializedNode): SerializedNode[] => Object.values(schema)
+  .filter(value => isOfType(value, "sch:SchemaVersion"))
   .sort((one, other) => labelOf(one).localeCompare(labelOf(other), undefined, { numeric: true }));
 
 // When a version was made, the earliest possible when that is not known
-export const createdOf = (version: JcrNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
+export const createdOf = (version: SerializedNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
 
 // The version made most recently, which a new version is most likely a revision of
-export const latestVersion = (schema: JcrNode): JcrNode | undefined => versionsOf(schema)
-  .reduce<JcrNode | undefined>((latest, version) =>
+export const latestVersion = (schema: SerializedNode): SerializedNode | undefined => versionsOf(schema)
+  .reduce<SerializedNode | undefined>((latest, version) =>
     latest && createdOf(latest) > createdOf(version) ? latest : version, undefined);
 
 // The label the server gives a new version when none is asked for
-export const nextVersionLabel = (schema: JcrNode): string =>
+export const nextVersionLabel = (schema: SerializedNode): string =>
   labelAfter(versionsOf(schema).map(version => String(version["@name"])));
 
-export const schemasOf = (homepage: JcrNode): JcrNode[] =>
-  Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
+export const schemasOf = (homepage: SerializedNode): SerializedNode[] =>
+  Object.values(homepage).filter(value => isOfType(value, "sch:Schema"));
 
 // What the update that would run says it allows, in words
-export const noticeOf = (node: JcrNode): string | undefined => text(node, "@notice");
+export const noticeOf = (node: SerializedNode): string | undefined => text(node, "@notice");
 
 export interface SchemaCounts {
   active: number;
@@ -103,7 +96,7 @@ export interface SchemaCounts {
 }
 
 // What the dashboard widget reports: how many versions and schemas carry each lifecycle tag.
-export function countSchemas(schemas: JcrNode[]): SchemaCounts {
+export function countSchemas(schemas: SerializedNode[]): SchemaCounts {
   const versions = schemas.flatMap(versionsOf);
   return {
     active: versions.filter(version => tagsOf(version).includes("active")).length,

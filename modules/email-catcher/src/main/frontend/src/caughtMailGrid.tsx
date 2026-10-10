@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
 import { CAUGHT_MAIL_PATH, CAUGHT_MESSAGE_TYPE, messageRoute } from "./caughtMailModel";
@@ -38,10 +39,6 @@ export function addressLabel(value: unknown): string {
     return value.filter((item): item is string => typeof item === "string").join(", ");
   }
   return typeof value === "string" ? value : "";
-}
-
-function dateValue(value: unknown): Date | null {
-  return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
 const MESSAGE_COLUMNS: EntityGridColumn[] = [
@@ -83,7 +80,7 @@ const MESSAGE_COLUMNS: EntityGridColumn[] = [
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
     // The full timestamp is too long for the caption line; the day is enough there
-    cardValue: row => dateValue(row.caughtAt)?.toLocaleDateString(),
+    cardValue: row => dayOf(row.caughtAt),
   },
 ];
 

@@ -32,9 +32,13 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -123,7 +127,7 @@ class CreateContentHandlerTest
     @Test
     void keepsToTheActivitysPattern() throws WorkflowException, PersistenceException, RepositoryException
     {
-        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class))
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN_PARAMETER, String.class))
             .thenReturn("^[A-Za-z][A-Za-z0-9]*$");
 
         create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"Plain\"}"));
@@ -140,15 +144,16 @@ class CreateContentHandlerTest
     @Test
     void followsWhatTheTypeSaysAboutItsName() throws WorkflowException, PersistenceException, RepositoryException
     {
-        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN_PARAMETER, String.class))
+            .thenReturn("^[a-z]+$");
         final Node item = this.fixture.session().getNode("/create/types/item");
-        item.setProperty(ContentNames.NAME_PATTERN, "^[a-z0-9]+$");
+        item.setProperty(ContentNames.NAME_PATTERN_PROPERTY, "^[a-z0-9]+$");
         this.fixture.session().save();
 
         create(BOX, Map.of(TYPE, ITEM, NAME, "item2"));
         assertEquals(List.of("item2"), this.fixture.children(BOX));
 
-        item.setProperty(ContentNames.NAMED, false);
+        item.setProperty(ContentNames.NAMED_PROPERTY, false);
         this.fixture.session().save();
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, NAME, "chosen")));
         // What it says still names it, within its pattern
@@ -168,23 +173,22 @@ class CreateContentHandlerTest
     }
 
     @Test
-    void numbersWhatItCreatesByItsPlaceWhenAsked()
-        throws WorkflowException, PersistenceException, RepositoryException
+    void reportsTheListedTypesItCannotOffer() throws WorkflowException, PersistenceException, RepositoryException
     {
-        // Asked for by the activity, unless the type says otherwise
-        Mockito.when(this.fixture.creating().get(Placement.ORDER_PROPERTY, String.class)).thenReturn("rank");
-        create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Last\"}"));
-        assertEquals(10L, this.fixture.session().getProperty("/box/last/rank").getLong());
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"Listed\"}"));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
 
-        this.fixture.session().getNode("/create/types/item").setProperty(Placement.ORDER_PROPERTY, "position");
-        this.fixture.session().save();
-        create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Last\"}"));
-        create(BOX, Map.of(TYPE, ITEM, "before", "last", "patch", "{\"title\": \"First\"}"));
-
-        assertEquals(List.of("first", "last", "last2"), this.fixture.children(BOX));
-        assertEquals(10L, this.fixture.session().getProperty("/box/first/position").getLong());
-        assertEquals(20L, this.fixture.session().getProperty("/box/last/position").getLong());
-        assertEquals(30L, this.fixture.session().getProperty("/box/last2/position").getLong());
+        // One entry names no node type, and one names a node type that does not exist
+        Mockito.verify(recorder).logProblem(ArgumentMatchers.eq("A type listed to create names no node type"),
+            ArgumentMatchers.any(ErrorContext.class));
+        Mockito.verify(recorder).logProblem(ArgumentMatchers.eq("A type listed to create does not exist"),
+            ArgumentMatchers.any(ErrorContext.class));
+        Mockito.verifyNoMoreInteractions(recorder);
     }
 
     @Test
@@ -202,10 +206,13 @@ class CreateContentHandlerTest
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, "test:Ghost")));
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, "before", "none")));
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, "before", 1)));
+        // A sibling is named, never reached by a path
+        create(BOX, Map.of(TYPE, ITEM, PATCH, "{\"title\": \"First\"}"));
+        assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, "before", "./first")));
         // A shelf keeps no order
         assertThrows(InvalidPayloadException.class, () -> create("/shelf", Map.of(TYPE, ITEM, "before", "loose")));
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, "patch", "{")));
-        assertEquals(List.of(), this.fixture.children(BOX));
+        assertEquals(List.of("first"), this.fixture.children(BOX));
     }
 
     @Test

@@ -30,7 +30,12 @@ import javax.jcr.nodetype.NodeDefinition;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.NodeTypeManager;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.models.Activity;
 
 /**
@@ -42,8 +47,8 @@ import io.uhndata.iap.workflows.models.Activity;
  * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
  * offering only what it is meant to hold. How content of a type is named is the activity's to say, and a type
  * listed can say otherwise: whether it takes a name of its own at all ({@code named}, true unless false), the
- * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words; likewise the
- * {@code orderProperty} that numbers content of the type by its place among its siblings (see {@link Placement}).
+ * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words. An entry naming no
+ * {@code nodeType} offers nothing, and is reported as the authoring mistake it is.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +56,13 @@ import io.uhndata.iap.workflows.models.Activity;
 public final class ContentTypes
 {
     /** The activity's child listing the types. */
-    static final String TYPES = "types";
+    static final String TYPES_CHILD = "types";
+
+    /** The property of a listed type naming the node type to create. */
+    static final String NODE_TYPE_PROPERTY = "nodeType";
+
+    /** The property of a listed type saying what it is offered under. */
+    static final String LABEL_PROPERTY = "label";
 
     /** The name of a definition allowing children, or properties, of any name. */
     static final String RESIDUAL = "*";
@@ -62,6 +73,8 @@ public final class ContentTypes
     /** The namespaces of JCR's, Oak's and Sling's own types, which say how content is stored, not what it holds. */
     private static final Set<String> BUILT_IN = Set.of("nt", "mix", "jcr", "rep", "oak", "sling");
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ContentTypes.class);
+
     /**
      * One type of content an activity offers to create.
      *
@@ -70,12 +83,10 @@ public final class ContentTypes
      * @param named whether content of this type may be given a name of its own
      * @param namePattern the pattern such a name must match, or {@code null} for any a node can have
      * @param nameHint what such a name may be, in words, or {@code null}
-     * @param orderProperty the property numbering content of this type by its place, or {@code null} for none
      * @version $Id$
      * @since 0.1.0
      */
-    public record Type(String nodeType, String label, boolean named, String namePattern, String nameHint,
-        String orderProperty)
+    public record Type(String nodeType, String label, boolean named, String namePattern, String nameHint)
     {
         /**
          * What new content of this type is called when nothing better names it: the type's name without its
@@ -96,31 +107,49 @@ public final class ContentTypes
     }
 
     /**
-     * The types an activity lists, in order.
+     * The types an activity lists, in order. An entry naming no node type is left out, and reported.
      *
      * @param activity a creating activity
      * @return the types, none when it lists none
      */
     public static List<Type> listedBy(final Activity activity)
     {
-        final Content types = activity.getChild(TYPES, Content.class);
+        final Content types = activity.getChild(TYPES_CHILD, Content.class);
         if (types == null) {
             return List.of();
         }
-        final String pattern = activity.get(ContentNames.NAME_PATTERN, String.class);
-        final String hint = activity.get(ContentNames.NAME_HINT, String.class);
-        final String order = activity.get(Placement.ORDER_PROPERTY, String.class);
+        final String pattern = activity.get(ContentNames.NAME_PATTERN_PARAMETER, String.class);
+        final String hint = activity.get(ContentNames.NAME_HINT_PARAMETER, String.class);
         return types.getChildren(Content.class).stream()
-            .filter(type -> type.get("nodeType", String.class) != null)
+            .filter(type -> namesNodeType(type, activity))
             .map(type -> {
-                final String nodeType = type.get("nodeType", String.class);
-                return new Type(nodeType, Objects.requireNonNullElse(type.get("label", String.class), nodeType),
-                    !Boolean.FALSE.equals(type.get(ContentNames.NAMED, Boolean.class)),
-                    Optional.ofNullable(type.get(ContentNames.NAME_PATTERN, String.class)).orElse(pattern),
-                    Optional.ofNullable(type.get(ContentNames.NAME_HINT, String.class)).orElse(hint),
-                    Optional.ofNullable(type.get(Placement.ORDER_PROPERTY, String.class)).orElse(order));
+                final String nodeType = type.get(NODE_TYPE_PROPERTY, String.class);
+                return new Type(nodeType,
+                    Objects.requireNonNullElse(type.get(LABEL_PROPERTY, String.class), nodeType),
+                    !Boolean.FALSE.equals(type.get(ContentNames.NAMED_PROPERTY, Boolean.class)),
+                    Optional.ofNullable(type.get(ContentNames.NAME_PATTERN_PROPERTY, String.class)).orElse(pattern),
+                    Optional.ofNullable(type.get(ContentNames.NAME_HINT_PROPERTY, String.class)).orElse(hint));
             })
             .toList();
+    }
+
+    /**
+     * Whether a listed type names the node type to create, reporting the entry when it does not.
+     *
+     * @param type an entry of the activity's list
+     * @param activity the activity listing it
+     * @return whether it names one
+     */
+    private static boolean namesNodeType(final Content type, final Activity activity)
+    {
+        if (type.get(NODE_TYPE_PROPERTY, String.class) != null) {
+            return true;
+        }
+        LOGGER.warn("{} lists {} as a type it creates, but names no node type for it", activity.getPath(),
+            type.getName());
+        ErrorLogger.logProblem("A type listed to create names no node type",
+            ErrorContext.of(ContentTypes.class, "listedBy").about(type.getPath()));
+        return false;
     }
 
     /**
@@ -137,7 +166,13 @@ public final class ContentTypes
         final List<NodeType> parentTypes = typesOf(parent);
         final List<Type> accepted = new ArrayList<>();
         for (final Type type : listed) {
-            if (nodeTypes.hasNodeType(type.nodeType()) && holds(parentTypes, nodeTypes.getNodeType(type.nodeType()))) {
+            if (!nodeTypes.hasNodeType(type.nodeType())) {
+                LOGGER.warn("A workflow lists {} as a type it creates, but there is no such node type",
+                    type.nodeType());
+                ErrorLogger.logProblem("A type listed to create does not exist",
+                    ErrorContext.of(ContentTypes.class, "accepted").about(parent.getPath())
+                        .with("nodeType", type.nodeType()));
+            } else if (holds(parentTypes, nodeTypes.getNodeType(type.nodeType()))) {
                 accepted.add(type);
             }
         }

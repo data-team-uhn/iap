@@ -20,12 +20,13 @@
 // is, outside itself, and somewhere other than where it already stands. No React, no fetch.
 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { type JcrNode, pathOf } from "./schemaModel";
+import { pathOf } from "./schemaModel";
 import { partsOf } from "./schemaVersionTreeModel";
 
 // Whether moving a node into a parent, before one of its children or else last, would put it somewhere new
-export function isMoveSpot(moving: JcrNode, parent: JcrNode, before?: JcrNode): boolean {
+export function isMoveSpot(moving: SerializedNode, parent: SerializedNode, before?: SerializedNode): boolean {
   const path = pathOf(moving);
   const parentPath = pathOf(parent);
   if (parentPath === path || parentPath.startsWith(`${path}/`)

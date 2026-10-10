@@ -17,7 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,6 +28,13 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.PropertyDefinition;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.models.Activity;
@@ -49,7 +56,7 @@ import io.uhndata.iap.workflows.models.Activity;
 public final class ContentFields
 {
     /** The activity's child listing the fields. */
-    static final String FIELDS = "fields";
+    static final String FIELDS_CHILD = "fields";
 
     /**
      * What a field holds, as told by the type of its declaration.
@@ -116,8 +123,19 @@ public final class ContentFields
      */
     public record Choice(String value, String label)
     {
+        /**
+         * The choice as the {@code fields} serialization lists it.
+         *
+         * @return its value and what it is called
+         */
+        public JsonObject toJson()
+        {
+            return Json.createObjectBuilder().add("value", this.value).add("label", this.label).build();
+        }
     }
 
+    // Each record holding a list keeps its own copy, and hands it out through List.copyOf: the copy is immutable
+    // already, so that returns it as it is, and it is what lets static analysis see that nothing can change it
     /**
      * When a field applies: while another property of the same node holds one of some values.
      *
@@ -142,8 +160,20 @@ public final class ContentFields
         @Override
         public List<String> values()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
             return List.copyOf(this.values);
+        }
+
+        /**
+         * When the field applies, as the {@code fields} serialization says it.
+         *
+         * @return the property it depends on, empty without one, and the values it applies with
+         */
+        public JsonObject toJson()
+        {
+            return Json.createObjectBuilder()
+                .add("property", Objects.requireNonNullElse(this.property, ""))
+                .add("values", Json.createArrayBuilder(this.values))
+                .build();
         }
     }
 
@@ -196,7 +226,6 @@ public final class ContentFields
         @Override
         public List<Choice> choices()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
             return List.copyOf(this.choices);
         }
     }
@@ -234,7 +263,6 @@ public final class ContentFields
         @Override
         public List<Value> defaults()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
             return List.copyOf(this.defaults);
         }
 
@@ -246,6 +274,65 @@ public final class ContentFields
         public String name()
         {
             return this.description.name();
+        }
+
+        /**
+         * The field as the {@code fields} serialization lists it: what the activity says about it, and what its
+         * declaration says, its {@code kind}, whether it is {@code multiple} or {@code mandatory}, and the
+         * {@code default} new content starts with.
+         *
+         * @return its description
+         * @throws RepositoryException when a default cannot be read as the field's kind
+         */
+        public JsonObject toJson() throws RepositoryException
+        {
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add("name", name())
+                .add("label", this.description.label())
+                .add("kind", this.kind.getName())
+                .add("multiple", this.multiple)
+                .add("mandatory", this.mandatory)
+                .add("multiline", this.description.multiline());
+            if (this.description.unique()) {
+                json.add("unique", true);
+            }
+            final Target target = this.description.target();
+            Optional.ofNullable(this.description.help()).ifPresent(help -> json.add("help", help));
+            Optional.ofNullable(target.type()).ifPresent(type -> json.add("referenceType", type));
+            Optional.ofNullable(target.root()).ifPresent(root -> json.add("referenceRoot", root));
+            if (!defaults().isEmpty()) {
+                json.add("default", defaultsAsJson());
+            }
+            if (!this.description.choices().isEmpty()) {
+                final JsonArrayBuilder choices = Json.createArrayBuilder();
+                this.description.choices().forEach(choice -> choices.add(choice.toJson()));
+                json.add("choices", choices);
+            }
+            if (this.description.appliesWhen() != null) {
+                json.add("appliesWhen", this.description.appliesWhen().toJson());
+            }
+            return json.build();
+        }
+
+        /**
+         * The values new content starts with, as JSON of the field's kind.
+         *
+         * @return one value, or a list of them for a field holding several
+         * @throws RepositoryException when a default cannot be read as the field's kind
+         */
+        private JsonValue defaultsAsJson() throws RepositoryException
+        {
+            final JsonArrayBuilder values = Json.createArrayBuilder();
+            for (final Value value : defaults()) {
+                switch (this.kind) {
+                    case LONG -> values.add(value.getLong());
+                    case DOUBLE -> values.add(value.getDouble());
+                    case BOOLEAN -> values.add(value.getBoolean());
+                    default -> values.add(value.getString());
+                }
+            }
+            final JsonArray array = values.build();
+            return this.multiple ? array : array.get(0);
         }
     }
 
@@ -262,7 +349,7 @@ public final class ContentFields
      */
     public static List<Description> describedBy(final Activity activity)
     {
-        final Content fields = activity.getChild(FIELDS, Content.class);
+        final Content fields = activity.getChild(FIELDS_CHILD, Content.class);
         if (fields == null) {
             return List.of();
         }
@@ -286,9 +373,7 @@ public final class ContentFields
      */
     public static List<Field> editable(final List<Description> described, final Node node) throws RepositoryException
     {
-        final List<NodeType> types = new ArrayList<>(List.of(node.getMixinNodeTypes()));
-        types.add(0, node.getPrimaryNodeType());
-        return editable(described, types);
+        return editable(described, ContentTypes.typesOf(node));
     }
 
     /**
@@ -300,17 +385,13 @@ public final class ContentFields
      */
     public static List<Field> editable(final List<Description> described, final List<NodeType> types)
     {
-        final List<Field> editable = new ArrayList<>();
-        for (final Description field : described) {
-            final Optional<PropertyDefinition> declared = declaration(types, field.name());
-            final Optional<Kind> kind = declared.flatMap(definition -> Kind.of(definition.getRequiredType()));
-            if (kind.isPresent()) {
-                final PropertyDefinition definition = declared.get();
-                editable.add(new Field(field, kind.get(), definition.getRequiredType() == PropertyType.WEAKREFERENCE,
-                    definition.isMultiple(), definition.isMandatory(), defaults(definition)));
-            }
-        }
-        return editable;
+        return described.stream()
+            .flatMap(field -> declaration(types, field.name())
+                .flatMap(definition -> Kind.of(definition.getRequiredType())
+                    .map(kind -> new Field(field, kind, definition.getRequiredType() == PropertyType.WEAKREFERENCE,
+                        definition.isMultiple(), definition.isMandatory(), defaults(definition))))
+                .stream())
+            .toList();
     }
 
     /**
@@ -382,15 +463,11 @@ public final class ContentFields
      * @param name the property name
      * @return the declaration, empty when the property is only allowed by a residual definition or not at all
      */
-    private static Optional<PropertyDefinition> declaration(final List<NodeType> types, final String name)
+    static Optional<PropertyDefinition> declaration(final List<NodeType> types, final String name)
     {
-        for (final NodeType type : types) {
-            for (final PropertyDefinition definition : type.getPropertyDefinitions()) {
-                if (definition.getName().equals(name) && !definition.isProtected()) {
-                    return Optional.of(definition);
-                }
-            }
-        }
-        return Optional.empty();
+        return types.stream()
+            .flatMap(type -> Arrays.stream(type.getPropertyDefinitions()))
+            .filter(definition -> definition.getName().equals(name) && !definition.isProtected())
+            .findFirst();
     }
 }

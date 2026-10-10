@@ -363,9 +363,9 @@ A few handlers are the engine's own, because what they do is generic:
 | `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
-| `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
-| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named`, `namePattern`, `nameHint`, `orderProperty`), `nameFrom`, `namePattern`, `nameHint`, `orderProperty` (all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
-| `moveContent` | `within` (optional: a resource type the content must stay inside), `orderProperty` (optional) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
+| `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`, `unique`) | Applies the event's `patch` to what the execution created, or else the target |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named`, `namePattern`, `nameHint`), `nameFrom`, `namePattern`, `nameHint` (all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
+| `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `replaceContent` | `child` (the child it replaces), `nodeTypes` (the node types the new tree may hold) | Replaces that child of what the execution created, or else the target, with the tree the event gives as `content`; `null` removes it |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
@@ -478,9 +478,12 @@ below; otherwise it is named after the first words, without accents, of the firs
 listed in `nameFrom` that the event's `patch` gives, when that makes a name its type
 allows, or else after its type. How a type is named is the activity's `namePattern` and
 `nameHint`, the rule and the same in words, unless the type listed gives its own; a type
-listed with `named` false takes no name of its own, and one asked for is refused. It is
-created empty: an `updateContent` task that follows fills it in from the same patch,
-since it acts on what was created, and refuses to leave a mandatory field empty.
+listed with `named` false takes no name of its own, and one asked for is refused. A type
+listed without a `nodeType`, or with one that does not exist, is offered nowhere, and
+recorded as an error. New content starts with only what its type sets itself, such as
+its autocreated defaults: an `updateContent` task that follows fills it in from the same
+patch, since it acts on what was created, and refuses to leave out a mandatory field its
+type gives no default.
 
 The `creatable` serialization adds `@creatable` to content a `create` event would add
 to: each type the requesting user's workflow could create there, with its `label` and
@@ -497,20 +500,18 @@ as `parent`, or within its own parent when it names none, before the sibling nam
 `before`, or else last: one task both reorders and moves. The new parent must hold the
 target's type, by the same rule as `createContent`; nothing moves into itself; and an
 activity naming a resource type as `within` keeps the target inside the same nearest
-ancestor of that type, such as the schema version a question belongs to. A name already
-taken at the destination is replaced by a free one. The move is made with the
-`ContentMover` service (`java-utils`), which lets the modules that name content by where
-it is prepare first, as `MoveParticipant`s: the conditions module makes `answer`
-operands naming a moved question by path name it by identifier. The new path is what
-later steps act on, and what the event is answered with.
+ancestor of that type, such as the schema version a question belongs to, or the question
+an answer option belongs to. A name already taken at the destination is replaced by a
+free one. The move is made with the `ContentMover` service (`java-utils`), which lets
+the modules that name content by where it is prepare first, as `MoveParticipant`s: the
+conditions module makes `answer` operands naming a moved question by path name it by
+identifier. The new path is what later steps act on, and what the event is answered
+with.
 
-Both can also number content by its place, for what reads it in the order a property
-gives rather than the order it is stored in, as UI extensions are read by their
-`defaultOrder`: with an `orderProperty` (on `moveContent`'s activity, or on
-`createContent`'s, or on one of the types it lists), the content placed and its siblings
-of its type are numbered in that property by their places, 10 apart. Readers then need
-not rely on the order of a JSON object's keys, which a JavaScript object does not keep
-for keys that look like whole numbers.
+Both place content among siblings the parent keeps in order, and `before` names a
+sibling, never a path. The order is the parent's, and the `order` serialization reports
+it (see [json-serialization.md](json-serialization.md)), since a JavaScript object does
+not keep the order of keys that look like whole numbers.
 
 `renameContent` gives the target the `name` the event asks for, where it stands, through
 the same `ContentMover`, so the same participants prepare. The name must be one a node
@@ -545,9 +546,10 @@ rather than stores, it keeps out of copies, or adjusts in them, with a
 container, and the conditions module points `answer` operands naming a question by UUID
 at its copy.
 
-A copy can say where it came from with an `addLink` after it: `createSchemaVersion` links a version made as a copy
-to its source with a `copiedFrom` link, the [links](links.md) module's type for it. Since the links container is
-never copied, the copy's links are only its own.
+A copy can say where it came from with an `addLink` after it: `createSchemaVersion`
+links a version made as a copy to its source with a `copiedFrom` link, the
+[links](links.md) module's type for it. Since the links container is never copied, the
+copy's links are only its own.
 
 ## Managing workflows
 

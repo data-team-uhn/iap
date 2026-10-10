@@ -16,30 +16,32 @@
  * limitations under the License.
  */
 
-import { childrenOf, createdOf, isObject, type JcrNode, nameOf, pathOf, tagsOf } from "./schemaModel";
+import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+
+import { createdOf, nameOf, pathOf, tagsOf } from "./schemaModel";
 
 // Which version another is compared with when none is named: the first of the rules, in their order, that finds one
 // that is not the version itself. A rule is a name: `active` for the active version, `source` for the one it was
 // copied from, `previous` for the one created last before it; a name not known finds nothing. No React, no fetch.
 
 // Where a reference points, whether given as a path, an identifier, or the node it was dereferenced to
-const pointsAt = (value: unknown, version: JcrNode): boolean => (isObject(value)
+const pointsAt = (value: unknown, version: SerializedNode): boolean => (isNode(value)
   ? pathOf(value) === pathOf(version)
   : value === pathOf(version) || value === version["jcr:uuid"]);
 
 // The version a version's links say it was copied from, among the schema's versions
-export function sourceOf(links: JcrNode | undefined, versions: JcrNode[]): JcrNode | undefined {
+export function sourceOf(links: SerializedNode | undefined, versions: SerializedNode[]): SerializedNode | undefined {
   const link = childrenOf(links ?? {}).find(child => {
-    const type = isObject(child.type) ? pathOf(child.type) : String(child.type);
+    const type = isNode(child.type) ? pathOf(child.type) : String(child.type);
     return type.endsWith("/copiedFrom");
   });
   return link && versions.find(version => pointsAt(link.reference, version));
 }
 
-export function defaultBase(version: JcrNode, versions: JcrNode[], rules: string[], source?: JcrNode)
-  : JcrNode | undefined {
+export function defaultBase(version: SerializedNode, versions: SerializedNode[], rules: string[],
+  source?: SerializedNode): SerializedNode | undefined {
   const others = versions.filter(other => nameOf(other) !== nameOf(version));
-  const found: Record<string, () => JcrNode | undefined> = {
+  const found: Record<string, () => SerializedNode | undefined> = {
     active: () => others.find(other => tagsOf(other).includes("active")),
     source: () => others.find(other => source !== undefined && nameOf(other) === nameOf(source)),
     previous: () => others.filter(other => createdOf(other) < createdOf(version))

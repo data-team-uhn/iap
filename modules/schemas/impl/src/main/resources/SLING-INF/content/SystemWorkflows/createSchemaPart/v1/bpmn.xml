@@ -79,7 +79,6 @@
             <sv:property sv:name="nodeType"><sv:value>sch:AnswerOption</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Option</sv:value></sv:property>
             <sv:property sv:name="named" sv:type="Boolean"><sv:value>false</sv:value></sv:property>
-            <sv:property sv:name="orderProperty"><sv:value>defaultOrder</sv:value></sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>

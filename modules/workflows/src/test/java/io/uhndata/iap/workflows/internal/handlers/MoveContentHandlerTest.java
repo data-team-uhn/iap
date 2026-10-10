@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,30 +102,11 @@ class MoveContentHandlerTest
 
         move("/box/c", Map.of());
         assertEquals(List.of("a", "b", "c"), this.fixture.children(BOX));
-    }
 
-    @Test
-    void numbersItAndItsSiblingsByTheirPlacesWhenAsked()
-        throws WorkflowException, PersistenceException, RepositoryException
-    {
-        Mockito.when(this.activity.get(Placement.ORDER_PROPERTY, String.class)).thenReturn("position");
-
-        move("/box/c", Map.of(BEFORE, "a"));
-        assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "a", "b")));
-
-        // Where nothing changes place, nothing is numbered again
-        move("/box/c", Map.of(BEFORE, "a"));
-        move("/box/a", Map.of());
-        assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "b", "a")));
-    }
-
-    private List<Long> positions(final List<String> names) throws RepositoryException
-    {
-        final List<Long> positions = new ArrayList<>();
-        for (final String name : names) {
-            positions.add(this.fixture.session().getNode(BOX + "/" + name).getProperty("position").getLong());
-        }
-        return positions;
+        // A parent given blank, or as something other than text, is none, as for any entry an event gives
+        move("/box/a", Map.of(PARENT, " "));
+        move("/box/b", Map.of(PARENT, List.of("/shelf")));
+        assertEquals(List.of("c", "a", "b"), this.fixture.children(BOX));
     }
 
     @Test
@@ -143,7 +123,6 @@ class MoveContentHandlerTest
     void refusesWhereItCannotGo() throws RepositoryException
     {
         assertThrows(InvalidPayloadException.class, () -> move("/box/a", Map.of(PARENT, "/nowhere")));
-        assertThrows(InvalidPayloadException.class, () -> move("/box/a", Map.of(PARENT, List.of(BOX))));
         assertThrows(InvalidPayloadException.class, () -> move("/box/a", Map.of(PARENT, "/box/a")));
         assertThrows(InvalidPayloadException.class, () -> move("/box", Map.of(PARENT, "/box/a")));
         // An item holds nothing, and a box holds no boxes
@@ -159,7 +138,7 @@ class MoveContentHandlerTest
     @Test
     void staysWithinWhatTheActivityKeepsItIn() throws WorkflowException, PersistenceException, RepositoryException
     {
-        Mockito.when(this.activity.get(MoveContentHandler.WITHIN, String.class)).thenReturn("test/Crate");
+        Mockito.when(this.activity.get(MoveContentHandler.WITHIN_PARAMETER, String.class)).thenReturn("test/Crate");
 
         assertEquals("/first/right/a", move("/first/left/a", Map.of(PARENT, "/first/right")));
         assertThrows(InvalidPayloadException.class, () -> move("/first/right/a", Map.of(PARENT, "/second/other")));

@@ -22,16 +22,17 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode, pathOf } from "./schemaModel";
+import { pathOf } from "./schemaModel";
 import { useMoveMode, type Way } from "./schemaMove";
 
 interface SchemaOptionStepActionsProps {
-  option: JcrNode;
-  question: JcrNode;
+  option: SerializedNode;
+  question: SerializedNode;
   // The question's options, in order
-  options: JcrNode[];
+  options: SerializedNode[];
 }
 
 // Moves an answer option of a draft one place up or down. The button pressed stays under the pointer, keeping the
@@ -61,7 +62,7 @@ function SchemaOptionStepActions({ option, question, options }: SchemaOptionStep
   if (!offers(option, "move")) {
     return null;
   }
-  const stepTo = (way: Way, before?: JcrNode) => (trigger: HTMLElement) => {
+  const stepTo = (way: Way, before?: SerializedNode) => (trigger: HTMLElement) => {
     setAsked(way);
     step(option, question, before, way, trigger);
   };

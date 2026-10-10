@@ -32,14 +32,16 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
  * Adds {@code @order} to nodes that keep their children in order: the names of their children, in that order. A
  * JSON object's keys carry no order a reader can count on, and a JavaScript object lists keys that look like whole
  * numbers first, in numeric order, whatever order they were written in; so where the order of children means
- * something, such as the questions of a form or the options of a question, a reader takes it from here. The name
- * of this processor is {@code order}.
+ * something, such as the parts of a schema version and the options of a question, a reader takes it from here. The
+ * name of this processor is {@code order}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,7 +67,9 @@ public class OrderProcessor implements ResourceJsonProcessor
     public void leave(final Node node, final JsonObjectBuilder json,
         final Function<Node, JsonValue> serializeNode)
     {
+        String path = null;
         try {
+            path = node.getPath();
             if (!node.getPrimaryNodeType().hasOrderableChildNodes()) {
                 return;
             }
@@ -77,6 +81,7 @@ public class OrderProcessor implements ResourceJsonProcessor
         } catch (final RepositoryException e) {
             // Not fatal to the serialization, but readers fall back to the order of the keys, which may be wrong
             LOGGER.warn("Could not list the children of {} in order: {}", node, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave").about(path));
         }
     }
 }

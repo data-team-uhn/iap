@@ -224,6 +224,23 @@ public class WorkflowVersion extends Entity
     }
 
     /**
+     * The activities one handler performs, in the order the graph lists them.
+     *
+     * @param handler the name of a handler, or {@code null} for the activities none performs: the user tasks, which
+     *            wait for a person
+     * @return a list of activities, empty if none
+     */
+    @NotNull
+    public List<Activity> getActivities(@Nullable final String handler)
+    {
+        return this.getAllFlowNodes().stream()
+            .filter(Activity.class::isInstance)
+            .map(Activity.class::cast)
+            .filter(activity -> Objects.equals(handler, activity.getHandler()))
+            .toList();
+    }
+
+    /**
      * Looks up a flow node of this version by its BPMN element identifier, which is how the graph refers to itself:
      * a {@link SequenceFlow} names its target this way, and a {@link WorkflowToken} names where it rests. Boundary
      * events are found too, even though they hang off their activity rather than off the version.

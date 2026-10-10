@@ -47,6 +47,16 @@ describe("fieldsOfDefinitions", () => {
     expect(found.map(({ name, label }) => `${name}: ${label}`)).toEqual([ "label: Label", "rubric: rubric" ]);
   });
 
+  it("reads a choice's value and words as the server does, whatever the choice is called", () => {
+    const found = fieldsOfDefinitions([ { v1: { tags: [ "active" ], update: { fields: { dataType: {
+      "@name": "dataType", label: "Answer type",
+      choices: { "@name": "choices", decimal: { "@name": "decimal", value: "double", label: "Decimal number" },
+        long: { "@name": "long", value: "long" }, text: { "@name": "text", label: "Text" } },
+    } } } } } ]);
+
+    expect(found[0].choices).toEqual({ double: "Decimal number", long: "long", text: "Text" });
+  });
+
   it("reads only the active version of a workflow", () => {
     const found = fieldsOfDefinitions([ {
       v1: { tags: [ "retired" ], update: { fields: { text: { "@name": "text", label: "Question" } } } },

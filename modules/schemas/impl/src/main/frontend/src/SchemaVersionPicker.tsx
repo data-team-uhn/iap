@@ -18,12 +18,13 @@
 
 import { ListSubheader, MenuItem, Stack, TextField } from "@mui/material";
 
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import { type JcrNode, labelOf, pathOf, tagsOf, titleOf, versionsOf } from "./schemaModel";
+import { labelOf, pathOf, tagsOf, titleOf, versionsOf } from "./schemaModel";
 
 interface SchemaVersionPickerProps {
-  schemas: JcrNode[];
+  schemas: SerializedNode[];
   // The path of the version picked, or empty for none
   value: string;
   onChange: (path: string) => void;

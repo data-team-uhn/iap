@@ -26,12 +26,11 @@ import { useInActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { suggestName } from "@iap/frontend-commons/fields/contentNames";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
-import {
-  type CreatableType, creatableOf, firstValueOf, newContentOf,
-} from "@iap/frontend-commons/fields/fieldsModel";
+import { type CreatableType, creatableOf, newContentOf } from "@iap/frontend-commons/fields/fieldsModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { patch } from "@iap/frontend-commons/workflowEvents";
 
-import { childNamesOf, type JcrNode } from "./schemaModel";
+import { childNamesOf } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { NewIdentifier } from "./SchemaNodeIdentifier";
 import { useTreeEvent } from "./schemaTree";
@@ -39,7 +38,7 @@ import { headingOf, resourceTypeOf } from "./schemaVersionTreeModel";
 
 interface SchemaNodeCreateActionProps {
   // What new content is created in, serialized with what may be created there
-  parent: JcrNode;
+  parent: SerializedNode;
   // The sibling new content goes before, or nothing to place it last
   before?: string;
   // When given, the name of what the parent holds first, which new content may then go ahead of instead
@@ -136,7 +135,9 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
           onSave={changes => send(parent, "create", {
             type: chosen.type,
             ...placedBefore ? { before: placedBefore } : {},
-            ...chosen.named ? { name: identifier ?? suggestionFor(chosen, firstValueOf(chosen.fields, changes)) } : {},
+            // Only a name typed: the server makes the one suggested by the same rule, and passes over a name taken
+            // meanwhile, where one asked for would be refused
+            ...identifier ? { name: identifier } : {},
             ...patch(changes),
           })}
           onClose={() => setChosen(null)}
@@ -154,7 +155,7 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
 
 // Adds what a container may hold, at its end or, once it holds something, at its start, standing in by as much as
 // what it adds does, in theme spacing
-export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: string; indent: number }) {
+export function AddAtEnd({ parent, first, indent }: { parent: SerializedNode; first?: string; indent: number }) {
   return (
     <SchemaNodeCreateAction
       parent={parent}
@@ -172,7 +173,7 @@ export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: s
 
 // Adds what the parent may hold right after one of its children, ahead of the next one if there is one. In a menu,
 // each type it may add is a line of its own.
-export function AddBelow({ parent, after, next }: { parent: JcrNode; after: string; next?: string }) {
+export function AddBelow({ parent, after, next }: { parent: SerializedNode; after: string; next?: string }) {
   const inMenu = useInActionsMenu();
   return (
     <SchemaNodeCreateAction

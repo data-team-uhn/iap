@@ -38,8 +38,8 @@ const question = (text: string, properties: Node = {}, ...options: [ string, Nod
   "jcr:primaryType": "sch:Question", "sling:resourceType": "sch/Question", "sling:resourceSuperType": "sch/FormItem",
   text, dataType: "text", ...properties, ...named(options),
 });
-const option = (label: string, place: number, value = label.toLowerCase()) => ({
-  "jcr:primaryType": "sch:AnswerOption", "sling:resourceType": "sch/AnswerOption", value, label, defaultOrder: place,
+const option = (label: string, value = label.toLowerCase()) => ({
+  "jcr:primaryType": "sch:AnswerOption", "sling:resourceType": "sch/AnswerOption", value, label,
 });
 const version = (label: string, ...parts: [ string, Node ][]) => ({
   "jcr:primaryType": "sch:SchemaVersion", "sling:resourceType": "sch/SchemaVersion", version: label, tags: [ "draft" ],
@@ -55,7 +55,7 @@ const requirement = (type: string, label: string) => ({
   "jcr:primaryType": `sch:${type}`, "sling:resourceType": `sch/${type}`, "sling:resourceSuperType": "sch/Requirement",
   label,
 });
-const SITE: [ string, Node ][] = [ [ "north", option("North", 10) ], [ "south", option("South", 20) ] ];
+const SITE: [ string, Node ][] = [ [ "north", option("North") ], [ "south", option("South") ] ];
 const UNCHANGED: [ string, Node ][] = [
   [ "consent", requirement("DocumentRequirement", "Consent form") ],
   [ "review", requirement("ApprovalRequirement", "Review") ],
@@ -73,9 +73,9 @@ const BASE: [ string, Node ][] = [
     [ "age", question("Your age", { dataType: "long" }) ],
     [ "email", question("Your email") ],
     [ "arm", question("Which arm?", {},
-      [ "drug", option("Drug", 10) ], [ "placebo", option("Placebo", 20) ], [ "none", option("None", 30) ]) ],
+      [ "drug", option("Drug") ], [ "placebo", option("Placebo") ], [ "none", option("None") ]) ],
     [ "notes", question("Notes") ],
-    [ "site", question("Which site?", {}, ...SITE, [ "east", option("East", 30) ]) ]) ],
+    [ "site", question("Which site?", {}, ...SITE, [ "east", option("East") ]) ]) ],
   [ "legacy", form("Legacy", [ "fax", question("Your fax") ]) ],
   ...UNCHANGED,
 ];
@@ -91,11 +91,11 @@ const HOMEPAGE = {
         [ "nick", question("Your nickname") ],
         [ "age", question("Your age in years", { minAnswers: 1, "cond:condition": FOR_DRAFTS }) ],
         [ "arm", question("Which arm?", {},
-          [ "placebo", option("Placebo arm", 10, "placebo") ], [ "drug", option("Drug", 20) ],
-          [ "device", option("Device", 30) ]) ],
+          [ "placebo", option("Placebo arm", "placebo") ], [ "drug", option("Drug") ],
+          [ "device", option("Device") ]) ],
         [ "notes", question("Notes") ],
         [ "site", question("Which site?", { description: "Where it is run" }, ...SITE,
-          [ "east", option("Eastern", 30) ]) ],
+          [ "east", option("Eastern") ]) ],
         [ "fax", question("Your fax") ]) ],
       [ "followUp", form("Follow-up", [ "visit", question("Next visit") ]) ],
       ...UNCHANGED),
@@ -235,6 +235,20 @@ describe("SchemaVersionComparison", () => {
     vi.mocked(fetch).mockImplementation((url, init) => (String(url).startsWith("/search.json")
       ? Promise.resolve(new Response(JSON.stringify({ rows: [
         { title: "Nowhere" }, { "@path": "/Workflows/fastTrack/v2", "title": "Fast track" },
+      ] })))
+      : served!(url, init)));
+    renderComparison("v1", "v4");
+
+    expect(await screen.findByText("Fast track")).toBeInTheDocument();
+  });
+
+  it("names a workflow stored by its identifier", async () => {
+    serveSchemas({ homepage: { ...HOMEPAGE,
+      trial: { ...HOMEPAGE.trial, v4: { ...HOMEPAGE.trial.v4, workflow: "uuid-fast" } } } });
+    const served = vi.mocked(fetch).getMockImplementation();
+    vi.mocked(fetch).mockImplementation((url, init) => (String(url).startsWith("/search.json")
+      ? Promise.resolve(new Response(JSON.stringify({ rows: [
+        { "@path": "/Workflows/fastTrack/v2", "jcr:uuid": "uuid-fast", "title": "Fast track" },
       ] })))
       : served!(url, init)));
     renderComparison("v1", "v4");

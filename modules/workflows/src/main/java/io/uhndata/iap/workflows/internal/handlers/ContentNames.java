@@ -41,14 +41,20 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
  */
 public final class ContentNames
 {
-    /** The property holding the pattern names must match. */
-    public static final String NAME_PATTERN = "namePattern";
+    /** The activity setting holding the pattern names must match. */
+    static final String NAME_PATTERN_PARAMETER = "namePattern";
 
-    /** The property saying, in words, what names may be. */
-    public static final String NAME_HINT = "nameHint";
+    /** The activity setting saying, in words, what names may be. */
+    static final String NAME_HINT_PARAMETER = "nameHint";
+
+    /** The property of a listed type holding the pattern its names must match, in place of the activity's. */
+    static final String NAME_PATTERN_PROPERTY = "namePattern";
+
+    /** The property of a listed type saying, in words, what its names may be, in place of the activity's. */
+    static final String NAME_HINT_PROPERTY = "nameHint";
 
     /** The property of a listed type saying, when false, that it takes no name of its own. */
-    public static final String NAMED = "named";
+    static final String NAMED_PROPERTY = "named";
 
     /** The payload entry giving the name asked for. */
     static final String NAME_PARAMETER = "name";

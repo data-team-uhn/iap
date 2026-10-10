@@ -37,7 +37,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The built-in service task renaming the target to the {@code name} the event gives, keeping its place among its
  * siblings. The name must be one the activity lets content take (see {@link ContentNames}); one a sibling has
- * already is refused rather than replaced by a free one, since the name asked for is the point.
+ * already is refused rather than replaced by a free one.
  * The rename is made with the {@link ContentMover}, which keeps what names the target by its path working, and the
  * new path is recorded as what later steps act on.
  *
@@ -65,7 +65,7 @@ public class RenameContentHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Node node = Nodes.of(target);
         final String name = ContentNames.requested(context.getEvent().get(ContentNames.NAME_PARAMETER),
-            context.getActivity().get(ContentNames.NAME_PATTERN, String.class));
+            context.getActivity().get(ContentNames.NAME_PATTERN_PARAMETER, String.class));
         if (name == null) {
             throw new InvalidPayloadException("A new name is needed");
         }

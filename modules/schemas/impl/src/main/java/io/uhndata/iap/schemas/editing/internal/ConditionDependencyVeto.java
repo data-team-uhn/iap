@@ -70,7 +70,7 @@ public class ConditionDependencyVeto implements DeletionVeto
             return null;
         }
         final Node version = ConditionDependencies.entityOf(node);
-        // By path, which lists them as the version orders them
+        // By path, so each part is named once
         final Map<String, String> dependents = new TreeMap<>();
         for (final Node operand : operands) {
             final Node part = ConditionDependencies.conditionedBy(operand);

@@ -296,16 +296,13 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
-    void optionsAreNumberedByTheirPlacesWhereverTheyArePlaced() throws IOException, URISyntaxException
+    void anOptionMovesOnlyAmongTheOptionsOfItsQuestion() throws IOException, URISyntaxException
     {
-        final Path create = definitions().get(0).resolveSibling("createSchemaPart.json");
-        final JsonObject types = read(create).getJsonObject("v1").getJsonObject("create").getJsonObject("types");
-        assertEquals("defaultOrder", types.getJsonObject("option").getString("orderProperty"));
-        assertFalse(types.getJsonObject("question").containsKey("orderProperty"));
-        assertEquals("defaultOrder", read(create.resolveSibling("moveAnswerOption.json")).getJsonObject("v1")
-            .getJsonObject("move").getString("orderProperty"));
-        assertFalse(read(create.resolveSibling("moveSchemaPart.json")).getJsonObject("v1").getJsonObject("move")
-            .containsKey("orderProperty"));
+        // In another question it could repeat a value there, or join options that question takes from elsewhere
+        final Path move = definitions().get(0).resolveSibling("moveAnswerOption.json");
+        assertEquals("sch/Question", read(move).getJsonObject("v1").getJsonObject("move").getString("within"));
+        assertEquals("sch/SchemaVersion", read(move.resolveSibling("moveSchemaPart.json")).getJsonObject("v1")
+            .getJsonObject("move").getString("within"));
     }
 
     @Test

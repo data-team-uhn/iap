@@ -31,7 +31,13 @@ import jakarta.json.JsonString;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 /**
  * Unit tests for {@link OrderProcessor}.
@@ -76,16 +82,26 @@ public class OrderProcessorTest
     }
 
     @Test
-    public void testInaccessibleNodeIsIgnored()
+    public void testInaccessibleNodeIsIgnoredAndReported()
         throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.getPrimaryNodeType()).thenThrow(new RepositoryException());
+        Mockito.when(node.getPath()).thenReturn("/Schemas/form/v1");
+        final RepositoryException failure = new RepositoryException();
+        Mockito.when(node.getPrimaryNodeType()).thenThrow(failure);
         final JsonObjectBuilder json = Json.createObjectBuilder();
-
-        this.processor.leave(node, json, null);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.processor.leave(node, json, null);
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
 
         Assertions.assertTrue(json.build().isEmpty());
+        final ArgumentCaptor<ErrorContext> context = ArgumentCaptor.forClass(ErrorContext.class);
+        Mockito.verify(recorder).logError(ArgumentMatchers.eq(failure), context.capture());
+        Assertions.assertEquals("/Schemas/form/v1", context.getValue().getSubject());
     }
 
     private static Node parent(final boolean orderable, final String... names)
