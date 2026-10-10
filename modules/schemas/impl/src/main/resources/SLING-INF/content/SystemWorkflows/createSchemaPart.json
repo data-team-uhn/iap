@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Adds a section or a question to a form or a section, or an answer option to a question, while its version is a draft.",
+    "description": "Adds a section, a question or an answer option to a draft version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

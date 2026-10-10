@@ -55,8 +55,8 @@ function Detail({ children }: { children: string }) {
   return <Typography variant="description">{children}</Typography>;
 }
 
-// A question's options: what the submitter reads, and what an answer stores when it differs. In the question's
-// details each comes with what may be done to it; in its chip, only what it says.
+// A question's options: what the submitter reads, and what an answer stores when it differs. Given the
+// question, each option carries its actions; without it, only its text.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box component="ul" sx={{ m: 0, pl: 3 }}>

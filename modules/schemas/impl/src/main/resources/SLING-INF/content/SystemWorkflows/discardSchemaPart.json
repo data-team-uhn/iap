@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Deletes a requirement, section or question, with everything in it, into the archive, while its version is a draft, unless a condition elsewhere depends on it.",
+    "description": "Deletes a part of a draft version into the archive, unless a condition elsewhere depends on it.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

@@ -33,10 +33,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What conditions depend on, for the modules that change what they depend on. An {@code answer} operand names a
- * question by its identifier, or by its path within the entity holding the operand; these find, for content about to
- * go or to move, the operands elsewhere in its entity that name something in it, and the part each such condition is
- * on.
+ * Finds the conditions that depend on content about to be removed or moved. An {@code answer} operand names a
+ * question by its identifier, or by its path within the entity holding the operand. These methods find the operands
+ * elsewhere in that entity that name something in the content, and the part each such condition is on.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,12 +53,12 @@ public final class ConditionDependencies
     }
 
     /**
-     * Every name an {@code answer} operand may give the referenceable nodes of a subtree: each one's identifier, and
-     * its path within its entity.
+     * Collect all the "names" that can be used as answer dependencies, question identifiers and relative paths, mapped
+     * to the internal identifier of the question.
      *
      * @param subtree the root of the subtree
-     * @return each name mapped to the identifier of the node it names; none outside any entity, or for an entity as
-     *     a whole, since what names it from inside names it relative to it
+     * @return each name mapped to the identifier of the node it names; empty for a whole entity, and for a node
+     *     outside any entity
      * @throws RepositoryException when the subtree cannot be read
      */
     @NotNull
@@ -105,7 +104,7 @@ public final class ConditionDependencies
     }
 
     /**
-     * The values an operand names things by.
+     * The values in an operand.
      *
      * @param operand an operand
      * @return its values, as text
@@ -122,8 +121,7 @@ public final class ConditionDependencies
     }
 
     /**
-     * Whether a node is part of a condition, rather than of what the condition is on: the condition itself, its
-     * groups and its operands.
+     * Whether a node is a condition or part of a condition.
      *
      * @param primaryType the node's primary type
      * @return whether it is
@@ -134,7 +132,7 @@ public final class ConditionDependencies
     }
 
     /**
-     * What a part of a condition is the condition of.
+     * The node a condition is on, found from any node of the condition.
      *
      * @param conditionPart a condition, or a group or an operand in one
      * @return the nearest ancestor that is not part of a condition
@@ -154,7 +152,7 @@ public final class ConditionDependencies
      * The entity a node belongs to, such as the schema version holding a question.
      *
      * @param node a node
-     * @return the nearest entity at or above it, or {@code null} outside any
+     * @return the nearest entity at or above it, or {@code null} if the starting node is outside an entity
      * @throws RepositoryException when an ancestor cannot be read
      */
     @Nullable
@@ -171,7 +169,8 @@ public final class ConditionDependencies
     }
 
     /**
-     * Gathers the names of the referenceable nodes in a subtree.
+     * Gathers the names of all the referenceable nodes in a subtree. For each referenceable node, both its internal
+     * identifier and its relative path inside the entity are returned.
      *
      * @param node the root of the subtree
      * @param entityPathLength how much of a path is the entity's

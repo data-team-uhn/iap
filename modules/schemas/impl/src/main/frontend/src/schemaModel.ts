@@ -49,7 +49,7 @@ export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
 export const nameOf = (node: JcrNode): string => String(node["@name"]);
 
-// The name of a node that may not be there, such as the one after the last
+// The name of a node, if there is one, such as the sibling after the last
 export const nameIfAny = (node?: JcrNode): string | undefined => node && nameOf(node);
 
 export const titleOf = (schema: JcrNode): string => text(schema, "title") ?? nameOf(schema);

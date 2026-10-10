@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ConditionDependencyVeto}: a question stays while a condition that does not go with it names
- * it, and the refusal says whose conditions those are.
+ * Unit tests for {@link ConditionDependencyVeto}: a question stays while a condition outside the deletion names it,
+ * and the refusal names the parts holding those conditions.
  *
  * @version $Id$
  * @since 0.1.0

@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * How messages name a part of a schema version, so that a publishing problem and a refused removal call the same
- * part the same way: by what submitters read, the first of its text, label and title that is not blank, in quotes,
- * or else by its path within the version.
+ * How messages name a part of a schema version, so every message calls a part the same way. A part is named by
+ * what submitters read: the first of its text, label and title that is not blank, in quotes. Without one, it is
+ * named by its path within the version.
  *
  * @version $Id$
  * @since 0.1.0

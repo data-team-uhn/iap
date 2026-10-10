@@ -33,11 +33,10 @@ import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
 
 /**
- * Keeps a question that conditions depend on: removing it would leave them comparing an answer that no longer
- * exists. It refuses to delete anything holding a question an {@code answer} operand names, unless the condition goes
- * with it, and names the parts whose conditions depend on it, so they can be changed first. Which conditions depend
- * on what is the conditions module's to say (see {@link ConditionDependencies}); what goes is judged as a whole, so
- * a condition leaving with what it depends on is no reason to refuse.
+ * Keeps a question that conditions depend on, which would otherwise compare an answer that no longer exists. It
+ * refuses to delete anything holding a question that an {@code answer} operand outside the deletion names. The
+ * refusal names the parts whose conditions depend on it, so they can be changed first. {@link ConditionDependencies}
+ * finds those conditions.
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,7 +69,7 @@ public class ConditionDependencyVeto implements DeletionVeto
             return null;
         }
         final Node version = ConditionDependencies.entityOf(node);
-        // By path, which lists them as the version orders them
+        // One entry per part, sorted by path
         final Map<String, String> dependents = new TreeMap<>();
         for (final Node operand : operands) {
             final Node part = ConditionDependencies.conditionedBy(operand);
@@ -81,7 +80,7 @@ public class ConditionDependencyVeto implements DeletionVeto
     }
 
     /**
-     * How the refusal names a part, as a publishing problem would.
+     * How the refusal names a part.
      *
      * @param part a part
      * @param version the version it is in

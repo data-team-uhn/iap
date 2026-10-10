@@ -37,8 +37,8 @@ interface ConfirmActionDialogProps {
   // report, letting the caller turn a particular refusal into something other than an error - an
   // offer of an alternative, say.
   interceptFailure?: (error: unknown) => boolean;
-  // Whether a rejection is final, one that confirming again cannot change, such as a refusal: the confirm
-  // button then stays disabled under its report. Without it, every failure may be retried.
+  // Whether a rejection is final, such as a refusal. Confirming again would fail the same way, so the
+  // confirm button stays disabled. Without it, every failure may be retried.
   isFinal?: (error: unknown) => boolean;
   onClose: () => void;
 }

@@ -33,8 +33,8 @@ export class RequestError extends Error {
   }
 }
 
-// Whether the server refused and said why: asking again the same way is refused again, until something changes.
-// A server error may pass, and a failure it gave no reason for is described as one that can be retried.
+// Whether the server refused and said why. Asking again the same way fails until something changes.
+// A server error may pass, and a failure without a reason counts as one that may be retried.
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 

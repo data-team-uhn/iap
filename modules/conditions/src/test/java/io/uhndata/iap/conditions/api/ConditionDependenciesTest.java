@@ -66,7 +66,7 @@ class ConditionDependenciesTest
     void setUp() throws RepositoryException
     {
         this.session = this.context.resourceResolver().adaptTo(Session.class);
-        // This module's own types: on a clean build its manifest, which declares them, does not exist yet
+        // Registered by hand: on a clean build the manifest declaring them does not exist yet
         NodeTypeDefinitionScanner.get().register(this.session,
             List.of("SLING-INF/nodetypes/conditions.cnd", "SLING-INF/nodetypes/conditions-test.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
@@ -85,7 +85,7 @@ class ConditionDependenciesTest
     {
         assertEquals(Map.of(this.age.getIdentifier(), this.age.getIdentifier(), AGE, this.age.getIdentifier()),
             ConditionDependencies.namesOf(this.form));
-        // An entity as a whole, and what is outside any, have nothing named from elsewhere
+        // A whole entity has no names, and neither has a node outside any entity
         assertTrue(ConditionDependencies.namesOf(this.study).isEmpty());
         assertTrue(ConditionDependencies.namesOf(referenceable(this.session.getRootNode(), "stray")).isEmpty());
     }
