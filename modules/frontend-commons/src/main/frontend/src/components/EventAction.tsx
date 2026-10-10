@@ -16,14 +16,16 @@
  * limitations under the License.
  */
 
-import { useState, type MouseEvent, type ReactNode, type Ref } from "react";
+import { use, useState, type ReactNode, type Ref } from "react";
 
-import { Box, DialogContentText, IconButton, Tooltip } from "@mui/material";
+import { Box, DialogContentText, IconButton, ListItemIcon, ListItemText, MenuItem, Tooltip } from "@mui/material";
 import { Link as RouterLink } from "react-router";
 
 import { useAuthenticatedFetch } from "../reLogin";
 import { isRefusal } from "../requestFailure";
+import { TOUCH_TARGET } from "../touchTarget";
 import { sendEvent } from "../workflowEvents";
+import { ActionsMenuContext } from "./ActionsMenu";
 import ConfirmActionDialog from "./ConfirmActionDialog";
 import { useNotice } from "./NoticeSnackbar";
 
@@ -75,12 +77,13 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is. An
-// action that only goes somewhere is a link there.
+// One action as an icon button, named by its tooltip, or in a menu as a named line. One that stays on until pressed
+// again says whether it is. What it does is given what stands for it: the button, or what held the menu. An action
+// that only goes somewhere is a link there, in a menu too.
 export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref, to }: {
   label: string;
   icon: ReactNode;
-  onClick?: (event: MouseEvent<HTMLElement>) => void;
+  onClick?: (trigger: HTMLElement) => void;
   pressed?: boolean;
   color?: "default" | "primary";
   disabled?: boolean;
@@ -88,10 +91,30 @@ export function ActionIcon({ label, icon, onClick, pressed, color = "default", d
   ref?: Ref<HTMLButtonElement>;
   to?: string;
 }) {
+  const menu = use(ActionsMenuContext);
+  const named = (
+    <>
+      <ListItemIcon>{icon}</ListItemIcon>
+      <ListItemText>{label}</ListItemText>
+    </>
+  );
+  if (menu && to !== undefined) {
+    return <MenuItem component={RouterLink} to={to} onClick={menu.close}>{named}</MenuItem>;
+  }
+  if (menu) {
+    return (
+      <MenuItem disabled={disabled} onClick={() => {
+        menu.close();
+        onClick?.(menu.trigger);
+      }}>
+        {named}
+      </MenuItem>
+    );
+  }
   if (to !== undefined) {
     return (
       <Tooltip title={label}>
-        <IconButton size="small" aria-label={label} component={RouterLink} to={to}>{icon}</IconButton>
+        <IconButton size="small" aria-label={label} component={RouterLink} to={to} sx={TOUCH_TARGET}>{icon}</IconButton>
       </Tooltip>
     );
   }
@@ -100,7 +123,7 @@ export function ActionIcon({ label, icon, onClick, pressed, color = "default", d
       {/* A disabled button fires no events, so the tooltip listens on what holds it */}
       <Box component="span" sx={{ display: "inline-flex" }}>
         <IconButton ref={ref} size="small" aria-label={label} aria-pressed={pressed} color={pressed ? "primary" : color}
-          disabled={disabled} loading={loading} onClick={onClick}>
+          disabled={disabled} loading={loading} onClick={event => onClick?.(event.currentTarget)} sx={TOUCH_TARGET}>
           {icon}
         </IconButton>
       </Box>

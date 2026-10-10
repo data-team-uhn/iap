@@ -20,12 +20,14 @@ import { Fragment, useMemo, useState } from "react";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Chip, Collapse, IconButton, Popover, Stack, type Theme, Tooltip, Typography } from "@mui/material";
+import { type SystemStyleObject } from "@mui/system";
 
 import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
 import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
+import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import CodePill from "./CodePill";
 import { offeredOf, schemaSources } from "./conditionModel";
@@ -37,7 +39,7 @@ import SchemaNodeActions from "./SchemaNodeActions";
 import { AddAtEnd } from "./SchemaNodeCreateAction";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import { ReloadTree } from "./schemaTree";
-import { EXPANDER_COLUMN, ICON_COLUMN } from "./schemaTreeLayout";
+import { EXPANDER_COLUMN, ICON_COLUMN, TOUCH_REACH } from "./schemaTreeLayout";
 import {
   conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
 } from "./schemaVersionTreeModel";
@@ -95,6 +97,12 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
   const [ open, setOpen ] = useState(children.length > 0);
   const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(part);
   const { Icon } = type;
+  const phone = usePhone();
+  const typeIcon = (style: SystemStyleObject<Theme>) => (
+    <Tooltip title={type.label}>
+      <Icon fontSize="small" titleAccess={type.label} sx={{ color: type.accent, ...style }} />
+    </Tooltip>
+  );
   const hasMore = Boolean(description) || details !== null || children.length > 0 || creatableOf(part).length > 0;
 
   return (
@@ -120,6 +128,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
           { hasMore && (
             <IconButton
               size="small"
+              sx={TOUCH_REACH}
               aria-label={`${open ? "Collapse" : "Expand"} ${headingOf(part)}`}
               aria-expanded={open}
               onClick={() => setOpen(current => !current)}
@@ -129,15 +138,18 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
           ) }
         </Box>
         <Stack direction="row" sx={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
-          <Box sx={{ width: theme => theme.spacing(ICON_COLUMN), flexShrink: 0 }}>
-            <Tooltip title={type.label}>
-              <Icon fontSize="small" titleAccess={type.label}
-                sx={{ color: type.accent, mt: 0.75, ...content }} />
-            </Tooltip>
-          </Box>
+          { !phone && (
+            <Box sx={{ width: theme => theme.spacing(ICON_COLUMN), flexShrink: 0 }}>
+              {typeIcon({ mt: 0.75, ...content })}
+            </Box>
+          ) }
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
             <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
-              <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>{headingOf(part)}</Typography>
+              <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>
+                {/* On a phone, at the start of the heading, which wraps under it */}
+                { phone && typeIcon({ verticalAlign: "text-bottom", mr: 0.75 }) }
+                {headingOf(part)}
+              </Typography>
               <CodePill name={nameOf(part)} />
             </Stack>
             { type.chips && (

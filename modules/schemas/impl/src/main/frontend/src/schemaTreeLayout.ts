@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { TOUCH_TARGET } from "@iap/frontend-commons/touchTarget";
+
 // How a version's tree is laid out, in theme spacing, for what has to line up across its pieces.
 
 // The column a part's expand button stands in. On a wide screen, what the part holds is indented by as much, and by
@@ -25,3 +27,6 @@ export const EXPANDER_COLUMN = 4;
 // The column a part's icon stands in, with the space after it: its heading and chips start after it, and so do a
 // question's options
 export const ICON_COLUMN = 3.5;
+
+// A touch target's reach for a small icon button that stays where it is drawn, the extra reaching out around it
+export const TOUCH_REACH = { "@media (pointer: coarse)": { ...TOUCH_TARGET["@media (pointer: coarse)"], m: "-5px" } };
