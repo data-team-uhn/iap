@@ -46,7 +46,17 @@
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:fields="description" iap:handler="updateSchemaContent" name="Apply the changes">
+    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Apply the changes">
+      <bpmn:extensionElements>
+        <sv:node sv:name="fields">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+          <sv:node sv:name="description">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
+            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
