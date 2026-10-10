@@ -26,8 +26,7 @@ import { offers } from "@iap/frontend-commons/workflowEvents";
 import { type JcrNode, pathOf } from "./schemaModel";
 import { ReloadTree } from "./schemaTree";
 
-// Removes a part or an answer option from a draft, into the archive. What a condition elsewhere depends on
-// stays, and the refusal says whose conditions those are.
+// Moves a part or an answer option of a draft to the archive, when the server offers it
 function SchemaNodeDiscardAction({ node, what }: { node: JcrNode; what: string }) {
   const reload = useContext(ReloadTree);
   if (!offers(node, "discard")) {

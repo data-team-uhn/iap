@@ -64,8 +64,9 @@ function FactChip({ chip }: { chip: SchemaPartChip }) {
 
 interface PartCardProps {
   part: JcrNode;
-  // What holds it, and everything it holds, in order
+  // What holds it
   parent: JcrNode;
+  // Every part the parent holds, in order
   siblings: JcrNode[];
   index: QuestionIndex;
 }

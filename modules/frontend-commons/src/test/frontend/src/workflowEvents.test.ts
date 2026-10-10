@@ -74,7 +74,7 @@ describe("sendEvent", () => {
     });
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("You do not have permission");
-    // Without a reason, it is described as something that may be tried again
+    // Without a reason, it may be retried
     expect(isRefusal(await failure(sendEvent(doFetch, "/Workflows", "create")))).toBe(false);
   });
 

@@ -50,10 +50,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Checks the fields the shipped update workflows list against the node types they target, or create: the engine
- * leaves out, without a word, a listed field that no such type declares, so a misspelt one would never be offered.
- * And since the engine gives a create workflow no way to share a draft update's fields, it checks that the copies
- * agree.
+ * Checks the fields the shipped update workflows list against the node types they target or create. The engine
+ * silently leaves out a listed field that no such type declares, so a misspelt one would never be offered. A create
+ * workflow cannot share a draft update's fields, so it also checks that the two copies agree.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,7 +68,7 @@ class UpdateFieldsTest
             "sch:Section", "sch:Question"),
         "sch/AnswerOption", List.of("sch:AnswerOption"));
 
-    // The draft update of each type a create workflow makes, whose fields it must fill in alike
+    // For each type a create workflow makes, the draft update whose fields it must list too
     private static final Map<String, String> DRAFT_UPDATES = Map.of(
         "sch:FormRequirement", "updateDraftSchemaPart.json",
         "sch:DocumentRequirement", "updateDraftSchemaPart.json",
@@ -142,8 +141,8 @@ class UpdateFieldsTest
     }
 
     /**
-     * The node types an update's fields are held to: what the workflow creates, when it creates something, and else
-     * what it targets.
+     * The node types an update's fields are held to: the types the workflow creates, if it creates any, or else the
+     * types it targets.
      *
      * @param version a workflow version
      * @return the node types

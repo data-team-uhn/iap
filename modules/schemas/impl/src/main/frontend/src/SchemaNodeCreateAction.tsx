@@ -35,14 +35,14 @@ interface SchemaNodeCreateActionProps {
   parent: JcrNode;
   // The sibling new content goes before, or nothing to place it last
   before?: string;
-  // When given, the name of what the parent holds first, which new content may then go ahead of instead
+  // The parent's first child; when given, the dialog offers to place new content ahead of it
   first?: string;
-  // The control that offers it, given what opens the choice, and the only type offered if there is one
+  // Renders the control that opens the choice; `only` is the type on offer when there is just one
   trigger: (open: (anchor: HTMLElement) => void, only?: CreatableType) => ReactNode;
 }
 
-// Adds a part or an answer option where the parent may hold one: every type it may create, with a dialog for
-// what the new content starts with. A single type needs no menu.
+// Adds a part or an answer option to a parent. It offers every type the parent may create, then a dialog
+// for the new content's fields. A single type skips the menu.
 function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCreateActionProps) {
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
@@ -106,7 +106,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
   );
 }
 
-// Adds what a container may hold, at its end or, once it holds something, at its start
+// Adds to the end of a container, or to its start once it holds something
 export function AddAtEnd({ parent, first }: { parent: JcrNode; first?: string }) {
   return (
     <SchemaNodeCreateAction
@@ -122,7 +122,7 @@ export function AddAtEnd({ parent, first }: { parent: JcrNode; first?: string })
   );
 }
 
-// Adds what the parent may hold right after one of its children, ahead of the next one if there is one
+// Adds right after one of the parent's children: ahead of the next child, or last
 export function AddBelow({ parent, next }: { parent: JcrNode; next?: string }) {
   return (
     <SchemaNodeCreateAction

@@ -23,8 +23,9 @@ import SchemaNodeEditAction from "./SchemaNodeEditAction";
 
 interface SchemaNodeActionsProps {
   node: JcrNode;
-  // What holds it, and everything it holds of the same kind, in order
+  // What holds it
   parent: JcrNode;
+  // Everything the parent holds of its kind, in order
   siblings: JcrNode[];
   // What it is called in the actions' titles, such as "question"
   what: string;

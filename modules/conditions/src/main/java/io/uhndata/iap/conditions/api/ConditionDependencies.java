@@ -33,10 +33,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What conditions depend on, for the modules that change what they depend on. An {@code answer} operand names a
- * question by its identifier, or by its path within the entity holding the operand; these find, for content about to
- * go or to move, the operands elsewhere in its entity that name something in it, and the part each such condition is
- * on.
+ * Finds the conditions that depend on content about to be removed or moved. An {@code answer} operand names a
+ * question by its identifier, or by its path within the entity holding the operand. These methods find the operands
+ * elsewhere in that entity that name something in the content, and the part each such condition is on.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,8 +57,8 @@ public final class ConditionDependencies
      * its path within its entity.
      *
      * @param subtree the root of the subtree
-     * @return each name mapped to the identifier of the node it names; none outside any entity, or for an entity as
-     *     a whole, since what names it from inside names it relative to it
+     * @return each name mapped to the identifier of the node it names; empty for a whole entity, and for a node
+     *     outside any entity
      * @throws RepositoryException when the subtree cannot be read
      */
     @NotNull
@@ -134,7 +133,7 @@ public final class ConditionDependencies
     }
 
     /**
-     * What a part of a condition is the condition of.
+     * The part a condition is on, found from any node of the condition.
      *
      * @param conditionPart a condition, or a group or an operand in one
      * @return the nearest ancestor that is not part of a condition
