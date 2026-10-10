@@ -24,7 +24,7 @@ import { type JcrNode, nameOf } from "./schemaModel";
 
 const PART_SUPERTYPES = [ "sch/Requirement", "sch/FormItem" ];
 
-const OPTION_TYPE = "sch/AnswerOption";
+export const OPTION_TYPE = "sch/AnswerOption";
 
 const isObject = (value: unknown): value is JcrNode => typeof value === "object" && value !== null
   && !Array.isArray(value);
@@ -65,6 +65,10 @@ export const headingOf = (part: JcrNode): string =>
 export const detailOf = (node: JcrNode, key: string): string | undefined => text(node, key);
 
 export const optionLabelOf = (option: JcrNode): string => text(option, "label") ?? strings(option.value).at(0) ?? "";
+
+// What a part or an option is called where it is shown
+export const shownNameOf = (node: JcrNode): string =>
+  resourceTypeOf(node) === OPTION_TYPE ? optionLabelOf(node) : headingOf(node);
 
 const DATA_TYPES: Record<string, string> = {
   text: "Text",

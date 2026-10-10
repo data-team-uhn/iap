@@ -28,6 +28,7 @@ import { type CreatableType, creatableOf, newContentOf } from "@iap/frontend-com
 import { patch } from "@iap/frontend-commons/workflowEvents";
 
 import { type JcrNode } from "./schemaModel";
+import { useMoveMode } from "./schemaMove";
 import { useTreeEvent } from "./schemaTree";
 
 interface SchemaNodeCreateActionProps {
@@ -42,14 +43,15 @@ interface SchemaNodeCreateActionProps {
 }
 
 // Adds a part or an answer option where the parent may hold one: every type it may create, with a dialog for
-// what the new content starts with. A single type needs no menu.
+// what the new content starts with. A single type needs no menu. Nothing is added while something is moving.
 function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCreateActionProps) {
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
   const [ atStart, setAtStart ] = useState(false);
   const send = useTreeEvent();
+  const { moving } = useMoveMode();
   const types = creatableOf(parent);
-  if (types.length === 0) {
+  if (types.length === 0 || moving) {
     return null;
   }
   const open = (anchor: HTMLElement) => {

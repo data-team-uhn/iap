@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Move an answer option of a draft schema version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sch/AnswerOption",
+    "description": "Moves an answer option to another place among a question's options, in the same version, while its version is a draft.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "move",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toMove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMove",
+        "targetRef": "move"
+      }
+    },
+    "move": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "move",
+      "label": "Move the option",
+      "handler": "moveContent",
+      "within": "sch/SchemaVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Option moved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

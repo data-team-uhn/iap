@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ComponentType, type ReactNode } from "react";
+import { type ComponentType, Fragment, type ReactNode } from "react";
 
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -27,6 +27,7 @@ import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
 import { Box, Typography, type SvgIconProps } from "@mui/material";
 
 import { nameOf } from "./schemaModel";
+import { MoveSpot, useMoveHighlight } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
 import {
   answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings,
@@ -56,22 +57,55 @@ function Detail({ children }: { children: string }) {
   return <Typography variant="description">{children}</Typography>;
 }
 
-// A question's options: what the submitter reads, and what an answer stores when it differs. In the question's
-// details each comes with what may be done to it; in its chip, only what it says.
+// What an option says: what the submitter reads, and what an answer stores when it differs
+function OptionText({ option }: { option: JcrNode }) {
+  return (
+    <>
+      {optionLabelOf(option)}
+      { option.label !== undefined && option.label !== option.value && (
+        <Typography component="span" variant="description">
+          {` · stored as ${String(option.value)}`}
+        </Typography>
+      ) }
+    </>
+  );
+}
+
+// One of a question's options in its details, with what may be done to it
+function OptionRow({ option, question, options }: { option: JcrNode; question: JcrNode; options: JcrNode[] }) {
+  const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option, { bordered: false });
+  return (
+    <Typography
+      component="li"
+      variant="body2"
+      ref={ref}
+      tabIndex={-1}
+      sx={surface}
+    >
+      <Box component="span" sx={content}>
+        <OptionText option={option} />
+      </Box>
+      <SchemaNodeActions node={option} parent={question} siblings={options} what="option" />
+    </Typography>
+  );
+}
+
+// A question's options. In the question's details each comes with what may be done to it, and, while an option
+// is moving, the places it may go, between them and after the last; in its chip, only what it says.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box component="ul" sx={{ m: 0, pl: 3 }}>
-      { options.map(option => (
+      { options.map(option => (question ? (
+        <Fragment key={nameOf(option)}>
+          <MoveSpot parent={question} before={option} item />
+          <OptionRow option={option} question={question} options={options} />
+        </Fragment>
+      ) : (
         <Typography component="li" variant="body2" key={nameOf(option)}>
-          {optionLabelOf(option)}
-          { option.label !== undefined && option.label !== option.value && (
-            <Typography component="span" variant="description">
-              {` · stored as ${String(option.value)}`}
-            </Typography>
-          ) }
-          { question && <SchemaNodeActions node={option} parent={question} siblings={options} what="option" /> }
+          <OptionText option={option} />
         </Typography>
-      )) }
+      ))) }
+      { question && <MoveSpot parent={question} item /> }
     </Box>
   );
 }

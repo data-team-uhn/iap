@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { sendEvent } from "@iap/frontend-commons/workflowEvents";
@@ -24,14 +24,16 @@ import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 import { type JcrNode, pathOf } from "./schemaModel";
 
 // How a change made anywhere in a version's tree re-reads the tree
-export const ReloadTree = createContext<() => void>(() => undefined);
+export const ReloadTree = createContext<() => void | Promise<void>>(() => undefined);
 
-// Sends an event to a node of the tree, then re-reads the tree
+// Sends an event to a node of the tree, then re-reads the tree. Resolves with where what the event created or
+// moved now is, once the tree shows it.
 export function useTreeEvent() {
   const doFetch = useAuthenticatedFetch();
   const reload = useContext(ReloadTree);
-  return async (node: JcrNode, event: string, params?: Record<string, string>): Promise<void> => {
-    await sendEvent(doFetch, pathOf(node), event, params);
-    reload();
-  };
+  return useCallback(async (node: JcrNode, event: string, params?: Record<string, string>) => {
+    const path = await sendEvent(doFetch, pathOf(node), event, params);
+    await reload();
+    return path;
+  }, [ doFetch, reload ]);
 }
