@@ -67,12 +67,18 @@ export const HOMEPAGE = {
     "title": "Clinical study",
     "jcr:lastModified": "2026-09-20T10:00:00.000-04:00",
     "@events": OPEN_SCHEMA, "@fields": TITLE,
-    "v1": { "jcr:primaryType": "sch:SchemaVersion", "version": "1.0", "tags": ["retired"], "@events": RETIRED, "@fields": PUBLISHED_FIELDS },
+    "v1": {
+      "jcr:primaryType": "sch:SchemaVersion", "version": "1.0", "tags": ["retired"], "@events": RETIRED,
+      "@fields": PUBLISHED_FIELDS, "@notice": "Only the wording of this version can be corrected.",
+    },
     "v2": {
       "jcr:primaryType": "sch:SchemaVersion", "version": "2.0", "description": "Current", "tags": ["active"],
-      "@events": ACTIVE, "@fields": PUBLISHED_FIELDS,
+      "@events": ACTIVE, "@fields": PUBLISHED_FIELDS, "@notice": "Only the wording of this version can be corrected.",
     },
-    "v3": { "jcr:primaryType": "sch:SchemaVersion", "version": "3.0", "tags": ["draft"], "@events": DRAFT, "@fields": DRAFT_FIELDS },
+    "v3": {
+      "jcr:primaryType": "sch:SchemaVersion", "version": "3.0", "tags": ["draft"], "@events": DRAFT,
+      "@fields": DRAFT_FIELDS, "@notice": "Everything in this version can change until it is activated.",
+    },
     "notes": { "jcr:primaryType": "nt:unstructured" },
   },
   "idea": {

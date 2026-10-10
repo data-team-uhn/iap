@@ -74,7 +74,8 @@ function SchemaPage() {
 
   if (versionName) {
     return (
-      <SchemaVersionView schema={schema} versionName={versionName} notices={notices} reloadSchema={reloadSchema} />
+      <SchemaVersionView schema={schema} versionName={versionName} pageNotices={notices}
+        reloadSchema={reloadSchema} />
     );
   }
 

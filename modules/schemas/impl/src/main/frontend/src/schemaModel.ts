@@ -77,6 +77,9 @@ export const nextVersionLabel = (schema: JcrNode): string =>
 export const schemasOf = (homepage: JcrNode): JcrNode[] =>
   Object.values(homepage).filter(value => isNode(value, "sch:Schema"));
 
+// What the update that would run says it allows, in words
+export const noticeOf = (node: JcrNode): string | undefined => text(node, "@notice");
+
 export interface SchemaCounts {
   active: number;
   drafts: number;
