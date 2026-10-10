@@ -19,6 +19,8 @@
     "{https://iap.uhndata.io/bpmn}editable=editable[]",
     "{https://iap.uhndata.io/bpmn}required=required[]",
     "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]",
-    "{https://iap.uhndata.io/bpmn}within=within"
+    "{https://iap.uhndata.io/bpmn}within=within",
+    "{https://iap.uhndata.io/bpmn}namePattern=namePattern",
+    "{https://iap.uhndata.io/bpmn}nameHint=nameHint"
   ]
 }
