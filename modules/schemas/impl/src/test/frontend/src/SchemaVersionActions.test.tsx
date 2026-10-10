@@ -50,10 +50,11 @@ const confirm = async (label: string) => {
 
 describe("SchemaVersionActions", () => {
   it("offers what each state allows", async () => {
-    expect(BUILTIN_ACTIONS).toHaveLength(4);
+    expect(BUILTIN_ACTIONS).toHaveLength(5);
     renderActions("v3");
     expect(await screen.findByRole("button", { name: "Activate" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New version from this one" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
   });
 
