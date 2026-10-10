@@ -87,7 +87,7 @@ class ContentFieldsProcessorTest
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
         final List<FlowNode> nodes = List.of(Mockito.mock(FlowNode.class), this.fixture.activity(), otherActivity());
         Mockito.when(version.getFlowNodes()).thenReturn(nodes);
-        Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.eq("update"))).thenReturn(version);
+        FieldsFixture.inspecting(this.engine, "update", version);
 
         final JsonObject json = serialize(this.fixture.item());
 
@@ -121,6 +121,19 @@ class ContentFieldsProcessorTest
         assertEquals(Json.createArrayBuilder().add("red").add("blue").build(), fields.getJsonObject(14).get("default"));
         assertFalse(fields.getJsonObject(0).containsKey("default"));
         assertFalse(json.containsKey("@notice"));
+        assertFalse(fields.getJsonObject(0).containsKey("unique"));
+    }
+
+    @Test
+    void saysWhichFieldsMustHoldAValueAlone() throws Exception
+    {
+        this.fixture.session().getNode("/update/fields/title").setProperty("unique", true);
+        this.fixture.session().save();
+        final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
+        Mockito.when(version.getFlowNodes()).thenReturn(List.of(this.fixture.activity()));
+        FieldsFixture.inspecting(this.engine, "update", version);
+
+        assertTrue(serialize(this.fixture.item()).getJsonArray("@fields").getJsonObject(0).getBoolean("unique"));
     }
 
     @Test
@@ -129,7 +142,7 @@ class ContentFieldsProcessorTest
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
         Mockito.when(version.getFlowNodes()).thenReturn(List.of(this.fixture.activity()));
         Mockito.when(version.getNotice()).thenReturn("Only the wording can change.");
-        Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.eq("update"))).thenReturn(version);
+        FieldsFixture.inspecting(this.engine, "update", version);
 
         assertEquals("Only the wording can change.", serialize(this.fixture.item()).getString("@notice"));
     }
