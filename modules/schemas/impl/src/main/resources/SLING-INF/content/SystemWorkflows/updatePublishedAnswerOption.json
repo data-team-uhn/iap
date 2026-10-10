@@ -1,0 +1,60 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Correct an answer option of a published schema version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sch/AnswerOption",
+    "description": "Corrects what an answer option says, on a version that has been published. Its value, which answers store and conditions compare against, cannot change here.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "update",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toUpdate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpdate",
+        "targetRef": "update"
+      }
+    },
+    "update": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "update",
+      "label": "Correct the option",
+      "handler": "updateContent",
+      "fields": {
+        "jcr:primaryType": "nt:unstructured",
+        "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
+        "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true }
+      },
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Corrected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
