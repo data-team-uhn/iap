@@ -23,11 +23,12 @@ import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import { Box, Chip, Collapse, IconButton, Popover, Stack, Tooltip, Typography } from "@mui/material";
 
 import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
-import { type OperandSource, whenApplies } from "@iap/conditions/conditionModel";
+import { whenApplies } from "@iap/conditions/conditionModel";
+import { useTagChoices } from "@iap/conditions/useTagChoices";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 
 import CodePill from "./CodePill";
-import { schemaSources } from "./conditionModel";
+import { offeredOf, schemaSources } from "./conditionModel";
 import { type JcrNode, nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
   MoveMode, MoveSpot, useMoveHighlight,
@@ -40,6 +41,9 @@ import { EXPANDER_COLUMN, ICON_COLUMN } from "./schemaTreeLayout";
 import {
   conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
 } from "./schemaVersionTreeModel";
+import { useConditionEditor } from "./useConditionEditor";
+import { useOptionsFrom } from "./useOptionsFrom";
+import { useVersionConditions, VersionConditionsContext } from "./versionConditions";
 
 // One of a part's chips; a chip with content shows it in a popover when clicked
 function FactChip({ chip }: { chip: SchemaPartChip }) {
@@ -73,19 +77,19 @@ interface PartCardProps {
   // What holds it, and everything it holds, in order
   parent: JcrNode;
   siblings: JcrNode[];
-  // What the conditions of the version's parts read
-  sources: OperandSource[];
 }
 
 // One requirement, section or question, with what it contains nested inside. Containers start open and
 // questions closed, so the outline of a version reads first and the detail is a click away. When it
 // applies stays in view either way: it is what the outline is made of. While something is moving, a closed part
 // still offers its end as a place to go, opening to show what went there, and opens to offer the rest.
-function PartCard({ part, parent, siblings, sources }: PartCardProps) {
+function PartCard({ part, parent, siblings }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);
   const condition = conditionOf(part);
+  const { sources } = useVersionConditions();
   const when = condition && whenApplies(condition, sources);
+  const conditionEditor = useConditionEditor(part, type.label.toLowerCase());
   const description = detailOf(part, "description");
   const details = type.details?.(part) ?? null;
   const [ open, setOpen ] = useState(children.length > 0);
@@ -143,10 +147,12 @@ function PartCard({ part, parent, siblings, sources }: PartCardProps) {
                 )) }
               </Stack>
             ) }
-            { when && <AppliesWhenLine>{when}</AppliesWhenLine> }
+            { when && <AppliesWhenLine onEdit={conditionEditor.edit}>{when}</AppliesWhenLine> }
           </Stack>
           <Stack direction="row" sx={{ flexShrink: 0, ml: 1 }}>
-            <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
+            <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()}
+              editCondition={conditionEditor.edit} />
+            {conditionEditor.dialog}
           </Stack>
         </Stack>
       </Stack>
@@ -156,7 +162,7 @@ function PartCard({ part, parent, siblings, sources }: PartCardProps) {
           { description && <Typography variant="description">{description}</Typography> }
           {details}
           { children.length > 0
-            ? <PartList parent={part} parts={children} sources={sources} />
+            ? <PartList parent={part} parts={children} />
             : <MoveSpot parent={part} /> }
           <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))}
             indent={isQuestion(part) ? ICON_COLUMN : 0} />
@@ -169,18 +175,16 @@ function PartCard({ part, parent, siblings, sources }: PartCardProps) {
 interface PartListProps {
   parent: JcrNode;
   parts: JcrNode[];
-  // What the conditions of the version's parts read
-  sources: OperandSource[];
 }
 
 // Parts one under the other, and, while something is moving, the places between them it may go
-function PartList({ parent, parts, sources }: PartListProps) {
+function PartList({ parent, parts }: PartListProps) {
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
       { parts.map(part => (
         <Fragment key={pathOf(part)}>
           <MoveSpot parent={parent} before={part} item />
-          <PartCard part={part} parent={parent} siblings={parts} sources={sources} />
+          <PartCard part={part} parent={parent} siblings={parts} />
         </Fragment>
       )) }
       <MoveSpot parent={parent} item />
@@ -195,18 +199,26 @@ interface SchemaVersionTreeProps {
 
 // Everything a version asks of a submission, in the order it asks it.
 function SchemaVersionTree({ version, reload }: SchemaVersionTreeProps) {
-  const sources = useMemo(() => schemaSources(indexQuestions(version)), [ version ]);
+  const tags = useTagChoices();
+  const index = useMemo(() => indexQuestions(version), [ version ]);
+  const items = useOptionsFrom(index);
+  const conditions = useMemo(() => {
+    const sources = schemaSources(index, tags, items);
+    return { index, sources, offered: offeredOf(sources) };
+  }, [ index, tags, items ]);
   const parts = partsOf(version);
   return (
     <ReloadTree value={reload}>
-      <MoveMode>
-        <Stack spacing={1}>
-          { parts.length === 0
-            ? <Typography variant="placeholder">This version asks for nothing yet.</Typography>
-            : <PartList parent={version} parts={parts} sources={sources} /> }
-          <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} indent={0} />
-        </Stack>
-      </MoveMode>
+      <VersionConditionsContext value={conditions}>
+        <MoveMode>
+          <Stack spacing={1}>
+            { parts.length === 0
+              ? <Typography variant="placeholder">This version asks for nothing yet.</Typography>
+              : <PartList parent={version} parts={parts} /> }
+            <AddAtEnd parent={version} first={nameIfAny(parts.at(0))} indent={0} />
+          </Stack>
+        </MoveMode>
+      </VersionConditionsContext>
     </ReloadTree>
   );
 }

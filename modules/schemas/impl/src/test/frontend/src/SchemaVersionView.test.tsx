@@ -85,6 +85,12 @@ const renameTo = (dialog: HTMLElement, name: string) => {
 // How many times the draft's whole tree has been read
 const treeReads = () => vi.mocked(fetch).mock.calls.filter(([ url ]) => String(url).includes("/v3.deep")).length;
 
+// Picks an option of a select in a dialog
+const pick = async (dialog: HTMLElement, label: string, option: string) => {
+  fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: label }));
+  fireEvent.click(await screen.findByRole("option", { name: option }));
+};
+
 const expand = async (heading: string) =>
   fireEvent.click(await screen.findByRole("button", { name: `Expand ${heading}` }));
 
@@ -448,6 +454,55 @@ describe("SchemaVersionView", () => {
       .toEqual([ "/Schemas/study/v3/intake/age.discard.json", "/Schemas/study/v3/intake/name/short.discard.json" ]));
   });
 
+  it("sets when a part applies from the answer to another question", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    // Where it cannot be set, it is not offered
+    expect(within(await card("Your name")).queryByRole("button", { name: "When it applies" })).not.toBeInTheDocument();
+    fireEvent.click(within(await card("Your age")).getByRole("button", { name: "When it applies" }));
+    const dialog = await screen.findByRole("dialog", { name: "When this question applies" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
+    expect(within(dialog).getByRole("combobox", { name: "Compare" })).toHaveTextContent("The answer to a question");
+    fireEvent.keyDown(within(dialog).getByRole("combobox", { name: "Question" }), { key: "ArrowDown" });
+    // Not itself, and by its identifier too
+    const [ only, ...others ] = screen.getAllByRole("option");
+    expect(others).toEqual([]);
+    expect(within(only).getByText("Your name")).toBeInTheDocument();
+    expect(within(only).getByText("name")).toBeInTheDocument();
+    fireEvent.click(only);
+    // Its options are offered at once
+    expect(await screen.findByRole("option", { name: "Short" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    await pick(dialog, "Comparison", "is not empty");
+    expect(within(dialog).getByText("Only when the answer to “Your name” is not empty")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/age.condition.json"));
+    expect(JSON.parse(posted[0].params.get("content") ?? "")).toMatchObject({
+      "jcr:primaryType": "cond:ConditionGroup",
+      "condition1": { comparator: "is not empty", operandA: { source: "answer", value: [ "uuid-name" ] } },
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("changes a part's condition from the line reading it with the labels of its tags", async () => {
+    const posted = serveSchemas();
+    renderVersion("study", "v3");
+
+    const followUp = await card("Follow-up");
+    // The line saying when it applies is what changes it
+    const line = await within(followUp).findByRole("button", { name: "Change when it applies" });
+    expect(line).toHaveAccessibleDescription("Only when the submission's tag list includes “Draft”");
+    fireEvent.click(line);
+    const dialog = await screen.findByRole("dialog", { name: /When this .* applies/ });
+    expect(within(dialog).getByText("Draft")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Clear all conditions" }));
+
+    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/followUp.condition.json"));
+    expect(posted[0].params.get("content")).toBe("null");
+  });
+
   it("moves a part before another, where nothing else can be done meanwhile", async () => {
     const posted = serveSchemas({ answers: {
       "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
@@ -459,6 +514,7 @@ describe("SchemaVersionView", () => {
     expect(within(await card("Your age")).getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "true");
     expect(within(await card("Intake")).queryByRole("button", { name: /^Edit|^Add|^Remove/ }))
       .not.toBeInTheDocument();
+    expect(within(await card("Follow-up")).queryByRole("button", { name: /when it applies/ })).not.toBeInTheDocument();
     // Only where it would go somewhere new, and only into what holds questions
     expect(spots()).toEqual([ "Move before Your name", "Move to the end of Follow-up" ]);
     const scrollBy = vi.fn();
