@@ -83,6 +83,27 @@ describe("ConfirmActionDialog", () => {
     expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
   });
 
+  it("keeps the action disabled after a failure it is told is final", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("Something depends on it"));
+    renderDialog({ onConfirm, isFinal: error => error instanceof Error && error.message.includes("depends") });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("Something depends on it")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
+  it("offers the action again after a failure that is not final", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("Unreachable"));
+    renderDialog({ onConfirm, isFinal: () => false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("Unreachable")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+  });
+
   it("reports a failure that was not an Error", async () => {
     const onConfirm = vi.fn().mockRejectedValue("connection reset");
     renderDialog({ onConfirm });
