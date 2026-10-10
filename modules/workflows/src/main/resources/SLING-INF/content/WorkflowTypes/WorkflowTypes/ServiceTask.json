@@ -24,6 +24,9 @@
     "{https://iap.uhndata.io/bpmn}nameHint=nameHint",
     "{https://iap.uhndata.io/bpmn}orderProperty=orderProperty",
     "{https://iap.uhndata.io/bpmn}child=child",
-    "{https://iap.uhndata.io/bpmn}nodeTypes=nodeTypes[]"
+    "{https://iap.uhndata.io/bpmn}nodeTypes=nodeTypes[]",
+    "{https://iap.uhndata.io/bpmn}to=to",
+    "{https://iap.uhndata.io/bpmn}linkType=linkType",
+    "{https://iap.uhndata.io/bpmn}linkLabel=linkLabel"
   ]
 }
