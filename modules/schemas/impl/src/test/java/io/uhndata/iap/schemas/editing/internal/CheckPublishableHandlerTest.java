@@ -102,7 +102,7 @@ class CheckPublishableHandlerTest
             "label", "Form"));
         final Resource counts = resolver.create(form, "counts", Map.of("jcr:primaryType", "sch:Question",
             "text", "Counts", "minAnswers", 3L, "maxAnswers", 2L, "minValue", 5.0d, "maxValue", 1.0d,
-            "pattern", "(unclosed"));
+            "pattern", "(unclosed", "optionsFrom", "/Vocabularies/counts"));
         resolver.create(counts, "a", Map.of("jcr:primaryType", "sch:AnswerOption", "value", "same"));
         resolver.create(counts, "b", Map.of("jcr:primaryType", "sch:AnswerOption", "value", "same"));
         resolver.create(counts, "c", Map.of("jcr:primaryType", "sch:AnswerOption", "value", " "));
@@ -131,6 +131,8 @@ class CheckPublishableHandlerTest
         assertTrue(message.contains("\"Counts\" has a smallest accepted value above its largest"), message);
         assertTrue(message.contains("\"Counts\" has a pattern that is not a valid regular expression"), message);
         assertTrue(message.contains("\"Counts\" offers the value \"same\" more than once"), message);
+        assertTrue(message.contains("\"Counts\" both lists its options and takes them from /Vocabularies/counts"),
+            message);
         assertTrue(message.contains("\"Counts\" has an option without a value"), message);
         assertTrue(message.contains("\"Details\" has a condition comparing with \"sometimes\""), message);
         assertTrue(message.contains("\"Details\" has a condition aggregating with \"median\""), message);

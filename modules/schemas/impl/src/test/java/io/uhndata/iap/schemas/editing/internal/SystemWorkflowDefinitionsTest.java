@@ -48,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
+import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
 import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
@@ -107,8 +108,8 @@ class SystemWorkflowDefinitionsTest
         this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
         final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
         resolvers.setAccessible(true);
-        resolvers.set(this.evaluator,
-            List.of(new LiteralOperandResolver(), new PropertyOperandResolver(), new TagsOperandResolver()));
+        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver(),
+            new TagsOperandResolver(), new OwnPropertyOperandResolver()));
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();
             this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),
@@ -211,6 +212,21 @@ class SystemWorkflowDefinitionsTest
     }
 
     @Test
+    void aQuestionTakingItsOptionsFromElsewhereGainsNoneOfItsOwn()
+    {
+        final String version = "/content/target" + this.targets++;
+        this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags",
+            new String[] { "draft" }));
+        final Content listing = this.context.create().resource(version + "/listing", "sling:resourceType", PART)
+            .adaptTo(Content.class);
+        final Content elsewhere = this.context.create().resource(version + "/elsewhere",
+            Map.of("sling:resourceType", PART, "optionsFrom", "/Vocabularies/sites")).adaptTo(Content.class);
+
+        assertEquals(Set.of("createSchemaPart"), answering(listing, "create"));
+        assertEquals(Set.of(), answering(elsewhere, "create"));
+    }
+
+    @Test
     void partsAndOptionsAreMovedInDraftsOnly()
     {
         final String[] draft = { "draft" };
@@ -264,6 +280,19 @@ class SystemWorkflowDefinitionsTest
             .getJsonObject("v1").getJsonObject("create").getJsonObject("types");
         assertFalse(types.getJsonObject("option").getBoolean("named"));
         assertFalse(types.getJsonObject("question").containsKey("named"));
+    }
+
+    @Test
+    void optionsAreNumberedByTheirPlacesWhereverTheyArePlaced() throws IOException, URISyntaxException
+    {
+        final Path create = definitions().get(0).resolveSibling("createSchemaPart.json");
+        final JsonObject types = read(create).getJsonObject("v1").getJsonObject("create").getJsonObject("types");
+        assertEquals("defaultOrder", types.getJsonObject("option").getString("orderProperty"));
+        assertFalse(types.getJsonObject("question").containsKey("orderProperty"));
+        assertEquals("defaultOrder", read(create.resolveSibling("moveAnswerOption.json")).getJsonObject("v1")
+            .getJsonObject("move").getString("orderProperty"));
+        assertFalse(read(create.resolveSibling("moveSchemaPart.json")).getJsonObject("v1").getJsonObject("move")
+            .containsKey("orderProperty"));
     }
 
     @Test
