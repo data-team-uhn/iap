@@ -30,7 +30,8 @@ import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { CONTENT, HOMEPAGE, serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
-  getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
+  getActions: (point: string, place?: string) =>
+    import("./actions.fixture").then(fixture => fixture.actionsFor(point, place)),
 }));
 
 // Which the test environment does not lay out, so it cannot scroll either
@@ -812,7 +813,7 @@ describe("SchemaVersionView", () => {
     renderVersion("idea", "v1");
 
     expect(await screen.findByRole("heading", { name: /Version 0\.1/ })).toBeInTheDocument();
-    await screen.findByRole("button", { name: "Edit" });
+    await screen.findByRole("button", { name: "Edit details" });
     expect(screen.queryByRole("button", { name: "Compare with…" })).not.toBeInTheDocument();
   });
 

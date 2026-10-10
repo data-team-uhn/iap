@@ -24,8 +24,10 @@ import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 // Where a column's content goes on the compact card shown in the grid's narrow-screen list
 // mode: leading the card as its "title", as a "badge" beside the title (e.g. a status chip),
 // on the muted "caption" line under it (several caption columns join into one " • " line),
-// as a labeled "row" (the default), or nowhere ("omit").
-export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "omit";
+// as a labeled "row" (the default), at the end of the title's line as what can be done with the
+// entity ("actions": one compact control, such as a menu, since the card itself opens the entity),
+// or nowhere ("omit").
+export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "actions" | "omit";
 
 // A column of an entity grid: a regular MUI DataGrid column definition, optionally naming the
 // server-side entity property that server-side sorting should order by when this column's own
@@ -78,8 +80,9 @@ export interface EntityGridConfig {
   // columns, so the renderer can leave out what the user hid (keeping the card's identity —
   // the title — is fine regardless).
   listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
-  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity,
-  // so a type with children describes them on its card, e.g. through a column's cardValue.
+  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity: the
+  // composed card closes with its children, each by its tree field, linked where it has a rowLink,
+  // while a type's own listItem shows them itself.
   children?: EntityGridChildren;
 }
 

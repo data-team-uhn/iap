@@ -22,6 +22,7 @@ import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import { Box, Button, Checkbox, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
+import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 
@@ -30,9 +31,9 @@ import SchemaVersionActions from "./SchemaVersionActions";
 import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 import { comparisonPageUrl } from "./useSchemaList";
 
-// A schema's versions, each with where it stands and what can be done with it. The schema's page has
-// already read them, with what the server offers on each, so the grid lists them as they are. Two of them can be
-// picked to be compared, the older the one the newer is compared with.
+// A schema's versions, with where each stands and what can be done with it. The schema's page has already read
+// them, so the grid lists them without fetching. Edit opens a version's own page, where it is edited. Any two can be
+// picked and compared.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: JcrNode;
   reload: () => void;
@@ -43,12 +44,15 @@ function SchemaVersionList({ schema, reload, comparisonDefaults }: {
     field: "__actions__",
     headerName: "Actions",
     width: 200,
-    cardSlot: "omit",
+    // On a phone, one menu at the end of a version's card
+    cardSlot: "actions",
     renderCell: params => (
       // Kept from the row: a click on an action, or inside its dialog, is not a click on the version
       <Box onClick={event => event.stopPropagation()}>
-        <SchemaVersionActions version={params.row} schema={schema} reload={reload}
-          comparisonDefaults={comparisonDefaults} />
+        <ActionsMenu label={`Actions for version ${labelOf(params.row)}`}>
+          <SchemaVersionActions version={params.row} schema={schema} reload={reload}
+            comparisonDefaults={comparisonDefaults} place="versionList" />
+        </ActionsMenu>
       </Box>
     ),
   } ], [ schema, reload, comparisonDefaults ]);
@@ -63,7 +67,8 @@ function SchemaVersionList({ schema, reload, comparisonDefaults }: {
     field: "__compare__",
     headerName: "Compare",
     width: 100,
-    // Before the version's card on a phone, as its own card has no place for it
+    // Beside the version's label on a phone's card
+    cardSlot: "badge",
     renderCell: params => {
       const name = nameOf(params.row);
       const checked = picked.includes(name);

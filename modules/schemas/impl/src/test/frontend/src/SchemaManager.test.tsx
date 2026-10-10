@@ -26,7 +26,8 @@ import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
-  getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
+  getActions: (point: string, place?: string) =>
+    import("./actions.fixture").then(fixture => fixture.actionsFor(point, place)),
 }));
 
 afterEach(() => {
@@ -171,12 +172,15 @@ describe("SchemaManager", () => {
     fakeNarrowScreen();
     serveSchemas({ homepage: { "empty": { "jcr:primaryType": "sch:Schema", "title": "Empty" },
       "study": { "jcr:primaryType": "sch:Schema", "title": "Clinical study", "tags": [ "retired" ],
+        "@events": [ "activate" ],
         "v1": { "jcr:primaryType": "sch:SchemaVersion", "version": "1.0", "tags": [ "active" ] } } } });
     renderManager();
 
     expect(await screen.findByText("Clinical study")).toBeInTheDocument();
-    expect(screen.getByText("1.0")).toBeInTheDocument();
-    expect(screen.getByText("No versions")).toBeInTheDocument();
+    // Its versions, each a way to its page, and what can be done with it in one menu
+    expect(screen.getByRole("link", { name: "Version 1.0" })).toHaveAttribute("href", "/admin/schemas/study/v1");
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for “Clinical study”" }));
+    expect(await screen.findByRole("menuitem", { name: "Reopen" })).toBeInTheDocument();
   });
 
   it("creates a schema and opens its page", async () => {

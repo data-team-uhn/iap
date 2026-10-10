@@ -70,8 +70,8 @@ declare module "@mui/material/styles" {
     tintedStrong: string;
   }
   // What a comparison of two snapshots of content marks as added or removed: `main` for its markers, `line` for the
-  // background of a changed line, `word` for the stronger shade of the words that changed within it; and as moved,
-  // with no words of its own
+  // background of a changed line, `word` for the stronger shade of the words that changed within it; as moved,
+  // with no words of its own; and, as `hunk`, what stands for unchanged content left out, which shows it when pressed
   interface DiffColors {
     main: string;
     line: string;
@@ -81,11 +81,11 @@ declare module "@mui/material/styles" {
   // `surface` for what says when it applies
   interface Palette {
     condition: { main: string; surface: string };
-    diff: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word"> };
+    diff: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
   }
   interface PaletteOptions {
     condition?: { main: string; surface: string };
-    diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word"> };
+    diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
@@ -233,6 +233,7 @@ const appTheme = createTheme({
           added: { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" },
           removed: { main: "#cf222e", line: "#ffebe9", word: "rgba(255, 129, 130, 0.4)" },
           moved: { main: "#9a6700", line: "#fffaee" },
+          hunk: { main: "#4a6a8a", line: "#f2f7fc" },
         },
       },
     },
@@ -257,6 +258,7 @@ const appTheme = createTheme({
           added: { main: "#3fb950", line: "rgba(46, 160, 67, 0.15)", word: "rgba(46, 160, 67, 0.4)" },
           removed: { main: "#f85149", line: "rgba(248, 81, 73, 0.15)", word: "rgba(248, 81, 73, 0.4)" },
           moved: { main: "#d29922", line: "rgba(187, 128, 9, 0.1)" },
+          hunk: { main: "#8aa4c2", line: "rgba(56, 139, 253, 0.07)" },
         },
       },
     },

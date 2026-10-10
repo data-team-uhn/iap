@@ -38,7 +38,7 @@ import { withCompactDates, withElementCellsCentred } from "./columns";
 import { BOTTOM_SHEET_SX, EntityGridSheetPanel, RemoveConditionLabel, filterPanelProps } from "./EntityGridPanels";
 import EntityGridStatusOverlay from "./EntityGridStatusOverlay";
 import EntityGridToolbar from "./EntityGridToolbar";
-import EntityListItem, { columnContent } from "./EntityListItem";
+import EntityListItem, { CardActions, columnContent } from "./EntityListItem";
 import {
   ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
 } from "./gridRows";
@@ -219,19 +219,25 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // unless hidden
   const leadingOnCards = leadingColumns.filter(column => column.cardSlot !== "omit"
     && visibleColumns.some(visible => visible.field === column.field));
-  const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) => (leadingOnCards.length === 0
-    ? listItem(row, visibleFields)
-    : (
-      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1, width: "100%" }}>
-        { leadingOnCards.map(column => <Box key={column.field} sx={{ pt: 1 }}>{columnContent(column, row)}</Box>) }
-        <Box sx={{ flex: 1, minWidth: 0 }}>{listItem(row, visibleFields)}</Box>
-      </Stack>
-    ));
+  // And what can be done with an entity ends a bespoke card, as it ends a plain one's title line
+  const actionsOnCards = visibleColumns.filter(column => column.cardSlot === "actions");
+  const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) =>
+    (leadingOnCards.length + actionsOnCards.length === 0
+      ? listItem(row, visibleFields)
+      : (
+        <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1, width: "100%" }}>
+          { leadingOnCards.map(column => <Box key={column.field} sx={{ pt: 1 }}>{columnContent(column, row)}</Box>) }
+          <Box sx={{ flex: 1, minWidth: 0 }}>{listItem(row, visibleFields)}</Box>
+          { actionsOnCards.map(column => (
+            <Box key={column.field} sx={{ pt: 1 }}><CardActions>{columnContent(column, row)}</CardActions></Box>
+          )) }
+        </Stack>
+      ));
   const listColumn: GridListViewColDef<EntityRow> = {
     field: "__listItem__",
     renderCell: params => config.listItem
       ? bespoke(params.row, config.listItem)
-      : <EntityListItem row={params.row} columns={visibleColumns} />,
+      : <EntityListItem row={params.row} columns={visibleColumns} config={config} />,
   };
 
   // Clicking a row navigates to the entity's own page, when the entity type declares one

@@ -75,6 +75,7 @@ function SchemaVersionView(
       action={
         <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
           <SchemaVersionActions
+            place="versionPage"
             version={version}
             schema={schema}
             reload={() => {

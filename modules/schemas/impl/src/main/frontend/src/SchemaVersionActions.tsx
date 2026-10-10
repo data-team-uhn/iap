@@ -32,8 +32,11 @@ export interface SchemaVersionActionProps {
   comparisonDefaults?: string[];
 }
 
-function SchemaVersionActions(props: SchemaVersionActionProps) {
-  return <ActionBar point={VERSION_ACTIONS_POINT} {...props} />;
+// Where a version's actions are shown, which their extensions can name in `places`
+export type VersionActionsPlace = "versionList" | "versionPage";
+
+function SchemaVersionActions({ place, ...props }: SchemaVersionActionProps & { place: VersionActionsPlace }) {
+  return <ActionBar point={VERSION_ACTIONS_POINT} place={place} {...props} />;
 }
 
 export default SchemaVersionActions;
