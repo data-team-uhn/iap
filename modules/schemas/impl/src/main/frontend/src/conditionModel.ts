@@ -16,107 +16,57 @@
  * limitations under the License.
  */
 
-// Conditions in words, for reading a schema: "“Is a copy available?” is “Yes”". The comparators and
-// operand sources are the conditions module's (see docs/conditions.md); one it does not know is shown by
-// its stored name rather than hidden. No React, no fetch.
+// The conditions of a schema version, read with the conditions module's model and one source of the schemas' own:
+// an `answer` operand holds the answers to the version's question it names. No React, no fetch.
+
+import {
+  type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
+  type ValueType,
+} from "@iap/conditions/conditionModel";
 
 import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
 import type { JcrNode } from "./schemaModel";
 
-const COMPARATORS: Record<string, string> = {
-  "equals": "is",
-  "not equals": "is not",
-  "less than": "is less than",
-  "less or equal": "is at most",
-  "greater than": "is more than",
-  "greater or equal": "is at least",
-  "is empty": "is empty",
-  "is not empty": "is not empty",
-  "includes": "includes all of",
-  "includes any": "includes any of",
-  "excludes": "includes none of",
-  "excludes any": "does not include all of",
+// The comparison types of the question data types; a file compares as nothing in particular
+const VALUE_TYPES: Record<string, ValueType | undefined> = {
+  text: "text",
+  long: "long",
+  double: "double",
+  boolean: "boolean",
+  date: "date",
 };
 
-const UNARY = new Set([ "is empty", "is not empty" ]);
-
-const quoted = (value: string): string => (/^-?\d+(\.\d+)?$/.test(value) ? value : `“${value}”`);
-
-const operand = (node: JcrNode, key: string): JcrNode => {
-  const value = node[key];
-  return typeof value === "object" && value !== null ? value as JcrNode : {};
-};
-
-// The question an answer operand names, if the version has it
-const questionOf = (side: JcrNode, index: QuestionIndex): JcrNode | undefined =>
-  side.source === "answer" ? index.find(strings(side.value).at(0) ?? "") : undefined;
-
-function describeOperand(side: JcrNode, index: QuestionIndex): string {
-  const values = strings(side.value);
-  switch (side.source) {
-    case "answer": {
-      const question = questionOf(side, index);
-      return question
-        ? `the answer to “${headingOf(question)}”`
-        : `the answer to ${values.at(0) ?? "a missing question"}`;
-    }
-    case "tags":
-      return "its tag list";
-    case "property":
-      return `its ${values.at(0) ?? "property"}`;
-    default:
-      return values.map(quoted).join(", ") || "nothing";
-  }
+// What the answers to a question hold: its type, one or several of them, and its options when it lists some
+export function answerShapeOf(question: JcrNode): OperandShape {
+  const options = optionsOf(question).map(option => ({
+    value: strings(option.value).at(0) ?? "",
+    label: optionLabelOf(option),
+  }));
+  const maxAnswers = typeof question.maxAnswers === "number" ? question.maxAnswers : 1;
+  return {
+    type: VALUE_TYPES[strings(question.dataType).at(0) ?? "text"],
+    multiple: maxAnswers !== 1,
+    ...options.length > 0 ? { choices: options } : {},
+  };
 }
 
-// A literal compared with a question's answer is one of its option values: shown by the option's label
-function describeLiteral(side: JcrNode, question: JcrNode | undefined): string {
-  if (!question || (side.source ?? "literal") !== "literal") {
-    return "";
-  }
-  const labels = new Map(optionsOf(question).map(option => [ String(option.value), optionLabelOf(option) ]));
-  return strings(side.value).map(value => quoted(labels.get(value) ?? value)).join(", ") || "nothing";
-}
+export const answerSource = (index: QuestionIndex): OperandSource => ({
+  name: "answer",
+  label: "The answer to a question",
+  valueLabel: "Question",
+  shape: value => {
+    const question = index.find(value.at(0) ?? "");
+    return question ? answerShapeOf(question) : {};
+  },
+  describe: value => {
+    const question = index.find(value.at(0) ?? "");
+    return question
+      ? `the answer to “${headingOf(question)}”`
+      : `the answer to ${value.at(0) ?? "a missing question"}`;
+  },
+});
 
-function describeSingle(condition: JcrNode, index: QuestionIndex): string {
-  const comparator = String(condition.comparator);
-  const left = operand(condition, "operandA");
-  const right = operand(condition, "operandB");
-  const phrase = `${describeOperand(left, index)} ${COMPARATORS[comparator] ?? comparator}`;
-  if (UNARY.has(comparator)) {
-    return phrase;
-  }
-  return `${phrase} ${describeLiteral(right, questionOf(left, index)) || describeOperand(right, index)}`;
-}
-
-const conditionsIn = (group: JcrNode): JcrNode[] => Object.values(group)
-  .filter((child): child is JcrNode => typeof child === "object" && child !== null && !Array.isArray(child)
-    && String((child as JcrNode)["sling:resourceSuperType"]) === "cond/Condition");
-
-export function describeCondition(condition: JcrNode, index: QuestionIndex): string {
-  if (condition["jcr:primaryType"] === "cond:SingleCondition") {
-    return describeSingle(condition, index);
-  }
-  if (condition["jcr:primaryType"] === "cond:ConditionGroup") {
-    const parts = conditionsIn(condition).map(child => {
-      const described = describeCondition(child, index);
-      return child["jcr:primaryType"] === "cond:ConditionGroup" ? `(${described})` : described;
-    });
-    const all = condition.requireAll === true;
-    if (parts.length === 0) {
-      return all ? "always" : "never";
-    }
-    return parts.join(all ? " and " : " or ");
-  }
-  return "a condition of an unknown kind holds";
-}
-
-// When a part applies, as the line shown on it: nothing for a condition that always holds
-export function whenApplies(condition: JcrNode, index: QuestionIndex): string | undefined {
-  const described = describeCondition(condition, index);
-  if (described === "always") {
-    return undefined;
-  }
-  return described === "never" ? "Never" : `Only when ${described}`;
-}
+// Every source a schema's conditions may use, with the labels of the tags when they are known
+export const schemaSources = (index: QuestionIndex, tags: Choice[] = []): OperandSource[] =>
+  [ answerSource(index), tagsSource(tags, "submission"), propertySource("submission"), ownPropertySource("part") ];
