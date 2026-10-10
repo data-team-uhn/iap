@@ -192,6 +192,30 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void fillsTheEmptyDocumentWaitingForTheRequirement() throws Exception
+    {
+        // As completeness leaves one for each requirement nothing has been uploaded for; the other one, waiting for
+        // another requirement, is not this upload's to take
+        final Resource other = this.context.create().resource(SUBMISSION_PATH + "/waitingForAnything",
+            Map.of(TYPE, Document.RESOURCE_TYPE));
+        reference(other, VERSION_PATH + "/anything", "fulfills");
+        final Resource waiting = this.context.create().resource(SUBMISSION_PATH + "/waiting",
+            Map.of(TYPE, Document.RESOURCE_TYPE));
+        reference(waiting, NOTE_PATH, "fulfills");
+
+        this.handler.execute(context(payload(NOTE, upload("waited.pdf", PDF))));
+
+        final List<Document> documents = documents();
+        assertEquals(2, documents.size());
+        final Document filled = documents.stream().filter(document -> "waiting".equals(document.getName()))
+            .findFirst().orElseThrow();
+        assertEquals("waited.pdf", filled.getTitle());
+        assertEquals(1, filled.getVersions().size());
+        assertTrue(documents.stream().filter(document -> "waitingForAnything".equals(document.getName()))
+            .findFirst().orElseThrow().getVersions().isEmpty());
+    }
+
+    @Test
     void keepsTheDocumentsOfDifferentRequirementsApart() throws Exception
     {
         this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));

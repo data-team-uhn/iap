@@ -251,12 +251,11 @@ class SubmissionFormServletTest
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d1", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+        uploaded(document);
 
         final JsonObject attached = requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
             .getJsonObject(0);
         assertEquals("note.pdf", attached.getString("title"));
-        // Nothing has been uploaded into it, so there is nothing to download
-        assertFalse(attached.containsKey("path"));
     }
 
     @Test
@@ -279,6 +278,16 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void doesNotListADocumentNothingWasUploadedInto() throws IOException
+    {
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d0", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "empty"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals(0, requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").size());
+    }
+
+    @Test
     void fallsBackOnANameForAnUntitledAttachment() throws IOException
     {
         // A document created by something other than the attach workflow may carry no title at all, and a form
@@ -286,6 +295,7 @@ class SubmissionFormServletTest
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d2", Map.of(
             TYPE, Document.RESOURCE_TYPE));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+        uploaded(document);
 
         assertEquals("d2", requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").getJsonObject(0)
             .getString("title"));
@@ -298,6 +308,7 @@ class SubmissionFormServletTest
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d3", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "form.pdf"));
         reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
+        uploaded(document);
 
         assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
         assertFalse(requirement(form(REQUESTER), "signedForm").getJsonArray("attached").isEmpty());
@@ -524,5 +535,18 @@ class SubmissionFormServletTest
         final var field = SubmissionFormServlet.class.getDeclaredField(name);
         field.setAccessible(true);
         field.set(servlet, service);
+    }
+
+    /**
+     * Puts a file in a document, as an upload does: in a version of its own.
+     *
+     * @param document the document
+     */
+    private void uploaded(final Resource document)
+    {
+        this.context.create().resource(document.getPath() + "/v1", Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        this.context.create().resource(document.getPath() + "/v1/file", Map.of(TYPE, File.RESOURCE_TYPE));
+        this.context.create().resource(document.getPath() + "/v1/file/uploadedFile",
+            Map.of("jcr:primaryType", "nt:file"));
     }
 }

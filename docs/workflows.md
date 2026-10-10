@@ -828,13 +828,18 @@ workflow event like any other. What a save is allowed to do — whose request it
 whether it is still a draft — is decided by its handler rather than by the servlet that
 received the POST.
 
-After writing the answers, the save runs `markCompleteness`. It places the `incomplete`
-system tag while the submission lacks anything its author has to supply, and removes it
-once nothing is missing. What is missing is `Submission.getMissingRequirements()`: the
-form as its conditions resolve, a question counting as answered once it holds
-`minAnswers` non-blank values. An approval never counts, because somebody else gives it.
-The create, attach and detach workflows run the same step, so a new submission is tagged
-from the start, and removing a document it needs tags it again.
+After writing the answers, the save runs `markCompleteness`. It asks every
+`CompletenessEvaluator` (the SPI in `submissions-api`) to judge its own kind of part,
+and places the `incomplete` system tag on the parts they report, removing it from the
+rest. The tag is aggregated, so the submission carries it while any part does. Every
+question the submitter is shown has an answer, empty until filled in and incomplete
+while it holds fewer than `minAnswers` non-blank values; every document requirement that
+applies has a document, empty until something is uploaded, and incomplete while a
+required one holds nothing. An evaluator creates the empty part for an item that starts
+to apply and removes an empty one for an item that stops. An approval never counts,
+because somebody else gives it. The create, attach and detach workflows run the same
+step, so a new submission is marked from the start, and removing a document it needs
+marks it again.
 
 ## Content workflows: the part that persists
 
