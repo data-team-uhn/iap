@@ -25,6 +25,7 @@ import { Alert, Box, Button, Snackbar, type Theme } from "@mui/material";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { visuallyHidden } from "@iap/frontend-commons/visuallyHidden";
 
 import { type JcrNode, nameOf, pathOf } from "./schemaModel";
 import { isMoveSpot } from "./schemaMoveModel";
@@ -39,21 +40,35 @@ interface Moving {
   trigger?: HTMLElement;
 }
 
+export type Way = "up" | "down";
+
 interface MoveModeValue {
   moving?: Moving;
   // Where the last move put what it moved, until it has been shown
   moved?: string;
+  // Whether that move was an option's step
+  stepped: boolean;
+  // Counts moves, so that moving the same one again shows again
+  steps: number;
+  // The option a step is being saved for
+  stepping?: string;
+  // Where the moving part is being sent
+  destination?: string;
+  // Where on the screen what was pressed to move it was, for what moved to be shown there
+  landing?: number;
   sending: boolean;
   isMoving: (node: JcrNode) => boolean;
   start: (moving: Moving) => void;
   cancel: () => void;
-  moveTo: (node: JcrNode, parent: JcrNode, before?: JcrNode) => void;
+  moveTo: (node: JcrNode, parent: JcrNode, before: JcrNode | undefined, from: HTMLElement) => void;
+  step: (option: JcrNode, question: JcrNode, before: JcrNode | undefined, way: Way, from: HTMLElement) => void;
 }
 
 const ignore = () => undefined;
 
 const MoveModeContext = createContext<MoveModeValue>({
-  sending: false, isMoving: () => false, start: ignore, cancel: ignore, moveTo: ignore,
+  sending: false, stepped: false, steps: 0, isMoving: () => false, start: ignore, cancel: ignore, moveTo: ignore,
+  step: ignore,
 });
 
 export const useMoveMode = () => useContext(MoveModeContext);
@@ -61,8 +76,21 @@ export const useMoveMode = () => useContext(MoveModeContext);
 // How long what was moved stays marked
 const SHOWN_FOR = 3000;
 
+const placeOf = (parent: JcrNode, before?: JcrNode): string => `${pathOf(parent)}/${before ? nameOf(before) : ""}`;
+
+const moveParams = (parent: JcrNode, before?: JcrNode) =>
+  ({ parent: pathOf(parent), ...before ? { before: nameOf(before) } : {} });
+
+const PULSE = { "50%": { scale: "1.03" } };
+
+// Keyframes under a name that changes with a count, so that an animation using them plays again as the count changes
+function replaying(name: string, count: number, frames: object) {
+  const named = `${name}${count % 2}`;
+  return { name: named, keyframes: { [`@keyframes ${named}`]: frames } };
+}
+
 // Keeps an element where it is on the screen while the layout around it changes, as places to move to open and
-// close above it: the page scrolls by as much as the element was pushed.
+// close above it
 function useKeepInPlace(change: unknown) {
   const kept = useRef<{ element: HTMLElement; top: number }>(undefined);
   useLayoutEffect(() => {
@@ -78,19 +106,31 @@ function useKeepInPlace(change: unknown) {
   }, []);
 }
 
-// Moving one part or answer option of a tree at a time: choosing what moves, then where, as one event, and saying
-// once it is done.
+// Moving one part of a tree at a time: choosing what moves, then where, as one event, and saying once it is done.
+// Answer options move one step at a time instead, each step one event.
 export function MoveMode({ children }: { children: ReactNode }) {
   const [ moving, setMoving ] = useState<Moving>();
   const [ moved, setMoved ] = useState<string>();
+  const [ stepped, setStepped ] = useState(false);
+  const [ steps, setSteps ] = useState(0);
+  const [ stepping, setStepping ] = useState<string>();
+  const [ destination, setDestination ] = useState<string>();
+  const [ landing, setLanding ] = useState<number>();
+  // For a screen reader, as soon as a step is asked for
+  const [ announced, setAnnounced ] = useState("");
   const [ sending, setSending ] = useState(false);
   const [ error, setError ] = useState<string>();
-  // How many moves have failed, so that each failure is noticed, even one saying what the last one said
+  // Counts failures, so that a repeated one pulses again
   const [ failures, setFailures ] = useState(0);
   const send = useTreeEvent();
   const notify = useNotice();
   const keepInPlace = useKeepInPlace(moving);
 
+  const shown = useCallback((path: string | undefined, step: boolean) => {
+    setStepped(step);
+    setSteps(count => count + 1);
+    setMoved(path);
+  }, []);
   const start = useCallback((next: Moving) => {
     keepInPlace(next.trigger);
     setMoved(undefined);
@@ -103,13 +143,15 @@ export function MoveMode({ children }: { children: ReactNode }) {
     setError(undefined);
     setMoving(undefined);
   }, [ moving, keepInPlace ]);
-  const moveTo = useCallback((node: JcrNode, parent: JcrNode, before?: JcrNode) => {
+  const moveTo = useCallback((node: JcrNode, parent: JcrNode, before: JcrNode | undefined, from: HTMLElement) => {
     setSending(true);
+    setLanding(from.getBoundingClientRect().top);
+    setDestination(placeOf(parent, before));
     setError(undefined);
-    send(node, "move", { parent: pathOf(parent), ...before ? { before: nameOf(before) } : {} })
+    send(node, "move", moveParams(parent, before))
       .then(path => {
         setMoving(undefined);
-        setMoved(path);
+        shown(path, false);
         notify({ title: `“${shownNameOf(node)}” was moved`, severity: "success" });
       })
       .catch((failure: unknown) => {
@@ -117,7 +159,26 @@ export function MoveMode({ children }: { children: ReactNode }) {
         setFailures(count => count + 1);
       })
       .finally(() => setSending(false));
-  }, [ send, notify ]);
+  }, [ send, notify, shown ]);
+  const step = useCallback((option: JcrNode, question: JcrNode, before: JcrNode | undefined, way: Way,
+    from: HTMLElement) => {
+    setSending(true);
+    setLanding(from.getBoundingClientRect().top);
+    setStepping(pathOf(option));
+    setAnnounced(`Moving “${shownNameOf(option)}” ${way}…`);
+    send(option, "move", moveParams(question, before))
+      .then(path => {
+        shown(path, true);
+        notify({ title: `“${shownNameOf(option)}” was moved ${way}`, severity: "success" });
+      })
+      .catch((failure: unknown) =>
+        notify({ title: `“${shownNameOf(option)}” could not be moved`, message: messageOf(failure) }))
+      .finally(() => {
+        setStepping(undefined);
+        setAnnounced("");
+        setSending(false);
+      });
+  }, [ send, notify, shown ]);
 
   useEffect(() => {
     if (!moving) {
@@ -141,24 +202,23 @@ export function MoveMode({ children }: { children: ReactNode }) {
   }, [ moved ]);
 
   const value = useMemo(() => ({
-    moving, moved, sending, start, cancel, moveTo,
+    moving, moved, stepped, steps, stepping, destination, landing, sending, start, cancel, moveTo, step,
     isMoving: (node: JcrNode) => moving !== undefined && pathOf(moving.node) === pathOf(node),
-  }), [ moving, moved, sending, start, cancel, moveTo ]);
-  // The bar stands where notices do, over the page rather than in it, so nothing moves to make room for it; room is
-  // made under the tree instead, so that its last places can be scrolled clear of it
+  }), [ moving, moved, stepped, steps, stepping, destination, landing, sending, start, cancel, moveTo, step ]);
+  const failed = replaying("iapMoveFailed", failures, PULSE);
   return (
     <MoveModeContext.Provider value={value}>
+      {/* Room for the bar, so that the last places can be scrolled clear of it */}
       <Box sx={{ pb: moving ? 10 : 0 }}>{children}</Box>
+      <Box aria-live="polite" sx={visuallyHidden}>{announced}</Box>
       { moving && (
         <Snackbar open>
           <Alert
             severity={error ? "error" : "info"}
             role="status"
             sx={error ? {
-              "@keyframes iapMoveFailedA": { "50%": { scale: "1.04" } },
-              "@keyframes iapMoveFailedB": { "50%": { scale: "1.04" } },
-              // Two names for one pulse: changing the name is what makes it play again
-              "animation": `${failures % 2 ? "iapMoveFailedA" : "iapMoveFailedB"} 0.3s ease-in-out`,
+              ...failed.keyframes,
+              "animation": `${failed.name} 0.3s ease-in-out`,
               "@media (prefers-reduced-motion: reduce)": { animation: "none" },
             } : {}}
             action={<Button color="inherit" size="small" onClick={cancel}>Cancel</Button>}
@@ -183,28 +243,30 @@ interface MoveSpotProps {
   onChoose?: () => void;
 }
 
-// A place the moving node may go, shown only while something is moving and only where it would go somewhere new,
-// named after what it goes before, or else what it goes at the end of; the version's own end needs no name. On a
-// phone, it is tall enough for a finger.
+// A place the moving part may go, named after what it would go before or at the end of
 export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
-  const { moving, sending, moveTo } = useMoveMode();
+  const { moving, sending, destination, moveTo } = useMoveMode();
   if (!moving || !isMoveSpot(moving.node, parent, before)) {
     return null;
   }
   const named = before ?? (resourceTypeOf(parent) === "sch/SchemaVersion" ? undefined : parent);
   const name = named && shownNameOf(named);
   const where = before ? "Move before" : name ? "Move to the end of" : "Move to the end";
+  const loading = sending && destination === placeOf(parent, before);
+  const said = loading
+    ? `Moving “${shownNameOf(moving.node)}” ${before ? "before" : name ? "to the end of" : "to the end"}` : where;
   return (
     <Box component={item ? "li" : "div"} sx={{ listStyle: "none", my: item ? 1 : 0 }}>
       <Button
         fullWidth
         variant="text"
         disabled={sending}
+        loading={loading}
         startIcon={<SubdirectoryArrowRightIcon />}
         aria-label={name ? `${where} ${name}` : where}
-        onClick={() => {
+        onClick={event => {
           onChoose?.();
-          moveTo(moving.node, parent, before);
+          moveTo(moving.node, parent, before, event.currentTarget);
         }}
         sx={{
           minWidth: 0,
@@ -221,10 +283,11 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
             bgcolor: "background.tintedStrong", color: "primary.main",
             outline: 2, outlineColor: "primary.main", outlineOffset: -2,
           },
-          // Where it is only when pointed at or reached, and always where nothing can point without pressing
+          // Labelled when pointed at or focused, and always on touch screens and while it is where the part goes
           "& .iap-move-spot-label": { opacity: 0, transition: "opacity 0.15s" },
           "&:hover .iap-move-spot-label, &.Mui-focusVisible .iap-move-spot-label": { opacity: 1 },
           "@media (hover: none)": { "& .iap-move-spot-label": { opacity: 1 } },
+          ...loading ? { "& .iap-move-spot-label": { opacity: 1 } } : {},
         }}
       >
         <Box
@@ -232,7 +295,7 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
           className="iap-move-spot-label"
           sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.75, minWidth: 0, whiteSpace: "nowrap" }}
         >
-          <span>{where}</span>
+          <span>{said}</span>
           { name && (
             <Box
               component="span"
@@ -242,27 +305,28 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
               {name}
             </Box>
           ) }
+          { loading && <span>…</span> }
         </Box>
       </Button>
     </Box>
   );
 }
 
-// How a part or an option shows that it is the one moving, cut out and on its way elsewhere, and that it is the one
-// just moved: that one is brought into view, given the focus, and marked for a moment. What has a border of its own
-// dashes it, keeping its left edge, which says what it is; anything else is outlined.
-export function useMoveHighlight<T extends HTMLElement>(node: JcrNode, { bordered }: { bordered: boolean }) {
-  const { moved, isMoving } = useMoveMode();
+// How a part shows that it is the one moving, and how a part or an option shows that it has just moved
+export function useMoveHighlight<T extends HTMLElement>(node: JcrNode) {
+  const { moved, stepped, steps, stepping, landing, isMoving } = useMoveMode();
   const ref = useRef<T>(null);
   const justMoved = moved === pathOf(node);
   const moving = isMoving(node);
 
-  useEffect(() => {
-    if (justMoved) {
-      ref.current?.focus({ preventScroll: true });
-      ref.current?.scrollIntoView({ block: "nearest" });
+  // Before painting, so that it lands where it was sent from without a jump; a step's own button does that for it
+  useLayoutEffect(() => {
+    if (!justMoved || stepped || !ref.current || landing === undefined) {
+      return;
     }
-  }, [ justMoved ]);
+    ref.current.focus({ preventScroll: true });
+    window.scrollBy(0, ref.current.getBoundingClientRect().top - landing);
+  }, [ justMoved, stepped, landing, steps ]);
 
   return {
     ref,
@@ -270,17 +334,22 @@ export function useMoveHighlight<T extends HTMLElement>(node: JcrNode, { bordere
     surface: (theme: Theme) => {
       const { palette } = theme.vars ?? theme;
       const edge = palette.text.secondary;
+      const pulse = replaying("iapMovedPulse", steps, PULSE);
+      const shade = replaying("iapMovedShade", steps, { "0%, 60%": { backgroundColor: palette.background.tinted } });
       return {
         ...moving ? {
           backgroundColor: palette.background.muted,
-          ...bordered
-            ? { borderStyle: "dashed", borderLeftStyle: "solid", borderTopColor: edge, borderRightColor: edge,
-              borderBottomColor: edge }
-            : { outline: `1px dashed ${edge}` },
+          borderStyle: "dashed",
+          borderLeftStyle: "solid",
+          borderTopColor: edge,
+          borderRightColor: edge,
+          borderBottomColor: edge,
         } : {},
+        ...stepping === pathOf(node) ? { backgroundColor: palette.background.tintedStrong } : {},
         ...justMoved ? {
-          "@keyframes iapSchemaPartMoved": { "0%, 60%": { backgroundColor: palette.background.tinted } },
-          "animation": `iapSchemaPartMoved ${SHOWN_FOR}ms ease-out`,
+          ...pulse.keyframes,
+          ...shade.keyframes,
+          "animation": `${pulse.name} 0.35s ease-in-out, ${shade.name} ${SHOWN_FOR}ms ease-out`,
           "@media (prefers-reduced-motion: reduce)": { animation: "none" },
         } : {},
       };
