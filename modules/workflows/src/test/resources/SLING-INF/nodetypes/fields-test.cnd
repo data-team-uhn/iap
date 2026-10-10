@@ -55,3 +55,30 @@
   orderable
   - sling:resourceType (STRING) = "test/Crate" mandatory autocreated protected
   + * (test:Box)
+
+// A rule kept whole under a named child, as a condition is: groups of checks, each comparing two operands
+[test:Ruled]
+  mixin
+  + test:rule (test:Rule)
+
+[test:Rule]
+  abstract
+
+[test:AllOf] > test:Rule
+  orderable
+  - requireAll (BOOLEAN) = 'false' mandatory autocreated
+  + * (test:Rule)
+
+[test:Check] > test:Rule
+  - sling:resourceType (STRING) = "test/Check" mandatory autocreated protected
+  - comparator (STRING) mandatory
+  - due (DATE)
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+  + left (test:Operand) mandatory
+  + right (test:Operand) = test:Operand autocreated
+
+[test:Operand]
+  - source (STRING) = 'literal' autocreated
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
