@@ -17,7 +17,7 @@
  */
 
 import {
-  countSchemas, descriptionOf, fieldsOf, labelOf, latestVersion, nextVersionLabel, pathOf, schemaNameFromRoute,
+  countSchemas, descriptionOf, labelOf, latestVersion, nextVersionLabel, pathOf, schemaNameFromRoute,
   schemasOf, tagsOf, titleOf, versionNameFromRoute, versionsOf,
 } from "@iap/schemas/schemaModel";
 
@@ -43,15 +43,12 @@ describe("schemaModel", () => {
       "@name": "bare",
       "title": " ",
       "@events": "update",
-      "@fields": [ { name: "title", label: "Title" }, { label: "No name" }, "title" ],
       "v9": {
         "jcr:primaryType": "sch:SchemaVersion", "@name": "v9", "tags": [ "draft", 3 ], "@events": [ "discard", null ],
       },
     };
 
     expect(titleOf(schema)).toBe("bare");
-    expect(fieldsOf(schema).map(field => field.name)).toEqual([ "title" ]);
-    expect(fieldsOf(versionsOf(schema)[0])).toEqual([]);
     const [ version ] = versionsOf(schema);
     expect(labelOf(version)).toBe("v9");
     expect(tagsOf(version)).toEqual([ "draft" ]);

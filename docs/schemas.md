@@ -115,10 +115,12 @@ a requirement's `label` and `description`, a section's `title` and `description`
 `aiCheckPrompt`, and an option's `label` and `description`. An option's `value`, a question's data type,
 answer counts, bounds, pattern and conditions, and what a requirement requires, cannot.
 
-An editor learns which fields it may offer from the `fields` serialization: `@fields` on each schema
-and version lists the fields the requesting user's `update` could change there, with a label, a
-kind, and whether each is mandatory or runs over several lines. It is read from the configuration of
-the update workflow that would run, so no editor keeps a list of its own.
+An editor learns which fields it may offer from the `fields` serialization: `@fields` on each
+schema, version, part and option lists the fields the requesting user's `update` could change there,
+with their kind, the values they may take and when they apply (see `updateContent` in
+[workflows.md](workflows.md)). It is read from the configuration of the update workflow that would
+run, so no editor keeps a list of its own. A version's `workflow` may point only at a user workflow,
+under `/Workflows`.
 
 A draft is **published** only when nothing in it would break once it is frozen: answer counts and
 value bounds that are not upside down, patterns that compile, option values that are present and

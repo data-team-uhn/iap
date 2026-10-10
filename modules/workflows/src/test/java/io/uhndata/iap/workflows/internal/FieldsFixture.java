@@ -71,6 +71,19 @@ final class FieldsFixture
         note.setProperty("label", "Note");
         note.setProperty("multiline", true);
         fields.addNode("link", "nt:unstructured").setProperty("referenceType", "test/Item");
+        fields.addNode("weakLink", "nt:unstructured").setProperty("referenceRoot", "/other");
+        fields.addNode("related", "nt:unstructured").setProperty("referenceRoot", "/");
+        final Node shape = fields.addNode("shape", "nt:unstructured");
+        shape.setProperty("help", "What it looks like.");
+        final Node shapes = shape.addNode("choices", "nt:unstructured");
+        shapes.addNode("round", "nt:unstructured").setProperty("label", "Round");
+        shapes.addNode("squareChoice", "nt:unstructured").setProperty("value", "square");
+        dependsOnShape(fields.addNode("count", "nt:unstructured"), "round", "square");
+        dependsOnShape(fields.addNode("ratio", "nt:unstructured"), "square");
+        fields.addNode("flag", "nt:unstructured");
+        fields.addNode("keywords", "nt:unstructured");
+        fields.addNode("sizes", "nt:unstructured");
+        fields.addNode("due", "nt:unstructured");
         fields.addNode("extra", "nt:unstructured").setProperty("label", "Only allowed by a residual definition");
         this.session.save();
         final Resource update = context.resourceResolver().getResource("/update");
@@ -98,6 +111,13 @@ final class FieldsFixture
     Activity activity()
     {
         return this.activity;
+    }
+
+    private static void dependsOnShape(final Node field, final String... shapes) throws RepositoryException
+    {
+        final Node applicability = field.addNode("appliesWhen", "nt:unstructured");
+        applicability.setProperty("property", "shape");
+        applicability.setProperty("values", shapes);
     }
 
     private static Node item(final Node parent, final String name, final String title) throws RepositoryException
