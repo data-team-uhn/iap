@@ -135,19 +135,20 @@ describe("SchemaVersionView", () => {
     serveSchemas();
     renderVersion("study", "v2");
 
-    fireEvent.click(within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" }));
-    const options = await screen.findByRole("presentation");
-    expect(within(options).getByText("Placebo")).toBeInTheDocument();
-    // What an answer stores, where it differs from what the submitter reads
-    expect(within(options).getByText("placebo")).toBeInTheDocument();
-    expect(within(options).getByText("drug")).toBeInTheDocument();
-    fireEvent.keyDown(options, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByText("Placebo")).not.toBeInTheDocument());
-    // And listed once the question is open
-    await expand("Which arms does it have?");
+    // Its options' chip opens and closes it, as its arrow does
+    const chip = within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" });
+    expect(chip).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-expanded", "true");
     const arms = await card("Which arms does it have?");
     expect(await within(arms).findByText("Placebo")).toBeInTheDocument();
+    // What an answer stores, where it differs from what the submitter reads
+    expect(within(arms).getByText("placebo")).toBeInTheDocument();
+    expect(within(arms).getByText("drug")).toBeInTheDocument();
     expect(within(arms).getByText("A substance with no effect")).toBeInTheDocument();
+    fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText("Placebo")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Expand Which arms does it have?" })).toBeInTheDocument();
     await expand("Minimum age");
     expect(await screen.findByText("Between 18 and 99.")).toBeInTheDocument();
     await expand("Study code");
@@ -309,7 +310,8 @@ describe("SchemaVersionView", () => {
     await card("Your name");
     fireEvent.click(screen.getAllByRole("button", { name: "Add" }).at(-1)!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Document" }));
-    const dialog = await screen.findByRole("dialog", { name: /New document/ });
+    const dialog = await screen.findByRole("dialog", { name: /Add document/ });
+    expect(within(dialog).getByText("of this version")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: "Consent form" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -329,9 +331,10 @@ describe("SchemaVersionView", () => {
     fireEvent.click(within(await card("Your name")).getByRole("button", { name: "Add below" }));
     expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual([ "Section", "Question" ]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
-    const dialog = await screen.findByRole("dialog", { name: /New question/ });
-    // Where it goes is already chosen
-    expect(within(dialog).queryByRole("radiogroup")).not.toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
+    // Where it goes is already chosen, and said
+    expect(within(dialog).getByText("after “Your name”")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("group", { name: "Where it goes" })).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your email" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -341,7 +344,7 @@ describe("SchemaVersionView", () => {
 
     fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Section" }));
-    const last = await screen.findByRole("dialog", { name: /New section/ });
+    const last = await screen.findByRole("dialog", { name: /Add section/ });
     fireEvent.change(within(last).getByLabelText(/Title/), { target: { value: "Contact" } });
     fireEvent.click(within(last).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted).toHaveLength(2));
@@ -354,7 +357,7 @@ describe("SchemaVersionView", () => {
 
     fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
-    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
     const identifier = within(dialog).getByRole("textbox", { name: "Identifier" });
     const question = within(dialog).getByLabelText(/Question/);
     // Right after what names the part
@@ -384,7 +387,7 @@ describe("SchemaVersionView", () => {
 
     fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
-    const dialog = await screen.findByRole("dialog", { name: /New question/ });
+    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
     fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Where do you live?" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted[0]?.params.get("name")).toBe("whereDoYouLive"));
@@ -392,7 +395,7 @@ describe("SchemaVersionView", () => {
 
     await expand("Your name");
     fireEvent.click(screen.getByRole("button", { name: "Add option" }));
-    const option = await screen.findByRole("dialog", { name: /New option/ });
+    const option = await screen.findByRole("dialog", { name: /Add option/ });
     expect(within(option).queryByRole("textbox", { name: "Identifier" })).not.toBeInTheDocument();
     fireEvent.change(within(option).getByLabelText(/Value/), { target: { value: "long" } });
     fireEvent.click(within(option).getByRole("button", { name: "Save" }));
@@ -407,14 +410,31 @@ describe("SchemaVersionView", () => {
     await card("Your name");
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Question" }));
-    const dialog = await screen.findByRole("dialog", { name: /New question/ });
-    expect(within(dialog).getByRole("radio", { name: "At the end" })).toBeChecked();
-    fireEvent.click(within(dialog).getByRole("radio", { name: "At the start" }));
+    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
+    expect(within(dialog).getByText("of “Intake”")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "at the end" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(dialog).getByRole("button", { name: "at the start" }));
+    // Choosing it again keeps it chosen
+    fireEvent.click(within(dialog).getByRole("button", { name: "at the start" }));
+    expect(within(dialog).getByRole("button", { name: "at the start" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your title" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
     expect(posted[0].params.get("before")).toBe("name");
+  });
+
+  it("says what an empty part gains, with nothing to choose about where", async () => {
+    serveSchemas();
+    renderVersion("study", "v3");
+
+    await expand("Follow-up");
+    fireEvent.click(within(await card("Follow-up")).getByRole("button", { name: "Add" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Question" }));
+    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
+
+    expect(within(dialog).getByText("in “Follow-up”")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("group", { name: "Where it goes" })).not.toBeInTheDocument();
   });
 
   it("adds an option to a question", async () => {
@@ -423,7 +443,7 @@ describe("SchemaVersionView", () => {
 
     await expand("Your name");
     fireEvent.click(screen.getByRole("button", { name: "Add option" }));
-    const dialog = await screen.findByRole("dialog", { name: /New option/ });
+    const dialog = await screen.findByRole("dialog", { name: /Add option/ });
     fireEvent.change(within(dialog).getByLabelText(/Value/), { target: { value: "long" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -793,7 +813,7 @@ describe("SchemaVersionView", () => {
         [ "When it applies", "Add section below", "Add question below", "Move", "Remove" ]);
       fireEvent.click(within(menu).getByRole("menuitem", { name: "Add question below" }));
       await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
-      const dialog = await screen.findByRole("dialog", { name: /New question/ });
+      const dialog = await screen.findByRole("dialog", { name: /Add question/ });
       fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Your email" } });
       fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 

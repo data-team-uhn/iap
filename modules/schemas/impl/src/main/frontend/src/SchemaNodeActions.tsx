@@ -65,7 +65,7 @@ function SchemaNodeActions({ node, parent, siblings, what, editCondition }: Sche
         <ActionIcon label="When it applies" onClick={editCondition}
           icon={<AltRouteOutlinedIcon fontSize="small" sx={{ color: "condition.main" }} />} />
       ) }
-      <AddBelow parent={parent} next={nameIfAny(next)} />
+      <AddBelow parent={parent} after={headingOf(node)} next={nameIfAny(next)} />
       <SchemaNodeMoveAction node={node} what={what} />
       {discard}
     </ActionsMenu>

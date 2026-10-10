@@ -20,7 +20,7 @@ import { Fragment, useMemo, useState } from "react";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import { Box, Chip, Collapse, IconButton, Popover, Stack, type Theme, Tooltip, Typography } from "@mui/material";
+import { Box, Chip, Collapse, IconButton, Stack, type Theme, Tooltip, Typography } from "@mui/material";
 import { type SystemStyleObject } from "@mui/system";
 
 import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
@@ -47,31 +47,12 @@ import { useConditionEditor } from "./useConditionEditor";
 import { useOptionsFrom } from "./useOptionsFrom";
 import { useVersionConditions, VersionConditionsContext } from "./versionConditions";
 
-// One of a part's chips; a chip with content shows it in a popover when clicked
-function FactChip({ chip }: { chip: SchemaPartChip }) {
-  const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
+// One of a part's chips; one naming what the part's details show opens and closes them, as its arrow does
+function FactChip({ chip, open, onToggle }: { chip: SchemaPartChip; open: boolean; onToggle: () => void }) {
   if (typeof chip === "string") {
     return <Chip label={chip} size="small" variant="outlined" />;
   }
-  return (
-    <>
-      <Chip
-        label={chip.label}
-        size="small"
-        variant="outlined"
-        aria-haspopup="dialog"
-        onClick={event => setAnchor(event.currentTarget)}
-      />
-      <Popover
-        open={anchor !== null}
-        anchorEl={anchor}
-        onClose={() => setAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-      >
-        <Box sx={{ p: 1.5, maxWidth: 360 }}>{chip.content}</Box>
-      </Popover>
-    </>
-  );
+  return <Chip label={chip.label} size="small" variant="outlined" aria-expanded={open} onClick={onToggle} />;
 }
 
 interface PartCardProps {
@@ -144,7 +125,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
             </Box>
           ) }
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
-            <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
               <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>
                 {/* On a phone, at the start of the heading, which wraps under it */}
                 { phone && typeIcon({ verticalAlign: "text-bottom", mr: 0.75 }) }
@@ -153,9 +134,10 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
               <CodePill name={nameOf(part)} />
             </Stack>
             { type.chips && (
-              <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
+              <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap" }}>
                 { type.chips(part).map(chip => (
-                  <FactChip key={typeof chip === "string" ? chip : chip.label} chip={chip} />
+                  <FactChip key={typeof chip === "string" ? chip : chip.label} chip={chip} open={open}
+                    onToggle={() => setOpen(current => !current)} />
                 )) }
               </Stack>
             ) }

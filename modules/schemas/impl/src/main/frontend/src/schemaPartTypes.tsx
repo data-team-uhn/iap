@@ -38,8 +38,8 @@ import {
 
 import type { JcrNode } from "./schemaModel";
 
-// A fact shown as a chip, and optionally what opens from it when it is clicked
-export type SchemaPartChip = string | { label: string; content: ReactNode };
+// A fact shown as a chip; one naming what the part's details show opens and closes them
+export type SchemaPartChip = string | { label: string; opensDetails: true };
 
 // How one type of schema part is shown: what it is called, its icon and accent, the facts worth seeing
 // at a glance, and what else it says once opened. A type not listed here is still shown, as itself.
@@ -62,7 +62,7 @@ function Detail({ children }: { children: string }) {
 // What an option says: what the submitter reads, and what an answer stores when it differs
 function OptionText({ option }: { option: JcrNode }) {
   return (
-    <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
       <span>{optionLabelOf(option)}</span>
       { option.label !== undefined && option.label !== option.value && <CodePill name={String(option.value)} /> }
     </Stack>
@@ -93,27 +93,21 @@ function OptionRow({ option, question, options }: { option: JcrNode; question: J
   );
 }
 
-// A question's options. In the question's details each comes with what it describes and what may be done to it,
-// the actions lined up just after the widest option; in its chip, only what it says.
-function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
+// A question's options in its details, each with what it describes and what may be done to it, the actions lined
+// up just after the widest option
+function OptionList({ options, question }: { options: JcrNode[]; question: JcrNode }) {
   return (
     <Box
       component="ul"
-      sx={question
-        // Under the question's chips, on a screen wide enough to spare it
-        ? { mx: 0, my: 1, p: 0, pl: { sm: ICON_COLUMN }, display: "grid", rowGap: 1.5,
-          gridTemplateColumns: "minmax(0, max-content) max-content",
-          // Every row spans the grid, spaced by it alone
-          "& > li": { gridColumn: "1 / -1", my: 0 } }
-        : { m: 0, pl: 3 }}
+      // Under the question's chips, on a screen wide enough to spare it
+      sx={{ mx: 0, my: 1, p: 0, pl: { sm: ICON_COLUMN }, display: "grid", rowGap: 1.5,
+        gridTemplateColumns: "minmax(0, max-content) max-content",
+        // Every row spans the grid, spaced by it alone
+        "& > li": { gridColumn: "1 / -1", my: 0 } }}
     >
-      { options.map(option => (question ? (
+      { options.map(option => (
         <OptionRow key={nameOf(option)} option={option} question={question} options={options} />
-      ) : (
-        <Typography component="li" variant="body2" key={nameOf(option)}>
-          <OptionText option={option} />
-        </Typography>
-      ))) }
+      )) }
     </Box>
   );
 }
@@ -158,7 +152,7 @@ function questionChips(part: JcrNode): SchemaPartChip[] {
     ...answerCountOf(part),
     ...options.length > 0 ? [ {
       label: options.length === 1 ? "1 option" : `${options.length} options`,
-      content: <OptionList options={options} />,
+      opensDetails: true as const,
     } ] : [],
   ];
 }

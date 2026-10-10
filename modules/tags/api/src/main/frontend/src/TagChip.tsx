@@ -102,7 +102,7 @@ function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
     return null;
   }
   return (
-    <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: "wrap" }}>
+    <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap" }}>
       {defined.map(definition => <DefinedTagChip key={definition.name} definition={definition} />)}
       {unrecognized.map(name => <Chip key={name} size="small" variant="outlined" label={name} />)}
     </Stack>
