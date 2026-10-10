@@ -26,6 +26,10 @@ export const schemaPageUrl = (name: string): string => `/admin/schemas/${encodeU
 export const versionPageUrl = (schemaName: string, versionName: string): string =>
   `${schemaPageUrl(schemaName)}/${encodeURIComponent(versionName)}`;
 
+// The page of a version compared with another
+export const comparisonPageUrl = (schemaName: string, base: string, compared: string): string =>
+  `${versionPageUrl(schemaName, compared)}?compare=${encodeURIComponent(base)}`;
+
 // Every schema, with its versions: what the listing and the dashboard widget show.
 export function useSchemaList() {
   const { value, loading, loadError, reload } = useNode(SCHEMAS_ROOT, listing(2), schemasOf);

@@ -42,11 +42,15 @@ interface SchemaVersionViewProps {
   // What the schema's own page would say about it, such as that it is retired
   pageNotices: ReactNode;
   reloadSchema: () => void;
+  // The rules choosing what the version is compared with by default
+  comparisonDefaults: string[];
 }
 
-// One version of a schema: where it stands, what can be done with it and changed in it, and everything it
-// asks of a submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
-function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema }: SchemaVersionViewProps) {
+// One version of a schema: where it stands, what can be done with it and changed in it, and everything it asks of
+// a submission. The schema it belongs to heads the title and leads back from the breadcrumb trail.
+function SchemaVersionView(
+  { schema, versionName, pageNotices, reloadSchema, comparisonDefaults }: SchemaVersionViewProps,
+) {
   const navigate = useNavigate();
   const schemaPage = schemaPageUrl(nameOf(schema));
   usePageCrumbs([ { path: schemaPage, label: titleOf(schema) } ]);
@@ -78,6 +82,7 @@ function SchemaVersionView({ schema, versionName, pageNotices, reloadSchema }: S
               void reload();
             }}
             removed={() => void navigate(schemaPage)}
+            comparisonDefaults={comparisonDefaults}
           />
         </ActionsMenu>
       }

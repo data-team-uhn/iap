@@ -77,6 +77,8 @@ export const HOMEPAGE = {
     },
     "v3": {
       "jcr:primaryType": "sch:SchemaVersion", "version": "3.0", "tags": ["draft"], "@events": DRAFT,
+      "jcr:created": "2026-09-20T10:00:00.000-04:00",
+      "link:links": { "l1": { "type": "/LinkTypes/copiedFrom", "reference": "/Schemas/study/v1" } },
       "@fields": DRAFT_FIELDS, "@notice": "Everything in this version can change until it is activated.",
     },
     "notes": { "jcr:primaryType": "nt:unstructured" },
@@ -239,6 +241,32 @@ export function withPaths(path: string, node: Record<string, unknown>): Record<s
   return identified;
 }
 
+// The fields the workflows editing drafts describe, as the version comparison reads them
+export const FIELD_DEFINITIONS: Record<string, Record<string, unknown>> = {
+  updateDraftSchemaVersion: { v1: { tags: [ "active" ], update: { fields: {
+    version: { "@name": "version", label: "Label" },
+    description: { "@name": "description", label: "Description", multiline: true },
+    workflow: {
+      "@name": "workflow", label: "Workflow", referenceType: "wf/WorkflowVersion", referenceRoot: "/Workflows",
+    },
+  } } } },
+  updateDraftSchemaPart: { v1: { tags: [ "active" ], update: { fields: {
+    text: { "@name": "text", label: "Question", multiline: true },
+    label: { "@name": "label", label: "Label" },
+    title: { "@name": "title", label: "Title" },
+    description: { "@name": "description", label: "Description", multiline: true },
+    dataType: { "@name": "dataType", label: "Answer type", choices: {
+      text: { "@name": "text", label: "Text" }, long: { "@name": "long", label: "Whole number" },
+    } },
+    minAnswers: { "@name": "minAnswers", label: "Minimum answers" },
+    required: { "@name": "required", label: "Required" },
+  } } } },
+  updateDraftAnswerOption: { v1: { tags: [ "active" ], update: { fields: {
+    value: { "@name": "value", label: "Value" },
+    label: { "@name": "label", label: "Label" },
+  } } } },
+};
+
 // Installs the server. `homepage` is what /Schemas serves; a schema is served from its own entry.
 // `answers` picks the answer to an event by the URL it is posted to; `failReads` makes every read of
 // schemas fail with that status, and `failContent` only the reads of a whole version.
@@ -276,6 +304,16 @@ export function serveSchemas(
     }
     if (failReads) {
       return json(url, {}, failReads);
+    }
+    const links = /^\/Schemas\/([^./]+)\/([^./]+)\/link:links\./.exec(url);
+    if (links) {
+      const held = ((homepage[links[1]] as Record<string, unknown> | undefined)?.[links[2]] as
+        Record<string, unknown> | undefined)?.["link:links"];
+      return held ? json(url, held) : json(url, {}, 404);
+    }
+    const definition = /^\/SystemWorkflows\/([^./]+)\.deep/.exec(url)?.[1];
+    if (definition !== undefined) {
+      return definition in FIELD_DEFINITIONS ? json(url, FIELD_DEFINITIONS[definition]) : json(url, {}, 404);
     }
     const version = /^\/Schemas\/([^./]+)\/([^./]+)\.deep/.exec(url);
     if (version) {

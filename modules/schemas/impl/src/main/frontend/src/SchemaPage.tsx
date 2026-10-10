@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ReactNode, useCallback } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 
 import { Alert } from "@mui/material";
 import { useLocation, useNavigate } from "react-router";
@@ -28,7 +28,9 @@ import TagChip from "@iap/tags/TagChip";
 
 import SchemaActions from "./SchemaActions";
 import { type JcrNode, schemaNameFromRoute, tagsOf, titleOf, versionNameFromRoute } from "./schemaModel";
+import SchemaVersionComparison from "./SchemaVersionComparison";
 import SchemaVersionList from "./SchemaVersionList";
+import { strings } from "./schemaVersionTreeModel";
 import SchemaVersionView from "./SchemaVersionView";
 import { useSchema } from "./useSchema";
 
@@ -52,14 +54,18 @@ function SchemaNotices({ schema, loadError, reload }: {
 }
 
 // One schema's page: its versions and where each stands, and the lifecycle actions on them and on
-// the schema as a whole. With a version named, that version's own page.
-function SchemaPage() {
-  const { pathname } = useLocation();
+// the schema as a whole. With a version named, that version's own page; with another to compare it with too, their
+// comparison, on the fields that the workflow definitions its extension names describe.
+function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
+  const { pathname, search } = useLocation();
   const versionName = versionNameFromRoute(pathname);
+  const comparedWith = new URLSearchParams(search).get("compare");
   const navigate = useNavigate();
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
+  // Kept the same while the extension is, so that the version list does not redraw its actions for nothing
+  const comparisonDefaults = useMemo(() => strings(extension?.comparisonDefaults), [ extension ]);
 
   if (!schema) {
     return (
@@ -72,10 +78,21 @@ function SchemaPage() {
 
   const notices: ReactNode = <SchemaNotices schema={schema} loadError={loadError} reload={reload} />;
 
+  if (versionName && comparedWith) {
+    return (
+      <SchemaVersionComparison schema={schema} names={[ comparedWith, versionName ]} pageNotices={notices}
+        definitions={{
+          version: strings(extension?.comparisonVersionFieldsFrom),
+          part: strings(extension?.comparisonPartFieldsFrom),
+          option: strings(extension?.comparisonOptionFieldsFrom),
+        }} />
+    );
+  }
+
   if (versionName) {
     return (
       <SchemaVersionView schema={schema} versionName={versionName} pageNotices={notices}
-        reloadSchema={reloadSchema} />
+        reloadSchema={reloadSchema} comparisonDefaults={comparisonDefaults} />
     );
   }
 
@@ -90,7 +107,7 @@ function SchemaPage() {
       disablePanel
     >
       {notices}
-      <SchemaVersionList schema={schema} reload={reloadSchema} />
+      <SchemaVersionList schema={schema} reload={reloadSchema} comparisonDefaults={comparisonDefaults} />
     </AdminScreen>
   );
 }
