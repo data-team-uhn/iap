@@ -15,19 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useId, useLayoutEffect, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
+import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FitWidthIcon from "@mui/icons-material/FitScreen";
+import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, ButtonBase, DialogContent, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 import { visuallyHidden } from "@mui/utils";
+import { createPortal } from "react-dom";
 
 import { getFileName, getPassageNote, getPassageStatus, type PassageNote } from "./pdfViewerModel";
 import { unquote } from "./quoteMatch";
@@ -46,6 +49,10 @@ export interface PdfViewerProps {
   markedBy: "assistant" | "annotation";
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
+  // An element to show the viewer in, filling it, with a button to pop it out into a dialog. The
+  // element needs a height of its own. Without one, the viewer opens in a dialog. Null, as a ref is
+  // before React attaches it, shows nothing until the element is there.
+  container?: HTMLElement | null;
   onClose: () => void;
 }
 
@@ -69,7 +76,7 @@ function cutShort(lines: number) {
 
 // Opens a PDF, finds the quote in it and highlights it. The document still opens when the quote
 // cannot be found.
-export default function PdfViewer({ url, page, quote, markedBy, title, onClose }: PdfViewerProps) {
+export default function PdfViewer({ url, page, quote, markedBy, title, container, onClose }: PdfViewerProps) {
   // Keyed so another document or quote starts over with nothing left from the last one.
   return (
     <PdfViewerSession
@@ -79,33 +86,78 @@ export default function PdfViewer({ url, page, quote, markedBy, title, onClose }
       quote={quote}
       markedBy={markedBy}
       title={title}
+      container={container}
       onClose={onClose}
     />
   );
 }
 
-function PdfViewerSession({ url, page, quote, markedBy, title, onClose }: PdfViewerProps) {
+// The document stays open here while the viewer moves between the container and the dialog.
+function PdfViewerSession({ url, page, quote, markedBy, title, container, onClose }: PdfViewerProps) {
   const viewer = usePdfViewer(url, page, quote);
+  const [poppedOut, setPoppedOut] = useState(false);
   const titleId = useId();
-  return (
-    <ResponsiveDialog
-      open
-      width="lg"
-      aria-labelledby={titleId}
+  const placeButtonRef = useRef<HTMLButtonElement>(null);
+  // Set when popping back in, so focus goes to the button that pops out again rather than to nowhere.
+  const poppingIn = useRef(false);
+  useEffect(() => {
+    if (!poppedOut && poppingIn.current) {
+      poppingIn.current = false;
+      placeButtonRef.current?.focus();
+    }
+  }, [poppedOut]);
+  const popIn = () => {
+    poppingIn.current = true;
+    setPoppedOut(false);
+  };
+  if (container === null) {
+    return null;
+  }
+
+  const inDialog = container === undefined || poppedOut;
+  const placeButton = container === undefined
+    ? null
+    : (
+      <IconButton
+        ref={placeButtonRef}
+        aria-label={poppedOut ? "Pop back in" : "Pop out"}
+        onClick={poppedOut ? popIn : () => setPoppedOut(true)}
+      >
+        {poppedOut ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
+      </IconButton>
+    );
+  const body = (
+    <ViewerBody
+      titleId={titleId}
+      title={title ?? getFileName(url)}
+      quote={quote}
+      markedBy={markedBy}
+      viewer={viewer}
+      placeButton={placeButton}
+      edgeToEdge={inDialog}
       onClose={onClose}
-      slotProps={{ paper: { sx: { height: "100%" } } }}
-    >
-      <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, px: { xs: 2, sm: 3 } }}>
-        <ViewerBody
-          titleId={titleId}
-          title={title ?? getFileName(url)}
-          quote={quote}
-          markedBy={markedBy}
-          viewer={viewer}
-          onClose={onClose}
-        />
-      </DialogContent>
-    </ResponsiveDialog>
+    />
+  );
+
+  if (inDialog) {
+    return (
+      <ResponsiveDialog
+        open
+        width="lg"
+        aria-labelledby={titleId}
+        // Escape puts a popped-out viewer back rather than closing it.
+        onClose={container !== undefined && poppedOut ? popIn : onClose}
+        slotProps={{ paper: { sx: { height: "100%" } } }}
+      >
+        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, px: { xs: 2, sm: 3 } }}>
+          {body}
+        </DialogContent>
+      </ResponsiveDialog>
+    );
+  }
+  return createPortal(
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>{body}</Box>,
+    container,
   );
 }
 
@@ -115,10 +167,14 @@ interface ViewerBodyProps {
   quote: string;
   markedBy: PdfViewerProps["markedBy"];
   viewer: ReturnType<typeof usePdfViewer>;
+  // Moves the viewer between its container and the dialog, when it has a container.
+  placeButton: ReactNode;
+  // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
+  edgeToEdge: boolean;
   onClose: () => void;
 }
 
-function ViewerBody({ titleId, title, quote, markedBy, viewer, onClose }: ViewerBodyProps) {
+function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edgeToEdge, onClose }: ViewerBodyProps) {
   const { state, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry } = viewer;
   const pageCount = state.pageCount ?? 0;
   // 0 until the document opens, which keeps both page buttons disabled.
@@ -131,6 +187,7 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, onClose }: Viewer
         <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {title}
         </Typography>
+        {placeButton}
         <IconButton aria-label="Close" edge="end" onClick={onClose}>
           <CloseIcon />
         </IconButton>
@@ -179,9 +236,15 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, onClose }: Viewer
             sx={{ mb: 1 }}
           />
         )}
-      {/* PDF.js needs its scrolling container absolutely positioned, so this box gives it the room.
-          In the dialog on a phone, the document spans the full screen width, past the dialog's padding. */}
-      <Box sx={{ position: "relative", flex: "1 1 auto", minHeight: MIN_FRAME_HEIGHT, mx: { xs: -2, sm: 0 } }}>
+      {/* PDF.js needs its scrolling container absolutely positioned, so this box gives it the room. */}
+      <Box
+        sx={{
+          position: "relative",
+          flex: "1 1 auto",
+          minHeight: MIN_FRAME_HEIGHT,
+          mx: edgeToEdge ? { xs: -2, sm: 0 } : 0,
+        }}
+      >
         <Box
           ref={setFrame}
           role="region"
@@ -192,7 +255,7 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, onClose }: Viewer
             inset: 0,
             overflow: "auto",
             bgcolor: "background.default",
-            borderRadius: { xs: 0, sm: 1 },
+            borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
             // Sheets on the canvas, apart from each other
             "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
             // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
