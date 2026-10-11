@@ -17,17 +17,30 @@
  */
 import { useState } from "react";
 
-import { Button, Stack, TextField } from "@mui/material";
+import { Button, MenuItem, Stack, TextField } from "@mui/material";
 
-import PdfViewer from "@iap/frontend-commons/components/PdfViewer";
+import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
+
+type Shown = Omit<PdfViewerProps, "onClose">;
 
 // A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for a
-// quote in it, without a real caller. The titled frame comes from the dashboard.
+// quote in it, without a real caller. The titled frame comes from the dashboard. Open shows what the
+// form says then, so editing it does not reopen the document.
 function PdfViewerTestWidget() {
   const [url, setUrl] = useState("");
+  const [page, setPage] = useState("");
   const [quote, setQuote] = useState("");
-  const [cite, setCite] = useState("");
-  const [open, setOpen] = useState(false);
+  const [markedBy, setMarkedBy] = useState<PdfViewerProps["markedBy"]>("assistant");
+  const [title, setTitle] = useState("");
+  const [shown, setShown] = useState<Shown | undefined>(undefined);
+
+  const open = () => setShown({
+    url: url.trim(),
+    page: Number(page) > 0 ? Number(page) : undefined,
+    quote: quote.trim(),
+    markedBy,
+    title: title.trim().length > 0 ? title.trim() : undefined,
+  });
 
   return (
     <>
@@ -36,11 +49,18 @@ function PdfViewerTestWidget() {
           label="PDF URL"
           value={url}
           onChange={event => setUrl(event.target.value)}
-          placeholder="/path/to/file.pdf#page=2"
+          placeholder="/path/to/file.pdf"
           fullWidth
         />
         <TextField
-          label="Quote to find"
+          label="Page (optional)"
+          value={page}
+          onChange={event => setPage(event.target.value)}
+          slotProps={{ htmlInput: { inputMode: "numeric", pattern: "[0-9]*" } }}
+          fullWidth
+        />
+        <TextField
+          label="Text to find"
           value={quote}
           onChange={event => setQuote(event.target.value)}
           multiline
@@ -48,28 +68,38 @@ function PdfViewerTestWidget() {
           fullWidth
         />
         <TextField
-          label="Citation (optional)"
-          value={cite}
-          onChange={event => setCite(event.target.value)}
+          select
+          label="Marked by"
+          value={markedBy}
+          onChange={event => setMarkedBy(event.target.value as PdfViewerProps["markedBy"])}
+          fullWidth
+        >
+          <MenuItem value="assistant">An AI assistant</MenuItem>
+          <MenuItem value="annotation">A person</MenuItem>
+        </TextField>
+        <TextField
+          label="Title (optional)"
+          value={title}
+          onChange={event => setTitle(event.target.value)}
           fullWidth
         />
         <Button
           variant="contained"
           fullWidth
           disabled={url.trim().length === 0 || quote.trim().length === 0}
-          onClick={() => setOpen(true)}
+          onClick={open}
         >
           Open
         </Button>
       </Stack>
-      {open && (
+      {shown !== undefined && (
         <PdfViewer
-          passage={{
-            quote: quote.trim(),
-            source: url.trim(),
-            cite: cite.trim().length > 0 ? cite.trim() : undefined,
-          }}
-          onClose={() => setOpen(false)}
+          url={shown.url}
+          page={shown.page}
+          quote={shown.quote}
+          markedBy={shown.markedBy}
+          title={shown.title}
+          onClose={() => setShown(undefined)}
         />
       )}
     </>

@@ -30,6 +30,11 @@ vi.mock("pdfjs-dist", () => ({
   },
 }));
 
+// The viewer, its stylesheet and the folders it fetches from are loaded alongside, and play no part here
+vi.mock("pdfjs-dist/web/pdf_viewer.mjs", () => ({}));
+vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
+vi.mock("@iap/frontend-commons/assetManager", () => ({ getAssetURL: () => Promise.resolve("") }));
+
 class FakeWorker extends EventTarget {
   constructor(readonly url: URL, readonly options: WorkerOptions) {
     super();

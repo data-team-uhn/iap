@@ -336,6 +336,14 @@ const appTheme = createTheme({
     },
   },
   components: {
+    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does; the app's own
+    // scheme outranks it, so native controls and light-dark() colours keep following the app.
+    MuiCssBaseline: {
+      styleOverrides: {
+        "html.light": { colorScheme: "light" },
+        "html.dark": { colorScheme: "dark" },
+      },
+    },
     // Paper is outlined, not elevated
     MuiPaper: {
       defaultProps: {
