@@ -116,6 +116,21 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     };
     linkService.setViewer(viewer);
 
+    // PDF.js searches again for a changed option; the quote's matching ignores this one, so changing it
+    // has the parts of a quote broken across two pages marked.
+    const find = (matchDiacritics: boolean) => {
+      eventBus.dispatch("find", {
+        source: null,
+        type: "",
+        query: quote,
+        caseSensitive: false,
+        entireWord: false,
+        highlightAll: true,
+        findPrevious: false,
+        matchDiacritics,
+      });
+    };
+
     eventBus.on("pagesinit", () => {
       if (locationRef.current === undefined) {
         viewer.currentScaleValue = "page-width";
@@ -126,16 +141,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
         linkService.setHash(locationRef.current);
       }
       if (searchText !== undefined) {
-        eventBus.dispatch("find", {
-          source: null,
-          type: "",
-          query: quote,
-          caseSensitive: false,
-          entireWord: false,
-          highlightAll: true,
-          findPrevious: false,
-          matchDiacritics: false,
-        });
+        find(false);
       }
     });
     eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
@@ -145,11 +151,17 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       dispatch({ type: "paged", page: pageNumber });
     });
     eventBus.on("updatefindcontrolstate", ({ state: findState }: { state: number }) => {
-      const { selected } = findController;
+      const { selected, acrossPages } = findController;
       if ((findState === FOUND || findState === WRAPPED) && selected !== undefined) {
-        dispatch({ type: "searched", search: { status: "found", page: selected.pageIdx + 1 } });
+        const page = acrossPages === undefined ? selected.pageIdx + 1 : acrossPages.firstPage + 1;
+        const toPage = acrossPages === undefined ? undefined : page + 1;
+        dispatch({ type: "searched", search: { status: "found", page, toPage } });
       } else if (findState === NOT_FOUND) {
-        dispatch({ type: "searched", search: { status: findController.hasText ? "notFound" : "noText" } });
+        if (findController.markAcrossPages()) {
+          find(true);
+        } else {
+          dispatch({ type: "searched", search: { status: findController.hasText ? "notFound" : "noText" } });
+        }
       }
     });
 
