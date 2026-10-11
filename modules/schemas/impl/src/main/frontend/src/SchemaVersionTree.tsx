@@ -62,6 +62,10 @@ function FactChip({ chip }: { chip: SchemaPartChip }) {
   );
 }
 
+// The width, in theme spacing, of the column a part's expand button stands in. On a wide screen, what the part holds
+// is indented by as much, and by the card's padding, so its icon lines up with what is under it.
+const EXPANDER_COLUMN = 4;
+
 interface PartCardProps {
   part: JcrNode;
   // What holds it
@@ -99,47 +103,51 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
         borderRadius: 1,
       }}
     >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", p: 1 }}>
-        { hasMore ? (
-          <IconButton
-            size="small"
-            aria-label={`${open ? "Collapse" : "Expand"} ${headingOf(part)}`}
-            aria-expanded={open}
-            onClick={() => setOpen(current => !current)}
-          >
-            { open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" /> }
-          </IconButton>
-        ) : <Box sx={{ width: 30, flexShrink: 0 }} /> }
-        <Tooltip title={type.label}>
-          <Icon fontSize="small" titleAccess={type.label} sx={{ color: type.iconColor ?? type.accent, mt: 0.75 }} />
-        </Tooltip>
-        <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5 }}>
-          <Typography sx={{ overflowWrap: "anywhere" }}>{headingOf(part)}</Typography>
-          { type.chips && (
-            <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
-              { type.chips(part).map(chip => (
-                <FactChip key={typeof chip === "string" ? chip : chip.label} chip={chip} />
-              )) }
-            </Stack>
-          ) }
-          { when && (
-            <Stack
-              direction="row"
-              spacing={0.75}
-              sx={{ alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "background.muted", borderRadius: 1,
-                px: 1, py: 0.5 }}
+      <Stack direction="row" sx={{ alignItems: "flex-start", p: 1 }}>
+        <Box sx={{ width: theme => theme.spacing(EXPANDER_COLUMN), flexShrink: 0 }}>
+          { hasMore && (
+            <IconButton
+              size="small"
+              aria-label={`${open ? "Collapse" : "Expand"} ${headingOf(part)}`}
+              aria-expanded={open}
+              onClick={() => setOpen(current => !current)}
             >
-              <AltRouteOutlinedIcon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
-              <Typography variant="body2">{when}</Typography>
-            </Stack>
+              { open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" /> }
+            </IconButton>
           ) }
-        </Stack>
-        <Stack direction="row" sx={{ flexShrink: 0 }}>
-          <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
+        </Box>
+        <Stack direction="row" spacing={1} sx={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
+          <Tooltip title={type.label}>
+            <Icon fontSize="small" titleAccess={type.label} sx={{ color: type.accent, mt: 0.75 }} />
+          </Tooltip>
+          <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5 }}>
+            <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>{headingOf(part)}</Typography>
+            { type.chips && (
+              <Stack direction="row" useFlexGap spacing={0.5} sx={{ flexWrap: "wrap" }}>
+                { type.chips(part).map(chip => (
+                  <FactChip key={typeof chip === "string" ? chip : chip.label} chip={chip} />
+                )) }
+              </Stack>
+            ) }
+            { when && (
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "background.muted", borderRadius: 1,
+                  px: 1, py: 0.5 }}
+              >
+                <AltRouteOutlinedIcon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
+                <Typography variant="body2">{when}</Typography>
+              </Stack>
+            ) }
+          </Stack>
+          <Stack direction="row" sx={{ flexShrink: 0 }}>
+            <SchemaNodeActions node={part} parent={parent} siblings={siblings} what={type.label.toLowerCase()} />
+          </Stack>
         </Stack>
       </Stack>
       <Collapse in={open && hasMore} unmountOnExit>
-        <Stack spacing={1} sx={{ pl: { xs: 1, sm: 5 }, pr: 1, pb: 1 }}>
+        <Stack spacing={1} sx={{ pl: { xs: 1, sm: EXPANDER_COLUMN + 1 }, pr: 1, pb: 1 }}>
           { description && <Typography variant="description">{description}</Typography> }
           {details}
           { children.length > 0 && <PartList parent={part} parts={children} index={index} /> }
