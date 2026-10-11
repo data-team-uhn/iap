@@ -61,7 +61,9 @@ build did not pick up the config change.
 
 A package imported where a page starts joins the `vendor` chunk every page loads. One imported only
 with `import()` where a screen needs it gets chunks of its own instead, loaded the first time a
-screen asks for them, as PDF.js is.
+screen asks for them, as PDF.js is. A worker the library runs is started with
+`new Worker(new URL("<package>/<script>", import.meta.url), { type: "module" })`, which webpack
+bundles the same way.
 
 Some libraries also fetch files by name at run time, like PDF.js's fonts and decoders. A module
 names the package folders they come from in its `package-folders.config`, beside `assets.config`:
@@ -183,6 +185,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `useNotice` (`NoticeSnackbar.tsx`) | A notice an action raises over the screen. `NoticeProvider` is mounted once, at the top of the page |
 | `FormattedText` | Markdown from content, such as a definition's description |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
+| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with a passage found and marked in it |
 
 `EntityDataGrid` reads a homepage's `.paginate.json`, and sends it the filtering and
 sorting the user picks.
@@ -205,6 +208,25 @@ registerEntityType("sch/Schema", {
 
 Paging, sorting and searching still apply to the schemas alone. On a small screen the
 list keeps one card per schema, and the card ends with the schema's versions.
+
+`PdfViewer` shows a PDF with PDF.js's own viewer, and looks for a quoted passage in it from the page
+given:
+
+```tsx
+<PdfViewer
+  url={file}
+  page={evidence.page}
+  quote={evidence.quote}
+  markedBy="assistant"
+  title="Protocol"
+  onClose={close}
+/>
+```
+
+It opens in a dialog. The passage is matched the way
+a quote copied from a document's text needs to be: ignoring spacing, case, accents, typographic
+quotes and dashes, and line-end hyphens. `markedBy` says whose mark it is, an AI assistant's or a
+person's, so it is coloured accordingly.
 
 Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the

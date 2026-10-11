@@ -18,20 +18,20 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import type { PdfQuotePassage } from "@iap/frontend-commons/components/PdfViewer";
+import type { PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
 // The viewer has tests of its own; this stand-in shows what the widget hands it.
-vi.mock("@iap/frontend-commons/components/PdfViewer", () => ({
-  default: ({ passage, onClose }: { passage: PdfQuotePassage; onClose: () => void }) => (
+vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
+  default: ({ onClose, ...shown }: PdfViewerProps) => (
     <div role="dialog">
-      <output>{JSON.stringify(passage)}</output>
+      <output>{JSON.stringify(shown)}</output>
       <button type="button" onClick={onClose}>Close</button>
     </div>
   ),
 }));
 
-function getPassage(): unknown {
+function getViewerProps(): unknown {
   return JSON.parse(screen.getByRole("status").textContent ?? "");
 }
 
@@ -45,7 +45,7 @@ describe("PdfViewerTestWidget", () => {
     await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
     expect(open).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText("Quote to find"), "a quote to look for");
+    await userEvent.type(screen.getByLabelText("Text to find"), "a quote to look for");
     expect(open).toBeEnabled();
   });
 
@@ -53,24 +53,58 @@ describe("PdfViewerTestWidget", () => {
     render(<PdfViewerTestWidget />);
 
     await userEvent.type(screen.getByLabelText("PDF URL"), " /some/file.pdf ");
-    await userEvent.type(screen.getByLabelText("Quote to find"), " a quote to look for ");
-    await userEvent.type(screen.getByLabelText("Citation (optional)"), " p. 1 ");
+    await userEvent.type(screen.getByLabelText("Text to find"), " a quote to look for ");
+    await userEvent.type(screen.getByLabelText("Page (optional)"), "2");
+    await userEvent.type(screen.getByLabelText("Title (optional)"), " Memo ");
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
 
-    expect(getPassage()).toEqual({ quote: "a quote to look for", source: "/some/file.pdf", cite: "p. 1" });
+    expect(getViewerProps()).toEqual({
+      url: "/some/file.pdf",
+      page: 2,
+      quote: "a quote to look for",
+      markedBy: "assistant",
+      title: "Memo",
+    });
   });
 
-  it("leaves out a blank citation, and closes the viewer when asked", async () => {
+  it("leaves out a blank page and title, and closes the viewer when asked", async () => {
     render(<PdfViewerTestWidget />);
 
     await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
-    await userEvent.type(screen.getByLabelText("Quote to find"), "a quote to look for");
-    await userEvent.type(screen.getByLabelText("Citation (optional)"), "  ");
+    await userEvent.type(screen.getByLabelText("Text to find"), "a quote to look for");
+    await userEvent.type(screen.getByLabelText("Title (optional)"), "  ");
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
-    expect(getPassage()).toEqual({ quote: "a quote to look for", source: "/some/file.pdf" });
+    expect(getViewerProps()).toEqual({
+      url: "/some/file.pdf",
+      quote: "a quote to look for",
+      markedBy: "assistant",
+    });
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("marks the passage as a person's when asked", async () => {
+    render(<PdfViewerTestWidget />);
+
+    await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
+    await userEvent.type(screen.getByLabelText("Text to find"), "a quote to look for");
+    await userEvent.click(screen.getByRole("combobox", { name: "Marked by" }));
+    await userEvent.click(screen.getByRole("option", { name: "A person" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(getViewerProps()).toMatchObject({ markedBy: "annotation" });
+  });
+
+  it("keeps showing what was opened while the form is edited", async () => {
+    render(<PdfViewerTestWidget />);
+
+    await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
+    await userEvent.type(screen.getByLabelText("Text to find"), "a quote to look for");
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    await userEvent.type(screen.getByLabelText("PDF URL"), "x");
+
+    expect(getViewerProps()).toMatchObject({ url: "/some/file.pdf" });
   });
 });
