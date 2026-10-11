@@ -221,7 +221,9 @@ given:
 />
 ```
 
-It opens in a dialog. The passage is matched the way
+It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
+a dialog and back, keeping the page, the zoom and the mark. A `container` that is `null`, as a ref is
+before React attaches it, shows nothing until the element is there. The passage is matched the way
 a quote copied from a document's text needs to be: ignoring spacing, case, accents, typographic
 quotes and dashes, and line-end hyphens. `markedBy` says whose mark it is, an AI assistant's or a
 person's, so it is coloured accordingly.

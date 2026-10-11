@@ -17,21 +17,24 @@
  */
 import { useState } from "react";
 
-import { Button, MenuItem, Stack, TextField } from "@mui/material";
+import { Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, TextField } from "@mui/material";
 
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
-type Shown = Omit<PdfViewerProps, "onClose">;
+type Shown = Omit<PdfViewerProps, "container" | "onClose"> & { inPlace: boolean };
 
 // A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for a
-// quote in it, without a real caller. The titled frame comes from the dashboard. Open shows what the
-// form says then, so editing it does not reopen the document.
+// quote in it, without a real caller. The titled frame comes from the dashboard. Shown in place, the
+// viewer takes a box below the form, from which it can be popped out. Open shows what the form says
+// then, so editing it does not reopen the document.
 function PdfViewerTestWidget() {
   const [url, setUrl] = useState("");
   const [page, setPage] = useState("");
   const [quote, setQuote] = useState("");
   const [markedBy, setMarkedBy] = useState<PdfViewerProps["markedBy"]>("assistant");
   const [title, setTitle] = useState("");
+  const [inPlace, setInPlace] = useState(true);
+  const [place, setPlace] = useState<HTMLDivElement | null>(null);
   const [shown, setShown] = useState<Shown | undefined>(undefined);
 
   const open = () => setShown({
@@ -40,6 +43,7 @@ function PdfViewerTestWidget() {
     quote: quote.trim(),
     markedBy,
     title: title.trim().length > 0 ? title.trim() : undefined,
+    inPlace,
   });
 
   return (
@@ -83,6 +87,10 @@ function PdfViewerTestWidget() {
           onChange={event => setTitle(event.target.value)}
           fullWidth
         />
+        <FormControlLabel
+          control={<Checkbox checked={inPlace} onChange={event => setInPlace(event.target.checked)} />}
+          label="Show in place, below the form"
+        />
         <Button
           variant="contained"
           fullWidth
@@ -92,6 +100,7 @@ function PdfViewerTestWidget() {
           Open
         </Button>
       </Stack>
+      <Box ref={setPlace} sx={{ display: shown?.inPlace ? "block" : "none", height: "70vh", mt: 2 }} />
       {shown !== undefined && (
         <PdfViewer
           url={shown.url}
@@ -99,6 +108,7 @@ function PdfViewerTestWidget() {
           quote={shown.quote}
           markedBy={shown.markedBy}
           title={shown.title}
+          container={shown.inPlace ? place : undefined}
           onClose={() => setShown(undefined)}
         />
       )}

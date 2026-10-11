@@ -31,7 +31,8 @@ interface OpenedDocument {
   doc: PDFDocumentProxy;
 }
 
-// Opens the PDF, and shows it in the frame it is given, looking for the quote from the page given.
+// Opens the PDF once, and shows it in whichever frame it is given, looking for the quote from the
+// page given. Moving to another frame keeps the page, the zoom and the marks.
 export function usePdfViewer(url: string, page: number | undefined, quote: string) {
   const authFetch = useAuthenticatedFetch();
   const searchText = getSearchText(quote);
@@ -40,6 +41,8 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   const showPassageRef = useRef<(() => void) | undefined>(undefined);
+  // Where the reader is, as PDF.js's open parameters, once the document has been shown.
+  const locationRef = useRef<string | undefined>(undefined);
   // Whether finding the quote may still move the reader to it.
   const followRef = useRef(true);
   const { attempt } = state;
@@ -114,10 +117,14 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     linkService.setViewer(viewer);
 
     eventBus.on("pagesinit", () => {
-      viewer.currentScaleValue = "page-width";
-      const first = page !== undefined && page <= doc.numPages ? page : 1;
-      viewer.currentPageNumber = first;
-      dispatch({ type: "opened", pageCount: doc.numPages, page: first });
+      if (locationRef.current === undefined) {
+        viewer.currentScaleValue = "page-width";
+        const first = page !== undefined && page <= doc.numPages ? page : 1;
+        viewer.currentPageNumber = first;
+        dispatch({ type: "opened", pageCount: doc.numPages, page: first });
+      } else {
+        linkService.setHash(locationRef.current);
+      }
       if (searchText !== undefined) {
         eventBus.dispatch("find", {
           source: null,
@@ -130,6 +137,9 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
           matchDiacritics: false,
         });
       }
+    });
+    eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
+      locationRef.current = location.pdfOpenParams.replace(/^#/, "");
     });
     eventBus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
       dispatch({ type: "paged", page: pageNumber });
@@ -146,6 +156,10 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     viewer.setDocument(doc);
     linkService.setDocument(doc);
     return () => {
+      // Shown again elsewhere, the reader stays where they were rather than being taken to the quote.
+      if (locationRef.current !== undefined) {
+        followRef.current = false;
+      }
       stop.abort();
       viewer.setDocument(null);
       viewerRef.current = undefined;
