@@ -18,7 +18,7 @@
 import type { ReactElement } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -75,6 +75,16 @@ function getViewer() {
   return viewer;
 }
 
+// Containers a test made for the viewer, removed after it.
+const places: HTMLDivElement[] = [];
+
+function createPlace(): HTMLDivElement {
+  const place = document.createElement("div");
+  document.body.append(place);
+  places.push(place);
+  return place;
+}
+
 describe("PdfViewer", () => {
   beforeEach(() => {
     stubFetch();
@@ -84,6 +94,7 @@ describe("PdfViewer", () => {
   afterEach(() => {
     // Unmounted before the stand-in is reset, so this test's teardown does not count in the next.
     cleanup();
+    places.splice(0).forEach(place => place.remove());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     fakePdf.reset();
@@ -436,6 +447,135 @@ describe("PdfViewer", () => {
       await act(() => Promise.resolve());
 
       expect(fakePdf.opened).toBe(0);
+    });
+  });
+
+  describe("in a container", () => {
+    it("shows in the container given, rather than in a dialog", async () => {
+      const place = createPlace();
+      show({ container: place });
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      expect(within(place).getByRole("heading", { name: "prc-memo.pdf" })).toBeInTheDocument();
+      expect(within(place).getByRole("region", { name: "Document" })).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Pop back in" })).not.toBeInTheDocument();
+    });
+
+    it("waits for a container that is not there yet, without a dialog in the meantime", async () => {
+      const place = createPlace();
+      const { rerender } = show({ container: null });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Document" })).not.toBeInTheDocument();
+
+      rerender({ container: place });
+
+      await waitFor(() => expect(within(place).getByRole("status")).toHaveTextContent(FOUND));
+    });
+
+    it("pops out into a dialog where the reader was, without opening the document again", async () => {
+      const place = createPlace();
+      show({ container: place });
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+
+      const dialog = screen.getByRole("dialog", { name: "prc-memo.pdf" });
+      expect(place).toBeEmptyDOMElement();
+      await waitFor(() => expect(fakePdf.hashes).toEqual([ "page=2&zoom=2,0,0" ]));
+      expect(fakePdf.viewers[0]?.abortSignal?.aborted).toBe(true);
+      expect(getViewer().container).toBe(within(dialog).getByRole("region", { name: "Document" }));
+      expect(getViewer().currentScaleValue).toBe("2");
+      expect(within(dialog).getByText("Page 2 of 3")).toBeInTheDocument();
+      expect(fakePdf.opened).toBe(1);
+    });
+
+    it("marks the passage again once popped out, without scrolling the reader to it", async () => {
+      const place = createPlace();
+      show({ container: place });
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+
+      await waitFor(() => expect(fakePdf.searches).toHaveLength(2));
+      expect(getStatus()).toHaveTextContent(FOUND);
+      expect(getFrame().scrollTop).toBe(0);
+    });
+
+    it("keeps the reader on the page they went to when popping out", async () => {
+      const place = createPlace();
+      show({ container: place });
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+
+      await waitFor(() => expect(fakePdf.searches).toHaveLength(2));
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on page 2."));
+      expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+    });
+
+    it("still takes the reader to the passage when popped out before the document was shown", async () => {
+      const place = createPlace();
+      fakePdf.holdPages = true;
+      show({ container: place });
+      await waitFor(() => expect(fakePdf.releasePages).toBeDefined());
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await waitFor(() => expect(fakePdf.viewers).toHaveLength(2));
+      act(() => fakePdf.releasePages?.());
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      expect(getFrame().scrollTop).toBe(MATCH_TOP);
+    });
+
+    it("returns focus to the button that pops it out, once back in place", async () => {
+      const place = createPlace();
+      show({ container: place });
+      await screen.findByText("Page 2 of 3");
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await userEvent.click(screen.getByRole("button", { name: "Pop back in" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Pop out" })).toHaveFocus());
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Pop out" })).toHaveFocus());
+    });
+
+    it("closes on Escape once its container is gone, even popped out", async () => {
+      const place = createPlace();
+      const { onClose, rerender } = show({ container: place });
+      await screen.findByText("Page 2 of 3");
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+
+      rerender({ container: undefined });
+      await userEvent.keyboard("{Escape}");
+
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("pops back in from its button or on Escape, and closes from Close", async () => {
+      const place = createPlace();
+      const { onClose } = show({ container: place });
+      await screen.findByText("Page 2 of 3");
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await userEvent.click(screen.getByRole("button", { name: "Pop back in" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(within(place).getByRole("region", { name: "Document" })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(within(place).getByRole("region", { name: "Document" })).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });
