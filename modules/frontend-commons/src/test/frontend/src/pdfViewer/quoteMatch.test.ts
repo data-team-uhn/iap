@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { findQuote, getSearchText, unquote } from "@iap/frontend-commons/pdfViewer/quoteMatch";
+import { findQuote, findQuoteAcrossPages, getSearchText, unquote } from "@iap/frontend-commons/pdfViewer/quoteMatch";
 
 // The text a match covers in the page, for readable assertions.
 function matched(page: string, quote: string): string[] {
@@ -100,5 +100,58 @@ describe("findQuote", () => {
   it("finds nothing when the page does not have the quote", () => {
     expect(matched("Cover page of the document.", "a passage from elsewhere")).toEqual([]);
     expect(matched("", "a passage from elsewhere")).toEqual([]);
+  });
+});
+
+describe("findQuoteAcrossPages", () => {
+  const QUOTE = "Volunteers who, on a casual basis, assist from time to time with a variety of activities.";
+  const FIRST = "The memo covers new volunteers.\nVolunteers who, on a casual basis, assist\nPage 2 of 3";
+  const NEXT = "Volunteer guidelines\nfrom time to time with a variety of activities. They may require a check.";
+
+  // The text each part covers on its page, for readable assertions.
+  function parts(first: string, next: string, quote: string): [ string, string ] | undefined {
+    const searchText = getSearchText(quote);
+    if (searchText === undefined) {
+      throw new Error(`"${quote}" is too short to search for`);
+    }
+    const found = findQuoteAcrossPages(first, next, searchText);
+    return found && [
+      first.slice(found.first.index, found.first.index + found.first.length),
+      next.slice(found.next.index, found.next.index + found.next.length),
+    ];
+  }
+
+  it("finds the start near the end of one page and the rest near the start of the next", () => {
+    expect(parts(FIRST, NEXT, QUOTE)).toEqual([
+      "Volunteers who, on a casual basis, assist",
+      "from time to time with a variety of activities.",
+    ]);
+  });
+
+  it("finds a word broken across the pages with a hyphen", () => {
+    expect(parts("Applicants submit a Police Records Check before the vulner-\n12", "able sector check is done.",
+      "submit a Police Records Check before the vulnerable sector check is done")).toEqual([
+      "submit a Police Records Check before the vulner",
+      "able sector check is done",
+    ]);
+  });
+
+  it("finds nothing when the start is far from the end of its page", () => {
+    expect(parts(FIRST + "\n" + "Another paragraph. ".repeat(30), NEXT, QUOTE)).toBeUndefined();
+  });
+
+  it("finds nothing when the rest is far from the start of the next page", () => {
+    expect(parts(FIRST, "Another paragraph. ".repeat(30) + NEXT, QUOTE)).toBeUndefined();
+  });
+
+  it("finds nothing when either part would be too short to trust", () => {
+    expect(parts("Volunteers who, on a casual basis, assist from time to time with a variety of activ",
+      "ities. More.", QUOTE)).toBeUndefined();
+    const rest = "nteers who, on a casual basis, assist from time to time with a variety of activities.";
+    expect(parts("The memo. Volu", rest, QUOTE)).toBeUndefined();
+  });
+
+  it("finds nothing when the pages do not hold the quote", () => {
+    expect(parts("Cover page.", "Contents.", QUOTE)).toBeUndefined();
   });
 });
