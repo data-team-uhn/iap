@@ -217,6 +217,13 @@ deployment's brand colours reach a component only through the theme. What it add
   for the stronger shade of the words that changed within it. `palette.diff.moved` has
   only `main` and `line`, for what moved. So has `palette.diff.hunk`, for the band
   that stands in for unchanged content left out.
+- `assistant` for anything an AI assistant contributed, wherever it appears, and `annotation`
+  for what a person marked: full palette colours (`color="assistant"` on a `Chip`, `Button`,
+  `IconButton` or icon, `"assistant.main"` in `sx`), built on a lilac accent and a soft
+  highlighter yellow.
+- `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
+  with a `…Current` variant for the mark in focus. They stay the same in both colour schemes,
+  since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so a hard-coded colour is wrong in one of them. A
