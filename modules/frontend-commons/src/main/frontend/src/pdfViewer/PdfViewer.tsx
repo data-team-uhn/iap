@@ -376,7 +376,9 @@ function PassageLine({ quote, note, status, markedBy, onShowPassage }: {
         ? (
           <ButtonBase
             focusRipple
-            aria-label={`Show the passage on page ${note.foundOnPage}`}
+            aria-label={note.toPage === undefined
+              ? `Show the passage on page ${note.foundOnPage}`
+              : `Show the passage on pages ${note.foundOnPage} and ${note.toPage}`}
             aria-describedby={quoteId}
             onClick={onShowPassage}
             sx={{
@@ -415,14 +417,15 @@ function NoteText({ note, short = false }: { note: PassageNote; short?: boolean 
     const text = short ? note.short : note.text;
     return note.failed ? <Box component="span" sx={failedColour}>{text}</Box> : text;
   }
+  const pages = note.toPage === undefined ? `${note.foundOnPage}` : `${note.foundOnPage}–${note.toPage}`;
   return (
     <>
-      {short ? "p. " : "found on page "}
+      {short ? "p. " : `found on ${note.toPage === undefined ? "page" : "pages"} `}
       <Box
         component="span"
         sx={note.shown ? undefined : { color: "primary.main", textDecoration: "underline" }}
       >
-        {note.foundOnPage}
+        {pages}
       </Box>
     </>
   );
