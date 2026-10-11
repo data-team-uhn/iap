@@ -23,9 +23,9 @@ import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
 // The viewer has tests of its own; this stand-in shows what the widget hands it.
 vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
-  default: ({ onClose, ...shown }: PdfViewerProps) => (
+  default: ({ onClose, container, ...shown }: PdfViewerProps) => (
     <div role="dialog">
-      <output>{JSON.stringify(shown)}</output>
+      <output>{JSON.stringify({ ...shown, inPlace: container !== undefined })}</output>
       <button type="button" onClick={onClose}>Close</button>
     </div>
   ),
@@ -64,6 +64,7 @@ describe("PdfViewerTestWidget", () => {
       quote: "a quote to look for",
       markedBy: "assistant",
       title: "Memo",
+      inPlace: true,
     });
   });
 
@@ -78,11 +79,23 @@ describe("PdfViewerTestWidget", () => {
       url: "/some/file.pdf",
       quote: "a quote to look for",
       markedBy: "assistant",
+      inPlace: true,
     });
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens the viewer in a dialog when it is not shown in place", async () => {
+    render(<PdfViewerTestWidget />);
+
+    await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
+    await userEvent.type(screen.getByLabelText("Text to find"), "a quote to look for");
+    await userEvent.click(screen.getByLabelText("Show in place, below the form"));
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(getViewerProps()).toMatchObject({ inPlace: false });
   });
 
   it("marks the passage as a person's when asked", async () => {
