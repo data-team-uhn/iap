@@ -164,6 +164,15 @@ describe("getPassageNote", () => {
       .toEqual({ text: "this document has no text to search", short: "no text" });
   });
 
+  it("says which pages a passage broken across two was found on, and whether one is the one shown", () => {
+    const found = searched({ type: "searched", search: { status: "found", page: 2, toPage: 3 } });
+    expect(getPassageNote(found)).toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+    expect(getPassageNote(reduceViewerState(found, { type: "paged", page: 3 })))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+    expect(getPassageNote(reduceViewerState(found, { type: "paged", page: 1 })))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: false });
+  });
+
   it("says which page the passage was found on, and whether it is the one shown", () => {
     const found = searched({ type: "searched", search: { status: "found", page: 2 } });
     expect(getPassageNote(found)).toEqual({ foundOnPage: 2, shown: true });
@@ -184,6 +193,10 @@ describe("getPassageStatus", () => {
       .toBe("This document has no text to search.");
     expect(getPassageStatus(reduceViewerState(opened2, { type: "searched", search: { status: "found", page: 3 } })))
       .toBe("The passage is marked on page 3.");
+    expect(getPassageStatus(reduceViewerState(opened2, {
+      type: "searched",
+      search: { status: "found", page: 2, toPage: 3 },
+    }))).toBe("The passage is marked on pages 2 and 3.");
   });
 
   it("says nothing when the document could not be opened", () => {

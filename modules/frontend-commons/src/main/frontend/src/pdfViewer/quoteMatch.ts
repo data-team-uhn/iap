@@ -19,6 +19,12 @@
 // Shorter than this, a quote matches too easily to be worth a mark.
 const MIN_QUOTE_LENGTH = 6;
 
+// A quote broken across two pages: how far from the end of the first page its start may end, and from
+// the start of the next its rest may begin, in compared characters, leaving room for a footer, a page
+// number and a header; and how short either part may be before it matches too easily to trust.
+const PAGE_EDGE = 300;
+const MIN_PART_LENGTH = 12;
+
 // PDFs use typographic quotes and dashes; a quote typed by a person or a model rarely does.
 // A soft hyphen only marks where a word may break, so it maps to nothing.
 const PLAIN_CHARS = new Map<string, string>([
@@ -53,11 +59,35 @@ export function findQuote(pageText: string, searchText: string): QuoteMatch[] {
   const page = readText(pageText);
   const matches: QuoteMatch[] = [];
   for (let at = page.text.indexOf(searchText); at >= 0; at = page.text.indexOf(searchText, at + searchText.length)) {
-    const start = page.offsets[at];
-    const end = page.offsets[at + searchText.length - 1] + 1;
-    matches.push({ index: start, length: end - start });
+    matches.push(toMatch(page, at, searchText.length));
   }
   return matches;
+}
+
+// Where a quote broken across two pages sits: its start near the end of the first page, and its rest
+// near the start of the next. Undefined when no break fits.
+export function findQuoteAcrossPages(
+  firstPage: string,
+  nextPage: string,
+  searchText: string,
+): { first: QuoteMatch; next: QuoteMatch } | undefined {
+  const first = readText(firstPage);
+  const next = readText(nextPage);
+  for (let split = searchText.length - MIN_PART_LENGTH; split >= MIN_PART_LENGTH; split--) {
+    const start = searchText.slice(0, split);
+    const rest = searchText.slice(split);
+    const startAt = first.text.lastIndexOf(start);
+    const restAt = next.text.indexOf(rest);
+    if (startAt >= 0 && startAt + start.length >= first.text.length - PAGE_EDGE && restAt >= 0 && restAt <= PAGE_EDGE) {
+      return { first: toMatch(first, startAt, start.length), next: toMatch(next, restAt, rest.length) };
+    }
+  }
+  return undefined;
+}
+
+function toMatch(page: { offsets: number[] }, at: number, length: number): QuoteMatch {
+  const start = page.offsets[at];
+  return { index: start, length: page.offsets[at + length - 1] + 1 - start };
 }
 
 // The text with no spaces, case or accents, and no hyphens except a minus before a digit. PDF.js
