@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.jcr.Node;
@@ -60,9 +59,6 @@ public class CreateContentHandler implements ServiceTaskHandler
     /** The payload entry naming the node type to create. */
     static final String TYPE_PARAMETER = "type";
 
-    /** The payload entry naming the sibling the new content goes before. */
-    static final String BEFORE_PARAMETER = "before";
-
     /** The activity property naming, in order, the fields a name is taken from. */
     static final String NAME_FROM = "nameFrom";
 
@@ -84,10 +80,10 @@ public class CreateContentHandler implements ServiceTaskHandler
                 + " must list the " + ContentTypes.TYPES + " it may create");
         }
         final Resource target = context.getTarget();
-        final Node parent = Objects.requireNonNull(target.adaptTo(Node.class), "Content is stored in a JCR repository");
+        final Node parent = Nodes.of(target);
         try {
             final ContentTypes.Type type = chosen(context, ContentTypes.accepted(listed, parent));
-            final String before = before(context, parent);
+            final String before = Placement.before(context, parent);
             final String name = NodeNameUtils.findFreeName(target, name(context, type));
             VersioningUtils.checkOut(parent);
             final Node created = parent.addNode(name, type.nodeType());
@@ -119,31 +115,6 @@ public class CreateContentHandler implements ServiceTaskHandler
             .filter(candidate -> candidate.nodeType().equals(type))
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(type + " cannot be created here"));
-    }
-
-    /**
-     * The sibling the event places new content before, if it names one.
-     *
-     * @param context the executing task's context
-     * @param parent the node new content is created under
-     * @return the sibling's name, or {@code null} to place it last
-     * @throws InvalidPayloadException when that is not a child of the parent, or the parent keeps no order
-     * @throws RepositoryException when the parent cannot be read
-     */
-    private static String before(final WorkflowTaskContext context, final Node parent)
-        throws InvalidPayloadException, RepositoryException
-    {
-        final Object before = context.getEvent().get(BEFORE_PARAMETER);
-        if (before == null) {
-            return null;
-        }
-        if (!(before instanceof String) || !parent.hasNode((String) before)) {
-            throw new InvalidPayloadException("There is nothing called " + before + " to go before");
-        }
-        if (!parent.getPrimaryNodeType().hasOrderableChildNodes()) {
-            throw new InvalidPayloadException(parent.getName() + " keeps no order to place new content in");
-        }
-        return (String) before;
     }
 
     /**
