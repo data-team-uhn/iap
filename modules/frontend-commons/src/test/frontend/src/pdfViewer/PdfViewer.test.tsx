@@ -194,6 +194,21 @@ describe("PdfViewer", () => {
       expect(getViewer().removePageBorders).toBe(true);
     });
 
+    it("finds a passage broken across two pages, and marks both parts", async () => {
+      fakePdf.pages = [
+        "Cover page of the document.",
+        "The memo covers new volunteers. Volunteers who, on a casual basis,\nPage 2 of 3",
+        "Volunteer guidelines\nassist from time to time. They may require a check.",
+      ];
+      show();
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on pages 2 and 3."));
+      expect(screen.getByRole("button", { name: "Show the passage on pages 2 and 3" }))
+        .toHaveTextContent("found on pages 2–3");
+      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      expect(fakePdf.searches).toEqual([ QUOTE, QUOTE ]);
+    });
+
     it("looks from the page given onwards, then from the start", async () => {
       fakePdf.pages = [ QUOTE, "Contents.", "The end." ];
       show({ page: 3 });
