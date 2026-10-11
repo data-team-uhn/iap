@@ -57,6 +57,24 @@ resolved at runtime through the content-hashed `assets.json`. If a new component
 not appear, check that entry exists in `assets.json` first — a missing one means the
 build did not pick up the config change.
 
+### Libraries only some screens need
+
+A package imported where a page starts joins the `vendor` chunk every page loads. One imported only
+with `import()` where a screen needs it gets chunks of its own instead, loaded the first time a
+screen asks for them, as PDF.js is.
+
+Some libraries also fetch files by name at run time, like PDF.js's fonts and decoders. A module
+names the package folders they come from in its `package-folders.config`, beside `assets.config`:
+
+```
+'pdfjs-dist/standard_fonts'
+'pdfjs-dist/wasm'
+```
+
+The build publishes each folder as it is, in a folder named after its contents' hash, which the
+server has browsers keep for good, and keys it in `assets.json` by the package folder, with a dot
+for the slash: `getAssetURL("asset:pdfjs-dist.standard_fonts")` gives the folder's URL.
+
 ## Talking to the server
 
 ### Use `useAuthenticatedFetch`, not `fetch`
