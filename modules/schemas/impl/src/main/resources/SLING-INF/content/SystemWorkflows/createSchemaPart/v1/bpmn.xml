@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
+                  id="createSchemaPartDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/createSchemaPart">
+  <bpmn:message id="createMessage" name="create" />
+  <bpmn:process id="createSchemaPart" name="Add a part to a draft schema version" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="iap-administrators" name="Requested">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+          <sv:property sv:name="comparator"><sv:value>includes</sv:value></sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>property</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>tags</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>toCreate</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
+    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="value,title,text,label" name="Add the part">
+      <bpmn:extensionElements>
+        <sv:node sv:name="types">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+          <sv:node sv:name="section">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="nodeType"><sv:value>sch:Section</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Section</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="question">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="nodeType"><sv:value>sch:Question</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Question</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="option">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="nodeType"><sv:value>sch:AnswerOption</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Option</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toCreate</bpmn:incoming>
+      <bpmn:outgoing>toUpdate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toUpdate" sourceRef="create" targetRef="update" />
+    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Fill it in">
+      <bpmn:extensionElements>
+        <sv:node sv:name="fields">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+          <sv:node sv:name="value">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Value</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against.</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="label">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="title">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Title</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="text">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Question</sv:value></sv:property>
+            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="description">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
+            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="dataType">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Answer type</sv:value></sv:property>
+            <sv:node sv:name="choices">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:node sv:name="text">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>Text</sv:value></sv:property>
+              </sv:node>
+              <sv:node sv:name="long">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>Whole number</sv:value></sv:property>
+              </sv:node>
+              <sv:node sv:name="double">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>Decimal number</sv:value></sv:property>
+              </sv:node>
+              <sv:node sv:name="boolean">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>Yes or no</sv:value></sv:property>
+              </sv:node>
+              <sv:node sv:name="date">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>Date</sv:value></sv:property>
+              </sv:node>
+              <sv:node sv:name="file">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+                <sv:property sv:name="label"><sv:value>File</sv:value></sv:property>
+              </sv:node>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="minAnswers">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Minimum answers</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>0 means optional. 1 or more means required.</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="maxAnswers">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Maximum answers</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>0 means unlimited. 1 means a single answer.</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="minValue">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Lowest value</sv:value></sv:property>
+            <sv:node sv:name="appliesWhen">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
+              <sv:property sv:name="values" sv:multiple="true"><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="maxValue">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Highest value</sv:value></sv:property>
+            <sv:node sv:name="appliesWhen">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
+              <sv:property sv:name="values" sv:multiple="true"><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="pattern">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Pattern</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>A regular expression every answer must match.</sv:value></sv:property>
+            <sv:node sv:name="appliesWhen">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
+              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="patternMessage">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Message when an answer does not match</sv:value></sv:property>
+            <sv:node sv:name="appliesWhen">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
+              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="optionsFrom">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Options from</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>A path whose items are the options, instead of options listed here.</sv:value></sv:property>
+            <sv:node sv:name="appliesWhen">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
+              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="purpose">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Purpose</sv:value></sv:property>
+            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="extractionPrompt">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
+            <sv:property sv:name="label"><sv:value>Extraction prompt</sv:value></sv:property>
+            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toUpdate</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="update" targetRef="done" />
+    <bpmn:endEvent id="done" name="Part added">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="createSchemaPartDiagram">
+    <bpmndi:BPMNPlane id="createSchemaPartPlane" bpmnElement="createSchemaPart">
+      <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="157" y="223" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="createShape" bpmnElement="create">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="updateShape" bpmnElement="update">
+        <dc:Bounds x="410" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="564" y="223" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toCreateEdge" bpmnElement="toCreate">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toUpdateEdge" bpmnElement="toUpdate">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="410" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="510" y="198" />
+        <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

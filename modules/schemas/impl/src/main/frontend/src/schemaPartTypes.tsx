@@ -26,7 +26,8 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
 import { Box, Typography, type SvgIconProps } from "@mui/material";
 
-import SchemaNodeEditAction from "./SchemaNodeEditAction";
+import { nameOf } from "./schemaModel";
+import SchemaNodeActions from "./SchemaNodeActions";
 import {
   answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings,
 } from "./schemaVersionTreeModel";
@@ -54,19 +55,20 @@ function Detail({ children }: { children: string }) {
   return <Typography variant="description">{children}</Typography>;
 }
 
-// A question's options: what the submitter reads, and what an answer stores when it differs
-function OptionList({ options, editable = false }: { options: JcrNode[]; editable?: boolean }) {
+// A question's options: what the submitter reads, and what an answer stores when it differs. Given the
+// question, each option carries its actions; without it, only its text.
+function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box component="ul" sx={{ m: 0, pl: 3 }}>
       { options.map(option => (
-        <Typography component="li" variant="body2" key={String(option["@name"])}>
+        <Typography component="li" variant="body2" key={nameOf(option)}>
           {optionLabelOf(option)}
           { option.label !== undefined && option.label !== option.value && (
             <Typography component="span" variant="description">
               {` · stored as ${String(option.value)}`}
             </Typography>
           ) }
-          { editable && <SchemaNodeEditAction node={option} title="Edit option" /> }
+          { question && <SchemaNodeActions node={option} parent={question} siblings={options} what="option" /> }
         </Typography>
       )) }
     </Box>
@@ -83,7 +85,7 @@ function questionDetails(part: JcrNode): ReactNode {
   }
   return (
     <>
-      { options.length > 0 && <OptionList options={options} editable /> }
+      { options.length > 0 && <OptionList options={options} question={part} /> }
       { optionsFrom && <Detail>{`The options are the items under ${optionsFrom}.`}</Detail> }
       { bounds && <Detail>{`${bounds}.`}</Detail> }
       { pattern && <Detail>{`Must match ${pattern}.`}</Detail> }
