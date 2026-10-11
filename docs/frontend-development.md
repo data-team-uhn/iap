@@ -202,6 +202,13 @@ using those extensions is what keeps a deployment's rebranding effective:
   emphasised widgets.
 - `background.muted` for surfaces that need to recede — translucent, so it composes
   with whatever it overlaps rather than assuming white.
+- `assistant` for anything an AI assistant contributed, wherever it appears, and `annotation`
+  for what a person marked: full palette colours (`color="assistant"` on a `Chip`, `Button`,
+  `IconButton` or icon, `"assistant.main"` in `sx`), built on a lilac accent and a soft
+  highlighter yellow.
+- `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
+  with a `…Current` variant for the mark in focus. They stay the same in both colour schemes,
+  since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.
