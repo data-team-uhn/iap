@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 import { getAssetURL } from "../assetManager";
-import { findQuote, getSearchText } from "./quoteMatch";
+import { findQuote, findQuoteAcrossPages, getSearchText, type QuoteMatch } from "./quoteMatch";
 
 import type { PDFDocumentProxy, PDFWorker } from "pdfjs-dist";
 import type { EventBus, PDFFindController, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
@@ -69,9 +69,18 @@ function centreIn(container: HTMLElement, element: HTMLElement): void {
   container.scrollLeft += inner.left - outer.left - Math.max(0, (container.clientWidth - inner.width) / 2);
 }
 
+// A quote broken across two pages: the page it starts on, and its part on that page and the next, by
+// page index.
+export interface QuoteAcrossPages {
+  firstPage: number;
+  parts: Map<number, QuoteMatch>;
+}
+
 // PDF.js's search, matching the quote the way findQuote does instead of word by word. It moves to
 // the match and scrolls it into view only while follow() says so, so a search run again to restore
-// the marks leaves the reader where they were.
+// the marks leaves the reader where they were. PDF.js searches each page on its own, so a quote
+// broken across two pages is found from the text of both, kept as it goes, and marked by a second
+// search once the first has found it whole on no page.
 export function createQuoteFinder(
   components: ViewerComponents,
   { container, viewer, doc, eventBus, follow }: {
@@ -81,7 +90,11 @@ export function createQuoteFinder(
     eventBus: EventBus;
     follow: () => boolean;
   },
-): PDFFindController & { readonly hasText: boolean } {
+): PDFFindController & {
+  readonly hasText: boolean;
+  readonly acrossPages: QuoteAcrossPages | undefined;
+  markAcrossPages: () => boolean;
+} {
   // The search's own link service: PDF.js moves to a match by setting its page.
   class FollowingLinkService extends components.PDFLinkService {
     override get page(): number {
@@ -98,11 +111,40 @@ export function createQuoteFinder(
   class QuoteFinder extends components.PDFFindController {
     // Whether any page searched had text, which a scanned document does not.
     hasText = false;
+    // The quote broken across two pages, once the search marks its parts.
+    acrossPages: QuoteAcrossPages | undefined;
+    #brokenQuote: QuoteAcrossPages | undefined;
+    readonly #pages = new Map<number, string>();
 
-    override match(query: string | string[], pageContent: string) {
+    override match(query: string | string[], pageContent: string, pageIndex: number) {
       this.hasText ||= pageContent.trim().length > 0;
       const searchText = typeof query === "string" ? getSearchText(query) : undefined;
-      return searchText === undefined ? [] : findQuote(pageContent, searchText);
+      if (searchText === undefined) {
+        return [];
+      }
+      if (this.acrossPages !== undefined) {
+        const part = this.acrossPages.parts.get(pageIndex);
+        return part === undefined ? [] : [ part ];
+      }
+      this.#pages.set(pageIndex, pageContent);
+      this.#brokenQuote ??= this.#findAcross(pageIndex - 1, searchText) ?? this.#findAcross(pageIndex, searchText);
+      return findQuote(pageContent, searchText);
+    }
+
+    // Once the quote was found whole on no page: whether it was found broken across two, for the next
+    // search to mark its parts.
+    markAcrossPages(): boolean {
+      this.acrossPages = this.#brokenQuote;
+      return this.acrossPages !== undefined;
+    }
+
+    #findAcross(firstPage: number, searchText: string): QuoteAcrossPages | undefined {
+      const first = this.#pages.get(firstPage);
+      const next = this.#pages.get(firstPage + 1);
+      const found = first === undefined || next === undefined
+        ? undefined
+        : findQuoteAcrossPages(first, next, searchText);
+      return found && { firstPage, parts: new Map([ [ firstPage, found.first ], [ firstPage + 1, found.next ] ]) };
     }
 
     // PDF.js would call scrollIntoView, which on a phone also pans the page, dialog and all.

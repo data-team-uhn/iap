@@ -22,7 +22,8 @@ import { describeRequestFailure } from "../requestFailure";
 export type SearchState =
   | { status: "searching" }
   | { status: "tooShort" }
-  | { status: "found"; page: number }
+  // Broken across two pages, it ends on the next one.
+  | { status: "found"; page: number; toPage?: number }
   | { status: "notFound" }
   | { status: "noText" };
 
@@ -92,11 +93,11 @@ export function getFileName(url: string): string {
 }
 
 // What follows the passage: how the search for it went, in full and in short for when the passage is
-// cut to one line, and whether it failed, or where it was found, with whether that page is the one shown.
-// Nothing when the open failed, since the error box says it.
+// cut to one line, and whether it failed, or where it was found, with whether one of its pages is the
+// one shown. Nothing when the open failed, since the error box says it.
 export type PassageNote =
   | { text: string; short: string; failed?: boolean }
-  | { foundOnPage: number; shown: boolean };
+  | { foundOnPage: number; toPage?: number; shown: boolean };
 
 export function getPassageNote(state: ViewerState): PassageNote | undefined {
   const { page, search } = state;
@@ -116,7 +117,7 @@ export function getPassageNote(state: ViewerState): PassageNote | undefined {
     case "noText":
       return { text: "this document has no text to search", short: "no text" };
     case "found":
-      return { foundOnPage: search.page, shown: search.page === page };
+      return { foundOnPage: search.page, toPage: search.toPage, shown: search.page === page || search.toPage === page };
   }
 }
 
@@ -140,6 +141,8 @@ export function getPassageStatus(state: ViewerState): string {
     case "noText":
       return "This document has no text to search.";
     case "found":
-      return `The passage is marked on page ${search.page}.`;
+      return search.toPage === undefined
+        ? `The passage is marked on page ${search.page}.`
+        : `The passage is marked on pages ${search.page} and ${search.toPage}.`;
   }
 }
