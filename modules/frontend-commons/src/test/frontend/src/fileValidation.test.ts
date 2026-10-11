@@ -250,7 +250,7 @@ const pdfjs = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@iap/frontend-commons/pdfjsClient", () => ({
+vi.mock("@iap/frontend-commons/pdfViewer/pdfjsClient", () => ({
   loadPdfjs: () => missing.pdfjs
     ? Promise.reject(new Error("Loading chunk pdfjs failed"))
     : Promise.resolve({ pdfjs, worker: sharedWorker }),

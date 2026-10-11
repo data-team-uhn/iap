@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { loadPdfjs } from "./pdfjsClient";
+import { loadPdfjs } from "./pdfViewer/pdfjsClient";
 
 // Checks an upload in the browser so a bad file is refused in a moment, not after a slow upload. It
 // only advises: the server checks again, where nobody can skip it.
