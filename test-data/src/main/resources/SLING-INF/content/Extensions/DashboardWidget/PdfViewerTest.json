@@ -4,5 +4,5 @@
   "ext:name": "PDF viewer",
   "ext:subtitle": "Find a quote in a PDF",
   "ext:renderURL": "asset:iap-test-data.PdfViewerTestWidget.js",
-  "defaultOrder": 6
+  "defaultOrder": 7
 }

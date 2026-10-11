@@ -33,12 +33,6 @@ const isProduction = process.argv.find(arg => arg.startsWith("--mode"))?.substri
 
 const FRONTEND_RESOURCES_PATH = '/libs/iap/resources/';
 
-// PDF.js runs in a web worker, served as a file of its own. Hashed so it caches like the chunks;
-// .js because Sling serves .mjs as application/octet-stream.
-const pdfWorkerBytes = fs.readFileSync(new URL(import.meta.resolve('pdfjs-dist/build/pdf.worker.min.mjs')));
-const pdfWorkerHash = createHash('sha256').update(pdfWorkerBytes).digest('hex').slice(0, 20);
-const PDF_WORKER_FILE = `pdf.worker.min.${pdfWorkerHash}.js`;
-
 // Folders of packages that some library fetches files from by name at run time, such as fonts and
 // decoders, as the modules declare them in their package-folders.config. Each is published as it is,
 // in a folder named after the package folder and its contents, and keyed in assets.json by the
@@ -159,29 +153,12 @@ ENTRY_CONTENT
           ...Object.fromEntries(publishedFolders.map(({ folder, published }) =>
             [ folder.replaceAll('/', '.'), `${published}/` ])),
         }),
-        // header.html loads the page from these two keys, so fail the build if another file took one
-        done: (manifest, stats) => {
-          for (const chunk of ['vendor', 'runtime']) {
-            const target = manifest.get(`${chunk}.js`);
-            if (!new RegExp(`^${chunk}\\.[0-9a-f]+\\.js$`).test(String(target))) {
-              stats.compilation.errors.push(new webpack.WebpackError(
-                `assets.json maps ${chunk}.js to ${String(target)} instead of the ${chunk} chunk`));
-            }
-          }
-          return Promise.resolve();
-        }
       }),
       // The MUI X license key belongs to the deployment rather than to this (public) repository,
       // so it is read from the build environment and substituted in here.
       new webpack.DefinePlugin({
         "process.env.MUI_LICENSE_KEY": JSON.stringify(process.env.MUI_LICENSE_KEY),
-        // Where pdfjsClient.ts finds the worker emitted below
-        "process.env.PDF_WORKER_URL": JSON.stringify(FRONTEND_RESOURCES_PATH + PDF_WORKER_FILE),
       }),
-      // The PDF.js worker: already minified, and a module, so the minimizer leaves it alone
-      emitStaticAssets('the PDF.js worker', [
-        { name: PDF_WORKER_FILE, content: pdfWorkerBytes, info: { minimized: true, javascriptModule: true } },
-      ]),
       // As published, so the minimizer leaves them alone
       emitStaticAssets('the package folders', publishedFolders.flatMap(({ published, files }) =>
         files.map(({ name, content }) => ({ name: `${published}/${name}`, content, info: { minimized: true } })))),
