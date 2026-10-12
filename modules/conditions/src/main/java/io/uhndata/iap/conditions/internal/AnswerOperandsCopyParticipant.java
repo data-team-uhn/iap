@@ -49,8 +49,8 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
             && AnswerOperandResolver.SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
-            // A path is read against the operand's entity, which the copy keeps whole, so it stays as
-            // written; an identifier names the original, so it is pointed at the copy
+            // A path resolves against the operand's entity, which the copy keeps whole, so it stays valid.
+            // An identifier names the original question, so it is changed to the copy's.
             OperandValues.rename(copy, named -> identifiers.getOrDefault(named, named));
         }
         final NodeIterator children = copy.getNodes();

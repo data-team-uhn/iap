@@ -75,8 +75,8 @@ public final class AnswerDependencies
     }
 
     /**
-     * The {@code answer} operands elsewhere in a subtree's entity, outside the subtree, that name something in it:
-     * what would be left depending on it if it went.
+     * The {@code answer} operands elsewhere in a subtree's entity that name something in the subtree. These are the
+     * conditions that would lose their question if the subtree were removed.
      *
      * @param subtree the root of the subtree
      * @param names the names of what is in it, from {@link #namesOf}
@@ -91,14 +91,14 @@ public final class AnswerDependencies
     }
 
     /**
-     * The {@code answer} operands in a subtree's entity that name something in it, those in the subtree itself
-     * included when asked: what a path that changes would break.
+     * The {@code answer} operands in a subtree's entity that name something in the subtree, optionally including those
+     * inside the subtree itself. These are the conditions a move of the subtree could break.
      *
      * @param subtree the root of the subtree
      * @param names the names of what is in it, from {@link #namesOf}
      * @param inside whether operands in the subtree count too
      * @return the operands, none when there are no names
-     * @throws RepositoryException when the entity cannot be searched
+     * @throws RepositoryException when the entity cannot be read
      */
     @NotNull
     public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names,
@@ -132,7 +132,7 @@ public final class AnswerDependencies
     }
 
     /**
-     * The {@code answer} operands under one node, and not under another. The tree is walked rather than queried: a
+     * The {@code answer} operands under a node, except those under another. The tree is walked rather than queried: a
      * query would miss what the session has added and not saved yet.
      *
      * @param under where to look
@@ -148,7 +148,7 @@ public final class AnswerDependencies
     }
 
     /**
-     * Gathers the {@code answer} operands under a node that name something.
+     * Collects the {@code answer} operands under a node, leaving out a subtree.
      *
      * @param node where to look
      * @param skipped a subtree to leave out, or {@code null}

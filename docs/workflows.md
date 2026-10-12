@@ -460,16 +460,19 @@ there, with its `label` and the `fields` it starts with, described as in `@field
 including the `default` values new content of that type starts with.
 
 `moveContent` moves the target, with everything under it, into the node the event names
-as `parent`, or within its own parent when it names none, before the sibling named in
-`before`, or else last: one task both reorders and moves. The new parent must hold the
-target's type, by the same rule as `createContent`; nothing moves into itself; and an
-activity naming a resource type as `within` keeps the target inside the same nearest
-ancestor of that type, such as the schema version a question belongs to. A name already
-taken at the destination is replaced by a free one. The move is made with the
-`ContentMover` service (`java-utils`), which lets the modules that name content by where
-it is prepare first, as `MoveParticipant`s: the conditions module makes `answer`
-operands naming a moved question by path name it by identifier. The new path is what
-later steps act on, and what the event is answered with.
+as `parent`. Without a `parent` it stays in its own parent, so the same task both moves
+and reorders. It goes before the sibling named in `before`, or else last, and takes a
+free name when its own is already taken at the destination. The move is refused when the
+new parent does not hold the target's type (by the same rule as `createContent`), when
+the target would move into itself, and, when the activity names a resource type as
+`within`, when the target would leave its nearest ancestor of that type, such as the
+schema version a question belongs to.
+
+The move goes through the `ContentMover` service (`java-utils`). Before a path changes,
+it lets each `MoveParticipant` update whatever names the content by its path: the
+conditions module makes the `answer` operands that name a moved question by path name it
+by identifier instead. The new path is what later steps act on, and what the event is
+answered with.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service

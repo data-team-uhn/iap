@@ -25,7 +25,7 @@ import javax.jcr.RepositoryException;
 import io.uhndata.iap.conditions.api.AnswerDependencies;
 
 /**
- * Renames what an operand names, for the participants that keep conditions working when content is copied or moved.
+ * Rewrites the values of an operand, for the participants that keep conditions working when content is copied or moved.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,7 +33,7 @@ import io.uhndata.iap.conditions.api.AnswerDependencies;
 final class OperandValues
 {
     /**
-     * What a name becomes.
+     * Gives the new value for each of an operand's values.
      *
      * @version $Id$
      * @since 0.1.0
@@ -42,7 +42,7 @@ final class OperandValues
     interface Renaming
     {
         /**
-         * What a name becomes.
+         * The new value for one of an operand's values.
          *
          * @param name one of an operand's values
          * @return its new value, the same when it stays
@@ -57,10 +57,10 @@ final class OperandValues
     }
 
     /**
-     * Renames every value of an operand.
+     * Replaces every value of an operand with its new value.
      *
      * @param operand an operand
-     * @param renaming what each value becomes
+     * @param renaming gives the new value for each value
      * @throws RepositoryException when the operand cannot be read or written
      */
     static void rename(final Node operand, final Renaming renaming) throws RepositoryException

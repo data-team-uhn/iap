@@ -35,8 +35,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Unit tests for {@link AnswerOperandsMoveParticipant}: a condition naming a moved question, or one under a moved
- * part, by its path names it by identifier instead, and nothing else changes.
+ * Unit tests for {@link AnswerOperandsMoveParticipant}: conditions naming a moved question by path switch to its
+ * identifier, also when a part holding it moves, and nothing else changes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,7 +62,7 @@ class AnswerOperandsMoveParticipantTest
     void setUp() throws RepositoryException
     {
         this.session = this.context.resourceResolver().adaptTo(Session.class);
-        // This module's own types: on a clean build its manifest, which declares them, does not exist yet
+        // Registered by hand: on a clean build the manifest declaring them does not exist yet
         NodeTypeDefinitionScanner.get().register(this.session,
             List.of("SLING-INF/nodetypes/conditions.cnd", "SLING-INF/nodetypes/conditions-test.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());

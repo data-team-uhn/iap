@@ -29,11 +29,12 @@ import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.utils.move.MoveParticipant;
 
 /**
- * Keeps conditions working when what they depend on moves. An {@code answer} operand may name a question by its path
- * within the entity holding the operand, which moving the question would break; before anything moves, every operand
- * naming it, or anything under it, names it by identifier instead, which survives any move (see
- * {@link AnswerDependencies}). A move into another entity also has the conditions going along name what they
- * leave behind by identifier, since their paths would otherwise be read against the new entity.
+ * Keeps conditions working when the content they depend on moves. An {@code answer} operand may name a question by its
+ * path within the entity holding the operand, and moving the question breaks that path. So before a move, every operand
+ * naming the moved node, or anything under it, is changed to name it by identifier instead (see
+ * {@link AnswerDependencies}). An identifier does not depend on where its node is. When content moves into another
+ * entity, the conditions moving with it would read their paths against the new entity. So they also switch to
+ * identifiers for what they name outside it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -50,7 +51,8 @@ public class AnswerOperandsMoveParticipant implements MoveParticipant
         }
         final Node entity = AnswerDependencies.entityOf(node);
         if (entity != null && !entity.isSame(node) && leaves(entity, newPath, node.getSession())) {
-            // Paths in the conditions going along are read against where they go: name what stays by identifier
+            // The conditions moving along will read their paths against the new entity, so name what stays by
+            // identifier
             for (final Node operand : AnswerDependencies.operandsIn(node)) {
                 OperandValues.rename(operand, named -> identifierIn(entity, named));
             }
@@ -75,12 +77,12 @@ public class AnswerOperandsMoveParticipant implements MoveParticipant
     }
 
     /**
-     * What a name becomes once read against another entity: the identifier of what it names in this one, when it is
-     * a path there to something referenceable.
+     * Turns a path to something referenceable in an entity into that thing's identifier. Any other name is returned as
+     * it was.
      *
-     * @param entity the entity the name is read against now
-     * @param named the name
-     * @return the identifier, or the name as it was
+     * @param entity the entity the path is read against
+     * @param named a name, perhaps a path
+     * @return the identifier, or the name unchanged
      * @throws RepositoryException when the entity cannot be read
      */
     private static String identifierIn(final Node entity, final String named) throws RepositoryException

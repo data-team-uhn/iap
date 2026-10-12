@@ -46,8 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link MoveContentHandler}: content moves only where its type is held, never into itself, within
- * the ancestor the activity keeps it in, and to the place the event asks.
+ * Unit tests for {@link MoveContentHandler}: content moves only into a parent holding its type, never into itself, and
+ * never out of the ancestor the activity names. It lands where the event asks.
  *
  * @version $Id$
  * @since 0.1.0

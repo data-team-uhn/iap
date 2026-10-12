@@ -34,8 +34,7 @@ import io.uhndata.iap.utils.move.ContentMover;
 import io.uhndata.iap.utils.move.MoveParticipant;
 
 /**
- * Moves content through the session of the nodes given, letting every {@link MoveParticipant} prepare first when a
- * path changes.
+ * Moves content, letting every {@link MoveParticipant} prepare first when a path changes.
  *
  * @version $Id$
  * @since 0.1.0

@@ -39,14 +39,17 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The built-in service task moving the target, with everything under it: into the node the event names as
- * {@code parent}, or within its own parent when it names none, before the sibling it names as {@code before}, or
- * else last, keeping its name or, where the new parent has it already, taking a free one. The new parent's type must
- * declare it holds the target's type, as for {@code createContent} (see
- * {@link ContentTypes}); nothing moves into itself; and when the activity names a resource type as {@code within},
- * the target stays inside the same nearest ancestor of that type, such as the schema version a question belongs to.
- * The move is made with the {@link ContentMover}, which keeps what names the target by its path working, and the new
- * path is recorded as what later steps act on.
+ * The built-in service task that moves the target, with everything under it. It goes into the node the event names as
+ * {@code parent}, or stays in its own parent when the event names none. It is placed as the event asks (see
+ * {@link Placement}). It keeps its name, or takes a free one when the new parent already has a child by that name.
+ *
+ * <p>The move is refused when the new parent's type does not declare it holds the target's type (see
+ * {@link ContentTypes}), or when the target would move into itself. An activity may also name a resource type as
+ * {@code within}: the target must then stay inside its nearest ancestor of that type, such as the schema version a
+ * question belongs to.</p>
+ *
+ * <p>The move goes through the {@link ContentMover}, which keeps references to the target's path working. The new path
+ * is recorded as what later steps act on.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -101,7 +104,7 @@ public class MoveContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Where the event moves the target.
+     * The parent the event moves the target into.
      *
      * @param context the executing task's context
      * @param target the target
@@ -145,7 +148,7 @@ public class MoveContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Where the nearest resource of a type is, at or above one.
+     * The path of the nearest resource of a type, at or above a resource.
      *
      * @param resource where to start
      * @param type the resource type

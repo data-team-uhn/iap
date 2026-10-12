@@ -24,8 +24,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Where among its new siblings content goes, as the event of a task placing it says: before the sibling it names as
- * {@code before}, or else last.
+ * Where content goes among its new siblings: before the sibling the event names as {@code before}, or else last.
  *
  * @version $Id$
  * @since 0.1.0
