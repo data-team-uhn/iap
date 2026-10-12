@@ -94,7 +94,7 @@ export class MarkLocator {
     }
   }
 
-  getPlaces(): Partial<Record<string, MarkPlace>> {
+  getPlaces(): Record<string, MarkPlace> {
     return Object.fromEntries(this.#marks.map(mark => [ mark.id, this.#getPlace(mark) ]));
   }
 
@@ -130,4 +130,22 @@ export class MarkLocator {
     const start = from !== undefined && from >= 1 && from <= this.#pageCount ? from - 1 : 0;
     return [ ...pages.slice(start), ...pages.slice(0, start) ];
   }
+}
+
+// Whether a passage is known to be one that cannot be marked: not found, too short to look for, or in a
+// document without text.
+export function cannotMark(place: MarkPlace): boolean {
+  return [ "notFound", "tooShort", "noText" ].includes(place.status);
+}
+
+// The marks in the order given, with those whose passage cannot be marked after the others.
+export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Mark[] {
+  const unmarked = (mark: Mark) => cannotMark(places[mark.id]);
+  return [ ...marks.filter(mark => !unmarked(mark)), ...marks.filter(unmarked) ];
+}
+
+// What the marks are, the same for marks that are equal but other objects, as a caller passing them
+// written in place gives on every render.
+export function getMarksKey(marks: Mark[]): string {
+  return JSON.stringify(marks.map(({ id, quote, page, kind }) => ({ id, quote, page, kind })));
 }

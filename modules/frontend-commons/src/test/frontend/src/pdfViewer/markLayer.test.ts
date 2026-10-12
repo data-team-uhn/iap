@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { centreIn, drawMarks, findMark } from "@iap/frontend-commons/pdfViewer/markLayer";
+import { centreIn, drawMarks, findMark, keepInView, markAt } from "@iap/frontend-commons/pdfViewer/markLayer";
 
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
 
@@ -155,10 +155,63 @@ describe("drawMarks", () => {
 describe("findMark", () => {
   it("finds the first piece of a mark drawn", () => {
     const frame = document.createElement("div");
-    frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div><div class="iap-mark" data-mark-id="b&quot;"></div>';
+    frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div>'
+      + '<div class="iap-mark" data-mark-id="b&quot;"></div>';
 
     expect(findMark(frame, "b\"")).toBe(frame.lastElementChild);
     expect(findMark(frame, "c")).toBeUndefined();
+  });
+});
+
+describe("markAt", () => {
+  it("finds the mark drawn at a point, if any", () => {
+    const frame = document.createElement("div");
+    frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div><div class="iap-mark" data-mark-id="b"></div>';
+    const [ a, b ] = Array.from(frame.children) as HTMLElement[];
+    a.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
+    b.getBoundingClientRect = () => new DOMRect(0, 100, 100, 20);
+
+    expect(markAt(frame, 50, 110)).toBe("b");
+    expect(markAt(frame, 50, 50)).toBeUndefined();
+  });
+
+  it("finds a mark not selected first where marks overlap, so clicking again reaches the other", () => {
+    const frame = document.createElement("div");
+    frame.innerHTML = '<div class="iap-mark selected" data-mark-id="a"></div><div class="iap-mark" data-mark-id="b"></div>';
+    for (const mark of Array.from(frame.children)) {
+      mark.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
+    }
+
+    expect(markAt(frame, 50, 10)).toBe("b");
+    frame.children[0].classList.remove("selected");
+    frame.children[1].classList.add("selected");
+    expect(markAt(frame, 50, 10)).toBe("a");
+  });
+});
+
+describe("keepInView", () => {
+  // A container 300 high, 100 down the page, with an element at a given place on the page.
+  function scrolledFor(top: number, height = 50): number {
+    const container = document.createElement("div");
+    const element = document.createElement("div");
+    container.getBoundingClientRect = () => new DOMRect(0, 100, 400, 300);
+    element.getBoundingClientRect = () => new DOMRect(0, top, 400, height);
+    container.scrollTop = 1000;
+    keepInView(container, element);
+    return container.scrollTop - 1000;
+  }
+
+  it("scrolls as little as brings the element into view", () => {
+    expect(scrolledFor(40)).toBe(-60);
+    expect(scrolledFor(380)).toBe(30);
+  });
+
+  it("brings the top of an element taller than the container into view", () => {
+    expect(scrolledFor(450, 600)).toBe(350);
+  });
+
+  it("leaves an element already in view where it is", () => {
+    expect(scrolledFor(200)).toBe(0);
   });
 });
 
