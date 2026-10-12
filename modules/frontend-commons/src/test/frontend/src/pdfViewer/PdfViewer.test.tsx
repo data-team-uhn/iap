@@ -24,7 +24,16 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
-import { createPdfjsError, fakePdf, FakeWorker, MATCH_TOP, QUOTE, stubFetch } from "./pdfjs.fixture";
+import {
+  createPdfjsError,
+  fakePdf,
+  FakeWorker,
+  getDrawnMarks,
+  MATCH_TOP,
+  QUOTE,
+  stubFetch,
+  stubLayout,
+} from "./pdfjs.fixture";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
@@ -35,6 +44,7 @@ vi.mock("@iap/frontend-commons/assetManager", async () => ({
 
 const URL = "/content/pdfs/prc-memo.pdf";
 const FOUND = /^The passage is marked on page \d+\.$/;
+const ASSISTANT_MARK = "iap-mark iap-mark-assistant selected";
 
 function withTheme(element: ReactElement): ReactElement {
   return <ThemeProvider theme={appTheme} defaultMode="light">{element}</ThemeProvider>;
@@ -88,6 +98,7 @@ function createPlace(): HTMLDivElement {
 describe("PdfViewer", () => {
   beforeEach(() => {
     stubFetch();
+    stubLayout();
     vi.stubGlobal("Worker", FakeWorker);
   });
 
@@ -106,9 +117,9 @@ describe("PdfViewer", () => {
 
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
       expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
       expect(getFrame().scrollTop).toBe(MATCH_TOP);
-      expect(fakePdf.searches).toEqual([ QUOTE ]);
+      expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] });
       expect(screen.getByRole("button", { name: "Show the passage on page 2" }))
         .toHaveAccessibleDescription(`“${QUOTE}”`);
       expect(screen.queryByRole("button", { name: "Show the whole passage" })).not.toBeInTheDocument();
@@ -194,6 +205,22 @@ describe("PdfViewer", () => {
       expect(getViewer().removePageBorders).toBe(true);
     });
 
+    it("marks the passage in the colour of whoever marked it", async () => {
+      show({ markedBy: "annotation" });
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ "iap-mark iap-mark-annotation selected" ] }));
+    });
+
+    it("takes the reader to a passage on a page not drawn yet, and marks it once drawn", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
+      fakePdf.drawShownPageOnly = true;
+      show();
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 4: [ ASSISTANT_MARK ] }));
+      expect(await screen.findByText("Page 4 of 4")).toBeInTheDocument();
+      expect(getFrame().scrollTop).toBe(MATCH_TOP);
+    });
+
     it("finds a passage broken across two pages, and marks both parts", async () => {
       fakePdf.pages = [
         "Cover page of the document.",
@@ -205,8 +232,16 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on pages 2 and 3."));
       expect(screen.getByRole("button", { name: "Show the passage on pages 2 and 3" }))
         .toHaveTextContent("found on pages 2–3");
-      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
-      expect(fakePdf.searches).toEqual([ QUOTE, QUOTE ]);
+      expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
+      expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ], 3: [ ASSISTANT_MARK ] });
+    });
+
+    it("still finds the passage when the text of another page cannot be read", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", QUOTE ];
+      fakePdf.unreadable = [ 2 ];
+      show();
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on page 3."));
     });
 
     it("looks from the page given onwards, then from the start", async () => {
@@ -214,7 +249,7 @@ describe("PdfViewer", () => {
       show({ page: 3 });
 
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
-      expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     });
 
     it("opens at the first page when none is given, or the one given is not in the document", async () => {
@@ -244,7 +279,7 @@ describe("PdfViewer", () => {
 
       expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
       expect(getStatus()).toHaveTextContent("The passage is too short to look for.");
-      expect(fakePdf.searches).toEqual([]);
+      expect(getDrawnMarks(getFrame())).toEqual({});
     });
   });
 
@@ -266,12 +301,12 @@ describe("PdfViewer", () => {
 
     it("leaves the reader on the page they went to when the passage is found later", async () => {
       fakePdf.pages = [ "Contents.", "More contents.", QUOTE ];
-      fakePdf.holdSearch = true;
+      fakePdf.holdText = true;
       show();
       await screen.findByText("Page 1 of 3");
 
       await userEvent.click(screen.getByRole("button", { name: "Next page" }));
-      act(() => fakePdf.releaseSearch?.());
+      act(() => fakePdf.releaseText?.());
 
       await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on page 3."));
       expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
@@ -380,7 +415,6 @@ describe("PdfViewer", () => {
     });
 
     it("offers no page or zoom controls before the document opens", () => {
-      fakePdf.holdSearch = true;
       vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
       show();
 
@@ -515,6 +549,17 @@ describe("PdfViewer", () => {
       expect(fakePdf.destroyedTasks).toBe(1);
     });
 
+    it("stops reading the document's text once closed", async () => {
+      fakePdf.holdText = true;
+      const { unmount } = show();
+      await screen.findByText("Page 1 of 3");
+
+      unmount();
+      await act(async () => fakePdf.releaseText?.());
+
+      expect(fakePdf.textReads).toEqual([ 1 ]);
+    });
+
     it("stops opening the document when closed before it opens", async () => {
       let answer: ((response: Response) => void) | undefined;
       vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(resolve => {
@@ -579,9 +624,10 @@ describe("PdfViewer", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
 
-      await waitFor(() => expect(fakePdf.searches).toHaveLength(2));
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
       expect(getStatus()).toHaveTextContent(FOUND);
       expect(getFrame().scrollTop).toBe(0);
+      expect(fakePdf.textReads).toEqual([ 1, 2, 3 ]);
     });
 
     it("keeps the reader on the page they went to when popping out", async () => {
@@ -592,8 +638,8 @@ describe("PdfViewer", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
 
-      await waitFor(() => expect(fakePdf.searches).toHaveLength(2));
-      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is marked on page 2."));
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
+      expect(getStatus()).toHaveTextContent("The passage is marked on page 2.");
       expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
     });
 
@@ -608,7 +654,7 @@ describe("PdfViewer", () => {
       act(() => fakePdf.releasePages?.());
 
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
-      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
       expect(getFrame().scrollTop).toBe(MATCH_TOP);
     });
 
