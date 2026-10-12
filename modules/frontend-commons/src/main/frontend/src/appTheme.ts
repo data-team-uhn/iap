@@ -92,6 +92,8 @@ declare module "@mui/material/styles" {
     assistantCurrent: string;
     annotation: string;
     annotationCurrent: string;
+    search: string;
+    searchCurrent: string;
   }
   // The colours of content that applies only under a condition: `main` for its icon, `surface` behind the line
   // saying when it applies
@@ -195,6 +197,8 @@ const STRONGLY_TINTED_SURFACE =
 // with a darker shade and keeps the accent itself for fills.
 const LILAC = "#C58BBD";
 const SOFT_YELLOW = "#F6D96B";
+// The matches of a search, which are no one's mark, wash the text with the brand's cobalt instead.
+const COBALT = "#255CAA";
 
 const ASSISTANT_LIGHT: PaletteColorOptions = { main: "#8A6184", light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
 const ASSISTANT_DARK: PaletteColorOptions = {
@@ -223,6 +227,8 @@ const HIGHLIGHT = {
   assistantCurrent: alpha(LILAC, 0.65),
   annotation: alpha(SOFT_YELLOW, 0.55),
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
+  search: alpha(COBALT, 0.2),
+  searchCurrent: alpha(COBALT, 0.45),
 };
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
