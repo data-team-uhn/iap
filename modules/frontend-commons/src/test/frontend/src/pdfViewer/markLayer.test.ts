@@ -20,6 +20,7 @@ import {
   drawMarks,
   findMark,
   getSelectedSpans,
+  getTextEnd,
   keepInView,
   markAt,
 } from "@iap/frontend-commons/pdfViewer/markLayer";
@@ -278,6 +279,45 @@ describe("getSelectedSpans", () => {
 
     expect(getSelectedSpans(frame, select([ caption.firstChild as Text, 0 ], [ textAt(frame, 0), 10 ])))
       .toEqual([ { page: 1, start: 0, end: 10 } ]);
+  });
+});
+
+describe("getTextEnd", () => {
+  beforeEach(() => {
+    Range.prototype.getClientRects = function (this: Range) {
+      return rectsOf(this) as unknown as DOMRectList;
+    };
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (Range.prototype as Partial<Range>).getClientRects;
+  });
+
+  // A frame holding one page, drawn, whose text layer is the one createTextLayer lays out.
+  function createFrame(): HTMLDivElement {
+    const frame = document.createElement("div");
+    const page = document.createElement("div");
+    page.dataset.pageNumber = "2";
+    const textLayer = createTextLayer();
+    textLayer.className = "textLayer";
+    page.append(textLayer);
+    frame.append(page);
+    document.body.append(frame);
+    return frame;
+  }
+
+  it("is the box of the last piece of text the spans cover, not of the elements holding it", () => {
+    const frame = createFrame();
+
+    expect(getTextEnd(frame, [ { page: 2, start: 5, end: 34 + 6 } ])).toEqual(new DOMRect(0, 100, 60, 20));
+  });
+
+  it("is none for spans covering nothing, or on a page not drawn", () => {
+    const frame = createFrame();
+
+    expect(getTextEnd(frame, [])).toBeUndefined();
+    expect(getTextEnd(frame, [ { page: 3, start: 0, end: 5 } ])).toBeUndefined();
   });
 });
 
