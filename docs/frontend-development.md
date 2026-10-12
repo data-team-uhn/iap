@@ -216,13 +216,26 @@ card per schema, so the card describes its versions.
 />
 ```
 
-Each mark is a quote, looked for from its own `page` onwards, and a `kind`: whose mark it is, an AI
-assistant's (`assistant`) or a person's (`annotation`), so it is coloured accordingly. A passage is
-matched by ignoring spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and
-across a page break. Once found, a mark is kept as the offsets it covers in its page's text, and the
-viewer draws it over PDF.js's text layer itself, leaving PDF.js's own search untouched. Marks let
-the pointer through, so text can still be selected across them, and a click is matched to a mark by
-where it falls.
+Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
+(`annotation`), so it is coloured accordingly. Where it is comes in one of two ways:
+
+- a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
+  case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
+- `spans`, when its place is known exactly, such as a change between two versions. Each span is a `page` and the `start` and `end` offsets the passage covers in that
+  page's text, one span per page it runs over. A span whose `start` equals its `end` is a point
+  between two characters. The viewer reads the pages a mark's spans are on first, and places the mark
+  without searching. Spans that run backwards or past their page's text are not in the document.
+
+Offsets are into a page's text as PDF.js reads it for its text layer (`getTextContent` with
+`disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
+`usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
+them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
+passage as shown (`getPassageText`) puts a space there.
+
+Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
+itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
+the quote itself for a quote. Marks let the pointer through, so text can still be selected across them,
+and a click is matched to a mark by where it falls.
 
 A single passage is shown on a card above the document. Several passages are listed beside it, in
 the order given, with those that cannot be found last. In a viewer narrower than
@@ -241,8 +254,8 @@ the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports eac
 selects through `onSelectMark`. When the caller sets `selectedMarkId` to another mark, the viewer
 selects it and takes the reader to it, as if it had been picked from the list. Echoing back the mark
 the viewer just reported doesn't move the reader. `marks` can be a new array on every render: the
-viewer compares marks by `id`, `quote`, `page` and `kind`, and only looks for passages again when
-one of those changes.
+viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, or `spans`), and only
+looks for passages again when one of those changes.
 
 The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
 and accents. Every match is highlighted, and the one shown more deeply. The field says which match

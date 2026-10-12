@@ -26,7 +26,7 @@ import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
 import MarkList from "./MarkList";
-import { cannotMark, getMarksKey, orderMarks } from "./marksModel";
+import { cannotMark, getMarkPage, getMarksKey, getMarkText, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import PdfToolbar from "./PdfToolbar";
@@ -47,8 +47,9 @@ export interface PdfViewerProps {
   url: string;
   // The page to open it at: the selected mark's own page when absent, or else the first.
   page?: number;
-  // The passages to find and mark, in the order to list them. Each is looked for from its own page
-  // onwards. New marks equal to the last ones are not looked for again.
+  // The passages to mark, in the order to list them: quotes, each found from its own page onwards, or
+  // spans, placed where they say. Marks equal to the last ones are not looked for again, even as other
+  // objects.
   marks: Mark[];
   // The selected mark. The viewer takes the reader to it once it is found, and again each time the
   // caller selects another. When absent or not among the marks, the viewer selects the first mark not
@@ -93,8 +94,9 @@ function PdfViewerSession(props: PdfViewerProps) {
     setChosenId(id);
     onSelectMark?.(id);
   }, [onSelectMark]);
+  const selectedMark = marks.find(mark => mark.id === selectedId);
   const view = usePdfView(pdf, {
-    page: page ?? marks.find(mark => mark.id === selectedId)?.page,
+    page: page ?? (selectedMark === undefined ? undefined : getMarkPage(selectedMark)),
     marks,
     places,
     selectedId,
@@ -256,7 +258,7 @@ function ViewerBody(props: ViewerBodyProps) {
     : (
       <PassageCard
         key={selected.id}
-        quote={selected.quote}
+        quote={getMarkText(selected, places[selected.id])}
         note={getPassageNote(status, places[selected.id])}
         markedBy={selected.kind}
         stepper={several
