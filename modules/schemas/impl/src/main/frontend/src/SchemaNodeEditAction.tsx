@@ -16,27 +16,23 @@
  * limitations under the License.
  */
 
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
 
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
 import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
+import { offers, patch } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode, pathOf } from "./schemaModel";
-
-// How a correction made anywhere in a version's tree re-reads the tree
-export const ReloadTree = createContext<() => void>(() => undefined);
+import { type JcrNode } from "./schemaModel";
+import { useTreeEvent } from "./schemaTree";
 
 // Corrects what a part or an option says, when the server offers it: the fields are the ones its update
 // would change.
 function SchemaNodeEditAction({ node, title }: { node: JcrNode; title: string }) {
   const [ editing, setEditing ] = useState(false);
-  const doFetch = useAuthenticatedFetch();
-  const reload = useContext(ReloadTree);
+  const send = useTreeEvent();
   if (!offers(node, "update") || fieldsOf(node).length === 0) {
     return null;
   }
@@ -47,10 +43,7 @@ function SchemaNodeEditAction({ node, title }: { node: JcrNode; title: string })
         <FieldsDialog
           title={title}
           node={node}
-          onSave={async changes => {
-            await sendEvent(doFetch, pathOf(node), "update", patch(changes));
-            reload();
-          }}
+          onSave={changes => send(node, "update", patch(changes))}
           onClose={() => setEditing(false)}
         />
       ) }

@@ -98,9 +98,13 @@ version inherits from its schema; where it matters whether the schema is retired
 | a version | `activate` | `retired`, schema not retired | tag it `active` |
 | a version | `retire` | `active` | tag it `retired` |
 | a version | `discard` | | delete it |
+| a version | `create` (`type`, optional `before`, `patch`) | `draft` | add a form, document or approval requirement |
 | a requirement, section or question | `update` (`patch`) | its version `draft` | edit anything it holds (see below) |
 | a requirement, section or question | `update` (`patch`) | its version not `draft` | correct what it says (see below) |
+| a requirement, section or question | `create` (`type`, optional `before`, `patch`) | its version `draft` | add a section or question to a form or section, or an option to a question |
+| a requirement, section or question | `discard` | its version `draft` | delete it, with what it holds, unless a condition elsewhere depends on it |
 | an answer option | `update` (`patch`) | its version `draft` | edit its `value`, `label` or `description` |
+| an answer option | `discard` | its version `draft` | delete it |
 | an answer option | `update` (`patch`) | its version not `draft` | correct its `label` or `description` |
 
 A **patch** is one JSON object in the `patch` parameter: a key left out is left alone, `null`
@@ -112,9 +116,18 @@ While a version is a **draft**, its parts and answer options can change in anyth
 `dataType`, answer counts, bounds, pattern and `optionsFrom`, what a document requirement accepts and
 whether it is required, who approves an approval, an option's `value`, and all of their wording. Which
 fields a question offers follows its `dataType`: bounds only for numbers, a pattern only for text, and a
-field that stops applying when the `dataType` changes is removed. Conditions, adding, removing and moving
-parts, and templates come later. The guards read the version's own tags: a condition's `property` and
-`tags` operands resolve on the enclosing entity, which for a part or an option is its version.
+field that stops applying when the `dataType` changes is removed. Conditions, moving parts, and templates
+come later.
+
+Parts and options are **added** with the engine's `createContent` task (see [workflows.md](workflows.md)), where
+the node types say they may go: requirements in a version, sections and questions in a form or a section, options
+in a question. The new part goes before the sibling named in `before`, or else last, and is filled in from the
+`patch` with the fields a draft's update offers; `@creatable` tells an editor what may be added where. Parts and
+options are **removed** into the archive. A question that a condition elsewhere in the version names stays, and
+the refusal names the parts whose conditions depend on it (`ConditionDependencyVeto`, a deletion veto, which asks
+the conditions module what depends on what); removing the condition's own part along with the question is fine.
+The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
+entity, which for a part or an option is its version.
 
 Parts and answer options of a published version can only be **corrected**, and a
 correction reaches the submissions already filed against that version at once. A correction may not

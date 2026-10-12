@@ -20,7 +20,7 @@
 // its serialization. What counts as a part is what the server says: every requirement and form item
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
-import type { JcrNode } from "./schemaModel";
+import { type JcrNode, nameOf } from "./schemaModel";
 
 const PART_SUPERTYPES = [ "sch/Requirement", "sch/FormItem" ];
 
@@ -60,7 +60,7 @@ export const conditionOf = (part: JcrNode): JcrNode | undefined => {
 
 // What a part is called where it is shown: a requirement's label, a section's title, a question's text
 export const headingOf = (part: JcrNode): string =>
-  text(part, "label") ?? text(part, "title") ?? text(part, "text") ?? String(part["@name"]);
+  text(part, "text") ?? text(part, "label") ?? text(part, "title") ?? nameOf(part);
 
 export const detailOf = (node: JcrNode, key: string): string | undefined => text(node, key);
 

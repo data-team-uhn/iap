@@ -72,15 +72,22 @@ class SystemWorkflowDefinitionsTest
 
     private static final String SCHEMA = "sch/Schema";
 
+    private static final String PART = "sch/SchemaPart";
+
+    private static final String OPTION = "sch/AnswerOption";
+
     private static final String[] NONE = {};
+
+    private static final String UPDATE = "update";
 
     private static final String[] RETIRED = { "retired" };
 
     private static final Set<String> BOUND_TYPES =
-        Set.of("sch/SchemasHomepage", SCHEMA, VERSION, "sch/SchemaPart", "sch/AnswerOption");
+        Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, OPTION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "callActivity", "addTag", "removeTag", "delete",
-        "copyContent", "updateContent", CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
+        "copyContent", "updateContent", "createContent", CreateSchemaVersionHandler.HANDLER_NAME,
+        CheckPublishableHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
 
@@ -111,7 +118,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(16, definitions.size());
+        assertEquals(20, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -176,13 +183,28 @@ class SystemWorkflowDefinitionsTest
     @Test
     void theContentOfADraftIsEditedAndThatOfAPublishedVersionCorrected()
     {
-        final String part = "sch/SchemaPart";
-        final String option = "sch/AnswerOption";
-        assertEquals(Set.of("updateDraftSchemaPart"), answeringPart(part, new String[] { "draft" }));
-        assertEquals(Set.of("updateDraftAnswerOption"), answeringPart(option, new String[] { "draft" }));
+        assertEquals(Set.of("updateDraftSchemaPart"), answeringPart(PART, UPDATE, new String[] { "draft" }));
+        assertEquals(Set.of("updateDraftAnswerOption"), answeringPart(OPTION, UPDATE, new String[] { "draft" }));
         for (final String state : List.of("active", "retired")) {
-            assertEquals(Set.of("updatePublishedSchemaPart"), answeringPart(part, new String[] { state }));
-            assertEquals(Set.of("updatePublishedAnswerOption"), answeringPart(option, new String[] { state }));
+            assertEquals(Set.of("updatePublishedSchemaPart"), answeringPart(PART, UPDATE, new String[] { state }));
+            assertEquals(Set.of("updatePublishedAnswerOption"), answeringPart(OPTION, UPDATE, new String[] { state }));
+        }
+    }
+
+    @Test
+    void partsAreAddedToAndRemovedFromDraftsOnly()
+    {
+        final String[] draft = { "draft" };
+        assertEquals(Set.of("createSchemaRequirement"), answering(VERSION, "create", draft, NONE));
+        assertEquals(Set.of("createSchemaPart"), answeringPart(PART, "create", draft));
+        assertEquals(Set.of("discardSchemaPart"), answeringPart(PART, "discard", draft));
+        assertEquals(Set.of("discardAnswerOption"), answeringPart(OPTION, "discard", draft));
+        for (final String state : List.of("active", "retired")) {
+            final String[] published = { state };
+            assertEquals(Set.of(), answering(VERSION, "create", published, NONE));
+            assertEquals(Set.of(), answeringPart(PART, "create", published));
+            assertEquals(Set.of(), answeringPart(PART, "discard", published));
+            assertEquals(Set.of(), answeringPart(OPTION, "discard", published));
         }
     }
 
@@ -209,18 +231,19 @@ class SystemWorkflowDefinitionsTest
     }
 
     /**
-     * The shipped workflows that would take an update aimed at something inside a version in a given state.
+     * The shipped workflows that would take an event aimed at something inside a version in a given state.
      *
      * @param type the resource type of what is inside the version
+     * @param event the event
      * @param versionTags the tags placed on the version
      * @return the names of the definitions whose start event catches it and whose guard holds
      */
-    private Set<String> answeringPart(final String type, final String[] versionTags)
+    private Set<String> answeringPart(final String type, final String event, final String[] versionTags)
     {
         final String version = "/content/target" + this.targets++;
         this.context.create().resource(version, Map.of("sling:resourceType", VERSION, "tags", versionTags));
         return answering(this.context.create().resource(version + "/section/question", "sling:resourceType", type)
-            .adaptTo(Content.class), "update");
+            .adaptTo(Content.class), event);
     }
 
     /**

@@ -86,6 +86,14 @@ public interface DeletionVeto
      * this guard speaks about, and keeps that decision inside the guard, where a caller cannot get it wrong.
      * </p>
      *
+     * <p>
+     * A guard whose answer depends on what goes together also returns {@code true}, though it reads its
+     * {@code node}. "Nothing that stays may depend on anything that goes" is such a rule. A dependency inside the
+     * removed subtree leaves with it, so no single node can answer it. The guard reads the requested resource's
+     * subtree itself. It is still asked only about that resource, so content a cascade removes along with it is never
+     * offered to it.
+     * </p>
+     *
      * @return {@code true} to be asked once; {@code false}, the default, to be asked about every impacted resource
      */
     default boolean judgesWholeOperation()
