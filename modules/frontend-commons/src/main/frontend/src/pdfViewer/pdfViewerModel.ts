@@ -116,3 +116,30 @@ export function getPassageStatus(
         : `${passage} is marked on pages ${place.page} and ${place.toPage}.`;
   }
 }
+
+// A search of the document for a word or phrase: what is looked for; how the last search to finish
+// went, which stays shown while the next one runs; which match is shown of how many found so far, a count
+// that grows as PDF.js reads the pages; and the sentence a screen reader was last given about it.
+export interface DocumentSearch {
+  query: string;
+  outcome: "none" | "found" | "notFound" | "noText";
+  current: number;
+  total: number;
+  announcement: string;
+}
+
+export const IDLE_SEARCH: DocumentSearch = { query: "", outcome: "none", current: 0, total: 0, announcement: "" };
+
+// How a search went, as a sentence of its own for a screen reader. Nothing before it has gone anywhere.
+export function getSearchStatus({ outcome, current, total }: Omit<DocumentSearch, "query" | "announcement">): string {
+  switch (outcome) {
+    case "none":
+      return "";
+    case "found":
+      return `Match ${current} of ${total}.`;
+    case "notFound":
+      return "No matches in this document.";
+    case "noText":
+      return "This document has no text to search.";
+  }
+}
