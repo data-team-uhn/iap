@@ -208,7 +208,9 @@ card per schema, so the card describes its versions.
 <PdfViewer
   url={file}
   page={evidence.page}
-  marks={[ { id: evidence.id, quote: evidence.quote, page: evidence.page, kind: "assistant" } ]}
+  marks={[
+    { id: evidence.id, quote: evidence.quote, page: evidence.page, kind: "assistant" },
+  ]}
   title="Protocol"
   onClose={close}
 />
@@ -218,14 +220,15 @@ Each mark is a quote, looked for from its own `page` onwards, and a `kind`: whos
 assistant's (`assistant`) or a person's (`annotation`), so it is coloured accordingly. A passage is
 matched by ignoring spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and
 across a page break. Once found, a mark is kept as the offsets it covers in its page's text, and the
-viewer draws it over PDF.js's text layer itself, leaving PDF.js's own search untouched. Marks let the pointer through, so text can still be
-selected across them, and a click is matched to a mark by where it falls.
+viewer draws it over PDF.js's text layer itself, leaving PDF.js's own search untouched. Marks let
+the pointer through, so text can still be selected across them, and a click is matched to a mark by
+where it falls.
 
-If only one passage is passed to the viewer, it is shown on a card above the document. When there are
-multiple passages to highlight, they are listed beside it, in the order given, with those that cannot
-be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one at a time
-above it instead, with controls stepping through them. It is the viewer's width that counts,
-not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
+If only one passage is passed to the viewer, it is shown on a card above the document. When there
+are multiple passages to highlight, they are listed beside it, in the order given, with those that
+cannot be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one
+at a time above it instead, with controls stepping through them. It is the viewer's width that
+counts, not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
 
 Selecting a passage from the list scrolls the document to take the reader to it; similarly, clicking
 its mark in the document selects the corresponding card in the list and brings it in view (or, in a
@@ -241,13 +244,20 @@ the viewer just reported doesn't move the reader. `marks` can be a new array on 
 viewer compares marks by `id`, `quote`, `page` and `kind`, and only looks for passages again when
 one of those changes.
 
+The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
+and accents. Every match is highlighted, the one shown more deeply; the field says which match is
+shown of how many, and the up and down buttons beside it step through them, wrapping round at the
+ends. In the field, Enter and Shift+Enter do the same, and Escape clears the search. Where the
+toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
+Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
+
 It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
-a dialog and back, keeping the page, the zoom and the marks. A `container` that is `null`, as a ref is
-before React attaches it, shows nothing until the element is there.
+a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
+`null`, as a ref is before React attaches it, shows nothing until the element is there.
 
 Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
-`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document in
-a frame, with the marks drawn, and moves the reader.
+`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
+in a frame, with the marks drawn, moves the reader, and searches it.
 
 ## Styling
 
@@ -275,8 +285,8 @@ using those extensions is what keeps a deployment's rebranding effective:
   `IconButton` or icon, `"assistant.main"` in `sx`), built on a lilac accent and a soft
   highlighter yellow.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
-  with a `…Current` variant for the mark in focus. They stay the same in both colour schemes,
-  since the content under them stays light.
+  and `highlight.search` for the matches of a search, each with a `…Current` variant for the one
+  in focus. They stay the same in both colour schemes, since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.
