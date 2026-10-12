@@ -62,6 +62,9 @@ export interface PdfViewerProps {
   // Told which passage the person selected to comment on, with the button the viewer then offers beside
   // the text they selected in the document. Without it, the viewer offers none.
   onAnnotate?: (anchor: TextAnchor) => void;
+  // What to show with a passage, under it, such as the comments on it, given whether it is the one
+  // selected.
+  renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
@@ -81,7 +84,7 @@ export default function PdfViewer(props: PdfViewerProps) {
 
 // The document stays open here while the viewer moves between the container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
-  const { url, page, selectedMarkId, onSelectMark, onAnnotate, title, container, onClose } = props;
+  const { url, page, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, title, container, onClose } = props;
   const marksKey = getMarksKey(props.marks);
   const marks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
@@ -170,6 +173,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       openError={openError}
       onRetry={retry}
       view={view}
+      renderMarkDetails={renderMarkDetails}
       selectedText={selectedText}
       onAnnotate={annotate}
       placeButton={placeButton}
@@ -214,6 +218,7 @@ interface ViewerBodyProps {
   openError: string | undefined;
   onRetry: () => Promise<void>;
   view: ReturnType<typeof usePdfView>;
+  renderMarkDetails: PdfViewerProps["renderMarkDetails"];
   selectedText: ReturnType<typeof useSelectedText>;
   onAnnotate: ((spans: MarkSpan[]) => Promise<void>) | undefined;
   // Moves the viewer between its container and the dialog, when it has a container.
@@ -225,7 +230,7 @@ interface ViewerBodyProps {
 
 function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
-  const { selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
+  const { renderMarkDetails, selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -297,6 +302,7 @@ function ViewerBody(props: ViewerBodyProps) {
             />
           )
           : undefined}
+        details={renderMarkDetails?.(selected, true)}
         onShowPassage={() => showMark(selected.id)}
       />
     );
@@ -396,6 +402,7 @@ function ViewerBody(props: ViewerBodyProps) {
               places={places}
               status={status}
               selectedId={selected?.id}
+              renderDetails={renderMarkDetails}
               onSelect={showSelected}
             />
           )
