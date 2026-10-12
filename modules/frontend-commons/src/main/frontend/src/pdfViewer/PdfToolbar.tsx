@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { ReactNode } from "react";
+
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import FitWidthIcon from "@mui/icons-material/FitScreen";
@@ -22,11 +24,13 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// Going from page to page, and zooming. One line even on a narrow phone: only the page label gives way.
-// Every control is disabled until the document has opened.
-export default function PdfToolbar({ page, pageCount, onShowPage, onZoomIn, onZoomOut, onFitWidth }: {
+// Going from page to page, searching, and zooming. One line even on a narrow phone: only the page label
+// gives way. Every control is disabled until the document has opened.
+export default function PdfToolbar({ page, pageCount, search, onShowPage, onZoomIn, onZoomOut, onFitWidth }: {
   page?: number;
   pageCount?: number;
+  // The search field, or a button opening it.
+  search: ReactNode;
   onShowPage: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -54,6 +58,7 @@ export default function PdfToolbar({ page, pageCount, onShowPage, onZoomIn, onZo
         <ChevronRightIcon />
       </IconButton>
       <Box sx={{ flexGrow: 1 }} />
+      {search}
       <IconButton aria-label="Zoom out" disabled={!opened} onClick={onZoomOut}>
         <ZoomOutIcon />
       </IconButton>
