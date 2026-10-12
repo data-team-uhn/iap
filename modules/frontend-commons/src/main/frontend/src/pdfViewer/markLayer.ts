@@ -163,6 +163,18 @@ export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
   return selected.map(({ page, start, end }) => ({ page, start, end }));
 }
 
+// The box of the end of the text spans cover in the frame, from the text alone, as marks are drawn, rather
+// than from the boxes a range gives of the elements it holds whole: none when they cover no text, or not
+// on a page drawn.
+export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | undefined {
+  const last = spans.at(-1);
+  if (last === undefined) {
+    return undefined;
+  }
+  const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${last.page}"] .textLayer`);
+  return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
+}
+
 // The first piece of a mark drawn in the frame, if its page has been drawn.
 export function findMark(frame: HTMLElement, id: string): HTMLElement | undefined {
   return Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).find(mark => mark.dataset.markId === id);
