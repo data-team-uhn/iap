@@ -20,12 +20,11 @@ import { useEffect, useId, useRef } from "react";
 import { Box, ButtonBase, Typography } from "@mui/material";
 
 import { keepInView } from "./markLayer";
+import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { cutShort, passageCard, passageTint } from "./passageStyles";
-import { getPassageNote, type ViewerStatus } from "./pdfViewerModel";
-import { unquote } from "./quoteMatch";
+import { describePages, getPassageNote, type ViewerStatus } from "./pdfViewerModel";
 
-import type { Mark, MarkPlace } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
@@ -104,6 +103,7 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
 }) {
   const quoteId = useId();
   const note = getPassageNote(status, place);
+  const text = getMarkText(mark, place);
   const content = (
     <>
       <Typography
@@ -112,7 +112,7 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
         component="span"
         sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
       >
-        {`“${unquote(mark.quote)}”`}
+        {text === undefined ? null : `“${text}”`}
       </Typography>
       {note === undefined
         ? null
@@ -125,9 +125,7 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
   );
   let label = `Select passage ${position}`;
   if (place.status === "found") {
-    label = place.toPage === undefined
-      ? `Show passage ${position} on page ${place.page}`
-      : `Show passage ${position} on pages ${place.page} and ${place.toPage}`;
+    label = `Show passage ${position} on ${describePages(place.page, place.toPage)}`;
   }
 
   return (

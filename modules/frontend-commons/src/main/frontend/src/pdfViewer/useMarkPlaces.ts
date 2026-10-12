@@ -17,14 +17,15 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
-import { MarkLocator, type Mark, type MarkPlace } from "./marksModel";
+import { getPlacedPages, MarkLocator, type Mark, type MarkPlace } from "./marksModel";
 
 import type { OpenedDocument } from "./usePdfDocument";
 
 // Each mark's place in the document, by mark id.
 export type MarkPlaces = Record<string, MarkPlace>;
 
-// Finds each mark's passage in the document, updating the places as the pages are read in order.
+// Where each mark's passage is in the document, as its pages are read: first those marks placed by their
+// spans are on, then the others, in order.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces } | undefined>(undefined);
 
@@ -32,17 +33,19 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): M
     if (pdf === undefined) {
       return undefined;
     }
-    const { doc, getPageText } = pdf;
+    const { doc, getPageTextWithLines } = pdf;
     const locator = new MarkLocator(marks, doc.numPages);
     const stop = new AbortController();
+    const placed = getPlacedPages(marks).filter(page => page >= 1 && page <= doc.numPages);
+    const rest = Array.from({ length: doc.numPages }, (_, index) => index + 1).filter(page => !placed.includes(page));
     void (async () => {
       let last = "";
-      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-        const text = await getPageText(pageNumber);
+      for (const pageNumber of [ ...placed, ...rest ]) {
+        const { text, lineEnds } = await getPageTextWithLines(pageNumber);
         if (stop.signal.aborted) {
           return;
         }
-        locator.addPage(pageNumber, text);
+        locator.addPage(pageNumber, text, lineEnds);
         const places = locator.getPlaces();
         const serialized = JSON.stringify(places);
         // Most pages change nothing, and each change draws the marks again.

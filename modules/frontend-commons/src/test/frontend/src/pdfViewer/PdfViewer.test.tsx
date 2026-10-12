@@ -23,7 +23,7 @@ import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { OVER_MARK_CLASS } from "@iap/frontend-commons/pdfViewer/markLayer";
-import type { Mark, MarkKind } from "@iap/frontend-commons/pdfViewer/marksModel";
+import type { Mark, MarkKind, MarkSpan } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
 import {
@@ -981,6 +981,59 @@ describe("PdfViewer", () => {
         await userEvent.pointer({ target: getFrame(), coords: { clientX: 50, clientY: 10 } });
         expect(getFrame()).not.toHaveClass(OVER_MARK_CLASS);
       });
+    });
+  });
+
+  describe("with passages placed by their spans", () => {
+    // The memo's second page, read as two lines, its text "Volunteers who, on a casual basis,assist from…"
+    const LINES = "Volunteers who, on a casual basis,\nassist from time to time.";
+    const AFTER_BREAK = LINES.indexOf("\n");
+
+    beforeEach(() => {
+      fakePdf.pages = [ "The memo, its cover and title.", LINES, "The schedule continues for one year." ];
+    });
+
+    const placedOn = (...spans: MarkSpan[]): Mark[] => [ { id: "placed", spans, kind: "annotation" } ];
+
+    it("marks the passage where its spans say, showing the text found there", async () => {
+      const marks = placedOn({ page: 2, start: 16, end: AFTER_BREAK + 6 });
+      render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      expect(getPassage("“on a casual basis, assist”")).toBeInTheDocument();
+      expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
+      expect(getDrawnMarks(getFrame())).toEqual({ 2: [ "iap-mark iap-mark-annotation selected" ] });
+      expect(getFrame().scrollTop).toBe(MATCH_TOP);
+    });
+
+    it("reads the pages its spans are on first", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={placedOn({ page: 3, start: 0, end: 12 })} onClose={vi.fn()} />));
+
+      await waitFor(() => expect(fakePdf.textReads).toHaveLength(3));
+      expect(fakePdf.textReads).toEqual([ 3, 1, 2 ]);
+    });
+
+    it("lists it beside passages found by their quote, naming every page it runs over", async () => {
+      stubLayout({ elementWidth: 1000 });
+      const marks: Mark[] = [
+        { id: "quoted", quote: "The schedule continues for one year.", kind: "assistant" },
+        ...placedOn({ page: 1, start: 4, end: 8 }, { page: 2, start: 0, end: 10 }, { page: 3, start: 0, end: 12 }),
+      ];
+      render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));
+
+      expect(await screen.findByRole("button", { name: "Show passage 2 on pages 1 to 3" })).toBeInTheDocument();
+      const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
+      expect(passages.map(passage => passage.textContent)).toEqual([
+        "“The schedule continues for one year.”found on page 3",
+        "“memo Volunteers The schedule”found on pages 1–3",
+      ]);
+    });
+
+    it("says it is not in the document when its spans do not fit it", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={placedOn({ page: 2, start: 0, end: 999 })} onClose={vi.fn()} />));
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is not in this document."));
+      expect(getDrawnMarks(getFrame())).toEqual({});
     });
   });
 
