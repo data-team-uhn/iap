@@ -284,6 +284,12 @@ the viewer just reported doesn't move the reader. `marks` can be a new array on 
 viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
 and only looks for passages again when one of those changes.
 
+A caller that shows something with each passage, such as the comments on it, passes
+`renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
+the passage, on its card in the list beside the document, or on the card above the document in a
+narrow viewer, which shows only the selected passage. It goes outside the button selecting the passage,
+so it can hold fields and buttons of its own, such as a box for a new comment on the passage selected.
+
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
 nothing changing for `SETTLE_TIME`), the viewer offers a Comment button under the end of the selection,
