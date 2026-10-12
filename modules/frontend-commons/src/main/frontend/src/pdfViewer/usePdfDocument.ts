@@ -22,6 +22,7 @@ import { RequestError } from "../requestFailure";
 import { loadPdfjs, type ViewerComponents } from "./pdfjsClient";
 import { describeOpenFailure } from "./pdfViewerModel";
 
+import type { PageText } from "./marksModel";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 
 export interface OpenedDocument {
@@ -30,25 +31,37 @@ export interface OpenedDocument {
   // The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
   // layer's text, or none for a page it cannot read. Each page is read once.
   getPageText: (pageNumber: number) => Promise<string>;
+  // The same, with where its lines end.
+  getPageTextWithLines: (pageNumber: number) => Promise<PageText>;
 }
 
-async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<string> {
+async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<PageText> {
+  const page: PageText = { text: "", lineEnds: [] };
   try {
     const content = await (await doc.getPage(pageNumber)).getTextContent({ disableNormalization: true });
-    return content.items.map(item => ("str" in item ? item.str : "")).join("");
+    for (const item of content.items) {
+      if ("str" in item) {
+        page.text += item.str;
+        if (item.hasEOL) {
+          page.lineEnds.push(page.text.length);
+        }
+      }
+    }
+    return page;
   } catch {
-    return "";
+    return { text: "", lineEnds: [] };
   }
 }
 
 function openedDocument(components: ViewerComponents, doc: PDFDocumentProxy): OpenedDocument {
-  const texts = new Map<number, Promise<string>>();
-  const getPageText = (pageNumber: number) => {
+  const texts = new Map<number, Promise<PageText>>();
+  const getPageTextWithLines = (pageNumber: number) => {
     const text = texts.get(pageNumber) ?? readPageText(doc, pageNumber);
     texts.set(pageNumber, text);
     return text;
   };
-  return { components, doc, getPageText };
+  const getPageText = async (pageNumber: number) => (await getPageTextWithLines(pageNumber)).text;
+  return { components, doc, getPageText, getPageTextWithLines };
 }
 
 // Opens the PDF, or says why it could not be opened until it is tried again.
