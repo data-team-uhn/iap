@@ -32,6 +32,8 @@ import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
+import { MARK_CLASS } from "./markLayer";
+import { MARK_KINDS, type MarkKind } from "./marksModel";
 import { getFileName, getPassageNote, getPassageStatus, type PassageNote } from "./pdfViewerModel";
 import { unquote } from "./quoteMatch";
 import { usePdfViewer } from "./usePdfViewer";
@@ -46,7 +48,7 @@ export interface PdfViewerProps {
   // The passage to find and highlight.
   quote: string;
   // Whose mark the passage carries: an AI assistant's, or a person's.
-  markedBy: "assistant" | "annotation";
+  markedBy: MarkKind;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
@@ -68,6 +70,15 @@ const MAX_PASSAGE_LINES_ON_PHONE = 1;
 function failedColour(theme: Theme) {
   const { error } = (theme.vars ?? theme).palette;
   return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
+}
+
+// Each kind of mark in its highlight colour, and in a deeper one when selected.
+function markColours(theme: Theme) {
+  const { highlight } = (theme.vars ?? theme).palette;
+  return Object.fromEntries(MARK_KINDS.flatMap(kind => [
+    [ `& .${MARK_CLASS}-${kind}`, { bgcolor: highlight[kind] } ],
+    [ `& .${MARK_CLASS}-${kind}.selected`, { bgcolor: highlight[`${kind}Current`] } ],
+  ]));
 }
 
 function cutShort(lines: number) {
@@ -94,7 +105,7 @@ export default function PdfViewer({ url, page, quote, markedBy, title, container
 
 // The document stays open here while the viewer moves between the container and the dialog.
 function PdfViewerSession({ url, page, quote, markedBy, title, container, onClose }: PdfViewerProps) {
-  const viewer = usePdfViewer(url, page, quote);
+  const viewer = usePdfViewer(url, page, quote, markedBy);
   const [poppedOut, setPoppedOut] = useState(false);
   const titleId = useId();
   const placeButtonRef = useRef<HTMLButtonElement>(null);
@@ -175,7 +186,7 @@ interface ViewerBodyProps {
 }
 
 function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edgeToEdge, onClose }: ViewerBodyProps) {
-  const { state, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry } = viewer;
+  const { state, place, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry } = viewer;
   const pageCount = state.pageCount ?? 0;
   // 0 until the document opens, which keeps both page buttons disabled.
   const shownPage = state.page ?? 0;
@@ -194,8 +205,8 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edge
       </Box>
       <PassageLine
         quote={quote}
-        note={getPassageNote(state)}
-        status={getPassageStatus(state)}
+        note={getPassageNote(state, place)}
+        status={getPassageStatus(state, place)}
         markedBy={markedBy}
         onShowPassage={showPassage}
       />
@@ -260,10 +271,8 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edge
             "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
             // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
             "& .textLayer": { mixBlendMode: "multiply" },
-            "& .textLayer .highlight": {
-              "--highlight-bg-color": (theme.vars ?? theme).palette.highlight[markedBy],
-              "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight[`${markedBy}Current`],
-            },
+            [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
+            ...markColours(theme),
           })}
         >
           <div className="pdfViewer" />
