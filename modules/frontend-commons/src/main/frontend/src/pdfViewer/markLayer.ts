@@ -18,6 +18,9 @@
 import type { MarkKind } from "./marksModel";
 
 export const MARK_CLASS = "iap-mark";
+
+// Set on the frame while the pointer is over a mark.
+export const OVER_MARK_CLASS = "iap-over-mark";
 const LAYER_CLASS = "iap-marks";
 
 // A mark to draw on one page, over the offsets it covers in the text of the page's text layer.
@@ -112,6 +115,28 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
 // The first piece of a mark drawn in the frame, if its page has been drawn.
 export function findMark(frame: HTMLElement, id: string): HTMLElement | undefined {
   return Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).find(mark => mark.dataset.markId === id);
+}
+
+// The mark drawn at a point in the frame, if any. Marks let the pointer through to the text, so text
+// can be selected across them, and a click is matched to them by where it falls. Where marks overlap,
+// one not selected comes first, so clicking again reaches the other.
+export function markAt(frame: HTMLElement, x: number, y: number): string | undefined {
+  const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).filter(mark => {
+    const { left, right, top, bottom } = mark.getBoundingClientRect();
+    return x >= left && x <= right && y >= top && y <= bottom;
+  });
+  return (hits.find(mark => !mark.classList.contains("selected")) ?? hits.at(0))?.dataset.markId;
+}
+
+// Scrolls the container, and only it, as little as brings the element into view.
+export function keepInView(container: HTMLElement, element: HTMLElement): void {
+  const outer = container.getBoundingClientRect();
+  const inner = element.getBoundingClientRect();
+  if (inner.top < outer.top) {
+    container.scrollTop -= outer.top - inner.top;
+  } else if (inner.bottom > outer.bottom) {
+    container.scrollTop += Math.min(inner.bottom - outer.bottom, inner.top - outer.top);
+  }
 }
 
 // Scrolls the container, and only it, so the element sits in the middle of it.

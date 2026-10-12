@@ -36,7 +36,7 @@ function getViewerProps(): unknown {
 }
 
 describe("PdfViewerTestWidget", () => {
-  it("keeps Open disabled until both a URL and a quote are given", async () => {
+  it("keeps Open disabled until both a URL and a passage are given", async () => {
     render(<PdfViewerTestWidget />);
 
     const open = screen.getByRole("button", { name: "Open" });
@@ -61,8 +61,7 @@ describe("PdfViewerTestWidget", () => {
     expect(getViewerProps()).toEqual({
       url: "/some/file.pdf",
       page: 2,
-      quote: "a quote to look for",
-      markedBy: "assistant",
+      marks: [ { id: "passage-1", quote: "a quote to look for", page: 2, kind: "assistant" } ],
       title: "Memo",
       inPlace: true,
     });
@@ -77,8 +76,7 @@ describe("PdfViewerTestWidget", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(getViewerProps()).toEqual({
       url: "/some/file.pdf",
-      quote: "a quote to look for",
-      markedBy: "assistant",
+      marks: [ { id: "passage-1", quote: "a quote to look for", kind: "assistant" } ],
       inPlace: true,
     });
 
@@ -107,7 +105,26 @@ describe("PdfViewerTestWidget", () => {
     await userEvent.click(screen.getByRole("option", { name: "A person" }));
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
 
-    expect(getViewerProps()).toMatchObject({ markedBy: "annotation" });
+    expect(getViewerProps()).toMatchObject({ marks: [ { kind: "annotation" } ] });
+  });
+
+  it("marks each line as a passage of its own, leaving out blank ones, and both kinds in turn when asked", async () => {
+    render(<PdfViewerTestWidget />);
+
+    await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
+    const lines = "first passage{Enter}{Enter} second passage {Enter}third";
+    await userEvent.type(screen.getByLabelText("Text to find"), lines);
+    await userEvent.click(screen.getByRole("combobox", { name: "Marked by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Both, in turn" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(getViewerProps()).toMatchObject({
+      marks: [
+        { id: "passage-1", quote: "first passage", kind: "assistant" },
+        { id: "passage-2", quote: "second passage", kind: "annotation" },
+        { id: "passage-3", quote: "third", kind: "assistant" },
+      ],
+    });
   });
 
   it("keeps showing what was opened while the form is edited", async () => {
