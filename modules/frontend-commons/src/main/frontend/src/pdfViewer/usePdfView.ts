@@ -27,7 +27,7 @@ import type { OpenedDocument } from "./usePdfDocument";
 import type { EventBus, PDFPageView, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 
 // Where the viewer in viewerRef shows the document, once PDF.js has laid out its pages.
-interface ShownDocument {
+export interface ShownDocument {
   eventBus: EventBus;
   frame: HTMLDivElement;
 }
@@ -314,6 +314,7 @@ export function usePdfView(
   }), [withViewer]);
 
   return {
+    shown,
     pageCount: pages.count,
     page: pages.shown,
     setFrame,
