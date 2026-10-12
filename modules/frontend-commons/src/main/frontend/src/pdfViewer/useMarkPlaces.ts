@@ -24,8 +24,8 @@ import type { OpenedDocument } from "./usePdfDocument";
 // Each mark's place in the document, by mark id.
 export type MarkPlaces = Record<string, MarkPlace>;
 
-// Where each mark's passage is in the document, as its pages are read. Pages with marks placed by
-// their spans are read first, then the rest in order.
+// Where each mark's passage is in the document, as its pages are read: first those marks placed by their
+// spans or kept as anchors are on, then the others, in order.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces } | undefined>(undefined);
 
@@ -36,7 +36,7 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): M
     const { doc, getPageTextWithLines } = pdf;
     const locator = new MarkLocator(marks, doc.numPages);
     const stop = new AbortController();
-    const placed = getPlacedPages(marks).filter(page => page >= 1 && page <= doc.numPages);
+    const placed = getPlacedPages(marks, doc.numPages);
     const rest = Array.from({ length: doc.numPages }, (_, index) => index + 1).filter(page => !placed.includes(page));
     void (async () => {
       let last = "";
