@@ -15,14 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useId, useLayoutEffect, useState } from "react";
+import { useId, useLayoutEffect, useState, type ReactNode } from "react";
 
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
-import { visuallyHidden } from "@mui/utils";
 
+import { cutShort, passageCard } from "./passageStyles";
 import { unquote } from "./quoteMatch";
 
 import type { MarkKind } from "./marksModel";
@@ -39,19 +39,16 @@ function failedColour(theme: Theme) {
   return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
 }
 
-function cutShort(lines: number) {
-  return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
-}
-
 // The passage and how the search for it went, on a card in its mark's colour. Once it is found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
 // with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
-// line, it shares its row with the note.
-export default function PassageCard({ quote, note, status, markedBy, onShowPassage }: {
+// line, it shares its row with the note. One of several passages has controls for stepping through
+// them above it.
+export default function PassageCard({ quote, note, markedBy, stepper, onShowPassage }: {
   quote: string;
   note?: PassageNote;
-  status: string;
   markedBy: MarkKind;
+  stepper?: ReactNode;
   onShowPassage: () => void;
 }) {
   const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
@@ -122,67 +119,59 @@ export default function PassageCard({ quote, note, status, markedBy, onShowPassa
 
   return (
     <Box
-      sx={theme => ({
-        position: "relative",
-        display: "flex",
-        mb: 1,
-        borderRadius: 1,
-        overflow: "hidden",
-        borderInlineStart: `${theme.spacing(0.5)} solid`,
-        borderColor: `${markedBy}.main`,
-        bgcolor: theme.alpha((theme.vars ?? theme).palette[markedBy].light, 0.25),
-      })}
+      sx={theme => ({ ...passageCard(theme, markedBy), mb: 1, overflow: "hidden" })}
     >
-      <Typography
-        ref={setCopy}
-        variant="body2"
-        component="span"
-        aria-hidden
-        sx={{ position: "absolute", insetInline: 0, px: 1.5, visibility: "hidden", pointerEvents: "none" }}
-      >
-        <span>{text}</span>
-      </Typography>
-      {note !== undefined && "foundOnPage" in note
-        ? (
-          <ButtonBase
-            focusRipple
-            aria-label={note.toPage === undefined
-              ? `Show the passage on page ${note.foundOnPage}`
-              : `Show the passage on pages ${note.foundOnPage} and ${note.toPage}`}
-            aria-describedby={quoteId}
-            onClick={onShowPassage}
-            sx={{
-              ...passageSx,
-              "@media (hover: hover)": { "&:hover": { bgcolor: "action.hover" } },
-              "&.Mui-focusVisible": { bgcolor: "action.hover" },
-            }}
-          >
-            {content}
-          </ButtonBase>
-        )
-        : <Box sx={passageSx}>{content}</Box>}
-      {long
-        ? (
-          <IconButton
-            aria-label={expanded ? "Show less of the passage" : "Show the whole passage"}
-            aria-expanded={expanded}
-            aria-controls={quoteId}
-            onClick={() => setExpanded(!expanded)}
-            sx={{ alignSelf: oneRow ? "center" : "flex-end" }}
-          >
-            {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </IconButton>
-        )
-        : null}
-      {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
-      <Box role="status" sx={visuallyHidden}>{status}</Box>
+      {stepper}
+      <Box sx={{ position: "relative", display: "flex" }}>
+        <Typography
+          ref={setCopy}
+          variant="body2"
+          component="span"
+          aria-hidden
+          sx={{ position: "absolute", insetInline: 0, px: 1.5, visibility: "hidden", pointerEvents: "none" }}
+        >
+          <span>{text}</span>
+        </Typography>
+        {note !== undefined && "foundOnPage" in note
+          ? (
+            <ButtonBase
+              focusRipple
+              aria-label={note.toPage === undefined
+                ? `Show the passage on page ${note.foundOnPage}`
+                : `Show the passage on pages ${note.foundOnPage} and ${note.toPage}`}
+              aria-describedby={quoteId}
+              onClick={onShowPassage}
+              sx={{
+                ...passageSx,
+                "@media (hover: hover)": { "&:hover": { bgcolor: "action.hover" } },
+                "&.Mui-focusVisible": { bgcolor: "action.hover" },
+              }}
+            >
+              {content}
+            </ButtonBase>
+          )
+          : <Box sx={passageSx}>{content}</Box>}
+        {long
+          ? (
+            <IconButton
+              aria-label={expanded ? "Show less of the passage" : "Show the whole passage"}
+              aria-expanded={expanded}
+              aria-controls={quoteId}
+              onClick={() => setExpanded(!expanded)}
+              sx={{ alignSelf: oneRow ? "center" : "flex-end" }}
+            >
+              {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          )
+          : null}
+      </Box>
     </Box>
   );
 }
 
 // The page a passage was found on is styled as a link when it is not the page shown, as the passage
 // and its note take the reader there.
-function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
+export function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
   if ("text" in note) {
     const text = short ? note.short : note.text;
     return note.failed ? <Box component="span" sx={failedColour}>{text}</Box> : text;
