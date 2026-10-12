@@ -57,6 +57,14 @@ export function getFileName(url: string): string {
   }
 }
 
+// The pages a passage is on, from the one it starts on to the one it ends on, if another.
+export function describePages(page: number, toPage?: number): string {
+  if (toPage === undefined) {
+    return `page ${page}`;
+  }
+  return toPage === page + 1 ? `pages ${page} and ${toPage}` : `pages ${page} to ${toPage}`;
+}
+
 // What follows the passage: how the search for it went, in full and in short for when the passage is
 // cut to one line, and whether it failed, or where it was found, with whether one of its pages is the
 // one shown. Nothing when the open failed, since the error box says it.
@@ -80,8 +88,10 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
       return { text: "not found in this document", short: "not found", failed: true };
     case "noText":
       return { text: "this document has no text to search", short: "no text" };
-    case "found":
-      return { foundOnPage: place.page, toPage: place.toPage, shown: place.page === page || place.toPage === page };
+    case "found": {
+      const { page: from, toPage } = place;
+      return { foundOnPage: from, toPage, shown: page >= from && page <= (toPage ?? from) };
+    }
   }
 }
 
@@ -110,9 +120,7 @@ export function getPassageStatus(
     case "noText":
       return "This document has no text to search.";
     case "found":
-      return place.toPage === undefined
-        ? `${passage} is marked on page ${place.page}.`
-        : `${passage} is marked on pages ${place.page} and ${place.toPage}.`;
+      return `${passage} is marked on ${describePages(place.page, place.toPage)}.`;
   }
 }
 
