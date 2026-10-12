@@ -59,6 +59,8 @@ function createDefaults() {
     searches: [] as string[],
     hashes: [] as string[],
     viewers: [] as FakePDFViewer[],
+    // Every zoom the viewer was set to, in order.
+    scales: [] as (string | number)[],
     destroyedTasks: 0,
   };
 }
@@ -167,6 +169,7 @@ class FakePDFViewer {
   }
 
   set currentScaleValue(scale: string | number) {
+    fakePdf.scales.push(scale);
     this.#scale = scale;
     this.#updateViewArea();
     // The pages' text is drawn again at the new size, marks included.
