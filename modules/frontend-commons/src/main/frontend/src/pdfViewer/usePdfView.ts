@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { centreIn, drawMarks, findMark, markAt, OVER_MARK_CLASS, type PageMark } from "./markLayer";
+import { createFindController } from "./pdfjsClient";
+import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
 
 import type { Mark } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -34,6 +36,31 @@ interface ShownDocument {
 // than a drag selecting text that happened to select nothing.
 const DRAG_DISTANCE = 4;
 
+interface MatchesCount {
+  current: number;
+  total: number;
+}
+
+// Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
+// accents, and highlighting every match. An empty query clears the highlights.
+function dispatchFind(eventBus: EventBus, query: string, again?: { previous: boolean }): void {
+  eventBus.dispatch("find", {
+    source: null,
+    type: again === undefined ? "" : "again",
+    query,
+    caseSensitive: false,
+    entireWord: false,
+    highlightAll: true,
+    findPrevious: again?.previous ?? false,
+    matchDiacritics: false,
+  });
+}
+
+async function hasText({ doc, getPageText }: OpenedDocument): Promise<boolean> {
+  const texts = await Promise.all(Array.from({ length: doc.numPages }, (_, index) => getPageText(index + 1)));
+  return texts.some(text => text.trim() !== "");
+}
+
 // The marks to draw on a page, from where their passages were found.
 function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark[] {
   return marks.flatMap(({ id, kind }) => {
@@ -46,7 +73,7 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
 
 // Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
 // where they were found, taking the reader to the selected one once it is. Clicking a mark selects it.
-// Moving to another frame keeps the page, the zoom and the marks.
+// Searches the document too. Moving to another frame keeps the page, the zoom, the marks and the search.
 export function usePdfView(
   pdf: OpenedDocument | undefined,
   { page, marks, places, selectedId, onSelectMark }: {
@@ -70,6 +97,10 @@ export function usePdfView(
   const goToRef = useRef<string | undefined>(undefined);
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
+  const [search, setSearch] = useState<DocumentSearch>(IDLE_SEARCH);
+  // What is searched for, which a viewer built again, in another frame, searches for too.
+  const queryRef = useRef("");
+  const eventBusRef = useRef<EventBus | undefined>(undefined);
   const onSelectMarkRef = useRef(onSelectMark);
   useEffect(() => {
     onSelectMarkRef.current = onSelectMark;
@@ -87,7 +118,41 @@ export function usePdfView(
     const options = { container: frame, eventBus, linkService, removePageBorders: true, abortSignal: stop.signal };
     const viewer = new components.PDFViewer(options);
     viewerRef.current = viewer;
+    eventBusRef.current = eventBus;
     linkService.setViewer(viewer);
+    viewer.findController = createFindController(components, { container: frame, linkService, eventBus });
+
+    const { FOUND, NOT_FOUND, PENDING, WRAPPED } = components.FindState;
+    // Nothing is found in a document without text either, which is worth saying apart.
+    const sayIfNoText = async (query: string) => {
+      if (!await hasText(pdf) && queryRef.current === query) {
+        const noText = { outcome: "noText", current: 0, total: 0 } as const;
+        setSearch(previous => ({ ...previous, ...noText, announcement: getSearchStatus(noText) }));
+      }
+    };
+    // PDF.js counts a new search's matches as 0 of 0 until it has picked the one to show.
+    eventBus.on("updatefindmatchescount", ({ matchesCount }: { matchesCount: MatchesCount }) => {
+      if (matchesCount.current > 0) {
+        setSearch(previous => ({ ...previous, ...matchesCount }));
+      }
+    });
+    eventBus.on("updatefindcontrolstate", ({ state, matchesCount }: { state: number; matchesCount: MatchesCount }) => {
+      const query = queryRef.current;
+      if (query.trim() === "") {
+        return;
+      }
+      // While a search runs, the last one to finish stays shown and announced.
+      if (state === PENDING) {
+        return;
+      }
+      const settled = state === FOUND || state === WRAPPED
+        ? { outcome: "found", ...matchesCount } as const
+        : { outcome: "notFound", current: 0, total: 0 } as const;
+      setSearch(previous => ({ ...previous, ...settled, announcement: getSearchStatus(settled) }));
+      if (state === NOT_FOUND) {
+        void sayIfNoText(query);
+      }
+    });
 
     eventBus.on("pagesinit", () => {
       if (locationRef.current === undefined) {
@@ -97,6 +162,9 @@ export function usePdfView(
         setPages({ count: doc.numPages, shown: first });
       } else {
         linkService.setHash(locationRef.current);
+      }
+      if (queryRef.current.trim() !== "") {
+        dispatchFind(eventBus, queryRef.current);
       }
       setShown({ eventBus, frame });
     });
@@ -148,6 +216,7 @@ export function usePdfView(
       stop.abort();
       viewer.setDocument(null);
       viewerRef.current = undefined;
+      eventBusRef.current = undefined;
       setShown(undefined);
     };
   }, [pdf, frame, openAt]);
@@ -213,6 +282,24 @@ export function usePdfView(
     });
   }, [withViewer]);
 
+  // Searching takes the reader from the mark they were being taken to, to the matches.
+  const find = useCallback((query: string) => {
+    queryRef.current = query;
+    goToRef.current = undefined;
+    followSelectedRef.current = false;
+    const searching = query.trim() !== "";
+    setSearch(previous => (searching ? { ...previous, query } : { ...IDLE_SEARCH, query }));
+    if (eventBusRef.current !== undefined) {
+      dispatchFind(eventBusRef.current, searching ? query : "");
+    }
+  }, []);
+
+  const findAgain = useCallback((previous: boolean) => {
+    if (eventBusRef.current !== undefined && queryRef.current.trim() !== "") {
+      dispatchFind(eventBusRef.current, queryRef.current, { previous });
+    }
+  }, []);
+
   const showMark = useCallback((id: string) => {
     goToRef.current = id;
     goToMarkRef.current?.();
@@ -226,5 +313,17 @@ export function usePdfView(
     viewer.currentScaleValue = "page-width";
   }), [withViewer]);
 
-  return { pageCount: pages.count, page: pages.shown, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth };
+  return {
+    pageCount: pages.count,
+    page: pages.shown,
+    setFrame,
+    showPage,
+    showMark,
+    zoomIn,
+    zoomOut,
+    fitWidth,
+    search,
+    find,
+    findAgain,
+  };
 }
