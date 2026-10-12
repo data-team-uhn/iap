@@ -17,7 +17,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { centreIn, drawMarks, findMark, type PageMark } from "./markLayer";
+import { centreIn, drawMarks, findMark, markAt, OVER_MARK_CLASS, type PageMark } from "./markLayer";
 
 import type { Mark } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -30,37 +30,50 @@ interface ShownDocument {
   frame: HTMLDivElement;
 }
 
+// How far the pointer may move between pressing and releasing for it to be a click on a mark, rather
+// than a drag selecting text that happened to select nothing.
+const DRAG_DISTANCE = 4;
+
 // The marks to draw on a page, from where their passages were found.
 function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark[] {
   return marks.flatMap(({ id, kind }) => {
     const place = places[id];
-    return place?.status === "found"
+    return place.status === "found"
       ? place.spans.filter(span => span.page === page).map(({ start, end }) => ({ id, kind, start, end }))
       : [];
   });
 }
 
 // Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
-// where they were found, taking the reader to the selected one once it is. Moving to another frame
-// keeps the page, the zoom and the marks.
+// where they were found, taking the reader to the selected one once it is. Clicking a mark selects it.
+// Moving to another frame keeps the page, the zoom and the marks.
 export function usePdfView(
   pdf: OpenedDocument | undefined,
-  { page, marks, places, selectedId }: {
+  { page, marks, places, selectedId, onSelectMark }: {
     page: number | undefined;
     marks: Mark[];
     places: MarkPlaces;
     selectedId: string | undefined;
+    onSelectMark: (id: string) => void;
   },
 ) {
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  // The page given when the view starts, which a later one, as the selection changes, does not move to.
+  const [openAt] = useState(page);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
   const [pages, setPages] = useState<{ count?: number; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, once the document has been shown.
   const locationRef = useRef<string | undefined>(undefined);
-  // The mark to take the reader to once it is found and its page drawn, until they go elsewhere.
-  const goToRef = useRef<string | undefined>(selectedId);
+  // The mark to take the reader to once it is found and its page drawn, until they go elsewhere: the
+  // selected one at first, even as which one that is changes.
+  const goToRef = useRef<string | undefined>(undefined);
+  const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
+  const onSelectMarkRef = useRef(onSelectMark);
+  useEffect(() => {
+    onSelectMarkRef.current = onSelectMark;
+  }, [onSelectMark]);
 
   useEffect(() => {
     if (pdf === undefined || frame === null) {
@@ -79,7 +92,7 @@ export function usePdfView(
     eventBus.on("pagesinit", () => {
       if (locationRef.current === undefined) {
         viewer.currentScaleValue = "page-width";
-        const first = page !== undefined && page <= doc.numPages ? page : 1;
+        const first = openAt !== undefined && openAt <= doc.numPages ? openAt : 1;
         viewer.currentPageNumber = first;
         setPages({ count: doc.numPages, shown: first });
       } else {
@@ -110,6 +123,23 @@ export function usePdfView(
     });
     resizes.observe(frame, { box: "border-box" });
 
+    let pressedAt = { x: 0, y: 0 };
+    frame.addEventListener("pointerdown", event => {
+      pressedAt = { x: event.clientX, y: event.clientY };
+    }, { signal: stop.signal });
+    frame.addEventListener("click", event => {
+      const moved = Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > DRAG_DISTANCE;
+      const id = moved || window.getSelection()?.isCollapsed === false
+        ? undefined
+        : markAt(frame, event.clientX, event.clientY);
+      if (id !== undefined) {
+        onSelectMarkRef.current(id);
+      }
+    }, { signal: stop.signal });
+    frame.addEventListener("pointermove", event => {
+      frame.classList.toggle(OVER_MARK_CLASS, markAt(frame, event.clientX, event.clientY) !== undefined);
+    }, { signal: stop.signal });
+
     viewer.setDocument(doc);
     linkService.setDocument(doc);
     return () => {
@@ -120,7 +150,7 @@ export function usePdfView(
       viewerRef.current = undefined;
       setShown(undefined);
     };
-  }, [pdf, frame, page]);
+  }, [pdf, frame, openAt]);
 
   // The marks are drawn on each page as PDF.js draws its text, and again as passages are found.
   useEffect(() => {
@@ -136,7 +166,7 @@ export function usePdfView(
       }
     };
     const goToMark = () => {
-      const id = goToRef.current;
+      const id = goToRef.current ?? (followSelectedRef.current ? selectedId : undefined);
       const place = id === undefined ? undefined : places[id];
       if (id === undefined || place?.status !== "found") {
         return;
@@ -147,6 +177,7 @@ export function usePdfView(
       const mark = findMark(shownIn, id);
       if (mark !== undefined) {
         goToRef.current = undefined;
+        followSelectedRef.current = false;
         centreIn(shownIn, mark);
       }
     };
@@ -176,6 +207,7 @@ export function usePdfView(
   // Going to a page by hand stops finding a mark from moving the reader.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
+    followSelectedRef.current = false;
     withViewer(viewer => {
       viewer.currentPageNumber = pageNumber;
     });
