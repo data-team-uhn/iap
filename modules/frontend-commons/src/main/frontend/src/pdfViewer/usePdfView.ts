@@ -15,22 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useAuthenticatedFetch } from "../reLogin";
-import { RequestError } from "../requestFailure";
 import { centreIn, drawMarks, findMark, type PageMark } from "./markLayer";
-import { MarkLocator, type Mark, type MarkKind, type MarkPlace } from "./marksModel";
-import { loadPdfjs, type ViewerComponents } from "./pdfjsClient";
-import { describeOpenFailure, INITIAL_VIEWER_STATE, reduceViewerState } from "./pdfViewerModel";
 
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
+import type { Mark } from "./marksModel";
+import type { MarkPlaces } from "./useMarkPlaces";
+import type { OpenedDocument } from "./usePdfDocument";
 import type { EventBus, PDFPageView, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-
-interface OpenedDocument {
-  components: ViewerComponents;
-  doc: PDFDocumentProxy;
-}
 
 // Where the viewer in viewerRef shows the document, once PDF.js has laid out its pages.
 interface ShownDocument {
@@ -38,21 +30,8 @@ interface ShownDocument {
   frame: HTMLDivElement;
 }
 
-const PASSAGE = "passage";
-
-// The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
-// layer's text, or none for a page it cannot read.
-async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<string> {
-  try {
-    const content = await (await doc.getPage(pageNumber)).getTextContent({ disableNormalization: true });
-    return content.items.map(item => ("str" in item ? item.str : "")).join("");
-  } catch {
-    return "";
-  }
-}
-
 // The marks to draw on a page, from where their passages were found.
-function getPageMarks(marks: Mark[], places: Partial<Record<string, MarkPlace>>, page: number): PageMark[] {
+function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark[] {
   return marks.flatMap(({ id, kind }) => {
     const place = places[id];
     return place?.status === "found"
@@ -61,96 +40,33 @@ function getPageMarks(marks: Mark[], places: Partial<Record<string, MarkPlace>>,
   });
 }
 
-// Opens the PDF once, and shows it in whichever frame it is given, with the quote marked where it is
-// found, looking from the page given. Moving to another frame keeps the page, the zoom and the marks.
-export function usePdfViewer(url: string, page: number | undefined, quote: string, markedBy: MarkKind) {
-  const authFetch = useAuthenticatedFetch();
-  const [state, dispatch] = useReducer(reduceViewerState, INITIAL_VIEWER_STATE);
-  const [opened, setOpened] = useState<OpenedDocument | undefined>(undefined);
+// Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
+// where they were found, taking the reader to the selected one once it is. Moving to another frame
+// keeps the page, the zoom and the marks.
+export function usePdfView(
+  pdf: OpenedDocument | undefined,
+  { page, marks, places, selectedId }: {
+    page: number | undefined;
+    marks: Mark[];
+    places: MarkPlaces;
+    selectedId: string | undefined;
+  },
+) {
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
-  const marks = useMemo<Mark[]>(() => [ { id: PASSAGE, quote, page, kind: markedBy } ], [quote, page, markedBy]);
-  const [found, setFound] = useState<{ marks: Mark[]; places: Partial<Record<string, MarkPlace>> } | undefined>();
-  const places = useMemo(
-    () => (found?.marks === marks ? found.places : new MarkLocator(marks, 0).getPlaces()),
-    [found, marks],
-  );
+  const [pages, setPages] = useState<{ count?: number; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, once the document has been shown.
   const locationRef = useRef<string | undefined>(undefined);
   // The mark to take the reader to once it is found and its page drawn, until they go elsewhere.
-  const goToRef = useRef<string | undefined>(PASSAGE);
+  const goToRef = useRef<string | undefined>(selectedId);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
-  const { attempt } = state;
 
-  // The file is fetched here rather than by PDF.js, so an expired session gets the same sign-in
-  // every other request gets.
   useEffect(() => {
-    let task: PDFDocumentLoadingTask | undefined;
-    const stop = new AbortController();
-    void (async () => {
-      try {
-        const [{ pdfjs, components, worker, dataUrls }, response] = await Promise.all([
-          loadPdfjs(),
-          authFetch(url, { signal: stop.signal }),
-        ]);
-        if (!response.ok) {
-          throw new RequestError(response.status);
-        }
-        const data = await response.arrayBuffer();
-        stop.signal.throwIfAborted();
-        // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
-        // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
-        task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
-        const doc = await task.promise;
-        stop.signal.throwIfAborted();
-        setOpened({ components, doc });
-      } catch (error: unknown) {
-        if (!stop.signal.aborted) {
-          dispatch({ type: "openFailed", message: describeOpenFailure(error) });
-        }
-      }
-    })();
-    return () => {
-      stop.abort();
-      // The shared worker is not the task's, so this only drops the document.
-      void task?.destroy();
-    };
-  }, [url, authFetch, attempt]);
-
-  // Every page's text is read up front, so a passage on a page not yet drawn can be found and gone to.
-  useEffect(() => {
-    if (opened === undefined) {
+    if (pdf === undefined || frame === null) {
       return undefined;
     }
-    const { doc } = opened;
-    const locator = new MarkLocator(marks, doc.numPages);
-    const stop = new AbortController();
-    void (async () => {
-      let last = "";
-      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-        const text = await readPageText(doc, pageNumber);
-        if (stop.signal.aborted) {
-          return;
-        }
-        locator.addPage(pageNumber, text);
-        const latest = locator.getPlaces();
-        const serialized = JSON.stringify(latest);
-        // Most pages change nothing, and each change draws the marks again.
-        if (serialized !== last) {
-          last = serialized;
-          setFound({ marks, places: latest });
-        }
-      }
-    })();
-    return () => stop.abort();
-  }, [opened, marks]);
-
-  useEffect(() => {
-    if (opened === undefined || frame === null) {
-      return undefined;
-    }
-    const { components, doc } = opened;
+    const { components, doc } = pdf;
     const eventBus = new components.EventBus();
     const linkService = new components.PDFLinkService({ eventBus });
     // Aborting the signal is what stops the viewer watching the frame's size and scrolling.
@@ -165,7 +81,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
         viewer.currentScaleValue = "page-width";
         const first = page !== undefined && page <= doc.numPages ? page : 1;
         viewer.currentPageNumber = first;
-        dispatch({ type: "opened", pageCount: doc.numPages, page: first });
+        setPages({ count: doc.numPages, shown: first });
       } else {
         linkService.setHash(locationRef.current);
       }
@@ -175,7 +91,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       locationRef.current = location.pdfOpenParams.replace(/^#/, "");
     });
     eventBus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
-      dispatch({ type: "paged", page: pageNumber });
+      setPages({ count: doc.numPages, shown: pageNumber });
     });
 
     // PDF.js fits the page to the frame's width only when told to. When the frame's width changes, the
@@ -204,7 +120,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       viewerRef.current = undefined;
       setShown(undefined);
     };
-  }, [opened, frame, page]);
+  }, [pdf, frame, page]);
 
   // The marks are drawn on each page as PDF.js draws its text, and again as passages are found.
   useEffect(() => {
@@ -216,7 +132,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     const draw = (pageView: PDFPageView, pageNumber: number) => {
       const textLayer = pageView.textLayer?.div;
       if (textLayer !== undefined) {
-        drawMarks(textLayer, getPageMarks(marks, places, pageNumber), PASSAGE);
+        drawMarks(textLayer, getPageMarks(marks, places, pageNumber), selectedId);
       }
     };
     const goToMark = () => {
@@ -248,7 +164,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       stop.abort();
       goToMarkRef.current = undefined;
     };
-  }, [shown, marks, places]);
+  }, [shown, marks, places, selectedId]);
 
   // The controls act on the viewer shown, and are disabled until there is one.
   const withViewer = useCallback((act: (viewer: PDFViewer) => void) => {
@@ -257,7 +173,7 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     }
   }, []);
 
-  // Going to a page by hand stops finding the passage from moving the reader.
+  // Going to a page by hand stops finding a mark from moving the reader.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
     withViewer(viewer => {
@@ -265,8 +181,8 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     });
   }, [withViewer]);
 
-  const showPassage = useCallback(() => {
-    goToRef.current = PASSAGE;
+  const showMark = useCallback((id: string) => {
+    goToRef.current = id;
     goToMarkRef.current?.();
   }, []);
 
@@ -278,12 +194,5 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     viewer.currentScaleValue = "page-width";
   }), [withViewer]);
 
-  // The note says the document is opening again, so Retry needs no progress of its own.
-  const retry = useCallback((): Promise<void> => {
-    dispatch({ type: "retry" });
-    return Promise.resolve();
-  }, []);
-
-  const place: MarkPlace = places[PASSAGE] ?? { status: "searching" };
-  return { state, place, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry };
+  return { pageCount: pages.count, page: pages.shown, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth };
 }
