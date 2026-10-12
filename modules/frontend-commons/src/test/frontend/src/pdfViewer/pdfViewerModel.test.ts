@@ -150,6 +150,18 @@ describe("getPassageStatus", () => {
     expect(getPassageStatus(onPage2, found(2, 3))).toBe("The passage is marked on pages 2 and 3.");
   });
 
+  it("names the passage by its place among several", () => {
+    const third = { index: 3, count: 17 };
+    expect(getPassageStatus({ page: 2 }, SEARCHING, third)).toBe("Looking for passage 3 of 17…");
+    expect(getPassageStatus({ page: 2 }, { status: "tooShort" }, third))
+      .toBe("Passage 3 of 17 is too short to look for.");
+    expect(getPassageStatus({ page: 2 }, { status: "notFound" }, third))
+      .toBe("Passage 3 of 17 is not in this document.");
+    expect(getPassageStatus({ page: 2 }, { status: "noText" }, third)).toBe("This document has no text to search.");
+    expect(getPassageStatus({ page: 2 }, found(4), third)).toBe("Passage 3 of 17 is marked on page 4.");
+    expect(getPassageStatus({ page: 2 }, found(4, 5), third)).toBe("Passage 3 of 17 is marked on pages 4 and 5.");
+  });
+
   it("says nothing when the document could not be opened", () => {
     expect(getPassageStatus({ openError: "Gone." }, SEARCHING)).toBe("");
   });
