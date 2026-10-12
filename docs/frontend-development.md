@@ -229,11 +229,13 @@ Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a p
   placed where it says as soon as its pages are read, while the text there still says its quote, and
   otherwise found again, as described below.
 
-Offsets are into a page's text as PDF.js reads it for its text layer: the strings `getTextContent`
-gives with `disableNormalization`, joined. That is the text of the layer's own text nodes, and
-`usePdfDocument`'s `getPageText` gives it. The text layer ends a line with an element rather than a
-character, so lines run on in this text without a space. `getPageTextWithLines` says where they end,
-and `getPassageText` puts a space there when it shows a passage.
+Offsets are into a page's text as PDF.js reads it for its text layer (`getTextContent` with
+`disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
+`usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
+them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
+passage as shown (`getPassageText`) puts a space there. Text selected in the text layers maps back to
+the same offsets: `getSelectedSpans` gives what a range selects as a span on each page it selects text
+of, without the spaces at either end.
 
 A `TextAnchor` keeps a passage the way the W3C's position and quote selectors do: where it starts and
 where it ends, each a `page` and a `char` offset into that page's text; what it says (`quote`); and up to
