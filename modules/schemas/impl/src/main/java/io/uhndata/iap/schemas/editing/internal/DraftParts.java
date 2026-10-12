@@ -23,7 +23,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.sling.api.resource.Resource;
 
-import io.uhndata.iap.conditions.api.ConditionDependencies;
+import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
@@ -95,7 +95,7 @@ final class DraftParts
         Resource current = conditionPart;
         Resource parent = current.getParent();
         while (parent != null
-            && ConditionDependencies.isConditionPart(current.getValueMap().get(PRIMARY_TYPE, ""))) {
+            && AnswerDependencies.isConditionPart(current.getValueMap().get(PRIMARY_TYPE, ""))) {
             current = parent;
             parent = current.getParent();
         }

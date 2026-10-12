@@ -28,14 +28,14 @@ import javax.jcr.Session;
 
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.conditions.api.ConditionDependencies;
+import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
 
 /**
  * Keeps a question that conditions depend on, which would otherwise compare an answer that no longer exists. It
  * refuses to delete anything holding a question that an {@code answer} operand outside the deletion names. The
- * refusal names the parts whose conditions depend on it, so they can be changed first. {@link ConditionDependencies}
+ * refusal names the parts whose conditions depend on it, so they can be changed first. {@link AnswerDependencies}
  * finds those conditions.
  *
  * @version $Id$
@@ -64,15 +64,15 @@ public class ConditionDependencyVeto implements DeletionVeto
             return null;
         }
         final List<Node> operands =
-            ConditionDependencies.operandsNaming(node, ConditionDependencies.namesOf(node).keySet());
+            AnswerDependencies.operandsNaming(node, AnswerDependencies.namesOf(node).keySet());
         if (operands.isEmpty()) {
             return null;
         }
-        final Node version = ConditionDependencies.entityOf(node);
+        final Node version = AnswerDependencies.entityOf(node);
         // One entry per part, sorted by path
         final Map<String, String> dependents = new TreeMap<>();
         for (final Node operand : operands) {
-            final Node part = ConditionDependencies.conditionedBy(operand);
+            final Node part = AnswerDependencies.conditionedBy(operand);
             dependents.put(part.getPath(), nameOf(part, version));
         }
         return "The conditions of " + String.join(", ", dependents.values())

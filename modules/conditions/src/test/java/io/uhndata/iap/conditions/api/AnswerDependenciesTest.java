@@ -39,14 +39,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ConditionDependencies}: what a subtree may be named by, which operands elsewhere in its entity
+ * Unit tests for {@link AnswerDependencies}: what a subtree may be named by, which operands elsewhere in its entity
  * name it, and which part each such condition is on.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ConditionDependenciesTest
+class AnswerDependenciesTest
 {
     private static final String UNSTRUCTURED = "nt:unstructured";
 
@@ -84,25 +84,36 @@ class ConditionDependenciesTest
     void namesWhatASubtreeHoldsByIdentifierAndPath() throws RepositoryException
     {
         assertEquals(Map.of(this.age.getIdentifier(), this.age.getIdentifier(), AGE, this.age.getIdentifier()),
-            ConditionDependencies.namesOf(this.form));
+            AnswerDependencies.namesOf(this.form));
         // A whole entity has no names, and neither has a node outside any entity
-        assertTrue(ConditionDependencies.namesOf(this.study).isEmpty());
-        assertTrue(ConditionDependencies.namesOf(referenceable(this.session.getRootNode(), "stray")).isEmpty());
+        assertTrue(AnswerDependencies.namesOf(this.study).isEmpty());
+        assertTrue(AnswerDependencies.namesOf(referenceable(this.session.getRootNode(), "stray")).isEmpty());
     }
 
     @Test
     void findsTheOperandsElsewhereThatNameIt() throws RepositoryException
     {
         final List<Node> naming =
-            ConditionDependencies.operandsNaming(this.age, ConditionDependencies.namesOf(this.age).keySet());
+            AnswerDependencies.operandsNaming(this.age, AnswerDependencies.namesOf(this.age).keySet());
 
         assertEquals(Set.of("/study/byPath/cond:condition/operandA", "/study/byIdentifier/cond:condition/operandA",
             "/study/form/cond:condition/operandA"), Set.copyOf(paths(naming)));
         // The form's own condition goes with it
-        assertEquals(2, ConditionDependencies.operandsNaming(this.form,
-            ConditionDependencies.namesOf(this.form).keySet()).size());
-        assertTrue(ConditionDependencies.operandsNaming(this.age, Set.of()).isEmpty());
-        assertTrue(ConditionDependencies.operandsNaming(this.session.getRootNode(), Set.of(AGE)).isEmpty());
+        assertEquals(2, AnswerDependencies.operandsNaming(this.form,
+            AnswerDependencies.namesOf(this.form).keySet()).size());
+        assertTrue(AnswerDependencies.operandsNaming(this.age, Set.of()).isEmpty());
+        assertTrue(AnswerDependencies.operandsNaming(this.session.getRootNode(), Set.of(AGE)).isEmpty());
+    }
+
+    @Test
+    void seesWhatTheSessionHasNotSavedYet() throws RepositoryException
+    {
+        condition(this.study.addNode("unsaved", UNSTRUCTURED), "answer", AGE);
+        this.session.getNode("/study/byIdentifier").remove();
+
+        assertEquals(Set.of("/study/byPath/cond:condition/operandA", "/study/unsaved/cond:condition/operandA",
+            "/study/form/cond:condition/operandA"), Set.copyOf(paths(
+                AnswerDependencies.operandsNaming(this.age, AnswerDependencies.namesOf(this.age).keySet()))));
     }
 
     @Test
@@ -110,12 +121,12 @@ class ConditionDependenciesTest
     {
         final Node operand = this.session.getNode("/study/byPath/cond:condition/operandA");
 
-        assertEquals("/study/byPath", ConditionDependencies.conditionedBy(operand).getPath());
-        assertEquals(List.of(AGE), ConditionDependencies.names(operand));
-        assertTrue(ConditionDependencies.isConditionPart("cond:SingleCondition"));
-        assertFalse(ConditionDependencies.isConditionPart("sch:Question"));
-        assertEquals("/study", ConditionDependencies.entityOf(this.age).getPath());
-        assertNull(ConditionDependencies.entityOf(this.session.getRootNode()));
+        assertEquals("/study/byPath", AnswerDependencies.conditionedBy(operand).getPath());
+        assertEquals(List.of(AGE), AnswerDependencies.names(operand));
+        assertTrue(AnswerDependencies.isConditionPart("cond:SingleCondition"));
+        assertFalse(AnswerDependencies.isConditionPart("sch:Question"));
+        assertEquals("/study", AnswerDependencies.entityOf(this.age).getPath());
+        assertNull(AnswerDependencies.entityOf(this.session.getRootNode()));
     }
 
     private static void condition(final Node part, final String source, final String value)

@@ -56,14 +56,14 @@ final class PartNames
     }
 
     /**
-     * A path relative to a version.
+     * A path relative to one of its ancestors.
      *
-     * @param path the path of something in the version
-     * @param versionPath the version's path
-     * @return the part of the path below the version
+     * @param path the path of a node
+     * @param ancestorPath the path of an ancestor of that node
+     * @return the part of the path below the ancestor
      */
-    static String pathIn(final String path, final String versionPath)
+    static String pathIn(final String path, final String ancestorPath)
     {
-        return path.substring(versionPath.length() + 1);
+        return path.substring(ancestorPath.length() + 1);
     }
 }

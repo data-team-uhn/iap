@@ -102,7 +102,7 @@ content (see `copyContent` in [workflows.md](workflows.md)), an `answer` operand
 a copied question by UUID is pointed at the copy, while a path is kept as written: it
 stays readable, and the copy's own structure is what it resolves against.
 
-A module about to remove or move content asks `ConditionDependencies` (in the API) what
+A module about to remove or move content asks `AnswerDependencies` (in the API) what
 depends on it: every name an `answer` operand may give what the content holds, the
 operands elsewhere in its entity that use one of them, and the part each such condition
 is on. The schema editor refuses to remove a question other parts' conditions depend on

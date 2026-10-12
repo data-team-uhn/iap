@@ -27,27 +27,29 @@ import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
-import javax.jcr.query.Query;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Finds the conditions that depend on content about to be removed or moved. An {@code answer} operand names a
- * question by its identifier, or by its path within the entity holding the operand. These methods find the operands
- * elsewhere in that entity that name something in the content, and the part each such condition is on.
+ * Finds the conditions whose {@code answer} operands depend on content about to be removed or moved. An
+ * {@code answer} operand names a question by its identifier, or by its path within the entity holding the operand.
+ * These methods find the operands elsewhere in that entity that name something in the content, and the part each
+ * such condition is on.
  *
  * @version $Id$
  * @since 0.1.0
  */
-public final class ConditionDependencies
+public final class AnswerDependencies
 {
     /** The source of an operand naming a question whose answer it compares. */
     public static final String ANSWER_SOURCE = "answer";
 
     private static final String VALUE = "value";
 
-    private ConditionDependencies()
+    private static final String SOURCE = "source";
+
+    private AnswerDependencies()
     {
         // Utility class
     }
@@ -78,7 +80,7 @@ public final class ConditionDependencies
      * @param subtree the root of the subtree
      * @param names the names of what is in it, from {@link #namesOf}
      * @return the operands, none when there are no names
-     * @throws RepositoryException when the entity cannot be searched
+     * @throws RepositoryException when the entity cannot be read
      */
     @NotNull
     public static List<Node> operandsNaming(@NotNull final Node subtree, @NotNull final Set<String> names)
@@ -89,18 +91,45 @@ public final class ConditionDependencies
         if (names.isEmpty() || entity == null) {
             return naming;
         }
-        final NodeIterator operands = subtree.getSession().getWorkspace().getQueryManager().createQuery(
-            "SELECT * FROM [cond:ConditionOperand] AS o WHERE ISDESCENDANTNODE(o, '" + quoted(entity.getPath())
-                + "') AND NOT ISDESCENDANTNODE(o, '" + quoted(subtree.getPath()) + "') AND o.[source] = '"
-                + ANSWER_SOURCE + "'",
-            Query.JCR_SQL2).execute().getNodes();
-        while (operands.hasNext()) {
-            final Node operand = operands.nextNode();
-            if (operand.hasProperty(VALUE) && names(operand).stream().anyMatch(names::contains)) {
-                naming.add(operand);
-            }
-        }
+        collectOperands(entity, subtree, names, naming);
         return naming;
+    }
+
+    /**
+     * Gathers the {@code answer} operands under a node that name something, walking the session's own view of the
+     * tree: a query would miss what the session has added and not saved yet.
+     *
+     * @param node where to look
+     * @param skipped a subtree to leave out
+     * @param names the names to look for
+     * @param naming where to add the operands found
+     * @throws RepositoryException when the tree cannot be read
+     */
+    private static void collectOperands(final Node node, final Node skipped, final Set<String> names,
+        final List<Node> naming) throws RepositoryException
+    {
+        if (node.isSame(skipped)) {
+            return;
+        }
+        if (isAnswerOperand(node) && names(node).stream().anyMatch(names::contains)) {
+            naming.add(node);
+        }
+        for (final NodeIterator children = node.getNodes(); children.hasNext();) {
+            collectOperands(children.nextNode(), skipped, names, naming);
+        }
+    }
+
+    /**
+     * Whether a node is an {@code answer} operand naming something.
+     *
+     * @param node a node
+     * @return whether it is
+     * @throws RepositoryException when it cannot be read
+     */
+    private static boolean isAnswerOperand(final Node node) throws RepositoryException
+    {
+        return node.isNodeType("cond:ConditionOperand") && node.hasProperty(VALUE) && node.hasProperty(SOURCE)
+            && ANSWER_SOURCE.equals(node.getProperty(SOURCE).getString());
     }
 
     /**
@@ -187,16 +216,5 @@ public final class ConditionDependencies
         for (final NodeIterator children = node.getNodes(); children.hasNext();) {
             collect(children.nextNode(), entityPathLength, names);
         }
-    }
-
-    /**
-     * A text as it goes in a quoted query literal.
-     *
-     * @param text any text
-     * @return the text, its quotes doubled
-     */
-    private static String quoted(final String text)
-    {
-        return text.replace("'", "''");
     }
 }
