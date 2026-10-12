@@ -152,3 +152,32 @@ export function getSearchStatus({ outcome, current, total }: Omit<DocumentSearch
       return "This document has no text to search.";
   }
 }
+
+// The Comment button's height, the same on every screen so that it is a touch target anywhere; the room it
+// keeps from the frame's edges; and how far under the selection it sits, past a phone's handles when the
+// text was selected by touch.
+export const COMMENT_BUTTON_HEIGHT = 40;
+const EDGE = 8;
+const GAP = 4;
+const UNDER_HANDLES = 28;
+
+// Where the Comment button goes, in the frame's coordinates: under the end of the selection, from it
+// towards the side of the frame with more room, so neither its width nor its label needs knowing, and
+// inside the frame.
+export interface CommentButtonPlace {
+  top: number;
+  left?: number;
+  right?: number;
+}
+
+export function getCommentButtonPlace(
+  end: { x: number; bottom: number },
+  frame: { width: number; height: number },
+  byTouch: boolean,
+): CommentButtonPlace {
+  const below = end.bottom + (byTouch ? UNDER_HANDLES : GAP);
+  const top = Math.max(EDGE, Math.min(below, frame.height - COMMENT_BUTTON_HEIGHT - EDGE));
+  return end.x <= frame.width / 2
+    ? { top, left: Math.max(EDGE, end.x) }
+    : { top, right: Math.max(EDGE, frame.width - end.x) };
+}

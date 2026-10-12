@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { type ReactNode } from "react";
+
 import { Box } from "@mui/material";
 
 import { MARK_CLASS, OVER_MARK_CLASS } from "./markLayer";
@@ -39,13 +41,15 @@ function markColours(theme: Theme, outlineSelected: boolean) {
 }
 
 // The frame PDF.js shows the document in, filling the room left to it. PDF.js needs its scrolling
-// container absolutely positioned, so the outer box gives it the room. With edgeToEdge, the document
-// spans the full width of a phone screen.
-export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected }: {
+// container absolutely positioned, so the outer box gives it the room, and holds anything shown over the
+// frame, placed in the frame's coordinates. In the dialog on a phone, the document spans the full screen
+// width, past the dialog's padding.
+export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
+  children?: ReactNode;
 }) {
   return (
     <Box
@@ -84,6 +88,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected 
       >
         <div className="pdfViewer" />
       </Box>
+      {children}
     </Box>
   );
 }
