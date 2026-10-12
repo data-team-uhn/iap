@@ -19,32 +19,45 @@ import { useState } from "react";
 
 import { Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, TextField } from "@mui/material";
 
+import { MARK_KINDS, type MarkKind } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
 type Shown = Omit<PdfViewerProps, "container" | "onClose"> & { inPlace: boolean };
 
-// A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for a
-// quote in it, without a real caller. The titled frame comes from the dashboard. Shown in place, the
-// viewer takes a box below the form, from which it can be popped out. Open shows what the form says
-// then, so editing it does not reopen the document.
+// Whose marks the passages are: one kind for all, or both in turn.
+type MarkedBy = MarkKind | "both";
+
+// A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for
+// passages in it, one per line, without a real caller. The titled frame comes from the dashboard.
+// Shown in place, the viewer takes a box below the form, from which it can be popped out. Open shows
+// what the form says then, so editing it does not reopen the document.
 function PdfViewerTestWidget() {
   const [url, setUrl] = useState("");
   const [page, setPage] = useState("");
-  const [quote, setQuote] = useState("");
-  const [markedBy, setMarkedBy] = useState<PdfViewerProps["markedBy"]>("assistant");
+  const [quotes, setQuotes] = useState("");
+  const [markedBy, setMarkedBy] = useState<MarkedBy>("assistant");
   const [title, setTitle] = useState("");
   const [inPlace, setInPlace] = useState(true);
   const [place, setPlace] = useState<HTMLDivElement | null>(null);
   const [shown, setShown] = useState<Shown | undefined>(undefined);
 
-  const open = () => setShown({
-    url: url.trim(),
-    page: Number(page) > 0 ? Number(page) : undefined,
-    quote: quote.trim(),
-    markedBy,
-    title: title.trim().length > 0 ? title.trim() : undefined,
-    inPlace,
-  });
+  const lines = quotes.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+
+  const open = () => {
+    const firstPage = Number(page) > 0 ? Number(page) : undefined;
+    setShown({
+      url: url.trim(),
+      page: firstPage,
+      marks: lines.map((quote, index) => ({
+        id: `passage-${index + 1}`,
+        quote,
+        page: firstPage,
+        kind: markedBy === "both" ? MARK_KINDS[index % MARK_KINDS.length] : markedBy,
+      })),
+      title: title.trim().length > 0 ? title.trim() : undefined,
+      inPlace,
+    });
+  };
 
   return (
     <>
@@ -65,8 +78,9 @@ function PdfViewerTestWidget() {
         />
         <TextField
           label="Text to find"
-          value={quote}
-          onChange={event => setQuote(event.target.value)}
+          helperText="One passage per line"
+          value={quotes}
+          onChange={event => setQuotes(event.target.value)}
           multiline
           minRows={2}
           fullWidth
@@ -75,11 +89,12 @@ function PdfViewerTestWidget() {
           select
           label="Marked by"
           value={markedBy}
-          onChange={event => setMarkedBy(event.target.value as PdfViewerProps["markedBy"])}
+          onChange={event => setMarkedBy(event.target.value as MarkedBy)}
           fullWidth
         >
           <MenuItem value="assistant">An AI assistant</MenuItem>
           <MenuItem value="annotation">A person</MenuItem>
+          <MenuItem value="both">Both, in turn</MenuItem>
         </TextField>
         <TextField
           label="Title (optional)"
@@ -94,7 +109,7 @@ function PdfViewerTestWidget() {
         <Button
           variant="contained"
           fullWidth
-          disabled={url.trim().length === 0 || quote.trim().length === 0}
+          disabled={url.trim().length === 0 || lines.length === 0}
           onClick={open}
         >
           Open
@@ -105,8 +120,7 @@ function PdfViewerTestWidget() {
         <PdfViewer
           url={shown.url}
           page={shown.page}
-          quote={shown.quote}
-          markedBy={shown.markedBy}
+          marks={shown.marks}
           title={shown.title}
           container={shown.inPlace ? place : undefined}
           onClose={() => setShown(undefined)}
