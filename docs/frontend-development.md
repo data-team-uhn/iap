@@ -238,7 +238,9 @@ Offsets are into a page's text as PDF.js reads it for its text layer (`getTextCo
 `disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
 `usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
 them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
-passage as shown (`getPassageText`) puts a space there.
+passage as shown (`getPassageText`) puts a space there. Text selected in the text layers maps back to
+the same offsets: `getSelectedSpans` gives what a range selects as a span on each page it selects text
+of, without the spaces at either end.
 
 A `TextAnchor` keeps a passage the way the W3C's position and quote selectors do: where it starts and
 where it ends, each a `page` and a `char` offset into that page's text; what it says (`quote`); and up to
