@@ -25,6 +25,7 @@ import {
   orderMarks,
   type Mark,
   type MarkSpan,
+  type TextAnchor,
 } from "@iap/frontend-commons/pdfViewer/marksModel";
 
 const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
@@ -35,6 +36,11 @@ function mark(page?: number, quote = QUOTE): Mark {
 
 function placed(...spans: MarkSpan[]): Mark {
   return { id: "m", spans, kind: "annotation" };
+}
+
+function anchored(anchor: Partial<TextAnchor>): Mark {
+  const start = { page: 1, char: 0 };
+  return { id: "m", anchor: { start, end: start, quote: "", before: "", after: "", ...anchor }, kind: "annotation" };
 }
 
 // The place of the one mark, after reading the pages given, by page number, each line of a page ending
@@ -200,12 +206,110 @@ describe("MarkLocator, for a mark placed by its spans", () => {
   });
 });
 
+describe("MarkLocator, for a mark kept as an anchor", () => {
+  const PAGES = {
+    1: "The memo covers new volunteers. Volunteers who, on a casual basis,",
+    2: "assist from time to time. They may require a check. Volunteers must apply.",
+    3: "Again: volunteers must apply in person. Then volunteers must apply online.",
+  };
+  const at = (page: number, char: number) => ({ page, char });
+  const APPLY = PAGES[3].indexOf("volunteers must apply online");
+
+  it("places it where it says, as soon as its pages are read, while the text there still says its quote", () => {
+    const anchor = { start: at(2, 26), end: at(2, 51), quote: "They may require a check." };
+
+    expect(placeAfter({ 2: PAGES[2] }, 3, anchored(anchor)))
+      .toEqual({ status: "found", page: 2, spans: [ { page: 2, start: 26, end: 51 } ], text: anchor.quote });
+  });
+
+  it("compares its quote with the text there as quotes are compared, ignoring spacing and case", () => {
+    const anchor = { start: at(2, 26), end: at(2, 51), quote: "they  may require a CHECK." };
+
+    expect(placeAfter({ 2: PAGES[2] }, 3, anchored(anchor))).toMatchObject({ status: "found", page: 2 });
+  });
+
+  it("places it over every page between where it starts and where it ends", () => {
+    const anchor = { start: at(1, 32), end: at(2, 25), quote: QUOTE };
+
+    expect(placeAfter(PAGES, 3, anchored(anchor))).toMatchObject({
+      status: "found",
+      page: 1,
+      toPage: 2,
+      spans: [ { page: 1, start: 32, end: PAGES[1].length }, { page: 2, start: 0, end: 25 } ],
+    });
+  });
+
+  it("waits for every page when the text where it says no longer says its quote", () => {
+    const anchor = { start: at(2, 0), end: at(2, 10), quote: "Volunteers must apply in person." };
+
+    expect(placeAfter({ 2: PAGES[2] }, 3, anchored(anchor))).toEqual({ status: "searching" });
+    expect(new MarkLocator([ anchored(anchor) ]).getPlaces().m).toEqual({ status: "searching" });
+  });
+
+  it("finds its quote again elsewhere when the text where it says has moved", () => {
+    const anchor = { start: at(1, 0), end: at(1, 10), quote: "volunteers must apply in person" };
+
+    expect(placeAfter(PAGES, 3, anchored(anchor)))
+      .toMatchObject({ status: "found", page: 3, text: "volunteers must apply in person" });
+  });
+
+  it("chooses the occurrence with the text around it most like what was around it", () => {
+    const quote = "volunteers must apply";
+    const anchor = (before: string, after: string) => (
+      anchored({ start: at(9, 0), end: at(9, 5), quote, before, after })
+    );
+
+    expect(placeAfter(PAGES, 3, anchor("Then", "online."))).toMatchObject({ page: 3, spans: [ { start: APPLY } ] });
+    expect(placeAfter(PAGES, 3, anchor("a check. ", ""))).toMatchObject({ page: 2 });
+    expect(placeAfter(PAGES, 3, anchor("", " in person"))).toMatchObject({ page: 3, spans: [ { start: 7 } ] });
+  });
+
+  it("chooses the occurrence nearest its page when the text around them is as like", () => {
+    const quote = "volunteers must apply";
+
+    expect(placeAfter(PAGES, 3, anchored({ start: at(3, 0), end: at(3, 1), quote })))
+      .toMatchObject({ page: 3, spans: [ { start: 7 } ] });
+    expect(placeAfter(PAGES, 3, anchored({ start: at(1, 0), end: at(1, 1), quote }))).toMatchObject({ page: 2 });
+  });
+
+  it("finds its quote again across a page break", () => {
+    const anchor = { start: at(3, 0), end: at(3, 1), quote: QUOTE };
+
+    expect(placeAfter(PAGES, 3, anchored(anchor))).toMatchObject({ page: 1, toPage: 2 });
+  });
+
+  it("finds a quote too short to trust again only where some of the text around it is the same", () => {
+    const short = (before: string) => anchored({ start: at(9, 0), end: at(9, 1), quote: "Then", before });
+
+    expect(placeAfter(PAGES, 3, short("in person. ")))
+      .toMatchObject({ page: 3, spans: [ { start: PAGES[3].indexOf("Then") } ] });
+    expect(placeAfter(PAGES, 3, short("Nothing like it"))).toEqual({ status: "notFound" });
+  });
+
+  it("says it is not in the document when its quote is nowhere, or says nothing", () => {
+    expect(placeAfter(PAGES, 3, anchored({ quote: "A sentence that is nowhere at all." })))
+      .toEqual({ status: "notFound" });
+    expect(placeAfter(PAGES, 3, anchored({ quote: " " }))).toEqual({ status: "notFound" });
+    expect(placeAfter({ 1: "", 2: "" }, 2, anchored({ quote: "Anything at all." }))).toEqual({ status: "noText" });
+  });
+
+  it("does not take points that run backwards, or past their page's text, as where it is", () => {
+    const quote = "They may require a check.";
+
+    expect(placeAfter(PAGES, 3, anchored({ start: at(2, 51), end: at(2, 26), quote }))).toMatchObject({ page: 2 });
+    expect(placeAfter(PAGES, 3, anchored({ start: at(3, 1), end: at(2, 26), quote }))).toMatchObject({ page: 2 });
+    expect(placeAfter(PAGES, 3, anchored({ start: at(2, 26), end: at(2, 999), quote }))).toMatchObject({ page: 2 });
+    expect(placeAfter(PAGES, 3, anchored({ start: at(2, 0.5), end: at(2, 26), quote }))).toMatchObject({ page: 2 });
+  });
+});
+
 describe("getMarkPage", () => {
   it("is the page a quote is looked for from, or the first a mark placed by its spans is on", () => {
     expect(getMarkPage(mark(4))).toBe(4);
     expect(getMarkPage(mark())).toBeUndefined();
     expect(getMarkPage(placed({ page: 3, start: 0, end: 1 }, { page: 4, start: 0, end: 1 }))).toBe(3);
     expect(getMarkPage(placed())).toBeUndefined();
+    expect(getMarkPage(anchored({ start: { page: 2, char: 0 } }))).toBe(2);
   });
 });
 
@@ -219,6 +323,12 @@ describe("getMarkText", () => {
     expect(getMarkText(given, { status: "searching" })).toBeUndefined();
     expect(getMarkText(given, { status: "found", page: 1, spans: [], text: "Cover" })).toBe("Cover");
   });
+
+  it("is the quote an anchor keeps, wherever it is found", () => {
+    const given = anchored({ quote: "Cover page" });
+    expect(getMarkText(given, { status: "searching" })).toBe("Cover page");
+    expect(getMarkText(given, { status: "found", page: 1, spans: [], text: "cover  page" })).toBe("Cover page");
+  });
 });
 
 describe("getPlacedPages", () => {
@@ -229,7 +339,18 @@ describe("getPlacedPages", () => {
       { ...placed({ page: 3, start: 4, end: 5 }), id: "n" },
     ];
 
-    expect(getPlacedPages(marks)).toEqual([ 2, 3 ]);
+    expect(getPlacedPages(marks, 5)).toEqual([ 2, 3 ]);
+  });
+
+  it("lists every page an anchor runs over, within the document", () => {
+    const at = (page: number, char = 0) => ({ page, char });
+    const marks = [
+      anchored({ start: at(2), end: at(4) }),
+      { ...anchored({ start: at(5), end: at(1e9) }), id: "n" },
+      { ...placed({ page: 0, start: 0, end: 1 }, { page: 9, start: 0, end: 1 }), id: "o" },
+    ];
+
+    expect(getPlacedPages(marks, 6)).toEqual([ 2, 3, 4, 5, 6 ]);
   });
 });
 
@@ -269,5 +390,14 @@ describe("getMarksKey", () => {
 
     expect(getMarksKey([ carrying ])).toBe(getMarksKey([ at(5) ]));
     expect(getMarksKey([ at(6) ])).not.toBe(getMarksKey([ at(5) ]));
+  });
+
+  it("changes with any part of an anchor", () => {
+    const anchor = { start: { page: 1, char: 0 }, end: { page: 1, char: 5 }, quote: "Cover", before: "", after: "p" };
+    const key = getMarksKey([ anchored(anchor) ]);
+
+    expect(getMarksKey([ anchored({ ...anchor, start: { page: 1, char: 0 } }) ])).toBe(key);
+    expect(getMarksKey([ anchored({ ...anchor, end: { page: 1, char: 6 } }) ])).not.toBe(key);
+    expect(getMarksKey([ anchored({ ...anchor, after: "pa" }) ])).not.toBe(key);
   });
 });

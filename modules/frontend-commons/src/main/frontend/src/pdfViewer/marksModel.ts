@@ -15,7 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { findQuote, findQuoteAcrossPages, getSearchText, unquote, type QuoteMatch } from "./quoteMatch";
+import {
+  findQuote,
+  findQuoteAcrossPages,
+  getComparedText,
+  getSearchText,
+  unquote,
+  type QuoteMatch,
+} from "./quoteMatch";
 
 export const MARK_KINDS = [ "assistant", "annotation" ] as const;
 
@@ -47,7 +54,30 @@ export interface PlacedMark extends MarkBase {
   spans: MarkSpan[];
 }
 
-export type Mark = QuotedMark | PlacedMark;
+// A point in a page's text, before the character at an offset.
+export interface TextPoint {
+  page: number;
+  char: number;
+}
+
+// A passage kept so that it can be found again, as the W3C's position and quote selectors keep one: where
+// it starts and ends, what it says, and some of the text before and after it on its pages.
+export interface TextAnchor {
+  start: TextPoint;
+  end: TextPoint;
+  quote: string;
+  before: string;
+  after: string;
+}
+
+// A passage kept as an anchor, such as one a person selected to comment on. It is placed where the anchor
+// says while the text there still says its quote, and otherwise where its quote is found with the text
+// most like what was around it.
+export interface AnchoredMark extends MarkBase {
+  anchor: TextAnchor;
+}
+
+export type Mark = QuotedMark | PlacedMark | AnchoredMark;
 
 // A page's text as PDF.js reads it for its text layer, and the offsets where its lines end, which the
 // text layer breaks with elements of its own rather than with characters.
@@ -87,15 +117,79 @@ export function getPassageText({ text, lineEnds }: PageText, start: number, end:
 
 // The page a mark is on, or looked for from.
 export function getMarkPage(mark: Mark): number | undefined {
+  if ("anchor" in mark) {
+    return mark.anchor.start.page;
+  }
   return "spans" in mark ? mark.spans.at(0)?.page : mark.page;
 }
 
-// What a mark's passage says: the quote given, or, for a mark placed by its spans, the text found there.
+// What a mark's passage says: the quote given, or kept with its anchor, or, for a mark placed by its
+// spans, the text found there.
 export function getMarkText(mark: Mark, place: MarkPlace): string | undefined {
+  if ("anchor" in mark) {
+    return mark.anchor.quote;
+  }
   if ("quote" in mark) {
     return unquote(mark.quote);
   }
   return place.status === "found" ? place.text : undefined;
+}
+
+// The pages from one to another, within the document's.
+function pagesBetween(from: number, to: number, pageCount: number): number[] {
+  const first = Math.max(1, from);
+  return Array.from({ length: Math.max(0, Math.min(to, pageCount) - first + 1) }, (_, index) => first + index);
+}
+
+// The spans from one point to another, over the pages between them, given their text, or none if they do
+// not fit it.
+function getSpansBetween(start: TextPoint, end: TextPoint, pages: PageText[]): SpanOnPage[] | undefined {
+  if (start.page > end.page || ![ start.page, end.page, start.char, end.char ].every(Number.isInteger)) {
+    return undefined;
+  }
+  const read = pages.map((page, index) => {
+    const on = start.page + index;
+    const from = on === start.page ? start.char : 0;
+    const to = on === end.page ? end.char : page.text.length;
+    return { span: { page: on, start: from, end: to }, page };
+  });
+  const fits = read.every(({ span, page }) => (
+    span.start >= 0 && span.start <= span.end && span.end <= page.text.length
+  ));
+  return fits ? read : undefined;
+}
+
+// The text spans cover, as it reads.
+function getTextOf(read: SpanOnPage[]): string {
+  return read
+    .map(({ span: { start, end }, page }) => getPassageText(page, start, end))
+    .filter(part => part !== "")
+    .join(" ");
+}
+
+// Where an anchor's quote occurs, and how much of what was before and after it is still there.
+interface Candidate {
+  read: SpanOnPage[];
+  likeness: number;
+}
+
+// How much of what was before and after a passage is still there, in compared characters.
+function getContextLikeness(
+  { before, after }: TextAnchor,
+  textBefore: string,
+  textAfter: string,
+): number {
+  const was = { before: getComparedText(before), after: getComparedText(after) };
+  const is = { before: getComparedText(textBefore), after: getComparedText(textAfter) };
+  let sameBefore = 0;
+  while (sameBefore < was.before.length && was.before.at(-1 - sameBefore) === is.before.at(-1 - sameBefore)) {
+    sameBefore++;
+  }
+  let sameAfter = 0;
+  while (sameAfter < was.after.length && was.after[sameAfter] === is.after[sameAfter]) {
+    sameAfter++;
+  }
+  return sameBefore + sameAfter;
 }
 
 export class MarkLocator {
@@ -157,6 +251,9 @@ export class MarkLocator {
     if ("spans" in mark) {
       return this.#getPlaceOf(mark.spans);
     }
+    if ("anchor" in mark) {
+      return this.#getAnchoredPlace(mark.anchor);
+    }
     const searchText = this.#searchTexts.get(mark.id);
     if (searchText === undefined) {
       return { status: "tooShort" };
@@ -203,16 +300,79 @@ export class MarkLocator {
     return fits ? this.#found(read) : { status: "notFound" };
   }
 
+  // Where the anchor says, as soon as its pages are read, if the text there still says its quote, or
+  // else, once every page is read, the occurrence of its quote with the text around it most like what was
+  // around it, whole on a page rather than across a break, and nearest its page. A quote too short to
+  // trust needs some of that text to be the same.
+  #getAnchoredPlace(anchor: TextAnchor): MarkPlace {
+    const { start, end, quote } = anchor;
+    const searchText = getComparedText(quote);
+    if (searchText === "") {
+      return { status: "notFound" };
+    }
+    const inDocument = start.page >= 1 && end.page <= this.#pageCount;
+    const pages = inDocument
+      ? pagesBetween(start.page, end.page, this.#pageCount).map(page => this.#texts.get(page))
+      : [];
+    if (inDocument && pages.every((page): page is PageText => page !== undefined)) {
+      const read = getSpansBetween(start, end, pages);
+      if (read !== undefined && getComparedText(getTextOf(read)) === searchText) {
+        return this.#found(read);
+      }
+    }
+    if (this.#pageCount === 0 || this.#texts.size < this.#pageCount) {
+      return { status: "searching" };
+    }
+    const trusted = getSearchText(quote) !== undefined;
+    const distance = ({ read }: Candidate) => Math.abs(read[0].span.page - start.page);
+    const best = this.#findAll(searchText, anchor)
+      .filter(({ likeness }) => trusted || likeness > 0)
+      .sort((one: Candidate, other: Candidate) => (
+        other.likeness - one.likeness || one.read.length - other.read.length || distance(one) - distance(other)
+      ))
+      .at(0);
+    if (best !== undefined) {
+      return this.#found(best.read);
+    }
+    return { status: this.#hasText ? "notFound" : "noText" };
+  }
+
+  // Every occurrence of a quote, whole on a page or across a page break, in page order, with how like the
+  // anchor's the text around it is.
+  #findAll(searchText: string, anchor: TextAnchor): Candidate[] {
+    const around = (anchor.before.length + anchor.after.length) * 2;
+    const before = ({ text }: PageText, at: number) => text.slice(Math.max(0, at - around), at);
+    const after = ({ text }: PageText, at: number) => text.slice(at, at + around);
+    const pages = [ ...this.#texts ].sort(([ one ], [ other ]) => one - other);
+    return pages.flatMap(([ number, page ]) => {
+      const whole = findQuote(page.text, searchText).map(match => {
+        const span = toSpan(number, match);
+        const likeness = getContextLikeness(anchor, before(page, span.start), after(page, span.end));
+        return { read: [ { span, page } ], likeness };
+      });
+      const next = this.#texts.get(number + 1);
+      if (next === undefined) {
+        return whole;
+      }
+      const across = findQuoteAcrossPages(page.text, next.text, searchText);
+      if (across === undefined) {
+        return whole;
+      }
+      const read = [
+        { span: toSpan(number, across.first), page },
+        { span: toSpan(number + 1, across.next), page: next },
+      ];
+      const likeness = getContextLikeness(anchor, before(page, read[0].span.start), after(next, read[1].span.end));
+      return [ ...whole, { read, likeness } ];
+    });
+  }
+
   #found(read: SpanOnPage[]): MarkPlace {
     const spans = read.map(({ span }) => span);
     const pages = spans.map(({ page }) => page);
     const page = Math.min(...pages);
     const toPage = Math.max(...pages);
-    const text = read
-      .map(({ span: { start, end }, page: on }) => getPassageText(on, start, end))
-      .filter(part => part !== "")
-      .join(" ");
-    return { status: "found", page, ...(toPage === page ? {} : { toPage }), spans, text };
+    return { status: "found", page, ...(toPage === page ? {} : { toPage }), spans, text: getTextOf(read) };
   }
 
   #searchOrder(from: number | undefined): number[] {
@@ -237,13 +397,27 @@ export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Ma
 // What the marks are, the same for marks that are equal but other objects, as a caller passing them
 // written in place gives on every render.
 export function getMarksKey(marks: Mark[]): string {
-  return JSON.stringify(marks.map(mark => ("spans" in mark
-    ? { id: mark.id, kind: mark.kind, spans: mark.spans.map(({ page, start, end }) => ({ page, start, end })) }
-    : { id: mark.id, quote: mark.quote, page: mark.page, kind: mark.kind })));
+  return JSON.stringify(marks.map(mark => {
+    const { id, kind } = mark;
+    if ("anchor" in mark) {
+      const { start, end, quote, before, after } = mark.anchor;
+      const point = ({ page, char }: TextPoint) => ({ page, char });
+      return { id, kind, anchor: { start: point(start), end: point(end), quote, before, after } };
+    }
+    return "spans" in mark
+      ? { id, kind, spans: mark.spans.map(({ page, start, end }) => ({ page, start, end })) }
+      : { id, quote: mark.quote, page: mark.page, kind };
+  }));
 }
 
-// The pages to read first, as the only ones marks placed by their spans need, in order.
-export function getPlacedPages(marks: Mark[]): number[] {
-  const pages = new Set(marks.flatMap(mark => ("spans" in mark ? mark.spans.map(({ page }) => page) : [])));
+// The pages of the document to read first, as the only ones marks placed by their spans or kept as
+// anchors need, in order.
+export function getPlacedPages(marks: Mark[], pageCount: number): number[] {
+  const pages = new Set(marks.flatMap(mark => {
+    if ("anchor" in mark) {
+      return pagesBetween(mark.anchor.start.page, mark.anchor.end.page, pageCount);
+    }
+    return "spans" in mark ? mark.spans.map(({ page }) => page).filter(page => page >= 1 && page <= pageCount) : [];
+  }));
   return [ ...pages ].sort((one, other) => one - other);
 }
