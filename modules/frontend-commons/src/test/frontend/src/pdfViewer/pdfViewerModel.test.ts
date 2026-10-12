@@ -21,35 +21,9 @@ import {
   getFileName,
   getPassageNote,
   getPassageStatus,
-  INITIAL_VIEWER_STATE,
-  reduceViewerState,
-  type ViewerState,
 } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
-
-function opened(state: ViewerState, page = 1): ViewerState {
-  return reduceViewerState(state, { type: "opened", pageCount: 3, page });
-}
-
-describe("reduceViewerState", () => {
-  it("records the document's pages and the page it opened at", () => {
-    expect(opened(INITIAL_VIEWER_STATE, 2)).toMatchObject({ pageCount: 3, page: 2 });
-  });
-
-  it("records why the document could not be opened, and clears it on a retry", () => {
-    const failed = reduceViewerState(INITIAL_VIEWER_STATE, { type: "openFailed", message: "Gone." });
-    expect(failed.openError).toBe("Gone.");
-
-    const retried = reduceViewerState(failed, { type: "retry" });
-    expect(retried.openError).toBeUndefined();
-    expect(retried.attempt).toBe(1);
-  });
-
-  it("follows the page shown", () => {
-    expect(reduceViewerState(opened(INITIAL_VIEWER_STATE), { type: "paged", page: 3 }).page).toBe(3);
-  });
-});
 
 describe("describeOpenFailure", () => {
   function pdfjsError(name: string, message: string): Error {
@@ -120,15 +94,14 @@ function found(page: number, toPage?: number): MarkPlace {
 }
 
 describe("getPassageNote", () => {
-  const onPage2 = opened(INITIAL_VIEWER_STATE, 2);
+  const onPage2 = { page: 2 };
 
   it("says the document is opening", () => {
-    expect(getPassageNote(INITIAL_VIEWER_STATE, SEARCHING)).toEqual({ text: "opening the document…", short: "…" });
+    expect(getPassageNote({}, SEARCHING)).toEqual({ text: "opening the document…", short: "…" });
   });
 
   it("says nothing when the document could not be opened", () => {
-    const failed = reduceViewerState(INITIAL_VIEWER_STATE, { type: "openFailed", message: "Gone." });
-    expect(getPassageNote(failed, SEARCHING)).toBeUndefined();
+    expect(getPassageNote({ openError: "Gone." }, SEARCHING)).toBeUndefined();
   });
 
   it("says the passage is being looked for", () => {
@@ -152,23 +125,23 @@ describe("getPassageNote", () => {
 
   it("says which pages a passage broken across two was found on, and whether one is the one shown", () => {
     expect(getPassageNote(onPage2, found(2, 3))).toEqual({ foundOnPage: 2, toPage: 3, shown: true });
-    expect(getPassageNote(reduceViewerState(onPage2, { type: "paged", page: 3 }), found(2, 3)))
+    expect(getPassageNote({ page: 3 }, found(2, 3)))
       .toEqual({ foundOnPage: 2, toPage: 3, shown: true });
-    expect(getPassageNote(reduceViewerState(onPage2, { type: "paged", page: 1 }), found(2, 3)))
+    expect(getPassageNote({ page: 1 }, found(2, 3)))
       .toEqual({ foundOnPage: 2, toPage: 3, shown: false });
   });
 
   it("says which page the passage was found on, and whether it is the one shown", () => {
     expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true });
-    expect(getPassageNote(reduceViewerState(onPage2, { type: "paged", page: 3 }), found(2)))
+    expect(getPassageNote({ page: 3 }, found(2)))
       .toEqual({ foundOnPage: 2, shown: false });
   });
 });
 
 describe("getPassageStatus", () => {
   it("says what is happening in sentences of its own", () => {
-    const onPage2 = opened(INITIAL_VIEWER_STATE, 2);
-    expect(getPassageStatus(INITIAL_VIEWER_STATE, SEARCHING)).toBe("Opening the document…");
+    const onPage2 = { page: 2 };
+    expect(getPassageStatus({}, SEARCHING)).toBe("Opening the document…");
     expect(getPassageStatus(onPage2, SEARCHING)).toBe("Looking for the passage…");
     expect(getPassageStatus(onPage2, { status: "tooShort" })).toBe("The passage is too short to look for.");
     expect(getPassageStatus(onPage2, { status: "notFound" })).toBe("The passage is not in this document.");
@@ -178,11 +151,10 @@ describe("getPassageStatus", () => {
   });
 
   it("says nothing when the document could not be opened", () => {
-    const failed = reduceViewerState(INITIAL_VIEWER_STATE, { type: "openFailed", message: "Gone." });
-    expect(getPassageStatus(failed, SEARCHING)).toBe("");
+    expect(getPassageStatus({ openError: "Gone." }, SEARCHING)).toBe("");
   });
 
   it("says the document is opening even for a passage too short to look for", () => {
-    expect(getPassageStatus(INITIAL_VIEWER_STATE, { status: "tooShort" })).toBe("Opening the document…");
+    expect(getPassageStatus({}, { status: "tooShort" })).toBe("Opening the document…");
   });
 });
