@@ -48,9 +48,14 @@ export function unquote(quote: string): string {
   return quote.replace(SURROUNDING_QUOTES, "");
 }
 
+// The text in the form findQuote compares.
+export function getComparedText(text: string): string {
+  return readText(text).text;
+}
+
 // The quote in the form findQuote compares, or undefined when it is too short to trust.
 export function getSearchText(quote: string): string | undefined {
-  const { text } = readText(unquote(quote));
+  const text = getComparedText(unquote(quote));
   return text.length < MIN_QUOTE_LENGTH ? undefined : text;
 }
 
