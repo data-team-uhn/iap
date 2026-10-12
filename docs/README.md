@@ -14,6 +14,10 @@ every structural decision follows from: everything the platform knows is content
 that changes it is a workflow. The pages below each go one mechanism deep; this one explains what
 they have in common.
 
+**[bpmn-primer.md](bpmn-primer.md)** — for whoever writes a process down rather than code: what a
+workflow and an instance are, the handful of BPMN shapes that carry almost every diagram, and the
+traps worth avoiding. No programming involved.
+
 ## Writing code
 
 The conventions a contribution is expected to follow, and the traps worth knowing before hitting
