@@ -21,34 +21,11 @@ import { describeRequestFailure } from "../requestFailure";
 
 import type { MarkPlace } from "./marksModel";
 
-export interface ViewerState {
-  // Why the document could not be opened, in the user's words. Cleared by a retry.
+// What the passage's note depends on, besides where the passage is: why the document could not be
+// opened, if it could not, and the page shown once it is.
+export interface ViewerStatus {
   openError?: string;
-  // Counts the retries, so the document is opened again.
-  attempt: number;
-  pageCount?: number;
   page?: number;
-}
-
-export type ViewerAction =
-  | { type: "opened"; pageCount: number; page: number }
-  | { type: "openFailed"; message: string }
-  | { type: "retry" }
-  | { type: "paged"; page: number };
-
-export const INITIAL_VIEWER_STATE: ViewerState = { attempt: 0 };
-
-export function reduceViewerState(state: ViewerState, action: ViewerAction): ViewerState {
-  switch (action.type) {
-    case "opened":
-      return { ...state, pageCount: action.pageCount, page: action.page };
-    case "openFailed":
-      return { ...state, openError: action.message };
-    case "retry":
-      return { ...state, openError: undefined, attempt: state.attempt + 1 };
-    case "paged":
-      return { ...state, page: action.page };
-  }
 }
 
 // Why the document could not be opened, in the person's words.
@@ -87,9 +64,8 @@ export type PassageNote =
   | { text: string; short: string; failed?: boolean }
   | { foundOnPage: number; toPage?: number; shown: boolean };
 
-export function getPassageNote(state: ViewerState, place: MarkPlace): PassageNote | undefined {
-  const { page } = state;
-  if (state.openError !== undefined) {
+export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPlace): PassageNote | undefined {
+  if (openError !== undefined) {
     return undefined;
   }
   if (page === undefined) {
@@ -111,9 +87,8 @@ export function getPassageNote(state: ViewerState, place: MarkPlace): PassageNot
 
 // How the search went, as a sentence for a screen reader to announce apart from the passage. Empty
 // when the open failed.
-export function getPassageStatus(state: ViewerState, place: MarkPlace): string {
-  const { page } = state;
-  if (state.openError !== undefined) {
+export function getPassageStatus({ openError, page }: ViewerStatus, place: MarkPlace): string {
+  if (openError !== undefined) {
     return "";
   }
   if (page === undefined) {
