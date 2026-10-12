@@ -17,7 +17,7 @@
  */
 import { Box } from "@mui/material";
 
-import { MARK_CLASS } from "./markLayer";
+import { MARK_CLASS, OVER_MARK_CLASS } from "./markLayer";
 import { MARK_KINDS } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
@@ -25,21 +25,26 @@ import type { Theme } from "@mui/material/styles";
 // Enough page to read, even when a long quote takes most of the viewer.
 const MIN_FRAME_HEIGHT = 200;
 
-// Each kind of mark in its highlight colour, and in a deeper one when selected.
-function markColours(theme: Theme) {
-  const { highlight } = (theme.vars ?? theme).palette;
+// Each kind of mark in its highlight colour, and in a deeper one when selected, outlined among others.
+function markColours(theme: Theme, outlineSelected: boolean) {
+  const { palette } = theme.vars ?? theme;
   return Object.fromEntries(MARK_KINDS.flatMap(kind => [
-    [ `& .${MARK_CLASS}-${kind}`, { bgcolor: highlight[kind] } ],
-    [ `& .${MARK_CLASS}-${kind}.selected`, { bgcolor: highlight[`${kind}Current`] } ],
+    [ `& .${MARK_CLASS}-${kind}`, { bgcolor: palette.highlight[kind] } ],
+    [ `& .${MARK_CLASS}-${kind}.selected`, {
+      bgcolor: palette.highlight[`${kind}Current`],
+      ...outlineSelected ? { outline: `2px solid ${palette[kind].main}` } : {},
+    } ],
   ]));
 }
 
 // The frame PDF.js shows the document in, filling the room left to it. PDF.js needs its scrolling
 // container absolutely positioned, so the outer box gives it the room. In the dialog on a phone, the
 // document spans the full screen width, past the dialog's padding.
-export default function PdfDocumentView({ setFrame, edgeToEdge }: {
+export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
+  // Whether the selected mark stands out from others by an outline too.
+  outlineSelected: boolean;
 }) {
   return (
     <Box
@@ -66,7 +71,9 @@ export default function PdfDocumentView({ setFrame, edgeToEdge }: {
           // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
           "& .textLayer": { mixBlendMode: "multiply" },
           [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
-          ...markColours(theme),
+          ...markColours(theme, outlineSelected),
+          // A mark is clicked through the text over it, which the pointer shows.
+          [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
         })}
       >
         <div className="pdfViewer" />

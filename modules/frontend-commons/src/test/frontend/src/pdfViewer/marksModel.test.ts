@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { MarkLocator, type Mark } from "@iap/frontend-commons/pdfViewer/marksModel";
+import { getMarksKey, MarkLocator, orderMarks, type Mark } from "@iap/frontend-commons/pdfViewer/marksModel";
 
 const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
 
@@ -107,5 +107,35 @@ describe("MarkLocator", () => {
     locator.addPage(2, "They may require a check.");
 
     expect(locator.getPlaces()).toMatchObject({ m: { page: 1 }, n: { page: 2 } });
+  });
+});
+
+describe("orderMarks", () => {
+  const marks = [ "a", "b", "c", "d", "e" ].map(id => ({ ...mark(), id }));
+
+  it("keeps the order given, with the passages that cannot be marked after the others", () => {
+    const ordered = orderMarks(marks, {
+      a: { status: "notFound" },
+      b: { status: "found", page: 3, spans: [] },
+      c: { status: "tooShort" },
+      d: { status: "searching" },
+      e: { status: "noText" },
+    });
+
+    expect(ordered.map(({ id }) => id)).toEqual([ "b", "d", "a", "c", "e" ]);
+  });
+
+  it("keeps the order given while every passage is still looked for", () => {
+    const searching = Object.fromEntries(marks.map(({ id }) => [ id, { status: "searching" } as const ]));
+    expect(orderMarks(marks, searching).map(({ id }) => id)).toEqual([ "a", "b", "c", "d", "e" ]);
+  });
+});
+
+describe("getMarksKey", () => {
+  it("is the same for equal marks, and changes with what is marked", () => {
+    const marks = [ mark(2), { id: "n", quote: "They may require a check.", kind: "annotation" as const } ];
+
+    expect(getMarksKey(marks.map(each => ({ ...each })))).toBe(getMarksKey(marks));
+    expect(getMarksKey([ { ...marks[0], page: 3 }, marks[1] ])).not.toBe(getMarksKey(marks));
   });
 });

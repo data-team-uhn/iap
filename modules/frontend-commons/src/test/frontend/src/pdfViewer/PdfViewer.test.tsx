@@ -15,13 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { OVER_MARK_CLASS } from "@iap/frontend-commons/pdfViewer/markLayer";
+import type { Mark, MarkKind } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
 import {
@@ -50,16 +52,23 @@ function withTheme(element: ReactElement): ReactElement {
   return <ThemeProvider theme={appTheme} defaultMode="light">{element}</ThemeProvider>;
 }
 
-function show(props: Partial<PdfViewerProps> = {}) {
+// One passage, as evidence shows it: a quote marked by whoever found it, looked for from the page
+// the viewer opens at, unless marks are given.
+type ShowProps = Partial<PdfViewerProps> & { quote?: string; markedBy?: MarkKind };
+
+function createViewer({ quote = QUOTE, markedBy = "assistant", ...props }: ShowProps, onClose: () => void) {
+  const page = "page" in props ? props.page : 1;
+  const marks = [ { id: "passage", quote, page, kind: markedBy } ];
+  return withTheme(<PdfViewer url={URL} page={page} marks={marks} onClose={onClose} {...props} />);
+}
+
+function show(props: ShowProps = {}) {
   const onClose = vi.fn();
-  const viewer = <PdfViewer url={URL} page={1} quote={QUOTE} markedBy="assistant" onClose={onClose} {...props} />;
-  const { rerender, unmount } = render(withTheme(viewer));
+  const { rerender, unmount } = render(createViewer(props, onClose));
   return {
     onClose,
     unmount,
-    rerender: (next: Partial<PdfViewerProps>) => rerender(withTheme(
-      <PdfViewer url={URL} page={1} quote={QUOTE} markedBy="assistant" onClose={onClose} {...props} {...next} />,
-    )),
+    rerender: (next: ShowProps) => rerender(createViewer({ ...props, ...next }, onClose)),
   };
 }
 
@@ -208,7 +217,8 @@ describe("PdfViewer", () => {
     it("marks the passage in the colour of whoever marked it", async () => {
       show({ markedBy: "annotation" });
 
-      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ "iap-mark iap-mark-annotation selected" ] }));
+      await waitFor(() => expect(getDrawnMarks(getFrame()))
+        .toEqual({ 2: [ "iap-mark iap-mark-annotation selected" ] }));
     });
 
     it("takes the reader to a passage on a page not drawn yet, and marks it once drawn", async () => {
@@ -703,6 +713,274 @@ describe("PdfViewer", () => {
       await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
       await userEvent.click(screen.getByRole("button", { name: "Close" }));
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe("with no passages", () => {
+    it("shows the document alone", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={[]} onClose={vi.fn()} />));
+
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+      expect(getStatus()).toBeEmptyDOMElement();
+      expect(screen.queryByRole("button", { name: /Show the passage/ })).not.toBeInTheDocument();
+      expect(getDrawnMarks(getFrame())).toEqual({});
+    });
+  });
+
+  describe("with several passages", () => {
+    const TEXTS = [ "The memo, its cover and title.", QUOTE, "The schedule continues for one year." ];
+    const MARKS: Mark[] = [
+      { id: "missing", quote: "A sentence that is nowhere in the document.", kind: "assistant" },
+      { id: "volunteers", quote: TEXTS[1], kind: "assistant" },
+      { id: "schedule", quote: TEXTS[2], kind: "annotation" },
+    ];
+
+    function showMarks(props: Partial<PdfViewerProps> = {}) {
+      const onSelectMark = vi.fn();
+      render(withTheme(<PdfViewer url={URL} marks={MARKS} onSelectMark={onSelectMark} onClose={vi.fn()} {...props} />));
+      return onSelectMark;
+    }
+
+    // Where the fake layout puts every mark, on whichever page
+    const AT_MARK = { clientX: 50, clientY: MATCH_TOP + 10 };
+
+    async function clickMark() {
+      await userEvent.pointer({ keys: "[MouseLeft]", target: getFrame(), coords: AT_MARK });
+    }
+
+    beforeEach(() => {
+      fakePdf.pages = [ ...TEXTS ];
+    });
+
+    describe("in a narrow viewer", () => {
+      it("shows one passage at a time above the document, starting with the first found", async () => {
+        showMarks();
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+        expect(screen.getByText("1 of 3")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Previous passage" })).toBeDisabled();
+        expect(getPassage(`“${QUOTE}”`)).toBeInTheDocument();
+        expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
+        expect(getFrame().scrollTop).toBe(MATCH_TOP);
+        expect(screen.queryByRole("list", { name: "Passages" })).not.toBeInTheDocument();
+      });
+
+      it("steps to the next passage, selecting it and taking the reader to it", async () => {
+        const onSelectMark = showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+
+        expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3.");
+        expect(onSelectMark).toHaveBeenCalledWith("schedule");
+        expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+        expect(getDrawnMarks(getFrame())).toEqual({
+          2: [ "iap-mark iap-mark-assistant" ],
+          3: [ "iap-mark iap-mark-annotation selected" ],
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Previous passage" }));
+
+        expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
+        expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      });
+
+      it("ends with the passages that cannot be marked", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+
+        expect(getStatus()).toHaveTextContent("Passage 3 of 3 is not in this document.");
+        expect(screen.getByRole("button", { name: "Next passage" })).toBeDisabled();
+      });
+
+      it("opens at the passage the caller selected", async () => {
+        showMarks({ selectedMarkId: "schedule" });
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3."));
+        expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
+      });
+
+      it("selects the first passage found when the one the caller selected is not among them", async () => {
+        showMarks({ selectedMarkId: "removed" });
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+      });
+    });
+
+    describe("in a wide viewer", () => {
+      beforeEach(() => {
+        stubLayout({ elementWidth: 1000 });
+      });
+
+      it("lists the passages beside the document, the ones found taking the reader to them", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
+        expect(passages.map(passage => passage.textContent)).toEqual([
+          `“${QUOTE}”found on page 2`,
+          `“${TEXTS[2]}”found on page 3`,
+          "“A sentence that is nowhere in the document.”not found in this document",
+        ]);
+        expect(screen.getByRole("button", { name: "Show passage 1 on page 2" }))
+          .toHaveAttribute("aria-current", "true");
+        expect(screen.queryByText("1 of 3")).not.toBeInTheDocument();
+      });
+
+      it("selects a passage that was not found, for it to be read whole", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.click(screen.getByRole("button", { name: "Select passage 3" }));
+
+        expect(screen.getByRole("button", { name: "Select passage 3" })).toHaveAttribute("aria-current", "true");
+        expect(getStatus()).toHaveTextContent("Passage 3 of 3 is not in this document.");
+      });
+
+      it("names both pages of a passage broken across them", async () => {
+        fakePdf.pages = [ "The memo. Volunteers who, on a casual basis,", "assist from time to time.", TEXTS[2] ];
+        showMarks();
+
+        expect(await screen.findByRole("button", { name: "Show passage 1 on pages 1 and 2" })).toBeInTheDocument();
+      });
+
+      it("still lists the passages when the document cannot be opened", async () => {
+        stubFetch(404);
+        showMarks();
+
+        expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();
+        const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
+        expect(passages[0]).toHaveTextContent(/^“A sentence that is nowhere in the document\.”$/);
+      });
+
+      it("selects a passage from the list and takes the reader to it", async () => {
+        const onSelectMark = showMarks();
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        await userEvent.click(screen.getByRole("button", { name: "Show passage 2 on page 3" }));
+
+        expect(onSelectMark).toHaveBeenCalledWith("schedule");
+        expect(screen.getByRole("button", { name: "Show passage 2 on page 3" }))
+          .toHaveAttribute("aria-current", "true");
+        expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+        expect(getFrame().scrollTop).toBe(MATCH_TOP);
+      });
+    });
+
+    describe("as the passages and the selection change", () => {
+      it("keeps the view of the document as the selection moves to passages on other pages", async () => {
+        showMarks({ marks: MARKS.map(mark => ({ ...mark, page: mark.id === "schedule" ? 3 : 2 })) });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+
+        expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
+        expect(fakePdf.viewers).toHaveLength(1);
+      });
+
+      it("keeps to the first passage given while it is looked for, even when a later one is found first", async () => {
+        fakePdf.pages = [ TEXTS[2], "Contents.", QUOTE ];
+        showMarks({ marks: [ MARKS[1], MARKS[2] ] });
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 2 is marked on page 3."));
+        expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
+        expect(getFrame().scrollTop).toBe(MATCH_TOP);
+      });
+
+      it("does not look for the passages again when given equal ones", async () => {
+        const onClose = vi.fn();
+        const { rerender } = render(withTheme(<PdfViewer url={URL} marks={[ ...MARKS ]} onClose={onClose} />));
+        await waitFor(() => expect(getDrawnMarks(getFrame())[2]).toHaveLength(1));
+
+        rerender(withTheme(<PdfViewer url={URL} marks={MARKS.map(mark => ({ ...mark }))} onClose={onClose} />));
+
+        expect(fakePdf.textReads).toEqual([ 1, 2, 3 ]);
+        expect(getDrawnMarks(getFrame())[2]).toHaveLength(1);
+      });
+
+      // A caller holding the selection, as a review screen will, selecting what the viewer reports.
+      function Held({ initial, onReport }: { initial: string; onReport: (id: string) => void }) {
+        const [selected, setSelected] = useState(initial);
+        const report = (id: string) => {
+          onReport(id);
+          setSelected(id);
+        };
+        return <PdfViewer url={URL} marks={MARKS} selectedMarkId={selected} onSelectMark={report} onClose={vi.fn()} />;
+      }
+
+      it("takes the reader to a passage the caller selects", async () => {
+        const viewer = (selected: string) => (
+          withTheme(<PdfViewer url={URL} marks={MARKS} selectedMarkId={selected} onClose={vi.fn()} />)
+        );
+        const { rerender } = render(viewer("volunteers"));
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        rerender(viewer("schedule"));
+
+        expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3.");
+        expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+        expect(getFrame().scrollTop).toBe(MATCH_TOP);
+      });
+
+      it("leaves the reader where they are when the caller selects the mark they clicked", async () => {
+        const onReport = vi.fn();
+        render(withTheme(<Held initial="schedule" onReport={onReport} />));
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        // The click falls on the mark drawn first, the one on page 2.
+        await userEvent.pointer({ keys: "[MouseLeft]", target: getFrame(), coords: AT_MARK });
+
+        expect(onReport).toHaveBeenCalledWith("volunteers");
+        expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
+        expect(getFrame().scrollTop).toBe(0);
+      });
+    });
+
+    describe("in the document", () => {
+      it("selects a mark clicked, without moving the reader", async () => {
+        // Selected first, on page 3; the click falls on the mark drawn first, on page 2.
+        const onSelectMark = showMarks({ marks: [ MARKS[2], MARKS[1] ] });
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        await clickMark();
+
+        expect(onSelectMark).toHaveBeenCalledWith("volunteers");
+        expect(getStatus()).toHaveTextContent("Passage 2 of 2 is marked on page 2.");
+        expect(getFrame().scrollTop).toBe(0);
+      });
+
+      it("takes neither a drag nor the end of selecting text for a click on a mark", async () => {
+        const onSelectMark = showMarks({ marks: [ MARKS[2], MARKS[1] ] });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 2 is marked on page 3."));
+
+        await userEvent.pointer([
+          { keys: "[MouseLeft>]", target: getFrame(), coords: { clientX: 0, clientY: MATCH_TOP + 10 } },
+          { coords: { clientX: 50, clientY: MATCH_TOP + 10 } },
+          { keys: "[/MouseLeft]" },
+        ]);
+        vi.spyOn(window, "getSelection").mockReturnValue({ isCollapsed: false } as Selection);
+        await clickMark();
+
+        expect(onSelectMark).not.toHaveBeenCalled();
+      });
+
+      it("shows a pointer over a mark", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.pointer({ target: getFrame(), coords: AT_MARK });
+        expect(getFrame()).toHaveClass(OVER_MARK_CLASS);
+
+        await userEvent.pointer({ target: getFrame(), coords: { clientX: 50, clientY: 10 } });
+        expect(getFrame()).not.toHaveClass(OVER_MARK_CLASS);
+      });
     });
   });
 });
