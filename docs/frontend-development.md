@@ -279,6 +279,21 @@ the viewer just reported doesn't move the reader. `marks` can be a new array on 
 viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
 and only looks for passages again when one of those changes.
 
+A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
+someone has selected text in the document and the selection has settled (the pointer let go of, and
+nothing changing for `SETTLE_TIME`), the viewer offers a Comment button under the end of the selection,
+running towards the side of the document with more room, and kept inside it. When the text was selected
+by touch, the button sits further down, past the phone's handles, and out of the way of its own menu
+above the selection. The button is the same height on every screen, so that it can be tapped anywhere.
+Scrolling puts it away until the document is still again; zooming in PDF.js lets go of the selection
+altogether, so the button goes with it. Escape puts the button away until the selection changes, without
+closing the viewer. Pressing it gives `onAnnotate` the passage selected, as a `TextAnchor`, and lets go
+of the selection, so the mark the caller makes of it shows. Pressing it holds what was selected first,
+as tapping a button clears the selection on some phones, until the pointer is pressed anywhere else.
+What happens next is the caller's to decide, such as adding the passage as a mark and opening a comment
+box for it. Text in a PDF can only be selected with a pointer, so commenting on a passage needs one too.
+`useSelectedText` follows the selection, for a view combining the parts apart.
+
 The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
 and accents. Every match is highlighted, the one shown more deeply; the field says which match is
 shown of how many, and the up and down buttons beside it step through them, wrapping round at the
