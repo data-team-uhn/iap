@@ -872,6 +872,56 @@ describe("PdfViewer", () => {
       });
     });
 
+    describe("with what the caller shows with each passage", () => {
+      // A field to type in, as a comment box is, which cannot go inside the button selecting a passage.
+      const renderMarkDetails = (mark: Mark, selected: boolean) => (
+        <input aria-label={`About ${mark.id}${selected ? ", selected" : ""}`} />
+      );
+
+      it("shows it under each passage listed, saying which is selected", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
+        expect(within(passages[0]).getByRole("textbox", { name: "About volunteers, selected" })).toBeInTheDocument();
+        expect(within(passages[1]).getByRole("textbox", { name: "About schedule" })).toBeInTheDocument();
+        expect(within(passages[0]).getByRole("button", { name: "Show passage 1 on page 2" }))
+          .not.toContainElement(within(passages[0]).getByRole("textbox"));
+      });
+
+      it("keeps each passage listed whole, the list scrolling rather than squeezing them", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        for (const passage of within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem")) {
+          expect(passage).toHaveStyle({ flexShrink: "0" });
+        }
+      });
+
+      it("shows it under the passage on the card above the document in a narrow viewer", async () => {
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        expect(screen.getByRole("textbox", { name: "About volunteers, selected" })).toBeInTheDocument();
+        expect(screen.queryByRole("textbox", { name: /About schedule/ })).not.toBeInTheDocument();
+      });
+
+      it("lets what it shows be typed in without taking the reader anywhere", async () => {
+        stubLayout({ elementWidth: 1000 });
+        const onSelectMark = showMarks({ renderMarkDetails, selectedMarkId: "volunteers" });
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        await userEvent.type(screen.getByRole("textbox", { name: "About schedule" }), "Why?");
+
+        expect(screen.getByRole("textbox", { name: "About schedule" })).toHaveValue("Why?");
+        expect(onSelectMark).not.toHaveBeenCalled();
+        expect(getFrame().scrollTop).toBe(0);
+      });
+    });
+
     describe("as the passages and the selection change", () => {
       it("keeps the view of the document as the selection moves to passages on other pages", async () => {
         showMarks({ marks: MARKS.map(mark => ({ ...mark, page: mark.id === "schedule" ? 3 : 2 })) });
