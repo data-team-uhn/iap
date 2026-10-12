@@ -17,8 +17,10 @@
  */
 import type { MarkPlace } from "@iap/frontend-commons/pdfViewer/marksModel";
 import {
+  COMMENT_BUTTON_HEIGHT,
   describeOpenFailure,
   describePages,
+  getCommentButtonPlace,
   getFileName,
   getPassageNote,
   getPassageStatus,
@@ -194,5 +196,28 @@ describe("getSearchStatus", () => {
     expect(getSearchStatus({ ...counts, outcome: "found" })).toBe("Match 3 of 17.");
     expect(getSearchStatus({ ...counts, outcome: "notFound" })).toBe("No matches in this document.");
     expect(getSearchStatus({ ...counts, outcome: "noText" })).toBe("This document has no text to search.");
+  });
+});
+
+describe("getCommentButtonPlace", () => {
+  const FRAME = { width: 600, height: 800 };
+
+  it("puts the button just under the end of a selection made with a mouse", () => {
+    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, false)).toEqual({ top: 304, left: 200 });
+  });
+
+  it("puts it further under a selection made by touch, past the phone's handles", () => {
+    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, true)).toEqual({ top: 328, left: 200 });
+  });
+
+  it("runs it towards the start of the frame from a selection ending in the frame's second half", () => {
+    expect(getCommentButtonPlace({ x: 450, bottom: 300 }, FRAME, false)).toEqual({ top: 304, right: 150 });
+    expect(getCommentButtonPlace({ x: 300, bottom: 300 }, FRAME, false)).toEqual({ top: 304, left: 300 });
+  });
+
+  it("keeps it inside the frame, whatever part of the selection is out of view", () => {
+    expect(getCommentButtonPlace({ x: 2, bottom: -50 }, FRAME, false)).toEqual({ top: 8, left: 8 });
+    expect(getCommentButtonPlace({ x: 598, bottom: 900 }, FRAME, true))
+      .toEqual({ top: 800 - COMMENT_BUTTON_HEIGHT - 8, right: 8 });
   });
 });
