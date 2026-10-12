@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 import { getAssetURL } from "../assetManager";
+import { centreIn } from "./markLayer";
 
 import type { PDFWorker } from "pdfjs-dist";
+import type { EventBus, PDFLinkService } from "pdfjs-dist/web/pdf_viewer.mjs";
 
 // The PDF.js options naming where to fetch what a document needs but does not carry, such as fonts,
 // and the published package folder for each.
@@ -60,3 +62,26 @@ export async function loadPdfjs() {
 }
 
 export type ViewerComponents = Awaited<ReturnType<typeof loadPdfjs>>["components"];
+
+// PDF.js's search as it comes, except for bringing a match into view by scrolling the frame alone: PDF.js
+// would call scrollIntoView, which on a phone also pans the page, dialog and all.
+export function createFindController(
+  components: ViewerComponents,
+  { container, linkService, eventBus }: { container: HTMLElement; linkService: PDFLinkService; eventBus: EventBus },
+) {
+  class FrameFindController extends components.PDFFindController {
+    override scrollMatchIntoView({ element, pageIndex = -1, matchIndex = -1 }: {
+      element?: HTMLElement | null;
+      pageIndex?: number;
+      matchIndex?: number;
+    }) {
+      const selected = this._selected;
+      if (!this._scrollMatches || !element || pageIndex !== selected?.pageIdx || matchIndex !== selected.matchIdx) {
+        return;
+      }
+      this._scrollMatches = false;
+      centreIn(container, element);
+    }
+  }
+  return new FrameFindController({ linkService, eventBus });
+}
