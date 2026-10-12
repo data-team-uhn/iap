@@ -217,15 +217,17 @@ card per schema, so the card describes its versions.
 ```
 
 Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
-(`annotation`), so it is coloured accordingly. Its place is given in one of two ways:
+(`annotation`), so it is coloured accordingly. Where it is comes in one of three ways:
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
-- `spans`, when its place is known exactly, such as a change between two versions. Each span is a
-  `page` and the `start` and `end` offsets the passage covers in that page's text, one span per page
-  it runs over. A span whose `start` equals its `end` is a point between two characters. The viewer
-  reads the pages a mark's spans are on first, and places the mark without searching. Spans that run
-  backwards or past their page's text are not in the document.
+- `spans`, when its place is known exactly, such as a change between two versions. Each span is a `page` and the `start` and `end` offsets the passage covers in that
+  page's text, one span per page it runs over. A span whose `start` equals its `end` is a point
+  between two characters. The viewer reads the pages a mark's spans are on first, and places the mark
+  without searching. Spans that run backwards or past their page's text are not in the document;
+- an `anchor`, for a passage kept to be shown again, such as one a person selected to comment on. It is
+  placed where it says as soon as its pages are read, while the text there still says its quote, and
+  otherwise found again, as described below.
 
 Offsets are into a page's text as PDF.js reads it for its text layer: the strings `getTextContent`
 gives with `disableNormalization`, joined. That is the text of the layer's own text nodes, and
@@ -233,9 +235,26 @@ gives with `disableNormalization`, joined. That is the text of the layer's own t
 character, so lines run on in this text without a space. `getPageTextWithLines` says where they end,
 and `getPassageText` puts a space there when it shows a passage.
 
+A `TextAnchor` keeps a passage the way the W3C's position and quote selectors do: where it starts and
+where it ends, each a `page` and a `char` offset into that page's text; what it says (`quote`); and up to
+32 characters of the text `before` and `after` it on its pages, as the text reads. `getTextAnchor` makes
+one from the spans of a passage. The offsets are quick to place, but they are only right for the text
+PDF.js reads today: a later PDF.js may read the same file differently. So the quote is what is trusted.
+When the text at the offsets no longer says it, the viewer looks for the quote everywhere, and takes the
+occurrence with the text around it most like what was around it, whole on a page rather than across a
+break, and nearest the anchor's page. A quote too short to trust, such as a single word, is only taken
+where some of that text is still the same.
+
+An anchor is kept as text with what it anchors, such as a review comment. `encodeAnchor` gives it as an
+`EncodedAnchor`, and `decodeAnchor` reads it back. Its `start` and `end` points are each written as
+PDF.js's open parameters and RFC 5147's text fragments write one, `page=3&char=120`, and its `text`, what
+the passage says, as a text fragment directive writes it, without its `text=`: `before-,quote,-after`, each
+part percent-encoded, dashes included. `decodeAnchor` gives nothing for an anchor not kept, or one it
+cannot read.
+
 Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
-itself, leaving PDF.js's own search untouched. A quoted mark is shown with its quote, and a placed
-one with the text its spans cover. Marks let the pointer through, so text can still be selected
+itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
+the quote itself for a quote or an anchor. Marks let the pointer through, so text can still be selected
 across them, and a click is matched to a mark by where it falls.
 
 A single passage is shown on a card above the document. Several passages are listed beside it, in
@@ -255,8 +274,8 @@ the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports eac
 selects through `onSelectMark`. When the caller sets `selectedMarkId` to another mark, the viewer
 selects it and takes the reader to it, as if it had been picked from the list. Echoing back the mark
 the viewer just reported doesn't move the reader. `marks` can be a new array on every render: the
-viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, or `spans`), and only
-looks for passages again when one of those changes.
+viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
+and only looks for passages again when one of those changes.
 
 The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
 and accents. Every match is highlighted, and the one shown more deeply. The field says which match
