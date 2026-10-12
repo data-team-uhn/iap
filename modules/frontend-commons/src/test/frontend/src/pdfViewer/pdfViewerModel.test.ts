@@ -18,6 +18,7 @@
 import type { MarkPlace } from "@iap/frontend-commons/pdfViewer/marksModel";
 import {
   describeOpenFailure,
+  describePages,
   getFileName,
   getPassageNote,
   getPassageStatus,
@@ -92,8 +93,16 @@ describe("getFileName", () => {
 const SEARCHING: MarkPlace = { status: "searching" };
 
 function found(page: number, toPage?: number): MarkPlace {
-  return { status: "found", page, toPage, spans: [] };
+  return { status: "found", page, toPage, spans: [], text: "" };
 }
+
+describe("describePages", () => {
+  it("names the page a passage is on, or the pages it runs over", () => {
+    expect(describePages(3)).toBe("page 3");
+    expect(describePages(3, 4)).toBe("pages 3 and 4");
+    expect(describePages(3, 5)).toBe("pages 3 to 5");
+  });
+});
 
 describe("getPassageNote", () => {
   const onPage2 = { page: 2 };
@@ -133,6 +142,10 @@ describe("getPassageNote", () => {
       .toEqual({ foundOnPage: 2, toPage: 3, shown: false });
   });
 
+  it("counts a page between the first and the last of a passage's as shown", () => {
+    expect(getPassageNote({ page: 4 }, found(3, 5))).toEqual({ foundOnPage: 3, toPage: 5, shown: true });
+  });
+
   it("says which page the passage was found on, and whether it is the one shown", () => {
     expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true });
     expect(getPassageNote({ page: 3 }, found(2)))
@@ -150,6 +163,7 @@ describe("getPassageStatus", () => {
     expect(getPassageStatus(onPage2, { status: "noText" })).toBe("This document has no text to search.");
     expect(getPassageStatus(onPage2, found(3))).toBe("The passage is marked on page 3.");
     expect(getPassageStatus(onPage2, found(2, 3))).toBe("The passage is marked on pages 2 and 3.");
+    expect(getPassageStatus(onPage2, found(2, 4))).toBe("The passage is marked on pages 2 to 4.");
   });
 
   it("names the passage by its place among several", () => {
