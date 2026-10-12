@@ -19,13 +19,7 @@
 import { isNotAuthenticated, SIGNED_OUT_MESSAGE } from "../reLogin";
 import { describeRequestFailure } from "../requestFailure";
 
-export type SearchState =
-  | { status: "searching" }
-  | { status: "tooShort" }
-  // `toPage` is the next page, for a passage that runs across a page break.
-  | { status: "found"; page: number; toPage?: number }
-  | { status: "notFound" }
-  | { status: "noText" };
+import type { MarkPlace } from "./marksModel";
 
 export interface ViewerState {
   // Why the document could not be opened, in the user's words. Cleared by a retry.
@@ -34,19 +28,15 @@ export interface ViewerState {
   attempt: number;
   pageCount?: number;
   page?: number;
-  search: SearchState;
 }
 
 export type ViewerAction =
   | { type: "opened"; pageCount: number; page: number }
   | { type: "openFailed"; message: string }
   | { type: "retry" }
-  | { type: "paged"; page: number }
-  | { type: "searched"; search: SearchState };
+  | { type: "paged"; page: number };
 
-export function createViewerState(canSearch: boolean): ViewerState {
-  return { attempt: 0, search: canSearch ? { status: "searching" } : { status: "tooShort" } };
-}
+export const INITIAL_VIEWER_STATE: ViewerState = { attempt: 0 };
 
 export function reduceViewerState(state: ViewerState, action: ViewerAction): ViewerState {
   switch (action.type) {
@@ -58,8 +48,6 @@ export function reduceViewerState(state: ViewerState, action: ViewerAction): Vie
       return { ...state, openError: undefined, attempt: state.attempt + 1 };
     case "paged":
       return { ...state, page: action.page };
-    case "searched":
-      return { ...state, search: action.search };
   }
 }
 
@@ -99,16 +87,15 @@ export type PassageNote =
   | { text: string; short: string; failed?: boolean }
   | { foundOnPage: number; toPage?: number; shown: boolean };
 
-// Nothing when the open failed, since the error box says it.
-export function getPassageNote(state: ViewerState): PassageNote | undefined {
-  const { page, search } = state;
+export function getPassageNote(state: ViewerState, place: MarkPlace): PassageNote | undefined {
+  const { page } = state;
   if (state.openError !== undefined) {
     return undefined;
   }
   if (page === undefined) {
     return { text: "opening the document…", short: "…" };
   }
-  switch (search.status) {
+  switch (place.status) {
     case "searching":
       return { text: "looking for it…", short: "…" };
     case "tooShort":
@@ -118,21 +105,21 @@ export function getPassageNote(state: ViewerState): PassageNote | undefined {
     case "noText":
       return { text: "this document has no text to search", short: "no text" };
     case "found":
-      return { foundOnPage: search.page, toPage: search.toPage, shown: search.page === page || search.toPage === page };
+      return { foundOnPage: place.page, toPage: place.toPage, shown: place.page === page || place.toPage === page };
   }
 }
 
 // How the search went, as a sentence for a screen reader to announce apart from the passage. Empty
 // when the open failed.
-export function getPassageStatus(state: ViewerState): string {
-  const { page, search } = state;
+export function getPassageStatus(state: ViewerState, place: MarkPlace): string {
+  const { page } = state;
   if (state.openError !== undefined) {
     return "";
   }
   if (page === undefined) {
     return "Opening the document…";
   }
-  switch (search.status) {
+  switch (place.status) {
     case "searching":
       return "Looking for the passage…";
     case "tooShort":
@@ -142,8 +129,8 @@ export function getPassageStatus(state: ViewerState): string {
     case "noText":
       return "This document has no text to search.";
     case "found":
-      return search.toPage === undefined
-        ? `The passage is marked on page ${search.page}.`
-        : `The passage is marked on pages ${search.page} and ${search.toPage}.`;
+      return place.toPage === undefined
+        ? `The passage is marked on page ${place.page}.`
+        : `The passage is marked on pages ${place.page} and ${place.toPage}.`;
   }
 }
