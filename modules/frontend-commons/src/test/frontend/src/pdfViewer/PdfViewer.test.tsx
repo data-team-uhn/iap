@@ -313,6 +313,72 @@ describe("PdfViewer", () => {
       expect(getFrame().scrollTop).toBe(100);
     });
 
+    describe("when the frame changes width", () => {
+      // Size changes are only seen through the observers watching for them, which jsdom does not run.
+      const observers: ResizeObserverCallback[] = [];
+
+      beforeEach(() => {
+        vi.stubGlobal("ResizeObserver", class {
+          constructor(callback: ResizeObserverCallback) {
+            observers.push(callback);
+          }
+
+          observe(): void {
+            // Told by resize() instead
+          }
+
+          disconnect(): void {
+            // Nothing to stop
+          }
+        });
+      });
+
+      afterEach(() => {
+        observers.splice(0);
+      });
+
+      async function resize(width: number) {
+        Object.defineProperty(getFrame(), "offsetWidth", { value: width, configurable: true });
+        act(() => observers.forEach(observer => observer([], {} as ResizeObserver)));
+        await act(() => new Promise(resolve => requestAnimationFrame(resolve)));
+      }
+
+      it("fits the page to the frame's new width", async () => {
+        show();
+        await screen.findByText("Page 2 of 3");
+        fakePdf.scales = [];
+
+        await resize(900);
+
+        expect(fakePdf.scales).toEqual([ "page-width" ]);
+      });
+
+      it("keeps a zoom the reader chose, and fits again once asked to", async () => {
+        show();
+        await screen.findByText("Page 2 of 3");
+        await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+        fakePdf.scales = [];
+
+        await resize(900);
+        expect(fakePdf.scales).toEqual([]);
+
+        await userEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+        await resize(600);
+        expect(fakePdf.scales).toEqual([ "page-width", "page-width" ]);
+      });
+
+      it("leaves the page alone when only the frame's height changes", async () => {
+        show();
+        await screen.findByText("Page 2 of 3");
+        await resize(900);
+        fakePdf.scales = [];
+
+        await resize(900);
+
+        expect(fakePdf.scales).toEqual([]);
+      });
+    });
+
     it("offers no page or zoom controls before the document opens", () => {
       fakePdf.holdSearch = true;
       vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));

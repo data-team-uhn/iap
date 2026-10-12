@@ -165,6 +165,22 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       }
     });
 
+    // PDF.js fits the page to the frame's width only when told to, so a frame whose width changes, with
+    // the window or the layout around it, has it fitted again, unless the reader chose a zoom of their own.
+    // The width is the frame's outer one, which a scrollbar coming and going with the fit does not change.
+    let width = frame.offsetWidth;
+    let fitting = 0;
+    const resizes = new ResizeObserver(() => {
+      cancelAnimationFrame(fitting);
+      fitting = requestAnimationFrame(() => {
+        if (frame.offsetWidth !== width && viewer.currentScaleValue === "page-width") {
+          viewer.currentScaleValue = "page-width";
+        }
+        width = frame.offsetWidth;
+      });
+    });
+    resizes.observe(frame, { box: "border-box" });
+
     viewer.setDocument(doc);
     linkService.setDocument(doc);
     return () => {
@@ -172,6 +188,8 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       if (locationRef.current !== undefined) {
         followRef.current = false;
       }
+      resizes.disconnect();
+      cancelAnimationFrame(fitting);
       stop.abort();
       viewer.setDocument(null);
       viewerRef.current = undefined;
