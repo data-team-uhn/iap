@@ -21,7 +21,8 @@ import { MarkLocator, type Mark, type MarkPlace } from "./marksModel";
 
 import type { OpenedDocument } from "./usePdfDocument";
 
-export type MarkPlaces = Partial<Record<string, MarkPlace>>;
+// Where each of the marks given is, by id.
+export type MarkPlaces = Record<string, MarkPlace>;
 
 // Where each mark's passage is in the document, as its pages are read, in order.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {

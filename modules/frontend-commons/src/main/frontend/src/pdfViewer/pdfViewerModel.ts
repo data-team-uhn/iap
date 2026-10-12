@@ -85,27 +85,33 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
   }
 }
 
-// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage.
-// Nothing when the open failed, since the error box says it.
-export function getPassageStatus({ openError, page }: ViewerStatus, place: MarkPlace): string {
+// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage,
+// naming the passage by its place among several when there are. Nothing when the open failed, since the
+// error box says it.
+export function getPassageStatus(
+  { openError, page }: ViewerStatus,
+  place: MarkPlace,
+  among?: { index: number; count: number },
+): string {
   if (openError !== undefined) {
     return "";
   }
   if (page === undefined) {
     return "Opening the document…";
   }
+  const passage = among === undefined ? "The passage" : `Passage ${among.index} of ${among.count}`;
   switch (place.status) {
     case "searching":
-      return "Looking for the passage…";
+      return among === undefined ? "Looking for the passage…" : `Looking for passage ${among.index} of ${among.count}…`;
     case "tooShort":
-      return "The passage is too short to look for.";
+      return `${passage} is too short to look for.`;
     case "notFound":
-      return "The passage is not in this document.";
+      return `${passage} is not in this document.`;
     case "noText":
       return "This document has no text to search.";
     case "found":
       return place.toPage === undefined
-        ? `The passage is marked on page ${place.page}.`
-        : `The passage is marked on pages ${place.page} and ${place.toPage}.`;
+        ? `${passage} is marked on page ${place.page}.`
+        : `${passage} is marked on pages ${place.page} and ${place.toPage}.`;
   }
 }

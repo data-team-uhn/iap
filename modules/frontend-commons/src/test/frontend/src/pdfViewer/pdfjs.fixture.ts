@@ -73,12 +73,13 @@ export const fakePdf = {
 };
 
 // jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page, and a mark sits where
-// its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Undone by reset().
-export function stubLayout(): void {
+// its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
+// as given, which decides whether the viewer has room beside the document. Undone by reset().
+export function stubLayout({ elementWidth = 0 } = {}): void {
   Range.prototype.getClientRects = () => [ new DOMRect(0, MATCH_TOP, 100, 20) ] as unknown as DOMRectList;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.dataset.markId === undefined) {
-      return new DOMRect();
+      return new DOMRect(0, 0, elementWidth, 0);
     }
     const share = (value: string) => Number.parseFloat(value) / 100;
     const { left, top, width, height } = this.style;
