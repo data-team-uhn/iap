@@ -15,11 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import CloseIcon from "@mui/icons-material/Close";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
+import SearchIcon from "@mui/icons-material/Search";
 import { Box, DialogContent, IconButton, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
@@ -30,9 +31,10 @@ import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import PdfToolbar from "./PdfToolbar";
 import { getFileName, getPassageNote, getPassageStatus } from "./pdfViewerModel";
+import SearchField from "./SearchField";
 import StepControls from "./StepControls";
 import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
-import { useNarrowViewer } from "./useNarrowViewer";
+import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
 import LoadError from "../components/LoadError";
@@ -178,6 +180,10 @@ function PdfViewerSession(props: PdfViewerProps) {
   );
 }
 
+// Below this width, the document's column has no room for the search field beside the toolbar's page and
+// zoom controls, and offers a button opening it in their place instead.
+const SEARCH_FIELD_ROOM = 600;
+
 interface ViewerBodyProps {
   titleId: string;
   title: string;
@@ -199,8 +205,41 @@ function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
   const { placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
+  const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
   const narrow = useNarrowViewer(body);
+  const [column, setColumn] = useState<HTMLElement | null>(null);
+  const compact = useNarrowerThan(column, SEARCH_FIELD_ROOM);
+  // Without room for it, the search takes the toolbar's place while open or searching, taking the focus,
+  // and gives it back to the button that opened it once closed.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInPlace = compact && (searchOpen || search.query !== "");
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const closingSearch = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (searchInPlace) {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    } else if (closingSearch.current) {
+      closingSearch.current = false;
+      searchButtonRef.current?.focus();
+    }
+  }, [searchInPlace]);
+  const closeSearch = () => {
+    closingSearch.current = true;
+    find("");
+    setSearchOpen(false);
+  };
+  // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page.
+  const onKeyDown = (event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && pageCount !== undefined) {
+      event.preventDefault();
+      setSearchOpen(compact);
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }
+  };
   const ordered = useMemo(() => orderMarks(marks, places), [marks, places]);
   const position = ordered.findIndex(mark => mark.id === selectedId);
   const selected = position < 0 ? undefined : ordered[position];
@@ -235,7 +274,11 @@ function ViewerBody(props: ViewerBodyProps) {
     );
 
   return (
-    <Box ref={setBody} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
+    <Box
+      ref={setBody}
+      onKeyDown={onKeyDown}
+      sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
+    >
       <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
         <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {title}
@@ -248,18 +291,54 @@ function ViewerBody(props: ViewerBodyProps) {
       {card}
       {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
       <Box role="status" sx={visuallyHidden}>
-        {selected === undefined ? "" : getPassageStatus(status, places[selected.id], several ? among : undefined)}
+        {search.outcome === "none" && selected !== undefined
+          ? getPassageStatus(status, places[selected.id], several ? among : undefined)
+          : search.announcement}
       </Box>
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
-          <PdfToolbar
-            page={page}
-            pageCount={pageCount}
-            onShowPage={showPage}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            onFitWidth={fitWidth}
-          />
+        <Box ref={setColumn} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+          {searchInPlace
+            ? (
+              <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                <SearchField
+                  search={search}
+                  inputRef={searchInputRef}
+                  onFind={find}
+                  onFindAgain={findAgain}
+                  onClose={closeSearch}
+                />
+              </Box>
+            )
+            : (
+              <PdfToolbar
+                page={page}
+                pageCount={pageCount}
+                search={compact
+                  ? (
+                    <IconButton
+                      ref={searchButtonRef}
+                      aria-label="Search the document"
+                      disabled={pageCount === undefined}
+                      onClick={() => setSearchOpen(true)}
+                    >
+                      <SearchIcon />
+                    </IconButton>
+                  )
+                  : (
+                    <SearchField
+                      search={search}
+                      inputRef={searchInputRef}
+                      disabled={pageCount === undefined}
+                      onFind={find}
+                      onFindAgain={findAgain}
+                    />
+                  )}
+                onShowPage={showPage}
+                onZoomIn={zoomIn}
+                onZoomOut={zoomOut}
+                onFitWidth={fitWidth}
+              />
+            )}
           {openError === undefined
             ? null
             : (

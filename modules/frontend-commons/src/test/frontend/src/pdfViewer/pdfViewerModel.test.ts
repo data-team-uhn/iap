@@ -21,6 +21,8 @@ import {
   getFileName,
   getPassageNote,
   getPassageStatus,
+  getSearchStatus,
+  IDLE_SEARCH,
 } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
@@ -168,5 +170,15 @@ describe("getPassageStatus", () => {
 
   it("says the document is opening even for a passage too short to look for", () => {
     expect(getPassageStatus({}, { status: "tooShort" })).toBe("Opening the document…");
+  });
+});
+
+describe("getSearchStatus", () => {
+  it("says how a search went in sentences of its own, and nothing before one has gone anywhere", () => {
+    const counts = { current: 3, total: 17 };
+    expect(getSearchStatus(IDLE_SEARCH)).toBe("");
+    expect(getSearchStatus({ ...counts, outcome: "found" })).toBe("Match 3 of 17.");
+    expect(getSearchStatus({ ...counts, outcome: "notFound" })).toBe("No matches in this document.");
+    expect(getSearchStatus({ ...counts, outcome: "noText" })).toBe("This document has no text to search.");
   });
 });
