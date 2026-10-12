@@ -15,36 +15,72 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { useAuthenticatedFetch } from "../reLogin";
 import { RequestError } from "../requestFailure";
-import { createQuoteFinder, loadPdfjs, type ViewerComponents } from "./pdfjsClient";
-import { createViewerState, describeOpenFailure, reduceViewerState } from "./pdfViewerModel";
-import { getSearchText } from "./quoteMatch";
+import { centreIn, drawMarks, findMark, type PageMark } from "./markLayer";
+import { MarkLocator, type Mark, type MarkKind, type MarkPlace } from "./marksModel";
+import { loadPdfjs, type ViewerComponents } from "./pdfjsClient";
+import { describeOpenFailure, INITIAL_VIEWER_STATE, reduceViewerState } from "./pdfViewerModel";
 
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
+import type { EventBus, PDFPageView, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 
 interface OpenedDocument {
   components: ViewerComponents;
   doc: PDFDocumentProxy;
 }
 
-// Opens the PDF once, and shows it in whichever frame it is given, looking for the quote from the
-// page given. Moving to another frame keeps the page, the zoom and the marks.
-export function usePdfViewer(url: string, page: number | undefined, quote: string) {
+// Where the viewer in viewerRef shows the document, once PDF.js has laid out its pages.
+interface ShownDocument {
+  eventBus: EventBus;
+  frame: HTMLDivElement;
+}
+
+const PASSAGE = "passage";
+
+// The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
+// layer's text, or none for a page it cannot read.
+async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<string> {
+  try {
+    const content = await (await doc.getPage(pageNumber)).getTextContent({ disableNormalization: true });
+    return content.items.map(item => ("str" in item ? item.str : "")).join("");
+  } catch {
+    return "";
+  }
+}
+
+// The marks to draw on a page, from where their passages were found.
+function getPageMarks(marks: Mark[], places: Partial<Record<string, MarkPlace>>, page: number): PageMark[] {
+  return marks.flatMap(({ id, kind }) => {
+    const place = places[id];
+    return place?.status === "found"
+      ? place.spans.filter(span => span.page === page).map(({ start, end }) => ({ id, kind, start, end }))
+      : [];
+  });
+}
+
+// Opens the PDF once, and shows it in whichever frame it is given, with the quote marked where it is
+// found, looking from the page given. Moving to another frame keeps the page, the zoom and the marks.
+export function usePdfViewer(url: string, page: number | undefined, quote: string, markedBy: MarkKind) {
   const authFetch = useAuthenticatedFetch();
-  const searchText = getSearchText(quote);
-  const [state, dispatch] = useReducer(reduceViewerState, searchText !== undefined, createViewerState);
+  const [state, dispatch] = useReducer(reduceViewerState, INITIAL_VIEWER_STATE);
   const [opened, setOpened] = useState<OpenedDocument | undefined>(undefined);
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
+  const marks = useMemo<Mark[]>(() => [ { id: PASSAGE, quote, page, kind: markedBy } ], [quote, page, markedBy]);
+  const [found, setFound] = useState<{ marks: Mark[]; places: Partial<Record<string, MarkPlace>> } | undefined>();
+  const places = useMemo(
+    () => (found?.marks === marks ? found.places : new MarkLocator(marks, 0).getPlaces()),
+    [found, marks],
+  );
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
-  const showPassageRef = useRef<(() => void) | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, once the document has been shown.
   const locationRef = useRef<string | undefined>(undefined);
-  // Whether finding the quote may still move the reader to it.
-  const followRef = useRef(true);
+  // The mark to take the reader to once it is found and its page drawn, until they go elsewhere.
+  const goToRef = useRef<string | undefined>(PASSAGE);
+  const goToMarkRef = useRef<(() => void) | undefined>(undefined);
   const { attempt } = state;
 
   // The file is fetched here rather than by PDF.js, so an expired session gets the same sign-in
@@ -82,54 +118,47 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     };
   }, [url, authFetch, attempt]);
 
+  // Every page's text is read up front, so a passage on a page not yet drawn can be found and gone to.
+  useEffect(() => {
+    if (opened === undefined) {
+      return undefined;
+    }
+    const { doc } = opened;
+    const locator = new MarkLocator(marks, doc.numPages);
+    const stop = new AbortController();
+    void (async () => {
+      let last = "";
+      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+        const text = await readPageText(doc, pageNumber);
+        if (stop.signal.aborted) {
+          return;
+        }
+        locator.addPage(pageNumber, text);
+        const latest = locator.getPlaces();
+        const serialized = JSON.stringify(latest);
+        // Most pages change nothing, and each change draws the marks again.
+        if (serialized !== last) {
+          last = serialized;
+          setFound({ marks, places: latest });
+        }
+      }
+    })();
+    return () => stop.abort();
+  }, [opened, marks]);
+
   useEffect(() => {
     if (opened === undefined || frame === null) {
       return undefined;
     }
     const { components, doc } = opened;
-    const { FOUND, NOT_FOUND, WRAPPED } = components.FindState;
     const eventBus = new components.EventBus();
     const linkService = new components.PDFLinkService({ eventBus });
     // Aborting the signal is what stops the viewer watching the frame's size and scrolling.
     const stop = new AbortController();
     const options = { container: frame, eventBus, linkService, removePageBorders: true, abortSignal: stop.signal };
     const viewer = new components.PDFViewer(options);
-    const findController = createQuoteFinder(components, {
-      container: frame,
-      viewer,
-      doc,
-      eventBus,
-      follow: () => followRef.current,
-    });
-    viewer.findController = findController;
     viewerRef.current = viewer;
-    // PDF.js scrolls to the match it found when that page's marks are drawn again, which this asks for.
-    showPassageRef.current = () => {
-      const { selected } = findController;
-      if (selected === undefined || selected.pageIdx < 0) {
-        return;
-      }
-      followRef.current = true;
-      findController._scrollMatches = true;
-      viewer.currentPageNumber = selected.pageIdx + 1;
-      eventBus.dispatch("updatetextlayermatches", { source: findController, pageIndex: selected.pageIdx });
-    };
     linkService.setViewer(viewer);
-
-    // PDF.js searches again for a changed option; the quote's matching ignores this one, so changing it
-    // has the parts of a quote broken across two pages marked.
-    const find = (matchDiacritics: boolean) => {
-      eventBus.dispatch("find", {
-        source: null,
-        type: "",
-        query: quote,
-        caseSensitive: false,
-        entireWord: false,
-        highlightAll: true,
-        findPrevious: false,
-        matchDiacritics,
-      });
-    };
 
     eventBus.on("pagesinit", () => {
       if (locationRef.current === undefined) {
@@ -140,29 +169,13 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       } else {
         linkService.setHash(locationRef.current);
       }
-      if (searchText !== undefined) {
-        find(false);
-      }
+      setShown({ eventBus, frame });
     });
     eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
       locationRef.current = location.pdfOpenParams.replace(/^#/, "");
     });
     eventBus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
       dispatch({ type: "paged", page: pageNumber });
-    });
-    eventBus.on("updatefindcontrolstate", ({ state: findState }: { state: number }) => {
-      const { selected, acrossPages } = findController;
-      if ((findState === FOUND || findState === WRAPPED) && selected !== undefined) {
-        const page = acrossPages === undefined ? selected.pageIdx + 1 : acrossPages.firstPage + 1;
-        const toPage = acrossPages === undefined ? undefined : page + 1;
-        dispatch({ type: "searched", search: { status: "found", page, toPage } });
-      } else if (findState === NOT_FOUND) {
-        if (findController.markAcrossPages()) {
-          find(true);
-        } else {
-          dispatch({ type: "searched", search: { status: findController.hasText ? "notFound" : "noText" } });
-        }
-      }
     });
 
     // PDF.js fits the page to the frame's width only when told to, so a frame whose width changes, with
@@ -184,18 +197,58 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     viewer.setDocument(doc);
     linkService.setDocument(doc);
     return () => {
-      // Shown again elsewhere, the reader stays where they were rather than being taken to the quote.
-      if (locationRef.current !== undefined) {
-        followRef.current = false;
-      }
       resizes.disconnect();
       cancelAnimationFrame(fitting);
       stop.abort();
       viewer.setDocument(null);
       viewerRef.current = undefined;
-      showPassageRef.current = undefined;
+      setShown(undefined);
     };
-  }, [opened, frame, page, quote, searchText]);
+  }, [opened, frame, page]);
+
+  // The marks are drawn on each page as PDF.js draws its text, and again as passages are found.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (shown === undefined || viewer === undefined) {
+      return undefined;
+    }
+    const { eventBus, frame: shownIn } = shown;
+    const draw = (pageView: PDFPageView, pageNumber: number) => {
+      const textLayer = pageView.textLayer?.div;
+      if (textLayer !== undefined) {
+        drawMarks(textLayer, getPageMarks(marks, places, pageNumber), PASSAGE);
+      }
+    };
+    const goToMark = () => {
+      const id = goToRef.current;
+      const place = id === undefined ? undefined : places[id];
+      if (id === undefined || place?.status !== "found") {
+        return;
+      }
+      if (viewer.currentPageNumber !== place.page) {
+        viewer.currentPageNumber = place.page;
+      }
+      const mark = findMark(shownIn, id);
+      if (mark !== undefined) {
+        goToRef.current = undefined;
+        centreIn(shownIn, mark);
+      }
+    };
+    const stop = new AbortController();
+    eventBus.on("textlayerrendered", ({ source, pageNumber }: { source: PDFPageView; pageNumber: number }) => {
+      draw(source, pageNumber);
+      goToMark();
+    }, { signal: stop.signal });
+    for (let index = 0; index < viewer.pagesCount; index++) {
+      draw(viewer.getPageView(index) as PDFPageView, index + 1);
+    }
+    goToMark();
+    goToMarkRef.current = goToMark;
+    return () => {
+      stop.abort();
+      goToMarkRef.current = undefined;
+    };
+  }, [shown, marks, places]);
 
   // The controls act on the viewer shown, and are disabled until there is one.
   const withViewer = useCallback((act: (viewer: PDFViewer) => void) => {
@@ -204,16 +257,17 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     }
   }, []);
 
-  // Going to a page by hand stops the search from moving the reader.
+  // Going to a page by hand stops finding the passage from moving the reader.
   const showPage = useCallback((pageNumber: number) => {
-    followRef.current = false;
+    goToRef.current = undefined;
     withViewer(viewer => {
       viewer.currentPageNumber = pageNumber;
     });
   }, [withViewer]);
 
   const showPassage = useCallback(() => {
-    showPassageRef.current?.();
+    goToRef.current = PASSAGE;
+    goToMarkRef.current?.();
   }, []);
 
   const zoomIn = useCallback(() => withViewer(viewer => viewer.increaseScale()), [withViewer]);
@@ -230,5 +284,6 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     return Promise.resolve();
   }, []);
 
-  return { state, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry };
+  const place: MarkPlace = places[PASSAGE] ?? { status: "searching" };
+  return { state, place, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry };
 }
