@@ -128,7 +128,7 @@ public final class ContentFields
     public record Applicability(String property, List<String> values)
     {
         /**
-         * Keeps its own copy of the values, so that nothing holding the list given changes when a field applies.
+         * Keeps its own copy of the values.
          *
          * @param property the property it depends on; without one, the field applies nowhere
          * @param values the values of that property it applies with
@@ -176,7 +176,7 @@ public final class ContentFields
         List<Choice> choices, Applicability appliesWhen, boolean unique)
     {
         /**
-         * Keeps its own copy of the choices, so that nothing holding the list given changes what a field may take.
+         * Keeps its own copy of the choices.
          *
          * @param name the property name
          * @param label what it is called where it is edited
@@ -195,7 +195,6 @@ public final class ContentFields
         @Override
         public List<Choice> choices()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
             return List.copyOf(this.choices);
         }
     }
@@ -216,7 +215,7 @@ public final class ContentFields
         List<Value> defaults)
     {
         /**
-         * Keeps its own copy of the defaults, so that nothing holding the list given changes what new content gets.
+         * Keeps its own copy of the defaults.
          *
          * @param description how the activity presents it
          * @param kind what it holds
@@ -233,7 +232,6 @@ public final class ContentFields
         @Override
         public List<Value> defaults()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
             return List.copyOf(this.defaults);
         }
 
