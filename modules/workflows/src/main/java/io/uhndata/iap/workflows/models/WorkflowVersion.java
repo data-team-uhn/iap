@@ -96,8 +96,8 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * What the people this version serves should know while it is the one that would take their event, such as
-     * what an update lets them change. Unlike the {@link #getDescription description}, it is written for them.
+     * A note for the people who send events to this version, such as what an update lets them change. The
+     * {@link #getDescription description} is for whoever maintains the workflow; the notice is for its users.
      *
      * @return a notice, or {@code null} if not set
      */

@@ -445,13 +445,12 @@ the workflow that would run, so an editor offers exactly what the update accepts
 can apply the same `appliesWhen` as the values change. `FieldsDialog`
 (`frontend-commons`) is that editor.
 
-A workflow version may also carry a `notice`: words for the people it serves, while it
-is the workflow that would take their event. Unlike its `description`, which says what
-it does for whoever maintains it, a notice is written for its users. The `fields`
-serialization adds the update's as `@notice`, next to `@fields`: what the update allows,
-in words. Where guarded updates split a lifecycle, each says what it allows, so a page
-can show whichever applies without knowing the states, and the words change with the
-rule, in the same file.
+A workflow version may also carry a `notice`, written for the people who send it events.
+Its `description` says what it does, for whoever maintains it. The `fields`
+serialization adds the notice of the update that would run as `@notice`, next to
+`@fields`. Where guarded updates split a lifecycle, each one says what it allows. A page
+then shows whichever applies without knowing the states, and the words live in the same
+file as the rule.
 
 ```json
 "v1": {
