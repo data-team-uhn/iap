@@ -305,6 +305,8 @@ ends. In the field, Enter and Shift+Enter do the same, and Escape clears the sea
 toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
 Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
 
+A spinner shows in the frame until PDF.js has laid out the document's pages.
+
 It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
 `null`, as a ref is before React attaches it, shows nothing until the element is there.
