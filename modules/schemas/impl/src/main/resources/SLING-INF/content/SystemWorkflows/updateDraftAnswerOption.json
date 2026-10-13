@@ -43,7 +43,8 @@
         "value": {
           "jcr:primaryType": "nt:unstructured",
           "label": "Value",
-          "help": "What answers store and conditions compare against."
+          "help": "What answers store and conditions compare against. No two options of a question share one.",
+          "unique": true
         },
         "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
         "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true }

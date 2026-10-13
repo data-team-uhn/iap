@@ -23,10 +23,14 @@ is only a container with a name, while its actual content lives in versions.
         └── reb                  sch:ApprovalRequirement  approverGroup
 ```
 
-Requirements, sections and questions are `orderable`: the order they are stored in is the order
-they are presented in. A schema's versions are not, so they are listed by label, in numeric order
-(`1.0`, `2.0`, `10.0`). Every requirement is `cond:Conditionable`, so it may carry one condition
-deciding whether it applies (see [conditions.md](conditions.md)).
+Requirements, sections and questions are `orderable`: the order they are stored in is the order they
+are presented in. A question's answer options are presented by their `defaultOrder` instead. Options
+are named after their values, often numbers, and a JavaScript object lists keys that look like whole
+numbers first, whatever order they were stored in. The workflows that add and move options keep
+`defaultOrder` up to date (`orderProperty` in [workflows.md](workflows.md)). A schema's versions are
+not ordered, so they are listed by label, in numeric order (`1.0`, `2.0`, `10.0`). Every requirement
+and form item is `cond:Conditionable`, so it may carry one condition deciding whether it applies
+(see [conditions.md](conditions.md)).
 Questions and requirements are referenceable, because answers, documents and reviews point back
 at them.
 
@@ -142,6 +146,11 @@ workflows say so in words as their `nameHint`, which the editor shows under the 
 identifier from what a new part says, as `@creatable` allows it, until one is given. An option is not given an
 identifier: `createSchemaPart` lists it with `named` false. Its `value` is what answers store, and a draft can edit
 it.
+A question either lists its options or takes them from elsewhere, as `optionsFrom`, but not both. `createSchemaPart`
+adds no option to a question with an `optionsFrom`: its guard reads the question's own property through an
+`ownProperty` operand (see [conditions.md](conditions.md)). A draft that has both is not published. No two options
+of a question share a `value`. The option workflows list `value` as `unique`, so a repeated value is refused as it
+is entered. The publish check refuses one that came another way.
 The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
 entity, which for a part or an option is its version.
 

@@ -51,6 +51,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>The move goes through the {@link ContentMover}, which keeps references to the target's path working. The new path
  * is recorded as what later steps act on.</p>
  *
+ * <p>When the activity names an {@code orderProperty}, the target and its siblings of the same type are numbered in
+ * that property by their places (see {@link Placement}).</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -98,6 +101,8 @@ public class MoveContentHandler implements ServiceTaskHandler
             VersioningUtils.checkOut(parentNode);
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE,
                 this.mover.move(node, parentNode, name, before));
+            Placement.number(parentNode, node.getPrimaryNodeType().getName(),
+                context.getActivity().get(Placement.ORDER_PROPERTY, String.class));
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot move " + target.getPath() + ": " + e.getMessage(), e);
         }

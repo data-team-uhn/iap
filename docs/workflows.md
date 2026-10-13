@@ -364,8 +364,8 @@ A few handlers are the engine's own, because what they do is generic:
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
-| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named` and its own `namePattern` and `nameHint`), `nameFrom`, `namePattern`, `nameHint` (the activity's defaults; all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
-| `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named` and its own `namePattern`, `nameHint` and `orderProperty`), `nameFrom`, `namePattern`, `nameHint`, `orderProperty` (the activity's defaults; all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
+| `moveContent` | `within` (optional: a resource type the content must stay inside), `orderProperty` (optional) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
@@ -502,6 +502,12 @@ it lets each `MoveParticipant` update whatever names the content by its path: th
 conditions module makes the `answer` operands that name a moved question by path name it
 by identifier instead. The new path is what later steps act on, and what the event is
 answered with.
+
+Both can also number content by its place, for readers that order it by a property
+rather than as it is stored. The property is the `orderProperty` of `moveContent`'s
+activity, of `createContent`'s, or of one of the types `createContent` lists. The
+content placed and its siblings of the same type are numbered in that property by their
+places, 10 apart.
 
 `renameContent` gives the target the `name` the event asks for, keeping its place among
 its siblings. The rename goes through the same `ContentMover`, so the same participants

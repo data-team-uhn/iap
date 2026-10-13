@@ -27,6 +27,8 @@ import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
+import CodePill from "./CodePill";
+
 interface SchemaNodeIdentifierProps {
   name: string;
   // Renames the part, when it can be renamed. Resolves once the new name is taken.
@@ -97,15 +99,6 @@ export function NewIdentifier({ value, suggestion, hint, disabled, onChange }: {
   );
 }
 
-// A part's identifier, set apart from the words around it
-export function IdentifierPill({ name }: { name: string }) {
-  return (
-    <Typography variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1, overflowWrap: "anywhere" }}>
-      {name}
-    </Typography>
-  );
-}
-
 // A part's identifier, with a Rename button where the part can be renamed. A rename is sent on its own, apart from
 // the fields the dialog saves.
 function SchemaNodeIdentifier({ name, rename, hint }: SchemaNodeIdentifierProps) {
@@ -116,7 +109,7 @@ function SchemaNodeIdentifier({ name, rename, hint }: SchemaNodeIdentifierProps)
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
       <Typography variant="description">Identifier</Typography>
-      <IdentifierPill name={name} />
+      <CodePill name={name} />
       { rename && (
         <ActionIcon label="Rename" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
       ) }
