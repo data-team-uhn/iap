@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import javax.jcr.Node;
@@ -89,12 +90,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final String GENERIC_TYPE = "application/octet-stream";
 
+    private static final String PDF_TYPE = "application/pdf";
+
     /**
      * Types a browser may not know and send untyped, by the extension that names them. The browser checks against
      * its own copy, {@code MIME_TYPE_BY_EXTENSION} in frontend-commons' {@code fileValidation.ts}.
      */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
-        "pdf", "application/pdf",
+        "pdf", PDF_TYPE,
         "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "doc", "application/msword");
 
@@ -139,6 +142,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final String mimeType = getMimeType(file);
         checkAcceptedType(requirement, mimeType);
         checkSize(file);
+        checkPages(file, mimeType);
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
@@ -295,6 +299,34 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         return BigDecimal.valueOf(bytes)
             .divide(BigDecimal.valueOf(megabytes ? BYTES_PER_MEGABYTE : BYTES_PER_KILOBYTE), 2, rounding)
             .stripTrailingZeros().toPlainString() + (megabytes ? " MB" : " KB");
+    }
+
+    /**
+     * Refuses a PDF with more pages than the configured limit. A PDF that cannot be read is let through: the parser
+     * refuses it later, with its own reason.
+     *
+     * @param file the uploaded file
+     * @param mimeType the upload's type, as {@link #getMimeType} reads it
+     * @throws InvalidPayloadException when the PDF has too many pages
+     * @throws PersistenceException when the upload cannot be read
+     */
+    private void checkPages(final EventAttachment file, final String mimeType)
+        throws InvalidPayloadException, PersistenceException
+    {
+        if (!PDF_TYPE.equals(mimeType)) {
+            return;
+        }
+        final OptionalInt pages;
+        try (InputStream content = file.openStream()) {
+            pages = PdfPageCounter.countPages(content);
+        } catch (final IOException e) {
+            throw new PersistenceException("Could not read the uploaded file", e);
+        }
+        final int maxPages = this.limits.getMaxPdfPages();
+        if (pages.isPresent() && pages.getAsInt() > maxPages) {
+            throw new InvalidPayloadException(
+                "That PDF has " + pages.getAsInt() + " pages, and the limit is " + maxPages);
+        }
     }
 
     /**

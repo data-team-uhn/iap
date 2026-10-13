@@ -352,6 +352,28 @@ class Docling(unittest.TestCase):
         self.assertIn(shared, service(doc, 'docling')['volumes'])
         self.assertEqual('/shared-docs', service(doc, 'iap')['environment']['IAP_SHARED_DOCS'])
 
+    def test_iap_is_given_the_upload_limits(self):
+        iap = settings(service(document(), 'iap')['environment'])
+        self.assertEqual('${IAP_UPLOAD_MAX_BYTES:-52428800}', iap['IAP_UPLOAD_MAX_BYTES'])
+        self.assertEqual('${IAP_UPLOAD_MAX_PDF_PAGES:-500}', iap['IAP_UPLOAD_MAX_PDF_PAGES'])
+        self.assertEqual('${IAP_UPLOAD_MAX_UNZIPPED_BYTES:-536870912}',
+                         iap['IAP_UPLOAD_MAX_UNZIPPED_BYTES'])
+
+    def test_the_upload_limits_sit_under_the_daemon_ceilings(self):
+        # The lower of the two applies, so an upload limit over the ceiling would be a promise the
+        # daemon then breaks with a refusal
+        doc = document('--docling')
+        iap = settings(service(doc, 'iap')['environment'])
+        daemon = settings(service(doc, 'docling')['environment'])
+
+        def get_default(value):
+            return int(value.split(':-')[1].rstrip('}'))
+
+        for upload, ceiling in (('IAP_UPLOAD_MAX_BYTES', 'IAP_MAX_INPUT_BYTES'),
+                                ('IAP_UPLOAD_MAX_PDF_PAGES', 'IAP_MAX_INPUT_PAGES'),
+                                ('IAP_UPLOAD_MAX_UNZIPPED_BYTES', 'IAP_MAX_EXPANDED_BYTES')):
+            self.assertLessEqual(get_default(iap[upload]), get_default(daemon[ceiling]))
+
     def test_no_document_volume_without_the_daemon(self):
         iap = service(document(), 'iap')
         self.assertFalse(any('/shared-docs' in volume for volume in iap['volumes']))
