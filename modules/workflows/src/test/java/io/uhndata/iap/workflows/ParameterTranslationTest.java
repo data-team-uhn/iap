@@ -28,6 +28,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.utils.NodeTypeUtils;
 import io.uhndata.iap.workflows.models.Parameter;
 
 import static io.uhndata.iap.workflows.ParseFixture.parse;
@@ -101,6 +102,8 @@ class ParameterTranslationTest
     private static final String SEQUENCE_FLOW = "SequenceFlow";
 
     private static final String TASK = ParseFixture.TASK;
+
+    private static final String CHILD_ORDER = ":childOrder";
 
     @Test
     void breaksATieOfEqualPrioritiesByEntryName() throws Exception
@@ -695,6 +698,34 @@ class ParameterTranslationTest
         final NodeBuilder parameter = VocabularyFixture.parameter(type, name, TEXT, 0, 1).setProperty(XML_LOCATION,
             location);
         return path == null ? parameter : parameter.setProperty("xmlPath", path);
+    }
+
+    @Test
+    void readsDeclarationsInTheOrderTheRepositoryKeepsForThem()
+    {
+        // A node state lists its children in storage order, which an orderable node's own order does not follow
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder entry = VocabularyFixture.handler(root, "Ordered", "ordered");
+        for (final String name : List.of("first", "second", "third")) {
+            VocabularyFixture.parameter(entry, name, TEXT, 0, 1);
+        }
+        final NodeBuilder offering = entry.getChildNode("first");
+        for (final String value : List.of("x", "y", "z")) {
+            offering.child(value).setProperty(PRIMARY_TYPE, "wf:ParameterOption", Type.NAME)
+                .setProperty("value", value);
+        }
+        // Recognized by its resource type alone, which the catalogue ignores as well
+        offering.child("w").setProperty("sling:resourceType", Parameter.OPTION_RESOURCE_TYPE).setProperty("value", "w");
+        // Each leaves one child unnamed, which follows the ones named, and names one that is gone
+        entry.setProperty(CHILD_ORDER, List.of("third", "gone", "second"), Type.NAMES);
+        offering.setProperty(CHILD_ORDER, List.of("z", "y"), Type.NAMES);
+
+        final List<FlowNodeTypeInfo.ParameterInfo> declared = FlowNodeTypeInfo.from("Ordered",
+            entry.getNodeState(), NodeTypeUtils.registry(root.getNodeState())).parameters().declared();
+
+        assertEquals(List.of("third", "second", "first"),
+            declared.stream().map(FlowNodeTypeInfo.ParameterInfo::name).toList());
+        assertEquals(List.of("z", "y", "x"), List.copyOf(declared.get(2).options()));
     }
 
     /** A user task and a timer boundary event attached to it, carrying the given attributes and timer content. */

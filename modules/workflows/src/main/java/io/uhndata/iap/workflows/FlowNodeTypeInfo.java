@@ -77,27 +77,21 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
 
     private static final String PRIORITY_PROPERTY = "priority";
 
-    private static final String DATA_TYPE_PROPERTY = "dataType";
+    private static final String NT_UNSTRUCTURED = "nt:unstructured";
 
-    private static final String MIN_VALUES_PROPERTY = "minValues";
-
-    private static final String MAX_VALUES_PROPERTY = "maxValues";
-
-    private static final String XML_LOCATION_PROPERTY = "xmlLocation";
-
-    private static final String XML_PATH_PROPERTY = "xmlPath";
-
-    private static final String VALUE_PROPERTY = "value";
+    private static final String CHILD_ORDER = ":childOrder";
 
     /**
      * What an entry declares about the values a node of its kind takes.
      *
      * @param declared the parameters, in the order they are declared
-     * @param unread the names of the children that say they are parameters by their resource type alone, which
-     *            this parser cannot read
+     * @param unread the paths, relative to the entry, of nodes that say they are parameters by their resource type
+     *            alone, which this parser cannot read
+     * @param misplaced the paths, relative to the entry, of parameters declared directly under another parameter
+     *            rather than under its {@link Parameter#FIELDS_NODE} node, which this parser does not read
      * @since 0.1.0
      */
-    record Parameters(List<ParameterInfo> declared, List<String> unread)
+    record Parameters(List<ParameterInfo> declared, List<String> unread, List<String> misplaced)
     {
     }
 
@@ -173,10 +167,12 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
      * @param placement where in the diagram the value is written
      * @param options the values this parameter offers, empty when it takes anything its type accepts
      * @param declaration the {@code wf:Parameter} node, which a parameter type reads its own settings from
+     * @param fields for a {@link #isStructure() structure}, the parameters each of its elements holds, in the order
+     *            they are declared; empty for any other parameter
      * @since 0.1.0
      */
     record ParameterInfo(String name, String dataType, long minValues, long maxValues, Placement placement,
-        Set<String> options, NodeState declaration)
+        Set<String> options, NodeState declaration, List<ParameterInfo> fields)
     {
         /**
          * Where in the diagram the value is written.
@@ -197,6 +193,37 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         List<String> path()
         {
             return this.placement.path();
+        }
+
+        /**
+         * Whether this parameter is a structure: an element holding parameters of its own, stored as a node.
+         *
+         * @return {@code true} for the {@code structure} data type
+         */
+        boolean isStructure()
+        {
+            return Parameter.TYPE_STRUCTURE.equals(this.dataType);
+        }
+
+        /**
+         * For a repeated structure, the field whose value names each element's node.
+         *
+         * @return a field name, or {@code null} when the declaration names none
+         */
+        String keyParameter()
+        {
+            return this.declaration.getString(Parameter.KEY_PARAMETER_PROPERTY);
+        }
+
+        /**
+         * The node type a structure's elements are stored as.
+         *
+         * @return the declared {@code jcrNodeType}, {@code nt:unstructured} when it declares none
+         */
+        String nodeType()
+        {
+            final String declared = this.declaration.getString(JCR_NODE_TYPE_PROPERTY);
+            return declared == null ? NT_UNSTRUCTURED : declared;
         }
 
         /**
@@ -234,30 +261,60 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
     {
         final String childElement = node.getString(XML_CHILD_ELEMENT_PROPERTY);
         final String extensionElement = node.getString(XML_EXTENSION_ELEMENT_PROPERTY);
+        final List<String> unread = new ArrayList<>();
+        final List<String> misplaced = new ArrayList<>();
+        final List<ParameterInfo> parameters = declared(node, "", nodeTypesRoot, new Strays(unread, misplaced));
         return new FlowNodeTypeInfo(name, node.getString(JCR_UUID), node.getString(JCR_NODE_TYPE_PROPERTY),
             childElement == null ? null : WorkflowDefinitionUtils.localName(childElement),
             extensionElement == null ? null : WorkflowDefinitionUtils.localName(extensionElement),
             jcrProperties(node.getString(JCR_PROPERTIES_PROPERTY)), node.getLong(PRIORITY_PROPERTY),
-            parameters(node, nodeTypesRoot));
+            new Parameters(parameters, unread, misplaced));
     }
 
     /**
-     * The parameters declared as children of an entry, in the order they are declared. Anything else a vocabulary
-     * entry may hold — the residual child definitions let it hold anything — is walked past.
+     * Where the walk over an entry's declarations notes the nodes it cannot read, by path relative to the entry.
+     *
+     * @since 0.1.0
      */
-    private static Parameters parameters(final NodeState entry, final NodeState nodeTypesRoot)
+    private record Strays(List<String> unread, List<String> misplaced)
     {
-        final List<ParameterInfo> declared = new ArrayList<>();
-        final List<String> unread = new ArrayList<>();
-        for (final ChildNodeEntry child : entry.getChildNodeEntries()) {
-            final NodeState state = child.getNodeState();
+    }
+
+    /**
+     * The parameters declared as children of an entry or of a structure's fields node, in the order they are
+     * declared. Anything else is walked past: the residual child definitions let a vocabulary entry hold anything.
+     */
+    private static List<ParameterInfo> declared(final NodeState parent, final String prefix,
+        final NodeState nodeTypesRoot, final Strays strays)
+    {
+        final List<ParameterInfo> result = new ArrayList<>();
+        for (final String name : orderedChildNames(parent)) {
+            final NodeState state = parent.getChildNode(name);
             if (isA(state, PARAMETER_NODETYPE, nodeTypesRoot)) {
-                declared.add(parameter(child.getName(), state, nodeTypesRoot));
-            } else if (Parameter.RESOURCE_TYPE.equals(state.getString(SLING_RESOURCE_TYPE))) {
-                unread.add(child.getName());
+                result.add(parameter(name, prefix + name, state, nodeTypesRoot, strays));
+            } else if (isUnreadParameter(state)) {
+                strays.unread().add(prefix + name);
             }
         }
-        return new Parameters(declared, unread);
+        return result;
+    }
+
+    /**
+     * The names of a node's children in the order the JCR API lists them. Oak keeps an orderable node's order in a
+     * hidden property, which a node state's own listing ignores. A child it does not name comes after, in listing
+     * order. A name it holds for no child is walked past as a node that does not exist.
+     */
+    private static Set<String> orderedChildNames(final NodeState parent)
+    {
+        final Set<String> result = new LinkedHashSet<>();
+        parent.getNames(CHILD_ORDER).forEach(result::add);
+        parent.getChildNodeNames().forEach(result::add);
+        return result;
+    }
+
+    private static boolean isUnreadParameter(final NodeState node)
+    {
+        return Parameter.RESOURCE_TYPE.equals(node.getString(SLING_RESOURCE_TYPE));
     }
 
     private static JsonObject jcrProperties(final String raw)
@@ -278,17 +335,34 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
         return NodeTypeUtils.isOrExtends(node.getName(JCR_PRIMARY_TYPE), type, nodeTypesRoot);
     }
 
-    private static ParameterInfo parameter(final String name, final NodeState node, final NodeState nodeTypesRoot)
+    /**
+     * Reads one parameter declaration.
+     *
+     * @param name the parameter's name
+     * @param path the declaration's path relative to the entry, which problems name it by
+     */
+    private static ParameterInfo parameter(final String name, final String path, final NodeState node,
+        final NodeState nodeTypesRoot, final Strays strays)
     {
-        final String dataType = node.getString(DATA_TYPE_PROPERTY);
-        // Autocreated in the node type, so absent only for an entry stored as a node of another type: the maximum
-        // has to be told from an absent one, since 0 there means unbounded rather than "one".
-        final long maxValues = node.hasProperty(MAX_VALUES_PROPERTY) ? node.getLong(MAX_VALUES_PROPERTY) : 1;
+        final String dataType = node.getString(Parameter.DATA_TYPE_PROPERTY);
+        // Autocreated in the node type, so absent only for an entry stored as a node of another type. An absent
+        // maximum must not read as 0, which means unbounded rather than one.
+        final long maxValues = node.hasProperty(Parameter.MAX_VALUES_PROPERTY)
+            ? node.getLong(Parameter.MAX_VALUES_PROPERTY) : Parameter.DEFAULT_MAX_VALUES;
+        // A field declared beside the fields node rather than in it is the easy mistake to make in a descriptor
+        for (final ChildNodeEntry child : node.getChildNodeEntries()) {
+            final NodeState state = child.getNodeState();
+            if (isA(state, PARAMETER_NODETYPE, nodeTypesRoot) || isUnreadParameter(state)) {
+                strays.misplaced().add(path + "/" + child.getName());
+            }
+        }
+        final List<ParameterInfo> fields = declared(node.getChildNode(Parameter.FIELDS_NODE),
+            path + "/" + Parameter.FIELDS_NODE + "/", nodeTypesRoot, strays);
         return new ParameterInfo(name, dataType == null ? Parameter.TYPE_TEXT : dataType,
-            node.getLong(MIN_VALUES_PROPERTY), maxValues,
-            new Placement(XmlLocation.of(node.getString(XML_LOCATION_PROPERTY)),
-                path(node.getString(XML_PATH_PROPERTY))),
-            options(node, nodeTypesRoot), node);
+            node.getLong(Parameter.MIN_VALUES_PROPERTY), maxValues,
+            new Placement(XmlLocation.of(node.getString(Parameter.XML_LOCATION_PROPERTY)),
+                path(node.getString(Parameter.XML_PATH_PROPERTY))),
+            options(node, nodeTypesRoot), node, fields);
     }
 
     /** The steps of an {@code xmlPath}, each reduced to its local name, since a prefix is the document's choice. */
@@ -306,9 +380,10 @@ record FlowNodeTypeInfo(String name, String identifier, String jcrNodeType, Stri
     private static Set<String> options(final NodeState node, final NodeState nodeTypesRoot)
     {
         final Set<String> result = new LinkedHashSet<>();
-        for (final ChildNodeEntry child : node.getChildNodeEntries()) {
-            if (isA(child.getNodeState(), PARAMETER_OPTION_NODETYPE, nodeTypesRoot)) {
-                final String value = child.getNodeState().getString(VALUE_PROPERTY);
+        for (final String name : orderedChildNames(node)) {
+            final NodeState child = node.getChildNode(name);
+            if (isA(child, PARAMETER_OPTION_NODETYPE, nodeTypesRoot)) {
+                final String value = child.getString(Parameter.VALUE_PROPERTY);
                 if (value != null) {
                     result.add(value);
                 }

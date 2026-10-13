@@ -81,6 +81,15 @@ public class Parameter extends EntityPart
     /** The data type for the name of a user or group. */
     public static final String TYPE_PRINCIPAL = "principal";
 
+    /**
+     * The {@link #getDataType() data type} of a parameter holding {@link #getParameters() parameters} of its own.
+     * The parser reads it itself rather than through a parameter type.
+     */
+    public static final String TYPE_STRUCTURE = "structure";
+
+    /** The name of the child node holding a {@link #TYPE_STRUCTURE structure}'s fields. */
+    public static final String FIELDS_NODE = "parameters";
+
     /** The {@link #getXmlLocation() location} of a value inside the extension element its entry names. */
     public static final String LOCATION_EXTENSION_ELEMENT = "extensionElement";
 
@@ -93,23 +102,35 @@ public class Parameter extends EntityPart
     /** The {@link #getXmlLocation() location} of a value in the text of one of BPMN's own elements. */
     public static final String LOCATION_BPMN_ELEMENT = "bpmnElement";
 
-    private static final String VALUE_PROPERTY = "value";
+    /** The property holding the {@link #getDataType() data type}. */
+    public static final String DATA_TYPE_PROPERTY = "dataType";
+
+    /** The property holding the {@link #getMinValues() least number of values}. */
+    public static final String MIN_VALUES_PROPERTY = "minValues";
+
+    /** The property holding the {@link #getMaxValues() greatest number of values}. */
+    public static final String MAX_VALUES_PROPERTY = "maxValues";
+
+    /** The {@link #getMaxValues() greatest number of values} of a parameter that does not say. */
+    public static final long DEFAULT_MAX_VALUES = 1;
+
+    /** The property holding the {@link #getXmlLocation() location}. */
+    public static final String XML_LOCATION_PROPERTY = "xmlLocation";
+
+    /** The property holding the {@link #getXmlPath() path} to a value BPMN holds. */
+    public static final String XML_PATH_PROPERTY = "xmlPath";
+
+    /** The property holding the {@link #getKeyParameter() key field} of a repeated structure. */
+    public static final String KEY_PARAMETER_PROPERTY = "keyParameter";
+
+    /** The property of a {@code wf:ParameterOption} holding the value it offers. */
+    public static final String VALUE_PROPERTY = "value";
 
     private static final String LABEL_PROPERTY = "label";
 
     private static final String DESCRIPTION_PROPERTY = "description";
 
-    private static final String DATA_TYPE_PROPERTY = "dataType";
-
-    private static final String MIN_VALUES_PROPERTY = "minValues";
-
-    private static final String MAX_VALUES_PROPERTY = "maxValues";
-
     private static final String REFERENCE_TYPE_PROPERTY = "referenceType";
-
-    private static final String XML_LOCATION_PROPERTY = "xmlLocation";
-
-    private static final String XML_PATH_PROPERTY = "xmlPath";
 
     @ValueMapValue
     private String label;
@@ -134,6 +155,9 @@ public class Parameter extends EntityPart
 
     @ValueMapValue
     private String xmlPath;
+
+    @ValueMapValue
+    private String keyParameter;
 
     /**
      * One of the values a parameter offers. A part of the parameter rather than a model of its own: an option is
@@ -171,8 +195,8 @@ public class Parameter extends EntityPart
 
     /**
      * What may be put in this parameter: {@link #TYPE_TEXT}, {@link #TYPE_BOOLEAN}, {@link #TYPE_LONG},
-     * {@link #TYPE_REFERENCE} or {@link #TYPE_PRINCIPAL}. Autocreated by the node type, so the
-     * fallback is only reached by a parameter stored as a node of another type.
+     * {@link #TYPE_REFERENCE}, {@link #TYPE_PRINCIPAL} or {@link #TYPE_STRUCTURE}. Autocreated by the node type,
+     * so the fallback is only reached by a parameter stored as a node of another type.
      *
      * @return a data type name, never empty
      */
@@ -200,7 +224,7 @@ public class Parameter extends EntityPart
      */
     public long getMaxValues()
     {
-        return this.maxValues == null ? 1 : this.maxValues;
+        return this.maxValues == null ? DEFAULT_MAX_VALUES : this.maxValues;
     }
 
     /**
@@ -238,6 +262,30 @@ public class Parameter extends EntityPart
     public String getXmlPath()
     {
         return this.xmlPath;
+    }
+
+    /**
+     * For a repeated {@link #TYPE_STRUCTURE structure}, the field whose value names the node each element is stored
+     * as, instead of being stored as a property.
+     *
+     * @return a field name, or {@code null} if the parameter names none
+     */
+    @Nullable
+    public String getKeyParameter()
+    {
+        return this.keyParameter;
+    }
+
+    /**
+     * The fields of a {@link #TYPE_STRUCTURE structure}, in the order they are declared under its
+     * {@link #FIELDS_NODE} child.
+     *
+     * @return the nested parameters, empty for a parameter of any other type
+     */
+    @NotNull
+    public List<Parameter> getParameters()
+    {
+        return declaredIn(this.resource.getChild(FIELDS_NODE));
     }
 
     /**
@@ -301,7 +349,7 @@ public class Parameter extends EntityPart
      * This parameter as the documentation catalogue serves it: its whole declaration.
      *
      * <p>The optional parts are left out rather than written empty, matching the rest of the catalogue. A missing
-     * description, reference type, path or set of options is an absent key.</p>
+     * description, reference type, path, key, set of options or set of fields is an absent key.</p>
      *
      * @return a builder holding this parameter's declaration
      */
@@ -324,6 +372,9 @@ public class Parameter extends EntityPart
         if (this.getXmlPath() != null) {
             json.add(XML_PATH_PROPERTY, this.getXmlPath());
         }
+        if (this.getKeyParameter() != null) {
+            json.add(KEY_PARAMETER_PROPERTY, this.getKeyParameter());
+        }
         final List<Option> options = this.getOptions();
         if (!options.isEmpty()) {
             final JsonArrayBuilder array = Json.createArrayBuilder();
@@ -331,6 +382,12 @@ public class Parameter extends EntityPart
                 .add(VALUE_PROPERTY, option.value())
                 .add(LABEL_PROPERTY, option.label())));
             json.add("options", array);
+        }
+        final List<Parameter> fields = this.getParameters();
+        if (!fields.isEmpty()) {
+            final JsonArrayBuilder array = Json.createArrayBuilder();
+            fields.forEach(field -> array.add(field.toJsonBuilder()));
+            json.add(FIELDS_NODE, array);
         }
         return json;
     }
