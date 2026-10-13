@@ -16,43 +16,45 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
 import { act, render, screen } from "@testing-library/react";
 
-import { appTheme } from "@iap/frontend-commons/appTheme";
 import PropertiesPanel from "@iap/workflows/PropertiesPanel";
+
+import { Themed } from "./parameterField.fixture";
+import { type } from "./vocabulary.fixture";
 
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
 
-// The panel only uses the canvas as an event bus (plus `get`, which ElementProperties needs to
-// rename an element), so a recording stand-in is enough to drive it.
+// The panel uses the canvas as an event bus, plus the `get` and `getDefinitions` ElementProperties
+// needs, so a recording stand-in is enough to drive it.
 const createViewer = () => {
-  const handlers: Record<string, ((event: never) => void)[]> = {};
+  const handlers: Record<string, ((event: never) => void)[] | undefined> = {};
   const updateLabel = vi.fn();
   const viewer = {
     on: vi.fn((event: string, handler: (event: never) => void) => {
       (handlers[event] ??= []).push(handler);
     }),
+    off: vi.fn((event: string, handler: (event: never) => void) => {
+      handlers[event] = (handlers[event] ?? []).filter(subscribed => subscribed !== handler);
+    }),
     get: vi.fn(() => ({ updateLabel })),
+    getDefinitions: vi.fn(() => ({ $attrs: {} })),
   };
-  // Every subscription for an event, since the panel re-subscribes whenever the selection changes
-  // and the newest handler is the one holding the current state. The callback is `async` even
-  // though the dispatch is not: that is what makes `act` hand back a promise for the call sites to
-  // await, so the effects the re-subscription schedules are flushed before the assertions run.
+  // Whatever is subscribed at the time, so that a handler the panel has since dropped cannot answer.
+  // The callback is `async` even though the dispatch is not: that is what makes `act` hand back a
+  // promise for the call sites to await, so the effects the dispatch schedules are flushed before the
+  // assertions run.
   const fire = (event: string, payload: unknown) => act(async () => {
-    handlers[event].forEach(handler => (handler as (e: unknown) => void)(payload));
+    (handlers[event] ?? []).forEach(handler => (handler as (e: unknown) => void)(payload));
   });
-  return { viewer: viewer as unknown as BaseViewer, fire, updateLabel };
+  return { viewer: viewer as unknown as BaseViewer, fire, updateLabel, handlers };
 };
 
 const element = (id: string, name?: string) => ({ id, businessObject: name ? { name } : {} }) as unknown as Element;
 
-const renderPanel = (viewer: BaseViewer | null, readOnly = false) => render(
-  <ThemeProvider theme={appTheme} defaultMode="light">
-    <PropertiesPanel viewer={viewer} readOnly={readOnly} />
-  </ThemeProvider>
-);
+const renderPanel = (viewer: BaseViewer | null, readOnly = false) =>
+  render(<PropertiesPanel viewer={viewer} readOnly={readOnly} />, { wrapper: Themed });
 
 describe("PropertiesPanel", () => {
   it("prompts for a selection when nothing is selected", () => {
@@ -137,6 +139,58 @@ describe("PropertiesPanel", () => {
     expect(screen.getByText("Identifier: StartEvent_1")).toBeInTheDocument();
     expect(screen.getByText("Name: Kick off")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("subscribes to a canvas once, however often the selection changes", async () => {
+    const { viewer, fire, handlers } = createViewer();
+    renderPanel(viewer);
+
+    await fire("selection.changed", { newSelection: [element("A", "First")] });
+    await fire("selection.changed", { newSelection: [element("B", "Second")] });
+
+    expect(handlers["selection.changed"]).toHaveLength(1);
+    expect(handlers["elements.changed"]).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toHaveValue("Second");
+  });
+
+  it("stops listening to a canvas it is no longer showing", async () => {
+    const { viewer, fire, handlers } = createViewer();
+    const { unmount } = renderPanel(viewer);
+    await fire("selection.changed", { newSelection: [element("A", "First")] });
+
+    unmount();
+
+    expect(viewer.off).toHaveBeenCalledWith("selection.changed", expect.any(Function));
+    expect(viewer.off).toHaveBeenCalledWith("elements.changed", expect.any(Function));
+    expect(handlers["selection.changed"]).toHaveLength(0);
+    expect(handlers["elements.changed"]).toHaveLength(0);
+  });
+
+  it("follows the canvas it is given when that changes, and forgets the previous one's selection", async () => {
+    // As switching between editing and viewing a version does
+    const first = createViewer();
+    const second = createViewer();
+    const { rerender } = renderPanel(first.viewer);
+    await first.fire("selection.changed", { newSelection: [element("A", "First")] });
+
+    rerender(<PropertiesPanel viewer={second.viewer} />);
+
+    expect(first.handlers["selection.changed"]).toHaveLength(0);
+    expect(second.handlers["selection.changed"]).toHaveLength(1);
+    expect(screen.getByText("Please select an element.")).toBeInTheDocument();
+  });
+
+  it("reads the selected element through the vocabulary it is handed", async () => {
+    const { viewer, fire } = createViewer();
+    const userTask = type("UserTask", { label: "User task", priority: 0, xmlElement: "bpmn:userTask" });
+    render(<PropertiesPanel viewer={viewer} types={[ userTask ]} />, { wrapper: Themed });
+
+    await fire("selection.changed", { newSelection: [ {
+      id: "Activity_1",
+      businessObject: { $type: "bpmn:userTask", name: "Review" },
+    } as unknown as Element ] });
+
+    expect(screen.getByText("Type: User task")).toBeInTheDocument();
   });
 
   it("ignores changes when nothing is selected, or when nothing changed", async () => {

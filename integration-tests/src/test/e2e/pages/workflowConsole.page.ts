@@ -79,8 +79,10 @@ export class WorkflowConsolePage {
    */
   async rename(elementId: string, name: string): Promise<void> {
     await this.page.locator(`.djs-shape[data-element-id="${elementId}"]`).click();
-    // The panel's field announces no name of its own, only the caption beside it
-    await this.page.getByText('Name:').getByRole('textbox').fill(name);
+    // A name is written into the diagram once it is finished, on Enter
+    const field = this.page.getByRole('textbox', { name: 'Name', exact: true });
+    await field.fill(name);
+    await field.press('Enter');
     await expect(this.page.getByText('Unsaved changes')).toBeVisible();
   }
 

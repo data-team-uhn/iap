@@ -174,11 +174,14 @@ event is `catching`, is autocreated and protected there instead, so the two cann
 disagree.
 
 **What varies between one occurrence of a kind of node and the next is a `wf:Parameter` child of the
-entry, not a hardcoded field.** Each one declares a `label` and `description`, a `dataType` saying what may
-be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`), how many values it takes
-(`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning unbounded), and — for a
-`reference` — the `referenceType` a value must be of; a parameter may also offer a fixed set of values as
-`wf:ParameterOption` children. `CopyContent.json`, the entry behind the `copyContent` handler:
+entry, not a hardcoded field.** Each one declares a `label` and `description` for the properties panel, a
+`dataType` saying what may be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`),
+how many values it takes (`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning
+unbounded), and — for a `reference` — the `referenceType` a value must be of; a parameter may also offer a
+fixed set of values as `wf:ParameterOption` children. A child is a parameter or an option by its node type,
+subtypes included, for the parser and the catalogue alike. A node carrying only the resource type of one is
+read by neither, and each parse of an element of that entry's kind reports such a parameter. `CopyContent.json`,
+the entry behind the `copyContent` handler:
 
 ```json
 {
@@ -221,7 +224,7 @@ value is an unprefixed attribute of that element, a list is one IAP-namespaced c
 
 An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so one declared there anyway
 is read as an attribute regardless — logged as a problem rather than silently accepted, since the
-alternative is a value an author writes and nothing stores.
+alternative is a field the properties panel offers and nothing can store.
 
 **A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
 "bpmnAttribute"` is one of BPMN's unprefixed attributes, and `"bpmnElement"` is the trimmed text of each of
@@ -343,11 +346,12 @@ own:
 
 `/WorkflowTypes` carries `doc:Documented`, so its catalogue is served at
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` ([autodoc](autodoc.md)). The
-visual BPMN editor builds its toolbars from that JSON, grouped by each entry's
-`category`, with the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` and `jcrNodeType` each one stands
-for, and its `parameters`, each with the `label`, `description`, `dataType`, cardinality, options,
-`xmlLocation` and `xmlPath` it declares. A structure also carries its `keyParameter`, and its fields as
-`parameters` of its own. **The shape of that output is a contract** the editor depends on.
+visual BPMN editor's properties panel reads that JSON to tell what a selected element is
+and which fields to offer for it, grouped by each entry's `category`. Each item carries the
+`xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for, the `jcrNodeType` it is stored as, and
+its `parameters`, each with the `label`, `description`, `dataType`, cardinality and options a field needs,
+and the `xmlLocation` and `xmlPath` it is written at. A structure also carries its `keyParameter`, and its
+fields as `parameters` of its own. **The shape of that output is a contract** the editor depends on.
 
 ### Runtime
 
@@ -1120,11 +1124,16 @@ each completed on its own.
   path against its own definition, and a workflow holds no questions, so routing on a
   request's answers needs the question's identifier.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
-  without it and the problem recorded; a guard is written as a `cond:condition` in the
-  arc's `extensionElements`.
+  without it and the problem is recorded; a guard is written as a `cond:condition` in
+  the arc's `extensionElements`.
 - **An extension node with no name or no primary type is left out.** It is recorded,
   and the element it belongs to is still created. A guard lost this way leaves its start
   event or arc unguarded rather than closed.
+- **The properties panel cannot edit conditions.** No parameter type holds a
+  `cond:condition` subtree, so an arc's guard, and a start event's, is written by hand in
+  the diagram's XML. A `condition` parameter type built on the conditions module's
+  `ConditionBuilder` would close this; its operand catalogue is keyed by content path,
+  which a draft diagram does not have.
 - **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is imported with no
   duration and never fires.
 - **Shipped system workflows are not yet `bpmnAuthoritative`.** Every one of them ships a
