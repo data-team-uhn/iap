@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Gives a requirement, section or question another identifier, where it stands, while its version is a draft.",
+    "description": "Renames a part of a draft version, keeping its place.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

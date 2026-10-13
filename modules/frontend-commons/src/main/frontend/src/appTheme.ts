@@ -71,8 +71,8 @@ declare module "@mui/material/styles" {
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
-  // `description` is secondary explanatory prose, `placeholder` stands in where content is
-  // missing, and `code` is a name the machine goes by, such as an identifier.
+  // `description` is secondary explanatory prose, and `placeholder` stands in where content is
+  // missing. `code` is an identifier or a path.
   interface TypographyVariants {
     pageTitle: CSSProperties;
     subheading: CSSProperties;
@@ -173,7 +173,7 @@ const appTheme = createTheme({
       ...baseTypography.body2,
       color: mutedColor,
     },
-    // A name the machine goes by, set apart from the prose around it: an identifier, a path
+    // An identifier or a path, set apart from the prose around it
     code: {
       ...baseTypography.caption,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",

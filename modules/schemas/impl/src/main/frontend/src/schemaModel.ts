@@ -51,7 +51,7 @@ export const pathOf = (node: JcrNode): string => String(node["@path"]);
 // The last step of a path: the name of what it leads to
 export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
-// Where a node would be, renamed where it stands
+// The path a node would have if renamed in place
 export const renamedPath = (path: string, name: string): string => `${path.slice(0, path.lastIndexOf("/"))}/${name}`;
 
 export const tagsOf = (node: JcrNode): string[] => strings(node.tags);

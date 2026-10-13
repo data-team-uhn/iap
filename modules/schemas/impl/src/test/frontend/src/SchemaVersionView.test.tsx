@@ -61,7 +61,7 @@ const card = async (heading: string) =>
 const spots = () => screen.getAllByRole("button", { name: /^Move (before|to the end)/ })
   .map(spot => spot.getAttribute("aria-label"));
 
-// Where renaming "Your name" is asked for
+// The URL that renames "Your name"
 const RENAME_NAME = "/Schemas/study/v3/intake/name.rename.json";
 
 // Opens the edit dialog of the part with the given heading
@@ -70,13 +70,13 @@ const editPart = async (heading: string) => {
   return screen.findByRole("dialog");
 };
 
-// Turns the identifier of the part being edited into a field, and gives that field
+// Presses Rename in the edit dialog, and returns the identifier field it reveals
 const startRenaming = (dialog: HTMLElement) => {
   fireEvent.click(within(dialog).getByRole("button", { name: "Rename" }));
   return within(dialog).getByRole("textbox", { name: "Identifier" });
 };
 
-// Gives the identifier being changed a new name, and saves it
+// Types a new identifier and saves it
 const renameTo = (dialog: HTMLElement, name: string) => {
   fireEvent.change(within(dialog).getByRole("textbox", { name: "Identifier" }), { target: { value: name } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Save the identifier" }));
@@ -203,7 +203,7 @@ describe("SchemaVersionView", () => {
     renderVersion("study", "v3");
 
     const dialog = await editPart("Your name");
-    // Right after what names the part
+    // The identifier comes right after the field that names the part
     expect(within(dialog).getByLabelText(/Question/).compareDocumentPosition(within(dialog).getByText("name")))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const identifier = startRenaming(dialog);
@@ -347,10 +347,10 @@ describe("SchemaVersionView", () => {
     const dialog = await screen.findByRole("dialog", { name: /New question/ });
     const identifier = within(dialog).getByRole("textbox", { name: "Identifier" });
     const question = within(dialog).getByLabelText(/Question/);
-    // Right after what names the part
+    // The identifier comes right after the field that names the part
     expect(question.compareDocumentPosition(identifier)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(identifier).toHaveValue("question");
-    // Free among what the form holds already
+    // The suggestion avoids the names the form already holds
     fireEvent.change(question, { target: { value: "Name" } });
     expect(identifier).toHaveValue("name2");
     fireEvent.change(question, { target: { value: "Your e-mail address" } });

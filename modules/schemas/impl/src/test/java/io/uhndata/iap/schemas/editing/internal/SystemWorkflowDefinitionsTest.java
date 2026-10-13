@@ -252,7 +252,7 @@ class SystemWorkflowDefinitionsTest
         }
         assertEquals(3, patterns.size());
         assertEquals(Set.of("^[A-Za-z0-9][A-Za-z0-9_-]*$"), Set.copyOf(patterns));
-        // What editors say a name may be, for creating and for renaming alike
+        // The hint the editor shows, for creating and renaming alike
         assertEquals(2, hints.size());
         assertEquals(Set.of("Letters, digits, - and _, starting with a letter or a digit."), Set.copyOf(hints));
     }

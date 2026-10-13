@@ -124,7 +124,7 @@ const creatable = (type: string, label: string, ...fields: unknown[]) => ({
   namePattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$", nameHint: "Letters, digits, - and _.",
 });
 
-// An option takes no name of its own
+// A type that no event may give a name, such as an option
 const unnamed = (type: string, label: string, ...fields: unknown[]) => ({ type, label, fields, named: false });
 
 // What a form or a section of a draft may hold

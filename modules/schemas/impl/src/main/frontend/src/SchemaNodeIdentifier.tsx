@@ -29,14 +29,14 @@ import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 interface SchemaNodeIdentifierProps {
   name: string;
-  // How it is renamed, when it can be: resolves once the new name has been taken
+  // Renames the part, when it can be renamed. Resolves once the new name is taken.
   rename?: (name: string) => Promise<void>;
-  // What a name may be, in words, as the workflow naming parts says
+  // The workflow's rule for names, in words
   hint?: string;
 }
 
-// Changing the identifier, confirmed or cancelled in place, with the refusal of the last attempt if there was one.
-// Confirming the name it had changes nothing. Escape cancels only this, not the dialog around it.
+// A field for a new identifier, with buttons to save or cancel. It shows why the last attempt was refused, if it was.
+// Saving the current name sends nothing. Escape cancels the rename only, not the dialog around it.
 function IdentifierEditor({ name, rename, hint, onDone }: {
   name: string;
   rename: (name: string) => Promise<void>;
@@ -46,7 +46,7 @@ function IdentifierEditor({ name, rename, hint, onDone }: {
   const [ value, setValue ] = useState(name);
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onDone });
   const input = useRef<HTMLInputElement>(null);
-  // Asked for by pressing Rename, so the field it reveals is where the typing goes
+  // The field appears when Rename is pressed, so it takes the focus
   useEffect(() => input.current?.focus(), []);
   const confirm = () => (value.trim() === name ? onDone() : run(() => rename(value.trim())));
   return (
@@ -77,8 +77,8 @@ function IdentifierEditor({ name, rename, hint, onDone }: {
   );
 }
 
-// The identifier a new part is created with: the suggestion, following what the part says, until it is given one of
-// its own; cleared, it follows again
+// The identifier field for a new part. It shows the suggestion, which follows what the part says, until the user
+// types another. Clearing the field brings the suggestion back.
 export function NewIdentifier({ value, suggestion, hint, disabled, onChange }: {
   value?: string;
   suggestion: string;
@@ -106,8 +106,8 @@ export function IdentifierPill({ name }: { name: string }) {
   );
 }
 
-// What names a part, shown as it is and, where the part can be renamed, changed as a step of its own, with its own
-// outcome, apart from the fields saved with the rest.
+// A part's identifier, with a Rename button where the part can be renamed. A rename is sent on its own, apart from
+// the fields the dialog saves.
 function SchemaNodeIdentifier({ name, rename, hint }: SchemaNodeIdentifierProps) {
   const [ editing, setEditing ] = useState(false);
   if (editing && rename) {

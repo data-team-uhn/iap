@@ -44,7 +44,7 @@ export const strings = (value: unknown): string[] => (Array.isArray(value) ? val
 
 export const resourceTypeOf = (node: JcrNode): string => String(node["sling:resourceType"]);
 
-// Whether a node is a requirement or a form item, which has an identifier, as an option does not
+// Whether a node is a part: a requirement or a form item
 export const isPart = (node: JcrNode): boolean => PART_SUPERTYPES.includes(String(node["sling:resourceSuperType"]));
 
 export const partsOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject).filter(isPart);

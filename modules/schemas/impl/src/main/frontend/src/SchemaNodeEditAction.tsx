@@ -32,11 +32,12 @@ import { ReloadTree, useTreeEvent } from "./schemaTree";
 import { isPart } from "./schemaVersionTreeModel";
 
 // Corrects what a part or an option says, when the server offers it: the fields are the ones its update
-// would change. A part's identifier is shown too, and renamed on its own where that is offered. The tree is read
-// again only once the dialog is done: the part's card holds the dialog, and would go with it, under its new name.
+// would change. A part's identifier is shown too, and can be renamed by itself where the server offers that. The
+// tree is read again only when the dialog closes. The dialog sits in the part's card, and reading the tree after a
+// rename would replace that card, and close the dialog with it.
 function SchemaNodeEditAction({ node, parent, title }: { node: JcrNode; parent: JcrNode; title: string }) {
   const [ editing, setEditing ] = useState(false);
-  // Where the node is while the dialog is open, which renaming it changes
+  // The node's path while the dialog is open. A rename changes it.
   const [ path, setPath ] = useState(pathOf(node));
   const renamed = useRef(false);
   const doFetch = useAuthenticatedFetch();
@@ -76,7 +77,7 @@ function SchemaNodeEditAction({ node, parent, title }: { node: JcrNode; parent: 
             <SchemaNodeIdentifier
               name={lastSegmentOf(path)}
               rename={offers(node, "rename") ? rename : undefined}
-              // What names may be is the create workflow's to say, which renaming keeps to as well
+              // The create workflow's hint, since renaming keeps to the same pattern
               hint={creatableOf(parent).find(type => type.type === node["jcr:primaryType"])?.nameHint}
             />
           ) : undefined}

@@ -53,7 +53,7 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
   const [ atStart, setAtStart ] = useState(false);
-  // The identifier asked for, once it is given one rather than the suggestion
+  // The identifier the user typed. Until there is one, the suggestion is sent.
   const [ identifier, setIdentifier ] = useState<string>();
   const send = useTreeEvent();
   const { moving } = useMoveMode();
