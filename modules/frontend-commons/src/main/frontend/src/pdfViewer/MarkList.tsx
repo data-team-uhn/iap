@@ -24,6 +24,7 @@ import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { cutShort, passageCard, passageTint } from "./passageStyles";
 import { describePages, getPassageNote, type ViewerStatus } from "./pdfViewerModel";
+import StepControls from "./StepControls";
 import { fadeEdges, useScrollEdges } from "../useScrollEdges";
 
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -36,7 +37,8 @@ const MAX_LINES = 4;
 
 // The passages beside the document, in the order given, each on a card in its mark's colour, selecting
 // it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
-// one selected is shown whole and kept in view.
+// one selected is shown whole and kept in view. Above them, which is selected of how many, with buttons
+// stepping through them.
 function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
   places: MarkPlaces;
@@ -56,56 +58,69 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
     }
   }, [selectedId]);
 
+  const position = marks.findIndex(mark => mark.id === selectedId) + 1;
+
   return (
-    <Box
-      ref={list}
-      component="ul"
-      aria-label="Passages"
-      sx={{
-        width: LIST_WIDTH,
-        flexShrink: 0,
-        overflow: "auto",
-        listStyle: "none",
-        m: 0,
-        p: 0.5,
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-        maskImage: fadeEdges(edges),
-      }}
-    >
-      {marks.map((mark, index) => {
-        const selected = mark.id === selectedId;
-        return (
-          <Box
-            component="li"
-            key={mark.id}
-            ref={(element: HTMLLIElement) => {
-              entries.current.set(mark.id, element);
-              return () => {
-                entries.current.delete(mark.id);
-              };
-            }}
-            sx={theme => ({
-              ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
-              overflow: "hidden",
-              outline: selected ? "2px solid" : "none",
-              outlineColor: `${mark.kind}.main`,
-              outlineOffset: "-2px",
-            })}
-          >
-            <MarkEntry
-              mark={mark}
-              position={index + 1}
-              place={places[mark.id]}
-              status={status}
-              selected={selected}
-              onSelect={() => onSelect(mark.id)}
-            />
-            {renderDetails?.(mark, selected)}
-          </Box>
-        );
-      })}
+    <Box sx={{ width: LIST_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StepControls
+        position={position}
+        count={marks.length}
+        itemName="passage"
+        heading={`Passage ${position} of ${marks.length}`}
+        onStep={next => onSelect(marks[next - 1].id)}
+      />
+      <Box
+        ref={list}
+        component="ul"
+        aria-label="Passages"
+        sx={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflow: "auto",
+          listStyle: "none",
+          m: 0,
+          p: 0.5,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+          maskImage: fadeEdges(edges),
+        }}
+      >
+        {marks.map((mark, index) => {
+          const selected = mark.id === selectedId;
+          return (
+            <Box
+              component="li"
+              key={mark.id}
+              ref={(element: HTMLLIElement) => {
+                entries.current.set(mark.id, element);
+                return () => {
+                  entries.current.delete(mark.id);
+                };
+              }}
+              sx={theme => ({
+                ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
+                // Whole, however many there are, the list scrolling rather than squeezing them.
+                flexShrink: 0,
+                overflow: "hidden",
+                outline: selected ? "2px solid" : "none",
+                outlineColor: `${mark.kind}.main`,
+                outlineOffset: "-2px",
+              })}
+            >
+              <MarkEntry
+                mark={mark}
+                position={index + 1}
+                place={places[mark.id]}
+                status={status}
+                selected={selected}
+                onSelect={() => onSelect(mark.id)}
+              />
+              {renderDetails?.(mark, selected)}
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
