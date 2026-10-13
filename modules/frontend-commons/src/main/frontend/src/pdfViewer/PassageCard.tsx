@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useId, useLayoutEffect, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useState, type ReactNode, type Ref } from "react";
 
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -37,7 +37,8 @@ const MAX_PASSAGE_LINES_ON_PHONE = 1;
 // with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
 // line, it shares its row with the note. One of several passages has controls for stepping through
 // them above it, and the caller's details for the passage go under it.
-export default function PassageCard({ quote, note, markedBy, stepper, details, onShowPassage }: {
+export default function PassageCard({ ref, quote, note, markedBy, stepper, details, onShowPassage }: {
+  ref?: Ref<HTMLDivElement>;
   quote: string | undefined;
   note?: PassageNote;
   markedBy: MarkKind;
@@ -113,6 +114,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
 
   return (
     <Box
+      ref={ref}
       sx={theme => ({ ...passageCard(theme, markedBy), overflow: "hidden" })}
     >
       {stepper}
