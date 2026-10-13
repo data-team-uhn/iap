@@ -460,7 +460,7 @@ class UserWorkflowTest
         final String timer = PROCESS + "/" + APPROVE + "/" + elementId;
         this.context.create().resource(timer, Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, elementId,
-            "timerDuration", duration, "interrupting", interrupting));
+            "timeDuration", duration, "cancelActivity", interrupting));
         this.context.create().resource(timer + "/toEnd" + elementId, Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd" + elementId, TARGET_REF, "end" + elementId));
         this.context.create().resource(PROCESS + "/end" + elementId, endTag == null

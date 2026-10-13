@@ -39,7 +39,7 @@ workflows are authored in, and the engine that runs them.
         │   └── flow_1             wf:SequenceFlow         elementId, targetRef
         ├── approve                wf:Activity
         │   ├── flow_2             wf:SequenceFlow
-        │   └── timeout            wf:IntermediateCatchingEvent  elementId, interrupting
+        │   └── timeout            wf:IntermediateCatchingEvent  elementId, cancelActivity
         └── end_1                  wf:EndEvent             terminate
 ```
 
@@ -103,8 +103,8 @@ The graph that XML parses into is stored alongside it, as flow nodes under the v
 
 A **boundary event** is a `wf:IntermediateCatchingEvent` stored *inside* the activity it
 watches; the same node type directly under the version is an ordinary mid-process catch,
-and `IntermediateCatchingEvent.getActivity()` tells the two apart. Its `interrupting`
-flag, parsed from BPMN's `cancelActivity` and true by default, decides whether it
+and `IntermediateCatchingEvent.getActivity()` tells the two apart. Its `cancelActivity`
+flag, read from BPMN's attribute of that name and true by default, decides whether it
 cancels the activity or [runs beside it](#more-than-one-branch-at-once); a free-standing
 event ignores it.
 
@@ -223,6 +223,29 @@ An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so o
 is read as an attribute regardless — logged as a problem rather than silently accepted, since the
 alternative is a value an author writes and nothing stores.
 
+**A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
+"bpmnAttribute"` is one of BPMN's unprefixed attributes, and `"bpmnElement"` is the trimmed text of each of
+BPMN's child elements of the parameter's name; an expression's body is plain text, so a
+`bpmn:FormalExpression` reads the same way. An optional `xmlPath` names the BPMN children leading from the
+flow node's element to the one holding the value, separated by slashes; where a step is missing there is no
+value. The shipped entries declare two of these. The timer entries take `timeDuration`, at
+`xmlPath: "timerEventDefinition"`:
+
+```xml
+<bpmn:boundaryEvent id="deadline" attachedToRef="approve" cancelActivity="false">
+  <bpmn:timerEventDefinition>
+    <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+  </bpmn:timerEventDefinition>
+</bpmn:boundaryEvent>
+```
+
+The boundary event entries take `cancelActivity`, a boolean BPMN attribute. `SequenceFlow`, a
+`wf:SequenceFlowType` entry, declares no parameters yet: an arc's guard is a `cond:condition` subtree, which no
+parameter type can hold (see [Known gaps](#known-gaps)). An arc is stored as a `wf:SequenceFlow` inside the
+node it leaves whichever entry it matches, so its entry only adds parameters; `elementId`, `targetRef`,
+`label` and `isDefault` come from the arc itself. A message event's `messageName` is not a
+parameter: it is the name of the message its `messageRef` points at, which the parse looks up.
+
 Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
 STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
 required parameter (`minValues` at least one) with nothing given, more values than `maxValues` allows, fewer
@@ -268,8 +291,8 @@ own:
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` ([autodoc](autodoc.md)). The
 visual BPMN editor builds its toolbars from that JSON, grouped by each entry's
 `category`, with the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` and `jcrNodeType` each one stands
-for, and its `parameters`, each with the `label`, `description`, `dataType`, cardinality, options and
-`xmlLocation` it declares. **The shape of that output is a contract** the editor depends on.
+for, and its `parameters`, each with the `label`, `description`, `dataType`, cardinality, options,
+`xmlLocation` and `xmlPath` it declares. **The shape of that output is a contract** the editor depends on.
 
 ### Runtime
 
@@ -946,7 +969,7 @@ or endpoint. A submission's page shows a button for each task the reader may com
 as `@events` lists them, labelled with the task's label, leaving out tasks that offer
 outcomes.
 
-**A task can be given a deadline.** A boundary timer with a `timerDuration` — an
+**A task can be given a deadline.** A boundary timer with a `timeDuration` — an
 ISO-8601 duration, years and months included, counted in the server's calendar from when
 the task started — is armed when the task is raised: the deadline is recorded on the
 task, as `dueDate` with `dueEventId` naming the timer, so overdue work can be found
@@ -1014,7 +1037,7 @@ this, two branches reaching a join in two requests would each see only itself ar
 is spent. A `terminate` end event discards every remaining token and cancels every task
 still waiting.
 
-**A non-interrupting boundary event runs beside the work.** With `interrupting` set to
+**A non-interrupting boundary event runs beside the work.** With `cancelActivity` set to
 `false`, it leaves the task where it was and starts a second branch: "remind them after
 three days" as against "give up after five". Fired deadlines are recorded on the task as
 `firedEvents`, so none is delivered twice, and arming picks the earliest unfired timer
@@ -1077,6 +1100,6 @@ each completed on its own.
 - **No subprocesses or multi-instance markers.** "One review per assigned reviewer" is a
   multi-instance activity, the first of these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary
-  covers timer, message, error and terminate.
+  covers timer, message, error and terminate. A timer reads only a `timeDuration`.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.

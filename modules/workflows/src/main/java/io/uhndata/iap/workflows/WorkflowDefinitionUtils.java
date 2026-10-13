@@ -79,15 +79,15 @@ import io.uhndata.iap.utils.NodeTypeUtils;
  * and {@code xmlExtensionElement} requirements, if any, the element satisfies. A tie goes to the entry whose node
  * name sorts first.</p>
  *
- * <p>A parameter is read from where it says it lives and stored in the JCR type it declares; see
- * {@link ParameterTranslation}. The entry's {@code jcrProperties} are applied afterwards, so a value
+ * <p>A parameter is read from where it says it lives, IAP's markup or BPMN's own, and stored in the JCR type it
+ * declares; see {@link ParameterTranslation}. The entry's {@code jcrProperties} are applied afterwards, so a value
  * the entry fixes cannot be argued with by a diagram.</p>
  *
  * <p>Two BPMN elements say where they are stored rather than being stored where they are written, so they are
  * handled in a second pass once every other flow node exists. A {@code bpmn:sequenceFlow} becomes a
- * {@code wf:SequenceFlow} child of the flow node its {@code sourceRef} names, and a {@code bpmn:boundaryEvent}
- * becomes a child of the activity its {@code attachedToRef} names — which, per
- * {@code workflowDefinitions.cnd}, is the whole of what makes it a boundary event rather than a free-standing
+ * {@code wf:SequenceFlow} child of the flow node its {@code sourceRef} names, carrying the parameters of the entry
+ * it matches. A {@code bpmn:boundaryEvent} becomes a child of the activity its {@code attachedToRef} names. Per
+ * {@code workflowDefinitions.cnd}, that is the whole of what makes it a boundary event rather than a free-standing
  * mid-process catch. Diagram-only elements ({@code bpmndi:*}) are never visited, since only the children of the
  * {@code bpmn:process} element are traversed.</p>
  *
@@ -148,16 +148,6 @@ public final class WorkflowDefinitionUtils
     private static final String MESSAGE_REF_ATTRIBUTE = "messageRef";
 
     private static final String MESSAGE_NAME_PROPERTY = "messageName";
-
-    private static final String TIMER_EVENT_DEFINITION = "timerEventDefinition";
-
-    private static final String TIME_DURATION_ELEMENT = "timeDuration";
-
-    private static final String TIMER_DURATION_PROPERTY = "timerDuration";
-
-    private static final String CANCEL_ACTIVITY_ATTRIBUTE = "cancelActivity";
-
-    private static final String INTERRUPTING_PROPERTY = "interrupting";
 
     /** JCR's own System View namespace, used verbatim rather than reinvented. */
     private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
@@ -317,7 +307,7 @@ public final class WorkflowDefinitionUtils
             createBoundaryEvent(boundaryEvent, flowNodeTypes, context);
         }
         for (final Element sequenceFlow : sequenceFlows) {
-            createSequenceFlow(sequenceFlow, elementsById, context);
+            createSequenceFlow(sequenceFlow, elementsById, flowNodeTypes, context);
         }
     }
 
@@ -496,12 +486,9 @@ public final class WorkflowDefinitionUtils
     }
 
     /**
-     * Look up and fill in out-of-place event definitions in the BPMN.
-     *
-     * <p>The event name and the timer duration are not attributes, which is why neither is a parameter. A message
-     * event names a {@code <bpmn:message>} declared beside the process and the engine wants that message's
-     * <em>name</em>, not the id used to point at it. The id is a document-internal handle and the name is what a
-     * caller sends. And a timer carries its duration as the text of a {@code <bpmn:timeDuration>} grandchild.</p>
+     * Resolves the message a message event names. The event points at a {@code <bpmn:message>} declared beside the
+     * process, and the engine wants that message's <em>name</em>, not the id used to point at it. The id is a
+     * document-internal handle and the name is what a caller sends, so no parameter can declare it.
      *
      * @param element the BPMN element being translated
      * @param node the flow node being written
@@ -522,13 +509,6 @@ public final class WorkflowDefinitionUtils
                     problem, ref);
             } else {
                 node.setProperty(MESSAGE_NAME_PROPERTY, name);
-            }
-        }
-        final Element timer = childElement(element, TIMER_EVENT_DEFINITION);
-        if (timer != null) {
-            final Element duration = childElement(timer, TIME_DURATION_ELEMENT);
-            if (duration != null) {
-                setIfNotBlank(node, TIMER_DURATION_PROPERTY, duration.getTextContent().trim());
             }
         }
     }
@@ -772,6 +752,25 @@ public final class WorkflowDefinitionUtils
     }
 
     /**
+     * The element a path of BPMN child elements leads to, taking the first child of each name along the way.
+     *
+     * @param element the element the path starts from
+     * @param path the local names of the children to descend through, empty for the element itself
+     * @return the element at the end of the path, or {@code null} when a step is missing
+     */
+    static Element bpmnElementAt(final Element element, final List<String> path)
+    {
+        Element current = element;
+        for (final String step : path) {
+            current = childElement(current, step);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    /**
      * Writes what identifies the node, last: the vocabulary supplies defaults, but the diagram is the authority on
      * which element this is and what it is called, so no configured property may overwrite these.
      */
@@ -822,17 +821,7 @@ public final class WorkflowDefinitionUtils
         if (node == null) {
             return;
         }
-        applyParameters(flowNodeType, element, node, context);
-        applyJcrProperties(flowNodeType, node, context);
-        applyEventDefinitions(element, node, context);
-        applyIdentity(node, element, id, flowNodeType);
-        // The BPMN attribute and the JCR property share both name-in-spirit and default (true), so an absent
-        // attribute correctly leaves the node type's own default in place.
-        final String cancelActivity = element.getAttribute(CANCEL_ACTIVITY_ATTRIBUTE);
-        if (StringUtils.isNotBlank(cancelActivity)) {
-            node.setProperty(INTERRUPTING_PROPERTY, Boolean.parseBoolean(cancelActivity));
-        }
-        applySystemProperties(node, flowNodeType.jcrNodeType(), context);
+        populate(node, element, id, flowNodeType, context);
     }
 
     /**
@@ -1066,7 +1055,7 @@ public final class WorkflowDefinitionUtils
     }
 
     private static void createSequenceFlow(final Element element, final Map<String, Element> elementsById,
-        final ParseContext context)
+        final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final ParseContext context)
     {
         final String id = element.getAttribute(ID_ATTRIBUTE);
         final String sourceRef = element.getAttribute("sourceRef");
@@ -1102,6 +1091,14 @@ public final class WorkflowDefinitionUtils
         final NodeBuilder flow = createNode(source, id, SEQUENCE_FLOW_NODETYPE, context);
         if (flow == null) {
             return;
+        }
+        // An arc is stored the same way whichever entry it matches, so an entry only adds to it. The engine would
+        // lose its way through a graph where one did more.
+        final FlowNodeTypeInfo flowType =
+            matchFlowNodeType(element, SEQUENCE_FLOW_ELEMENT, flowNodeTypes.get(SEQUENCE_FLOW_ELEMENT), context);
+        if (flowType != null) {
+            applyParameters(flowType, element, flow, context);
+            applyJcrProperties(flowType, flow, context);
         }
         flow.setProperty(ELEMENT_ID_PROPERTY, id);
         flow.setProperty(TARGET_REF_PROPERTY, targetRef);

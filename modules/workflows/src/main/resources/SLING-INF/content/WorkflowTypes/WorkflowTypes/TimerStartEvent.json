@@ -6,5 +6,12 @@
   "priority": 10,
   "xmlElement": "bpmn:startEvent",
   "xmlChildElement": "bpmn:timerEventDefinition",
-  "jcrNodeType": "wf:StartEvent"
+  "jcrNodeType": "wf:StartEvent",
+  "timeDuration": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Duration",
+    "description": "How long the timer runs before it starts the workflow, as an ISO 8601 duration such as P5D.",
+    "xmlLocation": "bpmnElement",
+    "xmlPath": "timerEventDefinition"
+  }
 }

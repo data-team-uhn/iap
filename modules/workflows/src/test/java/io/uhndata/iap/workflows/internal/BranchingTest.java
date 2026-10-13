@@ -447,7 +447,7 @@ class BranchingTest
         this.context.create().resource(PROCESS + "/noted", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted"));
         this.context.create().resource(PROCESS + "/cover/coverOverdue", Map.of(
-            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "coverOverdue", "timerDuration", "P5D"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "coverOverdue", "timeDuration", "P5D"));
         this.context.create().resource(PROCESS + "/cover/coverOverdue/toJoin", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "overdueToJoin", TARGET_REF, JOIN));
         final WorkflowEngine engine = start();
