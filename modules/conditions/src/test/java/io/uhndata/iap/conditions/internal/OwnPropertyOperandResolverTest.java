@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link OwnPropertyOperandResolver}: the content's own property, not its entity's.
+ * Unit tests for {@link OwnPropertyOperandResolver}.
  *
  * @version $Id$
  * @since 0.1.0

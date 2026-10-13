@@ -23,14 +23,13 @@ import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * Resolves {@code ownProperty} operands: a property of the content the condition is evaluated on itself, named by
- * the operand value, where a {@code property} operand reads the enclosing entity's. A guard about a part of an
- * entity, such as whether a question takes its options from elsewhere, needs the part's own properties.
+ * Resolves {@code ownProperty} operands: the property named by the operand value, read on the content the condition
+ * is evaluated on rather than on its enclosing entity. A guard about a part of an entity, such as whether a question
+ * takes its options from elsewhere, needs the part's own properties.
  *
  * @version $Id$
  * @since 0.1.0
  */
-// Named, since the service is implemented through the shared base class, which DS would not look through
 @Component(service = OperandResolver.class)
 public class OwnPropertyOperandResolver extends AbstractPropertyOperandResolver
 {

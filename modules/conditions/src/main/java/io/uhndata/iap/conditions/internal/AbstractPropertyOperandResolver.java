@@ -26,8 +26,11 @@ import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * What resolves operands reading one property, named by the operand value, of some content the condition is about:
- * the subclass says which.
+ * Resolves operands that read one property, named by the operand value, of some content. The subclass says which
+ * content holds the property.
+ *
+ * <p>A subclass names {@link OperandResolver} as its {@code @Component} service. By default, a component offers only
+ * the interfaces its own class implements, not those of a superclass.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,7 +47,7 @@ abstract class AbstractPropertyOperandResolver implements OperandResolver
             this.logger.warn("A {} operand at {} does not name a property", getSource(), operand.getPath());
             return Operand.EMPTY;
         }
-        // Raw, undeclared: the stored JCR type of the property speaks for itself in the type unification
+        // No declared type: type unification infers it from the stored value
         return Operand.of(holder(context).get(value[0]));
     }
 
