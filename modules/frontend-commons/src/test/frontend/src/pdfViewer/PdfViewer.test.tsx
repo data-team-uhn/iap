@@ -1501,6 +1501,93 @@ describe("PdfViewer", () => {
         expect(onClose).toHaveBeenCalled();
       });
 
+      it("shows the matches as PDF.js counts them, with a spinner until it has searched every page", async () => {
+        fakePdf.pagesSearched = 0;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        await act(() => new Promise(resolve => setTimeout(resolve, 600)));
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        fakePdf.pagesSearched = 2;
+        // A count of none, as PDF.js gives before it has picked a match to show, changes nothing.
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 0, total: 3 } }));
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 5 } }));
+        expect(await screen.findByText("2 of 5")).toBeInTheDocument();
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        fakePdf.pagesSearched = undefined;
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+      });
+
+      it("shows a spinner while the pages are searched, before any match is found", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+
+        await userEvent.type(getSearchField(), QUERY);
+
+        expect(await screen.findByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+        expect(screen.queryByText(/^\d+ of \d+$/)).not.toBeInTheDocument();
+      });
+
+      it("shows and announces a match found before it was counted only once its count is known", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+
+        // PDF.js says a match is found while still counting it as 0 of 0, then gives its count.
+        act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
+          state: 0,
+          matchesCount: { current: 0, total: 0 },
+        }));
+        expect(screen.queryByText("0 of 0")).not.toBeInTheDocument();
+        expect(getStatus()).not.toHaveTextContent("Match");
+
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 1, total: 4 } }));
+
+        expect(await screen.findByText("1 of 4")).toBeInTheDocument();
+        expect(getStatus()).toHaveTextContent("Match 1 of 4.");
+      });
+
+      it("takes the count PDF.js has given already for a match it says is found without one", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 7 } }));
+        act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
+          state: 0,
+          matchesCount: { current: 0, total: 0 },
+        }));
+
+        expect(screen.getByText("2 of 7")).toBeInTheDocument();
+        expect(getStatus()).toHaveTextContent("Match 2 of 7.");
+      });
+
+      it("counts a new search's matches once PDF.js has begun it, not the last search's it still holds", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+
+        fakePdf.holdSearch = true;
+        await userEvent.tripleClick(getSearchField());
+        await userEvent.keyboard("year");
+        await act(() => new Promise(resolve => setTimeout(resolve, 600)));
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        act(() => fakePdf.releaseSearch?.());
+
+        expect(await screen.findByText("1 of 1")).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+      });
+
       it("leaves the reader where they are when zooming, rather than taking them back to the match", async () => {
         show();
         await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
