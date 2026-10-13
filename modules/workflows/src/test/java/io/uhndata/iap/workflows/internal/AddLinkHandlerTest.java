@@ -39,8 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link AddLinkHandler}: what the task acts on linked to the content the event names, as the activity
- * configures, nothing linked when the event names nothing, and what cannot be linked refused.
+ * Unit tests for {@link AddLinkHandler}: what it links, when it links nothing, and what it refuses.
  *
  * @version $Id$
  * @since 0.1.0

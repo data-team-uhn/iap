@@ -33,9 +33,10 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The {@code addLink} service task: links the host to the content the event names in the entry the activity's
- * {@code to} gives, with a link of the activity's {@code linkType} and its optional {@code linkLabel}. An event naming
- * nothing there links nothing, so a workflow can link as an option, such as a copy to what it was copied from.
+ * The built-in service task that links what it acts on to content the event names. The activity's {@code to} says
+ * which event entry holds that content's path. The link is of the activity's {@code linkType}, with its optional
+ * {@code linkLabel}. An event naming nothing there links nothing, so a workflow can link as an option, such as a copy
+ * to what it was copied from.
  *
  * @version $Id$
  * @since 0.1.0

@@ -53,7 +53,7 @@ The links module ships the types that mean the same wherever they are used, unde
 
 | Type | Means | Behaviour |
 |---|---|---|
-| `copiedFrom` | The content this started as a copy of, e.g. a schema version made from another | Internal and weak, ignored on delete: what it was copied from may go, leaving the copy as it is. No backlink, so linking never writes to the source |
+| `copiedFrom` | The content this started as a copy of, e.g. a schema version made from another | Internal and weak, ignored on delete: the source may be deleted, leaving the copy as it is. No backlink, so linking never writes to the source |
 
 Workflows link content with the `addLink` service task ([workflows](workflows.md)).
 
