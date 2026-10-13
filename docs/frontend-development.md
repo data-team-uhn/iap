@@ -304,12 +304,13 @@ as adding the passage as a mark and opening a comment box for it. Text in a PDF 
 with a pointer, so commenting on a passage needs one too. A view built from the viewer's parts can
 follow the selection with `useSelectedText`.
 
-The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
-and accents. Every match is highlighted, and the one shown more deeply. The field says which match
-is shown of how many, and the up and down buttons beside it step through them, wrapping round at the
-ends. In the field, Enter and Shift+Enter do the same, and Escape clears the search. Where the
-toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
-Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
+The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case and
+accents. Every match is highlighted, the one shown more deeply; the field says which match is shown of
+how many, the count growing as PDF.js searches the pages, with a spinner until it has searched them all,
+and the up and down buttons beside it step through them, wrapping round at the ends. In the field, Enter
+and Shift+Enter do the same, and Escape clears the search. Where the toolbar has no room for the field,
+a button opens it in the toolbar's place, and Escape closes it. Ctrl+F, or Cmd+F, searches while the
+focus is in the viewer.
 
 A spinner shows in the frame until PDF.js has laid out the document's pages.
 
