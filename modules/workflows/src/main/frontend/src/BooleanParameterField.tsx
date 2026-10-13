@@ -18,17 +18,18 @@
 
 import BooleanInput from "@iap/frontend-commons/inputs/BooleanInput";
 
+import { isBoolean } from "./parameterValues";
 import { inputProps } from "./parameterWidget";
 import TextParameterField from "./TextParameterField";
 import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
 
-// What the server would store: true or false in any case, as a diagram written by hand or by another
-// tool may spell it. It drops any other word, and the node type's default applies.
-function stored(value: string): "true" | "false" | undefined {
+// What the server would store, as the word the field picks. A diagram written by hand or by another
+// tool may spell it in any case. Any other word is dropped, and the node type's default applies.
+function stored(value: string): string | undefined {
   const word = value.trim().toLowerCase();
-  return word === "true" || word === "false" ? word : undefined;
+  return isBoolean(word) ? word : undefined;
 }
 
 // A parameter holding yes or no. A list of them is typed the way text is.
@@ -38,15 +39,13 @@ export default function BooleanParameterField(props: ParameterFieldProps) {
   if (isMultiple(parameter) && !readOnly) {
     return <TextParameterField {...props} />;
   }
-  // Read as a word rather than as a tick nobody can move, and as written when it is no word the server
-  // reads
-  if (readOnly) {
-    return <BooleanInput {...inputProps(props)} values={values.map(value => stored(value) ?? value)} />;
-  }
-  // Shown as unset and flagged, so the author picks one rather than reading a value the server ignores
-  const single = values.at(0) ?? "";
-  const word = stored(single);
-  const problems = single !== "" && word === undefined
-    ? [ `"${single}" is not true or false, so it will be ignored` ] : [];
-  return <BooleanInput {...inputProps(props, problems)} values={word === undefined ? [] : [ word ]} />;
+  // A word the server ignores is shown as unset and flagged, so the author picks one rather than
+  // reading a value that is not there. A read-only field shows it as written.
+  const words = values.flatMap(value => stored(value) ?? []);
+  return (
+    <BooleanInput
+      {...inputProps(props)}
+      values={readOnly ? values.map(value => stored(value) ?? value) : words}
+    />
+  );
 }

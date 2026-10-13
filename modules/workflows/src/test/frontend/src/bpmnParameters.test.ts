@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-// Driven against the real bpmn-moddle rather than a stand-in. What is tested is the agreement between
-// what moddle hands over on import, what these rules make of it, and what moddle writes back out for
-// the server's parser. A stand-in would only prove the rules agree with themselves.
+// Driven against the real bpmn-moddle rather than a stand-in. Three things are tested to agree. They are
+// what moddle hands over on import, what these rules make of it, and what it writes back for the parser.
+// A stand-in would only prove the rules agree with themselves.
 
 import { BpmnModdle } from "bpmn-moddle";
 
@@ -299,21 +299,13 @@ describe("editing an element-located parameter", () => {
     expect(written).not.toContain("fromStates");
   });
 
-  it("brings the entry's element with it when the diagram has none yet", async () => {
-    const { moddle, definitions, start, serialize } = await load();
+  it("writes nothing for an entry whose element the node does not carry", async () => {
+    // Only a field built before an undo removed the element gets here, and bringing it back would
+    // reverse that undo
+    const { moddle, definitions, start } = await load();
 
-    apply(parameterEdit(moddle, start, definitions, SET_STATE, TO_STATE, [ "RETIRED" ]));
-
-    expect(await serialize()).toContain('<iap:setState toState="RETIRED"');
-    expect(readValues(start, definitions, SET_STATE, TO_STATE)).toEqual([ "RETIRED" ]);
-  });
-
-  it("brings the entry's element with it for a list too", async () => {
-    const { moddle, definitions, start, serialize } = await load();
-
-    apply(parameterEdit(moddle, start, definitions, SET_STATE, FROM_STATES, [ "DRAFT" ]));
-
-    expect(await serialize()).toContain("<iap:fromStates>DRAFT</iap:fromStates>");
+    expect(parameterEdit(moddle, start, definitions, SET_STATE, TO_STATE, [ "RETIRED" ])).toBeUndefined();
+    expect(parameterEdit(moddle, start, definitions, SET_STATE, FROM_STATES, [ "DRAFT" ])).toBeUndefined();
   });
 });
 
@@ -386,6 +378,7 @@ describe("changing what a node means", () => {
 
   it("leaves nothing behind when the entry taken over has no element of its own", async () => {
     const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, PLAIN);
+    apply(typeEdit(moddle, task, definitions, undefined, SET_STATE));
     apply(parameterEdit(moddle, task, definitions, SET_STATE, TO_STATE, [ "DRAFT" ]));
 
     apply(typeEdit(moddle, task, definitions, SET_STATE, SERVICE_TASK));
@@ -494,13 +487,27 @@ describe("a parameter BPMN holds", () => {
     expect(readValues(element("flow"), definitions, SEQUENCE_FLOW, CONDITION)).toEqual([ "approved" ]);
   });
 
-  it("reads nothing where the document says nothing, whatever default moddle would supply", async () => {
-    // moddle answers true for a cancelActivity nobody wrote; the server's parser reads no value there
+  it("reads an attribute the document leaves out as BPMN's default, and nothing else it leaves out", async () => {
+    // The parser stores nothing for it, and the node type defaults cancelActivity to true as BPMN does
     const { definitions, element } = await loadHeld();
 
-    expect(element("reminder").cancelActivity).toBe(true);
-    expect(readValues(element("reminder"), definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY)).toEqual([]);
+    expect(readValues(element("reminder"), definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY)).toEqual([ "true" ]);
     expect(readValues(element("reminder"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION)).toEqual([]);
+    const extra = parameter("extra", { xmlLocation: "bpmnAttribute" });
+    expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, extra)).toEqual([]);
+  });
+
+  it("still reads the default once it is chosen, saved and loaded again", async () => {
+    // Chosen, the default is left out of the document
+    const { moddle, definitions, element, serialize } = await loadHeld();
+
+    apply(parameterEdit(moddle, element("deadline"), definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY, [ "true" ]));
+
+    const written = await serialize();
+    expect(written).toContain('<bpmn:boundaryEvent id="deadline" attachedToRef="review">');
+    const reloaded = await loadHeld(written);
+    expect(readValues(reloaded.element("deadline"), reloaded.definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY))
+      .toEqual([ "true" ]);
   });
 
   it("reads nothing, and writes nothing, along a path the element does not have", async () => {
@@ -509,6 +516,17 @@ describe("a parameter BPMN holds", () => {
     expect(readValues(element("review"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION)).toEqual([]);
     expect(parameterEdit(moddle, element("review"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION, [ "P1D" ]))
       .toBeUndefined();
+  });
+
+  it("follows a path only in the case a document writes its steps, as the server does", async () => {
+    const { moddle, definitions, element } = await loadHeld();
+    const miscased = parameter("timeDuration", { xmlLocation: "bpmnElement", xmlPath: [ "TimerEventDefinition" ] });
+
+    expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, miscased)).toEqual([]);
+    expect(parameterEdit(moddle, element("deadline"), definitions, TIMER_BOUNDARY_EVENT, miscased, [ "P1D" ]))
+      .toBeUndefined();
+    apply(parameterEdit(moddle, element("deadline"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION, [ "P1D" ]));
+    expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, TIME_DURATION)).toEqual([ "P1D" ]);
   });
 
   it("writes an attribute BPMN declares in the type BPMN declares it with", async () => {
@@ -525,7 +543,7 @@ describe("a parameter BPMN holds", () => {
     expect(written).toContain('<bpmn:boundaryEvent id="reminder" cancelActivity="false" attachedToRef="review">');
     expect(written).toContain('<bpmn:boundaryEvent id="deadline" attachedToRef="review">');
     expect(written).toContain('completionQuantity="2"');
-    expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY)).toEqual([]);
+    expect(readValues(element("deadline"), definitions, TIMER_BOUNDARY_EVENT, CANCEL_ACTIVITY)).toEqual([ "true" ]);
   });
 
   it("reads and writes a list in an attribute BPMN does not declare, joined with commas", async () => {
@@ -594,3 +612,170 @@ describe("a parameter BPMN holds", () => {
   });
 });
 
+// The shape of the content-editing step's field declarations.
+const VALUE = parameter("value", { minValues: 1 });
+const CHOICES = parameter("choices", {
+  dataType: "structure", maxValues: 0, keyParameter: "value", parameters: [ VALUE, parameter("label") ],
+});
+const APPLIES_WHEN = parameter("appliesWhen", {
+  dataType: "structure", parameters: [ parameter("property"), parameter("values", { maxValues: 0 }) ],
+});
+const FIELDS = parameter("fields", {
+  dataType: "structure",
+  maxValues: 0,
+  keyParameter: "name",
+  parameters: [ parameter("name"), parameter("label"), CHOICES, APPLIES_WHEN ],
+});
+const UPDATE_CONTENT = type("UpdateContent", { xmlExtensionElement: "updateContent", parameters: [ FIELDS ] });
+
+const structured = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:iap="${IAP_NS}"
+                  id="Definitions_3" targetNamespace="https://iap.uhndata.io/test">
+  <bpmn:process id="edit" isExecutable="true">
+    <bpmn:serviceTask id="promote">
+      <bpmn:extensionElements>
+        <iap:updateContent keep="me">
+          <iap:fields name="workflow" label=" Workflow " hint="kept">
+            <iap:choices value="a" label="A" />
+            <iap:appliesWhen property="dataType"><iap:values>long</iap:values></iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="status" label="Status" />
+          <iap:other />
+        </iap:updateContent>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:startEvent id="requested" />
+  </bpmn:process>
+</bpmn:definitions>`;
+
+const WORKFLOW = {
+  name: [ "workflow" ],
+  label: [ "Workflow" ],
+  choices: [ { value: [ "a" ], label: [ "A" ] } ],
+  appliesWhen: [ { property: [ "dataType" ], values: [ "long" ] } ],
+};
+const STATUS = { name: [ "status" ], label: [ "Status" ], choices: [], appliesWhen: [] };
+
+describe("a structured parameter", () => {
+  it("reads every level of its records", async () => {
+    const { definitions, task, start } = await load(DEFAULT_IAP_PREFIX, structured);
+
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ WORKFLOW, STATUS ]);
+    expect(readValues(start, definitions, UPDATE_CONTENT, FIELDS)).toEqual([]);
+    expect(readValues(task, definitions, UPDATE_CONTENT, TO_STATE)).toEqual([]);
+  });
+
+  it("edits one field of a nested record in place, keeping what else its element holds", async () => {
+    const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, structured);
+    const wanted = [ { ...WORKFLOW, choices: [ { value: [ "a" ], label: [ "Ay" ] } ] }, STATUS ];
+
+    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, wanted);
+
+    expect(edit?.properties).toEqual({ label: "Ay" });
+    apply(edit);
+    const written = await serialize();
+    expect(written).toContain('<iap:choices value="a" label="Ay" />');
+    expect(written).toContain('hint="kept"');
+    expect(written).toContain('keep="me"');
+    expect(written).toContain("<iap:other />");
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual(wanted);
+  });
+
+  it("edits a list and a single value of one record in one step", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+    const wanted = [ WORKFLOW, { ...STATUS, label: [ "State" ], choices: [ { value: [ "x" ] } ] } ];
+
+    apply(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, wanted));
+
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS))
+      .toEqual([ WORKFLOW, { ...STATUS, label: [ "State" ], choices: [ { value: [ "x" ], label: [] } ] } ]);
+  });
+
+  it("adds, removes and reorders records, keeping the elements of the ones left unchanged", async () => {
+    const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, structured);
+    const added = { name: [ "owner" ], appliesWhen: [ { property: [ "kind" ], values: [ "a", "b" ] } ] };
+
+    apply(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ added, WORKFLOW ]));
+
+    const written = await serialize();
+    expect(written).toContain('hint="kept"');
+    expect(written).not.toContain("status");
+    expect(written).toContain("<iap:other />");
+    expect(written.indexOf('name="owner"')).toBeLessThan(written.indexOf('name="workflow"'));
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([
+      { name: [ "owner" ], label: [], choices: [], appliesWhen: [ { property: [ "kind" ], values: [ "a", "b" ] } ] },
+      WORKFLOW,
+    ]);
+    // Reread from the written XML, as the server would
+    const reloaded = await load(DEFAULT_IAP_PREFIX, written);
+    expect(readValues(reloaded.task, reloaded.definitions, UPDATE_CONTENT, FIELDS)).toHaveLength(2);
+  });
+
+  it("moves two records past each other in one step", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+
+    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ STATUS, WORKFLOW ]);
+
+    expect(edit?.moddleElement.$descriptor?.ns?.localName).toBe("updateContent");
+    apply(edit);
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ STATUS, WORKFLOW ]);
+  });
+
+  it("removes a record, and adds one where the diagram holds none", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+
+    apply(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, [ WORKFLOW ]));
+    expect(readValues(task, definitions, UPDATE_CONTENT, FIELDS)).toEqual([ WORKFLOW ]);
+
+    const { definitions: plainDefinitions, task: bare } = await load(DEFAULT_IAP_PREFIX, structured
+      .replace(/<iap:updateContent keep="me">[\s\S]*<\/iap:updateContent>/, "<iap:updateContent />"));
+    apply(parameterEdit(moddle, bare, plainDefinitions, UPDATE_CONTENT, FIELDS, [ { name: [ "status" ] } ]));
+    expect(readValues(bare, plainDefinitions, UPDATE_CONTENT, FIELDS))
+      .toEqual([ { ...STATUS, label: [] } ]);
+  });
+
+  it("reads a field a record leaves out as one left empty", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+
+    const edit = parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS,
+      [ WORKFLOW, { name: [ "status" ], label: [ "State" ] } ]);
+
+    expect(edit?.properties).toEqual({ label: "State" });
+  });
+
+  it("reads a structure that declares no fields as records holding nothing", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+    const bare = parameter("fields", { dataType: "structure", maxValues: 0 });
+    const holder = type("UpdateContent", { xmlExtensionElement: "updateContent", parameters: [ bare ] });
+
+    expect(readValues(task, definitions, holder, bare)).toEqual([ {}, {} ]);
+    expect(parameterEdit(moddle, task, definitions, holder, bare, [ { name: [ "x" ] } ])).toBeDefined();
+  });
+
+  it("writes nothing when the records are what the diagram holds, once settled", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+    const spaced = [ { ...WORKFLOW, label: [ " Workflow  " ] }, STATUS, {} ];
+
+    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, FIELDS, spaced)).toBeUndefined();
+  });
+
+  it("writes every level of a record into the entry's element a change of kind brought in", async () => {
+    const { moddle, definitions, start, serialize } = await load(DEFAULT_IAP_PREFIX, structured);
+
+    apply(typeEdit(moddle, start, definitions, undefined, UPDATE_CONTENT));
+    apply(parameterEdit(moddle, start, definitions, UPDATE_CONTENT, FIELDS, [ WORKFLOW ]));
+
+    const reloaded = await load(DEFAULT_IAP_PREFIX, await serialize());
+    expect(readValues(reloaded.start, reloaded.definitions, UPDATE_CONTENT, FIELDS)).toEqual([ WORKFLOW ]);
+  });
+
+  it("writes nothing for a structure declared where the server does not read one", async () => {
+    const { moddle, definitions, task } = await load(DEFAULT_IAP_PREFIX, structured);
+    const outside = { ...FIELDS, xmlLocation: "attribute" as const };
+
+    expect(readValues(task, definitions, UPDATE_CONTENT, outside)).toEqual([]);
+    expect(parameterEdit(moddle, task, definitions, UPDATE_CONTENT, outside, [ STATUS ])).toBeUndefined();
+    expect(parameterEdit(moddle, task, definitions, type("Bare", { parameters: [ FIELDS ] }), FIELDS, [ STATUS ]))
+      .toBeUndefined();
+  });
+});

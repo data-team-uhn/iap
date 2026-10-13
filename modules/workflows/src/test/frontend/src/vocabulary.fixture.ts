@@ -72,14 +72,15 @@ export const SERVICE_TASK = type("ServiceTask", {
   parameters: [ HOST_TAG, parameter("handler", { label: "Handler" }) ],
 });
 
-// An element as moddle hands it over, written as `prefix:name` in the namespace given.
+// An element as moddle hands it over, written as `prefix:name` in the namespace given. A package is
+// passed for a type one declares.
 export const moddleElement = (
   name: string,
   extra: Partial<ModdleElement>,
-  { prefix, uri }: { prefix: string; uri?: string }
+  { prefix, uri, pkg }: { prefix: string; uri?: string; pkg?: { xml?: { tagAlias?: string } } }
 ): ModdleElement => ({
   $type: `${prefix}:${name}`,
-  $descriptor: { ns: { prefix, localName: name, uri } },
+  $descriptor: { ns: { prefix, localName: name, uri }, ...pkg && { $pkg: pkg } },
   ...extra,
 });
 
@@ -90,10 +91,10 @@ export const iapElement = (
   { prefix = "iap", uri = IAP_NS } = {}
 ): ModdleElement => moddleElement(name, extra, { prefix, uri });
 
-// A BPMN business object as bpmn-js hands it over. It carries its model's own name (`ServiceTask`),
-// which is capitalized differently from the element in the document.
+// A BPMN business object as bpmn-js hands it over. It carries its model's own name (`ServiceTask`), and
+// the package that says the document writes it with a lowercase initial (`serviceTask`).
 export const bpmnElement = (modelName: string, extra: Partial<ModdleElement> = {}): ModdleElement =>
-  moddleElement(modelName, extra, { prefix: "bpmn" });
+  moddleElement(modelName, extra, { prefix: "bpmn", pkg: { xml: { tagAlias: "lowerCase" } } });
 
 // What a flow node holding these elements under its `bpmn:extensionElements` carries.
 export const carrying = (...values: ModdleElement[]) => ({ extensionElements: { values } });

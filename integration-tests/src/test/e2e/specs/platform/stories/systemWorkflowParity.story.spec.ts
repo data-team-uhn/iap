@@ -23,25 +23,25 @@ import { adminAuth } from '../../../support/auth';
 /**
  * THE STORY: every process the platform runs on its own can be opened in the editor and still be itself.
  *
- * The system workflows under /SystemWorkflows are installed with their flow nodes written out by hand,
- * because they are not `bpmnAuthoritative`: a reparse must not be able to throw away the graph the
- * platform depends on to boot. Each one also ships a diagram, which is what an administrator opens when
- * she wants to see - or change - what the platform does on a create, a save, or a promotion.
+ * The system workflows under /SystemWorkflows are installed with their flow nodes written out by hand.
+ * They are not `bpmnAuthoritative`, so that the graph the platform boots with survives any reparse.
+ * Each one also ships a diagram. An administrator opens it to see or change what the platform does on
+ * a create, a save, or a promotion.
  *
  * So each definition says the same thing twice, and nothing at runtime forces the two to agree. Miriam
- * finds out whether they do, the only way anyone can: she opens a new version of each system workflow
- * from that workflow's own diagram, which makes the new version's graph *derived*, and compares it with
- * the graph the platform shipped.
+ * finds out whether they do, the only way anyone can. She opens a new version of each system workflow
+ * from that workflow's own diagram, which makes the new version's graph *derived*. Then she compares it
+ * with the graph the platform shipped.
  *
  * A story rather than a spec because it mutates: each definition gains a draft version beside the active
- * one until the story throws its drafts away. A draft runs nothing - version matching only ever picks an
- * active version - but while it exists, the listing a concurrent spec reads is not the one it started
- * from, which is exactly what the stories/specs split exists for.
+ * one until the story throws its drafts away. A draft runs nothing, since version matching only ever picks
+ * an active version. But while it exists, the listing a concurrent spec reads is not the one it started
+ * from. That is exactly what the stories/specs split exists for.
  *
  * The unit-level counterpart is `ShippedDefinitionParityTest`, which compares the same two things against
- * the sources rather than a running instance. This one is what proves the pieces are actually installed
- * together: the vocabulary each service task needs, the node types it is stored as, and the diagram
- * itself, all in one repository, parsed by the commit editor rather than by a test harness.
+ * the sources rather than a running instance. This one proves the pieces are actually installed together.
+ * The vocabulary each service task needs, its node types and the diagram itself are all in one repository.
+ * The commit editor parses them, rather than a test harness.
  */
 
 /** A tree as the JSON serializers hand it over: a child node is a nested object, everything else a value. */
@@ -51,10 +51,10 @@ type JsonObject = Record<string, JsonValue>;
 
 /**
  * What the two sides are allowed to differ about. All of these are the repository's rather than the
- * diagram's: the two timestamps are stamped by whoever wrote the node, the identity is handed out on
- * creation, the resource types restate the primary type, `catching` is autocreated and protected by
- * every event node type, so no diagram has anything to say about it, and `@path` is where the JSON
- * serializer found the node, which is a different version on each side.
+ * diagram's. The two timestamps are stamped by whoever wrote the node. The identity is handed out on
+ * creation. The resource types restate the primary type. `catching` belongs to every event node type,
+ * which sets and protects it, so no diagram has anything to say about it. `@path` is where the JSON serializer found
+ * the node, which is a different version on each side.
  */
 const REPOSITORY_OWNED = new Set([
   'jcr:created',
@@ -80,10 +80,10 @@ const isNode = (value: JsonValue): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * The boundary events of a diagram that state `cancelActivity`, by element id - which is also the name
- * of the node each is stored as.
+ * The boundary events of a diagram that state `cancelActivity`, by element id. That is also the name of
+ * the node each is stored as.
  *
- * Read per element rather than per file: one diagram may state the attribute on one boundary event and
+ * Read per element rather than per file. One diagram may state the attribute on one boundary event and
  * leave another to the default, and only the event that states it has anything to compare.
  */
 function cancelActivityDeclared(bpmn: string): Set<string> {
@@ -102,8 +102,8 @@ function cancelActivityDeclared(bpmn: string): Set<string> {
  * responsible for taken out.
  *
  * `cancelActivity` is only compared for a boundary event whose own element says it. Where the
- * attribute is absent the node type's own default stands - which a hand-written descriptor is free to
- * spell out and a parse never writes.
+ * attribute is absent the node type's default applies. A hand-written descriptor is free to spell
+ * that out, and a parse never writes it.
  */
 function comparable(name: string, node: JsonObject, declared: Set<string>): JsonObject {
   const result: JsonObject = {};
@@ -118,14 +118,14 @@ function comparable(name: string, node: JsonObject, declared: Set<string>): Json
 
 /**
  * The graph of one version: its child nodes, which are the flow nodes and the arcs stored inside them.
- * A version's own properties - its state, its description, whether its diagram owns its graph - are not
- * part of this: no diagram says anything about them, and the two versions being compared differ in all
- * three by construction.
+ * A version's own properties are not part of this: its state, its description, and whether its diagram
+ * owns its graph. No diagram says anything about them, and the two versions compared differ in all three
+ * by construction.
  */
 async function graphOf(request: APIRequestContext, versionPath: string, declared: Set<string>):
 Promise<JsonObject> {
   // `-dereference` so that a flowNodeType comes back as the identifier of the vocabulary entry rather
-  // than as its expanded content: the identifier is what says the two nodes are the same kind of node.
+  // than as its expanded content. The identifier is what says the two nodes are the same kind of node.
   const response = await request.get(`${versionPath}.deep.-dereference.infinity.json`, { headers: adminAuth });
   expect(response.ok(), `${versionPath} could not be read back`).toBeTruthy();
   const version = (await response.json()) as JsonObject;
@@ -160,8 +160,8 @@ test.describe('stories: every system workflow can be re-derived from its own dia
   /** The versions this run opened, by repository path, for the story to throw away afterwards. */
   const versions = new Set<string>();
 
-  // Miriam throws away the drafts she opened, leaving the instance as she found it: a later story that
-  // drafts from one of these workflows expects to find only what the platform shipped
+  // Miriam throws away the drafts she opened, leaving the instance as she found it. A later story that
+  // drafts from one of these workflows expects to find only what the platform shipped.
   test.afterAll(async ({ playwright, baseURL }) => {
     const request = await playwright.request.newContext({ baseURL });
     const left: string[] = [];
@@ -230,8 +230,8 @@ test.describe('stories: every system workflow can be re-derived from its own dia
   //   She edits one of these diagrams and the platform behaves differently afterwards.
   //
   // Waiting on: the shipped definitions becoming bpmnAuthoritative. Until they are, an edited diagram
-  // is reparsed into flow nodes that the descriptor's own are not replaced by, so what the engine
-  // runs is still the installed graph. This story is what has to stay green for that switch to be
+  // is reparsed into flow nodes that do not replace the descriptor's own. What the engine runs is
+  // still the installed graph. This story is what has to stay green for that switch to be
   // safe, which is why it is written now rather than then.
   // -----------------------------------------------------------------------------------------------
 });

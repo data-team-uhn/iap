@@ -111,4 +111,35 @@ describe("a parameter holding yes or no", () => {
 
     expect(screen.getByRole("button", { name: "true" })).toBeInTheDocument();
   });
+
+  it("asks for a required value once it has been left with only a word the server ignores", async () => {
+    const { user } = renderField(BooleanParameterField, { dataType: "boolean", minValues: 1 }, [ "maybe" ]);
+    expect(screen.getByText('"maybe" is not true or false, so it will be ignored')).toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox"));
+    await user.keyboard("{Escape}");
+    await user.tab();
+
+    expect(screen.getByText('"maybe" is not true or false, so it will be ignored. A value is required'))
+      .toBeInTheDocument();
+  });
+
+  it("does not ask for a required value while its menu is open", async () => {
+    const { user } = renderField(BooleanParameterField, { dataType: "boolean", minValues: 1 });
+
+    await user.click(screen.getByRole("combobox"));
+
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(screen.queryByText("A value is required")).not.toBeInTheDocument();
+  });
+
+  it("asks for nothing when it is optional and left unset", async () => {
+    const { user } = renderField(BooleanParameterField, { dataType: "boolean" });
+
+    await user.click(screen.getByRole("combobox"));
+    await user.keyboard("{Escape}");
+    await user.tab();
+
+    expect(screen.queryByText("A value is required")).not.toBeInTheDocument();
+  });
 });

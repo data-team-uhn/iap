@@ -20,14 +20,15 @@ import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
 import TextInput from "@iap/frontend-commons/inputs/TextInput";
 
+import { refusal, splitList } from "./parameterValues";
 import { inputProps } from "./parameterWidget";
 import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
 import type { Parameter } from "./workflowTypes";
 
-// What is wrong with how many values a list holds, as the server would report it, or nothing. An empty
-// list of a required parameter is left to the field's own required marker.
+// What is wrong with how many values a list holds, as the server would report it. An empty
+// list of a required parameter is reported as missing a value instead.
 function countProblems(parameter: Parameter, values: string[]): string[] {
   if (values.length > 0 && values.length < parameter.minValues) {
     return [ `At least ${parameter.minValues} values are needed` ];
@@ -37,9 +38,6 @@ function countProblems(parameter: Parameter, values: string[]): string[] {
   }
   return [];
 }
-
-// The items of a list written as one value joined with commas, trimmed, with blank ones dropped.
-const splitList = (value: string): string[] => value.split(",").map(item => item.trim()).filter(Boolean);
 
 // A parameter edited as text: typed freely, or picked from the values its entry offers. This is also
 // the field for any type that has none of its own.
@@ -55,6 +53,7 @@ export default function TextParameterField(props: ParameterFieldProps) {
         {...inputProps(props, countProblems(parameter, values))}
         choices={choices}
         splitTyped={commaSeparated ? splitList : undefined}
+        chipError={value => refusal(parameter, value) !== undefined}
       />
     );
   }

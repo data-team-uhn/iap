@@ -27,6 +27,7 @@ import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
+import panelEditsModule from "./panelEdits";
 import PropertiesPanel from "./PropertiesPanel";
 import { BPMN_FILE, EMPTY_BPMN } from "./workflowModel";
 import { loadWorkflowTypes } from "./workflowTypes";
@@ -89,7 +90,9 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     }
     const top = Math.round(container.getBoundingClientRect().top);
     const options = { container, height: `calc(100vh - ${top}px - 100px)` };
-    const instance: BaseViewer = editable ? new Modeler(options) : new NavigatedViewer(options);
+    const instance: BaseViewer = editable
+      ? new Modeler({ ...options, additionalModules: [ panelEditsModule ] })
+      : new NavigatedViewer(options);
     setViewer(instance);
 
     return () => instance.destroy();
@@ -170,6 +173,10 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     return () => viewer.off("commandStack.changed", changed);
   }, [viewer, editable, onDirtyChange]);
 
+  // A value typed into the panel reaches the command stack only once its field is left. Until then it is
+  // a change all the same, and leaving the page without it would lose it.
+  const drafted = useCallback(() => onDirtyChange?.(true), [onDirtyChange]);
+
   // A failure recorded against another version says nothing about this one, and is already on its way out.
   const error = failure?.path === versionPath ? failure.message : undefined;
   const showDiagram = !loading && error === undefined;
@@ -208,7 +215,7 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
           )}
         </Grid>
         <Grid size={{ xs: 12, xl: 2 }}>
-          <PropertiesPanel viewer={viewer} types={types} readOnly={!editable} />
+          <PropertiesPanel viewer={viewer} types={types} readOnly={!editable} onDraft={drafted} />
         </Grid>
       </Grid>
     </Stack>

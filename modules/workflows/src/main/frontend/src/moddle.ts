@@ -20,8 +20,8 @@
 // name, its BPMN children and its IAP elements.
 
 // The namespace every IAP-specific attribute and element in a diagram belongs to. Matching is always
-// by this URI. A document may bind it to any prefix (a tool that did not author it tends to use
-// `ns0:`), and rewriting has to keep the prefix the document already chose.
+// by this URI. A document may bind it to any prefix, such as the `ns0:` a tool that did not author it
+// tends to use. Rewriting has to keep the prefix the document already chose.
 export const IAP_NS = "https://iap.uhndata.io/bpmn";
 
 // The parts of a moddle object this module reads. bpmn-js types them as `any`, which would take every
@@ -31,7 +31,12 @@ export interface ModdleElement {
   $type?: string;
   $body?: string;
   $attrs?: Record<string, string | undefined>;
-  $descriptor?: { ns?: { prefix?: string; localName?: string; uri?: string }; properties?: ModdleProperty[] };
+  $descriptor?: {
+    ns?: { prefix?: string; localName?: string; uri?: string };
+    properties?: ModdleProperty[];
+    // The package declaring the type. Absent for an element built with `createAny`.
+    $pkg?: { xml?: { tagAlias?: string } };
+  };
   $parent?: ModdleElement;
   $children?: ModdleElement[];
   extensionElements?: ModdleElement;
@@ -49,6 +54,7 @@ export interface ModdleProperty {
   isAttr?: boolean;
   isMany?: boolean;
   isReference?: boolean;
+  default?: unknown;
   xml?: { serialize?: string };
 }
 
@@ -65,11 +71,22 @@ export const text = (value: unknown): string => typeof value === "string" ? valu
 // document prefixes an element with is its own business, so only the local part is ever compared.
 export const localName = (qualified: string): string => qualified.slice(qualified.indexOf(":") + 1);
 
-// The element name a moddle object is written as, whatever prefix the document gave it. The descriptor
-// is what a document's own prefix is resolved through; `$type` is the fallback for an object built
-// without one.
-export const elementName = (element: ModdleElement): string =>
-  element.$descriptor?.ns?.localName ?? localName(element.$type ?? "");
+const lowerInitial = (name: string): string => name.charAt(0).toLowerCase() + name.slice(1);
+
+// The element name a moddle object is written as, whatever prefix the document gave it, as the
+// server's parser compares it. A BPMN type is named `ServiceTask` but written `serviceTask`, which its
+// package declares with `tagAlias: "lowerCase"`. An element no package declares, an IAP one included,
+// is written as named. An object built without a descriptor has only its `$type` to go on, and a
+// `bpmn:` one is written the BPMN way.
+export function elementName(element: ModdleElement): string {
+  const descriptor = element.$descriptor;
+  const named = descriptor?.ns?.localName;
+  if (named === undefined) {
+    const type = element.$type ?? "";
+    return type.startsWith("bpmn:") ? lowerInitial(localName(type)) : localName(type);
+  }
+  return descriptor?.$pkg?.xml?.tagAlias === "lowerCase" ? lowerInitial(named) : named;
+}
 
 // Whether a moddle object is the IAP-namespaced element of the given local name. Never compares
 // `$type`, which carries the prefix the document happened to use.
@@ -98,7 +115,7 @@ export interface BpmnChild {
 }
 
 // The BPMN child elements of a moddle object, named the way the server's parser sees them in the XML.
-// A contained object is written under its own type's name. A reference, a plain value and anything
+// A contained object is written under its element name. A reference, a plain value and anything
 // moddle writes as the property itself, an expression among them, take the property's name.
 export function bpmnChildren(element: ModdleElement): BpmnChild[] {
   return (element.$descriptor?.properties ?? []).filter(property => !property.isAttr).flatMap(property => {

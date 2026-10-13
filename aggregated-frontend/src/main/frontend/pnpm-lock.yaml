@@ -145,6 +145,12 @@ importers:
       css-loader:
         specifier: 7.1.5
         version: 7.1.5(webpack@5.112.2)
+      diagram-js:
+        specifier: 15.28.0
+        version: 15.28.0
+      didi:
+        specifier: 11.0.0
+        version: 11.0.0
       eslint:
         specifier: 9.24.0
         version: 9.24.0
@@ -2090,11 +2096,11 @@ packages:
     peerDependencies:
       diagram-js: '*'
 
-  diagram-js@15.28.1:
-    resolution: {integrity: sha512-R90PKnpRL9prdiYxc9ndtqkxnn1dIZacWgq0cpz4ABse1AwhrXexD8sRUZkNdxj9Adz4k04DUee/J6l/uTVDfw==}
+  diagram-js@15.28.0:
+    resolution: {integrity: sha512-szp5V8ipbwMNB2aR1c7ABvN1N4bVdl5K1uO6Lpcn+LQ/Sw5C9fKwo6GOaV0ZVX8rWoZKb4ki34Qt6UZ8Z/Ig9w==}
 
-  didi@11.0.1:
-    resolution: {integrity: sha512-eEBvv5SHBhoCyDX/kOR8UozNfqEkjEXjNCTsE2vWWoxoJ5QC8KXYRTE78mrpdpvXNtSEriLhbgQdD0OkHvLFWQ==}
+  didi@11.0.0:
+    resolution: {integrity: sha512-PzCfRzQttvFpVcYMbSF7h8EsWjeJpVjWH4qDhB5LkMi1ILvHq4Ob0vhM2wLFziPkbUBi+PAo7ODbe2sacR7nJQ==}
     engines: {node: '>= 20.12'}
 
   diff@9.0.0:
@@ -6077,8 +6083,8 @@ snapshots:
   bpmn-js@18.31.1:
     dependencies:
       bpmn-moddle: 10.3.1
-      diagram-js: 15.28.1
-      diagram-js-direct-editing: 3.6.0(diagram-js@15.28.1)
+      diagram-js: 15.28.0
+      diagram-js-direct-editing: 3.6.0(diagram-js@15.28.0)
       ids: 3.0.2
       inherits-browser: 0.1.0
       min-dash: 5.1.0
@@ -6322,17 +6328,17 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  diagram-js-direct-editing@3.6.0(diagram-js@15.28.1):
+  diagram-js-direct-editing@3.6.0(diagram-js@15.28.0):
     dependencies:
-      diagram-js: 15.28.1
+      diagram-js: 15.28.0
       min-dash: 5.1.0
       min-dom: 5.3.0
 
-  diagram-js@15.28.1:
+  diagram-js@15.28.0:
     dependencies:
       '@bpmn-io/diagram-js-ui': 0.2.4
       clsx: 2.1.1
-      didi: 11.0.1
+      didi: 11.0.0
       inherits-browser: 0.1.0
       min-dash: 5.1.0
       min-dom: 5.3.0
@@ -6342,7 +6348,7 @@ snapshots:
     transitivePeerDependencies:
       - preact-render-to-string
 
-  didi@11.0.1: {}
+  didi@11.0.0: {}
 
   diff@9.0.0: {}
 

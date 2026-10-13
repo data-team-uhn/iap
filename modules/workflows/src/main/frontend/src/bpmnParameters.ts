@@ -26,9 +26,19 @@
 // attributes and `createAny` elements instead, matched by namespace URI rather than by prefix.
 
 import { bpmnChildren, extensionValues, IAP_NS, isIapElement, localName, text } from "./moddle";
-import { isMultiple } from "./workflowTypes";
+import {
+  recordValues,
+  sameRecord,
+  sameValues,
+  settled,
+  splitList,
+  textValues,
+  valuesOf,
+} from "./parameterValues";
+import { fieldsOf, isMultiple, isStructure } from "./workflowTypes";
 
 import type { Moddle, ModdleElement, ModdleProperty } from "./moddle";
+import type { ParameterValue, StructureRecord } from "./parameterValues";
 import type { FlowNodeType, Parameter } from "./workflowTypes";
 
 // The prefix bound to the namespace when a document does not bind it yet.
@@ -100,14 +110,12 @@ export const locatedInAttribute = (type: FlowNodeType, parameter: Parameter): bo
 export const commaSeparated = (type: FlowNodeType, parameter: Parameter): boolean =>
   isMultiple(parameter) && (locatedInAttribute(type, parameter) || parameter.xmlLocation === "bpmnAttribute");
 
-const sameName = (one: string, other: string): boolean => one.toLowerCase() === other.toLowerCase();
-
 // The moddle object at the end of a parameter's path, or undefined when the flow node lacks a step.
 // Each step takes the first child of its name, as the server's parser does.
 function bpmnHolder(businessObject: ModdleElement, parameter: Parameter): ModdleElement | undefined {
   let holder = businessObject;
   for (const step of parameter.xmlPath) {
-    const next = bpmnChildren(holder).find(child => sameName(child.name, step) && typeof child.value === "object");
+    const next = bpmnChildren(holder).find(child => child.name === step && typeof child.value === "object");
     if (next === undefined) {
       return undefined;
     }
@@ -125,8 +133,9 @@ const isExpression = (property: ModdleProperty | undefined): boolean =>
   [ "Expression", "FormalExpression" ].includes(localName(property?.type ?? ""));
 
 // The raw text BPMN holds for a parameter: an attribute's value, or the text of every element of its
-// name. Only a value the document gives counts. A default moddle supplies would be a value the server's
-// parser never sees.
+// name. An attribute left out reads as the default BPMN declares for it. Saving never writes a value
+// equal to that default, so the document cannot say it any other way. The parser then stores nothing,
+// leaving the node type's default, which a vocabulary names after BPMN's.
 function readBpmn(businessObject: ModdleElement, parameter: Parameter): string[] {
   const holder = bpmnHolder(businessObject, parameter);
   if (holder === undefined) {
@@ -134,7 +143,8 @@ function readBpmn(businessObject: ModdleElement, parameter: Parameter): string[]
   }
   if (parameter.xmlLocation === "bpmnAttribute") {
     const own = Object.prototype.hasOwnProperty.call(holder, parameter.name) ? holder[parameter.name] : undefined;
-    const raw = scalar(own) ?? holder.$attrs?.[parameter.name];
+    const raw = scalar(own) ?? holder.$attrs?.[parameter.name]
+      ?? scalar(descriptorProperty(holder, parameter.name)?.default);
     return raw === undefined ? [] : [ raw ];
   }
   return bpmnChildren(holder).filter(child => child.name === parameter.name)
@@ -159,7 +169,7 @@ function bpmnValue(moddle: Moddle, property: ModdleProperty | undefined, paramet
 
 // What a parameter currently holds, always as a list: one entry per value, empty when unset. Keeping
 // one shape for every cardinality is what lets the fields and the edits below stay uniform.
-export function readValues(
+function readParameter(
   businessObject: ModdleElement,
   definitions: ModdleElement,
   type: FlowNodeType,
@@ -169,70 +179,166 @@ export function readValues(
   // only by surrounding space is the same value.
   if (parameter.xmlLocation === "bpmnAttribute" || parameter.xmlLocation === "bpmnElement") {
     const values = readBpmn(businessObject, parameter);
-    const split = commaSeparated(type, parameter) ? values.flatMap(value => value.split(",")) : values;
-    return split.map(value => value.trim()).filter(Boolean);
+    return commaSeparated(type, parameter) ? values.flatMap(splitList) : textValues(settled(values));
   }
   if (locatedInAttribute(type, parameter)) {
     const key = attributeKey(businessObject, definitions, parameter.name);
-    const raw = text(key === undefined ? undefined : businessObject.$attrs?.[key]).trim();
-    if (raw === "") {
-      return [];
-    }
-    return isMultiple(parameter) ? raw.split(",").map(value => value.trim()).filter(Boolean) : [ raw ];
+    const raw = text(key === undefined ? undefined : businessObject.$attrs?.[key]);
+    return isMultiple(parameter) ? splitList(raw) : textValues(settled([ raw ]));
   }
   const extension = iapExtension(businessObject, type.xmlExtensionElement);
+  return extension === undefined ? [] : textValues(readInside(extension, parameter));
+}
+
+// Whether a structure is declared somewhere the server does not read one from. Only an entry's own
+// element can hold one.
+const misplacedStructure = (type: FlowNodeType, parameter: Parameter): boolean =>
+  isStructure(parameter) && (parameter.xmlLocation !== "extensionElement" || type.xmlExtensionElement === undefined);
+
+// What a parameter currently holds, a structure's records included.
+export function readValues(
+  businessObject: ModdleElement,
+  definitions: ModdleElement,
+  type: FlowNodeType,
+  parameter: Parameter
+): ParameterValue[] {
+  if (!isStructure(parameter)) {
+    return readParameter(businessObject, definitions, type, parameter);
+  }
+  const extension = misplacedStructure(type, parameter) ? undefined
+    : iapExtension(businessObject, type.xmlExtensionElement);
   return extension === undefined ? [] : readInside(extension, parameter);
 }
 
-// The IAP-namespaced children of an element named after a parameter: one per value of a list.
+// The IAP-namespaced children of an element named after a parameter: one per value of a list, or per
+// record of a structure.
 const namedChildren = (holder: ModdleElement, parameter: Parameter): ModdleElement[] =>
   (holder.$children ?? []).filter(child => isIapElement(child, parameter.name));
 
 // The children of an element that hold no value of this parameter.
-const otherChildren = (holder: ModdleElement | undefined, parameter: Parameter): ModdleElement[] =>
-  (holder?.$children ?? []).filter(child => !isIapElement(child, parameter.name));
+const otherChildren = (holder: ModdleElement, parameter: Parameter): ModdleElement[] =>
+  (holder.$children ?? []).filter(child => !isIapElement(child, parameter.name));
 
-// The values a parameter has inside the entry's extension element: a single value is an unprefixed
-// attribute of it, a list is one IAP-namespaced child per value.
-function readInside(holder: ModdleElement, parameter: Parameter): string[] {
-  if (isMultiple(parameter)) {
-    return namedChildren(holder, parameter).map(child => text(child.$body).trim()).filter(Boolean);
+const readRecord = (element: ModdleElement, parameter: Parameter): StructureRecord =>
+  Object.fromEntries(fieldsOf(parameter).map(field => [ field.name, readInside(element, field) ]));
+
+// The values a parameter has inside the element it is read from: the entry's own element, or one
+// element of a structure. A single value is an unprefixed attribute of it, a list is one IAP-namespaced
+// child per value. A structure is one child per record, holding its fields the same way.
+function readInside(holder: ModdleElement, parameter: Parameter): ParameterValue[] {
+  if (isStructure(parameter)) {
+    return namedChildren(holder, parameter).map(element => readRecord(element, parameter));
   }
-  const single = text(holder[parameter.name]).trim();
-  return single === "" ? [] : [ single ];
+  return settled(isMultiple(parameter)
+    ? namedChildren(holder, parameter).map(child => text(child.$body))
+    : [ text(holder[parameter.name]) ]);
 }
 
-// What to write on the entry's extension element to give a parameter these values. Children belonging to
+// What to write on the element a parameter is read from to give it these values. Children belonging to
 // the element's other parameters are carried over, since one edit only ever speaks for one parameter.
 function insideProperties(
   moddle: Moddle,
   prefix: string,
   parameter: Parameter,
-  values: string[],
-  holder: ModdleElement | undefined
+  values: ParameterValue[],
+  holder: ModdleElement
 ): Record<string, unknown> {
-  if (!isMultiple(parameter)) {
-    return { [parameter.name]: values.at(0) };
+  if (!isMultiple(parameter) && !isStructure(parameter)) {
+    return { [parameter.name]: textValues(values).at(0) };
   }
   const others = otherChildren(holder, parameter);
-  const written = values.map(value => moddle.createAny(`${prefix}:${parameter.name}`, IAP_NS, { $body: value }));
+  const written = isStructure(parameter)
+    ? recordValues(values).map(record => recordElement(moddle, prefix, parameter, record))
+    : textValues(values).map(value => moddle.createAny(`${prefix}:${parameter.name}`, IAP_NS, { $body: value }));
   return { $children: [ ...others, ...written ] };
+}
+
+// A new element for one record of a structure, with every level below it.
+function recordElement(moddle: Moddle, prefix: string, parameter: Parameter, record: StructureRecord): ModdleElement {
+  const element = moddle.createAny(`${prefix}:${parameter.name}`, IAP_NS, {});
+  for (const field of fieldsOf(parameter)) {
+    Object.entries(insideProperties(moddle, prefix, field, valuesOf(record, field.name), element))
+      // Nothing is written for a field left empty, not even an empty list of children
+      .filter(([ , value ]) => value !== undefined && !(Array.isArray(value) && value.length === 0))
+      .forEach(([ name, value ]) => {
+        element[name] = value;
+      });
+  }
+  return element;
+}
+
+// The edit that gives a structure the records wanted, or undefined when nothing changed. It is made on
+// the deepest element the change is confined to, so everything else the diagram holds stays as it was.
+// One record changed is edited in place. Records added, removed or moved rewrite the list, and a record
+// that did not change keeps its element.
+function structureEdit(
+  moddle: Moddle,
+  prefix: string,
+  holder: ModdleElement,
+  parameter: Parameter,
+  wanted: StructureRecord[]
+): ParameterEdit | undefined {
+  const existing = namedChildren(holder, parameter);
+  const held = existing.map(element => readRecord(element, parameter));
+  if (held.length === wanted.length) {
+    const changed = held.flatMap((record, index) => sameRecord(record, wanted[index]) ? [] : [ index ]);
+    if (changed.length === 0) {
+      return undefined;
+    }
+    if (changed.length === 1) {
+      const [ index ] = changed;
+      return recordEdit(moddle, prefix, existing[index], parameter, held[index], wanted[index]);
+    }
+  }
+  const unused = existing.map((element, index) => ({ element, record: held[index] }));
+  const elements = wanted.map(record => {
+    const index = unused.findIndex(each => sameRecord(each.record, record));
+    return index < 0 ? recordElement(moddle, prefix, parameter, record) : unused.splice(index, 1)[0].element;
+  });
+  return { moddleElement: holder, properties: { $children: [ ...otherChildren(holder, parameter), ...elements ] } };
+}
+
+// The edit that changes the fields of one record that differ, made on the record's own element. A change
+// inside one of its structures alone is made further down.
+function recordEdit(
+  moddle: Moddle,
+  prefix: string,
+  element: ModdleElement,
+  parameter: Parameter,
+  held: StructureRecord,
+  wanted: StructureRecord
+): ParameterEdit | undefined {
+  const changed = fieldsOf(parameter)
+    .filter(field => !sameValues(valuesOf(held, field.name), valuesOf(wanted, field.name)));
+  if (changed.length === 1 && isStructure(changed[0])) {
+    return structureEdit(moddle, prefix, element, changed[0], recordValues(valuesOf(wanted, changed[0].name)));
+  }
+  const properties: Record<string, unknown> = {};
+  for (const field of changed) {
+    // A second list written in the same edit has to keep the children the first one wrote
+    const current = { $children: properties.$children ?? element.$children } as ModdleElement;
+    Object.assign(properties, insideProperties(moddle, prefix, field, valuesOf(wanted, field.name), current));
+  }
+  return { moddleElement: element, properties };
 }
 
 // The edit that gives a parameter the values passed in, or clears it when they are empty. Clearing
 // removes an attribute rather than leaving it blank, and a list's children rather than leaving an empty
-// element, so the diagram never carries a value the parser would reject. Undefined when the flow node
-// lacks the BPMN element a value would be written in.
+// element. The diagram then never carries a value the parser would reject. Undefined when the flow node
+// lacks the element a value would be written in, BPMN's or the entry's own.
 export function parameterEdit(
   moddle: Moddle,
   businessObject: ModdleElement,
   definitions: ModdleElement,
   type: FlowNodeType,
   parameter: Parameter,
-  values: string[]
+  values: ParameterValue[]
 ): ParameterEdit | undefined {
-  // A value of nothing but space is still being typed rather than given, and the parser would drop it
-  const wanted = values.filter(value => value.trim() !== "");
+  if (misplacedStructure(type, parameter)) {
+    return undefined;
+  }
+  // The parser trims every value and drops a blank one
+  const wanted = settled(values);
   if (parameter.xmlLocation === "bpmnAttribute" || parameter.xmlLocation === "bpmnElement") {
     const holder = bpmnHolder(businessObject, parameter);
     if (holder === undefined) {
@@ -242,30 +348,26 @@ export function parameterEdit(
     return {
       moddleElement: holder,
       properties: {
-        [parameter.name]: bpmnValue(moddle, property, parameter, wanted.map(value => value.trim())),
+        [parameter.name]: bpmnValue(moddle, property, parameter, textValues(wanted)),
       },
     };
   }
-  const prefix = writePrefix(businessObject, definitions);
   if (locatedInAttribute(type, parameter)) {
-    const joined = wanted.join(", ");
+    const prefix = writePrefix(businessObject, definitions);
+    const joined = textValues(wanted).join(", ");
     const key = attributeKey(businessObject, definitions, parameter.name) ?? `${prefix}:${parameter.name}`;
     return { moddleElement: businessObject, properties: { [key]: joined === "" ? undefined : joined } };
   }
+  // An entry with an element of its own only matches a node carrying it. Without it, the edit was made
+  // for what the node meant before an undo, and bringing the element back would reverse that undo.
   const extension = iapExtension(businessObject, type.xmlExtensionElement);
-  if (extension !== undefined) {
-    return { moddleElement: extension, properties: insideProperties(moddle, prefix, parameter, wanted, extension) };
+  if (extension === undefined) {
+    return undefined;
   }
-  // The entry's element is not in the diagram yet. It arrives with the value inside it, in a fresh
-  // container that keeps whatever else the flow node already carried.
-  const created = moddle.createAny(`${prefix}:${text(type.xmlExtensionElement)}`, IAP_NS, {});
-  Object.entries(insideProperties(moddle, prefix, parameter, wanted, undefined))
-    .forEach(([ name, value ]) => created.set?.(name, value));
-  const kept = extensionValues(businessObject);
-  return {
-    moddleElement: businessObject,
-    properties: { extensionElements: moddle.create("bpmn:ExtensionElements", { values: [ ...kept, created ] }) },
-  };
+  const prefix = writePrefix(businessObject, definitions);
+  return isStructure(parameter)
+    ? structureEdit(moddle, prefix, extension, parameter, recordValues(wanted))
+    : { moddleElement: extension, properties: insideProperties(moddle, prefix, parameter, wanted, extension) };
 }
 
 // The attribute-located parameters of an entry, by name.
