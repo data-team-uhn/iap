@@ -86,7 +86,7 @@ class ShippedDefinitionParityTest
     private static final String JSON_SUFFIX = ".json";
 
     /** The boundary event property whose only source is the diagram's {@code cancelActivity} attribute. */
-    private static final String INTERRUPTING = "interrupting";
+    private static final String CANCEL_ACTIVITY = "cancelActivity";
 
     /** How a Sling initial content descriptor writes a JCR reference: the property name, prefixed. */
     private static final String REFERENCE_PREFIX = "jcr:reference:";
@@ -97,19 +97,15 @@ class ShippedDefinitionParityTest
     /**
      * What a descriptor and a parse are allowed to disagree about, each for a reason of its own.
      *
-     * <ul>
-     * <li>{@code jcr:created}/{@code jcr:createdBy} are stamped by whichever of the two wrote the node;</li>
-     * <li>{@code sling:resourceType}/{@code sling:resourceSuperType} are autocreated by the node type for a
-     * descriptor and derived from it by the parse, so they restate the primary type either way;</li>
-     * <li>{@code jcr:uuid} is the repository's, and no descriptor names one;</li>
-     * <li>{@code catching} is autocreated and protected by every event node type, so a descriptor never sets it
-     * and the parse has nothing to set;</li>
-     * <li>{@code bpmnXmlParsedHash} is recorded on the version by the editor that drives the parse, not by the
-     * parse.</li>
-     * </ul>
+     * <p>{@code jcr:created}/{@code jcr:createdBy} are stamped by whichever of the two wrote the node.
+     * {@code sling:resourceType}/{@code sling:resourceSuperType} are autocreated by the node type for a descriptor
+     * and derived from it by the parse, so they restate the primary type either way. {@code jcr:uuid} is the
+     * repository's, and no descriptor names one. {@code catching} is autocreated and protected by every event node
+     * type, so a descriptor never sets it and the parse has nothing to set. {@code bpmnXmlParsedHash} is recorded
+     * on the version by the editor that drives the parse, not by the parse.</p>
      *
-     * <p>{@code interrupting} is the one compared conditionally rather than ignored outright; see
-     * {@link #defaultedInterrupting}. Everything else - the element ids, the labels, the arcs, the typed
+     * <p>{@code cancelActivity} is the one compared conditionally rather than ignored outright; see
+     * {@link #defaultedCancelActivity}. Everything else - the element ids, the labels, the arcs, the typed
      * parameters, and which vocabulary entry each node points at - has to match.</p>
      */
     private static final Set<String> IGNORED_PROPERTIES = Set.of("jcr:created", "jcr:createdBy",
@@ -240,7 +236,7 @@ class ShippedDefinitionParityTest
         final Set<String> names = new TreeSet<>(declared.keySet());
         names.addAll(parsed.keySet());
         for (final String name : names) {
-            if (defaultedInterrupting(name, expected, actual)) {
+            if (defaultedCancelActivity(name, expected, actual)) {
                 continue;
             }
             if (!Objects.equals(declared.get(name), parsed.get(name))) {
@@ -251,15 +247,15 @@ class ShippedDefinitionParityTest
     }
 
     /**
-     * Whether a difference about {@code interrupting} is only the node type's own default being spelled out. The
-     * parse writes it exactly when the diagram declares {@code cancelActivity}, so a descriptor restating the
-     * default where the diagram says nothing agrees with it; a descriptor claiming anything else does not.
+     * Whether a difference about {@code cancelActivity} is only the node type's own default being spelled out. The
+     * parse writes it exactly when the diagram declares {@code cancelActivity}. A descriptor restating the default
+     * where the diagram says nothing agrees with it. A descriptor claiming anything else does not.
      */
-    private static boolean defaultedInterrupting(final String name, final NodeState expected,
+    private static boolean defaultedCancelActivity(final String name, final NodeState expected,
         final NodeState actual)
     {
-        return INTERRUPTING.equals(name) && !actual.hasProperty(INTERRUPTING)
-            && expected.getBoolean(INTERRUPTING);
+        return CANCEL_ACTIVITY.equals(name) && !actual.hasProperty(CANCEL_ACTIVITY)
+            && expected.getBoolean(CANCEL_ACTIVITY);
     }
 
     /**

@@ -87,6 +87,12 @@ public class Parameter extends EntityPart
     /** The {@link #getXmlLocation() location} of a value in an IAP-namespaced attribute of the element itself. */
     public static final String LOCATION_ATTRIBUTE = "attribute";
 
+    /** The {@link #getXmlLocation() location} of a value in one of BPMN's own attributes. */
+    public static final String LOCATION_BPMN_ATTRIBUTE = "bpmnAttribute";
+
+    /** The {@link #getXmlLocation() location} of a value in the text of one of BPMN's own elements. */
+    public static final String LOCATION_BPMN_ELEMENT = "bpmnElement";
+
     private static final String VALUE_PROPERTY = "value";
 
     private static final String LABEL_PROPERTY = "label";
@@ -102,6 +108,8 @@ public class Parameter extends EntityPart
     private static final String REFERENCE_TYPE_PROPERTY = "referenceType";
 
     private static final String XML_LOCATION_PROPERTY = "xmlLocation";
+
+    private static final String XML_PATH_PROPERTY = "xmlPath";
 
     @ValueMapValue
     private String label;
@@ -123,6 +131,9 @@ public class Parameter extends EntityPart
 
     @ValueMapValue
     private String xmlLocation;
+
+    @ValueMapValue
+    private String xmlPath;
 
     /**
      * One of the values a parameter offers. A part of the parameter rather than a model of its own: an option is
@@ -204,8 +215,10 @@ public class Parameter extends EntityPart
     }
 
     /**
-     * Where a diagram writes this value: {@link #LOCATION_EXTENSION_ELEMENT inside the extension element} its
-     * vocabulary entry names, or {@link #LOCATION_ATTRIBUTE in an attribute} of the flow node's own element.
+     * Where a diagram writes this value. IAP's markup is {@link #LOCATION_EXTENSION_ELEMENT the extension element}
+     * its vocabulary entry names, or {@link #LOCATION_ATTRIBUTE an attribute} of the flow node's own element.
+     * BPMN's own is {@link #LOCATION_BPMN_ATTRIBUTE an attribute} or {@link #LOCATION_BPMN_ELEMENT an element's
+     * text}.
      *
      * @return a location, never empty
      */
@@ -213,6 +226,18 @@ public class Parameter extends EntityPart
     public String getXmlLocation()
     {
         return this.xmlLocation == null ? LOCATION_EXTENSION_ELEMENT : this.xmlLocation;
+    }
+
+    /**
+     * For a value BPMN holds, the BPMN child elements leading from the flow node's element to the one holding it,
+     * separated by slashes, e.g. {@code timerEventDefinition}.
+     *
+     * @return a path, or {@code null} when the flow node's element holds the value itself
+     */
+    @Nullable
+    public String getXmlPath()
+    {
+        return this.xmlPath;
     }
 
     /**
@@ -276,7 +301,7 @@ public class Parameter extends EntityPart
      * This parameter as the documentation catalogue serves it: its whole declaration.
      *
      * <p>The optional parts are left out rather than written empty, matching the rest of the catalogue. A missing
-     * description, reference type or set of options is an absent key.</p>
+     * description, reference type, path or set of options is an absent key.</p>
      *
      * @return a builder holding this parameter's declaration
      */
@@ -296,6 +321,9 @@ public class Parameter extends EntityPart
             json.add(REFERENCE_TYPE_PROPERTY, this.getReferenceType());
         }
         json.add(XML_LOCATION_PROPERTY, this.getXmlLocation());
+        if (this.getXmlPath() != null) {
+            json.add(XML_PATH_PROPERTY, this.getXmlPath());
+        }
         final List<Option> options = this.getOptions();
         if (!options.isEmpty()) {
             final JsonArrayBuilder array = Json.createArrayBuilder();

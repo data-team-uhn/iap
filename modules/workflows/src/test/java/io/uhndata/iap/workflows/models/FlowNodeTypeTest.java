@@ -165,6 +165,8 @@ class FlowNodeTypeTest
             this.createType("C", ActivityType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
         assertEquals(List.of("Gateways"),
             this.createType("D", GatewayType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
+        assertEquals(List.of("Sequence Flows"),
+            this.createType("F", SequenceFlowType.RESOURCE_TYPE, Map.of()).getDocumentationCategories());
         // An entry that declares an empty list falls back too, rather than ending up in no toolbar group at all
         assertEquals(List.of("Events"), this.createType("E", CatchingEventType.RESOURCE_TYPE,
             Map.of("category", new String[0])).getDocumentationCategories());
@@ -279,6 +281,8 @@ class FlowNodeTypeTest
             this.createType("C", ActivityType.RESOURCE_TYPE, Map.of()).getClass());
         assertEquals(GatewayType.class,
             this.createType("D", GatewayType.RESOURCE_TYPE, Map.of()).getClass());
+        assertEquals(SequenceFlowType.class,
+            this.createType("F", SequenceFlowType.RESOURCE_TYPE, Map.of()).getClass());
     }
 
     private FlowNodeType type(final String name)

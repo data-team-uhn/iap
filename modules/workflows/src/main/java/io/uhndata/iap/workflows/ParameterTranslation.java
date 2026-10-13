@@ -51,9 +51,11 @@ import io.uhndata.iap.workflows.models.Parameter;
  * different. A property the node <em>kind</em> declares, such as who may pass through it, is an IAP-namespaced
  * attribute of the element itself. The element need carry no extension at all for it. A list is comma-joined there,
  * marked in the parameter rather than guessed, because a value containing a comma must not become two values by
- * accident. Everything else lives inside the entry's extension element, where one service task handler's
- * configuration cannot be confused with another's on the same {@code bpmn:serviceTask}. There a single value is an
- * unprefixed attribute of that element, and a list is one IAP-namespaced child per value.</p>
+ * accident. A value BPMN has a word for is wherever BPMN puts it. That is one of its own attributes or the text of
+ * one of its elements, on the element or along a path of its children. Everything else lives inside the entry's
+ * extension element, where one service task handler's configuration cannot be confused with another's on the same
+ * {@code bpmn:serviceTask}. There a single value is an unprefixed attribute of that element, and a list is one
+ * IAP-namespaced child per value.</p>
  *
  * <p><strong>How a value is typed</strong> is up to the {@link ParameterType} the parameter's {@code dataType}
  * names.</p>
@@ -199,6 +201,9 @@ final class ParameterTranslation
      */
     private static List<String> read(final ParameterInfo parameter, final Context context)
     {
+        if (parameter.location().isBpmn()) {
+            return bpmnValues(parameter, context);
+        }
         if (parameter.location() == XmlLocation.ATTRIBUTE || context.extension() == null) {
             if (parameter.location() != XmlLocation.ATTRIBUTE) {
                 report("a parameter is not an attribute of an entry that declares no extension element", parameter,
@@ -211,16 +216,34 @@ final class ParameterTranslation
             return childValues(parameter, context);
         }
         final List<String> values = attributeValues(parameter, context.extension().getAttribute(parameter.name()));
-        if (values.isEmpty() && !children(context.extension(), parameter.name()).isEmpty()) {
+        if (values.isEmpty()
+            && !children(context.extension(), WorkflowDefinitionUtils.IAP_NS, parameter.name()).isEmpty()) {
             report("a parameter taking one value has it written as child elements instead", parameter, context);
         }
         return values;
     }
 
+    /**
+     * The values BPMN itself holds for a parameter, at the end of its path. An unprefixed attribute is read like
+     * any other attribute. An element gives its trimmed text, one value per element of the parameter's name, and
+     * an expression's body is plain text.
+     */
+    private static List<String> bpmnValues(final ParameterInfo parameter, final Context context)
+    {
+        final Element holder = WorkflowDefinitionUtils.bpmnElementAt(context.element(), parameter.path());
+        if (holder == null) {
+            return List.of();
+        }
+        if (parameter.location() == XmlLocation.BPMN_ATTRIBUTE) {
+            return attributeValues(parameter, holder.getAttributeNS(null, parameter.name()));
+        }
+        return children(holder, WorkflowDefinitionUtils.BPMN_NS, parameter.name());
+    }
+
     /** The parameter's IAP-namespaced children of the extension element, or a report of the value written wrong. */
     private static List<String> childValues(final ParameterInfo parameter, final Context context)
     {
-        final List<String> values = children(context.extension(), parameter.name());
+        final List<String> values = children(context.extension(), WorkflowDefinitionUtils.IAP_NS, parameter.name());
         if (values.isEmpty() && StringUtils.isNotBlank(context.extension().getAttribute(parameter.name()))) {
             report("a parameter taking a list has it written as an attribute instead", parameter, context);
         }
@@ -244,10 +267,10 @@ final class ParameterTranslation
         return Arrays.stream(raw.split(",")).map(String::trim).filter(StringUtils::isNotBlank).toList();
     }
 
-    /** The text of each IAP-namespaced child of the extension element named after the parameter. */
-    private static List<String> children(final Element extension, final String name)
+    /** The trimmed text of each child of an element with this name in this namespace, blanks dropped. */
+    private static List<String> children(final Element element, final String namespace, final String name)
     {
-        return WorkflowDefinitionUtils.childElements(extension, WorkflowDefinitionUtils.IAP_NS, name)
+        return WorkflowDefinitionUtils.childElements(element, namespace, name)
             .map(child -> child.getTextContent().trim())
             .filter(StringUtils::isNotBlank)
             .toList();

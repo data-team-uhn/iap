@@ -6,5 +6,12 @@
   "priority": 10,
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
-  "jcrNodeType": "wf:IntermediateCatchingEvent"
+  "jcrNodeType": "wf:IntermediateCatchingEvent",
+  "cancelActivity": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Cancel the task",
+    "description": "Whether the event cancels the task it is attached to when it fires, or leaves the task open and starts a parallel branch. Left out, it cancels the task.",
+    "dataType": "boolean",
+    "xmlLocation": "bpmnAttribute"
+  }
 }

@@ -89,6 +89,7 @@ class ParameterTest
         assertEquals(1L, parameter.getMaxValues());
         assertNull(parameter.getReferenceType());
         assertEquals(Parameter.LOCATION_EXTENSION_ELEMENT, parameter.getXmlLocation());
+        assertNull(parameter.getXmlPath());
         assertTrue(parameter.getOptions().isEmpty());
     }
 
@@ -151,7 +152,7 @@ class ParameterTest
         this.createParameter("fromStates", Map.of(
             LABEL, "Applies to", "description", "The states this move is for.",
             "dataType", Parameter.TYPE_TEXT, "minValues", 1L, "maxValues", 0L,
-            "xmlLocation", Parameter.LOCATION_ATTRIBUTE));
+            "xmlLocation", Parameter.LOCATION_BPMN_ELEMENT, "xmlPath", "timerEventDefinition"));
         this.createOption("fromStates", "draft", Map.of(VALUE, "DRAFT", LABEL, "Draft"));
 
         final JsonObject json = this.parameter("fromStates").toJsonBuilder().build();
@@ -162,7 +163,8 @@ class ParameterTest
         assertEquals(Parameter.TYPE_TEXT, json.getString("dataType"));
         assertEquals(1, json.getInt("minValues"));
         assertEquals(0, json.getInt("maxValues"));
-        assertEquals(Parameter.LOCATION_ATTRIBUTE, json.getString("xmlLocation"));
+        assertEquals(Parameter.LOCATION_BPMN_ELEMENT, json.getString("xmlLocation"));
+        assertEquals("timerEventDefinition", json.getString("xmlPath"));
         assertEquals(1, json.getJsonArray(OPTIONS).size());
         assertEquals("DRAFT", json.getJsonArray(OPTIONS).getJsonObject(0).getString(VALUE));
         assertEquals("Draft", json.getJsonArray(OPTIONS).getJsonObject(0).getString(LABEL));
@@ -179,6 +181,7 @@ class ParameterTest
         assertFalse(json.containsKey("description"));
         assertFalse(json.containsKey("referenceType"));
         assertFalse(json.containsKey(OPTIONS));
+        assertFalse(json.containsKey("xmlPath"));
     }
 
     @Test

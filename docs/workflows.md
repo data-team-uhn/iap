@@ -40,7 +40,7 @@ authored in, and the engine that runs them.
         │   └── flow_1             wf:SequenceFlow         elementId, targetRef
         ├── approve                wf:Activity
         │   ├── flow_2             wf:SequenceFlow
-        │   └── timeout            wf:IntermediateCatchingEvent  elementId, interrupting
+        │   └── timeout            wf:IntermediateCatchingEvent  elementId, cancelActivity
         └── end_1                  wf:EndEvent             terminate
 ```
 
@@ -124,10 +124,11 @@ version is an ordinary mid-process catch. Being stored there is the whole of the
 distinction, so an event does not have to be modelled twice to be usable in both
 positions. `IntermediateCatchingEvent.getActivity()` reports which case a given node is.
 
-Whether it **interrupts** that activity is the difference between "give up after five days" and "send a
+Whether it **cancels** that activity is the difference between "give up after five days" and "send a
 reminder after five days but keep waiting" — two quite different processes that are otherwise drawn
-identically, so the flag is not decoration. It is parsed from BPMN's `cancelActivity`, whose default is
-likewise true, and it is meaningful only on an attached event; on a free-standing one it is ignored.
+identically, so the flag is not decoration. It is `cancelActivity`, read from BPMN's attribute of the same
+name by the boundary event entries, and its default is likewise true. It is meaningful only on an attached
+event; on a free-standing one it is ignored.
 
 ### What an executable graph carries
 
@@ -260,6 +261,28 @@ An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so o
 is read as an attribute regardless — logged as a problem rather than silently accepted, since the
 alternative is a value an author writes and nothing stores.
 
+**A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
+"bpmnAttribute"` is one of BPMN's unprefixed attributes, and `"bpmnElement"` is the trimmed text of each of
+BPMN's child elements of the parameter's name; an expression's body is plain text, so a
+`bpmn:FormalExpression` reads the same way. An optional `xmlPath` names the BPMN children leading from the
+flow node's element to the one holding the value, separated by slashes; where a step is missing there is no
+value. The shipped entries declare three of these. The timer entries take `timeDuration`, at
+`xmlPath: "timerEventDefinition"`:
+
+```xml
+<bpmn:boundaryEvent id="deadline" attachedToRef="approve" cancelActivity="false">
+  <bpmn:timerEventDefinition>
+    <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+  </bpmn:timerEventDefinition>
+</bpmn:boundaryEvent>
+```
+
+The boundary event entries take `cancelActivity`, a boolean BPMN attribute. `SequenceFlow`, a
+`wf:SequenceFlowType` entry, takes an arc's `conditionExpression`. An arc is stored as a `wf:SequenceFlow`
+inside the node it leaves whichever entry it matches, so its entry only adds parameters; `elementId`,
+`targetRef`, `label` and `isDefault` come from the arc itself. A message event's `messageName` is not a
+parameter: it is the name of the message its `messageRef` points at, which the parse looks up.
+
 Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
 STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
 required parameter (`minValues` at least one) with nothing given, more values than `maxValues` allows, fewer
@@ -308,7 +331,7 @@ The JSON is **not just prose**: it is what the visual BPMN editor reads to build
 toolbars, grouped by the `category` each entry declares, falling back on the group its
 kind implies. Each item carries the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for,
 the `jcrNodeType` it is stored as, and its `parameters`, each with the `label`, `description`, `dataType`,
-cardinality, options and `xmlLocation` it declares. Treat the shape of that output as a contract — the editor
+cardinality, options, `xmlLocation` and `xmlPath` it declares. Treat the shape of that output as a contract — the editor
 depends on it.
 
 ### Runtime
@@ -1192,6 +1215,6 @@ disagree.
   assigned reviewer" is a multi-instance activity in BPMN, and that is the first of
   these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary
-  covers timer, message, error and terminate.
+  covers timer, message, error and terminate. A timer reads only a `timeDuration`.
 - **No `oak:index` definitions.** The console's listings and the homepage discovery both
   query without one.

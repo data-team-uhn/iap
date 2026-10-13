@@ -47,7 +47,7 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     // default, and a silent one.
     @ValueMapValue
     @Default(booleanValues = true)
-    private boolean interrupting;
+    private boolean cancelActivity;
 
     /**
      * Whether firing this event cancels the activity being watched, or merely starts a parallel branch and lets the
@@ -57,9 +57,9 @@ public class IntermediateCatchingEvent extends IntermediateEvent
      *
      * @return {@code true} if firing cancels the watched activity
      */
-    public boolean isInterrupting()
+    public boolean cancelsActivity()
     {
-        return this.interrupting;
+        return this.cancelActivity;
     }
 
     /**

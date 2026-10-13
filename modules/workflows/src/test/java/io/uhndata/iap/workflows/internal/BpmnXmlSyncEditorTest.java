@@ -88,13 +88,15 @@ class BpmnXmlSyncEditorTest
 
     private static final String FLOW_NODE_TYPE = "flowNodeType";
 
-    private static final String INTERRUPTING = "interrupting";
+    private static final String CANCEL_ACTIVITY = "cancelActivity";
 
     private static final String RESOURCE_SUPER_TYPE = "sling:resourceSuperType";
 
     private static final String WORKFLOW_TYPES = "WorkflowTypes";
 
     private static final String XML_CHILD_ELEMENT = "xmlChildElement";
+
+    private static final String XML_LOCATION = "xmlLocation";
 
     private static final String TEXT = "text";
 
@@ -203,7 +205,6 @@ class BpmnXmlSyncEditorTest
         // And the arc hangs off the boundary event, inside the task, not beside it
         final NodeState boundary = after.getChildNode(TASK_1).getChildNode("deadline");
         assertTrue(boundary.exists());
-        assertEquals("P5D", boundary.getString("timerDuration"));
         assertTrue(boundary.getChildNode(FLOW_1).exists(), "the arc belongs to the event it leaves");
         assertEquals(END_1, boundary.getChildNode(FLOW_1).getString("targetRef"));
         assertFalse(after.getChildNode(FLOW_1).exists(), "and not to the version");
@@ -401,8 +402,11 @@ class BpmnXmlSyncEditorTest
     {
         // BPMN puts the duration in the text of a <bpmn:timeDuration> inside the timer definition
         final NodeBuilder root = richBase();
-        VocabularyFixture.entry(root, "TimerIntermediateCatchEvent", "bpmn:intermediateCatchEvent",
-            "wf:IntermediateCatchingEvent", 10).setProperty(XML_CHILD_ELEMENT, "bpmn:timerEventDefinition");
+        final NodeBuilder timer = VocabularyFixture.entry(root, "TimerIntermediateCatchEvent",
+            "bpmn:intermediateCatchEvent", "wf:IntermediateCatchingEvent", 10)
+            .setProperty(XML_CHILD_ELEMENT, "bpmn:timerEventDefinition");
+        VocabularyFixture.parameter(timer, "timeDuration", TEXT, 0, 1).setProperty(XML_LOCATION, "bpmnElement")
+            .setProperty("xmlPath", "bpmn:timerEventDefinition");
 
         final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
             + "    <bpmn:intermediateCatchEvent id=\"" + TASK_1 + "\">\n"
@@ -412,7 +416,7 @@ class BpmnXmlSyncEditorTest
             + "    </bpmn:intermediateCatchEvent>\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        assertEquals("P5D", after.getChildNode(TASK_1).getString("timerDuration"));
+        assertEquals("P5D", after.getChildNode(TASK_1).getString("timeDuration"));
     }
 
     @Test
@@ -681,6 +685,9 @@ class BpmnXmlSyncEditorTest
         VocabularyFixture.entry(root, "StartEvent", "bpmn:startEvent", "wf:StartEvent", 0);
         VocabularyFixture.entry(root, "UserTask", "bpmn:userTask", ACTIVITY, 0);
         VocabularyFixture.entry(root, "EndEvent", "bpmn:endEvent", "wf:EndEvent", 0);
+        final NodeBuilder flow =
+            VocabularyFixture.entry(root, "SequenceFlow", "bpmn:sequenceFlow", "wf:SequenceFlow", 0);
+        VocabularyFixture.parameter(flow, "conditionExpression", TEXT, 0, 1).setProperty(XML_LOCATION, "bpmnElement");
 
         descend(root, WORKFLOWS_PATH, DEFINITION_NAME).setProperty(PRIMARY_TYPE, "wf:WorkflowDefinition", Type.NAME);
         final NodeBuilder version = version(root);
@@ -1259,7 +1266,8 @@ class BpmnXmlSyncEditorTest
     void boundaryEventsAreStoredInsideTheActivityTheyWatch() throws Exception
     {
         final NodeBuilder root = richBase();
-        timerBoundaryEvent(root);
+        VocabularyFixture.parameter(timerBoundaryEvent(root), CANCEL_ACTIVITY, "boolean", 0, 1)
+            .setProperty(XML_LOCATION, "bpmnAttribute");
 
         final NodeState version = firstSave(root,
             DEFS_OPEN
@@ -1295,12 +1303,12 @@ class BpmnXmlSyncEditorTest
             deadline.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
         assertEquals("deadline", deadline.getProperty("elementId").getValue(Type.STRING));
         assertEquals("wf/IntermediateEvent", deadline.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
-        assertEquals(true, deadline.getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+        assertEquals(true, deadline.getProperty(CANCEL_ACTIVITY).getValue(Type.BOOLEAN));
 
         final NodeState task2 = version.getChildNode("task2");
-        assertEquals(false, task2.getChildNode("reminder").getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+        assertEquals(false, task2.getChildNode("reminder").getProperty(CANCEL_ACTIVITY).getValue(Type.BOOLEAN));
         // No cancelActivity attribute leaves the node type's own default in place rather than guessing.
-        assertFalse(task2.getChildNode("defaulted").hasProperty(INTERRUPTING));
+        assertFalse(task2.getChildNode("defaulted").hasProperty(CANCEL_ACTIVITY));
 
         // Never stored beside the activity, whatever goes wrong.
         assertFalse(version.getChildNode("deadline").exists());
@@ -1357,7 +1365,8 @@ class BpmnXmlSyncEditorTest
     void elementsReusingAnEarlierIdAreSkipped() throws Exception
     {
         final NodeBuilder root = richBase();
-        timerBoundaryEvent(root);
+        VocabularyFixture.parameter(timerBoundaryEvent(root), CANCEL_ACTIVITY, "boolean", 0, 1)
+            .setProperty(XML_LOCATION, "bpmnAttribute");
 
         final NodeState version = firstSave(root,
             DEFS_OPEN

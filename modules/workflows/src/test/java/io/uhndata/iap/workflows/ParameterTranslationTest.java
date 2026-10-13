@@ -90,6 +90,16 @@ class ParameterTranslationTest
 
     private static final String TARGETS = "targets";
 
+    private static final String DEADLINE = "deadline";
+
+    private static final String CANCEL_ACTIVITY = "cancelActivity";
+
+    private static final String TIME_DURATION = "timeDuration";
+
+    private static final String CONDITION_EXPRESSION = "conditionExpression";
+
+    private static final String SEQUENCE_FLOW = "SequenceFlow";
+
     private static final String TASK = ParseFixture.TASK;
 
     @Test
@@ -510,6 +520,137 @@ class ParameterTranslationTest
         }
     }
 
+    @Test
+    void readsATimerBoundaryEventFromBpmnsOwnMarkup() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, boundaryEvent(" cancelActivity=\"false\"",
+                "<bpmn:timeDuration xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+                    + " xsi:type=\"bpmn:tFormalExpression\"> P5D </bpmn:timeDuration>"));
+
+            final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
+            assertEquals(Type.BOOLEAN, event.getProperty(CANCEL_ACTIVITY).getType());
+            assertFalse(event.getBoolean(CANCEL_ACTIVITY));
+            assertEquals("P5D", event.getString(TIME_DURATION));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
+    void leavesABpmnValueTheDiagramDoesNotGiveUnwritten() throws Exception
+    {
+        // Nothing written: cancelActivity is autocreated as true
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, boundaryEvent("", ""));
+
+            final NodeState event = after.getChildNode(TASK).getChildNode(DEADLINE);
+            assertTrue(event.exists());
+            assertFalse(event.hasProperty(CANCEL_ACTIVITY));
+            assertFalse(event.hasProperty(TIME_DURATION));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
+    void readsNothingAlongAPathTheDiagramDoesNotHave() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder type = VocabularyFixture.entry(root, "Scripted", SERVICE_TASK_ELEMENT, ACTIVITY, 0);
+        bpmnParameter(type, "scriptFormat", Parameter.LOCATION_BPMN_ATTRIBUTE, "bpmn:ioSpecification/bpmn:dataInput");
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\"/>\n");
+
+            assertTrue(after.getChildNode(TASK).exists());
+            assertFalse(after.getChildNode(TASK).hasProperty("scriptFormat"));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
+    void readsAListFromRepeatedBpmnElementsAndABpmnAttribute() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder type = VocabularyFixture.entry(root, "Scripted", SERVICE_TASK_ELEMENT, ACTIVITY, 0);
+        bpmnParameter(type, "script", Parameter.LOCATION_BPMN_ELEMENT, null).setProperty("maxValues", 0L);
+        bpmnParameter(type, "scriptFormat", Parameter.LOCATION_BPMN_ATTRIBUTE, null);
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" scriptFormat=\" js \">\n"
+                + "      <bpmn:script>one</bpmn:script><bpmn:script> </bpmn:script><bpmn:script>two</bpmn:script>\n"
+                + "    </bpmn:serviceTask>\n");
+
+            assertEquals(List.of("one", "two"),
+                after.getChildNode(TASK).getProperty("script").getValue(Type.STRINGS));
+            assertEquals("js", after.getChildNode(TASK).getString("scriptFormat"));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
+    void readsASequenceFlowsConditionThroughItsEntry() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+        root.child(WORKFLOW_TYPES).child(SEQUENCE_FLOW).setProperty("jcrProperties", "{\"weight\": 2}");
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, "    <bpmn:userTask id=\"" + TASK + "\"/>\n"
+                + "    <bpmn:userTask id=\"next\"/>\n"
+                + "    <bpmn:sequenceFlow id=\"flow\" sourceRef=\"" + TASK + "\" targetRef=\"next\">\n"
+                + "      <bpmn:conditionExpression>approved</bpmn:conditionExpression>\n"
+                + "    </bpmn:sequenceFlow>\n");
+
+            final NodeState flow = after.getChildNode(TASK).getChildNode("flow");
+            assertEquals("wf:SequenceFlow", flow.getName(PRIMARY_TYPE));
+            assertEquals("approved", flow.getString(CONDITION_EXPRESSION));
+            assertEquals(2L, flow.getLong("weight"));
+            assertEquals("next", flow.getString("targetRef"));
+            assertFalse(flow.hasProperty(FLOW_NODE_TYPE));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
+    @Test
+    void storesASequenceFlowNoEntryMatchesAndSaysSo() throws Exception
+    {
+        final NodeBuilder root = withGenericServiceTask();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, serviceTask(TASK, "") + serviceTask("next", "")
+                + "    <bpmn:sequenceFlow id=\"flow\" sourceRef=\"" + TASK + "\" targetRef=\"next\">\n"
+                + "      <bpmn:conditionExpression>approved</bpmn:conditionExpression>\n"
+                + "    </bpmn:sequenceFlow>\n");
+
+            final NodeState flow = after.getChildNode(TASK).getChildNode("flow");
+            assertEquals("next", flow.getString("targetRef"));
+            assertFalse(flow.hasProperty(CONDITION_EXPRESSION));
+            assertEquals(List.of("no FlowNodeType configured for a BPMN element"), problems.names());
+        }
+    }
+
+    @Test
+    void buildsASystemViewSubtreeUnderABoundaryEvent() throws Exception
+    {
+        final NodeBuilder root = withTimerBoundaryEvent();
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState after = parse(root, boundaryEvent("",
+                "<bpmn:timeDuration>P5D</bpmn:timeDuration>").replace("      <bpmn:timerEventDefinition>",
+                    "      <bpmn:extensionElements><sv:node xmlns:sv=\"http://www.jcp.org/jcr/sv/1.0\""
+                    + " sv:name=\"cond:condition\"><sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+                    + "<sv:value>cond:SingleCondition</sv:value></sv:property></sv:node></bpmn:extensionElements>\n"
+                    + "      <bpmn:timerEventDefinition>"));
+
+            final NodeState condition = after.getChildNode(TASK).getChildNode(DEADLINE).getChildNode("cond:condition");
+            assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+            assertEquals(List.of(), problems.messages());
+        }
+    }
+
     /** An empty vocabulary plus the generic service task entry, the fallback for a task naming no handler element. */
     private NodeBuilder withGenericServiceTask()
     {
@@ -527,6 +668,42 @@ class ParameterTranslationTest
         VocabularyFixture.parameter(type, TO_STATE, TEXT, 1, 1);
         VocabularyFixture.parameter(type, FROM_STATES, TEXT, 1, 0);
         return root;
+    }
+
+    /**
+     * An empty vocabulary plus a user task, the shipped timer boundary event that may be attached to it, and the
+     * shipped sequence flow.
+     */
+    private NodeBuilder withTimerBoundaryEvent()
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        VocabularyFixture.entry(root, "UserTask", "bpmn:userTask", ACTIVITY, 0);
+        final NodeBuilder timer = VocabularyFixture.entry(root, "TimerBoundaryEvent", "bpmn:boundaryEvent",
+            "wf:IntermediateCatchingEvent", 10).setProperty("xmlChildElement", "bpmn:timerEventDefinition");
+        bpmnParameter(timer, TIME_DURATION, Parameter.LOCATION_BPMN_ELEMENT, "bpmn:timerEventDefinition");
+        bpmnParameter(timer, CANCEL_ACTIVITY, Parameter.LOCATION_BPMN_ATTRIBUTE, null)
+            .setProperty("dataType", Parameter.TYPE_BOOLEAN);
+        bpmnParameter(VocabularyFixture.entry(root, SEQUENCE_FLOW, "bpmn:sequenceFlow", "wf:SequenceFlow", 0),
+            CONDITION_EXPRESSION, Parameter.LOCATION_BPMN_ELEMENT, null);
+        return root;
+    }
+
+    /** One optional text value held in BPMN's own markup, at the end of the given path when there is one. */
+    private NodeBuilder bpmnParameter(final NodeBuilder type, final String name, final String location,
+        final String path)
+    {
+        final NodeBuilder parameter = VocabularyFixture.parameter(type, name, TEXT, 0, 1).setProperty(XML_LOCATION,
+            location);
+        return path == null ? parameter : parameter.setProperty("xmlPath", path);
+    }
+
+    /** A user task and a timer boundary event attached to it, carrying the given attributes and timer content. */
+    private static String boundaryEvent(final String attributes, final String timer)
+    {
+        return "    <bpmn:userTask id=\"" + TASK + "\"/>\n"
+            + "    <bpmn:boundaryEvent id=\"" + DEADLINE + "\" attachedToRef=\"" + TASK + "\"" + attributes + ">\n"
+            + "      <bpmn:timerEventDefinition>" + timer + "</bpmn:timerEventDefinition>\n"
+            + "    </bpmn:boundaryEvent>\n";
     }
 
     /** An empty vocabulary plus a per-handler entry taking a reference that must name a mail template. */
