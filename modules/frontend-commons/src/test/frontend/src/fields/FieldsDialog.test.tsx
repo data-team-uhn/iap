@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { type ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -58,11 +60,14 @@ const serve = (answer: () => Promise<Response>) => {
   return fetch;
 };
 
-const renderDialog = (node: SerializedNode, onSave = vi.fn().mockResolvedValue(undefined), extra?: string) => {
+const renderDialog = (node: SerializedNode, onSave = vi.fn().mockResolvedValue(undefined), extra?: string,
+  props: Partial<ComponentProps<typeof FieldsDialog>> = {}) => {
   const onClose = vi.fn();
   const view = render(
     <ThemeProvider theme={appTheme} defaultMode="light">
-      <FieldsDialog title="Edit question" node={node} onSave={onSave} onClose={onClose}>{extra}</FieldsDialog>
+      <FieldsDialog title="Edit question" node={node} onSave={onSave} onClose={onClose} {...props}>
+        {extra}
+      </FieldsDialog>
     </ThemeProvider>
   );
   return { onSave, onClose, dialog: screen.getByRole("dialog"), ...view };
@@ -97,6 +102,23 @@ describe("FieldsDialog", () => {
     const { dialog } = renderDialog(QUESTION_NODE, undefined, "Where it goes");
 
     expect(within(dialog).getByText("Where it goes")).toBeInTheDocument();
+  });
+
+  it("shows what belongs with the first field right after it, as it is entered", () => {
+    const { dialog } = renderDialog(QUESTION_NODE, undefined, undefined, {
+      afterFirstField: (value, working) => <span>{`Named after ${String(value)}${working ? ", saving" : ""}`}</span>,
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Question" }), { target: { value: "Your age" } });
+
+    const after = within(dialog).getByText("Named after Your age");
+    // Between the first field and the second
+    expect(within(dialog).getByRole("textbox", { name: "Question" }).compareDocumentPosition(after))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(after.compareDocumentPosition(within(dialog).getByRole("combobox", { name: "Answer type" })))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // And told when a save is under way
+    save(dialog);
+    expect(within(dialog).getByText("Named after Your age, saving")).toBeInTheDocument();
   });
 
   it("shows a field once what it depends on allows it", async () => {

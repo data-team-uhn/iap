@@ -47,10 +47,13 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Adds {@code @creatable} to content a create workflow would add to: each type of content the requesting user's
- * {@code create} event would make there, with its {@code type}, its {@code label}, and the {@code fields} it starts
- * with, described as {@code @fields} describes them. It is read from the {@link CreateContentHandler} and
- * {@link UpdateContentHandler} activities of the workflow that would run, so an editor offers exactly what the
- * workflow creates. The name of this processor is {@code creatable}.
+ * {@code create} event would make there. Each comes with its {@code type}, its {@code label}, and the {@code fields}
+ * it starts with, described as {@code @fields} describes them. It also gives the {@code defaultName} such content
+ * takes when nothing it says makes a name, and {@code named}, whether it may be given a name. A named
+ * type also gives the {@code namePattern} and {@code nameHint} the workflow has for it, if any. It is read from the
+ * {@link CreateContentHandler} and {@link UpdateContentHandler} activities of the workflow that would run. An editor
+ * can then offer exactly what the workflow creates, and suggest a name it would accept. The name of this processor is
+ * {@code creatable}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -110,7 +113,7 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
             final WorkflowVersion create = this.engine.findApplicableWorkflow(resource, CREATE_EVENT);
             if (create != null) {
                 final Offer offer = offer(create);
-                json.add("@creatable", describe(ContentTypes.accepted(offer.types(), node), offer.fields(), node));
+                json.add("@creatable", describe(ContentTypes.accepted(offer.types(), node), offer, node));
             }
         } catch (final RepositoryException | WorkflowException e) {
             // Nothing creatable is the safe answer; the serialization itself must not fail over it
@@ -152,22 +155,29 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
      * The types as the serialization lists them.
      *
      * @param types the types that may be created
-     * @param fields the fields new content is filled in with
+     * @param offer what the workflow offers
      * @param parent the node they would be created in
      * @return their descriptions
      * @throws RepositoryException when a type cannot be read
      */
-    private static JsonArrayBuilder describe(final List<ContentTypes.Type> types,
-        final List<ContentFields.Description> fields, final Node parent) throws RepositoryException
+    private static JsonArrayBuilder describe(final List<ContentTypes.Type> types, final Offer offer,
+        final Node parent) throws RepositoryException
     {
         final NodeTypeManager nodeTypes = parent.getSession().getWorkspace().getNodeTypeManager();
         final JsonArrayBuilder described = Json.createArrayBuilder();
         for (final ContentTypes.Type type : types) {
-            described.add(Json.createObjectBuilder()
+            final JsonObjectBuilder json = Json.createObjectBuilder()
                 .add("type", type.nodeType())
                 .add("label", type.label())
+                .add("defaultName", type.defaultName())
+                .add(ContentNames.NAMED, type.named())
                 .add("fields", ContentFieldsProcessor.describe(
-                    ContentFields.editable(fields, List.of(nodeTypes.getNodeType(type.nodeType()))))));
+                    ContentFields.editable(offer.fields(), List.of(nodeTypes.getNodeType(type.nodeType())))));
+            if (type.named()) {
+                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_PATTERN, type.namePattern());
+                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_HINT, type.nameHint());
+            }
+            described.add(json);
         }
         return described;
     }

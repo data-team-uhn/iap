@@ -39,11 +39,13 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link CreatableContentProcessor}: {@code @creatable} lists what the create workflow that would run
@@ -94,12 +96,41 @@ class CreatableContentProcessorTest
         final JsonObject item = creatable.getJsonObject(0);
         assertEquals("test:Item", item.getString("type"));
         assertEquals("Item", item.getString("label"));
+        assertEquals("item", item.getString("defaultName"));
+        assertFalse(item.containsKey("namePattern"));
         final JsonObject title = item.getJsonArray("fields").getJsonObject(0);
         assertEquals("title", title.getString("name"));
         assertEquals(true, title.getBoolean("mandatory"));
         assertEquals(15, item.getJsonArray("fields").size());
         // An item tolerates children of any type, which is not holding any
         assertEquals(0, serialize(this.fixture.item()).getJsonArray("@creatable").size());
+    }
+
+    @Test
+    void saysWhatNamesTheCreateWouldAccept() throws Exception
+    {
+        final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
+        final Activity other = Mockito.mock(Activity.class);
+        Mockito.when(other.getHandler()).thenReturn(CreateContentHandler.HANDLER_NAME);
+        Mockito.when(version.getFlowNodes()).thenReturn(List.of(other, this.fixture.creating()));
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_PATTERN, String.class)).thenReturn("^[a-z]+$");
+        Mockito.when(this.fixture.creating().get(ContentNames.NAME_HINT, String.class)).thenReturn("Small letters.");
+        Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.eq("create"))).thenReturn(version);
+
+        final JsonObject item =
+            serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable").getJsonObject(0);
+        assertTrue(item.getBoolean("named"));
+        assertEquals("^[a-z]+$", item.getString("namePattern"));
+        assertEquals("Small letters.", item.getString("nameHint"));
+
+        // A type that takes no name of its own has no rule for one
+        this.fixture.session().getNode("/create/types/item").setProperty(ContentNames.NAMED, false);
+        this.fixture.session().save();
+        final JsonObject unnamed =
+            serialize(this.fixture.session().getNode("/box")).getJsonArray("@creatable").getJsonObject(0);
+        assertFalse(unnamed.getBoolean("named"));
+        assertFalse(unnamed.containsKey("namePattern"));
+        assertFalse(unnamed.containsKey("nameHint"));
     }
 
     @Test
