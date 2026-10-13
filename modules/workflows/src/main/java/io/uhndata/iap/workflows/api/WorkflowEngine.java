@@ -48,8 +48,9 @@ public interface WorkflowEngine
 {
     /**
      * Receive one domain event aimed at one resource, and execute the transition it triggers if it is
-     * acceptable. The execution writes with the session behind the target resource, which is the firing user's
-     * own, so repository access control is what authorizes it.
+     * acceptable. The firing user is whoever the session behind the target resource belongs to. The execution
+     * writes as the engine's own service user, so repository access control does not authorize it: the definition
+     * does, through the {@code performers} of the node the event reaches.
      *
      * @param target the resource the event is about, e.g. the homepage a creation was requested under
      * @param event the event itself
@@ -62,7 +63,32 @@ public interface WorkflowEngine
      * @throws WorkflowException never directly, only as one of the above
      */
     @NotNull
-    WorkflowResult receiveEvent(@NotNull Resource target, @NotNull WorkflowEvent event) throws WorkflowException;
+    default WorkflowResult receiveEvent(@NotNull final Resource target, @NotNull final WorkflowEvent event)
+        throws WorkflowException
+    {
+        return receiveEvent(target, event, null);
+    }
+
+    /**
+     * Receive one domain event, sent by the firing user on behalf of another. The event counts as the other user's:
+     * the definition must admit them, and they are recorded as the one who did it. Only members of the configured
+     * delegates group may act for others, and only for an ordinary, enabled user.
+     *
+     * @param target the resource the event is about, e.g. the homepage a creation was requested under
+     * @param event the event itself
+     * @param onBehalfOf the id of the user the event is sent for, or {@code null} when the firing user acts for
+     *            themselves
+     * @return the variables the execution left behind, e.g. {@link WorkflowResult#CREATED_PATH_VARIABLE}
+     * @throws NoApplicableWorkflowException when nothing is waiting for this event on this target
+     * @throws NotAuthorizedException when the firing user may not act for that user, or that user may not do this
+     * @throws InvalidPayloadException when the event's data is missing something or violates a constraint
+     * @throws WorkflowDefinitionException when the matched definition itself is broken
+     * @throws WorkflowFailedException when execution fails for reasons outside definition and payload
+     * @throws WorkflowException never directly, only as one of the above
+     */
+    @NotNull
+    WorkflowResult receiveEvent(@NotNull Resource target, @NotNull WorkflowEvent event, @Nullable String onBehalfOf)
+        throws WorkflowException;
 
     /**
      * The events the asking user could send to one resource right now: those a workflow waits for in the

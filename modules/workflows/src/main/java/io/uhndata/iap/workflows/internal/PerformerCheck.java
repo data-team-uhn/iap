@@ -53,8 +53,8 @@ import io.uhndata.iap.workflows.models.FlowNode;
  */
 final class PerformerCheck
 {
-    /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
-    private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
+    /** What an actor is told when they may not do something. The same words whatever the reason. */
+    static final String REFUSAL_MESSAGE = "You are not allowed to do this";
 
     /** Says who the names in a definition stand for. */
     private final Performers performers;
@@ -139,7 +139,7 @@ final class PerformerCheck
      * @return {@code true} if the actor is among them
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    private boolean admits(final List<String> admitted, final Resource subject) throws WorkflowFailedException
+    boolean admits(final List<String> admitted, final Resource subject) throws WorkflowFailedException
     {
         if (this.authorizable == null) {
             return false;
@@ -156,6 +156,16 @@ final class PerformerCheck
             this.memberships.put(resolved, member);
         }
         return member;
+    }
+
+    /**
+     * The actor, if they are a user rather than a group.
+     *
+     * @return the user, or {@code null} when the repository does not know them or they are a group
+     */
+    User user()
+    {
+        return this.authorizable instanceof User ? (User) this.authorizable : null;
     }
 
     /**

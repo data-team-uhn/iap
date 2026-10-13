@@ -28,7 +28,6 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -103,15 +102,18 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private DeliveryRecorder recorder;
 
+    @Reference
+    private Delegation delegation;
+
     @Override
-    public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
+    public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event, final String onBehalfOf)
+        throws WorkflowException
     {
         // Taken from the incoming resource rather than passed in. The session that resolved it is the one that
-        // authenticated, so it is the authority on who is asking. Canonical, because a login resolves
-        // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
-        // is recorded here, and would otherwise refuse the person who raised the request
-        final Actor actor = Actor.of(UserIds.canonical(target.getResourceResolver()));
+        // authenticated, so it is the authority on who is asking
+        final ResourceResolver senderResolver = target.getResourceResolver();
         try (ResourceResolver serviceResolver = this.sessions.open()) {
+            final Actor actor = this.delegation.actor(serviceResolver, senderResolver, onBehalfOf);
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
             final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
@@ -243,10 +245,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Discards whatever an aborted execution had already changed. A failing event leaves no trace in the firing
-     * user's session.
+     * Discards whatever an aborted execution had already changed. A failing event leaves no trace in the engine's
+     * session.
      *
-     * @param resolver the firing user's resource resolver
+     * @param resolver the engine's own resource resolver
      */
     private void revert(final ResourceResolver resolver)
     {
