@@ -135,8 +135,9 @@ by hand.
   with, which a gateway downstream routes on, so that a task list knows what to offer.
   An empty list means there is nothing to decide, only something to do.
 - **`hostTag` on an end event** places a tag on the host when a content workflow
-  finishes there, retiring the host's tags that share any of its categories. Elsewhere
-  in a process, the `addTag` and `removeTag` service tasks do the same job.
+  finishes there, retiring the host's tags that share any of its categories. It is kept
+  for flow nodes written by hand: the vocabulary offers it on no kind of node, since the
+  `addTag` and `removeTag` service tasks do the same job anywhere in a process.
 
 ### The vocabulary
 
@@ -835,8 +836,6 @@ POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [
                                              wf:instances/timeOffRequest │  token parked on approveRequest
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
-                                                        │
-                                                        ▼  hostTag: the submission is now "approved"
 ```
 
 **A user task is an activity with no handler.** The engine parks the token there and
@@ -878,6 +877,10 @@ same as declaring it late; a timer with no `performers` admits only `iap-timer`.
 task closed since the sweep found it is skipped. A failed delivery is counted on the
 task as `deliveryFailures`, and after `MAX_DELIVERY_FAILURES` (3) the sweep leaves the
 task alone and records that it gave up.
+
+**Reaching a state is a step of the process.** A process that should leave its host in a
+new state says so with an `addTag` task before the end event the decision leads to; with
+`replaceExisting` set it also removes whatever tag the host had in the same category.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be, since no engine can run a workflow per query row. So

@@ -5,6 +5,5 @@
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:exclusiveGateway",
-  "jcrNodeType": "wf:ExclusiveGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:ExclusiveGateway"
 }

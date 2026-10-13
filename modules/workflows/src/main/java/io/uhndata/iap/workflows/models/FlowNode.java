@@ -120,16 +120,9 @@ public abstract class FlowNode extends EntityPart
 
     /**
      * The tag to place on the host when execution reaches this node, e.g. {@code approved} on the end event an
-     * approval leads to, or {@code submitted} on the task that waits for an approver. This is how a process says
-     * what being here <em>means</em> to the thing being processed, without needing a service task whose only job is
-     * to write it down.
-     *
-     * <p>Answered by every node rather than only by end events, because a lifecycle is not only about finishing:
-     * a user task's tag is the state its host is in for as long as that task waits, which is what lets a process
-     * move its host between states in the middle of running. A node that names no tag leaves the state alone.</p>
-     *
-     * <p>Placing it retires whatever other tag the host carries in the same category, since the lifecycle is a
-     * state rather than a growing list of everything that ever happened.</p>
+     * approval leads to. Only an end event honours it, placing it beside whatever the host already carries. It is
+     * kept for flow nodes written by hand, since the vocabulary offers it on no kind of node. A diagram moves its
+     * host between states with the {@code addTag} and {@code removeTag} service tasks instead.
      *
      * @return a tag to place on the host, or {@code null} if arriving here says nothing about it
      */
