@@ -50,7 +50,7 @@ function placeAfter(pages: Record<number, string>, pageCount: number, given = ma
   for (const [ page, text ] of Object.entries(pages)) {
     const lines = text.split("\n");
     const lineEnds = lines.slice(0, -1).map((_, index) => lines.slice(0, index + 1).join("").length);
-    locator.addPage(Number(page), lines.join(""), lineEnds);
+    locator.addPage(Number(page), { text: lines.join(""), lineEnds });
   }
   return locator.getPlaces().m;
 }
@@ -150,8 +150,8 @@ describe("MarkLocator", () => {
 
   it("places each mark on its own", () => {
     const locator = new MarkLocator([ mark(), { id: "n", quote: "They may require a check.", kind: "annotation" } ], 2);
-    locator.addPage(1, QUOTE);
-    locator.addPage(2, "They may require a check.");
+    locator.addPage(1, { text: QUOTE, lineEnds: [] });
+    locator.addPage(2, { text: "They may require a check.", lineEnds: [] });
 
     expect(locator.getPlaces()).toMatchObject({ m: { page: 1 }, n: { page: 2 } });
   });
@@ -199,8 +199,8 @@ describe("MarkLocator, for a mark placed by its spans", () => {
 
   it("is placed beside marks looked for by their quote", () => {
     const locator = new MarkLocator([ placed({ page: 1, start: 0, end: 5 }), { ...mark(), id: "q" } ], 2);
-    locator.addPage(1, "Cover page.");
-    locator.addPage(2, QUOTE);
+    locator.addPage(1, { text: "Cover page.", lineEnds: [] });
+    locator.addPage(2, { text: QUOTE, lineEnds: [] });
 
     expect(locator.getPlaces()).toMatchObject({ m: { page: 1, text: "Cover" }, q: { page: 2 } });
   });

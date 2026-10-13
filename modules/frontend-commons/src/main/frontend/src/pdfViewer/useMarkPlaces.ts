@@ -25,7 +25,8 @@ import type { OpenedDocument } from "./usePdfDocument";
 export type MarkPlaces = Record<string, MarkPlace>;
 
 // Where each mark's passage is in the document, as its pages are read: first those marks placed by their
-// spans or kept as anchors are on, then the others, in order.
+// spans or kept as anchors are on, then the others, in order, until no passage is still looked for. Pages
+// nothing needs are not read, as reading them takes PDF.js from drawing the pages being looked at.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces } | undefined>(undefined);
 
@@ -40,13 +41,17 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): M
     const rest = Array.from({ length: doc.numPages }, (_, index) => index + 1).filter(page => !placed.includes(page));
     void (async () => {
       let last = "";
+      let places = locator.getPlaces();
       for (const pageNumber of [ ...placed, ...rest ]) {
-        const { text, lineEnds } = await getPageTextWithLines(pageNumber);
+        if (!Object.values(places).some(place => place.status === "searching")) {
+          return;
+        }
+        const page = await getPageTextWithLines(pageNumber);
         if (stop.signal.aborted) {
           return;
         }
-        locator.addPage(pageNumber, text, lineEnds);
-        const places = locator.getPlaces();
+        locator.addPage(pageNumber, page);
+        places = locator.getPlaces();
         const serialized = JSON.stringify(places);
         // Most pages change nothing, and each change draws the marks again.
         if (serialized !== last) {
