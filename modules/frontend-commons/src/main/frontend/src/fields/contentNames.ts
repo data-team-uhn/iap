@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-// Suggests a name for new content before it is created, made from what it says. The name keeps to the rule of the
-// workflow creating it, which comes with what may be created. Names are made from text as the server's createContent
-// makes them, and the tests of both use the same examples. No React, no fetch.
+// Suggests a name for new content before it is created, generated from its properties.
+// The name keeps to the rule of the workflow creating it.
 
 import type { CreatableType } from "./fieldsModel";
 
