@@ -42,7 +42,7 @@ export default function PdfToolbar({ page, pageCount, search, onShowPage, onZoom
   const lastPage = pageCount ?? 0;
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+    <Box sx={{ display: "flex", alignItems: "center" }}>
       <IconButton
         aria-label="Previous page"
         edge="start"

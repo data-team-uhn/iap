@@ -313,6 +313,10 @@ searches while the focus is in the viewer.
 
 A spinner shows in the frame until PDF.js has laid out the document's pages.
 
+On a phone, the space between the viewer's rows and around it is kept small, and the document runs to
+the bottom of the screen, as it does to its sides. Scrolling the document stops at its ends, rather than
+going on to scroll the dialog holding it.
+
 It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
 `null`, as a ref is before React attaches it, shows nothing until the element is there.
