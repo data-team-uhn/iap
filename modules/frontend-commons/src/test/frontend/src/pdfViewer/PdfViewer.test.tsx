@@ -1058,6 +1058,38 @@ describe("PdfViewer", () => {
     });
   });
 
+  describe("while passages are looked for", () => {
+    it("shows how much of the document has been read along its top, until every passage is placed", async () => {
+      fakePdf.holdText = true;
+      show({ quote: "A sentence that is nowhere in the document." });
+
+      const bar = await screen.findByRole("progressbar", { name: "Looking for the passage" });
+      expect(bar).toHaveAttribute("aria-valuenow", "0");
+
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is not in this document."));
+      expect(screen.queryByRole("progressbar", { name: "Looking for the passage" })).not.toBeInTheDocument();
+    });
+
+    it("names the passages looked for together when there are several", async () => {
+      fakePdf.holdText = true;
+      const marks: Mark[] = [ "A sentence that is nowhere in the document.", QUOTE ]
+        .map((quote, index) => ({ id: `passage-${index}`, quote, kind: "assistant" }));
+      render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));
+
+      expect(await screen.findByRole("progressbar", { name: "Looking for the passages" })).toBeInTheDocument();
+    });
+
+    it("shows nothing for a document with no passages to look for", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={[]} onClose={vi.fn()} />));
+
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar", { name: "Looking for the passages" })).not.toBeInTheDocument();
+      expect(fakePdf.textReads).toEqual([]);
+    });
+  });
+
   describe("with passages placed by their spans", () => {
     // The memo's second page, two lines that run on in its text without a space.
     const LINES = "Volunteers who, on a casual basis,\nassist from time to time.";
