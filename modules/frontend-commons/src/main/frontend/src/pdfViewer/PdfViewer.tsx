@@ -384,7 +384,12 @@ function ViewerBody(props: ViewerBodyProps) {
                 sx={{ mb: 1 }}
               />
             )}
-          <PdfDocumentView setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={several}>
+          <PdfDocumentView
+            setFrame={setFrame}
+            edgeToEdge={edgeToEdge}
+            outlineSelected={several}
+            opening={pageCount === undefined && openError === undefined}
+          >
             {selectedText.selected === undefined || onAnnotate === undefined
               ? null
               : (

@@ -425,6 +425,20 @@ describe("PdfViewer", () => {
       });
     });
 
+    it("shows a spinner in the frame while the document opens, until its pages are laid out", async () => {
+      fakePdf.holdPages = true;
+      show();
+
+      expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
+      // Still there once the file is opened, while PDF.js lays out its pages.
+      await waitFor(() => expect(fakePdf.releasePages).toBeDefined());
+      expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
+
+      act(() => fakePdf.releasePages?.());
+
+      await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());
+    });
+
     it("offers no page or zoom controls before the document opens", () => {
       vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
       show();
@@ -458,6 +472,14 @@ describe("PdfViewer", () => {
       show();
 
       expect(await screen.findByText("You are no longer signed in. Sign in and try again.")).toBeInTheDocument();
+    });
+
+    it("shows no spinner once the document could not be opened", async () => {
+      stubFetch(404);
+      show();
+
+      expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("says when the file is not a PDF it can read", async () => {
