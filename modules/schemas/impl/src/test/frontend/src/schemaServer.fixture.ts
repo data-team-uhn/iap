@@ -115,25 +115,34 @@ const single = (comparator: string, operandA: unknown, operandB?: unknown) => ({
 
 const creatable = (type: string, label: string, ...fields: unknown[]) => ({ type, label, fields });
 
+// What a form or a section of a draft may hold
+const FORM_ITEMS = [
+  creatable("sch:Section", "Section", text("title", "Title", true)),
+  creatable("sch:Question", "Question", text("text", "Question", true, true)),
+];
+
 export const CONTENT: Record<string, Record<string, unknown>> = {
-  // A draft, where parts and options may be added and removed
+  // A draft, where parts and options may be added, removed and moved
   "study/v3": {
+    "sling:resourceType": "sch/SchemaVersion",
     "@creatable": [
       creatable("sch:FormRequirement", "Form", text("label", "Label", true)),
       creatable("sch:DocumentRequirement", "Document", text("label", "Label", true)),
     ],
     "intake": requirement("FormRequirement", {
-      "label": "Intake", "@events": [ "create", "discard", "update" ],
-      "@creatable": [
-        creatable("sch:Section", "Section", text("title", "Title", true)),
-        creatable("sch:Question", "Question", text("text", "Question", true, true)),
-      ],
+      "label": "Intake", "@events": [ "create", "discard", "move", "update" ],
+      "@creatable": FORM_ITEMS,
       "name": question({
-        "text": "Your name", "@events": [ "create", "discard", "update" ], "@fields": [ text("text", "Question", true) ],
+        "text": "Your name", "@events": [ "create", "discard", "move", "update" ],
+        "@fields": [ text("text", "Question", true) ],
         "@creatable": [ creatable("sch:AnswerOption", "Option", text("value", "Value", true)) ],
-        "short": { ...option("short", "Short"), "@events": [ "discard", "update" ] },
+        "short": { ...option("short", "Short"), "@events": [ "discard", "move", "update" ] },
+        "full": { ...option("full", "Full"), "@events": [ "discard", "move", "update" ] },
       }),
-      "age": question({ "text": "Your age", "@events": [ "discard" ] }),
+      "age": question({ "text": "Your age", "@events": [ "discard", "move" ] }),
+    }),
+    "followUp": requirement("FormRequirement", {
+      "label": "Follow-up", "@events": [ "create", "discard", "move", "update" ], "@creatable": FORM_ITEMS,
     }),
   },
   "study/v2": {
