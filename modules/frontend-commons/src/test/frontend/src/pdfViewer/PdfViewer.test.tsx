@@ -837,6 +837,50 @@ describe("PdfViewer", () => {
 
         await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
       });
+
+      describe("swiped by touch", () => {
+        beforeEach(() => {
+          // Motion as the browser shows it, which jsdom does not
+          vi.stubGlobal("matchMedia", (media: string) => ({
+            media,
+            matches: false,
+            addListener: () => undefined,
+            removeListener: () => undefined,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+          }));
+          Element.prototype.animate = vi.fn();
+        });
+
+        // A finger moving across the card, from where it says which passage it shows, right for a positive distance
+        function swipe(across: number) {
+          const card = screen.getByText(/^\d of 3$/);
+          const at = (clientX: number) => ({ pointerType: "touch", pointerId: 1, clientX, clientY: 10 });
+          fireEvent.pointerDown(card, at(200));
+          fireEvent.pointerMove(card, at(200 + across));
+          fireEvent.pointerUp(card, at(200 + across));
+        }
+
+        it("steps through the passages as its controls do, as far as the ends", async () => {
+          const onSelectMark = showMarks();
+          await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+          swipe(100);
+          expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
+
+          swipe(-100);
+          expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3.");
+          expect(onSelectMark).toHaveBeenCalledWith("schedule");
+          expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+
+          swipe(-100);
+          swipe(-100);
+          expect(getStatus()).toHaveTextContent("Passage 3 of 3 is not in this document.");
+
+          swipe(100);
+          expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3.");
+        });
+      });
     });
 
     describe("in a wide viewer", () => {
