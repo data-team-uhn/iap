@@ -31,7 +31,8 @@ export interface OpenedDocument {
   // The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
   // layer's text. A page PDF.js cannot read has no text. Each page is read once.
   getPageText: (pageNumber: number) => Promise<string>;
-  // The same, with where its lines end.
+  // The same, with where its lines end, as the same object each time, which what is worked out from a
+  // page's text can be kept by.
   getPageTextWithLines: (pageNumber: number) => Promise<PageText>;
 }
 
