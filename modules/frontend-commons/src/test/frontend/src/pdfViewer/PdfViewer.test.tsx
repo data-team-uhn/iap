@@ -903,6 +903,22 @@ describe("PdfViewer", () => {
         expect(screen.queryByText("1 of 3")).not.toBeInTheDocument();
       });
 
+      it("says above the list which passage is selected of how many, stepping through them", async () => {
+        const onSelectMark = showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+        expect(screen.getByText("Passage 1 of 3")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Previous passage" })).toBeDisabled();
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+
+        expect(screen.getByText("Passage 2 of 3")).toBeInTheDocument();
+        expect(getStatus()).toHaveTextContent("Passage 2 of 3 is marked on page 3.");
+        expect(onSelectMark).toHaveBeenCalledWith("schedule");
+        expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Show passage 2 on page 3" }))
+          .toHaveAttribute("aria-current", "true");
+      });
+
       it("selects a passage that was not found, for it to be read whole", async () => {
         showMarks();
         await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
