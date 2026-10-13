@@ -48,9 +48,16 @@ export function unquote(quote: string): string {
   return quote.replace(SURROUNDING_QUOTES, "");
 }
 
+// A text in the form quotes are compared in, each character keeping the offset in the source it came from.
+// Preparing a page once serves every quote looked for in it.
+export interface PreparedText {
+  text: string;
+  offsets: number[];
+}
+
 // The text in the form findQuote compares.
 export function getComparedText(text: string): string {
-  return readText(text).text;
+  return prepareText(text).text;
 }
 
 // The quote in the form findQuote compares, or undefined when it is too short to trust.
@@ -60,8 +67,7 @@ export function getSearchText(quote: string): string | undefined {
 }
 
 // Every place the quote occurs in a page's text, as offsets into that text.
-export function findQuote(pageText: string, searchText: string): QuoteMatch[] {
-  const page = readText(pageText);
+export function findQuote(page: PreparedText, searchText: string): QuoteMatch[] {
   const matches: QuoteMatch[] = [];
   for (let at = page.text.indexOf(searchText); at >= 0; at = page.text.indexOf(searchText, at + searchText.length)) {
     matches.push(toMatch(page, at, searchText.length));
@@ -70,21 +76,25 @@ export function findQuote(pageText: string, searchText: string): QuoteMatch[] {
 }
 
 // Where a quote broken across two pages sits: its start near the end of the first page, and its rest
-// near the start of the next. Undefined when no break fits.
+// near the start of the next. Undefined when no break fits. Only the ends of the pages where the parts can
+// be are searched, so a long page costs no more than a short one.
 export function findQuoteAcrossPages(
-  firstPage: string,
-  nextPage: string,
+  first: PreparedText,
+  next: PreparedText,
   searchText: string,
 ): { first: QuoteMatch; next: QuoteMatch } | undefined {
-  const first = readText(firstPage);
-  const next = readText(nextPage);
+  const reach = PAGE_EDGE + searchText.length;
+  const endFrom = Math.max(0, first.text.length - reach);
+  const end = first.text.slice(endFrom);
+  const start = next.text.slice(0, reach);
   for (let split = searchText.length - MIN_PART_LENGTH; split >= MIN_PART_LENGTH; split--) {
-    const start = searchText.slice(0, split);
+    const head = searchText.slice(0, split);
     const rest = searchText.slice(split);
-    const startAt = first.text.lastIndexOf(start);
-    const restAt = next.text.indexOf(rest);
-    if (startAt >= 0 && startAt + start.length >= first.text.length - PAGE_EDGE && restAt >= 0 && restAt <= PAGE_EDGE) {
-      return { first: toMatch(first, startAt, start.length), next: toMatch(next, restAt, rest.length) };
+    const headAt = endFrom + end.lastIndexOf(head);
+    const restAt = start.indexOf(rest);
+    const headFits = headAt >= endFrom && headAt + head.length >= first.text.length - PAGE_EDGE;
+    if (headFits && restAt >= 0 && restAt <= PAGE_EDGE) {
+      return { first: toMatch(first, headAt, head.length), next: toMatch(next, restAt, rest.length) };
     }
   }
   return undefined;
@@ -97,8 +107,7 @@ function toMatch(page: { offsets: number[] }, at: number, length: number): Quote
 
 // The text with no spaces, case or accents, and no hyphens except a minus before a digit. PDF.js
 // guesses spaces and line ends from the layout, and its guesses often differ from the quote.
-// Each character keeps the offset in the source it came from.
-function readText(source: string): { text: string; offsets: number[] } {
+export function prepareText(source: string): PreparedText {
   const chars: string[] = [];
   const sourceOffsets: number[] = [];
   for (let offset = 0; offset < source.length; offset++) {
