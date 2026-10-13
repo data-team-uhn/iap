@@ -114,6 +114,9 @@
   // Optional description of what this workflow does
   - description (STRING)
 
+  // Optional note for the people who send events to this workflow, e.g. what an update lets them change
+  - notice (STRING)
+
   // Mandatory version label, e.g. "1.0"
   - version (STRING) mandatory
 

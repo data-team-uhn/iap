@@ -445,6 +445,21 @@ the workflow that would run, so an editor offers exactly what the update accepts
 can apply the same `appliesWhen` as the values change. `FieldsDialog`
 (`frontend-commons`) is that editor.
 
+A workflow version may also carry a `notice`, written for the people who send it events.
+Its `description` says what it does, for whoever maintains it. The `fields`
+serialization adds the notice of the update that would run as `@notice`, next to
+`@fields`. Where guarded updates split a lifecycle, each one says what it allows. A page
+then shows whichever applies without knowing the states, and the words live in the same
+file as the rule.
+
+```json
+"v1": {
+  "jcr:primaryType": "wf:WorkflowVersion",
+  "notice": "Only the wording of this version can be corrected. Anything else needs a new version.",
+  ...
+}
+```
+
 `createContent` adds content inside the target: something of the `type` the event names,
 which must be one the activity lists and one the target's type declares it holds. A
 child definition says what a node holds only if the content model declares it and names

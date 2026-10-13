@@ -70,6 +70,7 @@ class WorkflowVersionTest
             TYPE, WorkflowVersion.RESOURCE_TYPE,
             "version", "1.0",
             "description", "The first cut",
+            "notice", "Anything can change.",
             TAGS, tags(ACTIVE),
             "bpmnXmlParsedHash", "abc123",
             "bpmnAuthoritative", true,
@@ -82,6 +83,7 @@ class WorkflowVersionTest
         assertNotNull(version);
         assertEquals("1.0", version.getVersion());
         assertEquals("The first cut", version.getDescription());
+        assertEquals("Anything can change.", version.getNotice());
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
@@ -115,6 +117,7 @@ class WorkflowVersionTest
 
         assertNotNull(version);
         assertNull(version.getDescription());
+        assertNull(version.getNotice());
         assertNull(version.getBpmnFile());
         assertNull(version.getBpmnXmlParsedHash());
         // A version says nothing about owning its graph until something says so: the diagram derives
