@@ -975,6 +975,18 @@ class UserWorkflowTest
     }
 
     @Test
+    void recordsWhomADelegateCompletedTheTaskFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.ADMIN), APPROVED, EngineFixture.REQUESTER);
+
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+    }
+
+    @Test
     void takesTheDefaultArcWhenNoConditionMatches() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
@@ -1205,6 +1217,18 @@ class UserWorkflowTest
         engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST);
 
         assertEquals("created", read(WAIT).get(STATUS));
+        assertEquals("completed", read(SECOND_WAIT).get(STATUS));
+    }
+
+    @Test
+    void deliversADelegatesMessageToTheTaskWaitingForWhomTheyActFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.ADMIN, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(host(EngineFixture.ADMIN), ASSESSMENT_SENT_TO_HOST, EngineFixture.REQUESTER);
+
         assertEquals("completed", read(SECOND_WAIT).get(STATUS));
     }
 
