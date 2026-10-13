@@ -100,7 +100,12 @@ subtree, then widening one ancestor at a time up to the enclosing entity. A cond
 evaluated inside a repeated block therefore sees that block's own answer. In copied
 content (see `copyContent` in [workflows.md](workflows.md)), an `answer` operand naming
 a copied question by UUID is pointed at the copy, while a path is kept as written: it
-stays readable, and the copy's own structure is what it resolves against.
+stays readable, and the copy's own structure is what it resolves against. Moving content
+(see `moveContent` in [workflows.md](workflows.md)) works the other way. A path to a
+moved question, or to anything under a moved part, would no longer find it, so the
+operand is changed to name it by identifier before the move. When content moves into
+another entity, the conditions moving with it also switch to identifiers for what they
+name outside it.
 
 A module about to remove or move content asks `AnswerDependencies` (in the API) what
 depends on it: every name an `answer` operand may give what the content holds, the

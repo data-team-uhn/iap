@@ -17,18 +17,15 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
-import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -40,7 +37,6 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -103,7 +99,7 @@ class CreateContentHandlerTest
         Mockito.when(this.fixture.creating().get("nameFrom", String[].class)).thenReturn(null);
         create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Titled\"}"));
 
-        assertEquals(List.of("titled", "noted", "item", "item2", "titled2", "item3"), children(BOX));
+        assertEquals(List.of("titled", "noted", "item", "item2", "titled2", "item3"), this.fixture.children(BOX));
     }
 
     @Test
@@ -114,7 +110,7 @@ class CreateContentHandlerTest
 
         create(BOX, Map.of(TYPE, ITEM, "before", "last", "patch", "{\"title\": \"Middle\"}"));
 
-        assertEquals(List.of("first", "middle", "last"), children(BOX));
+        assertEquals(List.of("first", "middle", "last"), this.fixture.children(BOX));
     }
 
     @Test
@@ -135,7 +131,7 @@ class CreateContentHandlerTest
         // A shelf keeps no order
         assertThrows(InvalidPayloadException.class, () -> create("/shelf", Map.of(TYPE, ITEM, "before", "loose")));
         assertThrows(InvalidPayloadException.class, () -> create(BOX, Map.of(TYPE, ITEM, "patch", "{")));
-        assertEquals(List.of(), children(BOX));
+        assertEquals(List.of(), this.fixture.children(BOX));
     }
 
     @Test
@@ -153,7 +149,7 @@ class CreateContentHandlerTest
 
         create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"After the checkin\"}"));
 
-        assertEquals(List.of("afterTheCheckin"), children(BOX));
+        assertEquals(List.of("afterTheCheckin"), this.fixture.children(BOX));
     }
 
     @Test
@@ -163,45 +159,31 @@ class CreateContentHandlerTest
         final Node node = Mockito.mock(Node.class);
         Mockito.when(parent.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(node.getMixinNodeTypes()).thenThrow(new RepositoryException("gone"));
-        final WorkflowTaskContext task = context(BOX, Map.of(TYPE, ITEM), new HashMap<>());
+        Mockito.when(node.getSession()).thenThrow(new RepositoryException("gone"));
+        final WorkflowTaskContext task = task(BOX, Map.of(TYPE, ITEM), new HashMap<>());
         Mockito.when(task.getTarget()).thenReturn(parent);
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(task));
+    }
+
+    private WorkflowTaskContext task(final String parent, final Map<String, Object> payload,
+        final Map<String, Object> variables)
+    {
+        final WorkflowTaskContext task = this.fixture.task("create", this.fixture.creating(), payload, variables);
+        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(parent));
+        return task;
     }
 
     private Map<String, Object> create(final String parent, final Map<String, Object> payload)
         throws WorkflowException, PersistenceException, RepositoryException
     {
         final Map<String, Object> variables = new HashMap<>();
-        this.handler.execute(context(parent, payload, variables));
+        this.handler.execute(task(parent, payload, variables));
         // What a following update fills in, so that the new item can be saved
         final Node created =
             this.fixture.session().getNode((String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
         created.setProperty("title", "Filled in");
         this.fixture.session().save();
         return variables;
-    }
-
-    private List<String> children(final String path) throws RepositoryException
-    {
-        final List<String> names = new ArrayList<>();
-        for (final NodeIterator nodes = this.fixture.session().getNode(path).getNodes(); nodes.hasNext();) {
-            names.add(nodes.nextNode().getName());
-        }
-        return names;
-    }
-
-    private WorkflowTaskContext context(final String parent, final Map<String, Object> payload,
-        final Map<String, Object> variables)
-    {
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent("create", payload));
-        Mockito.when(task.getActivity()).thenReturn(this.fixture.creating());
-        Mockito.when(task.getResourceResolver()).thenReturn(resolver);
-        Mockito.when(task.getTarget()).thenReturn(resolver.getResource(parent));
-        Mockito.doAnswer(invocation -> variables.put(invocation.getArgument(0), invocation.getArgument(1)))
-            .when(task).setVariable(Mockito.anyString(), Mockito.any());
-        return task;
     }
 }
