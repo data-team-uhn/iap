@@ -204,6 +204,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
+        inject(impl, "delegation", EngineFixture.delegation("iap-administrators"));
         return impl;
     }
 
@@ -326,6 +327,18 @@ class UserWorkflowTest
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
         // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
+    void recordsWhomADelegateCompletedTheTaskFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.ADMIN), APPROVED, EngineFixture.REQUESTER);
+
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
     }
 
     @Test
@@ -463,6 +476,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
+        inject(engine, "delegation", EngineFixture.delegation("iap-administrators"));
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -630,6 +644,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
+        inject(engine, "delegation", EngineFixture.delegation("iap-administrators"));
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

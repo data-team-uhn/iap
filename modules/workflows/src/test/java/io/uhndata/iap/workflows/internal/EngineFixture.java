@@ -173,6 +173,19 @@ public final class EngineFixture
     }
 
     /**
+     * Who may act for others, as the engine is wired with it.
+     *
+     * @param delegates the principal name of the group whose members may
+     * @return a delegation policy
+     */
+    static Delegation delegation(final String delegates)
+    {
+        final DelegationConfiguration config = Mockito.mock(DelegationConfiguration.class);
+        Mockito.when(config.delegates()).thenReturn(delegates);
+        return new Delegation(config);
+    }
+
+    /**
      * Creates the {@code /Workflows} homepage the tests aim their events at, posted to by an administrator.
      *
      * @param context the Sling context to build in
