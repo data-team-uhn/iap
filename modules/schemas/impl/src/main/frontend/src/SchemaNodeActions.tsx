@@ -37,7 +37,7 @@ interface SchemaNodeActionsProps {
   siblings: JcrNode[];
   // What it is called in the actions' titles, such as "question"
   what: string;
-  // Sets when a part applies, where that can be set
+  // Opens the part's condition for editing, where it can be set
   editCondition?: () => void;
 }
 

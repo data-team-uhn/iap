@@ -23,7 +23,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { type ItemChoices, itemChoicesOf } from "./conditionModel";
 import { type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
-// The items the version's questions take their options from, loaded once for each path; none where they cannot be
+// The items the version's questions take their options from, each path loaded once. An unreadable path gives none.
 export function useOptionsFrom(index: QuestionIndex): ItemChoices {
   const doFetch = useAuthenticatedFetch();
   const [ items, setItems ] = useState<ItemChoices>({});

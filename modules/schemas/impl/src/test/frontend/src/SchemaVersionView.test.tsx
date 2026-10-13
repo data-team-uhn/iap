@@ -465,7 +465,7 @@ describe("SchemaVersionView", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     expect(within(dialog).getByRole("combobox", { name: "Compare" })).toHaveTextContent("The answer to a question");
     fireEvent.keyDown(within(dialog).getByRole("combobox", { name: "Question" }), { key: "ArrowDown" });
-    // Not itself, and by its identifier too
+    // Every question but the part itself, each shown with its identifier
     const [ only, ...others ] = screen.getAllByRole("option");
     expect(others).toEqual([]);
     expect(within(only).getByText("Your name")).toBeInTheDocument();

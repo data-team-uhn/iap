@@ -122,9 +122,10 @@ export function boundsOf(question: JcrNode): string | undefined {
 }
 
 // Where conditions find the questions their answer operands name: by UUID, or by path relative to the
-// version, which is how conditions written by hand address them; and all of them, in the version's order
+// version, which is how conditions written by hand address them
 export interface QuestionIndex {
   find: (reference: string) => JcrNode | undefined;
+  // Every question of the version, in its order
   questions: JcrNode[];
 }
 

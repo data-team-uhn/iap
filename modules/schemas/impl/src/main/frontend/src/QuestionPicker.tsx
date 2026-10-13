@@ -31,8 +31,8 @@ interface QuestionPickerProps extends OperandEditorProps {
   questions: JcrNode[];
 }
 
-// Picks the question an answer operand reads, found by what it asks and named by its identifier, which is how
-// the condition keeps naming it wherever it moves. One named otherwise, as by hand, is shown as the question it is.
+// Picks the question an answer operand reads, found by what it asks. The operand names it by its `jcr:uuid`, which
+// still names it wherever it moves. One named otherwise, such as by path, is shown as the question it is.
 function QuestionPicker({ label, value, disabled, required, onChange, questions }: QuestionPickerProps) {
   const { index } = useVersionConditions();
   const current = value.at(0);

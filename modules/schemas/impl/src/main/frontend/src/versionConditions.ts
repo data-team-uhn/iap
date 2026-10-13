@@ -23,8 +23,8 @@ import type { OperandSource } from "@iap/conditions/conditionModel";
 import { schemaSources } from "./conditionModel";
 import { indexQuestions, type QuestionIndex } from "./schemaVersionTreeModel";
 
-// What the conditions of a version's parts are read and built with, made once for the version: its questions, every
-// source its conditions may use, and those an editor offers
+// What the conditions of a version's parts are read and built with, made once for the version. It holds the version's
+// questions, every source its conditions may use, and the sources an editor offers.
 export interface VersionConditions {
   index: QuestionIndex;
   sources: OperandSource[];

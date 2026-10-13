@@ -147,12 +147,12 @@ workflows say so in words as their `nameHint`, which the editor shows under the 
 identifier from what a new part says, as `@creatable` allows it, until one is given. An option is not given an
 identifier: `createSchemaPart` lists it with `named` false. Its `value` is what answers store, and a draft can edit
 it.
-When a part applies is **set** with the engine's `replaceContent` task: the event's `content` is its whole new
-`cond:condition`, or `null` to remove it, and only condition node types may be written. The editor builds it with the
-conditions module's `ConditionDialog` (see [conditions.md](conditions.md)), comparing the answer to a question of the
-version, named by its identifier, the submission's tags or one of its properties, with values typed as they hold. A question
-taking its options from elsewhere (`optionsFrom`) offers the items there, by their titles or labels, loaded once for
-the version.
+When a part applies is **set** with the engine's `replaceContent` task. The event's `content` is the part's whole
+new `cond:condition`, or `null` to remove it. Only condition node types may be written. The editor builds it with
+the conditions module's `ConditionDialog` (see [conditions.md](conditions.md)). Its conditions compare the answer to
+a question of the version, the submission's tags or one of its properties with values of the type they hold. They
+name a question by its `jcr:uuid`. A question taking its options from elsewhere (`optionsFrom`) offers the items
+there, by their titles or labels, loaded once for the version.
 A question either lists its options or takes them from elsewhere, as `optionsFrom`, but not both. `createSchemaPart`
 adds no option to a question with an `optionsFrom`: its guard reads the question's own property through an
 `ownProperty` operand (see [conditions.md](conditions.md)). A draft that has both is not published. No two options

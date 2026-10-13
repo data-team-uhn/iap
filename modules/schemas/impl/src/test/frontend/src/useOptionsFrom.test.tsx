@@ -59,7 +59,7 @@ describe("useOptionsFrom", () => {
     expect(fetch.mock.calls.filter(([ url ]) => url === "/Categories.deep.simple.json")).toHaveLength(1);
     unmount();
 
-    // Gone before they are read, it keeps nothing
+    // Unmounted before the items arrive, it sets nothing
     renderHook(() => useOptionsFrom(indexQuestions(version))).unmount();
   });
 });

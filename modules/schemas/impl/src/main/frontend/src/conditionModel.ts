@@ -36,11 +36,11 @@ const VALUE_TYPES: Record<string, ValueType | undefined> = {
   date: "date",
 };
 
-// What the answers to a question hold: its type, one or several of them, and its options when it lists some
 // The items a question's options come from, by the path it takes them from
 export type ItemChoices = Record<string, Choice[]>;
 
-// The items under a node, as its deep serialization gives them: each by its path, called by its title or label
+// The items under a node at any depth, as its deep serialization gives them. Each is named by its path and called by
+// its title or label, or else by its name.
 export function itemChoicesOf(node: JcrNode): Choice[] {
   return Object.entries(node)
     .filter((entry): entry is [ string, JcrNode ] => isObject(entry[1]) && !entry[0].includes(":"))
@@ -50,6 +50,8 @@ export function itemChoicesOf(node: JcrNode): Choice[] {
     ]);
 }
 
+// What the answers to a question hold: its type, one or several of them, and its options. These are the ones it
+// lists, or else the items it takes its options from, once they are loaded.
 export function answerShapeOf(question: JcrNode, items: ItemChoices = {}): OperandShape {
   const listed = optionsOf(question).map(option => ({
     value: strings(option.value).at(0) ?? "",
@@ -85,11 +87,10 @@ export const schemaSources = (index: QuestionIndex, tags: Choice[] = [], items: 
   [ answerSource(index, items), tagsSource(tags, "submission"), propertySource("submission"),
     ownPropertySource("part") ];
 
-// The sources the editor offers, of all a schema's conditions may use: what a submission answers, how it is tagged,
-// and its properties
+// The sources the editor offers: what a submission answers, how it is tagged, and its properties
 export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
   sources.filter(source => source.name !== "ownProperty");
 
-// The questions a part's condition can compare the answers to: any in its version, but itself and what it holds
+// The questions a part's condition can compare the answers to: any in its version except itself and those it holds
 export const questionsFor = (part: JcrNode, index: QuestionIndex): JcrNode[] => index.questions
   .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));

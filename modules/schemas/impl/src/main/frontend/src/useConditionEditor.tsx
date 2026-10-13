@@ -30,15 +30,16 @@ import { conditionOf } from "./schemaVersionTreeModel";
 import { useVersionConditions } from "./versionConditions";
 
 export interface ConditionEditor {
-  // Opens it, where the condition can be set and nothing is moving
+  // Opens the dialog that sets the condition. Absent when the part's condition cannot be set. Also absent while a
+  // part of the tree is being moved, until the move is done or cancelled.
   edit?: () => void;
   // The dialog, while it is open
   dialog: ReactNode;
 }
 
-// Sets when a part applies: the condition it is asked under, built from the answers to the version's other
-// questions, how a submission is tagged, and its properties, and written whole in one event. A card opens it from
-// its actions, and from the line saying when it applies.
+// Sets when a part applies. Its condition is built from the answers to the version's other questions, how a
+// submission is tagged, and its properties, and is written whole in one event. A card opens the dialog from its
+// actions, and from the line saying when the part applies.
 export function useConditionEditor(node: JcrNode, what: string): ConditionEditor {
   const [ editing, setEditing ] = useState(false);
   const { index, offered } = useVersionConditions();

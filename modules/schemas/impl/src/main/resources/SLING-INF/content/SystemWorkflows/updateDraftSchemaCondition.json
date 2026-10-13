@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Replaces the condition deciding when a requirement, section or question applies, or removes it so that it always applies, while its version is a draft.",
+    "description": "Sets when a part of a draft version applies, or removes its condition so that it always applies.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
