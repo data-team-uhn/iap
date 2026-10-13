@@ -398,6 +398,11 @@ export function cannotMark(place: MarkPlace): boolean {
   return [ "notFound", "tooShort", "noText" ].includes(place.status);
 }
 
+// Whether some passage is still being looked for.
+export function isLooking(places: Record<string, MarkPlace>): boolean {
+  return Object.values(places).some(place => place.status === "searching");
+}
+
 // The marks in the order given, with those whose passage cannot be marked after the others.
 export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Mark[] {
   const unmarked = (mark: Mark) => cannotMark(places[mark.id]);
