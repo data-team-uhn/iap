@@ -269,6 +269,8 @@ the order given, with those that cannot be found last. In a viewer narrower than
 `NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
 them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
 panel is narrow on any screen.
+Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), in the
+text's full colour, with buttons stepping through them as the controls on the card do.
 The list scrolls when there are more passages than fit, and fades out at its top or bottom where
 there are more that way (`useScrollEdges` says where, and `fadeEdges` makes the fade).
 The card above the document can also be swiped by touch, as the content moves: left to the next
