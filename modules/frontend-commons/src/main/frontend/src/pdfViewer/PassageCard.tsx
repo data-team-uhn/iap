@@ -113,7 +113,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
 
   return (
     <Box
-      sx={theme => ({ ...passageCard(theme, markedBy), mb: 1, overflow: "hidden" })}
+      sx={theme => ({ ...passageCard(theme, markedBy), overflow: "hidden" })}
     >
       {stepper}
       <Box sx={{ position: "relative", display: "flex" }}>

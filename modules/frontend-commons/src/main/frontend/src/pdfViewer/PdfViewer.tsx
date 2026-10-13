@@ -194,7 +194,7 @@ function PdfViewerSession(props: PdfViewerProps) {
         onClose={container !== undefined && poppedOut ? popIn : onClose}
         slotProps={{ paper: { sx: { height: "100%" } } }}
       >
-        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, px: { xs: 2, sm: 3 } }}>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, ...DIALOG_PADDING }}>
           {body}
         </DialogContent>
       </ResponsiveDialog>
@@ -209,6 +209,11 @@ function PdfViewerSession(props: PdfViewerProps) {
 // Below this width, the document's column has no room for the search field beside the page and zoom
 // controls. A button in the toolbar opens it in their place instead.
 const SEARCH_FIELD_ROOM = 600;
+
+// The space between the viewer's rows, and around it in the dialog, kept small on a phone, where the
+// document has the least room. There, the document runs to the bottom of the screen, as to its sides.
+const ROW_GAP = { xs: 0.5, sm: 1 };
+const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
 
 interface ViewerBodyProps {
   titleId: string;
@@ -316,9 +321,9 @@ function ViewerBody(props: ViewerBodyProps) {
     <Box
       ref={setBody}
       onKeyDown={onKeyDown}
-      sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
+      sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center" }}>
         <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {title}
         </Typography>
@@ -335,10 +340,13 @@ function ViewerBody(props: ViewerBodyProps) {
           : search.announcement}
       </Box>
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-        <Box ref={setColumn} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+        <Box
+          ref={setColumn}
+          sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}
+        >
           {searchInPlace
             ? (
-              <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
                 <SearchField
                   search={search}
                   inputRef={searchInputRef}
@@ -385,7 +393,6 @@ function ViewerBody(props: ViewerBodyProps) {
                 title="The document could not be opened"
                 message={openError}
                 onRetry={onRetry}
-                sx={{ mb: 1 }}
               />
             )}
           <PdfDocumentView
