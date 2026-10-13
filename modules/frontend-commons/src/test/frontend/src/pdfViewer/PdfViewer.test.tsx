@@ -660,7 +660,8 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
       expect(getStatus()).toHaveTextContent(FOUND);
       expect(getFrame().scrollTop).toBe(0);
-      expect(fakePdf.textReads).toEqual([ 1, 2, 3 ]);
+      // Read once, as far as the passage, not again for the dialog.
+      expect(fakePdf.textReads).toEqual([ 1, 2 ]);
     });
 
     it("keeps the reader on the page they went to when popping out", async () => {
@@ -1069,11 +1070,11 @@ describe("PdfViewer", () => {
       expect(getFrame().scrollTop).toBe(MATCH_TOP);
     });
 
-    it("reads the pages its spans are on first", async () => {
+    it("reads only the pages its spans are on", async () => {
       render(withTheme(<PdfViewer url={URL} marks={placedOn({ page: 3, start: 0, end: 12 })} onClose={vi.fn()} />));
 
-      await waitFor(() => expect(fakePdf.textReads).toHaveLength(3));
-      expect(fakePdf.textReads).toEqual([ 3, 1, 2 ]);
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      expect(fakePdf.textReads).toEqual([ 3 ]);
     });
 
     it("lists it beside passages found by their quote, naming every page it runs over", async () => {

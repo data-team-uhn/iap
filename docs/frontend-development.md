@@ -259,6 +259,10 @@ the passage says, as a text fragment directive writes it, without its `text=`: `
 part percent-encoded, dashes included. `decodeAnchor` gives nothing for an anchor not kept, or one it
 cannot read.
 
+The viewer reads pages only for as long as some passage is still being looked for: one placed or kept
+as an anchor needs only its own pages, and a document opened with no passages is not read at all, so
+reading never takes PDF.js away from drawing the pages being looked at for longer than it must.
+
 Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
 itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
 the quote itself for a quote or an anchor. Marks let the pointer through, so text can still be selected
