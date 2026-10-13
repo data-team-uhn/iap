@@ -37,12 +37,13 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The built-in service task that replaces one child of what it acts on with a tree of content the event gives. It
- * acts on the resource the execution created, or else the target. The event's {@code content} is the new child as a
- * JSON object (see {@link ContentTree}), or {@code null} to remove the child. The activity names the {@code child} it
- * replaces and the {@code nodeTypes} the tree may hold. Their declarations decide the rest: where each node may be,
- * what it must have, and what its properties may hold. The whole tree is checked before anything is written. Content
- * with a structure of its own, such as a condition, then changes in one step rather than node by node.
+ * The built-in service task that replaces one child of what it acts on with a tree of content the event gives. It acts
+ * on the resource the execution created, or else the target. The event's {@code content} is the new child as a JSON
+ * object (see {@link ContentTree}), or {@code null} to remove the child. The activity names the {@code child} it
+ * replaces and the {@code nodeTypes} the tree may hold, each with its subtypes. Their declarations decide the rest:
+ * where each node may be, what it must have, and what its properties may hold. The whole tree is checked before
+ * anything is written. Content with a structure of its own, such as a condition, then changes in one step rather than
+ * node by node.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,8 +73,8 @@ public class ReplaceContentHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final String child = context.getActivity().get(CHILD, String.class);
-        final String[] listed = context.getActivity().get(NODE_TYPES, String[].class);
-        if (child == null || listed == null) {
+        final String[] allowedNodeTypes = context.getActivity().get(NODE_TYPES, String[].class);
+        if (child == null || allowedNodeTypes == null) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " must name the " + CHILD + " it replaces and the " + NODE_TYPES + " it may hold");
         }
@@ -82,7 +83,7 @@ public class ReplaceContentHandler implements ServiceTaskHandler
         final Node node = Nodes.of(host);
         try {
             final ContentTree tree = content == null ? null
-                : ContentTree.of(node, child, content, Set.copyOf(Arrays.asList(listed)));
+                : ContentTree.of(node, child, content, Set.copyOf(Arrays.asList(allowedNodeTypes)));
             VersioningUtils.checkOut(node);
             if (tree != null) {
                 tree.writeInto(node);

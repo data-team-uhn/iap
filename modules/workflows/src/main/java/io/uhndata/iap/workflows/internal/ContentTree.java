@@ -55,16 +55,17 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     /**
-     * What a tree is checked with.
+     * What a tree is checked against.
      *
      * @param types the repository's node types
      * @param values makes the values written
-     * @param listed the node types the tree may hold
+     * @param allowedNodeTypes the node types the tree may hold, each with its subtypes
      * @param prefixes the namespace prefixes names can have
      * @version $Id$
      * @since 0.1.0
      */
-    private record Planning(NodeTypeManager types, ValueFactory values, Set<String> listed, Set<String> prefixes)
+    private record Context(NodeTypeManager types, ValueFactory values, Set<String> allowedNodeTypes,
+        Set<String> prefixes)
     {
     }
 
@@ -74,17 +75,18 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
      * @param parent the node it goes in
      * @param name the child's name
      * @param json the tree, as JSON
-     * @param listed the node types it may hold
+     * @param allowedNodeTypes the node types it may hold, each with its subtypes
      * @return what to write
      * @throws InvalidPayloadException when the tree, or anything in it, cannot be written as given
      * @throws RepositoryException when the node types cannot be read
      */
-    static ContentTree of(final Node parent, final String name, final JsonObject json, final Set<String> listed)
-        throws InvalidPayloadException, RepositoryException
+    static ContentTree of(final Node parent, final String name, final JsonObject json,
+        final Set<String> allowedNodeTypes) throws InvalidPayloadException, RepositoryException
     {
-        final Planning planning = new Planning(parent.getSession().getWorkspace().getNodeTypeManager(),
-            parent.getSession().getValueFactory(), listed, Set.of(parent.getSession().getNamespacePrefixes()));
-        return plan(planning, name, name, json, ContentTypes.typesOf(parent));
+        final Context context = new Context(parent.getSession().getWorkspace().getNodeTypeManager(),
+            parent.getSession().getValueFactory(), allowedNodeTypes,
+            Set.of(parent.getSession().getNamespacePrefixes()));
+        return plan(context, name, name, json, ContentTypes.typesOf(parent));
     }
 
     /**
@@ -111,7 +113,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     /**
      * Checks a node of the tree, with everything under it, against the declarations of its types.
      *
-     * @param planning what the tree is checked with
+     * @param context what the tree is checked against
      * @param where the node's place in the tree, for the error messages
      * @param name its name
      * @param json the node, as JSON
@@ -120,10 +122,10 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
      * @throws InvalidPayloadException when the node, or anything under it, cannot be written as given
      * @throws RepositoryException when the node types cannot be read
      */
-    private static ContentTree plan(final Planning planning, final String where, final String name,
+    private static ContentTree plan(final Context context, final String where, final String name,
         final JsonObject json, final List<NodeType> parentTypes) throws InvalidPayloadException, RepositoryException
     {
-        final NodeType type = typeOf(planning, where, json);
+        final NodeType type = typeOf(context, where, json);
         if (!ContentTypes.holdsAt(parentTypes, name, type)) {
             throw new InvalidPayloadException(where + " cannot be a " + type.getName() + " there");
         }
@@ -136,39 +138,42 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
             if (PRIMARY_TYPE.equals(key) || entry.getValue() == JsonValue.NULL) {
                 continue;
             }
-            if (!legal(key, planning.prefixes())) {
+            if (!legal(key, context.prefixes())) {
                 throw new InvalidPayloadException(at + " is not a name content can take");
             }
             if (entry.getValue() instanceof JsonObject object) {
-                children.add(plan(planning, at, key, object, List.of(type)));
+                children.add(plan(context, at, key, object, List.of(type)));
             } else {
-                properties.add(TreeProperty.of(planning.values(), at, key, entry.getValue(), type));
+                properties.add(TreeProperty.of(context.values(), at, key, entry.getValue(), type));
             }
         }
         return new ContentTree(name, type.getName(), properties, children);
     }
 
     /**
-     * The type a node of the tree says it is, which must be one the activity lists.
+     * The type a node of the tree says it is. It must be one nodes can have, and one the activity allows or a
+     * subtype of one.
      *
-     * @param planning what the tree is checked with
+     * @param context what the tree is checked against
      * @param where the node's place in the tree
      * @param json the node, as JSON
      * @return its type
      * @throws InvalidPayloadException when it says none, or one the tree may not hold
      * @throws RepositoryException when the node types cannot be read
      */
-    private static NodeType typeOf(final Planning planning, final String where, final JsonObject json)
+    private static NodeType typeOf(final Context context, final String where, final JsonObject json)
         throws InvalidPayloadException, RepositoryException
     {
         if (!(json.get(PRIMARY_TYPE) instanceof JsonString declared)) {
             throw new InvalidPayloadException(where + " needs a " + PRIMARY_TYPE);
         }
-        final String type = declared.getString();
-        if (!planning.listed().contains(type) || !planning.types().hasNodeType(type)) {
-            throw new InvalidPayloadException(where + " cannot be a " + type);
+        final String name = declared.getString();
+        final NodeType type = context.types().hasNodeType(name) ? context.types().getNodeType(name) : null;
+        if (type == null || type.isAbstract() || type.isMixin()
+            || context.allowedNodeTypes().stream().noneMatch(type::isNodeType)) {
+            throw new InvalidPayloadException(where + " cannot be a " + name);
         }
-        return planning.types().getNodeType(type);
+        return type;
     }
 
     /**

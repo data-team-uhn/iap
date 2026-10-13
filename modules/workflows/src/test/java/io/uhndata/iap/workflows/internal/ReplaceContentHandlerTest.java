@@ -206,6 +206,18 @@ class ReplaceContentHandlerTest
     }
 
     @Test
+    void acceptsTheSubtypesOfAnAllowedType() throws WorkflowException, PersistenceException, RepositoryException
+    {
+        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES, String[].class))
+            .thenReturn(new String[] { "test:Rule", "test:Operand" });
+
+        replace(ALL_OF);
+
+        assertEquals("test:AllOf", this.session.getNode(RULE).getPrimaryNodeType().getName());
+        assertEquals(List.of("tagged", "large"), this.fixture.children(RULE));
+    }
+
+    @Test
     void needsToKnowWhatItReplaces()
     {
         Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES, String[].class)).thenReturn(null);

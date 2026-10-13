@@ -367,7 +367,7 @@ A few handlers are the engine's own, because what they do is generic:
 | `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named` and its own `namePattern`, `nameHint` and `orderProperty`), `nameFrom`, `namePattern`, `nameHint`, `orderProperty` (the activity's defaults; all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
 | `moveContent` | `within` (optional: a resource type the content must stay inside), `orderProperty` (optional) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
-| `replaceContent` | `child` (the child it replaces), `nodeTypes` (the node types the new tree may hold) | Replaces that child of what the execution created, or else the target, with the tree the event gives as `content`; `null` removes it |
+| `replaceContent` | `child` (the child it replaces), `nodeTypes` (the node types the new tree may hold, each with its subtypes) | Replaces that child of what the execution created, or else the target, with the tree the event gives as `content`; `null` removes it |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
 
 A call activity, BPMN's `bpmn:callActivity`, hands the work on to another workflow and
@@ -520,16 +520,17 @@ As after a move, the new path is what later steps act on.
 `replaceContent` writes content with a structure of its own, such as a condition, in one
 step rather than node by node. The event's `content` is a JSON object holding the new
 `child`. Properties are keys, children are objects named by their keys, and each node
-gives its type as `jcr:primaryType`. A `content` of `null` removes the child. Every node
-must be of a type the activity lists in `nodeTypes`, and of one its parent can hold
-under its name. The parent's child definitions with that name decide. If it has none,
-its definitions for children of any name decide. The tree must give every mandatory
-property and child the type does not create itself. A child the type creates itself,
-such as a condition's `operandB`, is replaced by the tree's when the tree gives one.
-Values are stored as the kind JSON gives them: text, whole numbers, decimals, true or
-false, or a list of one kind of those. When a property's declaration requires another
-type, such as a date, the values given are converted to it. The whole tree is checked
-before anything is written, and replaces what was there.
+gives its type as `jcr:primaryType`. A `content` of `null` removes the child. Each
+node's type must be concrete, and listed in `nodeTypes` or a subtype of a type listed
+there. Its parent must also be able to hold that type under the node's name. The
+parent's child definitions with that name decide. If it has none, its definitions for
+children of any name decide. The tree must give every mandatory property and child the
+type does not create itself. A child the type creates itself, such as a condition's
+`operandB`, is replaced by the tree's when the tree gives one. Values are stored as the
+kind JSON gives them: text, whole numbers, decimals, true or false, or a list of one
+kind of those. When a property's declaration requires another type, such as a date, the
+values given are converted to it. The whole tree is checked before anything is written,
+and replaces what was there.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service
