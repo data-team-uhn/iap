@@ -16,35 +16,71 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useContext, useRef, useState } from "react";
 
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
-import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
-import { offers, patch } from "@iap/frontend-commons/workflowEvents";
+import { creatableOf, fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { type JcrNode } from "./schemaModel";
-import { useTreeEvent } from "./schemaTree";
+import { type JcrNode, lastSegmentOf, pathOf, renamedPath } from "./schemaModel";
+import SchemaNodeIdentifier from "./SchemaNodeIdentifier";
+import { ReloadTree, useTreeEvent } from "./schemaTree";
+import { isPart } from "./schemaVersionTreeModel";
 
 // Corrects what a part or an option says, when the server offers it: the fields are the ones its update
-// would change.
-function SchemaNodeEditAction({ node, title }: { node: JcrNode; title: string }) {
+// would change. A part's identifier is shown too, and can be renamed by itself where the server offers that. The
+// tree is read again only when the dialog closes. The dialog sits in the part's card, and reading the tree after a
+// rename would replace that card, and close the dialog with it.
+function SchemaNodeEditAction({ node, parent, title }: { node: JcrNode; parent: JcrNode; title: string }) {
   const [ editing, setEditing ] = useState(false);
+  // The node's path while the dialog is open. A rename changes it.
+  const [ path, setPath ] = useState(pathOf(node));
+  const renamed = useRef(false);
+  const doFetch = useAuthenticatedFetch();
+  const reload = useContext(ReloadTree);
   const send = useTreeEvent();
   if (!offers(node, "update") || fieldsOf(node).length === 0) {
     return null;
   }
+  // A rename takes exactly the name asked for, where the part stands, or is refused
+  const rename = async (name: string) => {
+    await sendEvent(doFetch, path, "rename", { name });
+    setPath(renamedPath(path, name));
+    renamed.current = true;
+  };
   return (
     <>
-      <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
+      <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => {
+        setPath(pathOf(node));
+        setEditing(true);
+      }} />
       { editing && (
         <FieldsDialog
           title={title}
           node={node}
-          onSave={changes => send(node, "update", patch(changes))}
-          onClose={() => setEditing(false)}
+          onSave={async changes => {
+            renamed.current = false;
+            await send(path, "update", patch(changes));
+          }}
+          onClose={() => {
+            setEditing(false);
+            if (renamed.current) {
+              renamed.current = false;
+              void reload();
+            }
+          }}
+          afterFirstField={isPart(node) ? () => (
+            <SchemaNodeIdentifier
+              name={lastSegmentOf(path)}
+              rename={offers(node, "rename") ? rename : undefined}
+              // The create workflow's hint, since renaming keeps to the same pattern
+              hint={creatableOf(parent).find(type => type.type === node["jcr:primaryType"])?.nameHint}
+            />
+          ) : undefined}
         />
       ) }
     </>

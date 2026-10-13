@@ -38,12 +38,14 @@
       "elementId": "create",
       "label": "Add the part",
       "handler": "createContent",
+      "namePattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "nameHint": "Letters, digits, - and _, starting with a letter or a digit.",
       "nameFrom": ["value", "title", "text", "label"],
       "types": {
         "jcr:primaryType": "nt:unstructured",
         "section": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:Section", "label": "Section" },
         "question": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:Question", "label": "Question" },
-        "option": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:AnswerOption", "label": "Option" }
+        "option": { "jcr:primaryType": "nt:unstructured", "nodeType": "sch:AnswerOption", "label": "Option", "named": false }
       },
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toUpdate": {

@@ -47,7 +47,7 @@
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="label" name="Add the requirement">
+    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="label" iap:nameHint="Letters, digits, - and _, starting with a letter or a digit." iap:namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" name="Add the requirement">
       <bpmn:extensionElements>
         <sv:node sv:name="types">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>

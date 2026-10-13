@@ -104,6 +104,7 @@ version inherits from its schema; where it matters whether the schema is retired
 | a requirement, section or question | `create` (`type`, optional `before`, `patch`) | its version `draft` | add a section or question to a form or section, or an option to a question |
 | a requirement, section or question | `discard` | its version `draft` | delete it, with what it holds, unless a condition elsewhere depends on it |
 | a requirement, section or question | `move` (optional `parent`, `before`) | its version `draft` | move it, with what it holds, elsewhere in its version |
+| a requirement, section or question | `rename` (`name`) | its version `draft` | give it another identifier, keeping its place |
 | an answer option | `update` (`patch`) | its version `draft` | edit its `value`, `label` or `description` |
 | an answer option | `discard` | its version `draft` | delete it |
 | an answer option | `move` (optional `parent`, `before`) | its version `draft` | move it before another option, or to the end of a question's options, in its version |
@@ -135,6 +136,12 @@ Parts and options are **moved** with the engine's `moveContent` task. They go in
 stay in their own, and land before the sibling named in `before`, or else last. One event can therefore both reorder
 and move. They go only where the node types say they may, and never out of their version. A condition that names a
 moved question by its path names it by its identifier from then on, so a move breaks no condition.
+Parts are **renamed** with the engine's `renameContent` task, and a new part is created with the identifier asked
+for. Either way, the name is made of letters, digits, `-` and `_`, and starts with a letter or a digit. The create
+workflows say so in words as their `nameHint`, which the editor shows under the identifier. The editor suggests an
+identifier from what a new part says, as `@creatable` allows it, until one is given. An option is not given an
+identifier: `createSchemaPart` lists it with `named` false. Its `value` is what answers store, and a draft can edit
+it.
 The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
 entity, which for a part or an option is its version.
 
