@@ -114,6 +114,8 @@ public final class WorkflowFixture
         registerType(context, "ThrowingEventType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "ActivityType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "GatewayType", FlowNodeType.RESOURCE_TYPE);
+        registerType(context, "Parameter", "data/EntityPart");
+        registerType(context, "ParameterOption", "data/EntityPart");
         registerType(context, "WorkflowDefinition", "data/Entity");
         registerType(context, "WorkflowVersion", "data/Entity");
         registerType(context, "FlowNode", "data/EntityPart");
@@ -158,6 +160,33 @@ public final class WorkflowFixture
             context.registerAdapter(ResourceResolver.class, Session.class, session);
         }
         Mockito.when(session.getNodeByIdentifier(identifier)).thenReturn(target);
+    }
+
+    /**
+     * Lets a resource say which node types it is of, as one stored in a repository does: its
+     * {@code jcr:primaryType} and whatever that extends. Opt-in, since it changes what every resource adapts to
+     * {@link Node} as.
+     *
+     * @param context the Sling context to set up
+     * @param supertypes every type each node type extends, directly or not, for the node types that extend any
+     */
+    public static void answerNodeTypes(final SlingContext context, final Map<String, List<String>> supertypes)
+    {
+        context.registerAdapter(Resource.class, Node.class, (Function<Resource, Node>) resource -> {
+            final String primaryType = resource.getValueMap().get("jcr:primaryType", String.class);
+            final Node node = Mockito.mock(Node.class);
+            try {
+                Mockito.when(node.isNodeType(Mockito.anyString())).thenAnswer(invocation -> {
+                    final String wanted = invocation.getArgument(0);
+                    return primaryType != null && (wanted.equals(primaryType)
+                        || supertypes.getOrDefault(primaryType, List.of()).contains(wanted));
+                });
+            } catch (final RepositoryException e) {
+                // Cannot happen, for the reason stubTagging gives
+                throw new IllegalStateException(e);
+            }
+            return node;
+        });
     }
 
     private static void registerType(final SlingContext context, final String name, final String superType)

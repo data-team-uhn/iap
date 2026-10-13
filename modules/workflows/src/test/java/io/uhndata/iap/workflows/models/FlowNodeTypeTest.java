@@ -55,6 +55,7 @@ class FlowNodeTypeTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
+        WorkflowFixture.answerNodeTypes(this.context, Map.of("x:Setting", List.of(Parameter.NODE_TYPE)));
         this.context.create().resource(TYPES_PATH, TYPE, WorkflowTypesHomepage.RESOURCE_TYPE);
     }
 
@@ -81,6 +82,40 @@ class FlowNodeTypeTest
         assertEquals("bpmn:messageEventDefinition", type.getXmlChildElement());
         assertEquals("wf:StartEvent", type.getJcrNodeType());
         assertEquals(List.of("messageRef"), type.getProperties());
+        assertNull(type.getXmlExtensionElement());
+        assertTrue(type.getParameters().isEmpty());
+    }
+
+    @Test
+    void recognizesTheHandlerItsExtensionElementNames()
+    {
+        final FlowNodeType type = this.createType("SetState", ActivityType.RESOURCE_TYPE, Map.of(
+            "label", "Set state", "priority", 10L, "xmlElement", "bpmn:serviceTask",
+            "xmlExtensionElement", "setState", "jcrNodeType", "wf:Activity"));
+
+        assertEquals("setState", type.getXmlExtensionElement());
+    }
+
+    @Test
+    void listsTheParametersItDeclaresInOrder()
+    {
+        this.createType("SetState", ActivityType.RESOURCE_TYPE, Map.of(
+            "label", "Set state", "priority", 10L, "xmlElement", "bpmn:serviceTask",
+            "jcrNodeType", "wf:Activity"));
+        this.createParameter("SetState", "toState", Map.of("label", "New state", "minValues", 1L));
+        this.createParameter("SetState", "fromStates", Map.of("label", "Applies to", "maxValues", 0L));
+        // Read by node type, subtypes included, and not by resource type
+        this.context.create().resource(TYPES_PATH + "/SetState/byResourceType", TYPE, Parameter.RESOURCE_TYPE);
+        this.context.create().resource(TYPES_PATH + "/SetState/bySubtype", "jcr:primaryType", "x:Setting");
+        // Anything else the entry may hold is not a parameter
+        this.context.create().resource(TYPES_PATH + "/SetState/note", TYPE, "nt/unstructured");
+
+        final List<Parameter> parameters = this.type("SetState").getParameters();
+
+        assertEquals(List.of("toState", "fromStates", "bySubtype"),
+            parameters.stream().map(Parameter::getName).toList());
+        assertEquals(1L, parameters.get(0).getMinValues());
+        assertEquals(0L, parameters.get(1).getMaxValues());
     }
 
     @Test
@@ -94,6 +129,8 @@ class FlowNodeTypeTest
         assertNull(type.getXmlChildElement());
         assertNull(type.getJcrProperties());
         assertTrue(type.getProperties().isEmpty());
+        assertNull(type.getXmlExtensionElement());
+        assertTrue(type.getParameters().isEmpty());
     }
 
     @Test
@@ -176,6 +213,23 @@ class FlowNodeTypeTest
     }
 
     @Test
+    void serializesTheParametersAFieldIsBuiltFrom()
+    {
+        // A parameter's whole declaration travels with the entry declaring it rather than being fetched per field
+        this.createType("Notify", ActivityType.RESOURCE_TYPE, Map.of(
+            "label", "Notify", "priority", 10L, "xmlElement", "bpmn:serviceTask",
+            "xmlExtensionElement", "notify", "jcrNodeType", "wf:Activity"));
+        this.createParameter("Notify", "urgency", Map.of("label", "Urgency", "minValues", 1L));
+
+        final JsonObject json = this.type("Notify").toDocumentationJson();
+
+        assertEquals("notify", json.getString("xmlExtensionElement"));
+        assertEquals(1, json.getJsonArray("parameters").size());
+        assertEquals("urgency", json.getJsonArray("parameters").getJsonObject(0).getString("name"));
+        assertEquals("Urgency", json.getJsonArray("parameters").getJsonObject(0).getString("label"));
+    }
+
+    @Test
     void leavesOutTheFieldsAnEntryDoesNotHave()
     {
         final FlowNodeType type = this.createType("StartEvent", CatchingEventType.RESOURCE_TYPE, Map.of(
@@ -188,6 +242,8 @@ class FlowNodeTypeTest
         assertFalse(json.containsKey("xmlChildElement"));
         assertFalse(json.containsKey("jcrProperties"));
         assertFalse(json.containsKey("properties"));
+        assertFalse(json.containsKey("xmlExtensionElement"));
+        assertFalse(json.containsKey("parameters"));
         // The category is never left out: it falls back on the one the kind of entry implies
         assertEquals(1, json.getJsonArray("category").size());
     }
@@ -229,6 +285,19 @@ class FlowNodeTypeTest
             this.createType("C", ActivityType.RESOURCE_TYPE, Map.of()).getClass());
         assertEquals(GatewayType.class,
             this.createType("D", GatewayType.RESOURCE_TYPE, Map.of()).getClass());
+    }
+
+    private FlowNodeType type(final String name)
+    {
+        return this.context.resourceResolver().getResource(TYPES_PATH + "/" + name).adaptTo(FlowNodeType.class);
+    }
+
+    private void createParameter(final String type, final String name, final Map<String, Object> properties)
+    {
+        final Map<String, Object> all = new HashMap<>(properties);
+        all.put(TYPE, Parameter.RESOURCE_TYPE);
+        all.put("jcr:primaryType", Parameter.NODE_TYPE);
+        this.context.create().resource(TYPES_PATH + "/" + type + "/" + name, all);
     }
 
     private FlowNodeType createType(final String name, final String resourceType,
