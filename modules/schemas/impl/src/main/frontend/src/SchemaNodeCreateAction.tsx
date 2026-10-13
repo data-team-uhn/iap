@@ -94,7 +94,7 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
   const placedBefore = atStart ? first : before;
   const suggestionFor = (type: CreatableType, heading: unknown) => suggestName(heading, type, childNamesOf(parent));
   const holder = resourceTypeOf(parent) === "sch/SchemaVersion" ? "this version" : `“${headingOf(parent)}”`;
-  // Where it goes, going on from the title as one sentence, with the choice in it when there is one
+  // Where the new content goes, worded to finish the title's sentence. A choice of where is part of that sentence.
   const choice = (
     <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, rowGap: 1, flexWrap: "wrap" }}>
       <ToggleButtonGroup size="small" color="primary" exclusive value={atStart ? "start" : "end"}

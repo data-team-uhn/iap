@@ -38,7 +38,7 @@ import {
 
 import type { JcrNode } from "./schemaModel";
 
-// A fact shown as a chip; one naming what the part's details show opens and closes them
+// A fact shown as a chip: a plain label, or one that opens and closes the part's details
 export type SchemaPartChip = string | { label: string; opensDetails: true };
 
 // How one type of schema part is shown: what it is called, its icon and accent, the facts worth seeing

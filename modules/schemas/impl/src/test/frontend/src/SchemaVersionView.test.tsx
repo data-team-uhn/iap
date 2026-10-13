@@ -135,7 +135,7 @@ describe("SchemaVersionView", () => {
     serveSchemas();
     renderVersion("study", "v2");
 
-    // Its options' chip opens and closes it, as its arrow does
+    // The chip counting its options opens and closes the question
     const chip = within(await card("Which arms does it have?")).getByRole("button", { name: "2 options" });
     expect(chip).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(chip);

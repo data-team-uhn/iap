@@ -47,7 +47,7 @@ import { useConditionEditor } from "./useConditionEditor";
 import { useOptionsFrom } from "./useOptionsFrom";
 import { useVersionConditions, VersionConditionsContext } from "./versionConditions";
 
-// One of a part's chips; one naming what the part's details show opens and closes them, as its arrow does
+// One of a part's chips
 function FactChip({ chip, open, onToggle }: { chip: SchemaPartChip; open: boolean; onToggle: () => void }) {
   if (typeof chip === "string") {
     return <Chip label={chip} size="small" variant="outlined" />;
