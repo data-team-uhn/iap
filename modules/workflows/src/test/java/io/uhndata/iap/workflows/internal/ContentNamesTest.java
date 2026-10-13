@@ -24,8 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ContentNames}: the names content takes after what it says, which the frontend's
- * {@code suggestName} tests hold to the same examples, and the names it may be given.
+ * Unit tests for {@link ContentNames}: the names content takes after what it says, and the names it may be given.
  *
  * @version $Id$
  * @since 0.1.0

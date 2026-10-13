@@ -120,8 +120,8 @@ interface FieldsDialogProps {
   onSave: (changes: Record<string, PatchValue>) => Promise<unknown>;
   // Anything the caller asks along with the fields, shown above them
   children?: ReactNode;
-  // Anything that belongs with the first field, which names what is edited, shown right after it and given what it
-  // holds as it is entered, and whether a save is under way
+  // Shown right after the first field, which names what is edited. It is given that field's value as it is
+  // entered, and whether a save is under way.
   afterFirstField?: (value: FieldValue, working: boolean) => ReactNode;
 }
 

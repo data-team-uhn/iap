@@ -31,10 +31,9 @@ import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 
 /**
- * The names content may be given by the event of a task naming it: one a node can have, matching the
- * {@code namePattern} that applies when there is one, and not one a sibling has already, since a name asked for is
- * taken as asked or refused; and the name content takes after what it says, when it is given none. The frontend's
- * {@code suggestName} makes names the same way, so that what it suggests is what content would be called.
+ * The names content may take when a workflow creates or renames it. A name the event asks for must be one a node can
+ * have, match the {@code namePattern} if one applies, and not be a sibling's already. It is taken as asked or refused.
+ * New content the event gives no name is named after what it says.
  *
  * @version $Id$
  * @since 0.1.0
@@ -50,7 +49,7 @@ final class ContentNames
     /** The property saying, in words, what names may be. */
     static final String NAME_HINT = "nameHint";
 
-    /** The property of a listed type saying, when false, that it takes no name of its own. */
+    /** The property of a listed type saying, when false, that no event may ask for a name. */
     static final String NAMED = "named";
 
     /** How many words of a text make a name: enough to recognize, short enough to read in a path. */
@@ -81,8 +80,8 @@ final class ContentNames
     }
 
     /**
-     * Whether content may take a name: one segment of a path, with nothing JCR reserves, not a step up or in place,
-     * and matching the pattern if there is one.
+     * Whether content may take a name. It must need no escaping to be a JCR name, must not be {@code .} or {@code ..},
+     * and must match the pattern if there is one.
      *
      * @param name the name
      * @param pattern the pattern, or {@code null}

@@ -41,11 +41,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The built-in service task creating content inside the target: a child of the event's {@code type}, which must be
  * one the activity lists and the target's type accepts (see {@link ContentTypes}), placed ahead of the sibling the
- * event names as {@code before}, or else last. It takes the {@code name} the event asks for, when it asks, which
- * must be free and one the activity allows (see {@link ContentNames}); otherwise it is named after the first of the
- * fields the activity names in {@code nameFrom} that the event's {@code patch} gives, when that makes a name the
- * activity allows, or else after its type. It is empty: an {@code updateContent} task that follows fills it in from
- * the same patch, since it acts on what was created.
+ * event names as {@code before}, or else last. It takes the {@code name} the event asks for, which must be free and
+ * one the activity allows (see {@link ContentNames}). Without one, it is named after the first field listed in
+ * {@code nameFrom} that the event's {@code patch} gives. When that makes no name the activity allows, it is named
+ * after its type. It is empty: an {@code updateContent} task that follows fills it in from the same patch, since it
+ * acts on what was created.
  *
  * @version $Id$
  * @since 0.1.0
@@ -115,8 +115,8 @@ public class CreateContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * What to name new content: the name the event asks for, if it asks, which must be free; or else a free one after
-     * what it says, when that is a name the activity allows, or after its type.
+     * What to name new content: the name the event asks for, which must be free. Without one, a free name made from
+     * what the content says, if the activity allows it, or else from its type.
      *
      * @param context the executing task's context
      * @param parent where it is created
@@ -143,8 +143,8 @@ public class CreateContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * The name new content would take after what it says: the first words of the first field the activity names it
-     * from that the patch gives, or else its type.
+     * The name new content would take after what it says: the first words of the first {@code nameFrom} field the
+     * patch gives, or else its type's name.
      *
      * @param context the executing task's context
      * @param type the type created

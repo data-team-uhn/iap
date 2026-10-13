@@ -36,10 +36,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The built-in service task renaming the target to the {@code name} the event gives, keeping its place among its
- * siblings. The name must be one the activity lets content take (see {@link ContentNames}); one a sibling has
- * already is refused rather than replaced by a free one, since the name asked for is the point.
- * The rename is made with the {@link ContentMover}, which keeps what names the target by its path working, and the
- * new path is recorded as what later steps act on.
+ * siblings. The name must be one the activity allows (see {@link ContentNames}), and not a sibling's already. The
+ * rename goes through the {@link ContentMover}, so each {@code MoveParticipant} can update what names the target by
+ * its path. The new path is what later steps act on.
  *
  * @version $Id$
  * @since 0.1.0

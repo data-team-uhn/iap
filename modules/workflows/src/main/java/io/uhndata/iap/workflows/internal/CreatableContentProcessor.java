@@ -47,13 +47,13 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Adds {@code @creatable} to content a create workflow would add to: each type of content the requesting user's
- * {@code create} event would make there, with its {@code type}, its {@code label}, and the {@code fields} it starts
- * with, described as {@code @fields} describes them, the {@code defaultName} it takes when nothing it says makes a
- * name, whether it is {@code named}, that is, takes a name of its own, and if so the {@code namePattern} such a name
- * must match and the {@code nameHint} that says so, when the workflow has them. It is read from the
- * {@link CreateContentHandler} and
- * {@link UpdateContentHandler} activities of the workflow that would run, so an editor offers exactly what the
- * workflow creates, and can suggest a name the workflow would accept. The name of this processor is {@code creatable}.
+ * {@code create} event would make there. Each comes with its {@code type}, its {@code label}, and the {@code fields}
+ * it starts with, described as {@code @fields} describes them. It also gives the {@code defaultName} such content
+ * takes when nothing it says makes a name, and {@code named}, whether it may be given a name. A named
+ * type also gives the {@code namePattern} and {@code nameHint} the workflow has for it, if any. It is read from the
+ * {@link CreateContentHandler} and {@link UpdateContentHandler} activities of the workflow that would run. An editor
+ * can then offer exactly what the workflow creates, and suggest a name it would accept. The name of this processor is
+ * {@code creatable}.
  *
  * @version $Id$
  * @since 0.1.0

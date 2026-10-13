@@ -28,7 +28,6 @@ const QUESTION: CreatableType = {
 const ANY: CreatableType = { ...QUESTION, namePattern: undefined };
 
 describe("suggestName", () => {
-  // The same examples as the server's ContentNamesTest, so that the two make the same names
   it("names new content after the first words of what it says, without accents", () => {
     expect(suggestName("Your date of birth, as on your passport", ANY, [])).toBe("yourDateOfBirthAs");
     expect(suggestName("Âge à l'entrée", ANY, [])).toBe("ageALEntree");

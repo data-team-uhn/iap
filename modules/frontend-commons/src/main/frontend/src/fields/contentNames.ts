@@ -16,18 +16,16 @@
  * limitations under the License.
  */
 
-// Suggesting a name for new content before it is created, as a person would give one: from what it says, but only
-// as the workflow creating it would accept it. The rule is the workflow's, given with what may be created; this only
-// proposes a name that keeps to it, made from text as the server's createContent makes one, and tested on the same
-// examples. No React, no fetch.
+// Suggests a name for new content before it is created, made from what it says. The name keeps to the rule of the
+// workflow creating it, which comes with what may be created. Names are made from text as the server's createContent
+// makes them, and the tests of both use the same examples. No React, no fetch.
 
 import type { CreatableType } from "./fieldsModel";
 
-// How many words of what it says make a name: enough to recognize, short enough to read in a path
+// How many words of a text make a name
 const NAME_WORDS = 5;
 
-// The first words of a text, without accents, camel-cased: "Âge à l'entrée" gives ageALEntree. Letters and digits of
-// any script make words; everything else separates them.
+// The first words of a text, without accents, camel-cased
 function camelCase(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").split(/[^\p{L}\p{N}]+/u)
     .filter(word => word !== "")
@@ -39,7 +37,7 @@ function camelCase(text: string): string {
     .join("");
 }
 
-// The first of a name, then name2, name3, and so on, that nothing already has
+// The name itself if it is free, or else the first free one of name2, name3, and so on
 function freeName(base: string, taken: string[]): string {
   let name = base;
   for (let count = 2; taken.includes(name); count++) {
@@ -48,8 +46,8 @@ function freeName(base: string, taken: string[]): string {
   return name;
 }
 
-// A name for new content of a type, after what it says, as its first field holds it, or after its type when that
-// would not make a name the type may take; free among the names already taken where it goes
+// A free name for new content of a type, made from the text of its first field. When that text makes no name the
+// type may take, the name comes from the type instead.
 export function suggestName(text: unknown, type: CreatableType, taken: string[]): string {
   // Whole, as the server matches it
   const pattern = type.namePattern === undefined ? undefined : new RegExp(`^(?:${type.namePattern})$`, "u");

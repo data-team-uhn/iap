@@ -39,9 +39,9 @@ import io.uhndata.iap.workflows.models.Activity;
  * type. Definitions that merely tolerate children are not taken as saying what a node holds: those requiring no
  * more than {@code nt:base}, and those JCR's and Sling's own types declare, such as {@code nt:folder}'s, which every
  * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
- * offering only what it is meant to hold. How content of a type is named is the activity's to say, and a type
- * listed can say otherwise: whether it takes a name of its own at all ({@code named}, true unless false), the
- * {@code namePattern} such a name must match, and the {@code nameHint} that says so in words.
+ * offering only what it is meant to hold. The activity's {@code namePattern} is the rule names must match, and its
+ * {@code nameHint} says the same in words. A listed type may give its own pattern and hint, or set {@code named} to
+ * false so that no event may ask for a name.
  *
  * @version $Id$
  * @since 0.1.0

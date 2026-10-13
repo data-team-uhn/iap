@@ -44,9 +44,9 @@ export interface ContentField {
   default?: string | number | boolean | (string | number | boolean)[];
 }
 
-// A type of content a create event would add inside a node, as the `creatable` serialization describes it: with
-// the name it takes when nothing it says makes one, whether it takes a name of its own, and if so the pattern such a
-// name must match and what that is, in words, if the workflow says
+// A type of content a create event would add inside a node, as the `creatable` serialization describes it. It
+// gives the name such content takes when nothing it says makes one, and whether it may be given a name. A named
+// type may also give the pattern a name must match, and the same in words.
 export interface CreatableType {
   type: string;
   label: string;
@@ -97,7 +97,7 @@ export const creatableOf = (node: SerializedNode): CreatableType[] =>
       }))
     : [];
 
-// What the first of some fields holds among some values: for new content, what names it
+// The value of the first field, which new content is named after
 export function firstValueOf(fields: ContentField[], values: Record<string, unknown>): unknown {
   const first = fields.at(0);
   return first && values[first.name];
