@@ -306,12 +306,13 @@ What happens next is the caller's to decide, such as adding the passage as a mar
 box for it. Text in a PDF can only be selected with a pointer, so commenting on a passage needs one too.
 `useSelectedText` follows the selection, for a view combining the parts apart.
 
-The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
-and accents. Every match is highlighted, the one shown more deeply; the field says which match is
-shown of how many, and the up and down buttons beside it step through them, wrapping round at the
-ends. In the field, Enter and Shift+Enter do the same, and Escape clears the search. Where the
-toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
-Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
+The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case and
+accents. Every match is highlighted, the one shown more deeply; the field says which match is shown of
+how many, the count growing as PDF.js searches the pages, with a spinner until it has searched them all,
+and the up and down buttons beside it step through them, wrapping round at the ends. In the field, Enter
+and Shift+Enter do the same, and Escape clears the search. Where the toolbar has no room for the field,
+a button opens it in the toolbar's place, and Escape closes it. Ctrl+F, or Cmd+F, searches while the
+focus is in the viewer.
 
 A spinner shows in the frame until PDF.js has laid out the document's pages.
 

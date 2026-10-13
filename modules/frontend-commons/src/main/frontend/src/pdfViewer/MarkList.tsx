@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { memo, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 
@@ -36,7 +36,7 @@ const MAX_LINES = 4;
 // The passages beside the document, in the order given, each on a card in its mark's colour, selecting
 // it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
 // one selected is shown whole and kept in view.
-export default function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
+function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
   places: MarkPlaces;
   status: ViewerStatus;
@@ -165,3 +165,5 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
     </ButtonBase>
   );
 }
+
+export default memo(MarkList);
