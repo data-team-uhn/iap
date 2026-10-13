@@ -56,9 +56,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * node a reference points at, or a list of those for a field holding several values. Only the fields the activity
  * lists, and the node's type declares, may change (see {@link ContentFields}). A field whose {@code appliesWhen}
  * does not hold once the patch is applied cannot be set, and loses the value it had; a mandatory one that applies
- * must have a value, which content just created only has if the patch gives one. A field listed as {@code unique}
- * cannot be given a value that content of the same type beside it already holds there. The whole patch is checked
- * before anything is written, so a refused patch changes nothing.
+ * must have a value, which content just created only has if the patch gives one. A {@code unique} field cannot be given
+ * a value that a sibling of the same type already holds in it. The whole patch is checked before anything is written,
+ * so a refused patch changes nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -159,7 +159,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a value a field must hold alone when a sibling of the same type holds it already.
+     * Refuses a value for a {@code unique} field that a sibling of the same type already holds.
      *
      * @param node the node changed
      * @param changes the changes the patch makes

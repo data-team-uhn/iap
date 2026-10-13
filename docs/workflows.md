@@ -423,9 +423,9 @@ whether it is `multiline`, the `referenceType` a reference must point at and the
   as the patch leaves it. Setting a field that does not apply is refused, and a field
   that stops applying loses its value unless it is mandatory; one naming no property
   applies nowhere.
-- **`unique`**: `true`, no two contents of the same type side by side holding the same
-  value in the field, such as two answer options of a question with the same `value`; a
-  patch repeating what a sibling holds is refused.
+- **`unique`**: `true` when no two siblings of the same type may hold the same value in
+  the field, such as two answer options of a question with the same `value`. A patch
+  repeating a sibling's value is refused.
 
 ```json
 "fields": {

@@ -161,14 +161,14 @@ class UpdateContentHandlerTest
         this.fixture.other().setProperty("keywords", new String[] { "red", "blue" });
         this.fixture.session().save();
 
-        // What the other item is called already
+        // The other item's title
         assertThrows(InvalidPayloadException.class, () -> update("{\"title\": \"Another item\"}"));
-        // Only what is taken is said to be
+        // The message names only the values already taken
         assertEquals("Something else here already has blue as its keywords", assertThrows(
             InvalidPayloadException.class, () -> update("{\"keywords\": [\"green\", \"blue\"]}")).getMessage());
         update("{\"title\": \"A third item\", \"keywords\": [\"green\"]}");
         assertEquals("A third item", this.fixture.item().getProperty("title").getString());
-        // Its own value, and none at all, repeat nothing
+        // Keeping the item's own value, or removing one, repeats nothing
         update("{\"title\": \"A third item\", \"keywords\": null}");
         assertFalse(this.fixture.item().hasProperty("keywords"));
     }

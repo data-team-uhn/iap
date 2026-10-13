@@ -36,12 +36,11 @@ import io.uhndata.iap.workflows.models.Activity;
  * The fields an update activity lets change on a node. The activity lists them, in the order they are edited, as
  * the children of its {@code fields} node, each with how it is presented: a {@code label}, a short {@code help}
  * text, whether it runs over several lines ({@code multiline}), for a reference the resource type it must point at
- * ({@code referenceType}), the values it may take ({@code choices}), the value of another property it depends
- * on ({@code appliesWhen}), and whether no two contents of the same type side by side may hold the same value in it
- * ({@code unique}). The node's own type decides the rest: a field applies only if the type declares it by
- * name, not through a residual definition, and the declaration says whether it is mandatory, whether it holds one
- * value or several, and of which kind. So one activity may serve several types of content, each keeping to its own
- * fields.
+ * ({@code referenceType}), the values it may take ({@code choices}), and the value of another property it depends
+ * on ({@code appliesWhen}). A {@code unique} field cannot hold a value that a sibling of the same type holds in it.
+ * The node's own type decides the rest: a field applies only if the type declares it by name, not through a residual
+ * definition, and the declaration says whether it is mandatory, whether it holds one value or several, and of which
+ * kind. So one activity may serve several types of content, each keeping to its own fields.
  *
  * @version $Id$
  * @since 0.1.0

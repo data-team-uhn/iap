@@ -155,12 +155,12 @@ final class FieldsFixture
     }
 
     /**
-     * Makes a mocked engine answer that a workflow version would take an event.
+     * Makes a mocked engine find the given workflow version for an event.
      *
      * @param engine the mocked engine
      * @param event the event's name
-     * @param version the version it hands over
-     * @throws WorkflowException never, the engine being a mock
+     * @param version the version it finds
+     * @throws WorkflowException never, since the engine is a mock
      */
     static void inspecting(final WorkflowEngine engine, final String event, final WorkflowVersion version)
         throws WorkflowException
