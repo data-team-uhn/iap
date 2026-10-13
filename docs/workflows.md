@@ -157,14 +157,11 @@ extension attributes wherever a version says its BPMN is authoritative, and set 
   with — the values a gateway downstream then routes on. Declared because a task list has
   to know what to offer. An empty list is a statement rather than a gap — this is a task
   there is nothing to decide about, done or not done.
-- **`hostTag` on a flow node** is the tag to place on the host when execution reaches
-  that node: how a process says what being *here* means to the thing being processed,
-  without needing a service task whose only job is to write it down. On any node rather
-  than only on end events — on a user task it is the state the host is in for as long as
-  that task waits. Placing it retires whatever other tag the host carries in the same
-  category, since a lifecycle is a state rather than a growing pile of markers. It is
-  being replaced by the `addTag` and `removeTag` service tasks below; today only a content
-  workflow's end event honours it.
+- **`hostTag` on an end event** is a tag to place on the host when execution finishes
+  there, beside whatever the host already carries. It is kept for flow nodes written by
+  hand: the vocabulary offers it on no kind of node, since the `addTag` and `removeTag`
+  service tasks below move a host between states, replacing a tag rather than adding to
+  it, and do so anywhere in a process rather than only at its end.
 
 `performers` is where authorization lives, because nobody holds repository rights on the
 content a workflow manages: the engine writes as its own service user, once the
@@ -1015,8 +1012,6 @@ POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [
                                              wf:instances/timeOffRequest │  token parked on approveRequest
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
-                                                        │
-                                                        ▼  hostTag: the submission is now "approved"
 ```
 
 **Starting is a service task, not a special case.** `startWorkflow` is built into the
@@ -1035,9 +1030,9 @@ the same `performers` mechanism as everywhere else, asked one step later — of 
 *defining activity* rather than of a start event. Seeing a task and being allowed to
 decide it are different questions, and this is where the second is answered.
 
-**Reaching an end event can mean something to the host.** An end event carries `hostTag`
-like any other flow node, so the way a process finishes is what places the host's last
-state.
+**Reaching a state is a step of the process.** A process that should leave its host in a
+new state says so with an `addTag` task before the end event the decision leads to; with
+`replaceExisting` set it also removes whatever tag the host had in the same category.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be — a query returns rows, and no engine can run a

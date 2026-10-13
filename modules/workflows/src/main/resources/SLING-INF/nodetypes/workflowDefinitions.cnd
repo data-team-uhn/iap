@@ -191,20 +191,11 @@
   - performers (STRING) multiple
 
   // The tag to place on the host resource when execution reaches this node, e.g.
-  // "approved" on the end event an approval leads to, or "submitted" on the task
-  // that waits for an approver. What being here means to the thing being
-  // processed belongs with the node that says so, rather than needing a service
-  // task whose only job is to record it. Also the kind of thing a BPMN parser can
-  // carry across, being a plain attribute on the element.
-  //
-  // On any node, not just on end events: for a user task it says what state the
-  // host is in for as long as that task waits, which is what lets a process move
-  // its host between states without finishing. A node that names none leaves the
-  // host's state alone.
-  //
-  // Placing it removes whatever other tag the host carries in the same category,
-  // because a lifecycle is a state and not an accumulation: a submission that
-  // finished as "approved" must stop being "in-review".
+  // "approved" on the end event an approval leads to. Only an end event honours it,
+  // placing it beside whatever the host already carries. It is kept for flow nodes
+  // written by hand. The vocabulary offers it on no kind of node: a diagram moves
+  // its host between states with the addTag and removeTag service tasks, which can
+  // replace a tag rather than add to it.
   - hostTag (STRING)
 
   // Allow any other properties for extensibility: the properties a flow node

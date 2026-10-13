@@ -5,6 +5,5 @@
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:parallelGateway",
-  "jcrNodeType": "wf:ParallelGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:ParallelGateway"
 }
