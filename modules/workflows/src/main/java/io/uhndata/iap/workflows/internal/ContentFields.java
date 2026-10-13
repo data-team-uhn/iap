@@ -37,10 +37,10 @@ import io.uhndata.iap.workflows.models.Activity;
  * the children of its {@code fields} node, each with how it is presented: a {@code label}, a short {@code help}
  * text, whether it runs over several lines ({@code multiline}), for a reference the resource type it must point at
  * ({@code referenceType}), the values it may take ({@code choices}), and the value of another property it depends
- * on ({@code appliesWhen}). The node's own type decides the rest: a field applies only if the type declares it by
- * name, not through a residual definition, and the declaration says whether it is mandatory, whether it holds one
- * value or several, and of which kind. So one activity may serve several types of content, each keeping to its own
- * fields.
+ * on ({@code appliesWhen}). A {@code unique} field cannot hold a value that a sibling of the same type holds in it.
+ * The node's own type decides the rest: a field applies only if the type declares it by name, not through a residual
+ * definition, and the declaration says whether it is mandatory, whether it holds one value or several, and of which
+ * kind. So one activity may serve several types of content, each keeping to its own fields.
  *
  * @version $Id$
  * @since 0.1.0
@@ -130,21 +130,33 @@ final class ContentFields
     }
 
     /**
+     * Where a reference may point.
+     *
+     * @param type the resource type the referenced node must have, if any
+     * @param root the path the referenced node must be under, if any
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Target(String type, String root)
+    {
+    }
+
+    /**
      * How an activity presents one field it lists.
      *
      * @param name the property name
      * @param label what it is called where it is edited
      * @param help a short explanation shown where it is edited, if any
      * @param multiline whether its text runs over several lines
-     * @param referenceType for a reference, the resource type the referenced node must have, if any
-     * @param referenceRoot for a reference, the path the referenced node must be under, if any
+     * @param target for a reference, where it may point
      * @param choices the values it may take, or none when it may take any
      * @param appliesWhen when it applies, or {@code null} when it always does
+     * @param unique whether no sibling of the same type may hold the same value in it
      * @version $Id$
      * @since 0.1.0
      */
-    record Description(String name, String label, String help, boolean multiline, String referenceType,
-        String referenceRoot, List<Choice> choices, Applicability appliesWhen)
+    record Description(String name, String label, String help, boolean multiline, Target target,
+        List<Choice> choices, Applicability appliesWhen, boolean unique)
     {
     }
 
@@ -195,8 +207,9 @@ final class ContentFields
             .map(field -> new Description(field.getName(),
                 Objects.requireNonNullElse(field.get("label", String.class), field.getName()),
                 field.get("help", String.class), Boolean.TRUE.equals(field.get("multiline", Boolean.class)),
-                field.get("referenceType", String.class), field.get("referenceRoot", String.class), choices(field),
-                applicability(field)))
+                new Target(field.get("referenceType", String.class), field.get("referenceRoot", String.class)),
+                choices(field),
+                applicability(field), Boolean.TRUE.equals(field.get("unique", Boolean.class))))
             .toList();
     }
 

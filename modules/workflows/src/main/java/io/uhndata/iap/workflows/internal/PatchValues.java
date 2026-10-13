@@ -246,8 +246,8 @@ final class PatchValues
      */
     private static boolean accepts(final ContentFields.Field field, final Resource referenced)
     {
-        final String type = field.description().referenceType();
-        final String root = field.description().referenceRoot();
+        final String type = field.description().target().type();
+        final String root = field.description().target().root();
         return (type == null || referenced.isResourceType(type))
             && (root == null || referenced.getPath().startsWith(root.endsWith("/") ? root : root + "/"));
     }
