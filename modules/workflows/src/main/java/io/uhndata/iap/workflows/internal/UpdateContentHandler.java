@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,10 +30,7 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.ValueFactory;
 
-import jakarta.json.Json;
-import jakarta.json.JsonException;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -119,15 +115,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
      */
     static JsonObject patch(final WorkflowTaskContext context) throws InvalidPayloadException
     {
-        final Object patch = context.getEvent().get(PATCH_PARAMETER);
-        if (!(patch instanceof String)) {
-            throw new InvalidPayloadException("A patch is required");
-        }
-        try (JsonReader reader = Json.createReader(new StringReader((String) patch))) {
-            return reader.readObject();
-        } catch (final JsonException | IllegalStateException e) {
-            throw new InvalidPayloadException("The patch must be a JSON object", e);
-        }
+        return EventJson.object(context, PATCH_PARAMETER);
     }
 
     /**
