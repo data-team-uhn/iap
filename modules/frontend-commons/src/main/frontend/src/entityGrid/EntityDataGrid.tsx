@@ -101,7 +101,7 @@ interface EntityDataGridProps {
   // is being listed: the same submission offers deleting it in the submitter's own list and not in a
   // reviewer's queue.
   extraColumns?: EntityGridColumn[];
-  // The same, put before the type's own columns, e.g. a box ticking a row
+  // The same, but before the type's own columns, such as a checkbox selecting the row
   leadingColumns?: EntityGridColumn[];
   // Change this to make the grid read the current page again, for when something outside it
   // changed what the listing should say, such as a row deleted from an actions column. Any new value
@@ -215,8 +215,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const registeredFields = new Set(config.columns.map(column => column.field));
   const visibleFields = new Set(visibleColumns.map(column => column.field)
     .filter(field => registeredFields.has(field)));
-  // What this grid puts before the type's own columns stays before a bespoke card too, as it does in a plain one,
-  // unless hidden
+  // The leading columns stay before a type's own card too, unless hidden or kept off cards
   const leadingOnCards = leadingColumns.filter(column => column.cardSlot !== "omit"
     && visibleColumns.some(visible => visible.field === column.field));
   const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) => (leadingOnCards.length === 0

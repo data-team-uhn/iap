@@ -34,7 +34,7 @@ const question = (name: string, text: string, properties: JcrNode = {}, ...optio
 const option = (value: string, place: number, label?: string, name = value) => node(name,
   { "sling:resourceType": "sch/AnswerOption", value, label, defaultOrder: place });
 
-// Conditions stand in as what they compare by and the sentences describing them, kept on the part for these tests
+// Each part here carries its own condition, as the key it is compared by and the sentence describing it
 const said = (part: JcrNode) => (typeof part.when === "string" || typeof part.whenKey === "string"
   ? { key: String(part.whenKey ?? part.when), words: part.when as string | undefined } : undefined);
 const SETTINGS: ComparisonSettings = {
@@ -47,7 +47,7 @@ const SETTINGS: ComparisonSettings = {
   conditionOf: { before: said, after: said },
 };
 
-// The outline compactly: each part as its change, its name and what is said about it, indented by depth
+// The outline in short: each part's change and name, and whether it moved, indented by depth
 const outline = (parts: PartComparison[], depth = 0): string[] => parts.flatMap(part => [
   `${"  ".repeat(depth)}${part.change} ${part.name}${part.movedFrom !== undefined
     ? ` (moved from ${part.movedFrom ?? "the top level"})` : ""}${part.reordered ? " (reordered)" : ""}`,
@@ -293,7 +293,7 @@ describe("compareVersions", () => {
 });
 
 describe("keptInOrder", () => {
-  // Where several are as long, the one the newer order starts with
+  // Of several sequences as long, it keeps the one the new order starts with
   it("keeps the longest sequence both orders share", () => {
     expect(keptInOrder([ "a", "b", "c" ], [ "b", "c", "a" ])).toEqual(new Set([ "b", "c" ]));
     expect(keptInOrder([ "a", "b" ], [ "b", "a" ])).toEqual(new Set([ "b" ]));

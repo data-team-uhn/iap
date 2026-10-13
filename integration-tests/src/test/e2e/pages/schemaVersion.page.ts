@@ -19,8 +19,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
- * A schema version's page, and the comparison of two versions, which outlines one the same way: each part an item
- * of the outline, found by what it says.
+ * A schema version's page, or the comparison of two versions, which outlines the parts the same way. Each part is an
+ * item of the outline, found by what it says.
  */
 export class SchemaVersionPage {
   constructor(private readonly page: Page) {}

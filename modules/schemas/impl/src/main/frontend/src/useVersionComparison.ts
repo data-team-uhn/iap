@@ -48,9 +48,8 @@ export interface ComparedFields {
   option: ComparedField[];
 }
 
-// The fields compared, each list read from the definitions named for it, each definition read once, and a definition
-// that cannot be read named in what is said about it. What describes fields is content, which does not change while
-// the page is open.
+// Reads the fields compared. Each list comes from the definitions named for it, and each definition is read once.
+// When a definition cannot be read, the error names it. The definitions are content, unchanged while the page is open.
 export function useComparedFields(sources: ComparedFieldSources) {
   const [ fields, setFields ] = useState<ComparedFields>();
   const [ loadError, setLoadError ] = useState<string>();
@@ -68,7 +67,7 @@ export function useComparedFields(sources: ComparedFieldSources) {
         const fieldsOf = (kind: string[]) =>
           fieldsOfDefinitions(read.filter((_definition, at) => kind.includes(paths[at])));
         setFields({
-          // Not a version's label, which tells versions apart, and says which is which in the title
+          // Leaves out the version's label. It differs between any two versions, and the title says which is which.
           version: fieldsOf(wanted.version).filter(field => field.name !== "version"),
           part: fieldsOf(wanted.part),
           option: fieldsOf(wanted.option),
@@ -84,7 +83,7 @@ export function useComparedFields(sources: ComparedFieldSources) {
   return { fields, loadError, reload };
 }
 
-// What the targets of the reference fields a comparison shows are called, by their paths and identifiers
+// The names of what the reference fields of a comparison point at, by their paths and identifiers
 export function useReferenceNames(fields: ComparedField[]) {
   const doFetch = useAuthenticatedFetch();
   const [ names, setNames ] = useState<Record<string, string>>({});
@@ -102,7 +101,7 @@ export function useReferenceNames(fields: ComparedField[]) {
       });
     }))
       .then(found => setNames(Object.fromEntries(found.flat())))
-      // Unnamed, references show as where they point
+      // Without names, references show as where they point
       .catch(() => setNames({}));
   }, [ doFetch, queries ]);
   return names;

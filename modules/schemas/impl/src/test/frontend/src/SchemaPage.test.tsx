@@ -327,7 +327,7 @@ describe("SchemaPage", () => {
   });
 
   describe("comparing two versions picked from the list", () => {
-    // The study's first version made before the others, so that which is older is known
+    // The study's first version is dated before the others, so that which is older is known
     const dated = () => serveSchemas({ homepage: { ...HOMEPAGE, study: { ...HOMEPAGE.study,
       v1: { ...HOMEPAGE.study.v1, "jcr:created": "2026-09-01T10:00:00.000-04:00" } } } });
 

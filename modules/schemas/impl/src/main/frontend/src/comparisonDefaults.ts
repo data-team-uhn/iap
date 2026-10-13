@@ -18,11 +18,12 @@
 
 import { childrenOf, createdOf, isObject, type JcrNode, nameOf, pathOf, tagsOf } from "./schemaModel";
 
-// Which version another is compared with when none is named: the first of the rules, in their order, that finds one
-// that is not the version itself. A rule is a name: `active` for the active version, `source` for the one it was
-// copied from, `previous` for the one created last before it; a name not known finds nothing. No React, no fetch.
+// Which version another is compared with when none is named. The rules are tried in their order, and the first that
+// finds a version other than the version itself decides. A rule is a name: `active` for the active version, `source`
+// for the one it was copied from, `previous` for the one created last before it. An unknown name finds nothing. No
+// React, no fetch.
 
-// Where a reference points, whether given as a path, an identifier, or the node it was dereferenced to
+// Whether a reference points at the version, given as a path, an identifier, or the node it was dereferenced to
 const pointsAt = (value: unknown, version: JcrNode): boolean => (isObject(value)
   ? pathOf(value) === pathOf(version)
   : value === pathOf(version) || value === version["jcr:uuid"]);

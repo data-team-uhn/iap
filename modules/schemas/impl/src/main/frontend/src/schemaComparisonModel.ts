@@ -23,15 +23,16 @@ import { compareFields, type FieldDifference } from "@iap/frontend-commons/diff/
 import { type JcrNode, nameOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, partsOf, resourceTypeOf } from "./schemaVersionTreeModel";
 
-// What changed between two versions of a schema, as one outline of the newer version with what the older one held
-// put back where it was. No React, no fetch.
+// What changed between two versions of a schema, as one outline of one version, with what the other held put back
+// where it was. No React, no fetch.
 
 export interface NamedField {
   name: string;
   label: string;
 }
 
-// A condition as compared, whatever the words of what it refers to, and as said where it can be
+// A part's condition, as a key and in words. The key stays the same when only the words of what it refers to changed.
+// The words are missing where the condition cannot be put into words.
 export interface ConditionSaid {
   key: string;
   words?: string;
@@ -88,7 +89,7 @@ export interface ComparisonSummary {
 }
 
 export interface VersionComparison {
-  // What the version says of itself that changed
+  // The version's own fields that changed
   version: LabelledDifference[];
   parts: PartComparison[];
   summary: ComparisonSummary;
@@ -109,8 +110,7 @@ const placesOf = (holder: JcrNode, path = ""): Placed[] => partsOf(holder).flatM
 export const keptInOrder = (before: string[], after: string[]): Set<string> =>
   new Set(diffArrays(before, after).filter(chunk => !chunk.added && !chunk.removed).flatMap(chunk => chunk.value));
 
-// What a list compared in its new order becomes once what was removed is put back, each after the last of what
-// preceded it before
+// A list in its new order, with the removed items put back. Each goes after the last item before it in the old order.
 function withRemoved<T, K>(listed: { item: T; old?: K }[], before: K[], gone: (old: K) => boolean,
   removed: (old: K) => T): T[] {
   const merged = [ ...listed ];
@@ -139,10 +139,11 @@ const summarized = (parts: PartComparison[], summary: ComparisonSummary): Compar
     moved: counts.moved + (part.movedFrom !== undefined || part.reordered ? 1 : 0),
   }), summary);
 
-// Two versions compared. A part is matched by where its identifier puts it; or else by its identifier among what its
-// matched holder held, which then moved with it; or else by its identifier alone where only one part of its type still
-// unmatched goes by it in each version, which then moved. One of another type is another part. An option is matched by
-// its name among its question's, so that a value edited shows as one.
+// Compares two versions of a schema. A part is matched in three ways, in order. First, by its path of identifiers.
+// Then by its identifier among what its matched holder held, which means it moved with its holder. Last, by its
+// identifier alone, when exactly one unmatched part of its type goes by it in each version. That part moved. A part
+// of another type is another part. An option is matched by its name among its question's options, so that an edited
+// value shows as an edited option.
 export function compareVersions(before: JcrNode, after: JcrNode, settings: ComparisonSettings): VersionComparison {
   const olds = placesOf(before);
   const news = placesOf(after);
@@ -198,7 +199,7 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
   const part = (node: JcrNode, change: Change, parts: PartComparison[], options: OptionComparison[]): PartComparison =>
     ({ name: nameOf(node), type: resourceTypeOf(node), heading: headingOf(node), change, reordered: false,
       fields: [], options, parts });
-  // What an added or removed part says, but for its heading, which is shown as such
+  // The fields and condition of an added or removed part, but not its heading, which the outline shows already
   const saidOf = (node: JcrNode, side: "before" | "after") => {
     const others = side === "before" ? [ node, {} ] : [ {}, node ];
     const said = settings.conditionOf[side](node);
@@ -215,7 +216,7 @@ export function compareVersions(before: JcrNode, after: JcrNode, settings: Compa
   });
   const holderName = (holder: JcrNode) => (holder === before ? null : headingOf(holder));
 
-  // What a part of the newer version holds, compared with what its counterpart held, if it has one
+  // What a part of `after` holds, compared with what its counterpart held, if it has one
   const compareChildren = (holder: JcrNode, oldHolder?: JcrNode): PartComparison[] => {
     const listed = partsOf(holder).map(child => {
       const old = matched.get(child);

@@ -32,7 +32,7 @@ import { comparisonPageUrl } from "./useSchemaList";
 
 // A schema's versions, each with where it stands and what can be done with it. The schema's page has
 // already read them, with what the server offers on each, so the grid lists them as they are. Two of them can be
-// picked to be compared, the older the one the newer is compared with.
+// picked to be compared, and the newer one is compared with the older.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: JcrNode;
   reload: () => void;

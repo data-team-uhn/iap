@@ -26,18 +26,17 @@ import { fitsTheScreen, PHONE } from '../../../support/phone';
 /**
  * THE STORY: a new version of a schema, checked from a phone against the one it was copied from.
  *
- * Priya looks after what her team's leave requests ask for, and all she has with her today is her phone. Her
- * schema's first version asks how many days and why. She makes a second version from it, rewords why, drops how
- * many days and asks when the leave starts instead. Before she goes further she wants to see everything she
- * changed: the version it was copied from is offered first to compare it with, and the comparison shows the
- * question she dropped, the one she added, and the words she changed within the other. Nothing runs past the edge
- * of her screen.
+ * Priya looks after what her team's leave requests ask for, and all she has with her today is her phone. Her schema's
+ * first version asks how many days and why. She makes a second version from it, rewords why, drops how many days and
+ * asks when the leave starts instead. Before she goes further, she wants to see everything she changed. The version it
+ * was copied from is offered first to compare it with. The comparison shows the question she dropped, the one she
+ * added, and the words she changed within the other. Nothing runs past the edge of her screen.
  *
- * Each step has its spec. Only this asks whether a version's copy and its comparison fit together at a phone's
- * width: the copy remembering where it came from, and the comparison reachable from the copy's own actions.
+ * Each step has its own spec. This one alone checks that a version's copy and its comparison work together at a
+ * phone's width. The copy remembers where it came from, and the comparison is reachable from the copy's own actions.
  *
- * It runs on the demo instance, not beside the platform's archive story: dropping a question puts it in the
- * archive, which that story expects to hold only what it deleted itself.
+ * It runs on the demo instance, not beside the platform's archive story. Dropping a question puts it in the archive,
+ * and that story expects the archive to hold only what it deleted itself.
  */
 test.describe('stories: a new version checked from a phone', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });

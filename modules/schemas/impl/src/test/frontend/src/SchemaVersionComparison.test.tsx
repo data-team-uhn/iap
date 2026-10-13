@@ -61,7 +61,7 @@ const UNCHANGED: [ string, Node ][] = [
   [ "review", requirement("ApprovalRequirement", "Review") ],
 ];
 
-// A condition that always holds, which no sentence says, stored with something else to tell it apart
+// A condition that always holds, which no sentence describes, with a note to tell two of them apart
 const oddly = (note: string) => ({
   "jcr:primaryType": "cond:ConditionGroup", "sling:resourceSuperType": "cond/Condition", requireAll: true, note,
 });
@@ -156,7 +156,7 @@ describe("SchemaVersionComparison", () => {
 
     const arm = await part("Which arm?");
     expect(within(arm).getByText("Placebo arm").closest("li")).toHaveTextContent("Changed");
-    // Of two options that swapped places, the one the newer version lists later moved
+    // Of two options that swapped places, only the one the newer version lists later counts as moved
     expect(within(arm).getByText("Drug").closest("li")).toHaveTextContent("Order changed");
     expect(within(arm).getByText("Device").closest("li")).toHaveTextContent("Added");
     expect(within(arm).getByText("None").closest("li")).toHaveTextContent("Removed");
@@ -297,11 +297,11 @@ describe("SchemaVersionComparison", () => {
     expect(within(listbox).getByRole("option", { name: "Version 3.0" })).not.toHaveAttribute("aria-disabled");
   });
 
-  it("says when two versions ask for the same", async () => {
+  it("says when two versions have the same content", async () => {
     serveSchemas({ homepage: HOMEPAGE });
     renderComparison("v1", "v1");
 
-    expect(await screen.findByText("The two versions ask for the same.")).toBeInTheDocument();
+    expect(await screen.findByText("The two versions have the same content.")).toBeInTheDocument();
   });
 
   it.each([ [ "v1", "v99" ], [ "v99", "v1" ] ])("says when the schema has no version %s or %s", async (base, compared) => {

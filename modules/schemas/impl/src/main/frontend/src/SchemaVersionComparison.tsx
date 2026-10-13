@@ -40,10 +40,12 @@ const listed = (words: string[]): string => (words.length < 2 ? words.join("")
   : `${words.slice(0, -1).join(", ")} and ${words.slice(-1).join("")}`);
 
 // The counts of a comparison as one sentence, naming only what there is: "3 parts added, 1 removed and 2 moved."
-// When no part changed, what the version says of itself that did, if anything.
+// When no part changed, the sentence names the version's own fields that changed, if any.
 function summaryOf({ added, removed, changed, moved }: ComparisonSummary, version: LabelledDifference[]): string {
   const counted = ([ [ added, "added" ], [ removed, "removed" ], [ changed, "changed" ], [ moved, "moved" ] ] as const)
     .filter(([ count ]) => count !== 0)
+    // Only the first count names what is counted, so the sentence reads "3 parts added, 1 removed", not
+    // "3 parts added, 1 part removed"
     .map(([ count, what ], at) => (at === 0
       ? `${count} ${count === 1 ? "part" : "parts"} ${what}`
       : `${count} ${what}`));
@@ -52,19 +54,19 @@ function summaryOf({ added, removed, changed, moved }: ComparisonSummary, versio
   }
   return version.length > 0
     ? `Only the version's ${listed(version.map(difference => difference.label.toLowerCase()))} changed.`
-    : "The two versions ask for the same.";
+    : "The two versions have the same content.";
 }
 
 interface ComparedVersionsProps {
   schemaPath: string;
   names: [ string, string ];
-  // Until known, the versions are read meanwhile
+  // Undefined until read. The versions are read meanwhile.
   fields?: ComparedFields;
   referenceNames: Record<string, string>;
 }
 
-// Two versions read and compared: what happened, counted, then shown. One for each pair, so that what was read for
-// another pair never shows under this one's title.
+// Reads and compares two versions, then shows what happened, counted and in full. There is one for each pair, so that
+// what was read for another pair never shows under this pair's title.
 function ComparedVersions({ schemaPath, names, fields, referenceNames }: ComparedVersionsProps) {
   const [ everything, setEverything ] = useState(false);
   const { comparison, loading, loadError, reload } = useVersionComparison(schemaPath, names, fields);
@@ -108,8 +110,8 @@ interface SchemaVersionComparisonProps {
   pageNotices: ReactNode;
 }
 
-// Two versions of a schema compared: what the later one added, removed, changed and moved, in one outline of it. The
-// fields compared, and the names of what references point at, are read once for every pair compared.
+// Shows what one version of a schema added, removed, changed and moved compared with another, in one outline. The
+// fields compared, and the names of what references point at, are read once and serve every pair compared.
 function SchemaVersionComparison({ schema, names, definitions, pageNotices }: SchemaVersionComparisonProps) {
   const navigate = useNavigate();
   const schemaPage = schemaPageUrl(nameOf(schema));

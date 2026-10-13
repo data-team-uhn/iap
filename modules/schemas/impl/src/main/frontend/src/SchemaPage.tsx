@@ -54,8 +54,8 @@ function SchemaNotices({ schema, loadError, reload }: {
 }
 
 // One schema's page: its versions and where each stands, and the lifecycle actions on them and on
-// the schema as a whole. With a version named, that version's own page; with another to compare it with too, their
-// comparison, on the fields that the workflow definitions its extension names describe.
+// the schema as a whole. With a version named, that version's own page. With another version to compare it with
+// too, their comparison. The extension names the workflow definitions that describe the fields compared.
 function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   const { pathname, search } = useLocation();
   const versionName = versionNameFromRoute(pathname);

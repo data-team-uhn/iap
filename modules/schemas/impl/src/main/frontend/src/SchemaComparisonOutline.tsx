@@ -45,10 +45,10 @@ const CHANGE_WORDS: Record<Change, string | undefined> = {
   added: "Added", removed: "Removed", changed: "Changed", unchanged: undefined,
 };
 
-// A text field's value, none when it has none
+// A text field's value, or an empty text when it has none
 const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
 
-// What tells a part apart from its siblings: a removed part and an added one may share a name, if not a type
+// Tells a part apart from its siblings. A removed part and an added one may share a name.
 const keyOf = (part: PartComparison) => `${part.change} ${part.type} ${part.name}`;
 
 // Whether anything happened to a part or anything in it
@@ -80,7 +80,7 @@ function ChangeChips({ change, movedFrom, reordered }: {
 
 interface Described {
   fields: ComparedField[];
-  // What references point at, by their paths and identifiers
+  // The names of what references point at, by their paths and identifiers
   names: Record<string, string>;
 }
 

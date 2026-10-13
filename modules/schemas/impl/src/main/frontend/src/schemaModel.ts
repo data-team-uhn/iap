@@ -78,7 +78,7 @@ export const versionsOf = (schema: JcrNode): JcrNode[] => Object.values(schema)
   .filter(value => isNode(value, "sch:SchemaVersion"))
   .sort((one, other) => labelOf(one).localeCompare(labelOf(other), undefined, { numeric: true }));
 
-// When a version was made, the earliest possible when that is not known
+// When a version was made, or the earliest possible time if that is not known
 export const createdOf = (version: JcrNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
 
 // The version made most recently, which a new version is most likely a revision of

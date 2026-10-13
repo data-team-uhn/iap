@@ -32,8 +32,8 @@ export interface ComparedField extends NamedField {
 
 const labelOf = (node: JcrNode): string => (typeof node.label === "string" ? node.label : nameOf(node));
 
-// Every field the versions of the given workflow definitions tagged active let an update change, the first
-// description of each name kept
+// Every field that the active versions of the given workflow definitions let an update change. Of several
+// descriptions of one name, the first is kept.
 export function fieldsOfDefinitions(definitions: JcrNode[]): ComparedField[] {
   const found = new Map<string, ComparedField>();
   const visit = (node: JcrNode) => {
@@ -59,7 +59,7 @@ export function fieldsOfDefinitions(definitions: JcrNode[]): ComparedField[] {
 const ownWord = (words: Partial<Record<string, string>>, key: string): string | undefined =>
   (Object.hasOwn(words, key) ? words[key] : undefined);
 
-// How one of a field's values reads, a reference by what it points at where its name is known
+// How one of a field's values reads. A reference reads as the name of what it points at, where that is known.
 export function shownValue(field: ComparedField | undefined, value: unknown,
   names: Partial<Record<string, string>> = {}): string {
   if (Array.isArray(value)) {

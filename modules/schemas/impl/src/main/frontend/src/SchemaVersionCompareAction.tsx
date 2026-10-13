@@ -32,9 +32,9 @@ import { comparisonPageUrl } from "./useSchemaList";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Compares this version with another, chosen from the schema's others: the one the rules choose by default first, and
-// each said how it stands to this one where it does. Where it was copied from is read when the choice is opened.
-// Offered only where there is another version to compare it with.
+// Compares this version with another, chosen from the schema's other versions. The one the rules choose by default
+// comes first. The active version, the one this was copied from and the previous version each say which they are.
+// What this version was copied from is read when the choice is opened. Offered only when there is another version.
 function SchemaVersionCompareAction({ schema, version, comparisonDefaults = [] }: SchemaVersionActionProps) {
   const navigate = useNavigate();
   const doFetch = useAuthenticatedFetch();

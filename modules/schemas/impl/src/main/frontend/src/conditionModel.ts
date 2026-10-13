@@ -95,10 +95,10 @@ export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
 export const questionsFor = (part: JcrNode, index: QuestionIndex): JcrNode[] => index.questions
   .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));
 
-// A condition as two versions can compare it: what it stores, without the repository's bookkeeping, and the
-// questions it compares the answers of by their identifiers in the version, which a copy keeps and a move does not
-// change, rather than by the identifiers a copy changes. A question whose identifier another shares goes by where it
-// stands. Keys are sorted, so that the order they were written in does not count.
+// A condition in a form two versions can compare: what it stores, without the repository's bookkeeping. The questions
+// it compares the answers of go by their identifiers in the version, which a copy keeps and a move does not change. The
+// repository's own identifiers would not do, since a copy changes them. A question whose identifier another shares goes
+// by its path within the version. Keys are sorted, so that the order they were written in does not count.
 export function conditionKeyOf(condition: JcrNode, index: QuestionIndex, version: string): string {
   const keyOf = (question: JcrNode) => (index.questions.filter(other => nameOf(other) === nameOf(question)).length === 1
     ? nameOf(question) : pathOf(question).slice(version.length + 1));
