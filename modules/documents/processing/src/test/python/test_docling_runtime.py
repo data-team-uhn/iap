@@ -1088,7 +1088,7 @@ class TestAsyncParseAcceptance:
         submitted = []
         monkeypatch.setattr(state, "submit_parse", lambda *a, **k: submitted.append(a))
 
-        def refuse(_path):
+        def refuse(_path, _requested):
             raise daemon.ParseRequestError("document is over the byte limit")
 
         monkeypatch.setattr(daemon, "refuse_oversized_input", refuse)
@@ -1100,6 +1100,20 @@ class TestAsyncParseAcceptance:
         # Refused before it ever became a background job, unlike a failure the daemon itself
         # discovers only once it starts converting
         assert not submitted
+
+    def test_the_callers_limits_are_applied_before_queuing(self, monkeypatch, configured):
+        state = _parse_only_state()
+        monkeypatch.setattr(daemon, "_STATE", state)
+        monkeypatch.setattr(state, "submit_parse", lambda *a, **k: None)
+        checked = []
+        monkeypatch.setattr(
+            daemon, "refuse_oversized_input", lambda path, requested: checked.append(requested))
+        requested = daemon.RequestedLimits(max_bytes=10, max_pages=2, max_expanded_bytes=30)
+
+        daemon.DoclingDaemonHandler._accept_async_parse(
+            _FakeHandler(b""), "86a4c102", Path("doc.pdf"), requested)
+
+        assert checked == [requested]
 
     def test_missing_token_refuses_asynchronous_parsing(self, monkeypatch):
         monkeypatch.setenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, "http://iap:8080/cb")

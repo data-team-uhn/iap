@@ -18,6 +18,7 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import javax.jcr.Session;
 import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -96,6 +99,9 @@ class AttachDocumentHandlerTest
 
     private static final String NOTE = "doctorsNote";
 
+    /** The name most uploads in these tests arrive under. */
+    private static final String NOTE_FILE = "note.pdf";
+
     private static final String NOTE_PATH = VERSION_PATH + "/" + NOTE;
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
@@ -160,10 +166,10 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheFileAsADocumentFulfillingTheRequirementItAnswers() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         final Resource document = onlyDocument();
-        assertEquals("note.pdf", document.getValueMap().get("title", String.class));
+        assertEquals(NOTE_FILE, document.getValueMap().get("title", String.class));
         // A real REFERENCE, holding the requirement node's own identifier
         assertEquals(identifierOf(NOTE_PATH), document.getValueMap().get("fulfills", String.class));
     }
@@ -171,7 +177,7 @@ class AttachDocumentHandlerTest
     @Test
     void storesTheContentAsTheDocumentsFirstVersion() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         assertEquals(1, onlyDocument().adaptTo(Document.class).getVersions().size());
         final Resource file = uploadedFile();
@@ -197,7 +203,7 @@ class AttachDocumentHandlerTest
     @Test
     void keepsTheDocumentsOfDifferentRequirementsApart() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
         documents();
         this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
 
@@ -208,7 +214,7 @@ class AttachDocumentHandlerTest
     void takesARequirementNamedByItsFullPath() throws Exception
     {
         // What the UI has to hand is the path it rendered the requirement from, so both spellings work
-        this.handler.execute(context(payload(NOTE_PATH, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE_PATH, upload(NOTE_FILE, PDF))));
 
         assertEquals(identifierOf(NOTE_PATH), onlyDocument().getValueMap().get("fulfills", String.class));
     }
@@ -276,7 +282,7 @@ class AttachDocumentHandlerTest
     @Test
     void comparesTypesWithoutCaseOrParameters() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", "Application/PDF; charset=binary"))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, "Application/PDF; charset=binary"))));
 
         // Stored the way it was compared
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
@@ -293,7 +299,7 @@ class AttachDocumentHandlerTest
     @Test
     void readsTheTypeFromTheExtensionWhenTheBrowserSentNone() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", null))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, null))));
 
         assertEquals(PDF, child(uploadedFile(), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
     }
@@ -346,6 +352,38 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void refusesAPdfWithMorePagesThanTheLimit() throws Exception
+    {
+        final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(MAX_FILE_SIZE, 2));
+
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class,
+            () -> strict.execute(context(payload(NOTE, upload(NOTE_FILE, PDF, pdf(3))))));
+
+        assertEquals("That PDF has 3 pages, and the limit is 2", failure.getMessage());
+    }
+
+    @Test
+    void takesAPdfExactlyAtThePageLimit() throws Exception
+    {
+        final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(MAX_FILE_SIZE, 2));
+
+        strict.execute(context(payload(NOTE, upload(NOTE_FILE, PDF, pdf(2)))));
+
+        assertNotNull(uploadedFile());
+    }
+
+    @Test
+    void doesNotCountThePagesOfAFileThatIsNotAPdf() throws Exception
+    {
+        final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(MAX_FILE_SIZE, 2));
+
+        // A PDF's bytes under another type are stored as that type, and never page counted
+        strict.execute(context(payload("anything", upload("note.doc", "application/msword", pdf(3)))));
+
+        assertNotNull(uploadedFile());
+    }
+
+    @Test
     void refusesAFileOverTheConfiguredLimit()
     {
         final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(1024L * 1024));
@@ -374,7 +412,7 @@ class AttachDocumentHandlerTest
             return null;
         }).when(versions).checkout(SUBMISSION_PATH);
 
-        this.handler.execute(context(payload(NOTE, upload("note.pdf", PDF))));
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
 
         Mockito.verify(versions).checkout(SUBMISSION_PATH);
     }
@@ -383,7 +421,7 @@ class AttachDocumentHandlerTest
     void refusesSomebodyElsesRequest()
     {
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), "somebody-else")));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), "somebody-else")));
     }
 
     @Test
@@ -393,7 +431,7 @@ class AttachDocumentHandlerTest
         modify(this.target, "tags", new String[] {"submitted"});
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -401,21 +439,21 @@ class AttachDocumentHandlerTest
     {
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(AttachDocumentHandler.REQUIREMENT_PARAMETER, NOTE,
-                AttachDocumentHandler.FILE_PARAMETER, "note.pdf"))));
+                AttachDocumentHandler.FILE_PARAMETER, NOTE_FILE))));
     }
 
     @Test
     void refusesAnEventThatDoesNotSayWhatTheFileIsFor()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.FILE_PARAMETER, upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(Map.of(AttachDocumentHandler.FILE_PARAMETER, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
     void refusesABlankRequirementName()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("  ", upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(payload("  ", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -424,7 +462,7 @@ class AttachDocumentHandlerTest
         // Resolved through the schema rather than by trusting the path, or a caller could attach a document that
         // nothing on this submission ever asked for
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
-            context(payload("/Schemas/somethingElse/v1/aNote", upload("note.pdf", PDF)))));
+            context(payload("/Schemas/somethingElse/v1/aNote", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -437,7 +475,7 @@ class AttachDocumentHandlerTest
         this.context.registerService(ConditionEvaluator.class, conditions);
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)))));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -445,7 +483,7 @@ class AttachDocumentHandlerTest
     {
         // The form requirement is a child of the same version under a perfectly ordinary name
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("details", upload("note.pdf", PDF)))));
+            () -> this.handler.execute(context(payload("details", upload(NOTE_FILE, PDF)))));
     }
 
     @Test
@@ -476,7 +514,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, sabotaged)));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Cannot point fulfills"));
     }
 
@@ -490,7 +528,42 @@ class AttachDocumentHandlerTest
             @Override
             public String getFileName()
             {
-                return "note.pdf";
+                return "note.doc";
+            }
+
+            @Override
+            public String getMimeType()
+            {
+                return "application/msword";
+            }
+
+            @Override
+            public long getSize()
+            {
+                return CONTENT.length;
+            }
+
+            @Override
+            public InputStream openStream() throws IOException
+            {
+                throw new IOException("the connection went away");
+            }
+        };
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> this.handler.execute(context(payload("anything", broken))));
+        assertTrue(failure.getMessage().contains("Could not store"));
+    }
+
+    @Test
+    void translatesAPdfThatCannotBeReadForCountingIntoAPersistenceFailure()
+    {
+        final EventAttachment broken = new EventAttachment()
+        {
+            @Override
+            public String getFileName()
+            {
+                return NOTE_FILE;
             }
 
             @Override
@@ -514,7 +587,7 @@ class AttachDocumentHandlerTest
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(context(payload(NOTE, broken))));
-        assertTrue(failure.getMessage().contains("Could not store"));
+        assertEquals("Could not read the uploaded file", failure.getMessage());
     }
 
     @Test
@@ -532,7 +605,7 @@ class AttachDocumentHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, blind)));
+            context(payload(NOTE, upload(NOTE_FILE, PDF)), REQUESTER, blind)));
         assertTrue(failure.getMessage().contains("Could not read"));
     }
 
@@ -545,6 +618,11 @@ class AttachDocumentHandlerTest
     }
 
     private EventAttachment upload(final String fileName, final String mimeType)
+    {
+        return upload(fileName, mimeType, CONTENT);
+    }
+
+    private EventAttachment upload(final String fileName, final String mimeType, final byte[] content)
     {
         return new EventAttachment()
         {
@@ -563,15 +641,29 @@ class AttachDocumentHandlerTest
             @Override
             public long getSize()
             {
-                return CONTENT.length;
+                return content.length;
             }
 
             @Override
             public InputStream openStream()
             {
-                return new ByteArrayInputStream(CONTENT);
+                return new ByteArrayInputStream(content);
             }
         };
+    }
+
+    /**
+     * A real PDF with the given number of blank pages.
+     */
+    private static byte[] pdf(final int pages) throws IOException
+    {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            for (int page = 0; page < pages; page++) {
+                document.addPage(new PDPage());
+            }
+            document.save(bytes);
+            return bytes.toByteArray();
+        }
     }
 
     /**
@@ -615,8 +707,17 @@ class AttachDocumentHandlerTest
      */
     static DocumentLimits mockLimits(final long maxFileSize)
     {
+        return mockLimits(maxFileSize, 500);
+    }
+
+    /**
+     * Document limits taking files up to the given size, and PDFs up to the given number of pages.
+     */
+    static DocumentLimits mockLimits(final long maxFileSize, final int maxPdfPages)
+    {
         final DocumentLimits limits = Mockito.mock(DocumentLimits.class);
         Mockito.when(limits.getMaxFileSize()).thenReturn(maxFileSize);
+        Mockito.when(limits.getMaxPdfPages()).thenReturn(maxPdfPages);
         return limits;
     }
 
