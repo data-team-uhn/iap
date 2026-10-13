@@ -270,6 +270,10 @@ are multiple passages to highlight, they are listed beside it, in the order give
 cannot be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one
 at a time above it instead, with controls stepping through them. It is the viewer's width that
 counts, not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
+The card above the document can also be swiped by touch, as the content moves: left to the next
+passage, right to the previous, as far as the ends. It follows the finger, springs back when let go of
+too soon, and the next card slides in from where the finger went, unless the person prefers reduced
+motion (`useSwipe`, for any element stepping through something by touch).
 
 Selecting a passage from the list scrolls the document to take the reader to it; similarly, clicking
 its mark in the document selects the corresponding card in the list and brings it in view (or, in a
