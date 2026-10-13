@@ -58,6 +58,8 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         position: "absolute",
         inset: 0,
         overflow: "auto",
+        // Scrolling the document stops at its ends, rather than going on to scroll what holds it.
+        overscrollBehavior: "contain",
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
         // Sheets on the canvas, apart from each other

@@ -215,6 +215,11 @@ describe("PdfViewer", () => {
       expect(getViewer().removePageBorders).toBe(true);
     });
 
+    it("stops scrolling at the document's ends, rather than going on to scroll what holds it", () => {
+      show();
+      expect(getFrame()).toHaveStyle({ overscrollBehavior: "contain" });
+    });
+
     it("marks the passage in the colour of whoever marked it", async () => {
       show({ markedBy: "annotation" });
 
