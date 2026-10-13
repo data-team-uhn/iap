@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 import { Box, CircularProgress, LinearProgress } from "@mui/material";
 
@@ -40,10 +40,50 @@ function markColours(theme: Theme, outlineSelected: boolean) {
   ]));
 }
 
-// The frame PDF.js shows the document in, filling the room left to it, with a spinner while the document
-// opens, and a bar along its top while passages are looked for in it. PDF.js needs its scrolling container absolutely positioned, so the outer box gives it the room,
-// and holds anything shown over the frame, placed in the frame's coordinates. In the dialog on a phone, the
-// document spans the full screen width, past the dialog's padding.
+// The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so the
+// box around it gives it the room. Drawn again only when what it is given changes, as its styles are the
+// costliest part of the viewer to draw, and the viewer is drawn often while it reads or searches the
+// document.
+const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlineSelected }: {
+  setFrame: (frame: HTMLDivElement | null) => void;
+  edgeToEdge: boolean;
+  outlineSelected: boolean;
+}) {
+  return (
+    <Box
+      ref={setFrame}
+      role="region"
+      aria-label="Document"
+      tabIndex={0}
+      sx={theme => ({
+        position: "absolute",
+        inset: 0,
+        overflow: "auto",
+        bgcolor: "background.default",
+        borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
+        // Sheets on the canvas, apart from each other
+        "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
+        // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
+        "& .textLayer": { mixBlendMode: "multiply" },
+        [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
+        ...markColours(theme, outlineSelected),
+        // PDF.js's own highlights, of a search's matches
+        "& .textLayer .highlight": {
+          "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
+          "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight.searchCurrent,
+        },
+        // A mark is clicked through the text over it, which the pointer shows.
+        [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
+      })}
+    >
+      <div className="pdfViewer" />
+    </Box>
+  );
+});
+
+// The document, filling the room left to it, with a spinner while it opens, and a bar along its top while
+// passages are looked for in it. Anything shown over the frame is placed in the frame's coordinates. In the
+// dialog on a phone, the document spans the full screen width, past the dialog's padding.
 export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
@@ -64,34 +104,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
         mx: edgeToEdge ? { xs: -2, sm: 0 } : 0,
       }}
     >
-      <Box
-        ref={setFrame}
-        role="region"
-        aria-label="Document"
-        tabIndex={0}
-        sx={theme => ({
-          position: "absolute",
-          inset: 0,
-          overflow: "auto",
-          bgcolor: "background.default",
-          borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
-          // Sheets on the canvas, apart from each other
-          "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
-          // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
-          "& .textLayer": { mixBlendMode: "multiply" },
-          [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
-          ...markColours(theme, outlineSelected),
-          // PDF.js's own highlights of a search's matches
-          "& .textLayer .highlight": {
-            "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
-            "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight.searchCurrent,
-          },
-          // A click on the text over a mark selects the mark, so the cursor becomes a pointer there.
-          [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
-        })}
-      >
-        <div className="pdfViewer" />
-      </Box>
+      <DocumentFrame setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={outlineSelected} />
       {opening
         ? (
           <CircularProgress
