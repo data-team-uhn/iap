@@ -254,6 +254,10 @@ An anchor is kept as text with what it anchors, such as a review comment. `encod
 a text fragment directive without its `text=`: `before-,quote,-after`, each part percent-encoded, dashes
 included. `decodeAnchor` gives nothing for an anchor not kept, or one it cannot read.
 
+The viewer reads pages only for as long as some passage is still being looked for: one placed or kept
+as an anchor needs only its own pages, and a document opened with no passages is not read at all, so
+reading never takes PDF.js away from drawing the pages being looked at for longer than it must.
+
 Once found, a quote is kept as spans too. The viewer draws every mark over PDF.js's text layer itself,
 and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown with its quote, and one
 placed by its spans with the text they cover. Marks let the pointer through, so text can still be
