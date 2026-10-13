@@ -20,6 +20,7 @@ import {
   findQuoteAcrossPages,
   getComparedText,
   getSearchText,
+  prepareText,
   unquote,
   type QuoteMatch,
 } from "./quoteMatch";
@@ -222,7 +223,7 @@ export class MarkLocator {
     this.#texts.set(page, pageText);
     this.#hasText ||= text.trim().length > 0;
     for (const [ id, searchText ] of this.#searchTexts) {
-      const match = findQuote(text, searchText).at(0);
+      const match = findQuote(prepareText(text), searchText).at(0);
       if (match !== undefined) {
         this.#whole.get(id)?.set(page, { span: toSpan(page, match), page: pageText });
       }
@@ -232,7 +233,7 @@ export class MarkLocator {
         if (first === undefined || next === undefined) {
           continue;
         }
-        const found = findQuoteAcrossPages(first.text, next.text, searchText);
+        const found = findQuoteAcrossPages(prepareText(first.text), prepareText(next.text), searchText);
         if (found !== undefined) {
           this.#across.get(id)?.set(before, [
             { span: toSpan(before, found.first), page: first },
@@ -345,7 +346,7 @@ export class MarkLocator {
     const after = ({ text }: PageText, at: number) => text.slice(at, at + around);
     const pages = [ ...this.#texts ].sort(([ one ], [ other ]) => one - other);
     return pages.flatMap(([ number, page ]) => {
-      const whole = findQuote(page.text, searchText).map(match => {
+      const whole = findQuote(prepareText(page.text), searchText).map(match => {
         const span = toSpan(number, match);
         const likeness = getContextLikeness(anchor, before(page, span.start), after(page, span.end));
         return { read: [ { span, page } ], likeness };
@@ -354,7 +355,7 @@ export class MarkLocator {
       if (next === undefined) {
         return whole;
       }
-      const across = findQuoteAcrossPages(page.text, next.text, searchText);
+      const across = findQuoteAcrossPages(prepareText(page.text), prepareText(next.text), searchText);
       if (across === undefined) {
         return whole;
       }
