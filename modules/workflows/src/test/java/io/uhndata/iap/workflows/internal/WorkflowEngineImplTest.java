@@ -214,6 +214,59 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void recordsWhomADelegateActedFor() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final Resource created = this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow");
+        assertNotNull(created);
+        assertEquals(EngineFixture.REQUESTER, created.getValueMap().get("createdBy"));
+    }
+
+    @Test
+    void refusesADelegateActingForSomeoneTheStartEventDoesNotName() throws Exception
+    {
+        // The administrator would pass any start event, but the event counts as the requester's, and they do not
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void refusesASenderOutsideTheDelegatesGroup() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+    }
+
+    @Test
+    void asksItsDelegationPolicyWhoMayActForOthers() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+        final WorkflowEngineImpl engine = engine();
+        EngineFixture.inject(engine, "delegation", EngineFixture.delegation(EngineFixture.REQUESTERS));
+
+        assertEquals("/Workflows/myCoolWorkflow", engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER)
+            .getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
     void tellsTheHandlerWhoItIsActingFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
