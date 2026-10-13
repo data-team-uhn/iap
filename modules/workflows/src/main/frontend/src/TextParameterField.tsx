@@ -23,30 +23,40 @@ import {
   TextField,
 } from "@mui/material";
 
-import { baseFieldProps, commitProps, noneItem, optionLabel, ParameterText, picker } from "./parameterWidget";
+import { fromSingle, refusal, singleValue, splitList } from "./parameterValues";
+import {
+  baseFieldProps,
+  commitProps,
+  noneItem,
+  optionLabel,
+  ParameterText,
+  picker,
+  useVisited,
+  valueProblems,
+} from "./parameterWidget";
 import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
 import type { Parameter } from "./workflowTypes";
 
-// What is wrong with how many values a list holds, as the server would report it, or nothing. An empty
-// list of a required parameter is left to the field's own required marker.
-function countProblem(parameter: Parameter, values: string[]): string | undefined {
+// What is wrong with how many values a list holds, as the server would report it. An empty
+// list of a required parameter is reported as missing a value instead.
+function countProblems(parameter: Parameter, values: string[]): string[] {
   if (values.length > 0 && values.length < parameter.minValues) {
-    return `At least ${parameter.minValues} values are needed`;
+    return [ `At least ${parameter.minValues} values are needed` ];
   }
   if (parameter.maxValues > 0 && values.length > parameter.maxValues) {
-    return `At most ${parameter.maxValues} values are accepted`;
+    return [ `At most ${parameter.maxValues} values are accepted` ];
   }
-  return undefined;
+  return [];
 }
 
 // A parameter edited as text: typed freely, or picked from the values its entry offers. This is also
 // the field for any type that has none of its own.
 export default function TextParameterField(props: ParameterFieldProps) {
   const { parameter, values, onChange, onCommit, commaSeparated = false, readOnly = false } = props;
-  const base = baseFieldProps(parameter);
-  const single = values.at(0) ?? "";
+  const [ visited, visit ] = useVisited();
+  const single = singleValue(values);
   const constrained = parameter.options.length > 0;
 
   const pick = picker(props);
@@ -58,7 +68,8 @@ export default function TextParameterField(props: ParameterFieldProps) {
   // Several values are always picked or typed as chips, since a list has no natural single control.
   // They are free-form when the parameter constrains nothing, and a closed list when it does.
   if (isMultiple(parameter)) {
-    const problem = countProblem(parameter, values);
+    const base = baseFieldProps(parameter,
+      [ ...valueProblems(parameter, values, visited), ...countProblems(parameter, values) ]);
     return (
       <Autocomplete
         multiple
@@ -68,36 +79,44 @@ export default function TextParameterField(props: ParameterFieldProps) {
         options={parameter.options.map(option => option.value)}
         getOptionLabel={value => optionLabel(parameter, value)}
         value={values}
-        onChange={(_event, next) => pick(commaSeparated
-          ? next.flatMap(value => value.split(",").map(part => part.trim()).filter(Boolean))
-          : next)}
+        onChange={(_event, next) => pick(commaSeparated ? next.flatMap(splitList) : next)}
+        onBlur={visit}
         renderValue={(selected, getItemProps) => selected.map((value, index) => {
           const { key, ...itemProps } = getItemProps({ index });
-          return <Chip key={key} label={optionLabel(parameter, value)} size="small" {...itemProps} />;
+          return (
+            <Chip
+              key={key}
+              label={optionLabel(parameter, value)}
+              size="small"
+              color={refusal(parameter, value) === undefined ? "default" : "error"}
+              {...itemProps}
+            />
+          );
         })}
         renderInput={parameters => (
           <TextField
             {...parameters}
             label={base.label}
             required={base.required}
-            error={problem !== undefined}
-            helperText={problem ?? base.helperText}
+            error={base.error}
+            helperText={base.helperText}
           />
         )}
       />
     );
   }
 
+  const base = baseFieldProps(parameter, valueProblems(parameter, values, visited));
   return (
     <TextField
       select={constrained}
       {...base}
       value={single}
-      onChange={event => {
-        const typed = event.target.value;
-        (constrained ? pick : onChange)(typed === "" ? [] : [ typed ]);
-      }}
-      {...commitProps(() => onCommit(values))}
+      onChange={event => (constrained ? pick : onChange)(fromSingle(event.target.value))}
+      {...commitProps(() => {
+        visit();
+        onCommit(values);
+      })}
     >
       { constrained && !base.required && noneItem() }
       {

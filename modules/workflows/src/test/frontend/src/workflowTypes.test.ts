@@ -18,7 +18,7 @@
 
 import { BpmnModdle } from "bpmn-moddle";
 
-import { localName } from "@iap/workflows/moddle";
+import { elementName, localName } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
 import {
   forgetWorkflowTypes,
@@ -175,6 +175,7 @@ describe("parseWorkflowTypes", () => {
       xmlLocation: "extensionElement",
       xmlPath: [],
       options: [],
+      parameters: [],
     });
   });
 
@@ -192,14 +193,23 @@ describe("parseWorkflowTypes", () => {
     ]);
   });
 
-  it("tells a structure from a parameter holding text", () => {
+  it("reads the fields of a structure, and the one that keys it, at every level", () => {
     const types = parseWorkflowTypes({
-      items: {
-        Activities: [ { ...SERVICE_TASK, parameters: [ { name: "fields", dataType: "structure" }, { name: "name" } ] } ],
-      },
+      items: { Activities: [ { ...SERVICE_TASK, parameters: [ {
+        name: "fields", dataType: "structure", keyParameter: "name", parameters: [
+          { name: "name" },
+          { name: "choices", dataType: "structure", parameters: [ { name: "value" }, { label: "nameless" } ] },
+        ],
+      } ] } ] },
     });
 
-    expect(types[0].parameters.map(isStructure)).toEqual([ true, false ]);
+    const [ fields ] = types[0].parameters;
+    expect(isStructure(fields)).toBe(true);
+    expect(fields.keyParameter).toBe("name");
+    expect(fields.parameters?.map(field => field.name)).toEqual([ "name", "choices" ]);
+    expect(fields.parameters?.[1].parameters?.map(field => field.name)).toEqual([ "value" ]);
+    expect(fields.parameters?.[0].keyParameter).toBeUndefined();
+    expect(isStructure(fields.parameters?.[0] ?? fields)).toBe(false);
   });
 
   it("reads a parameter that names no data type as text", () => {
@@ -341,6 +351,18 @@ describe("matching an element against the vocabulary", () => {
       .toEqual([ "SetState", "ServiceTask" ]);
   });
 
+  it("reads a BPMN type with no descriptor the way the document writes it, and any other as named", () => {
+    const timed = { $type: "bpmn:BoundaryEvent", eventDefinitions: [ { $type: "bpmn:TimerEventDefinition" } ] };
+    const types = parseWorkflowTypes({ items: { Events: [
+      { name: "Timer", xmlElement: "bpmn:boundaryEvent", xmlChildElement: "bpmn:timerEventDefinition",
+        jcrNodeType: "wf:Event" },
+    ] } });
+
+    expect(matchFlowNodeType(timed, types)?.name).toBe("Timer");
+    expect(elementName({ $type: "bpmn:ServiceTask" })).toBe("serviceTask");
+    expect(elementName({ $type: "iap:SetState" })).toBe("SetState");
+  });
+
   it("offers nothing for an element the vocabulary does not describe", () => {
     expect(selectableTypes(bpmnElement("SequenceFlow"), documented())).toEqual([]);
     expect(selectableTypes({}, documented())).toEqual([]);
@@ -367,6 +389,31 @@ describe("matching an element against the vocabulary", () => {
     expect(selectableTypes(bpmnElement("ServiceTask"), documented()).map(type => type.name))
       .toEqual([ "SetState", "ServiceTask" ]);
     expect(selectableTypes(bpmnElement("ExclusiveGateway"), documented())).toEqual([]);
+  });
+
+  it("compares element names exactly, in the case a document writes them, as the server does", async () => {
+    const { rootElement } = await new BpmnModdle().fromXML(`<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="d" targetNamespace="x">
+  <bpmn:process id="p">
+    <bpmn:serviceTask id="task" />
+    <bpmn:boundaryEvent id="timer" attachedToRef="task">
+      <bpmn:timerEventDefinition />
+    </bpmn:boundaryEvent>
+  </bpmn:process>
+</bpmn:definitions>`);
+    const [ task, timer ] = ((rootElement as ModdleElement).rootElements as ModdleElement[])[0]
+      .flowElements as ModdleElement[];
+    const matching = (element: ModdleElement, entry: { xmlElement: string; xmlChildElement?: string }) =>
+      matchFlowNodeType(element, parseWorkflowTypes({ items: { Activities: [
+        { name: "Entry", jcrNodeType: "wf:Activity", ...entry },
+      ] } }))?.name;
+
+    expect(matching(task, { xmlElement: "bpmn:ServiceTask" })).toBeUndefined();
+    expect(matching(task, { xmlElement: "bpmn:serviceTask" })).toBe("Entry");
+    expect(matching(timer, { xmlElement: "bpmn:boundaryEvent", xmlChildElement: "bpmn:TimerEventDefinition" }))
+      .toBeUndefined();
+    expect(matching(timer, { xmlElement: "bpmn:boundaryEvent", xmlChildElement: "bpmn:timerEventDefinition" }))
+      .toBe("Entry");
   });
 
   it("looks for a required child among every BPMN child the element is written with", async () => {

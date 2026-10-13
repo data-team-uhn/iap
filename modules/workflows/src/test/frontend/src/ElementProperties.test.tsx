@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import ElementProperties from "@iap/workflows/ElementProperties";
@@ -24,10 +24,12 @@ import { IAP_NS } from "@iap/workflows/moddle";
 import type { ModdleElement } from "@iap/workflows/moddle";
 import type { FlowNodeType } from "@iap/workflows/workflowTypes";
 
+import { createCanvas } from "./canvas.fixture";
 import { Themed } from "./parameterField.fixture";
 import {
   bpmnElement,
   carrying,
+  COLOUR,
   iapElement,
   moddleElement,
   parameter,
@@ -41,11 +43,10 @@ import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
 
 // Renaming and every parameter edit go through the canvas's `modeling` service, and are read back
-// through the document its `moddle` service builds elements with. These are the only parts of bpmn-js
-// this component touches.
+// through the document its `moddle` service builds elements with. What is still pending is written
+// through its command stack as the selection changes, unless its registry or its events say the
+// element has gone.
 const createViewer = () => {
-  const updateLabel = vi.fn();
-  const updateModdleProperties = vi.fn();
   const definitions: ModdleElement = { $attrs: { "xmlns:iap": IAP_NS }, set: vi.fn() };
   const moddle = {
     create: vi.fn((type: string, attributes: Record<string, unknown> = {}) => ({ $type: type, ...attributes })),
@@ -54,11 +55,8 @@ const createViewer = () => {
       return moddleElement(name, { ...attributes, set: vi.fn() }, { prefix, uri });
     }),
   };
-  const viewer = {
-    get: vi.fn((service: string) => service === "moddle" ? moddle : { updateLabel, updateModdleProperties }),
-    getDefinitions: vi.fn(() => definitions),
-  } as unknown as BaseViewer;
-  return { viewer, updateLabel, updateModdleProperties, moddle, definitions };
+  const canvas = createCanvas({ moddle }, definitions);
+  return { ...canvas, moddle, definitions, destroy: () => canvas.fire("diagram.destroy") };
 };
 
 const VOCABULARY = [ SET_STATE, RETIRE_ACTIVE_VERSIONS, SERVICE_TASK ];
@@ -80,11 +78,15 @@ const field = (label: string) => screen.getByLabelText(new RegExp(`^${label}`));
 
 const noField = (label: string) => screen.queryByLabelText(new RegExp(`^${label}`));
 
+// Rendered for an element on the canvas, as a selected one always is.
 const renderProperties = (
   element: Element,
   viewer: BaseViewer,
-  props: { readOnly?: boolean; types?: readonly FlowNodeType[]; revision?: number } = {}
-) => render(<ElementProperties element={element} viewer={viewer} {...props} />, { wrapper: Themed });
+  props: { readOnly?: boolean; types?: readonly FlowNodeType[]; revision?: number; onDraft?: () => void } = {}
+) => {
+  viewer.get<{ add: (element: Element) => void }>("elementRegistry").add(element);
+  return render(<ElementProperties element={element} viewer={viewer} {...props} />, { wrapper: Themed });
+};
 
 describe("ElementProperties", () => {
   it("shows the element's identifier and name", () => {
@@ -136,9 +138,10 @@ describe("ElementProperties", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("renames the element through the modeling service once the name is left", async () => {
+  it("renames the element as one step to undo once the name is left", async () => {
     const user = userEvent.setup();
-    const { viewer, updateLabel } = createViewer();
+    const { viewer, updateLabel, commandStack, writeThrough } = createViewer();
+    writeThrough();
     const element = { id: "Task_1", businessObject: {} } as unknown as Element;
     renderProperties(element, viewer);
 
@@ -147,9 +150,11 @@ describe("ElementProperties", () => {
     expect(screen.getByRole("textbox")).toHaveValue("Hi");
     await user.tab();
 
-    expect(viewer.get).toHaveBeenCalledWith("modeling");
     expect(updateLabel).toHaveBeenCalledTimes(1);
     expect(updateLabel).toHaveBeenCalledWith(element, "Hi");
+    commandStack.undo();
+    expect((element.businessObject as ModdleElement).name).toBeUndefined();
+    expect(commandStack.canUndo()).toBe(false);
   });
 
   it("renames the element when Enter is pressed in the name", async () => {
@@ -213,9 +218,8 @@ describe("ElementProperties", () => {
   it("reports the kind of node as text when there is only one it could be", () => {
     const { viewer } = createViewer();
 
-    renderProperties(task("Kick off", {
-      $descriptor: { ns: { prefix: "bpmn", localName: "StartEvent" } },
-    }), viewer, { types: [ type("StartEvent", { label: "Start event", xmlElement: "bpmn:startEvent" }) ] });
+    renderProperties({ id: "start", businessObject: bpmnElement("StartEvent", { name: "Kick off" }) } as unknown as Element,
+      viewer, { types: [ type("StartEvent", { label: "Start event", xmlElement: "bpmn:startEvent" }) ] });
 
     expect(screen.getByText("Type: Start event")).toBeInTheDocument();
     expect(noField("Type")).not.toBeInTheDocument();
@@ -278,6 +282,21 @@ describe("ElementProperties", () => {
     expect(updateModdleProperties).toHaveBeenCalledTimes(1);
     expect(updateModdleProperties)
       .toHaveBeenCalledWith(element, element.businessObject, { "iap:hostTag": "promoted" });
+  });
+
+  it("says something is being typed before any of it is written", async () => {
+    // Nothing reaches the command stack until the field is left, so this is the only sign of a change
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const onDraft = vi.fn();
+    renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer, { types: VOCABULARY, onDraft });
+
+    await user.type(screen.getByDisplayValue("Promote"), "d");
+    expect(onDraft).toHaveBeenCalledTimes(1);
+    await user.type(field("Colour"), "p");
+
+    expect(onDraft).toHaveBeenCalledTimes(2);
+    expect(updateModdleProperties).not.toHaveBeenCalled();
   });
 
   it("writes nothing for a field visited and left unchanged", async () => {
@@ -372,13 +391,183 @@ describe("ElementProperties", () => {
     expect(updateModdleProperties).not.toHaveBeenCalled();
   });
 
-  it("offers no field for a structure", () => {
-    const { viewer } = createViewer();
-    const target = parameter("target", { label: "Target", dataType: "structure" });
-    renderProperties(task("Configure"), viewer,
-      { types: [ type("Configure", { parameters: [ target, parameter("note", { label: "Note" }) ] }) ] });
+  it("writes a structure's field once it is left, and nothing when it is left unchanged", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const target = parameter("target", {
+      label: "Target", dataType: "structure", parameters: [ parameter("path", { label: "Path" }) ],
+    });
+    const record = iapElement("target", { path: "/a" });
+    const configure = iapElement("configure", { $children: [ record ] });
+    const element = task("Configure", carrying(configure));
+    renderProperties(element, viewer,
+      { types: [ type("Configure", { xmlExtensionElement: "configure", parameters: [ target ] }) ] });
 
-    expect(field("Note")).toBeInTheDocument();
-    expect(noField("Target")).not.toBeInTheDocument();
+    await user.click(await screen.findByLabelText("Path"));
+    await user.tab();
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText("Path"), "b{enter}");
+
+    expect(updateModdleProperties).toHaveBeenCalledTimes(1);
+    expect(updateModdleProperties).toHaveBeenCalledWith(element, record, { path: "/ab" });
+  });
+
+  it("writes nothing for a field the element no longer has after an undo, rather than bringing it back", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+
+    await user.type(field("To state"), "D");
+    // The kind changed back, and the panel has not been told yet
+    (element.businessObject as ModdleElement).extensionElements = { values: [] };
+    await user.tab();
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+});
+
+describe("ElementProperties when the selection changes mid-edit", () => {
+  // As selecting another element does, without the field being left first
+  it("writes the name still being typed", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel, fire } = createViewer();
+    const element = { id: "Task_1", businessObject: {} } as unknown as Element;
+    renderProperties(element, viewer);
+
+    await user.type(screen.getByRole("textbox"), "Hi");
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).toHaveBeenCalledTimes(1);
+    expect(updateLabel).toHaveBeenCalledWith(element, "Hi");
+  });
+
+  it("writes the text and the whole number still being typed", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, fire } = createViewer();
+    const retries = parameter("retries", { label: "Retries", dataType: "long", xmlLocation: "attribute" });
+    const element = task("Retry");
+    renderProperties(element, viewer, { types: [ type("Retrying", { parameters: [ COLOUR, retries ] }) ] });
+
+    await user.type(field("Colour"), "red");
+    await user.type(field("Retries"), "3");
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateModdleProperties).toHaveBeenCalledTimes(2);
+    expect(updateModdleProperties).toHaveBeenCalledWith(element, element.businessObject, { "iap:colour": "red" });
+    expect(updateModdleProperties).toHaveBeenCalledWith(element, element.businessObject, { "iap:retries": "3" });
+  });
+
+  it("writes everything pending as one step to undo", async () => {
+    const { viewer, commandStack, writeThrough, fire } = createViewer();
+    writeThrough();
+    const element = task("Promote");
+    renderProperties(element, viewer, { types: [ type("Colourful", { parameters: [ COLOUR ] }) ] });
+
+    // Leaving a field writes it, so both are typed into without either being left
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Promoted" } });
+    fireEvent.change(field("Colour"), { target: { value: "red" } });
+    await fire("selection.changed", { newSelection: [] });
+    const businessObject = element.businessObject as ModdleElement;
+    expect(businessObject.name).toBe("Promoted");
+    expect(businessObject.$attrs?.["iap:colour"]).toBe("red");
+
+    commandStack.undo();
+
+    expect(businessObject.name).toBe("Promote");
+    expect(businessObject.$attrs?.["iap:colour"]).toBeUndefined();
+    expect(commandStack.canUndo()).toBe(false);
+  });
+
+  it("writes nothing when nothing is pending", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel, updateModdleProperties, fire } = createViewer();
+    renderProperties(task("Promote", carrying(setState("ACTIVE", []))), viewer, { types: VOCABULARY });
+
+    await user.type(field("To state"), "D{enter}");
+    updateModdleProperties.mockClear();
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).not.toHaveBeenCalled();
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing once the panel has gone without the selection changing", async () => {
+    // As it does when the canvas is replaced, which is not the one the draft belongs to
+    const user = userEvent.setup();
+    const { viewer, updateLabel, fire } = createViewer();
+    const { unmount } = renderProperties({ id: "Task_1", businessObject: {} } as unknown as Element, viewer);
+
+    await user.type(screen.getByRole("textbox"), "Hi");
+    unmount();
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [ "destroyed", (canvas: ReturnType<typeof createViewer>) => canvas.fire("diagram.destroy") ],
+    [ "cleared for another diagram", (canvas: ReturnType<typeof createViewer>) => canvas.fire("diagram.clear") ],
+    [ "rid of the element", (canvas: ReturnType<typeof createViewer>, element: Element) =>
+      canvas.fire("shape.remove", { element }) ],
+    [ "no longer holding the element", (canvas: ReturnType<typeof createViewer>) => {
+      canvas.registered.clear();
+      return Promise.resolve();
+    } ],
+  ])("writes nothing into a canvas %s", async (_case, leave) => {
+    const user = userEvent.setup();
+    const canvas = createViewer();
+    const element = { id: "Task_1", businessObject: {} } as unknown as Element;
+    renderProperties(element, canvas.viewer);
+
+    await user.type(screen.getByRole("textbox"), "Hi");
+    await leave(canvas, element);
+    await canvas.fire("selection.changed", { newSelection: [] });
+
+    expect(canvas.updateLabel).not.toHaveBeenCalled();
+  });
+
+  it("writes the name of an element other than one removed", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel, fire } = createViewer();
+    const element = { id: "Task_1", businessObject: {} } as unknown as Element;
+    renderProperties(element, viewer);
+
+    await user.type(screen.getByRole("textbox"), "Hi");
+    await fire("connection.remove", { element: { id: "Flow_1" } });
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).toHaveBeenCalledWith(element, "Hi");
+  });
+
+  it("writes the name of the element that replaced the one removed under the same id", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel, fire } = createViewer();
+    const removed = { id: "Task_1", businessObject: { name: "Task" } } as unknown as Element;
+    const { rerender } = renderProperties(removed, viewer);
+    const replacement = { id: "Task_1", businessObject: { name: "Task" } } as unknown as Element;
+
+    // As changing an element's type on the canvas does
+    await fire("shape.remove", { element: removed });
+    viewer.get<{ add: (element: Element) => void }>("elementRegistry").add(replacement);
+    rerender(<ElementProperties element={replacement} viewer={viewer} />);
+    await user.type(screen.getByRole("textbox"), "!");
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateLabel).toHaveBeenCalledTimes(1);
+    expect(updateLabel).toHaveBeenCalledWith(replacement, "Task!");
+  });
+
+  it("writes nothing for a field of the entry the element meant before an undo", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, fire } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+
+    await user.type(field("To state"), "D");
+    (element.businessObject as ModdleElement).extensionElements = { values: [] };
+    await fire("selection.changed", { newSelection: [] });
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
   });
 });

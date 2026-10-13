@@ -71,6 +71,10 @@ export interface Parameter {
   // The node type a reference-typed value has to point at, when the entry names one.
   referenceType?: string;
   options: ParameterOption[];
+  // For a structure, its fields. Absent or empty for any other type.
+  parameters?: Parameter[];
+  // For a repeated structure, the field whose value names each element.
+  keyParameter?: string;
 }
 
 // One kind of workflow node: the BPMN element it is drawn as, what else an element needs to mean this
@@ -117,6 +121,9 @@ const STRUCTURE = "structure";
 
 export const isStructure = (parameter: Parameter): boolean => parameter.dataType === STRUCTURE;
 
+// The fields of a structure, in the order they are declared.
+export const fieldsOf = (parameter: Parameter): Parameter[] => parameter.parameters ?? [];
+
 // An element name as the rest of this module compares it. The server keeps only the local part, so an
 // entry naming `iap:notify` and one naming `notify` mean the same element.
 const bareName = (value: unknown): string | undefined => {
@@ -152,6 +159,8 @@ function parseParameter(raw: unknown): Parameter | undefined {
     xmlPath: text(raw.xmlPath).split("/").map(step => localName(step.trim())).filter(Boolean),
     referenceType: optionalText(raw.referenceType),
     options: Array.isArray(raw.options) ? raw.options.flatMap(option => parseOption(option) ?? []) : [],
+    parameters: Array.isArray(raw.parameters) ? raw.parameters.flatMap(field => parseParameter(field) ?? []) : [],
+    keyParameter: optionalText(raw.keyParameter),
   };
 }
 
@@ -232,10 +241,6 @@ function childElementNames(businessObject: ModdleElement): string[] {
     : bpmnChildren(businessObject).map(child => child.name);
 }
 
-// The BPMN elements have a case of their own in the model (`ServiceTask`) and another in a document
-// (`bpmn:serviceTask`), so element names are compared case-insensitively throughout.
-const comparable = (qualified: string): string => localName(qualified).toLowerCase();
-
 // Entry names ranked by code unit rather than by locale, which is the order the server ranks them in.
 // Never asked about two equal names: the vocabulary is deduped by name before anything is sorted.
 const byName = (one: string, other: string): number => one < other ? -1 : 1;
@@ -244,8 +249,8 @@ const byName = (one: string, other: string): number => one < other ? -1 : 1;
 // anything about the element's own content is taken into account. Name breaks a tie, so two entries of
 // equal priority are ranked the same way here as on the server.
 function candidateTypes(businessObject: ModdleElement, types: readonly FlowNodeType[]): FlowNodeType[] {
-  const drawn = comparable(elementName(businessObject));
-  return drawn === "" ? [] : types.filter(type => comparable(type.xmlElement) === drawn)
+  const drawn = elementName(businessObject);
+  return drawn === "" ? [] : types.filter(type => localName(type.xmlElement) === drawn)
     .sort((one, other) => other.priority - one.priority || byName(one.name, other.name));
 }
 
@@ -256,10 +261,10 @@ function applicableTypes(
   businessObject: ModdleElement,
   types: readonly FlowNodeType[]
 ): FlowNodeType[] {
-  const children = new Set(childElementNames(businessObject).map(comparable));
+  const children = new Set(childElementNames(businessObject));
   return candidateTypes(businessObject, types)
     .filter(type => (type.jcrNodeType ?? "").trim() !== "")
-    .filter(type => type.xmlChildElement === undefined || children.has(comparable(type.xmlChildElement)));
+    .filter(type => type.xmlChildElement === undefined || children.has(localName(type.xmlChildElement)));
 }
 
 // The applicable entries a change of kind can actually reach. Choosing an entry only brings its

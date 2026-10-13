@@ -48,6 +48,8 @@ interface PropertiesPanelProps {
   types?: readonly FlowNodeType[];
   // When true, the selected element's properties are shown as text rather than in editable fields.
   readOnly?: boolean;
+  // Handed to the selected element's properties.
+  onDraft?: () => void;
 }
 
 export default function PropertiesPanel(props: PropertiesPanelProps) {
@@ -55,6 +57,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
     viewer,
     types,
     readOnly = false,
+    onDraft,
   } = props;
 
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
@@ -74,6 +77,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
     if (!viewer) {
       return undefined;
     }
+    // ElementProperties writes what is still being typed into the element being left before this runs
     const selectionChanged = (event: SelectionChangedEvent) => {
       setSelectedElements(event.newSelection);
       setElement(event.newSelection[0] ?? null);
@@ -109,6 +113,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
             types={ types }
             revision={ revision }
             readOnly={ readOnly }
+            onDraft={ onDraft }
           />
       }
 

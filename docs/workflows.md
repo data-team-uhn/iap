@@ -280,7 +280,9 @@ value. The shipped entries declare three of these. The timer entries take `timeD
 </bpmn:boundaryEvent>
 ```
 
-The boundary event entries take `cancelActivity`, a boolean BPMN attribute. `SequenceFlow`, a
+The boundary event entries take `cancelActivity`, a boolean BPMN attribute. The properties panel shows one
+a diagram leaves out as BPMN's default, true, since saving never writes a value equal to that default. The
+parser then stores nothing, and the node type defaults it to true as well. `SequenceFlow`, a
 `wf:SequenceFlowType` entry, takes an arc's `conditionExpression`. An arc is stored as a `wf:SequenceFlow`
 inside the node it leaves whichever entry it matches, so its entry only adds parameters; `elementId`,
 `targetRef`, `label` and `isDefault` come from the arc itself. A message event's `messageName` is not a
@@ -289,8 +291,8 @@ parameter: it is the name of the message its `messageRef` points at, which the p
 **A parameter whose configuration is a record, or a list of records, is a `structure`.** Its fields are the
 `wf:Parameter` nodes under its `parameters` child, a `wf:Parameters` node, in the order they are declared,
 and they may be structures in turn. Held apart from the structure's own properties, a field may take any
-name, `label` and `dataType` included. A parameter declared directly under another one is not read, and each
-parse of an element of that entry's kind reports it by its path:
+name, `label` and `dataType` included. A parameter declared directly under another one is read by neither the
+parser nor the properties panel, and each parse of an element of that entry's kind reports it by its path:
 
 ```json
 "fields": {
@@ -330,6 +332,25 @@ are of the structure's `jcrNodeType`, `nt:unstructured` when it names none. The 
 `fields/workflow`, holding `label`, `referenceType`, `referenceRoot`, `choices/a` and `appliesWhen`. Every check
 a parameter gets applies to each field at every level, and a problem names the field by its path,
 `fields/workflow/label`.
+
+The properties panel edits a structure in `StructureParameterField`, the one field given records rather than
+strings: each record holds the values of each field by name, recursively (`StructureRecord` in
+`parameterValues.ts`). A single structure is a group of its fields. A repeated one is a list of records titled
+by their key, which can be added, removed and moved. Each field is rendered through `ParameterField`, as a
+parameter of the entry is. A finished edit is written on the deepest element it changes: one field of one
+record is set on that record's element, and adding, removing or moving records rewrites the list, keeping the
+element of every record left unchanged.
+
+A typed value is written when its field is left or Enter is pressed, so that each finished edit is one step
+to undo. One still being typed when the panel goes away, as when another element is selected, is written then,
+unless its canvas was destroyed or the element is gone. The editor counts as having unsaved changes from the
+first keystroke, so leaving the page asks first even before the value is written. An edit is only written for the entry the element
+still means: after an undo removed the entry's extension element, nothing brings it back. Each field flags a
+value its type cannot store (a `long` that is no whole number, a `boolean` that is neither `true` nor
+`false`) and, once it has been left, a required parameter with no value it can store, as the parser would
+report them. A repeated structure flags a record whose trimmed key an earlier record already has, which the
+parser drops. The panel matches element names exactly, as the parser does: a vocabulary's
+`bpmn:serviceTask` matches, `bpmn:ServiceTask` does not.
 
 Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
 STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a

@@ -211,4 +211,43 @@ describe("a parameter taking several values", () => {
 
     expect(onChange).toHaveBeenCalledWith([ "DRAFT", "ACTIVE" ]);
   });
+  it("asks for a required value once it has been left empty, and not before", async () => {
+    const { user } = renderField(TextParameterField, { minValues: 1, description: "Where it goes" }, [ "  " ]);
+    expect(screen.queryByText("A value is required")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("textbox"));
+    await user.tab();
+
+    expect(screen.getByText("A value is required")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Where it goes")).not.toBeInTheDocument();
+  });
+
+  it("asks for nothing when it is optional and left empty", async () => {
+    const { user } = renderField(TextParameterField, { maxValues: 0 });
+
+    await user.click(screen.getByRole("combobox"));
+    await user.tab();
+
+    expect(screen.queryByText("A value is required")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("asks for a required list once it has been left empty", async () => {
+    const { user } = renderField(TextParameterField, { minValues: 1, maxValues: 0 });
+
+    await user.click(screen.getByRole("combobox"));
+    await user.tab();
+
+    expect(screen.getByText("A value is required")).toBeInTheDocument();
+  });
+
+  it("flags a value in a list that its type cannot store", () => {
+    renderField(TextParameterField, { dataType: "long", maxValues: 0 }, [ "1", "abc", "+3" ]);
+
+    expect(screen.getByText('"abc" is not a whole number, so it will be ignored')).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "abc" })).toHaveClass("MuiChip-colorError");
+    expect(screen.getByRole("button", { name: "1" })).not.toHaveClass("MuiChip-colorError");
+    expect(screen.getByRole("button", { name: "+3" })).not.toHaveClass("MuiChip-colorError");
+  });
 });

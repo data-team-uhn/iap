@@ -16,24 +16,28 @@
  * limitations under the License.
  */
 
+import { useState } from "react";
 import type { ComponentType } from "react";
 
 import { MenuItem, Typography } from "@mui/material";
 
+import { refusal, textValues, usableValues } from "./parameterValues";
 import { isRequired } from "./workflowTypes";
 
+import type { ParameterValue } from "./parameterValues";
 import type { Parameter } from "./workflowTypes";
 
-// What a field editing one parameter is given, whatever the parameter's type.
-export interface ParameterFieldProps {
+// What a field editing one parameter is given, whatever the parameter's type. A value is text, except in
+// the field for a structure, which is given its records.
+export interface ParameterFieldProps<Value = string> {
   parameter: Parameter;
   // Always a list, whatever the parameter's cardinality: empty means unset.
-  values: string[];
+  values: Value[];
   // While a value is being typed, so that what was typed is what is shown
-  onChange: (values: string[]) => void;
+  onChange: (values: Value[]) => void;
   // When a value is finished: a field left, Enter pressed, an option picked. This is what is written into
   // the diagram, so each finished edit is one step to undo rather than one per keystroke
-  onCommit: (values: string[]) => void;
+  onCommit: (values: Value[]) => void;
   // Whether the list is stored joined with commas. A comma typed into a value then starts a second one,
   // so the field splits it there rather than showing one chip that rereads as two.
   commaSeparated?: boolean;
@@ -43,8 +47,8 @@ export interface ParameterFieldProps {
 export type ParameterWidget = ComponentType<ParameterFieldProps>;
 
 // What a choice is reported with: one made from a list or a button is finished the moment it is made.
-export function picker({ onChange, onCommit }: Pick<ParameterFieldProps, "onChange" | "onCommit">) {
-  return (next: string[]) => {
+export function picker<Value>({ onChange, onCommit }: Pick<ParameterFieldProps<Value>, "onChange" | "onCommit">) {
+  return (next: Value[]) => {
     onChange(next);
     onCommit(next);
   };
@@ -60,11 +64,30 @@ export const commitProps = (commit: () => void) => ({
   },
 });
 
-// What every parameter's field shows of the parameter itself.
-export const baseFieldProps = (parameter: Parameter) => ({
+// Whether a field has been left at least once. A field asks for a required value only after that, so
+// that selecting a node does not flag every field it has before anything could be typed.
+export function useVisited() {
+  const [ visited, setVisited ] = useState(false);
+  return [ visited, () => setVisited(true) ] as const;
+}
+
+// What a required parameter with no value the server can store is flagged with.
+export const REQUIRED_PROBLEM = "A value is required";
+
+// What is wrong with a field's values, as the server would report it. That is a value it would drop,
+// and a required parameter left with no value it can store, once the field has been visited.
+export function valueProblems(parameter: Parameter, values: readonly ParameterValue[], visited: boolean): string[] {
+  const refused = textValues(values).flatMap(value => refusal(parameter, value) ?? []);
+  const missing = visited && isRequired(parameter) && usableValues(parameter, values).length === 0;
+  return [ ...refused.slice(0, 1), ...missing ? [ REQUIRED_PROBLEM ] : [] ];
+}
+
+// What every parameter's field shows of the parameter itself, and of what is wrong with its values.
+export const baseFieldProps = (parameter: Parameter, problems: readonly string[] = []) => ({
   label: parameter.label,
   required: isRequired(parameter),
-  helperText: parameter.description,
+  error: problems.length > 0,
+  helperText: problems.length > 0 ? problems.join(". ") : parameter.description,
   fullWidth: true,
 });
 

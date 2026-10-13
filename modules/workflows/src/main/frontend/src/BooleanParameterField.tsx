@@ -18,17 +18,18 @@
 
 import { MenuItem, TextField } from "@mui/material";
 
-import { baseFieldProps, noneItem, ParameterText, picker } from "./parameterWidget";
+import { fromSingle, isBoolean, singleValue } from "./parameterValues";
+import { baseFieldProps, noneItem, ParameterText, picker, useVisited, valueProblems } from "./parameterWidget";
 import TextParameterField from "./TextParameterField";
 import { isMultiple } from "./workflowTypes";
 
 import type { ParameterFieldProps } from "./parameterWidget";
 
-// What the server would store: true or false in any case, as a diagram written by hand or by another
-// tool may spell it. It drops any other word, and the node type's default applies.
-function stored(value: string): "true" | "false" | undefined {
+// What the server would store, as the word the field picks. A diagram written by hand or by another
+// tool may spell it in any case. Any other word is dropped, and the node type's default applies.
+function stored(value: string): string | undefined {
   const word = value.trim().toLowerCase();
-  return word === "true" || word === "false" ? word : undefined;
+  return isBoolean(word) ? word : undefined;
 }
 
 const shown = (value: string): string => {
@@ -39,7 +40,8 @@ const shown = (value: string): string => {
 // A parameter holding yes or no. A list of them is typed the way text is.
 export default function BooleanParameterField(props: ParameterFieldProps) {
   const { parameter, values, readOnly = false } = props;
-  const single = values.at(0) ?? "";
+  const [ visited, visit ] = useVisited();
+  const single = singleValue(values);
 
   // Read as a word rather than as a tick nobody can move
   if (readOnly) {
@@ -51,9 +53,9 @@ export default function BooleanParameterField(props: ParameterFieldProps) {
   }
 
   const pick = picker(props);
-  const base = baseFieldProps(parameter);
-  // Shown as unset and flagged, so the author picks one rather than reading a value the server ignores
-  const ignored = single !== "" && stored(single) === undefined;
+  // A word the server ignores is shown as unset and flagged, so the author picks one rather than
+  // reading a value that is not there
+  const base = baseFieldProps(parameter, valueProblems(parameter, values, visited));
 
   // A choice of three rather than a tick: an optional yes-or-no left unset keeps the node type's own
   // default, which neither ticked nor unticked can say.
@@ -62,9 +64,8 @@ export default function BooleanParameterField(props: ParameterFieldProps) {
       select
       {...base}
       value={stored(single) ?? ""}
-      error={ignored}
-      helperText={ignored ? `"${single}" is not true or false, so it will be ignored` : base.helperText}
-      onChange={event => pick(event.target.value === "" ? [] : [ event.target.value ])}
+      onChange={event => pick(fromSingle(event.target.value))}
+      onBlur={visit}
     >
       { !base.required && noneItem() }
       <MenuItem value="true">Yes</MenuItem>

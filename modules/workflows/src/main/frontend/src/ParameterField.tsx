@@ -20,8 +20,12 @@ import { createElement } from "react";
 
 import BooleanParameterField from "./BooleanParameterField";
 import LongParameterField from "./LongParameterField";
+import { recordValues, textValues } from "./parameterValues";
+import StructureParameterField from "./StructureParameterField";
 import TextParameterField from "./TextParameterField";
+import { isStructure } from "./workflowTypes";
 
+import type { ParameterValue } from "./parameterValues";
 import type { ParameterFieldProps, ParameterWidget } from "./parameterWidget";
 
 // The field each data type is edited in. `reference` and `principal` values are typed as text.
@@ -31,7 +35,12 @@ const FIELDS: ReadonlyMap<string, ParameterWidget> = new Map([
 ]);
 
 // One editable value of the selected flow node, in the field for its parameter's type. A type with no
-// field of its own is edited as text, the one shape every value can be shown and typed in.
-export default function ParameterField(props: ParameterFieldProps) {
-  return createElement(FIELDS.get(props.parameter.dataType) ?? TextParameterField, props);
+// field of its own is edited as text, the one shape every value can be shown and typed in. Only the
+// field for a structure is given records.
+export default function ParameterField(props: ParameterFieldProps<ParameterValue>) {
+  if (isStructure(props.parameter)) {
+    return createElement(StructureParameterField, { ...props, values: recordValues(props.values) });
+  }
+  const field = FIELDS.get(props.parameter.dataType) ?? TextParameterField;
+  return createElement(field, { ...props, values: textValues(props.values) });
 }

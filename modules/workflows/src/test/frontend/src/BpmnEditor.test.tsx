@@ -17,11 +17,12 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
+import panelEditsModule from "@iap/workflows/panelEdits";
 import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
 import { forgetWorkflowTypes, WORKFLOW_TYPES_PATH } from "@iap/workflows/workflowTypes";
 
@@ -34,11 +35,13 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
   // What a test needs of a canvas: which class it came from, and the calls made on it
   interface Canvas {
     kind: string;
+    options: unknown;
     importXML: ReturnType<typeof vi.fn>;
     saveXML: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
     getDefinitions: ReturnType<typeof vi.fn>;
-    handlers: Map<string, (event: unknown) => void>;
+    get: ReturnType<typeof vi.fn>;
+    handlers: Map<string, ((event: unknown) => void)[]>;
   }
   const created: Canvas[] = [];
   // What every canvas created from now on does with the diagram it is handed
@@ -49,9 +52,15 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
     saveXML = vi.fn().mockResolvedValue({ xml: "<saved/>" });
     destroy = vi.fn();
     getDefinitions = vi.fn(() => ({}));
-    handlers = new Map<string, (event: unknown) => void>();
-    on = vi.fn((event: string, handler: (payload: unknown) => void) => this.handlers.set(event, handler));
-    off = vi.fn((event: string) => this.handlers.delete(event));
+    // Each event's subscribers in the order they came. A priority given ahead of a handler is dropped.
+    handlers = new Map<string, ((event: unknown) => void)[]>();
+    on = vi.fn((event: string, ...rest: unknown[]) => {
+      const handler = rest.find(argument => typeof argument === "function") as (payload: unknown) => void;
+      this.handlers.set(event, [ ...this.handlers.get(event) ?? [], handler ]);
+    });
+    off = vi.fn((event: string, handler: (payload: unknown) => void) => {
+      this.handlers.set(event, (this.handlers.get(event) ?? []).filter(subscribed => subscribed !== handler));
+    });
     get = vi.fn();
 
     constructor(public kind: string, public options: unknown) {
@@ -116,8 +125,8 @@ const vocabularyResponse = (url: string, status: number) => ({
   json: () => Promise.resolve(VOCABULARY),
 }) as unknown as Response;
 
-// A server answering the version's diagram with the given status and body, and the vocabulary with a
-// status of its own, so that a test can fail either request alone.
+// A server answering the version's diagram with the given status and body. The vocabulary gets a status
+// of its own, so that a test can fail either request alone.
 const stubFetch = (status = 200, body: string = DIAGRAM, vocabularyStatus = 200) => {
   const fetchMock = vi.fn((url: string) => {
     if (url === SESSION_INFO_URL) {
@@ -164,7 +173,7 @@ const serviceTask = (): Element => ({
   id: "checkBudget",
   businessObject: {
     $type: "bpmn:serviceTask",
-    $descriptor: { ns: { prefix: "bpmn", localName: "ServiceTask" } },
+    $descriptor: { ns: { prefix: "bpmn", localName: "ServiceTask" }, $pkg: { xml: { tagAlias: "lowerCase" } } },
     name: "Check the budget",
     $attrs: { "iap:handler": "checkBudget" },
   },
@@ -172,9 +181,16 @@ const serviceTask = (): Element => ({
 
 // Selecting an element is how the panel comes to show anything at all, and therefore how what it was
 // given can be seen.
-const select = async (canvas: { handlers: Map<string, (event: unknown) => void> }, element: Element) => {
-  await waitFor(() => expect(canvas.handlers.has("selection.changed")).toBe(true));
-  act(() => canvas.handlers.get("selection.changed")?.({ newSelection: [ element ] }));
+type Subscribers = Map<string, ((event: unknown) => void)[]>;
+
+const subscribed = (canvas: { handlers: Subscribers }, event: string) => (canvas.handlers.get(event) ?? []).length > 0;
+
+const fire = (canvas: { handlers: Subscribers }, event: string, payload: unknown) =>
+  (canvas.handlers.get(event) ?? []).forEach(handler => handler(payload));
+
+const select = async (canvas: { handlers: Subscribers }, element: Element) => {
+  await waitFor(() => expect(subscribed(canvas, "selection.changed")).toBe(true));
+  act(() => fire(canvas, "selection.changed", { newSelection: [ element ] }));
 };
 
 // A serializer is handed over and taken back as the canvas comes and goes; the latest one handed over
@@ -224,6 +240,8 @@ describe("BpmnEditor", () => {
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
     expect(instances[0].kind).toBe("modeler");
+    // Taught the command that writes the panel's pending edits as one step to undo
+    expect(instances[0].options).toMatchObject({ additionalModules: [ panelEditsModule ] });
   });
 
   it("hands over the means to serialize what is drawn, but only when editing", async () => {
@@ -267,12 +285,26 @@ describe("BpmnEditor", () => {
     const onDirtyChange = vi.fn();
     renderEditor({ editable: true, onDirtyChange });
 
-    await waitFor(() => expect(instances[0].handlers.has("commandStack.changed")).toBe(true));
+    await waitFor(() => expect(subscribed(instances[0], "commandStack.changed")).toBe(true));
     expect(onDirtyChange).not.toHaveBeenCalled();
 
-    instances[0].handlers.get("commandStack.changed")?.({});
+    fire(instances[0], "commandStack.changed", {});
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
+  });
+
+  it("says the diagram has unsaved changes as soon as something is typed into the panel", async () => {
+    // Typed but not yet written, as it stays until the field is left
+    stubFetch();
+    const onDirtyChange = vi.fn();
+    renderEditor({ editable: true, onDirtyChange });
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
+    await select(instances[0], serviceTask());
+
+    fireEvent.change(await screen.findByLabelText(/^Handler/), { target: { value: "checkCosts" } });
+
+    expect(onDirtyChange).toHaveBeenCalledWith(true);
+    expect(instances[0].get).not.toHaveBeenCalledWith("commandStack");
   });
 
   it("does not watch for changes it could not make", async () => {
@@ -282,7 +314,7 @@ describe("BpmnEditor", () => {
     renderEditor({ onDirtyChange });
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
-    expect(instances[0].handlers.has("commandStack.changed")).toBe(false);
+    expect(subscribed(instances[0], "commandStack.changed")).toBe(false);
   });
 
   it("opens an empty canvas for a version with no diagram saved yet", async () => {

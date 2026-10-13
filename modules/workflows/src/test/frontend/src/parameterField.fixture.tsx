@@ -17,14 +17,14 @@
  */
 
 
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import type { ParameterWidget } from "@iap/workflows/parameterWidget";
+import type { ParameterFieldProps } from "@iap/workflows/parameterWidget";
 import type { Parameter } from "@iap/workflows/workflowTypes";
 
 import { parameter } from "./vocabulary.fixture";
@@ -35,16 +35,17 @@ export const STATES = [ { value: "DRAFT", label: "Draft" }, { value: "ACTIVE", l
 export const Themed = ({ children }: { children: ReactNode }) =>
   <ThemeProvider theme={appTheme} defaultMode="light">{children}</ThemeProvider>;
 
-// Renders one parameter field the way the properties panel does, and hands back what it reports.
-export const renderField = (
-  Field: ParameterWidget,
+// Renders one parameter field the way the properties panel does, and hands back what it reports. The
+// parameter is a text one named `toState` in whatever the test does not say.
+export const renderField = <Value = string>(
+  Field: ComponentType<ParameterFieldProps<Value>>,
   given: Partial<Parameter>,
-  values: string[] = [],
+  values: Value[] = [],
   readOnly = false,
   commaSeparated = false
 ) => {
-  const onChange = vi.fn<(values: string[]) => void>();
-  const onCommit = vi.fn<(values: string[]) => void>();
+  const onChange = vi.fn<(values: Value[]) => void>();
+  const onCommit = vi.fn<(values: Value[]) => void>();
   render(
     <Field
       parameter={parameter("toState", { label: "To state", ...given })}
