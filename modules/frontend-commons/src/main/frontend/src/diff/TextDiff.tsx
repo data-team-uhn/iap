@@ -20,9 +20,9 @@ import { Box } from "@mui/material";
 
 import { type TextLine } from "./contentDiffModel";
 
-// A text compared with another, as compareText gives it: changed lines tinted, with a mark as well as a colour, and the
-// words that changed within them in a stronger shade. A changed line is an insertion or a deletion, for assistive
-// technology too.
+// Shows a text compared with another, as compareText gives it. A changed line is tinted, and marked with a plus or a
+// minus as well. The words that changed within it take a stronger shade. A changed line is marked up as an insertion
+// or a deletion, for assistive technology too.
 function TextDiff({ lines }: { lines: TextLine[] }) {
   return (
     <Box sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>

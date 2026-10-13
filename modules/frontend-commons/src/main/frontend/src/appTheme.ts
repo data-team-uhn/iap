@@ -69,9 +69,9 @@ declare module "@mui/material/styles" {
     tinted: string;
     tintedStrong: string;
   }
-  // What a comparison of two snapshots of content marks as added or removed: `main` for its markers, `line` for the
-  // background of a changed line, `word` for the stronger shade of the words that changed within it; and as moved,
-  // with no words of its own
+  // The colours a comparison of two snapshots of content marks added or removed content with. `main` is for its
+  // markers, `line` for the background of a changed line, and `word` for the stronger shade of the words that changed
+  // within it. Moved content has only `main` and `line`.
   interface DiffColors {
     main: string;
     line: string;

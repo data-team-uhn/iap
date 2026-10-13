@@ -24,7 +24,7 @@ import { isNode } from "../serializedNode";
 
 export interface TextPart {
   text: string;
-  // Whether it is what changed within its line, shown in a stronger shade than the line
+  // Whether these are words that changed within their line. A line removed or added whole has none.
   changed: boolean;
 }
 
@@ -36,12 +36,13 @@ export interface TextLine {
 // The lines of a chunk of text, which ends with a line break
 const linesOf = (text: string): string[] => text.replace(/\n$/, "").split("\n");
 
-// Ended with a line break, so that a last line without one is still the same line
+// Adds a final line break where there is none, so that a last line still matches the same line followed by others
 const ended = (text: string): string => (text === "" || text.endsWith("\n") ? text : `${text}\n`);
 
 const whole = (change: TextLine["change"], text: string): TextLine => ({ change, parts: [ { text, changed: false } ] });
 
-// A line that replaced another, each with what changed within it marked, unless the two have nothing in common
+// A removed line and the line that replaced it, each with the words that changed marked. When the two have no words
+// in common, nothing is marked.
 function pairOf(removed: string, added: string): [ TextLine, TextLine ] {
   const words = diffWordsWithSpace(removed, added);
   if (!words.some(word => !word.added && !word.removed && word.value.trim() !== "")) {
@@ -54,8 +55,8 @@ function pairOf(removed: string, added: string): [ TextLine, TextLine ] {
   return [ side(word => word.added, "removed"), side(word => word.removed, "added") ];
 }
 
-// Two texts compared as GitHub shows a change: line by line, the lines that replaced others paired in order and
-// listed removed first, and within each pair the words that changed
+// Compares two texts line by line. The lines that replaced others are paired in order, and the words that changed
+// within each pair are marked. A run of changed lines lists the removed ones first, then the added ones.
 export function compareText(before: string, after: string): TextLine[] {
   const lines: TextLine[] = [];
   const chunks = diffLines(ended(before), ended(after));
@@ -84,18 +85,19 @@ export interface FieldDifference {
   after?: unknown;
 }
 
-// Nothing, as an emptied field is: no value, an empty text, or an empty list
+// Whether a value counts as no value, as an emptied field does: missing, null, an empty text, or an empty list
 const isEmpty = (value: unknown): boolean =>
   value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 
-// What a snapshot holds as a field's value: not a child node going by the same name, which a serialized node lists
-// beside its properties
+// A field's value in a snapshot. A serialized node lists its children beside its properties, so a child of the same
+// name is not taken for a value.
 const valueIn = (snapshot: Record<string, unknown> | undefined, field: string): unknown => {
   const value = snapshot?.[field];
   return isNode(value) ? undefined : value;
 };
 
-// The fields asked about that differ between two snapshots, in the order asked; lists are compared in order
+// The fields asked about that differ between two snapshots, in the order asked. Two lists are the same only with the
+// same items in the same order.
 export function compareFields(before: Record<string, unknown> | undefined, after: Record<string, unknown> | undefined,
   fields: string[]): FieldDifference[] {
   return fields.flatMap((field): FieldDifference[] => {

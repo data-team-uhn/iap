@@ -20,8 +20,8 @@ import { type ReactNode } from "react";
 
 import { Box } from "@mui/material";
 
-// A value that changed, shown as what it was and what it is, either missing for a value added or removed. How each
-// value reads is the caller's to say.
+// Shows a value that changed, as what it was and what it is. A value that was added has no `before`, and one that was
+// removed has no `after`. The caller decides how each value reads.
 function ValueChange({ before, after }: { before?: ReactNode; after?: ReactNode }) {
   return (
     <Box component="span" sx={{ display: "inline-flex", alignItems: "baseline", flexWrap: "wrap", gap: 0.75 }}>
