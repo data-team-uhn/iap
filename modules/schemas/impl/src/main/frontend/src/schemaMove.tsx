@@ -48,13 +48,13 @@ interface MoveModeValue {
   moved?: string;
   // Whether that move was an option's step
   stepped: boolean;
-  // Counts moves, so that moving the same one again shows again
+  // Counts moves, so that moving the same node again marks it again
   steps: number;
-  // The option a step is being saved for
+  // The path of the option whose step is being sent
   stepping?: string;
-  // Where the moving part is being sent
+  // The place the moving part is being sent to
   destination?: string;
-  // Where on the screen what was pressed to move it was, for what moved to be shown there
+  // How far down the screen the button pressed for the move was. What moved is scrolled to the same height.
   landing?: number;
   sending: boolean;
   isMoving: (node: JcrNode) => boolean;
@@ -115,7 +115,7 @@ export function MoveMode({ children }: { children: ReactNode }) {
   const [ stepping, setStepping ] = useState<string>();
   const [ destination, setDestination ] = useState<string>();
   const [ landing, setLanding ] = useState<number>();
-  // For a screen reader, as soon as a step is asked for
+  // What a screen reader announces as soon as a step is asked for
   const [ announced, setAnnounced ] = useState("");
   const [ sending, setSending ] = useState(false);
   const [ error, setError ] = useState<string>();
@@ -283,7 +283,8 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
             bgcolor: "background.tintedStrong", color: "primary.main",
             outline: 2, outlineColor: "primary.main", outlineOffset: -2,
           },
-          // The label shows on hover and keyboard focus, and always on touch screens and where the part is sent
+          // The label shows on hover and keyboard focus. It always shows on touch screens, and on the place the part
+          // is being sent to.
           "& .iap-move-spot-label": { opacity: 0, transition: "opacity 0.15s" },
           "&:hover .iap-move-spot-label, &.Mui-focusVisible .iap-move-spot-label": { opacity: 1 },
           "@media (hover: none)": { "& .iap-move-spot-label": { opacity: 1 } },
@@ -319,7 +320,8 @@ export function useMoveHighlight<T extends HTMLElement>(node: JcrNode) {
   const justMoved = moved === pathOf(node);
   const moving = isMoving(node);
 
-  // Before painting, so that it lands where it was sent from without a jump; a step's own button does that for it
+  // Before painting, so that what moved lands at the height of the place chosen for it, without a jump. After a
+  // step, the option's own button lands there instead.
   useLayoutEffect(() => {
     if (!justMoved || stepped || !ref.current || landing === undefined) {
       return;

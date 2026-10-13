@@ -31,7 +31,7 @@ interface EventActionProps {
   path: string;
   reload: () => void | Promise<void>;
   label: string;
-  // What its confirmation says while the event is sent, such as "Removing…"
+  // What the confirm button says while the event is sent, such as "Removing…"
   workingLabel?: string;
   event: string;
   title: string;

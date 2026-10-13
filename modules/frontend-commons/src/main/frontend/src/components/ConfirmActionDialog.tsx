@@ -29,7 +29,7 @@ interface ConfirmActionDialogProps {
   // Explains what the action does; the failure report, if any, appears underneath.
   children: ReactNode;
   confirmLabel: string;
-  // What the confirm button says while the action is under way, such as "Removing…"; its label otherwise
+  // What the confirm button says while the action runs, such as "Removing…". Defaults to `confirmLabel`.
   workingLabel?: string;
   confirmColor?: ButtonProps["color"];
   // Performs the action. Resolving closes the dialog; rejecting keeps it open and reports the

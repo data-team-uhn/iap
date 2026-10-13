@@ -34,8 +34,8 @@ interface SchemaOptionStepActionsProps {
   options: JcrNode[];
 }
 
-// Moves an answer option of a draft one place up or down. The button pressed stays under the pointer, keeping the
-// focus, unless the option has reached an end, where the other button takes it.
+// Moves an answer option of a draft one place up or down. The button pressed stays under the pointer and keeps the
+// focus. When the option reaches either end, the focus goes to the other button.
 function SchemaOptionStepActions({ option, question, options }: SchemaOptionStepActionsProps) {
   const { step, sending, moved, steps, stepping, landing } = useMoveMode();
   const up = useRef<HTMLButtonElement>(null);

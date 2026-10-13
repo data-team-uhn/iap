@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// For what only a screen reader should find, such as an announcement
+// Styles for an element that only screen readers should find, such as an announcement
 export const visuallyHidden = {
   position: "absolute",
   width: "1px",

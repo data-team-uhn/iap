@@ -473,7 +473,7 @@ describe("SchemaVersionView", () => {
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/age.move.json"));
     expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake", before: "name" });
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
-    // What moved is shown where it was sent from, and the actions are back
+    // What moved is shown at the height of the place chosen, and the actions are back
     expect(document.activeElement).toBe(await card("Your age"));
     expect(scrollBy).toHaveBeenCalledWith(0, 60);
     expect(screen.getByText("“Your age” was moved")).toBeInTheDocument();
@@ -525,7 +525,7 @@ describe("SchemaVersionView", () => {
     expect(within(full).getByRole("button", { name: "Move down" })).toBeDisabled();
 
     const up = within(full).getByRole("button", { name: "Move up" });
-    // Where the tree shows it next, as the test environment cannot lay it out
+    // Where the button is when pressed, then once the option has moved, since jsdom lays nothing out
     vi.spyOn(up, "getBoundingClientRect")
       .mockReturnValueOnce({ top: 300 } as DOMRect)
       .mockReturnValue({ top: 260 } as DOMRect);
@@ -538,7 +538,7 @@ describe("SchemaVersionView", () => {
     expect(Object.fromEntries(posted[0].params)).toEqual({ parent: "/Schemas/study/v3/intake/name", before: "short" });
     expect(await screen.findByText("“Full” was moved up")).toBeInTheDocument();
     await waitFor(() => expect(scrollBy).toHaveBeenCalledWith(0, -40));
-    // What was pressed stays pressed, to be pressed again
+    // The button pressed keeps the focus, to be pressed again
     expect(document.activeElement).toBe(up);
   });
 
@@ -552,7 +552,7 @@ describe("SchemaVersionView", () => {
     await expand("Your name");
     const short = screen.getByText("Short").closest("li") as HTMLElement;
     const down = within(short).getByRole("button", { name: "Move down" });
-    // As the tree reads once the move is made
+    // The content as the server reads it once the move is made
     const options = CONTENT["study/v3"].intake as Record<string, Record<string, Record<string, unknown>>>;
     const { short: stored } = options.name;
     options.name.short = { ...stored, defaultOrder: 30 };
