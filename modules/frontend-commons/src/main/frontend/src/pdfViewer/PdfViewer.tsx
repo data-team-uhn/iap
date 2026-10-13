@@ -42,6 +42,7 @@ import { usePdfView } from "./usePdfView";
 import { useSelectedText } from "./useSelectedText";
 import LoadError from "../components/LoadError";
 import ResponsiveDialog from "../components/ResponsiveDialog";
+import { useSwipe } from "../useSwipe";
 
 import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
 
@@ -293,12 +294,19 @@ function ViewerBody(props: ViewerBodyProps) {
     onSelect(id);
     showMark(id);
   }, [onSelect, showMark]);
+  const stepTo = (index: number) => showSelected(ordered[index].id);
+  // Swiping the card above the document steps through the passages as its controls do, as far as the ends.
+  const swipeRef = useSwipe(
+    position > 0 ? () => stepTo(position - 1) : undefined,
+    position < ordered.length - 1 ? () => stepTo(position + 1) : undefined,
+  );
 
   const card = selected === undefined || (several && !narrow)
     ? null
     : (
       <PassageCard
         key={selected.id}
+        ref={several ? swipeRef : undefined}
         quote={getMarkText(selected, places[selected.id])}
         note={getPassageNote(status, places[selected.id])}
         markedBy={selected.kind}
@@ -308,7 +316,7 @@ function ViewerBody(props: ViewerBodyProps) {
               position={among.index}
               count={among.count}
               itemName="passage"
-              onStep={next => showSelected(ordered[next - 1].id)}
+              onStep={next => stepTo(next - 1)}
             />
           )
           : undefined}
