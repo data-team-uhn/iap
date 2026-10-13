@@ -17,18 +17,23 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
-import { getPlacedPages, MarkLocator, type Mark, type MarkPlace } from "./marksModel";
+import { getPlacedPages, isLooking, MarkLocator, type Mark, type MarkPlace } from "./marksModel";
 
 import type { OpenedDocument } from "./usePdfDocument";
 
 // Where each of the marks given is, by id.
 export type MarkPlaces = Record<string, MarkPlace>;
 
+// How often, at most, how far the reading has got is told, when no passage was found meanwhile: each time
+// draws the viewer again.
+const PROGRESS_INTERVAL = 200;
+
 // Where each mark's passage is in the document, as its pages are read: first those marks placed by their
 // spans or kept as anchors are on, then the others, in order, until no passage is still looked for. Pages
-// nothing needs are not read, as reading them takes PDF.js from drawing the pages being looked at.
-export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {
-  const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces } | undefined>(undefined);
+// nothing needs are not read, as reading them takes PDF.js from drawing the pages being looked at. Also how
+// many pages have been read so far.
+export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): { places: MarkPlaces; read: number } {
+  const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces; read: number } | undefined>(undefined);
 
   useEffect(() => {
     if (pdf === undefined) {
@@ -40,10 +45,12 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): M
     const placed = getPlacedPages(marks, doc.numPages);
     const rest = Array.from({ length: doc.numPages }, (_, index) => index + 1).filter(page => !placed.includes(page));
     void (async () => {
-      let last = "";
       let places = locator.getPlaces();
+      let last = "";
+      let reportedAt = 0;
+      let read = 0;
       for (const pageNumber of [ ...placed, ...rest ]) {
-        if (!Object.values(places).some(place => place.status === "searching")) {
+        if (!isLooking(places)) {
           return;
         }
         const page = await getPageTextWithLines(pageNumber);
@@ -51,17 +58,26 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): M
           return;
         }
         locator.addPage(pageNumber, page);
-        places = locator.getPlaces();
-        const serialized = JSON.stringify(places);
-        // Most pages change nothing, and each change draws the marks again.
-        if (serialized !== last) {
+        read++;
+        const latest = locator.getPlaces();
+        const serialized = JSON.stringify(latest);
+        // Most pages change nothing, and each change draws the marks again, so the places are kept as they
+        // were until one does.
+        const changed = serialized !== last;
+        if (changed) {
           last = serialized;
-          setFound({ marks, places });
+          places = latest;
+        }
+        if (changed || performance.now() - reportedAt >= PROGRESS_INTERVAL) {
+          reportedAt = performance.now();
+          setFound({ marks, places, read });
         }
       }
     })();
     return () => stop.abort();
   }, [pdf, marks]);
 
-  return useMemo(() => (found?.marks === marks ? found.places : new MarkLocator(marks).getPlaces()), [found, marks]);
+  return useMemo(() => (found?.marks === marks
+    ? { places: found.places, read: found.read }
+    : { places: new MarkLocator(marks).getPlaces(), read: 0 }), [found, marks]);
 }
