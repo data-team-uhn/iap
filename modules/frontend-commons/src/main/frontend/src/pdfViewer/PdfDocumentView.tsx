@@ -17,7 +17,7 @@
  */
 import { type ReactNode } from "react";
 
-import { Box, CircularProgress } from "@mui/material";
+import { Box, CircularProgress, LinearProgress } from "@mui/material";
 
 import { MARK_CLASS, OVER_MARK_CLASS } from "./markLayer";
 import { MARK_KINDS } from "./marksModel";
@@ -40,15 +40,18 @@ function markColours(theme: Theme, outlineSelected: boolean) {
 }
 
 // The frame PDF.js shows the document in, filling the room left to it, with a spinner while the document
-// opens. PDF.js needs its scrolling container absolutely positioned, so the outer box gives it the room,
+// opens, and a bar along its top while passages are looked for in it. PDF.js needs its scrolling container absolutely positioned, so the outer box gives it the room,
 // and holds anything shown over the frame, placed in the frame's coordinates. In the dialog on a phone, the
 // document spans the full screen width, past the dialog's padding.
-export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, children }: {
+export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
   // Whether the selected mark stands out from others by an outline too.
   outlineSelected: boolean;
   opening: boolean;
+  // How much of the document has been read looking for passages, from 0 to 1, while some are, and whether
+  // there are several.
+  looking?: { share: number; several: boolean };
   children?: ReactNode;
 }) {
   return (
@@ -96,6 +99,16 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
           />
         )
         : null}
+      {looking === undefined
+        ? null
+        : (
+          <LinearProgress
+            variant="determinate"
+            value={Math.min(100, looking.share * 100)}
+            aria-label={looking.several ? "Looking for the passages" : "Looking for the passage"}
+            sx={{ position: "absolute", top: 0, insetInline: 0, zIndex: 1 }}
+          />
+        )}
       {children}
     </Box>
   );
