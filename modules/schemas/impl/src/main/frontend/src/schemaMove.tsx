@@ -255,7 +255,7 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
   const name = named && shownNameOf(named);
   const where = before ? "Move before" : name ? "Move to the end of" : "Move to the end";
   const loading = sending && destination === placeOf(parent, before);
-  // On a phone, what moves goes unnamed: it is the part shown moving
+  // On a phone, the label leaves out the name of what moves. That part is already shown moving.
   const what = phone ? "" : ` “${shownNameOf(moving.node)}”`;
   const said = loading ? `Moving${what} ${before ? "before" : name ? "to the end of" : "to the end"}` : where;
   return (
@@ -299,7 +299,7 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
           className="iap-move-spot-label"
           sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.75, minWidth: 0, whiteSpace: "nowrap" }}
         >
-          {/* Giving way to the name before it gives way itself */}
+          {/* The name after it is cut short first. This shrinks too, far less, rather than run off a narrow screen. */}
           <Box component="span" sx={{ minWidth: 0, flexShrink: 0.1, overflow: "hidden", textOverflow: "ellipsis" }}>
             {said}
           </Box>

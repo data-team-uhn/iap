@@ -43,7 +43,7 @@ interface SchemaNodeCreateActionProps {
   before?: string;
   // The parent's first child; when given, the dialog offers to place new content ahead of it
   first?: string;
-  // The control that offers it, given what it may offer
+  // Renders the control that offers the new content, given what is on offer
   trigger: (offer: Offer) => ReactNode;
 }
 
@@ -53,7 +53,7 @@ interface Offer {
   // The only type offered, if there is one
   only?: CreatableType;
   types: CreatableType[];
-  // Opens one type's dialog
+  // Opens the given type's dialog
   add: (type: CreatableType) => void;
 }
 

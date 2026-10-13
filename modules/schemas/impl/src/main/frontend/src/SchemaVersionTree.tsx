@@ -148,7 +148,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
           <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0, pt: 0.5, ...content }}>
             <Stack direction="row" useFlexGap spacing={1} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
               <Typography sx={{ overflowWrap: "anywhere", fontWeight: type.weight }}>
-                {/* On a phone, at the start of the heading, which wraps under it */}
+                {/* On a phone, the type's icon starts the heading, and the heading's text wraps under it */}
                 { phone && typeIcon({ verticalAlign: "text-bottom", mr: 0.75 }) }
                 {headingOf(part)}
               </Typography>

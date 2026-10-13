@@ -78,8 +78,8 @@ export function EventAction(props: EventActionProps) {
 }
 
 // One action as an icon button, named by its tooltip, or as a named line in a menu. An action that stays on until
-// pressed again shows whether it is on through `pressed`. What it does is given the element that stands for it: the
-// button, or what held the menu. An action that only goes somewhere is a link there, in a menu too.
+// pressed again shows whether it is on through `pressed`. `onClick` is given the element that stands for the action:
+// the button, or what held the menu. An action that only goes somewhere is a link there, in a menu too.
 export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref, to }: {
   label: string;
   icon: ReactNode;

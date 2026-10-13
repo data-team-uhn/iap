@@ -26,7 +26,7 @@ import { usePhone } from "../usePhone";
 
 interface InMenu {
   close: () => void;
-  // What stands for an action chosen in the menu once the menu is gone
+  // Stands in for the button of an action chosen in the menu, once the menu has closed
   trigger: HTMLElement;
 }
 
@@ -36,13 +36,14 @@ export const ActionsMenuContext = createContext<InMenu | null>(null);
 interface ActionsMenuProps {
   // Names the button that opens it, such as "Actions for “Consent”"
   label: string;
-  // Shows the actions as they are even on a phone
+  // Leaves the actions as buttons, even on a phone
   inline?: boolean;
   children: ReactNode;
 }
 
-// On a phone, the actions it holds as the named lines of one menu, which stays mounted so that what an action opens
-// outlives it. With nothing to offer, it is not shown. Elsewhere, the actions as they are.
+// Holds the actions on one thing. On a phone, they are the named lines of one menu, whose button is hidden when there
+// is nothing to offer. Elsewhere, they are shown as they are. The menu stays mounted, so that a dialog an action opens
+// outlives the menu closing.
 export function ActionsMenu({ label, inline, children }: ActionsMenuProps) {
   const phone = usePhone();
   const [ holder, setHolder ] = useState<HTMLSpanElement | null>(null);

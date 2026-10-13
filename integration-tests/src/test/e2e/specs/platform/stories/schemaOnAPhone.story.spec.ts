@@ -25,12 +25,13 @@ import { ADMIN, signInAs } from '../../../support/auth';
  * THE STORY: a schema set up from a phone.
  *
  * Tomás looks after what his team's requests ask for, and today all he has with him is his phone. He starts a
- * schema for equipment requests, gives its draft a form with two questions, and makes the second one asked only
- * when the first is answered a certain way, with a group of conditions as he would build it on a computer.
- * Nothing he reaches runs past the edge of his screen, and every action is there under a name he can read.
+ * schema for equipment requests and gives its draft a form with two questions. He makes the second one asked only
+ * when the first is answered a certain way, with a group of conditions, as he would on a computer. Nothing he
+ * reaches runs past the edge of his screen, and every action is there under a name he can read.
  *
- * Each step has its spec. Only this asks whether the whole path exists at a phone's width: the console, a new
- * schema, its draft's page, the menus that stand in for a part's buttons, and a condition with a group in it.
+ * Each step has its own spec. This one alone checks that the whole path works at a phone's width. The path covers
+ * the console, a new schema, its draft's page, the menus that stand in for a part's buttons, and a condition with
+ * a group in it.
  */
 test.describe('stories: a schema set up from a phone', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
@@ -46,21 +47,21 @@ test.describe('stories: a schema set up from a phone', () => {
 
   const WHY = 'Why do you need it?';
 
-  // What reaches past the right edge of the screen inside the given element, by what it says. Measured against the
-  // phone's width: a phone's browser widens its layout to whatever is too wide, so the window's own width says nothing.
+  // The elements inside the given one that reach past the right edge of the screen, named by their text. They are
+  // measured against the phone's width, since a phone's browser widens its layout to fit whatever is too wide.
   const pastTheEdge = (scope: Locator) => scope.evaluate((root, width) =>
     Array.from(root.querySelectorAll<HTMLElement>('*'))
       .filter(element => element.getBoundingClientRect().right > width + 0.5)
       .map(element => element.innerText.slice(0, 40) || element.tagName), PHONE.width);
 
-  // Once everything the page loads is in, the application bar's entries among them
+  // Checks that the page fits the phone's width, once everything it loads is in, the application bar's entries included
   const fitsTheScreen = async (page: Page) => {
     await page.waitForLoadState('networkidle');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(PHONE.width);
     expect(await pastTheEdge(page.locator('body'))).toEqual([]);
   };
 
-  // Adds what the given scope offers to add, of the given type, saying what it says
+  // Adds a part of the given type with the scope's last Add button, filling the given field with the text
   const add = async (page: Page, scope: Locator, type: string, field: RegExp, text: string) => {
     await scope.getByRole('button', { name: 'Add', exact: true }).last().click();
     await page.getByRole('menuitem', { name: type, exact: true }).click();
@@ -93,7 +94,7 @@ test.describe('stories: a schema set up from a phone', () => {
 
     await test.step('he gives the draft a form with two questions', async () => {
       await add(page, page.locator('main'), 'Form', /Label/, 'Equipment');
-      // Empty, it starts closed
+      // A form with nothing in it starts collapsed
       await page.getByRole('button', { name: 'Expand Equipment' }).click();
       const form = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Collapse Equipment' }) });
       await add(page, form, 'Question', /Question/, WHAT);

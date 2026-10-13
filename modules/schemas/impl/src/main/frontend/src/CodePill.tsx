@@ -20,8 +20,8 @@ import { useRef, useState } from "react";
 
 import { Tooltip, Typography } from "@mui/material";
 
-// Shows a short value, such as an identifier, in the code style, set apart from the words around it. Too long for
-// where it stands, it is cut short, and shown whole on hover or a long press.
+// Shows a short value, such as an identifier, in the code style, set apart from the words around it. When it is
+// too long for its place, it is cut short, and shown whole on hover or a long press.
 function CodePill({ name }: { name: string }) {
   const pill = useRef<HTMLSpanElement>(null);
   const [ whole, setWhole ] = useState(false);

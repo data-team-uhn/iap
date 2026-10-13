@@ -28,5 +28,5 @@ export const EXPANDER_COLUMN = 4;
 // do a question's options.
 export const ICON_COLUMN = 3.5;
 
-// A touch target's reach for a small icon button that stays where it is drawn, the extra reaching out around it
+// A touch target for a small icon button, whose negative margin keeps the button where it is drawn
 export const TOUCH_REACH = { "@media (pointer: coarse)": { ...TOUCH_TARGET["@media (pointer: coarse)"], m: "-5px" } };

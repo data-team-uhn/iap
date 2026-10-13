@@ -20,7 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import CodePill from "@iap/schemas/CodePill";
 
-// Which the test environment does not lay out: how wide the pill's text is, and how wide it may be
+// Sets how wide the pill's text is and how wide the pill may be, since jsdom lays nothing out
 const widths = (scroll: number, client: number) => {
   vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(scroll);
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(client);

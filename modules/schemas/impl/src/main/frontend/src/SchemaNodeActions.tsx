@@ -45,7 +45,7 @@ interface SchemaNodeActionsProps {
 
 // What may be done to a part or an answer option where it stands: correct it, set when a part applies, add a part
 // after it, move it, remove it. An option is added at the end of its question's options, and moved up or down from
-// there. While a part is moving, only Move is offered. On a phone, every action but the one-step moves is in a menu.
+// there. While a part is moving, only Move is offered. On a phone, every action but an option's steps is in a menu.
 function SchemaNodeActions({ node, parent, siblings, what, editCondition }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
   const phone = usePhone();

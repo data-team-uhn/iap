@@ -16,5 +16,5 @@
  * limitations under the License.
  */
 
-// What a control takes at least on a touch screen, so that one is hit and not its neighbour
+// The least size of a control on a touch screen, so that a tap hits it and not its neighbour
 export const TOUCH_TARGET = { "@media (pointer: coarse)": { minWidth: 40, minHeight: 40 } };

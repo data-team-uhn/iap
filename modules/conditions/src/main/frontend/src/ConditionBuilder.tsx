@@ -216,7 +216,7 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
             </Box>
           </Row>
         ) }
-        {/* On a phone, under what it removes, leaving the fields the width */}
+        {/* On a phone, a named button under the fields, so that the fields keep the full width */}
         { phone && (
           <Button variant="text" color="error" disabled={disabled} onClick={onRemove} sx={{ alignSelf: "flex-start" }}>
             Remove this condition
@@ -262,7 +262,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
   const joiner = group.requireAll ? "And" : "Or";
   // Joined along a line, once there is an All or Any to say how
   const railed = nested || group.conditions.length > 1;
-  // At the end of its heading, or on a phone after what adds to the group, saving the heading a line
+  // At the end of the group's heading. On a phone, after the buttons that add to the group, saving the heading a line.
   const removeGroup = onRemove && (
     <Button variant="text" color="error" disabled={disabled} onClick={onRemove} sx={{ ml: { sm: "auto" } }}>
       Remove this group

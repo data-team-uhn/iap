@@ -26,7 +26,7 @@
       "@iap/deletion/*": ["./modules/deletion/src/main/frontend/src/*"],
       "@iap/email-catcher/*": ["./modules/email-catcher/src/main/frontend/src/*"],
       "@iap/error-tracking/*": ["./modules/error-tracking/impl/src/main/frontend/src/*"],
-      // With its test tree, for the fixtures other modules' tests import, as for tags below
+      // With its test tree, for the fixtures that other modules' tests import
       "@iap/frontend-commons/*": [
         "./modules/frontend-commons/src/main/frontend/src/*", "./modules/frontend-commons/src/test/frontend/src/*"
       ],
