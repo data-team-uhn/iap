@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// The conditions of a schema version, read with the conditions module's model and one source of the schemas' own:
-// an `answer` operand holds the answers to the version's question it names. No React, no fetch.
+// The operand sources of a schema version's conditions. The schemas add their own `answer` source, whose operand
+// holds the answers to the question of the version it names. No React, no fetch.
 
 import {
   type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
@@ -28,7 +28,7 @@ import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from
 
 import type { JcrNode } from "./schemaModel";
 
-// The comparison types of the question data types; a file compares as nothing in particular
+// The comparison types of the question data types; a file has none
 const VALUE_TYPES: Record<string, ValueType | undefined> = {
   text: "text",
   long: "long",

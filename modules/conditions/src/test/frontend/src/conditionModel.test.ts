@@ -23,7 +23,7 @@ import {
   valuesTaken, whenApplies, whenDraftApplies, withCurrent,
 } from "@iap/conditions/conditionModel";
 
-// A source whose operands name a field of a known type, as a module offering one would declare it
+// A source whose operands name a field of a known type
 const FIELDS: Record<string, { type?: "long" | "text" | "date" | "boolean"; multiple?: boolean }> = {
   age: { type: "long", multiple: false },
   colours: { type: "text", multiple: true },
@@ -113,7 +113,7 @@ describe("conditionModel", () => {
       expect(valuesTaken(of("includes"), { multiple: false })).toBe("several");
       expect(valuesTaken(of("equals"), { multiple: false })).toBe("one");
       expect(valuesTaken(of("equals"), { multiple: true })).toBe("several");
-      // Unknown until it is known, one
+      // An unknown multiplicity takes one
       expect(valuesTaken(of("equals"), {})).toBe("one");
       expect(valuesTaken(undefined, {})).toBe("several");
     });
@@ -223,7 +223,7 @@ describe("conditionModel", () => {
             "operandA": operand("field", [ "due" ]), "operandB": operand("literal", [ "2026-09-29" ]) },
           "condition3": { "jcr:primaryType": "cond:SingleCondition", "comparator": "equals",
             "operandA": operand("tags", [], { aggregate: "count" }), "operandB": operand("literal", [ 2 ]) },
-          // Nothing known of a property: its values stay text, which the evaluator reads as the other side's
+          // Nothing known of a property: its values stay text, which the evaluator reads as the other side's type
           "condition4": { "jcr:primaryType": "cond:SingleCondition", "comparator": "equals",
             "operandA": operand("property", [ "status" ]), "operandB": operand("literal", [ "7" ]) },
           "condition5": { "jcr:primaryType": "cond:SingleCondition", "comparator": "is empty",

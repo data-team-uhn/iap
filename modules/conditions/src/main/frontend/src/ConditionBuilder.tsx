@@ -42,8 +42,8 @@ export interface OperandEditorProps {
   onChange: (value: string[]) => void;
 }
 
-// Each renders the input, by the source's name; a function rather than a component, so that what the function knows
-// can change without the input starting again
+// The input for each source's operands, by the source's name. Each is a function rather than a component, so that
+// a new function, knowing something new, does not remount the input.
 export type OperandEditors = Partial<Record<string, (props: OperandEditorProps) => ReactNode>>;
 
 interface Common {
@@ -83,7 +83,7 @@ interface SourceSelectProps {
   label: string;
   value: string;
   sources: OperandSource[];
-  // How giving values of its own is offered, if the operand can
+  // The label of the choice to give values directly, when the operand may
   literal?: string;
   disabled: boolean;
   onChange: (source: string) => void;
@@ -102,7 +102,7 @@ interface NamedValueProps extends Common {
   onChange: (value: string[]) => void;
 }
 
-// What an operand's source reads, when it reads something it is told to
+// The input for what an operand names, when its source reads something named, such as a question
 function NamedValue({ operand, sources, editors, disabled, onChange }: NamedValueProps) {
   const label = sourceOf(sources, operand.source)?.valueLabel;
   if (label === undefined) {
@@ -136,10 +136,10 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
   const comparator = comparatorOf(condition.comparator);
   const taken = valuesTaken(comparator, shape);
   const waiting = disabled || !isChosen(a, sources);
-  // For the values' choices to open as soon as what is compared is chosen
+  // Opens the values' choices as soon as what is compared has been chosen
   const [ justChosen, setJustChosen ] = useState(false);
 
-  // What it is compared with starts again, as "Yes" for a yes or no
+  // A new first operand clears the values it is compared with, or sets "Yes" for a yes or no
   const withA = (next: DraftOperand) => {
     const nextShape = shapeOf(next, sources);
     const kept = comparatorsFor(nextShape).some(item => item.name === condition.comparator)
@@ -279,7 +279,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
           ) }
         </Stack>
       ) }
-      {/* At the top, what the dialog says already reads a complete condition */}
+      {/* At the top, the dialog's own line already reads out a complete condition */}
       { !open && (nested || !isComplete(group, sources)) && (
         <Typography variant="description" sx={{ px: 1 }}>{summaryOf(group, sources)}</Typography>
       ) }
@@ -348,8 +348,8 @@ interface ConditionBuilderProps {
   disabled?: boolean;
 }
 
-// Builds a condition: groups of conditions of which all or any must hold, each comparing what a source reads with
-// values of the type it holds, or with what another source reads
+// Builds a condition out of nested groups, whose conditions must all hold, or any of them. Each condition compares
+// what a source reads with values of the type it holds, or with what another source reads.
 function ConditionBuilder({ draft, onChange, sources, editors = {}, disabled = false }: ConditionBuilderProps) {
   return (
     <GroupEditor group={draft} depth={0} onChange={onChange} sources={sources} editors={editors}

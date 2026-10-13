@@ -69,8 +69,8 @@ declare module "@mui/material/styles" {
     tinted: string;
     tintedStrong: string;
   }
-  // What marks content that applies only sometimes, such as a part behind a condition: `main` for its icon,
-  // `surface` for what says when it applies
+  // The colours of content that applies only under a condition: `main` for its icon, `surface` behind the line
+  // saying when it applies
   interface Palette {
     condition: { main: string; surface: string };
   }

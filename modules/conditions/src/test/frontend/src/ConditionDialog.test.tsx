@@ -46,7 +46,7 @@ const FIELD_SOURCE: OperandSource = {
 };
 const SOURCES = [ FIELD_SOURCE, tagsSource([ { value: "urgent", label: "Urgent" } ]), PROPERTY_SOURCE ];
 
-// A field picked from a list, as a module offering a source may ask for what its operands name
+// A source's own input for what its operands name: a field picked from a list
 function FieldPicker({ label, value, disabled, required, onChange }: OperandEditorProps) {
   return (
     <TextField select label={label} value={value.at(0) ?? ""} disabled={disabled} required={required}

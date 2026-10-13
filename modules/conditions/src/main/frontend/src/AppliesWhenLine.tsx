@@ -24,7 +24,7 @@ import { ButtonBase, Stack, Typography } from "@mui/material";
 
 interface AppliesWhenLineProps {
   children: string;
-  // How to change it, where it can be changed: the line is then what is pressed to change it
+  // Opens the condition for editing, where it can be changed. The line is then a button.
   onEdit?: () => void;
 }
 
@@ -33,7 +33,7 @@ const LINE = {
   gap: 0.75, textAlign: "start",
 } as const;
 
-// When something applies, as the line shown on it: where it is listed, and as its condition is edited
+// The line saying when something applies, shown where it is listed and in the dialog editing its condition
 function AppliesWhenLine({ children, onEdit }: AppliesWhenLineProps) {
   const id = useId();
   const content = (

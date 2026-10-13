@@ -23,8 +23,8 @@ import { loadTagDefinitions } from "@iap/tags/tagDefinitions";
 
 import type { Choice } from "./conditionModel";
 
-// The defined tags, as the values a tags operand can be compared with: none until they are loaded, or if they
-// cannot be, when a tag is typed in by name instead
+// The defined tags, as the values a tags operand can be compared with. The list is empty until they load, and stays
+// empty if they cannot. A tag is then typed in by name.
 export function useTagChoices(): Choice[] {
   const fetchUtil = useAuthenticatedFetch();
   const [ choices, setChoices ] = useState<Choice[]>([]);

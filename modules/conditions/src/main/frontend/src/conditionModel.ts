@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-// Conditions as the conditions module stores them (see docs/conditions.md), for reading and editing them: the
-// catalogs of comparators and aggregates, what an operand holds, a draft a builder edits, the content a
-// replaceContent event writes from it, and the words it reads as. Operand sources are pluggable: a module offering
-// one says what its operands hold and how they read. No React, no fetch.
+// Reading and editing conditions as the conditions module stores them (see docs/conditions.md). This holds the
+// catalogs of comparators and aggregates, and what an operand holds. It turns a stored condition into a draft a
+// builder edits, a draft into the content a replaceContent event writes, and either into words. Operand sources are
+// pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
 
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
@@ -53,10 +53,10 @@ export interface OperandSource {
 export interface Comparator {
   name: string;
   phrase: string;
-  // How it reads before a single value, when that is not the same
+  // How it reads before a single value, when that differs from `phrase`
   one?: string;
   unary?: boolean;
-  // Holds only between two single values
+  // Compares one value with one other, by their order
   ordering?: boolean;
   // Compares the values of an operand holding several with some values
   sets?: boolean;
@@ -96,8 +96,8 @@ export const LITERAL = "literal";
 
 const BOOLEAN_CHOICES: Choice[] = [ { value: "true", label: "Yes" }, { value: "false", label: "No" } ];
 
-// Choices keeping the one chosen among them when it is none of them, as what a condition says but this model does not
-// know is shown by name and kept: by what it is called, or else as it is
+// The choices, plus the current value when it is none of them, labelled by `labelOf` or else as it is. What a
+// condition names but this model does not know is then shown and kept.
 export const withCurrent = (choices: Choice[], current?: string, labelOf = (value: string) => value): Choice[] =>
   (current === undefined || current === "" || choices.some(choice => choice.value === current)
     ? choices : [ ...choices, { value: current, label: labelOf(current) } ]);
@@ -236,7 +236,7 @@ function draftConditionOf(node: SerializedNode): DraftCondition {
   }
 }
 
-// The draft of a stored condition, always a group at the top: none is an empty one, holding always
+// The draft of a stored condition, always a group at the top. No condition gives an empty group, which always holds.
 export function draftOf(condition?: SerializedNode): DraftGroup {
   if (!condition) {
     return newGroup();
@@ -250,13 +250,13 @@ export function draftOf(condition?: SerializedNode): DraftGroup {
 export const sourceOf = (sources: OperandSource[], name: string): OperandSource | undefined =>
   sources.find(source => source.name === name);
 
-// What the first operand of a condition holds, folded when it says so
+// What an operand holds, folded when it names an aggregate
 export function shapeOf(operand: DraftOperand, sources: OperandSource[]): OperandShape {
   const shape = sourceOf(sources, operand.source)?.shape(operand.value) ?? {};
   return aggregated(shape, aggregateOf(operand.aggregate));
 }
 
-// What the second operand holds: a literal is what it is compared with, else what its own source says
+// What the second operand holds. A literal holds what the first operand holds; another source says for itself.
 export const secondShapeOf = (condition: DraftSingle, sources: OperandSource[]): OperandShape =>
   (condition.b.source === LITERAL ? shapeOf(condition.a, sources) : shapeOf(condition.b, sources));
 
@@ -292,7 +292,7 @@ function isCompleteCondition(condition: DraftCondition, sources: OperandSource[]
   }
 }
 
-// Whether a draft can be written: each condition says all it needs to, and each group holds some
+// Whether a draft can be written: each condition says all it needs to, and each group below the top holds some
 export const isComplete = (draft: DraftGroup, sources: OperandSource[]): boolean =>
   draft.conditions.every(condition => isCompleteCondition(condition, sources));
 
@@ -371,8 +371,8 @@ function describeSingle(condition: DraftSingle, sources: OperandSource[]): strin
   return `${phrase} ${describeOperand(condition.b, sources, compared)}`;
 }
 
-// Whether a condition always holds, or never does, whatever it is evaluated on, when that follows from its shape
-// alone: an empty group, or a group of one that does
+// Whether a condition always holds (true) or never does (false), when its shape alone decides. That is so for an
+// empty group, and for a group of one condition that is itself settled.
 function settled(condition: DraftCondition): boolean | undefined {
   if (condition.kind !== "group") {
     return undefined;
@@ -409,7 +409,7 @@ export function describeDraft(condition: DraftCondition, sources: OperandSource[
 export const describeCondition = (condition: SerializedNode, sources: OperandSource[]): string =>
   describeDraft(draftConditionOf(condition), sources);
 
-// When something applies, as the line shown on it for a draft as it stands: nothing for one that always holds
+// What the line saying when something applies reads, for a draft as it stands. A draft that always holds has none.
 export function whenDraftApplies(draft: DraftGroup, sources: OperandSource[]): string | undefined {
   const known = settled(draft);
   if (known !== undefined) {
@@ -424,7 +424,7 @@ export const whenApplies = (condition: SerializedNode, sources: OperandSource[])
 
 // ---- Built-in sources
 
-// Built-in sources, reading what a condition is evaluated for as the module using them names it ("submission")
+// Each takes `of`, what the module using it calls the thing it reads from, such as "submission"
 
 export const tagsSource = (choices: Choice[] = [], of?: string): OperandSource => ({
   name: "tags",

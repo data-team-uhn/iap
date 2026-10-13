@@ -30,11 +30,11 @@ const INPUT_MODES: Partial<Record<ValueType, "numeric" | "decimal">> = {
 
 interface OperandValueInputProps {
   label: string;
-  // What the values are compared with holds, which decides what they can be
+  // What the operand compared with holds, which decides what values can be entered
   shape: OperandShape;
   several: boolean;
   required?: boolean;
-  // Whether its choices are offered as it appears
+  // Whether its choices open as soon as it appears
   open?: boolean;
   value: string[];
   disabled: boolean;
