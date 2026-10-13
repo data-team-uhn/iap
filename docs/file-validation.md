@@ -1,7 +1,7 @@
 # File validation
 
 **Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`,
-`pdfjsClient.ts`, `uploadLimits.ts` · **Used by:** `DocumentUpload.tsx` (submissions) · **Demo:**
+`pdfViewer/pdfjsClient.ts`, `uploadLimits.ts` · **Used by:** `DocumentUpload.tsx` (submissions) · **Demo:**
 `test-data`'s `FileValidationWidget`
 
 Checks a file in the browser before it is uploaded. It answers one question: is anything
@@ -60,9 +60,9 @@ validateUpload(file, accepted, limits, signal)
 │                                                → "<name> is not a file of an accepted type: <types>."
 └── 4. checkContent(file, extension, limits), picked by extension:
        ├── .pdf  → checkPdf
-       │           ├── loadPdfjs()               (pdfjsClient.ts: import("pdfjs-dist"), set worker URL)
+       │           ├── loadPdfjs()               (pdfViewer/pdfjsClient.ts: PDF.js and its shared worker)
        │           ├── file.arrayBuffer()
-       │           ├── pdfjs.getDocument({ data }).promise
+       │           ├── pdfjs.getDocument({ data, worker }).promise
        │           ├── numPages === 0?           → "It has no pages."
        │           ├── numPages > maxPdfPages?   → "It has N pages, and the limit is L."
        │           └── task.destroy()            (always, in a finally)
@@ -152,10 +152,11 @@ type whose name has no known extension gets no content check at all.
 
 1. PDF.js is loaded (see [Loading PDF.js](#loading-pdfjs)).
 2. The whole file is read into memory and handed to PDF.js. No password is passed.
-   PDF.js 6 no longer builds code from a file's fonts, so there is no eval to switch off.
+   PDF.js 6 never runs code it builds from a file's fonts, so no option is needed for
+   that.
 3. PDF.js opens it and counts the pages.
-4. The PDF.js task is destroyed in a `finally`, pass or fail. Each check starts its own
-   worker holding the whole file, and without this it would live as long as the tab.
+4. The PDF.js task is destroyed in a `finally`, pass or fail. The shared worker holds the
+   whole file until then, and without this it would live as long as the tab.
 
 | What happened | Message |
 | --- | --- |
@@ -173,9 +174,10 @@ a file that really needs a password is refused.
 deploy, or a worker script that will not start, is a fault in the page, not in the file.
 Refusing would block every good upload, and the server checks again anyway. The cause
 goes to the browser console as `Could not load what checks <name>, so it was not
-checked`. PDF.js reports a worker that would not start as `Setting up fake worker
-failed`, which is how that case is told apart from a broken file. Any other failure to
-open a file is still "damaged", logged as `Could not open <name>`.
+checked`. PDF.js does not watch a worker it was handed, so the check listens for the
+worker's own `error` event and stops there, which is how that case is told apart from a
+broken file. Any other failure to open a file is still "damaged", logged as `Could not
+open <name>`.
 
 Counting pages is the only way to know how long a PDF is before it is uploaded. 500
 pages is where the parse gets long enough that a person would think it had failed.
@@ -291,23 +293,14 @@ that chunk and every page would download it.
 A `.docx` needs no library: the zip is read with the browser's own `DataView` and
 `DecompressionStream`.
 
-PDF.js reads PDFs in a web worker, a separate script file. It will not open anything
-until it is told where that file is. Two pieces set that up:
+PDF.js reads PDFs in a web worker, a separate script file. The check uses the same
+loader as the PDF viewer, `loadPdfjs()` in `pdfViewer/pdfjsClient.ts`. It starts the
+worker once with `new Worker(new URL("pdfjs-dist/build/pdf.worker.min.mjs",
+import.meta.url))`, which webpack bundles as a chunk of its own, and every document
+shares it.
 
-- `pdfjsClient.ts`: `loadPdfjs()` imports PDF.js and sets
-  `GlobalWorkerOptions.workerSrc` to `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url)`.
-- `webpack.config-template.js`: a rule matching `pdf.worker.min.mjs` emits it as its own
-  file, `pdf.worker.min.<hash>.js`, under `/libs/iap/resources/`, and rewrites the URL
-  above to point there.
-
-The file ends in `.js`, not `.mjs`, because Sling serves `.mjs` as
-`application/octet-stream`, and the browser refuses to load a module with that type. The
-hash in its name lets it be cached like every other bundle, and keeps an open tab from
-pairing one version of PDF.js with another's worker, which PDF.js refuses.
-
-Use `loadPdfjs()` for any other PDF.js work too, such as showing a PDF. Importing
-`pdfjs-dist` directly skips the worker setup, and every PDF then fails to open.
+Use `loadPdfjs()` for any other PDF.js work too. Importing `pdfjs-dist` directly skips
+the shared worker, and every document then starts one of its own.
 
 ## What happens after the browser
 
@@ -388,7 +381,7 @@ that are no longer selected.
 | File | Tests | What it covers |
 | --- | --- | --- |
 | `modules/frontend-commons/src/test/frontend/src/uploadLimits.test.ts` | 5 | Reading the server's limits, dropping a bad one, stopping the request, and falling back when the server refuses or cannot be reached |
-| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 50 | Every check and message, the limits at and past the edge, how sizes read, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, stopping a check, the worker URL, and that every PDF.js task is destroyed |
+| `modules/frontend-commons/src/test/frontend/src/fileValidation.test.ts` | 50 | Every check and message, the limits at and past the edge, how sizes read, MIME and extension matching, caller limits, the zip directory reader, a library that does not load, stopping a check, the shared worker, and that every PDF.js task is destroyed |
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 10 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale check is stopped and its answer ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting
@@ -409,12 +402,11 @@ The widget test replaces `validateUpload` itself, since the rules have their own
 | File | What it does |
 | --- | --- |
 | `modules/frontend-commons/src/main/frontend/src/fileValidation.ts` | `validateUpload` and every check |
-| `modules/frontend-commons/src/main/frontend/src/pdfjsClient.ts` | Loads PDF.js and tells it where its worker is |
+| `modules/frontend-commons/src/main/frontend/src/pdfViewer/pdfjsClient.ts` | Loads PDF.js and starts the worker every document shares |
 | `modules/frontend-commons/src/main/frontend/src/uploadLimits.ts` | Reads the server's limits |
 | `modules/documents/api/src/main/java/io/uhndata/iap/documents/internal/ConfiguredDocumentLimits.java` | The limits, as configured |
 | `modules/documents/api/src/main/java/io/uhndata/iap/documents/internal/DocumentLimitsServlet.java` | Serves them at `/system/documents/limits` |
 | `modules/submissions/impl/src/main/frontend/src/DocumentUpload.tsx` | The upload that calls it |
-| `aggregated-frontend/src/main/frontend/webpack.config-template.js` | Emits the PDF.js worker as `/libs/iap/resources/pdf.worker.min.<hash>.js` |
 | `aggregated-frontend/src/main/frontend/package.json` | The `pdfjs-dist` dependency |
 | `test-data/src/main/frontend/src/FileValidationWidget.tsx` | The demo widget |
 | `test-data/src/main/resources/SLING-INF/content/Extensions/DashboardWidget/FileValidation.json` | Puts the widget on the dashboard |

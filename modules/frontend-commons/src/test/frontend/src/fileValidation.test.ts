@@ -34,6 +34,9 @@ import {
 // A .docx is a real zip, written below byte by byte so a test can shape it exactly.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
+// What the last check asked PDF.js for
+const opened = vi.hoisted((): { options: Record<string, unknown> } => ({ options: {} }));
+
 // A switch that makes PDF.js fail to load, as a chunk that 404s after a deploy would
 const missing = vi.hoisted(() => ({ pdfjs: false }));
 
@@ -209,11 +212,12 @@ function findDirectoryEntry(bytes: Uint8Array): number {
     value === 0x50 && bytes[at + 1] === 0x4B && bytes[at + 2] === 0x01 && bytes[at + 3] === 0x02);
 }
 
-// The one worker the loader shares between documents
-const sharedWorker = vi.hoisted(() => ({}));
+// The one worker the loader shares between documents. Its port is the web worker PDF.js talks to.
+const sharedWorker = vi.hoisted(() => ({ port: new EventTarget() }));
 
 const pdfjs = vi.hoisted(() => ({
   getDocument: (args: { data: ArrayBuffer }) => {
+    opened.options = args;
     const bytes = new Uint8Array(args.data);
     const destroy = () => {
       destroyed.count++;
@@ -239,7 +243,8 @@ const pdfjs = vi.hoisted(() => ({
       };
     }
     if (bytes[0] === 0x27) {
-      return { promise: Promise.reject(new Error("Setting up fake worker failed: \"Failed to fetch\".")), destroy };
+      setTimeout(() => sharedWorker.port.dispatchEvent(new Event("error")), 0);
+      return { promise: new Promise(() => undefined), destroy };
     }
     return {
       promise: bytes[0] === 0x25

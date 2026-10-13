@@ -18,6 +18,8 @@
 
 import { loadPdfjs } from "./pdfViewer/pdfjsClient";
 
+import type { PDFWorker } from "pdfjs-dist";
+
 // Checks an upload in the browser so a bad file is refused in a moment, not after a slow upload. It
 // only advises: the server checks again, where nobody can skip it.
 
@@ -105,9 +107,23 @@ async function loadLibrary<T>(load: () => Promise<T>, file: File): Promise<T | u
   }
 }
 
-// What PDF.js says when its worker script could not load, which is no fault of the file
+// A worker script that could not load, which is no fault of the file
+class WorkerFailure extends Error {}
+
 function isWorkerFailure(error: unknown): boolean {
-  return error instanceof Error && error.message.startsWith("Setting up fake worker failed");
+  return error instanceof WorkerFailure;
+}
+
+// PDF.js does not watch a worker it was handed, so a check on one whose script never loaded would
+// wait forever. This rejects when the worker reports that failure.
+function watchWorker(worker: PDFWorker): { failed: Promise<never>; stop: () => void } {
+  let stop: () => void = () => undefined;
+  const failed = new Promise<never>((_resolve, reject) => {
+    const fail = () => reject(new WorkerFailure("The PDF.js worker did not start"));
+    worker.port.addEventListener("error", fail, { once: true });
+    stop = () => worker.port.removeEventListener("error", fail);
+  });
+  return { failed, stop };
 }
 
 // Opens the PDF. A file PDF.js refuses is one the parser would refuse too, and counting its pages is
@@ -122,13 +138,13 @@ async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Pro
     const data = await file.arrayBuffer();
     signal?.throwIfAborted();
     // No password is passed. A file whose only password is empty opens; one that needs a password throws.
-    // isEvalSupported off: PDF.js then never runs code it builds from a file's fonts
-    const task = pdfjs.getDocument({ data, worker, isEvalSupported: false });
+    const task = pdfjs.getDocument({ data, worker });
     // Destroying the task ends a parse that would otherwise run on, and rejects its promise
     const stop = () => void task.destroy();
     signal?.addEventListener("abort", stop, { once: true });
+    const watch = watchWorker(worker);
     try {
-      const pdf = await task.promise;
+      const pdf = await Promise.race([ task.promise, watch.failed ]);
       // The parser refuses these too, and there is nothing in one to read
       if (pdf.numPages === 0) {
         return { valid: false, error: "It has no pages." };
@@ -141,6 +157,7 @@ async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Pro
       }
       return { valid: true };
     } finally {
+      watch.stop();
       signal?.removeEventListener("abort", stop);
       // The shared worker keeps the whole file until the task is destroyed
       void task.destroy();
