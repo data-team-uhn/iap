@@ -69,6 +69,11 @@
   query
   abstract
 
+  // The parameters keep the order they are declared in, and only an orderable
+  // type keeps that order: without this, Oak returns the children in an order of
+  // its own.
+  orderable
+
   // Hardcode the supertype to the parent wf/FlowNodeType type.
   - sling:resourceSuperType (STRING) = "wf/FlowNodeType" mandatory autocreated protected
 
@@ -95,6 +100,11 @@
   // A child XML element that (if specified) is required to match
   - xmlChildElement (STRING)
 
+  // The element under bpmn:extensionElements, in the IAP namespace, that this
+  // entry is written as. Required to match when specified, which is what tells
+  // one service task handler from another.
+  - xmlExtensionElement (STRING)
+
 
   // JCR properties that are relevant to storing this type
   // The sub-type of wf:FlowNode that this type should be translated to
@@ -111,6 +121,10 @@
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
+
+  // The values a node of this type carries beyond the ones every flow node has,
+  // each declaring its own type and cardinality
+  + * (wf:Parameter)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -135,3 +149,72 @@
 // A particular type of routing node.
 [wf:GatewayType] > wf:FlowNodeType
   - sling:resourceType (STRING) = "wf/GatewayType" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// One value a kind of node takes: what it is called, what may be put in it, and
+// how many of it there may be. Declared as content, so that adding a parameter
+// to a kind of node is an edit to the vocabulary rather than a code change.
+//
+// The parameter's own name is the node name, which is both the JCR property it
+// is stored in and the XML attribute or element it is written as
+[wf:Parameter] > data:EntityPart
+  orderable
+
+  - sling:resourceType (STRING) = "wf/Parameter" mandatory autocreated protected
+
+  // What the author sees this parameter called
+  - label (STRING) mandatory
+
+  // What the parameter means, shown to whoever is filling it in
+  - description (STRING)
+
+  // What may be put in it: text, boolean, long, reference (the path of another
+  // node) or principal (the name of a user or group)
+  - dataType (STRING) = 'text' mandatory autocreated
+    < 'text', 'boolean', 'long', 'reference', 'principal'
+
+  // How many values it takes.
+  // A maximum of 0 is unbounded.
+  // Autocreated, not merely defaulted: a default only takes effect when the
+  // property is autocreated, so this is what writes the single value a parameter
+  // takes unless it says otherwise. The model reads an absent maximum as 1 as
+  // well, for an entry stored as a node of another type.
+  - minValues (LONG) = '0' autocreated
+  - maxValues (LONG) = '1' autocreated
+
+  // For a reference, the node type every value must be of. A parameter that names
+  // none accepts any node that exists.
+  - referenceType (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The values this parameter offers. A parameter declaring none takes whatever
+  // its dataType accepts; one declaring options takes only their values.
+  + * (wf:ParameterOption)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One of the values a parameter offers.
+//
+// The value is the durable half: it is what a diagram stores and what a handler
+// reads, so renaming one changes the meaning of every diagram already written
+// with it. The label is only what the author reads, and can be reworded freely.
+[wf:ParameterOption] > data:EntityPart
+  - sling:resourceType (STRING) = "wf/ParameterOption" mandatory autocreated protected
+
+  // What a diagram picking this option stores
+  - value (STRING) mandatory
+
+  // What the author reads; the value itself when left out
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

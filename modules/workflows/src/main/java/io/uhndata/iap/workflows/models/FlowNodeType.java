@@ -21,6 +21,7 @@ import java.io.StringReader;
 import java.util.List;
 
 import jakarta.json.Json;
+import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
@@ -76,6 +77,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     private String xmlChildElement;
 
     @ValueMapValue
+    private String xmlExtensionElement;
+
+    @ValueMapValue
     private String jcrNodeType;
 
     @ValueMapValue
@@ -118,6 +122,19 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     public String getXmlChildElement()
     {
         return this.xmlChildElement;
+    }
+
+    /**
+     * The element inside {@code bpmn:extensionElements}, in the IAP namespace, this entry is written as, e.g.
+     * {@code addTag}. It tells two entries sharing an XML element apart by what they were configured with rather
+     * than by what BPMN calls them: one service task handler from another.
+     *
+     * @return an element name, or {@code null} if the entry is recognized without one
+     */
+    @Nullable
+    public String getXmlExtensionElement()
+    {
+        return this.xmlExtensionElement;
     }
 
     /**
@@ -171,6 +188,17 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
+     * The values a node of this kind carries beyond the ones every flow node has, in the order they are declared.
+     *
+     * @return the declared parameters, empty if the entry declares none
+     */
+    @NotNull
+    public List<Parameter> getParameters()
+    {
+        return Parameter.declaredIn(this.resource);
+    }
+
+    /**
      * The human-readable name of this entry, e.g. "Message Start Event". Mandatory in the node type, so the
      * fallback is only reached by an entry stored as a node of another type carrying this one's resource type —
      * which must still be listed under a name rather than taking the catalogue down with it.
@@ -220,9 +248,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
      * {@inheritDoc}
      *
      * <p>On top of the common fields, this adds everything the visual editor needs to build a toolbar entry and to
-     * map it back onto BPMN: the {@code priority}, the {@code xmlElement} and {@code xmlChildElement} it stands
-     * for, and the {@code jcrNodeType} it is stored as, plus the {@code jcrProperties} and {@code properties} when
-     * the entry declares any.</p>
+     * map it back onto BPMN: the {@code priority}, the {@code xmlElement}, {@code xmlChildElement} and
+     * {@code xmlExtensionElement} it stands for, and the {@code jcrNodeType} it is stored as, plus the
+     * {@code jcrProperties}, {@code properties} and {@code parameters} when the entry declares any.</p>
      *
      * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
      * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better
@@ -243,6 +271,9 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
         if (this.xmlChildElement != null) {
             json.add("xmlChildElement", this.xmlChildElement);
         }
+        if (this.xmlExtensionElement != null) {
+            json.add("xmlExtensionElement", this.xmlExtensionElement);
+        }
         final JsonObject fixedProperties = this.getJcrProperties();
         if (fixedProperties != null) {
             json.add("jcrProperties", fixedProperties);
@@ -250,6 +281,12 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
         final List<String> copiedProperties = this.getProperties();
         if (!copiedProperties.isEmpty()) {
             json.add("properties", Json.createArrayBuilder(copiedProperties));
+        }
+        final List<Parameter> parameters = this.getParameters();
+        if (!parameters.isEmpty()) {
+            final JsonArrayBuilder declared = Json.createArrayBuilder();
+            parameters.forEach(parameter -> declared.add(parameter.toJsonBuilder()));
+            json.add("parameters", declared);
         }
         return json;
     }
