@@ -24,6 +24,7 @@ import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { cutShort, passageCard, passageTint } from "./passageStyles";
 import { describePages, getPassageNote, type ViewerStatus } from "./pdfViewerModel";
+import { fadeEdges, useScrollEdges } from "../useScrollEdges";
 
 import type { MarkPlaces } from "./useMarkPlaces";
 
@@ -46,6 +47,7 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
 }) {
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
+  const edges = useScrollEdges(list);
 
   useEffect(() => {
     const entry = selectedId === undefined ? undefined : entries.current.get(selectedId);
@@ -69,6 +71,7 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
         display: "flex",
         flexDirection: "column",
         gap: 1,
+        maskImage: fadeEdges(edges),
       }}
     >
       {marks.map((mark, index) => {
