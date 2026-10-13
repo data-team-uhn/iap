@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Mark Completeness",
+  "description": "Tags the parts of the submission still lacking something its author has to supply as incomplete, and clears the tag from the rest. It acts on the submission an earlier step created, or else on the target.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "markCompleteness",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"markCompleteness\"}"
+}

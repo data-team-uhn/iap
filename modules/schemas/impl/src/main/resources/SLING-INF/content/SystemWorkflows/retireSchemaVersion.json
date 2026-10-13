@@ -23,6 +23,7 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
+          "source": "literal",
           "value": ["active"]
         }
       },
@@ -39,7 +40,7 @@
       "handler": "addTag",
       "tag": "retired",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

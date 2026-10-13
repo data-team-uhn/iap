@@ -199,8 +199,8 @@
   - hostTag (STRING)
 
   // Allow any other properties for extensibility: the properties a flow node
-  // carries beyond these depend on its type, and are listed by that type's
-  // wf:FlowNodeType.properties
+  // carries beyond these depend on its type, and are declared by that type's
+  // wf:Parameter children
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 

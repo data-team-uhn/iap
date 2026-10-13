@@ -31,7 +31,13 @@
       <bpmn:messageEventDefinition id="saveRequested" messageRef="saveMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
-    <bpmn:serviceTask id="save" iap:editable="title" iap:handler="saveProperties" iap:required="title" name="Record the new properties">
+    <bpmn:serviceTask id="save" name="Record the new properties">
+      <bpmn:extensionElements>
+        <iap:saveProperties>
+          <iap:editable>title</iap:editable>
+          <iap:required>title</iap:required>
+        </iap:saveProperties>
+      </bpmn:extensionElements>
       <bpmn:incoming>toSave</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

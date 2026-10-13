@@ -77,7 +77,8 @@ class ParameterTest
             "description", "The state the version is moved to.",
             "dataType", Parameter.TYPE_TEXT,
             "minValues", 1L,
-            "maxValues", 1L));
+            "maxValues", 1L,
+            "xmlLocation", Parameter.LOCATION_EXTENSION_ELEMENT));
 
         assertNotNull(parameter);
         assertEquals("toState", parameter.getName());
@@ -87,6 +88,7 @@ class ParameterTest
         assertEquals(1L, parameter.getMinValues());
         assertEquals(1L, parameter.getMaxValues());
         assertNull(parameter.getReferenceType());
+        assertEquals(Parameter.LOCATION_EXTENSION_ELEMENT, parameter.getXmlLocation());
         assertTrue(parameter.getOptions().isEmpty());
     }
 
@@ -94,10 +96,12 @@ class ParameterTest
     void readsWhatARestrictedReferenceRequires()
     {
         final Parameter parameter = this.createParameter("template", Map.of(
-            LABEL, "Template", "dataType", Parameter.TYPE_REFERENCE, "referenceType", "mail:Template"));
+            LABEL, "Template", "dataType", Parameter.TYPE_REFERENCE, "referenceType", "mail:Template",
+            "xmlLocation", Parameter.LOCATION_ATTRIBUTE));
 
         assertEquals(Parameter.TYPE_REFERENCE, parameter.getDataType());
         assertEquals("mail:Template", parameter.getReferenceType());
+        assertEquals(Parameter.LOCATION_ATTRIBUTE, parameter.getXmlLocation());
     }
 
     @Test
@@ -110,6 +114,7 @@ class ParameterTest
         assertEquals(Parameter.TYPE_TEXT, parameter.getDataType());
         assertEquals(0L, parameter.getMinValues());
         assertEquals(1L, parameter.getMaxValues());
+        assertEquals(Parameter.LOCATION_EXTENSION_ELEMENT, parameter.getXmlLocation());
     }
 
     @Test
@@ -145,7 +150,8 @@ class ParameterTest
     {
         this.createParameter("fromStates", Map.of(
             LABEL, "Applies to", "description", "The states this move is for.",
-            "dataType", Parameter.TYPE_TEXT, "minValues", 1L, "maxValues", 0L));
+            "dataType", Parameter.TYPE_TEXT, "minValues", 1L, "maxValues", 0L,
+            "xmlLocation", Parameter.LOCATION_ATTRIBUTE));
         this.createOption("fromStates", "draft", Map.of(VALUE, "DRAFT", LABEL, "Draft"));
 
         final JsonObject json = this.parameter("fromStates").toJsonBuilder().build();
@@ -156,6 +162,7 @@ class ParameterTest
         assertEquals(Parameter.TYPE_TEXT, json.getString("dataType"));
         assertEquals(1, json.getInt("minValues"));
         assertEquals(0, json.getInt("maxValues"));
+        assertEquals(Parameter.LOCATION_ATTRIBUTE, json.getString("xmlLocation"));
         assertEquals(1, json.getJsonArray(OPTIONS).size());
         assertEquals("DRAFT", json.getJsonArray(OPTIONS).getJsonObject(0).getString(VALUE));
         assertEquals("Draft", json.getJsonArray(OPTIONS).getJsonObject(0).getString(LABEL));

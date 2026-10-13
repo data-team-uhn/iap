@@ -1,0 +1,23 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Save Properties",
+  "description": "Writes plain text properties from the payload onto the target. Which properties may be written, and which must arrive with a value, are this task's own configuration rather than the caller's choice.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "saveProperties",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"saveProperties\"}",
+  "editable": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Editable properties",
+    "description": "The payload entries a caller may write. An entry not listed here is ignored rather than refused.",
+    "minValues": 1,
+    "maxValues": 0
+  },
+  "required": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Required properties",
+    "description": "The subset of the editable properties that must arrive with a value; refused when blank.",
+    "maxValues": 0
+  }
+}

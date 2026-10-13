@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Update Content",
+  "description": "Applies the event's patch to the resource this step acts on, changing only the fields listed here that its node type declares. The same list describes the form that offers the change.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "updateContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"updateContent\"}"
+}

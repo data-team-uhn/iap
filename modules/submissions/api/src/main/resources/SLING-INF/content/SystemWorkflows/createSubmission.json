@@ -24,7 +24,7 @@
       "elementId": "create",
       "label": "Create the submission",
       "handler": "createSubmission",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateSubmission",
       "toParts": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toParts",
@@ -36,7 +36,7 @@
       "elementId": "parts",
       "label": "Give each item asked for a part of its own",
       "handler": "createParts",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateParts",
       "toMark": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMark",
@@ -48,7 +48,7 @@
       "elementId": "mark",
       "label": "Record whether anything is still missing",
       "handler": "markCompleteness",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MarkCompleteness",
       "toStart": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toStart",
@@ -61,7 +61,7 @@
       "label": "Put it under its workflow",
       "handler": "startWorkflow",
       "workflowFrom": "schemaVersion/workflow",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartWorkflow",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

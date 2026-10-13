@@ -31,6 +31,24 @@
   <description>Tells people what a workflow says happened, offering each notification to every delivery
     channel</description>
 
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Include-Resource>{maven-resources}</Include-Resource>
+            <Sling-Initial-Content>
+              SLING-INF/content/WorkflowTypes;path:=/WorkflowTypes;overwriteProperties:=true;uninstall:=true,
+            </Sling-Initial-Content>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>

@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Schema Version",
+  "description": "Adds an empty version to the target schema, labelled with the event's version or else the next whole number, and reports it as what the execution created, so the steps after it act on the new version.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createSchemaVersion",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createSchemaVersion\"}"
+}

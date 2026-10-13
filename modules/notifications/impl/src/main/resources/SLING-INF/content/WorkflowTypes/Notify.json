@@ -1,0 +1,38 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Notify",
+  "description": "Tells people something happened: who to tell, how urgent it is and where the wording lives are all named here, so adding a notification is adding a node and some wording, never Java.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "notify",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"notify\"}",
+  "event": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Event",
+    "description": "What happened, naming the event a template's wording can turn into a sentence. Falls back to the node's own id when left blank."
+  },
+  "template": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Template",
+    "description": "The path of the notification template folder under /libs/iap/notificationTemplates/ whose wording this task sends.",
+    "dataType": "reference",
+    "minValues": 1
+  },
+  "urgency": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Urgency",
+    "description": "How soon the recipients should hear about it.",
+    "minValues": 1,
+    "immediate": { "jcr:primaryType": "wf:ParameterOption", "value": "immediate", "label": "Immediately" },
+    "batched": { "jcr:primaryType": "wf:ParameterOption", "value": "batched", "label": "In the next digest" }
+  },
+  "recipients": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Recipients",
+    "description": "Who to tell: \"@creator\" for whoever raised the thing in question, or a person or group, expanded into its members when the moment comes.",
+    "dataType": "principal",
+    "minValues": 1,
+    "maxValues": 0
+  }
+}

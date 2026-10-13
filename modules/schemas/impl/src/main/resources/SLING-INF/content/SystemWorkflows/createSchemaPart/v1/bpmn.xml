@@ -42,6 +42,7 @@
             </sv:node>
             <sv:node sv:name="operandB">
               <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
               <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
             </sv:node>
           </sv:node>
@@ -53,6 +54,10 @@
               <sv:property sv:name="source"><sv:value>ownProperty</sv:value></sv:property>
               <sv:property sv:name="value" sv:multiple="true"><sv:value>optionsFrom</sv:value></sv:property>
             </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
+            </sv:node>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
@@ -60,8 +65,14 @@
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="value,title,text,label" iap:nameHint="Letters, digits, - and _, starting with a letter or a digit." iap:namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" name="Add the part">
+    <bpmn:serviceTask id="create" name="Add the part">
       <bpmn:extensionElements>
+        <iap:createContent namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" nameHint="Letters, digits, - and _, starting with a letter or a digit.">
+          <iap:nameFrom>value</iap:nameFrom>
+          <iap:nameFrom>title</iap:nameFrom>
+          <iap:nameFrom>text</iap:nameFrom>
+          <iap:nameFrom>label</iap:nameFrom>
+        </iap:createContent>
         <sv:node sv:name="types">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
           <sv:node sv:name="section">
@@ -86,8 +97,9 @@
       <bpmn:outgoing>toUpdate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="create" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Fill it in">
+    <bpmn:serviceTask id="update" name="Fill it in">
       <bpmn:extensionElements>
+        <iap:updateContent />
         <sv:node sv:name="fields">
           <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
           <sv:node sv:name="value">

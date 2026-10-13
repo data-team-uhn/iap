@@ -24,7 +24,7 @@
       "elementId": "save",
       "label": "Record the answers",
       "handler": "saveAnswers",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/SaveAnswers",
       "toParts": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toParts",
@@ -36,7 +36,7 @@
       "elementId": "parts",
       "label": "Give each item asked for a part of its own",
       "handler": "createParts",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateParts",
       "toMark": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMark",
@@ -48,7 +48,7 @@
       "elementId": "mark",
       "label": "Record whether anything is still missing",
       "handler": "markCompleteness",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MarkCompleteness",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

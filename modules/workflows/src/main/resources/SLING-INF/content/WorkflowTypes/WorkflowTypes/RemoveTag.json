@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Remove Tag",
+  "description": "Removes a tag from the host.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "removeTag",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"removeTag\"}",
+  "tag": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Tag",
+    "description": "The name of the tag to remove from the host, e.g. \"retired\".",
+    "minValues": 1
+  }
+}

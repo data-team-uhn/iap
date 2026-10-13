@@ -23,6 +23,7 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
+          "source": "literal",
           "value": ["retired"]
         }
       },
@@ -37,7 +38,7 @@
       "elementId": "create",
       "label": "Create the version",
       "handler": "createSchemaVersion",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateSchemaVersion",
       "toCopy": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toCopy",
@@ -51,7 +52,7 @@
       "handler": "copyContent",
       "sourceType": "sch/SchemaVersion",
       "skipProperties": ["version"],
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CopyContent",
       "toLinkSource": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toLinkSource",
@@ -65,7 +66,7 @@
       "handler": "addLink",
       "linkType": "copiedFrom",
       "to": "source",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddLink",
       "toMarkDraft": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkDraft",
@@ -79,7 +80,7 @@
       "handler": "addTag",
       "tag": "draft",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

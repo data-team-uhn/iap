@@ -39,6 +39,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -47,7 +48,10 @@
       <bpmn:messageEventDefinition id="moveRequested" messageRef="moveMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="moveContent" iap:within="sch/Question" name="Move the option">
+    <bpmn:serviceTask id="move" name="Move the option">
+      <bpmn:extensionElements>
+        <iap:moveContent within="sch/Question" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

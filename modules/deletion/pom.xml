@@ -59,6 +59,7 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/del/;path:=/libs/del/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/WorkflowTypes;path:=/WorkflowTypes;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>

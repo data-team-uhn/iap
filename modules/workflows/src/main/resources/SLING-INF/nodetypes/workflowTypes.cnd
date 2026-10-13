@@ -102,7 +102,8 @@
 
   // The element under bpmn:extensionElements, in the IAP namespace, that this
   // entry is written as. Required to match when specified, which is what tells
-  // one service task handler from another.
+  // one service task handler from another, and is where every parameter located
+  // in an extensionElement is read from.
   - xmlExtensionElement (STRING)
 
 
@@ -114,16 +115,11 @@
   - jcrProperties (STRING)
 
 
-  //
-  // Properties that should be copied from the XML element to the JCR node
-  - properties (STRING) multiple
-
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The values a node of this type carries beyond the ones every flow node has,
-  // each declaring its own type and cardinality
+  // The values a node of this type carries beyond the standard flow node values
   + * (wf:Parameter)
 
   // Allow any other children for extensibility
@@ -152,8 +148,9 @@
 
 //-----------------------------------------------------------------------------
 // One value a kind of node takes: what it is called, what may be put in it, and
-// how many of it there may be. Declared as content, so that adding a parameter
-// to a kind of node is an edit to the vocabulary rather than a code change.
+// where it is written in the diagram. Declared as content, so that adding a
+// parameter to a kind of node is an edit to the vocabulary rather than a code
+// change to the parser.
 //
 // The parameter's own name is the node name, which is both the JCR property it
 // is stored in and the XML attribute or element it is written as
@@ -177,8 +174,8 @@
   // A maximum of 0 is unbounded.
   // Autocreated, not merely defaulted: a default only takes effect when the
   // property is autocreated, so this is what writes the single value a parameter
-  // takes unless it says otherwise. The model reads an absent maximum as 1 as
-  // well, for an entry stored as a node of another type.
+  // takes unless it says otherwise. The parser and the model read an absent
+  // maximum as 1 as well, for an entry stored as a node of another type.
   - minValues (LONG) = '0' autocreated
   - maxValues (LONG) = '1' autocreated
 
@@ -186,12 +183,21 @@
   // none accepts any node that exists.
   - referenceType (STRING)
 
+  // Where the value is written. extensionElement: inside the entry's
+  // xmlExtensionElement, which keeps one handler's configuration apart from
+  // another's on the same bpmn:serviceTask. attribute: an IAP-namespaced
+  // attribute on the flow node's own element, which is what a property the node
+  // *kind* declares needs, since there may be no extension element at all.
+  - xmlLocation (STRING) = 'extensionElement' mandatory autocreated
+    < 'extensionElement', 'attribute'
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
   // The values this parameter offers. A parameter declaring none takes whatever
-  // its dataType accepts; one declaring options takes only their values.
+  // its dataType accepts; one declaring options takes only their values, and the
+  // parser reports any other.
   + * (wf:ParameterOption)
 
   // Allow any other children for extensibility

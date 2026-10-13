@@ -131,8 +131,9 @@ likewise true, and it is meaningful only on an attached event; on a free-standin
 
 ### What an executable graph carries
 
-Several things exist for the engine rather than for the diagram, derived from the diagram's `iap:*`
-extension attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
+Several things exist for the engine rather than for the diagram, derived through the typed parameters
+each vocabulary entry declares wherever a version says its BPMN is authoritative, and set by hand
+elsewhere:
 
 - **`messageName` on an event** is the domain event name it catches or throws, resolved
   from the BPMN `messageRef`. It is what an incoming event is matched against.
@@ -188,11 +189,19 @@ shipped as a file of its own, named after the entry — `MessageStartEvent.json`
 }
 ```
 
-Parsing a document matches each element against every entry and keeps the
-highest-`priority` match, which is what stops a start event carrying a message
-definition from being read as a plain one. `jcrProperties` carries the fixed properties
-to set on the stored node — it is how a terminate end event and an ordinary one share
-`wf:EndEvent` and still differ.
+Parsing a document matches each element's local name against every entry sharing it, sorted from highest
+to lowest `priority`, and keeps the first candidate that also satisfies what it further requires: an
+`xmlChildElement`, which must be a direct BPMN child of that name — what stops a start event carrying a
+message definition from being read as a plain one — or an `xmlExtensionElement`, which must be an
+IAP-namespaced child of the element's own `extensionElements` — what tells one service task handler's
+configuration from another's on the same `bpmn:serviceTask`. An entry requiring neither always matches.
+Entries of equal priority are tried in the order of their node names, since `/WorkflowTypes` is not
+orderable and which entry a diagram is read as must not depend on the order the repository lists them in.
+An entry is a node of
+type `wf:FlowNodeType` or a subtype; a matching one missing its `jcrNodeType` or its identity is reported and
+passed over for the next candidate.
+`jcrProperties` carries the fixed properties to set on the stored node — it is how a terminate end event
+and an ordinary one share `wf:EndEvent` and still differ.
 
 It is only for what genuinely varies between entries sharing a node type. Whether an
 event is **catching** or throwing, by contrast, follows from its node type and never
@@ -201,11 +210,85 @@ being written, rather than named here. A property a node type already determines
 business being restated by the vocabulary: the two could then disagree, and the stored
 node would be the one that lies.
 
-**Adding a kind of node is normally a vocabulary entry, not a node type.** A user task
-and a service task are both plain `wf:Activity` nodes; what tells them apart is which
-entry they point at. Only distinctions the engine has to make *structurally* get a node
-type of their own. This is why the Java hierarchy is much shallower than BPMN's, and it
-is the test to apply before adding to it:
+**What varies between one occurrence of a kind of node and the next is a `wf:Parameter` child of the
+entry, not a hardcoded field.** Each one declares a `label` and `description`, a `dataType` saying what may
+be put in it (`text`, `boolean`, `long`, `reference` or `principal`), how many values it takes
+(`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning unbounded), and — for a
+`reference` — the `referenceType` a value must be of; a parameter may also offer a fixed set of values as
+`wf:ParameterOption` children. `CopyContent.json`, the entry behind the `copyContent` handler:
+
+```json
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Copy Content",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "copyContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"copyContent\"}",
+  "sourceType": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Source type"
+  },
+  "skipProperties": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Skip properties",
+    "maxValues": 0
+  }
+}
+```
+
+**Where a parameter's value is written is its own choice, its `xmlLocation`, because the cases are genuinely
+different.** A user task's `performers` is `xmlLocation: "attribute"`: a property the node *kind* declares, so
+it is an IAP-namespaced attribute of the flow node's own element regardless of whether that element carries
+an extension at all — `iap:performers="reviewers, editors"`, a list comma-joined. `sourceType` and
+`skipProperties` keep the default, `extensionElement`: they live inside `copyContent`'s own extension element,
+where one handler's configuration cannot be confused with another's on the same `bpmn:serviceTask` — a single
+value is an unprefixed attribute of that element, a list is one IAP-namespaced child per value:
+
+```xml
+<bpmn:serviceTask id="copy" name="Copy the source version, if one is named">
+  <bpmn:extensionElements>
+    <iap:copyContent sourceType="wf/WorkflowVersion">
+      <iap:skipProperties>version</iap:skipProperties>
+    </iap:copyContent>
+  </bpmn:extensionElements>
+</bpmn:serviceTask>
+```
+
+An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so one declared there anyway
+is read as an attribute regardless — logged as a problem rather than silently accepted, since the
+alternative is a value an author writes and nothing stores.
+
+Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
+STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
+required parameter (`minValues` at least one) with nothing given, more values than `maxValues` allows, fewer
+values than `minValues`, a value outside the offered options, a value the wrong shape for its `dataType`, a
+value written in the other of the two places a value can take inside an extension element (reported and
+*not* read — guessing which was meant would make where a value lives a matter of opinion), a `reference`
+naming a node that does not exist or whose primary type and mixins are none of them the declared
+`referenceType`, or a parameter whose `jcrNodeType` declares a property of the same name in another type or
+cardinality — which Oak would accept through the residual definitions every flow node has, leaving a property
+in a shape its own node type says it never takes, so it is reported and not written. Every one of these is
+reported through the same problem log a bad element is, naming the parameter and the element, and parsing
+carries on regardless: a diagram that says something impossible costs at most the values it got wrong, never
+the save. **Fixed `jcrProperties` are applied after parameters and win over them**, so a handler's own
+`handler` property is never something a diagram could overwrite by declaring a parameter of the same name.
+
+**A per-handler vocabulary entry ships with the handler's own module**, matched on the extension element
+named after the handler — `Notify.json` under `modules/notifications`, `CopyContent.json` under
+`modules/workflows`, and so on — at `priority: 10` over the generic `ServiceTask` entry's `0`. The generic
+entry declares only `handler`, an `attribute`, and is what a service task falls back on
+when it carries no extension element that a per-handler entry matches. Matching never reads `iap:handler`:
+a task that names `notify` there without an `<iap:notify>` element is a generic service task, so none of
+Notify's parameters are read or checked. A call activity is a BPMN element of its own rather than a
+configured service task, so its `CallActivity` entry fixes the `callActivity` handler and carries `message`
+as an attribute.
+
+**Adding a kind of node is normally a vocabulary entry, not a node type.** A user task and a service task
+are both plain `wf:Activity` nodes; what tells them apart is which entry they point at. Only distinctions
+the engine has to make *structurally* get a node type of their own. This is why the Java hierarchy is much
+shallower than BPMN's, and it is the test to apply before adding to it:
 
 | Distinction | Where it lives | Why |
 |---|---|---|
@@ -223,8 +306,9 @@ is the test to apply before adding to it:
 
 The JSON is **not just prose**: it is what the visual BPMN editor reads to build its
 toolbars, grouped by the `category` each entry declares, falling back on the group its
-kind implies. Each item carries the `xmlElement`/`xmlChildElement` it stands for and the
-`jcrNodeType` it is stored as. Treat the shape of that output as a contract — the editor
+kind implies. Each item carries the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for,
+the `jcrNodeType` it is stored as, and its `parameters`, each with the `label`, `description`, `dataType`,
+cardinality, options and `xmlLocation` it declares. Treat the shape of that output as a contract — the editor
 depends on it.
 
 ### Runtime
@@ -907,7 +991,9 @@ static EventAttachment Payloads.attachment(WorkflowEvent event, String name);
 
 Service tasks are implemented as a `ServiceTaskHandler`: the activity names its handler
 in the `handler` property, and the activity's other properties are that handler's
-configuration. This is the extension point that lets a project plug its own behavior into
+configuration — named, typed and validated by the handler's own vocabulary entry, so a
+handler simply reads them off the activity, `activity.get("name", Type.class)`, the same
+way any Sling Model reads a `ValueMap`. This is the extension point that lets a project plug its own behavior into
 a workflow without touching the platform. Handlers write through the context's resolver
 and never commit — the engine owns the transaction — and communicate through execution
 variables (`context.setVariable(...)`), which is also how results reach the channel that
@@ -1065,12 +1151,14 @@ disagree.
 - **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the
   structured conditions mechanism, the way schema items express their conditions; it is
   left as an expression until the conditions module lands.
-- **Event definitions carry no payload yet.** A timer event is recognized as a timer,
-  but there is nowhere to put its duration, and a message event records its `messageRef`
-  without resolving it to the `<bpmn:message>` declared at document level — which is
-  what the engine's event dictionary will need. The vocabulary can copy XML
-  *attributes*; these payloads live in nested *elements*, and the mechanism for pulling
-  those across is best designed alongside the parser that needs it.
+- **Shipped system workflows are not yet `bpmnAuthoritative`.** Every one of them ships a
+  `bpmn.xml` beside its hand-authored flow nodes, and reparsing the diagram is proven to
+  reproduce those nodes exactly: `ShippedDefinitionParityTest` does it in Surefire for this
+  module's own definitions, and the `systemWorkflowParity.story.spec.ts` Playwright story
+  does it against a running instance for every definition under `/SystemWorkflows`, the
+  other modules' included; the demo is already `bpmnAuthoritative`. The flag stays false on
+  the system workflows until that guarantee has stood for a while, so the hand-authored
+  nodes remain the ones the engine actually runs against.
 - **Widening a `performers` list on a workflow-authoring definition needs an ACL to
   match.** Sling resolves the posted-to resource before dispatching, and the only read
   granted under `/Workflows` is the homepage node itself, restricted by node type — so a
@@ -1100,13 +1188,10 @@ disagree.
   derived from a lane the way a diagram would express it. Mapping lanes onto groups
   touches how `ApprovalRequirement.approverGroup` already works, so it is a design
   decision rather than an omission.
-- **No subprocesses, call activities or multi-instance markers.** "One review per
+- **No subprocesses or multi-instance markers.** "One review per
   assigned reviewer" is a multi-instance activity in BPMN, and that is the first of
   these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary
   covers timer, message, error and terminate.
-- **The `bpmn:` prefix is matched literally** rather than by namespace URI. Safe while
-  every diagram comes from the in-app editor, which always emits that prefix; a document
-  from elsewhere using `bpmn2:` or a default namespace would not be recognized.
 - **No `oak:index` definitions.** The console's listings and the homepage discovery both
   query without one.
