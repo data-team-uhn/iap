@@ -25,9 +25,10 @@ import type { CreatableType } from "./fieldsModel";
 // How many words of a text make a name
 const NAME_WORDS = 5;
 
-// The first words of a text, without accents, camel-cased
+// The first words of a text, without accents, camel-cased. Ligatures, superscripts and fullwidth forms become the
+// plain letters and digits they stand for.
 function camelCase(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").split(/[^\p{L}\p{N}]+/u)
+  return text.normalize("NFKD").replace(/\p{M}/gu, "").split(/[^\p{L}\p{N}]+/u)
     .filter(word => word !== "")
     .slice(0, NAME_WORDS)
     .map((word, at) => {

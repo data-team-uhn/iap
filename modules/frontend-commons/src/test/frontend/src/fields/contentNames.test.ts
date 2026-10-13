@@ -31,6 +31,9 @@ describe("suggestName", () => {
   it("names new content after the first words of what it says, without accents", () => {
     expect(suggestName("Your date of birth, as on your passport", ANY, [])).toBe("yourDateOfBirthAs");
     expect(suggestName("Âge à l'entrée", ANY, [])).toBe("ageALEntree");
+    expect(suggestName("ﬁle size", ANY, [])).toBe("fileSize");
+    expect(suggestName("Area in m²", ANY, [])).toBe("areaInM2");
+    expect(suggestName("Ｗｅｉｇｈｔ (ｋｇ)", ANY, [])).toBe("weightKg");
     expect(suggestName("2 things", ANY, [])).toBe("2Things");
     expect(suggestName("Возраст", ANY, [])).toBe("возраст");
     expect(suggestName(" - ", ANY, [])).toBe("question");

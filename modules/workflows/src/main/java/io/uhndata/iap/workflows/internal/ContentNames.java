@@ -110,14 +110,15 @@ final class ContentNames
 
     /**
      * A name made of the first few words of a text, without accents, camel-cased: {@code "Âge à l'entrée"} gives
-     * {@code ageALEntree}. Letters and digits of any script make words; everything else separates them.
+     * {@code ageALEntree}. Ligatures, superscripts and fullwidth forms become the plain letters and digits they stand
+     * for. Letters and digits of any script make words; everything else separates them.
      *
      * @param text any text
      * @return its first words, camel-cased, empty when it has none
      */
     static String fromText(final String text)
     {
-        final String plain = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        final String plain = Normalizer.normalize(text, Normalizer.Form.NFKD).replaceAll("\\p{M}", "");
         return NodeNameUtils.camelCase(Arrays.stream(plain.split("[^\\p{L}\\p{N}]+"))
             .filter(word -> !word.isEmpty())
             .limit(NAME_WORDS)

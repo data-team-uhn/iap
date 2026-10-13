@@ -36,6 +36,9 @@ class ContentNamesTest
     {
         assertEquals("yourDateOfBirthAs", ContentNames.fromText("Your date of birth, as on your passport"));
         assertEquals("ageALEntree", ContentNames.fromText("Âge à l'entrée"));
+        assertEquals("fileSize", ContentNames.fromText("ﬁle size"));
+        assertEquals("areaInM2", ContentNames.fromText("Area in m²"));
+        assertEquals("weightKg", ContentNames.fromText("Ｗｅｉｇｈｔ (ｋｇ)"));
         assertEquals("2Things", ContentNames.fromText("2 things"));
         assertEquals("возраст", ContentNames.fromText("Возраст"));
         assertEquals("", ContentNames.fromText(" - "));
