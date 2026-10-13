@@ -1,0 +1,22 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Add Tag",
+  "description": "Places a tag on the host. With replaceExisting set, it first removes the host's other own tags that share a category with it, which is how a workflow moves its host from one state to the next.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "addTag",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"addTag\"}",
+  "tag": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Tag",
+    "description": "The name of the tag to place on the host, e.g. \"retired\".",
+    "minValues": 1
+  },
+  "replaceExisting": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Replace existing",
+    "description": "Whether to first remove the host's other tags in the same category as this one.",
+    "dataType": "boolean"
+  }
+}

@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.stream.StreamSupport;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -37,6 +36,7 @@ import org.xml.sax.SAXException;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.utils.NodeTypeUtils;
 import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
 
 /**
@@ -84,15 +84,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     /** The child node type that workflow definitions homepages store. */
     private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
-    private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
-
-    private static final String JCR_SYSTEM_NODE_NAME = "jcr:system";
-
-    private static final String JCR_NODE_TYPES_NODE_NAME = "jcr:nodeTypes";
-
     private static final String WORKFLOW_VERSION_TYPE = "wf:WorkflowVersion";
-
-    private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private static final String BPMN_XML_FILE_NAME = "bpmn.xml";
 
@@ -130,22 +122,17 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * which node it descends into, bundled together so the per-instance constructor stays within the checkstyle
      * parameter limit.
      *
-     * <p>The two roots are derived from the committed state on demand rather than passed in already resolved: this
-     * editor is created for every commit in the repository, and only the few that reach a workflow version ever need
-     * them.</p>
+     * <p>The node type registry is derived from the committed state on demand rather than passed in already
+     * resolved. This editor is created for every commit in the repository, and only the few that reach a workflow
+     * version ever need it.</p>
      *
      * @since 0.1.0
      */
     private record CommitContext(NodeState after, String author)
     {
-        NodeState workflowTypesRoot()
-        {
-            return this.after.getChildNode(WORKFLOW_TYPES_ROOT_NAME);
-        }
-
         NodeState nodeTypesRoot()
         {
-            return this.after.getChildNode(JCR_SYSTEM_NODE_NAME).getChildNode(JCR_NODE_TYPES_NODE_NAME);
+            return NodeTypeUtils.registry(this.after);
         }
     }
 
@@ -165,9 +152,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * Constructor for the repository root, receiving the whole commit.
      *
      * @param root the root node builder
-     * @param after the committed root node state, which {@code /WorkflowTypes} (the {@code wf:FlowNodeType}
-     *            vocabulary) and {@code /jcr:system/jcr:nodeTypes} (used to recognize workflow versions and
-     *            previously parsed flow nodes, including subtypes of either) are read from
+     * @param after the committed root node state, which the parse reads everything outside the version itself
+     *            from: the {@code wf:FlowNodeType} vocabulary, the node type registry that recognizes workflow
+     *            versions and previously parsed flow nodes, and whatever a reference parameter names
      * @param author the id of the user who made this commit, recorded as {@code jcr:createdBy} on newly parsed
      *            flow nodes/sequence flows
      */
@@ -321,8 +308,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
                 return;
             }
             try (InputStream reread = bpmnXml.getNewStream()) {
-                WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.workflowTypesRoot(),
-                    this.context.nodeTypesRoot(), this.context.author(), this.workflowVersionPath);
+                WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.after(),
+                    this.context.author(), this.workflowVersionPath);
             }
             this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
@@ -359,15 +346,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      */
     private boolean isWorkflowVersion(final NodeBuilder node)
     {
-        final String type = node.getName(JCR_PRIMARY_TYPE_PROPERTY);
-        if (type == null) {
-            return false;
-        }
-        if (WORKFLOW_VERSION_TYPE.equals(type)) {
-            return true;
-        }
-        return StreamSupport.stream(this.context.nodeTypesRoot().getChildNode(type)
-            .getNames(SUPERTYPES_PROPERTY).spliterator(), false)
-            .anyMatch(WORKFLOW_VERSION_TYPE::equals);
+        return NodeTypeUtils.isOrExtends(node.getName(JCR_PRIMARY_TYPE_PROPERTY), WORKFLOW_VERSION_TYPE,
+            this.context.nodeTypesRoot());
     }
 }

@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Check Valid",
+  "description": "Refuses to go on unless the target passes every validity check that applies to it. Every problem is reported at once.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "checkValid",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"checkValid\"}"
+}

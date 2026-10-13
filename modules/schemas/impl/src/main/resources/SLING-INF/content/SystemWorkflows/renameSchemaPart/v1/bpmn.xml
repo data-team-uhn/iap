@@ -39,6 +39,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -47,7 +48,10 @@
       <bpmn:messageEventDefinition id="renameRequested" messageRef="renameMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toRename" sourceRef="requested" targetRef="rename" />
-    <bpmn:serviceTask id="rename" iap:handler="renameContent" iap:namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" name="Rename the part">
+    <bpmn:serviceTask id="rename" name="Rename the part">
+      <bpmn:extensionElements>
+        <iap:renameContent namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRename</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

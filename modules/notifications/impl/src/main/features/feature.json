@@ -24,9 +24,10 @@
     },
     {
       // After the workflows bundle whose handler extension point it plugs into, and after the content and
-      // entity node types the models it reads are built on
+      // entity node types the models it reads are built on. Its own content lands under /WorkflowTypes, so it
+      // also needs the wf:Parameter node type that bundle registers.
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"26"
+      "start-order":"27"
     }
   ]
 }

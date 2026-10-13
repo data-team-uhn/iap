@@ -42,7 +42,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  * every flow node has. Corresponds to the {@code wf:Parameter} node type.
  *
  * <p>A parameter is what makes the vocabulary self-describing. It says what the value is called, what may be put
- * in it and how many of it there may be.</p>
+ * in it, how many of it there may be and where a diagram writes it.</p>
  *
  * <p>The parameter's own name is its node's name, which is also the JCR property it is stored in and the XML
  * attribute or element it is written as.</p>
@@ -81,6 +81,12 @@ public class Parameter extends EntityPart
     /** The data type for the name of a user or group. */
     public static final String TYPE_PRINCIPAL = "principal";
 
+    /** The {@link #getXmlLocation() location} of a value inside the extension element its entry names. */
+    public static final String LOCATION_EXTENSION_ELEMENT = "extensionElement";
+
+    /** The {@link #getXmlLocation() location} of a value in an IAP-namespaced attribute of the element itself. */
+    public static final String LOCATION_ATTRIBUTE = "attribute";
+
     private static final String VALUE_PROPERTY = "value";
 
     private static final String LABEL_PROPERTY = "label";
@@ -94,6 +100,8 @@ public class Parameter extends EntityPart
     private static final String MAX_VALUES_PROPERTY = "maxValues";
 
     private static final String REFERENCE_TYPE_PROPERTY = "referenceType";
+
+    private static final String XML_LOCATION_PROPERTY = "xmlLocation";
 
     @ValueMapValue
     private String label;
@@ -112,6 +120,9 @@ public class Parameter extends EntityPart
 
     @ValueMapValue
     private String referenceType;
+
+    @ValueMapValue
+    private String xmlLocation;
 
     /**
      * One of the values a parameter offers. A part of the parameter rather than a model of its own: an option is
@@ -190,6 +201,18 @@ public class Parameter extends EntityPart
     public String getReferenceType()
     {
         return this.referenceType;
+    }
+
+    /**
+     * Where a diagram writes this value: {@link #LOCATION_EXTENSION_ELEMENT inside the extension element} its
+     * vocabulary entry names, or {@link #LOCATION_ATTRIBUTE in an attribute} of the flow node's own element.
+     *
+     * @return a location, never empty
+     */
+    @NotNull
+    public String getXmlLocation()
+    {
+        return this.xmlLocation == null ? LOCATION_EXTENSION_ELEMENT : this.xmlLocation;
     }
 
     /**
@@ -272,6 +295,7 @@ public class Parameter extends EntityPart
         if (this.getReferenceType() != null) {
             json.add(REFERENCE_TYPE_PROPERTY, this.getReferenceType());
         }
+        json.add(XML_LOCATION_PROPERTY, this.getXmlLocation());
         final List<Option> options = this.getOptions();
         if (!options.isEmpty()) {
             final JsonArrayBuilder array = Json.createArrayBuilder();

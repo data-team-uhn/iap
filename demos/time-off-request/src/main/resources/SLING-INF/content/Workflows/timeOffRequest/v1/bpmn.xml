@@ -38,8 +38,10 @@
     <bpmn:sequenceFlow id="toRecordReview" sourceRef="approveRequest" targetRef="recordReview" />
     <!-- Written down before the gateway routes on it, so the decision is recorded whichever way the request
          goes -->
-    <bpmn:serviceTask id="recordReview" name="Write the decision down" iap:handler="recordReview"
-        iap:requirement="approval">
+    <bpmn:serviceTask id="recordReview" name="Write the decision down">
+      <bpmn:extensionElements>
+        <iap:recordReview requirement="approval" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRecordReview</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:serviceTask>

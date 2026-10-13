@@ -62,7 +62,7 @@
           "jcr:primaryType": "nt:unstructured", "nodeType": "sch:AnswerOption", "label": "Option", "named": false
         }
       },
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateContent",
       "toUpdate": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toUpdate",
@@ -158,7 +158,7 @@
         "purpose": { "jcr:primaryType": "nt:unstructured", "label": "Purpose", "multiline": true },
         "extractionPrompt": { "jcr:primaryType": "nt:unstructured", "label": "Extraction prompt", "multiline": true }
       },
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UpdateContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

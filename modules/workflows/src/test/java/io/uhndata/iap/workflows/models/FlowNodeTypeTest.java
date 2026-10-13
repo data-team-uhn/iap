@@ -69,8 +69,7 @@ class FlowNodeTypeTest
             "priority", 10L,
             "xmlElement", "bpmn:startEvent",
             "xmlChildElement", "bpmn:messageEventDefinition",
-            "jcrNodeType", "wf:StartEvent",
-            "properties", new String[] {"messageRef"}));
+            "jcrNodeType", "wf:StartEvent"));
         final FlowNodeType type = resource.adaptTo(FlowNodeType.class);
 
         assertNotNull(type);
@@ -81,7 +80,6 @@ class FlowNodeTypeTest
         assertEquals("bpmn:startEvent", type.getXmlElement());
         assertEquals("bpmn:messageEventDefinition", type.getXmlChildElement());
         assertEquals("wf:StartEvent", type.getJcrNodeType());
-        assertEquals(List.of("messageRef"), type.getProperties());
         assertNull(type.getXmlExtensionElement());
         assertTrue(type.getParameters().isEmpty());
     }
@@ -128,7 +126,6 @@ class FlowNodeTypeTest
         assertNull(type.getDescription());
         assertNull(type.getXmlChildElement());
         assertNull(type.getJcrProperties());
-        assertTrue(type.getProperties().isEmpty());
         assertNull(type.getXmlExtensionElement());
         assertTrue(type.getParameters().isEmpty());
     }
@@ -193,8 +190,7 @@ class FlowNodeTypeTest
             "xmlElement", "bpmn:startEvent",
             "xmlChildElement", "bpmn:messageEventDefinition",
             "jcrNodeType", "wf:StartEvent",
-            "jcrProperties", "{\"catching\": true}",
-            "properties", new String[] {"messageRef"}));
+            "jcrProperties", "{\"catching\": true}"));
 
         final JsonObject json = type.toDocumentationJson();
 
@@ -209,7 +205,6 @@ class FlowNodeTypeTest
         assertEquals("bpmn:messageEventDefinition", json.getString("xmlChildElement"));
         assertEquals("wf:StartEvent", json.getString("jcrNodeType"));
         assertTrue(json.getJsonObject("jcrProperties").getBoolean("catching"));
-        assertEquals(1, json.getJsonArray("properties").size());
     }
 
     @Test
@@ -241,7 +236,6 @@ class FlowNodeTypeTest
         assertFalse(json.containsKey("description"));
         assertFalse(json.containsKey("xmlChildElement"));
         assertFalse(json.containsKey("jcrProperties"));
-        assertFalse(json.containsKey("properties"));
         assertFalse(json.containsKey("xmlExtensionElement"));
         assertFalse(json.containsKey("parameters"));
         // The category is never left out: it falls back on the one the kind of entry implies

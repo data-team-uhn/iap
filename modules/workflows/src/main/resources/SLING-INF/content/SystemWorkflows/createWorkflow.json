@@ -26,7 +26,7 @@
       "label": "Create the workflow",
       "handler": "createEntity",
       "entityType": "wf:WorkflowDefinition",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CreateEntity",
       "toAddVersion": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toAddVersion",

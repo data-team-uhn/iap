@@ -23,6 +23,7 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
+          "source": "literal",
           "value": ["draft"]
         }
       },
@@ -37,7 +38,7 @@
       "elementId": "save",
       "label": "Store the diagram",
       "handler": "saveWorkflowDiagram",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/SaveWorkflowDiagram",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

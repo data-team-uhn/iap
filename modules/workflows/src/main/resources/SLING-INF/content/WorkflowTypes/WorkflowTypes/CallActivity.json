@@ -7,7 +7,11 @@
   "xmlElement": "bpmn:callActivity",
   "jcrNodeType": "wf:Activity",
   "jcrProperties": "{\"handler\": \"callActivity\"}",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}message=message"
-  ]
+  "message": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Message",
+    "description": "The event to send on to the host, e.g. \"createVersion\", starting the workflow that waits for it as part of this execution.",
+    "minValues": 1,
+    "xmlLocation": "attribute"
+  }
 }

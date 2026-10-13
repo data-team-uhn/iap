@@ -27,7 +27,7 @@
       "handler": "saveProperties",
       "editable": ["title"],
       "required": ["title"],
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/SaveProperties",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

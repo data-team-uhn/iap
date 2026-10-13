@@ -7,5 +7,12 @@
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:timerEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]" ]
+  "performers": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Performers",
+    "description": "The principals - users or groups - allowed to fire this timer. Absent or empty means only the clock, the iap-timer service user.",
+    "dataType": "principal",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  }
 }

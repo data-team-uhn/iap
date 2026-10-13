@@ -24,6 +24,7 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
+          "source": "literal",
           "value": ["draft", "trial", "retired"]
         }
       },
@@ -38,7 +39,7 @@
       "elementId": "check",
       "label": "Check it can run",
       "handler": "checkValid",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/CheckValid",
       "toRetire": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toRetire",
@@ -50,7 +51,7 @@
       "elementId": "retire",
       "label": "Retire the version this one supersedes",
       "handler": "retireActiveVersions",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/RetireActiveVersions",
       "toPromote": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toPromote",
@@ -64,7 +65,7 @@
       "handler": "addTag",
       "tag": "active",
       "replaceExisting": true,
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/AddTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

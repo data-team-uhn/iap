@@ -38,6 +38,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>retired</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -46,7 +47,10 @@
       <bpmn:messageEventDefinition id="activateRequested" messageRef="activateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUnmarkRetired" sourceRef="requested" targetRef="unmarkRetired" />
-    <bpmn:serviceTask id="unmarkRetired" iap:handler="removeTag" iap:tag="retired" name="Remove the retired mark">
+    <bpmn:serviceTask id="unmarkRetired" name="Remove the retired mark">
+      <bpmn:extensionElements>
+        <iap:removeTag tag="retired" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toUnmarkRetired</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

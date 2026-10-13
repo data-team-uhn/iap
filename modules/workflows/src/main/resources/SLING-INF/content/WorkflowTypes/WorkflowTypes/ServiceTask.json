@@ -1,31 +1,15 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Service Task",
-  "description": "Work that the platform carries out on its own, without waiting for a person.",
+  "description": "Work that the platform carries out on its own, without waiting for a person. Falls back to this generic entry for a handler with no per-handler vocabulary of its own.",
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:serviceTask",
   "jcrNodeType": "wf:Activity",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}handler=handler",
-    "{https://iap.uhndata.io/bpmn}entityType=entityType",
-    "{https://iap.uhndata.io/bpmn}workflowFrom=workflowFrom",
-    "{https://iap.uhndata.io/bpmn}tag=tag",
-    "{https://iap.uhndata.io/bpmn}replaceExisting=replaceExisting",
-    "{https://iap.uhndata.io/bpmn}sourceType=sourceType",
-    "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
-    "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
-    "{https://iap.uhndata.io/bpmn}editable=editable[]",
-    "{https://iap.uhndata.io/bpmn}required=required[]",
-    "{https://iap.uhndata.io/bpmn}nameFrom=nameFrom[]",
-    "{https://iap.uhndata.io/bpmn}within=within",
-    "{https://iap.uhndata.io/bpmn}namePattern=namePattern",
-    "{https://iap.uhndata.io/bpmn}nameHint=nameHint",
-    "{https://iap.uhndata.io/bpmn}child=child",
-    "{https://iap.uhndata.io/bpmn}nodeTypes=nodeTypes[]",
-    "{https://iap.uhndata.io/bpmn}to=to",
-    "{https://iap.uhndata.io/bpmn}linkType=linkType",
-    "{https://iap.uhndata.io/bpmn}linkLabel=linkLabel",
-    "{https://iap.uhndata.io/bpmn}requirement=requirement"
-  ]
+  "handler": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Handler",
+    "description": "The registered handler that performs this task. A task naming none waits for a person.",
+    "xmlLocation": "attribute"
+  }
 }

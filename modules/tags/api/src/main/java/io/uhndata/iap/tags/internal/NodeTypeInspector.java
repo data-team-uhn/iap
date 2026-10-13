@@ -27,6 +27,7 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.utils.NodeTypeUtils;
 
 /**
  * Answers the three node type questions the tag propagation needs, against the node type registry materialized at
@@ -68,7 +69,7 @@ public final class NodeTypeInspector
      */
     public NodeTypeInspector(final NodeState root)
     {
-        this.registry = root.getChildNode("jcr:system").getChildNode("jcr:nodeTypes");
+        this.registry = NodeTypeUtils.registry(root);
     }
 
     /**
@@ -124,12 +125,7 @@ public final class NodeTypeInspector
 
     private boolean computeEntityType(final String type)
     {
-        if (ENTITY_TYPE.equals(type)) {
-            return true;
-        }
-        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES_PROPERTY);
-        return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
-            .anyMatch(ENTITY_TYPE::equals);
+        return NodeTypeUtils.isOrExtends(type, ENTITY_TYPE, this.registry);
     }
 
     private static boolean anyTypeMatches(final PropertyState types, final Predicate<String> verdict)
@@ -155,12 +151,7 @@ public final class NodeTypeInspector
 
     private boolean computeBoundaryType(final String type)
     {
-        if (BOUNDARY_TYPE.equals(type)) {
-            return true;
-        }
-        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES_PROPERTY);
-        return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
-            .anyMatch(BOUNDARY_TYPE::equals);
+        return NodeTypeUtils.isOrExtends(type, BOUNDARY_TYPE, this.registry);
     }
 
     private boolean computeWritableType(final String type)
