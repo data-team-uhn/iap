@@ -503,13 +503,11 @@ conditions module makes the `answer` operands that name a moved question by path
 by identifier instead. The new path is what later steps act on, and what the event is
 answered with.
 
-Both can also number content by its place, for what reads it in the order a property
-gives rather than the order it is stored in, as UI extensions are read by their
-`defaultOrder`: with an `orderProperty` (on `moveContent`'s activity, or on
-`createContent`'s, or on one of the types it lists), the content placed and its siblings
-of its type are numbered in that property by their places, 10 apart. Readers then need
-not rely on the order of a JSON object's keys, which a JavaScript object does not keep
-for keys that look like whole numbers.
+Both can also number content by its place, for readers that order it by a property
+rather than as it is stored. The property is the `orderProperty` of `moveContent`'s
+activity, of `createContent`'s, or of one of the types `createContent` lists. The
+content placed and its siblings of the same type are numbered in that property by their
+places, 10 apart.
 
 `renameContent` gives the target the `name` the event asks for, keeping its place among
 its siblings. The rename goes through the same `ContentMover`, so the same participants

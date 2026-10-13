@@ -16,12 +16,12 @@
  * limitations under the License.
  */
 
-// How a version's tree is laid out, in theme spacing, for what has to line up across its pieces.
+// The widths, in theme spacing, that the pieces of a version's tree share to line up.
 
-// The column a part's expand button stands in. On a wide screen, what the part holds is indented by as much, and by
-// the card's padding, so the part's icon lines up with what is under it.
+// The column a part's expand button stands in. On a wide screen, what the part holds is indented by this width plus
+// the card's padding. The part's icon then lines up with what is under it.
 export const EXPANDER_COLUMN = 4;
 
-// The column a part's icon stands in, with the space after it: its heading and chips start after it, and so do a
-// question's options
+// The column a part's icon stands in, with the space after it. The part's heading and chips start after it, and so
+// do a question's options.
 export const ICON_COLUMN = 3.5;

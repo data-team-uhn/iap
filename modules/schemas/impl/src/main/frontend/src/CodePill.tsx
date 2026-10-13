@@ -18,8 +18,7 @@
 
 import { Typography } from "@mui/material";
 
-// A name the machine goes by, such as a part's identifier or the value an option stores, set apart from the words
-// around it
+// Shows a short value, such as an identifier, in the code style, set apart from the words around it
 function CodePill({ name }: { name: string }) {
   return (
     <Typography variant="code" sx={{ bgcolor: "background.muted", px: 0.75, borderRadius: 1, overflowWrap: "anywhere" }}>

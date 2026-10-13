@@ -114,7 +114,7 @@ class MoveContentHandlerTest
         move("/box/c", Map.of(BEFORE, "a"));
         assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "a", "b")));
 
-        // Where nothing changes place, nothing is numbered again
+        // A move to where it already is keeps the numbers, and a move to the end renumbers them
         move("/box/c", Map.of(BEFORE, "a"));
         move("/box/a", Map.of());
         assertEquals(List.of(10L, 20L, 30L), positions(List.of("c", "b", "a")));

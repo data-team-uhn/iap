@@ -171,7 +171,7 @@ class CreateContentHandlerTest
     void numbersWhatItCreatesByItsPlaceWhenAsked()
         throws WorkflowException, PersistenceException, RepositoryException
     {
-        // Asked for by the activity, unless the type says otherwise
+        // The activity names the property, unless the type names its own
         Mockito.when(this.fixture.creating().get(Placement.ORDER_PROPERTY, String.class)).thenReturn("rank");
         create(BOX, Map.of(TYPE, ITEM, "patch", "{\"title\": \"Last\"}"));
         assertEquals(10L, this.fixture.session().getProperty("/box/last/rank").getLong());

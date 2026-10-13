@@ -26,8 +26,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * Where content goes among its new siblings: before the sibling the event names as {@code before}, or else last. An
- * activity may also number content by its place, in the property it names as {@code orderProperty}, for readers that
- * order content by a property rather than as it is stored.
+ * activity may also have content numbered by its place, in the property it names as {@code orderProperty}. This is
+ * for readers that order content by a property rather than as it is stored.
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,8 +74,8 @@ final class Placement
     }
 
     /**
-     * Numbers the children of a node that are of one type by their places, {@value #STEP} apart, so that reading them
-     * in the order of that property finds them in the order the node keeps them.
+     * Numbers a node's children of one type by their places, {@value #STEP} apart. Ordered by that property, they then
+     * come in the order the node keeps them.
      *
      * @param parent the node
      * @param type the primary type of the children numbered

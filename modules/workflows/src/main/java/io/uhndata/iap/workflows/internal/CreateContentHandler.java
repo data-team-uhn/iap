@@ -45,8 +45,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * one the activity allows (see {@link ContentNames}). Without one, it is named after the first field listed in
  * {@code nameFrom} that the event's {@code patch} gives. When that makes no name the activity allows, it is named
  * after its type. It is empty: an {@code updateContent} task that follows fills it in from the same patch, since it
- * acts on what was created. A type with an {@code orderProperty} has the new content and its siblings of its type
- * numbered by their places in it (see {@link Placement}).
+ * acts on what was created. When the type has an {@code orderProperty}, the new content and its siblings of the same
+ * type are numbered in that property by their places (see {@link Placement}).
  *
  * @version $Id$
  * @since 0.1.0

@@ -30,8 +30,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
 
 /**
- * Check that every answer option has a value, no two options of a question use the same value, and a question
- * takes its options either from its own list or from elsewhere, not both.
+ * Check that every answer option has a value, and no two options of a question use the same value. Also check that
+ * no question both lists its options and takes them from elsewhere.
  *
  * @version $Id$
  * @since 0.1.0

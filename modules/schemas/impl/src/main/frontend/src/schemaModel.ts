@@ -58,7 +58,7 @@ export const tagsOf = (node: JcrNode): string[] => strings(node.tags);
 
 export const nameOf = (node: JcrNode): string => String(node["@name"]);
 
-// What a node holds, as its keys come
+// The nodes a node holds, in the order of its keys
 export const childrenOf = (node: JcrNode): JcrNode[] => Object.values(node).filter(isObject);
 
 // The names of what a node holds

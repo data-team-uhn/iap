@@ -45,7 +45,7 @@ describe("schemaVersionTreeModel", () => {
       "cond:condition": { "jcr:primaryType": "cond:SingleCondition" },
     });
     expect(optionsOf(question).map(option => option.value)).toEqual([ "10", "2", "yes" ]);
-    // Before the ones numbered, when read without a place
+    // An option without a place comes before the numbered ones
     expect(optionsOf({ ...question, yes: { "sling:resourceType": "sch/AnswerOption", "value": "yes" } })
       .map(option => option.value)).toEqual([ "yes", "10", "2" ]);
   });

@@ -125,8 +125,8 @@ function SchemaNodeCreateAction({ parent, before, first, trigger }: SchemaNodeCr
   );
 }
 
-// Adds to the end of a container, or to its start once it holds something. It is indented as far as what
-// it adds, in theme spacing
+// Adds to the end of a container, or to its start once it holds something. It is indented by `indent`, in theme
+// spacing, to line up with what it adds
 export function AddAtEnd({ parent, first, indent }: { parent: JcrNode; first?: string; indent: number }) {
   return (
     <SchemaNodeCreateAction

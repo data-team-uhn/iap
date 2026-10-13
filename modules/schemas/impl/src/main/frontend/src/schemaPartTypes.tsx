@@ -93,18 +93,18 @@ function OptionRow({ option, question, options }: { option: JcrNode; question: J
   );
 }
 
-// A question's options. Given the question, each option shows what it describes and its actions, lined up after the
-// widest option. A moving option is offered the places between them and after the last. Without the question, each
-// shows only its text.
+// A question's options. Given the question, each option shows its description, and its actions in one column after
+// the widest option. A moving option is offered the places between them and after the last. Without the question,
+// each shows only its text.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box
       component="ul"
       sx={question
-        // Under the question's chips, on a screen wide enough to spare it
+        // Lined up with the question's heading, on a wide screen
         ? { mx: 0, my: 1, p: 0, pl: { sm: ICON_COLUMN }, display: "grid", rowGap: 1.5,
           gridTemplateColumns: "minmax(0, max-content) max-content",
-          // Every row, an option or a place to move one to, spans the grid, spaced by it alone
+          // Every row, an option or a place to move one to, spans the grid. The grid's row gap alone spaces them.
           "& > li": { gridColumn: "1 / -1", my: 0 } }
         : { m: 0, pl: 3 }}
     >
