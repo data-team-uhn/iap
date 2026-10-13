@@ -257,8 +257,18 @@ No content check. A file of another type that passed step 3 passes.
 ## Limits
 
 The server owns the limits. They are set once, in the **Document limits** configuration
-(`ConfiguredDocumentLimits` in `modules/documents/api`, edited in the web console), and
-served at `/system/documents/limits`:
+(`ConfiguredDocumentLimits` in `modules/documents/api`), and served at
+`/system/documents/limits`. The configuration reads them from the environment, and the web
+console can change them on a running instance:
+
+| Variable | Default |
+| --- | --- |
+| `IAP_UPLOAD_MAX_BYTES` | `52428800` (50 MB) |
+| `IAP_UPLOAD_MAX_PDF_PAGES` | `500` |
+| `IAP_UPLOAD_MAX_UNZIPPED_BYTES` | `536870912` (512 MB) |
+
+`./start.sh` passes its own environment on to the instance, and `generate_compose.py` gives
+the IAP container all three. The endpoint answers:
 
 ```json
 { "maxFileSize": 52428800, "maxPdfPages": 500, "maxUnzippedSize": 536870912 }
@@ -316,11 +326,13 @@ request for the limits, is stopped through its `signal` and the file is sent unc
 the server decides anyway.
 
 **The server checks again.** `AttachDocumentHandler` (submissions) refuses what this
-module refuses on type and size, by the same rules:
+module refuses on type, size and PDF pages, by the same rules. A PDF it cannot open is
+stored, and the parser refuses it later:
 
 | Check | Server | Here |
 | --- | --- | --- |
 | Size | `DocumentLimits.getMaxFileSize()` | the same number, from `/system/documents/limits` |
+| PDF pages | counted with PDFBox, against `DocumentLimits.getMaxPdfPages()` | the same number, counted with PDF.js |
 | Type | `checkAcceptedType`, after `getMimeType` | the same rules, see [Accepted types](#accepted-types) |
 | Extension to type | `TYPE_BY_EXTENSION` | `MIME_TYPE_BY_EXTENSION` |
 | Content | not looked at | opened, see [Looking inside the file](#looking-inside-the-file) |
@@ -330,7 +342,10 @@ both sides, and each names the other in a comment: **a change to one needs the s
 change to the other.**
 
 **The parser checks again.** The Docling daemon (`modules/documents/processing`) runs
-its own checks on every `/parse` request, in `shared_docs.py`:
+its own checks on every `/parse` request, in `shared_docs.py`. Java sends the configured
+limits with each request (`max_bytes`, `max_pages`, `max_expanded_bytes`), and the daemon
+applies each where it is lower than its own ceiling below, so the configured ones are the
+ones a document meets:
 
 | Check | Default | Setting | Refusal |
 | --- | --- | --- | --- |
@@ -343,11 +358,11 @@ its own checks on every `/parse` request, in `shared_docs.py`:
 | DOCX size once unzipped | 512 MiB | `IAP_MAX_EXPANDED_BYTES` | `document expands to N bytes, over the …-byte limit` |
 | Type is `.pdf`, `.docx` or `.doc` | — | — | `Unsupported file type: …` |
 
-Setting a limit to 0 turns it off.
+Setting a ceiling to 0 turns it off, and the limits Java sends then apply alone. Keep the
+upload limits at or under these ceilings, or the daemon refuses what the upload took.
 
 **Any other upload has to check too.** A request that never went through a browser skips
-this module completely, so a new upload endpoint needs its own size and type check on
-the server.
+this module completely, so a new upload endpoint needs its own checks on the server.
 
 ## The demo widget
 

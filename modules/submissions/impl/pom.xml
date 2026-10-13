@@ -66,6 +66,12 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <!-- The version the app ships, in packaging/slingfeature's base.json -->
+      <version>2.0.35</version>
+    </dependency>
+    <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
       <version>${project.version}</version>
