@@ -139,6 +139,9 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
+      bpmn-moddle:
+        specifier: 10.2.0
+        version: 10.2.0
       css-loader:
         specifier: 7.1.5
         version: 7.1.5(webpack@5.111.1)
@@ -1855,6 +1858,10 @@ packages:
 
   bpmn-js@18.31.0:
     resolution: {integrity: sha512-tGc6spNXC81858FXhk0NI9+CjfsPYDmKWSyiq0u2Rhk9J8l+DJtzZK1CYj4fqcek026PQDEwwUQwsr2Opfec/w==}
+
+  bpmn-moddle@10.2.0:
+    resolution: {integrity: sha512-rjPr+hvh43DH9BXUHnXHVNcILYJbZ4rJdYY0GRV7ve99MURNjpIp/mCL8UJSz923uXJ4Doa/bEgBEsG01fPoYQ==}
+    engines: {node: '>= 20.12'}
 
   bpmn-moddle@10.3.1:
     resolution: {integrity: sha512-xjJ8GzseRkjjM0MX/rODVB6iv+rhGLt8FCHJIovLAjJsDEAUjITfyiJZYczJ4pp3wmesbY3sQR7eRT+q5uroVA==}
@@ -6083,6 +6090,12 @@ snapshots:
       tiny-svg: 4.1.4
     transitivePeerDependencies:
       - preact-render-to-string
+
+  bpmn-moddle@10.2.0:
+    dependencies:
+      min-dash: 5.1.0
+      moddle: 8.2.1
+      moddle-xml: 12.3.1(moddle@8.2.1)
 
   bpmn-moddle@10.3.1:
     dependencies:

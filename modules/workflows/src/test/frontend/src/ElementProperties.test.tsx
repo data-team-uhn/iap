@@ -16,29 +16,75 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { appTheme } from "@iap/frontend-commons/appTheme";
 import ElementProperties from "@iap/workflows/ElementProperties";
+import { IAP_NS } from "@iap/workflows/moddle";
+import type { ModdleElement } from "@iap/workflows/moddle";
+import type { FlowNodeType } from "@iap/workflows/workflowTypes";
+
+import { Themed } from "./parameterField.fixture";
+import {
+  bpmnElement,
+  carrying,
+  iapElement,
+  moddleElement,
+  parameter,
+  RETIRE_ACTIVE_VERSIONS,
+  SERVICE_TASK,
+  SET_STATE,
+  type,
+} from "./vocabulary.fixture";
 
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
 
-// Renaming goes through the canvas's `modeling` service, the only part of bpmn-js this component
-// touches — and the reason renaming is only offered when the canvas is a modeler.
+// Renaming and every parameter edit go through the canvas's `modeling` service, and are read back
+// through the document its `moddle` service builds elements with. These are the only parts of bpmn-js
+// this component touches.
 const createViewer = () => {
   const updateLabel = vi.fn();
-  const viewer = { get: vi.fn(() => ({ updateLabel })) } as unknown as BaseViewer;
-  return { viewer, updateLabel };
+  const updateModdleProperties = vi.fn();
+  const definitions: ModdleElement = { $attrs: { "xmlns:iap": IAP_NS }, set: vi.fn() };
+  const moddle = {
+    create: vi.fn((type: string, attributes: Record<string, unknown> = {}) => ({ $type: type, ...attributes })),
+    createAny: vi.fn((type: string, uri: string, attributes: Record<string, unknown> = {}) => {
+      const [ prefix, name ] = type.split(":");
+      return moddleElement(name, { ...attributes, set: vi.fn() }, { prefix, uri });
+    }),
+  };
+  const viewer = {
+    get: vi.fn((service: string) => service === "moddle" ? moddle : { updateLabel, updateModdleProperties }),
+    getDefinitions: vi.fn(() => definitions),
+  } as unknown as BaseViewer;
+  return { viewer, updateLabel, updateModdleProperties, moddle, definitions };
 };
 
-const renderProperties = (element: Element, viewer: BaseViewer, readOnly = false) => render(
-  <ThemeProvider theme={appTheme} defaultMode="light">
-    <ElementProperties element={element} viewer={viewer} readOnly={readOnly} />
-  </ThemeProvider>
-);
+const VOCABULARY = [ SET_STATE, RETIRE_ACTIVE_VERSIONS, SERVICE_TASK ];
+
+// The `iap:setState` element of a service task, as moddle hands it over: an unprefixed
+// attribute for the single value, one namespaced child per value of the list.
+const setState = (toState: string, fromStates: string[]): ModdleElement => iapElement("setState", {
+  toState,
+  $children: fromStates.map(state => iapElement("fromStates", { $body: state })),
+  set: vi.fn(),
+});
+
+const task = (name: string, extras: Partial<ModdleElement> = {}) =>
+  ({ id: "promote", businessObject: bpmnElement("ServiceTask", { name, ...extras }) }) as unknown as Element;
+
+// MUI appends an asterisk to a required field's label, so a parameter that has to be given a value is
+// labelled "To state *" rather than "To state".
+const field = (label: string) => screen.getByLabelText(new RegExp(`^${label}`));
+
+const noField = (label: string) => screen.queryByLabelText(new RegExp(`^${label}`));
+
+const renderProperties = (
+  element: Element,
+  viewer: BaseViewer,
+  props: { readOnly?: boolean; types?: readonly FlowNodeType[]; revision?: number } = {}
+) => render(<ElementProperties element={element} viewer={viewer} {...props} />, { wrapper: Themed });
 
 describe("ElementProperties", () => {
   it("shows the element's identifier and name", () => {
@@ -66,30 +112,273 @@ describe("ElementProperties", () => {
     expect(screen.getByRole("textbox")).toHaveValue("");
   });
 
+  it("edits an element on a canvas with no document open", () => {
+    // Nothing has been imported, so no document says which prefix binds the IAP namespace. The panel
+    // reads the one a diagram of ours is saved with.
+    const { viewer } = createViewer();
+    vi.spyOn(viewer, "getDefinitions").mockReturnValue(undefined);
+
+    renderProperties(task("Promote", { $attrs: { "iap:hostTag": "promoted" } }), viewer,
+      { types: VOCABULARY });
+
+    expect(screen.getByText("Identifier: promote")).toBeInTheDocument();
+    expect(field("Host tag")).toHaveValue("promoted");
+  });
+
   it("shows the name as text, with nothing to type into, when read-only", () => {
     const { viewer } = createViewer();
 
-    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer, true);
+    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer,
+      { readOnly: true });
 
     expect(screen.getByText("Identifier: Task_1")).toBeInTheDocument();
     expect(screen.getByText("Name: Review")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("renames the element through the modeling service as the name is typed", async () => {
+  it("renames the element through the modeling service once the name is left", async () => {
     const user = userEvent.setup();
     const { viewer, updateLabel } = createViewer();
     const element = { id: "Task_1", businessObject: {} } as unknown as Element;
     renderProperties(element, viewer);
 
     await user.type(screen.getByRole("textbox"), "Hi");
+    expect(updateLabel).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox")).toHaveValue("Hi");
+    await user.tab();
 
     expect(viewer.get).toHaveBeenCalledWith("modeling");
-    // updateLabel replaces the whole name, so every keystroke reports the field's full current value,
-    // not just what changed -- and the field shows that same value back immediately.
-    expect(updateLabel).toHaveBeenCalledTimes(2);
-    expect(updateLabel).toHaveBeenNthCalledWith(1, element, "H");
-    expect(updateLabel).toHaveBeenNthCalledWith(2, element, "Hi");
-    expect(screen.getByRole("textbox")).toHaveValue("Hi");
+    expect(updateLabel).toHaveBeenCalledTimes(1);
+    expect(updateLabel).toHaveBeenCalledWith(element, "Hi");
+  });
+
+  it("renames the element when Enter is pressed in the name", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel } = createViewer();
+    const element = { id: "Task_1", businessObject: { name: "Review" } } as unknown as Element;
+    renderProperties(element, viewer);
+
+    await user.type(screen.getByRole("textbox"), "ed{enter}");
+
+    expect(updateLabel).toHaveBeenCalledTimes(1);
+    expect(updateLabel).toHaveBeenCalledWith(element, "Reviewed");
+  });
+
+  it("leaves the name alone when it is visited and left unchanged", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateLabel } = createViewer();
+    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer);
+
+    await user.click(screen.getByRole("textbox"));
+    await user.tab();
+
+    expect(updateLabel).not.toHaveBeenCalled();
+  });
+
+  it("offers the name alone for an element the vocabulary does not describe", () => {
+    const { viewer } = createViewer();
+
+    renderProperties({ id: "Flow_1", businessObject: { $type: "bpmn:sequenceFlow" } } as unknown as Element,
+      viewer, { types: VOCABULARY });
+
+    expect(screen.getByText("Identifier: Flow_1")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(noField("Type")).not.toBeInTheDocument();
+  });
+
+  it("offers the name alone while the vocabulary has not arrived", () => {
+    const { viewer } = createViewer();
+
+    renderProperties(task("Make this the active version", carrying(setState("ACTIVE", [ "DRAFT" ]))), viewer);
+
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(noField("To state")).not.toBeInTheDocument();
+  });
+
+  it("shows every parameter of the kind the element means, with what the diagram holds", () => {
+    const { viewer } = createViewer();
+
+    renderProperties(task("Promote", {
+      "iap:hostTag": undefined,
+      "$attrs": { "iap:hostTag": "promoted" },
+      ...carrying(setState("ACTIVE", [ "DRAFT", "TRIAL" ])),
+    }), viewer, { types: VOCABULARY });
+
+    expect(field("Host tag")).toHaveValue("promoted");
+    expect(field("To state")).toHaveValue("ACTIVE");
+    expect(screen.getByText("DRAFT")).toBeInTheDocument();
+    expect(screen.getByText("TRIAL")).toBeInTheDocument();
+  });
+
+  it("reports the kind of node as text when there is only one it could be", () => {
+    const { viewer } = createViewer();
+
+    renderProperties(task("Kick off", {
+      $descriptor: { ns: { prefix: "bpmn", localName: "StartEvent" } },
+    }), viewer, { types: [ type("StartEvent", { label: "Start event", xmlElement: "bpmn:startEvent" }) ] });
+
+    expect(screen.getByText("Type: Start event")).toBeInTheDocument();
+    expect(noField("Type")).not.toBeInTheDocument();
+  });
+
+  it("offers a choice of kinds when the element could be read as several", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties, moddle } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+    expect(field("Type")).toHaveTextContent("Set state");
+
+    await user.click(field("Type"));
+    await user.click(screen.getByRole("option", { name: "Retire active versions" }));
+
+    // The element naming the kind being taken over arrives; the one naming the kind left behind goes
+    expect(moddle.createAny).toHaveBeenCalledWith("iap:retireActiveVersions", IAP_NS, {});
+    expect(updateModdleProperties).toHaveBeenCalledTimes(1);
+    const [ reported, target, properties ] = updateModdleProperties.mock.calls[0] as unknown as
+      [ Element, ModdleElement, Record<string, ModdleElement> ];
+    expect(reported).toBe(element);
+    expect(target).toBe(element.businessObject);
+    expect(properties.extensionElements.values?.map(value => value.$type)).toEqual([ "iap:retireActiveVersions" ]);
+  });
+
+  it("shows no kind at all for an element that matches none of the kinds it could be", () => {
+    const { viewer } = createViewer();
+
+    // Both candidates name an extension element, and the element carries neither
+    renderProperties(task("Promote"), viewer, { types: [ SET_STATE, RETIRE_ACTIVE_VERSIONS ] });
+
+    const chosen = field("Type");
+    expect(chosen).not.toHaveTextContent("Set state");
+    expect(chosen).not.toHaveTextContent("Retire active versions");
+    expect(noField("To state")).not.toBeInTheDocument();
+  });
+
+  it("leaves the element alone when the choice is left at none", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    renderProperties(task("Promote"), viewer, { types: [ SET_STATE, RETIRE_ACTIVE_VERSIONS ] });
+
+    await user.click(field("Type"));
+    await user.click(screen.getByRole("option", { name: "None" }));
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("writes one edit per value typed, not one per keystroke", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+
+    await user.type(field("Host tag"), "promoted");
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+    expect(field("Host tag")).toHaveValue("promoted");
+    await user.keyboard("{enter}");
+
+    expect(updateModdleProperties).toHaveBeenCalledTimes(1);
+    expect(updateModdleProperties)
+      .toHaveBeenCalledWith(element, element.businessObject, { "iap:hostTag": "promoted" });
+  });
+
+  it("writes nothing for a field visited and left unchanged", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    renderProperties(element, viewer, { types: VOCABULARY });
+
+    await user.click(field("To state"));
+    await user.tab();
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("shows a described element's parameters as text when read-only", () => {
+    const { viewer } = createViewer();
+
+    renderProperties(task("Promote", {
+      "$attrs": { "iap:hostTag": "promoted" },
+      ...carrying(setState("ACTIVE", [ "DRAFT", "TRIAL" ])),
+    }), viewer, { types: VOCABULARY, readOnly: true });
+
+    expect(screen.getByText("Type: Set state")).toBeInTheDocument();
+    expect(screen.getByText("Host tag: promoted")).toBeInTheDocument();
+    expect(screen.getByText("To state: ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("From states: DRAFT, TRIAL")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("rereads every value when the canvas reports the element as changed", () => {
+    const { viewer } = createViewer();
+    const extension = setState("ACTIVE", [ "DRAFT" ]);
+    const element = task("Promote", {
+      "$attrs": { "iap:hostTag": "promoted" },
+      ...carrying(extension),
+    });
+    const { rerender } = renderProperties(element, viewer, { types: VOCABULARY, revision: 1 });
+
+    // An undo, or an edit made elsewhere
+    extension.toState = "TRIAL";
+    (element.businessObject as ModdleElement).$attrs = { "iap:hostTag": "retired" };
+    rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} revision={2} />);
+
+    expect(field("To state")).toHaveValue("TRIAL");
+    expect(field("Host tag")).toHaveValue("retired");
+  });
+
+  it("keeps a space being typed when the canvas reports the panel's own edit", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    // Written into the diagram the way modeling would, so the reread sees what was just typed
+    updateModdleProperties.mockImplementation(
+      (_element: Element, target: ModdleElement, properties: Record<string, string | undefined>) => {
+        target.$attrs = { ...target.$attrs, ...properties };
+      });
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    const { rerender } = renderProperties(element, viewer, { types: VOCABULARY, revision: 1 });
+    const reportChange = (revision: number) =>
+      rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} revision={revision} />);
+
+    await user.type(field("Host tag"), "in {enter}");
+    reportChange(2);
+    await user.type(field("Host tag"), "review{enter}");
+    reportChange(3);
+
+    expect(field("Host tag")).toHaveValue("in review");
+    expect(updateModdleProperties).toHaveBeenLastCalledWith(element, element.businessObject,
+      { "iap:hostTag": "in review" });
+  });
+
+  it("fills in the fields when the vocabulary arrives after the element was selected", () => {
+    const { viewer } = createViewer();
+    const element = task("Promote", carrying(setState("ACTIVE", [])));
+    const { rerender } = renderProperties(element, viewer);
+    expect(noField("To state")).not.toBeInTheDocument();
+
+    rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} />);
+
+    expect(field("To state")).toHaveValue("ACTIVE");
+  });
+
+  it("writes nothing for a value whose BPMN element the node does not carry", async () => {
+    const user = userEvent.setup();
+    const { viewer, updateModdleProperties } = createViewer();
+    const duration = parameter("timeDuration", {
+      label: "Duration", xmlLocation: "bpmnElement", xmlPath: [ "timerEventDefinition" ],
+    });
+    renderProperties(task("Promote"), viewer, { types: [ type("Timed", { parameters: [ duration ] }) ] });
+
+    await user.type(field("Duration"), "P5D{enter}");
+
+    expect(updateModdleProperties).not.toHaveBeenCalled();
+  });
+
+  it("offers no field for a structure", () => {
+    const { viewer } = createViewer();
+    const target = parameter("target", { label: "Target", dataType: "structure" });
+    renderProperties(task("Configure"), viewer,
+      { types: [ type("Configure", { parameters: [ target, parameter("note", { label: "Note" }) ] }) ] });
+
+    expect(field("Note")).toBeInTheDocument();
+    expect(noField("Target")).not.toBeInTheDocument();
   });
 });

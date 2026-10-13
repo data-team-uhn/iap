@@ -30,8 +30,8 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /WorkflowTypes root path.
-// Documented: the catalogue served at /WorkflowTypes.doc.json is what populates
-// the toolbars of the visual BPMN editor, so it is a UI contract, not just prose.
+// Documented: the catalogue served at /WorkflowTypes.doc.json is what the visual
+// BPMN editor's properties panel reads, so it is a UI contract, not just prose.
 [wf:WorkflowTypesHomepage] > data:EntityHomepage, doc:Documented
   - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
@@ -68,10 +68,6 @@
 [wf:FlowNodeType] > data:Entity, mix:referenceable
   query
   abstract
-
-  // The parameters keep the order they are declared in, and only an orderable
-  // type keeps that order: without this, Oak returns the children in an order of
-  // its own.
   orderable
 
   // Hardcode the supertype to the parent wf/FlowNodeType type.
@@ -100,10 +96,8 @@
   // A child XML element that (if specified) is required to match
   - xmlChildElement (STRING)
 
-  // The element under bpmn:extensionElements, in the IAP namespace, that this
-  // entry is written as. Required to match when specified, which is what tells
-  // one service task handler from another, and is where every parameter located
-  // in an extensionElement is read from.
+  // The IAP element under bpmn:extensionElements that identifies this type and
+  // holds its parameters, e.g. "createContent" for <iap:createContent>
   - xmlExtensionElement (STRING)
 
 
@@ -155,9 +149,7 @@
 
 //-----------------------------------------------------------------------------
 // One value a kind of node takes: what it is called, what may be put in it, and
-// where it is written in the diagram. Declared as content, so that adding a
-// parameter to a kind of node is an edit to the vocabulary rather than a code
-// change to the parser.
+// where it is written in the diagram.
 //
 // The parameter's own name is the node name, which is both the JCR property it
 // is stored in and the XML attribute or element it is written as
@@ -166,10 +158,10 @@
 
   - sling:resourceType (STRING) = "wf/Parameter" mandatory autocreated protected
 
-  // What the author sees this parameter called
+  // What the properties panel calls this field
   - label (STRING) mandatory
 
-  // What the parameter means, shown to whoever is filling it in
+  // What the field means, shown to whoever is filling it in
   - description (STRING)
 
   // What may be put in it:
@@ -182,10 +174,6 @@
 
   // How many values it takes.
   // A maximum of 0 is unbounded.
-  // Autocreated, not merely defaulted: a default only takes effect when the
-  // property is autocreated, so this is what writes the single value a parameter
-  // takes unless it says otherwise. The parser and the model read an absent
-  // maximum as 1 as well, for an entry stored as a node of another type.
   - minValues (LONG) = '0' autocreated
   - maxValues (LONG) = '1' autocreated
 
@@ -220,8 +208,8 @@
   - * (UNDEFINED) multiple
 
   // The values this parameter offers. A parameter declaring none takes whatever
-  // its dataType accepts; one declaring options takes only their values, and the
-  // parser reports any other.
+  // its dataType accepts; one declaring options takes only their values. The
+  // panel offers them as a choice, and the parser reports any other.
   + * (wf:ParameterOption)
 
   // For a structure, its fields, read from inside each of its elements.

@@ -212,11 +212,14 @@ business being restated by the vocabulary: the two could then disagree, and the 
 node would be the one that lies.
 
 **What varies between one occurrence of a kind of node and the next is a `wf:Parameter` child of the
-entry, not a hardcoded field.** Each one declares a `label` and `description`, a `dataType` saying what may
-be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`), how many values it takes
-(`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning unbounded), and — for a
-`reference` — the `referenceType` a value must be of; a parameter may also offer a fixed set of values as
-`wf:ParameterOption` children. `CopyContent.json`, the entry behind the `copyContent` handler:
+entry, not a hardcoded field.** Each one declares a `label` and `description` for the properties panel, a
+`dataType` saying what may be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`),
+how many values it takes (`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning
+unbounded), and — for a `reference` — the `referenceType` a value must be of; a parameter may also offer a
+fixed set of values as `wf:ParameterOption` children. A child is a parameter or an option by its node type,
+subtypes included, for the parser and the catalogue alike. A node carrying only the resource type of one is
+read by neither, and each parse of an element of that entry's kind reports such a parameter. `CopyContent.json`,
+the entry behind the `copyContent` handler:
 
 ```json
 {
@@ -259,7 +262,7 @@ value is an unprefixed attribute of that element, a list is one IAP-namespaced c
 
 An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so one declared there anyway
 is read as an attribute regardless — logged as a problem rather than silently accepted, since the
-alternative is a value an author writes and nothing stores.
+alternative is a field the properties panel offers and nothing can store.
 
 **A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
 "bpmnAttribute"` is one of BPMN's unprefixed attributes, and `"bpmnElement"` is the trimmed text of each of
@@ -381,12 +384,14 @@ shallower than BPMN's, and it is the test to apply before adding to it:
 `/WorkflowTypes` carries the `doc:Documented` mixin, so its catalogue is served at
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` (see [autodoc](autodoc.md)).
 
-The JSON is **not just prose**: it is what the visual BPMN editor reads to build its
-toolbars, grouped by the `category` each entry declares, falling back on the group its
-kind implies. Each item carries the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for,
-the `jcrNodeType` it is stored as, and its `parameters`, each with the `label`, `description`, `dataType`,
-cardinality, options, `xmlLocation` and `xmlPath` it declares. A structure also carries its `keyParameter`, and
-its fields as `parameters` of its own. Treat the shape of that output as a contract — the editor depends on it.
+The JSON is **not just prose**: it is what the visual BPMN editor's properties panel reads to tell what a
+selected element is and which fields to offer for it. Entries are grouped by the `category` each declares,
+falling back on the group its kind implies. Each item carries the
+`xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for, the `jcrNodeType` it is stored as, and
+its `parameters`. Each parameter carries the `label`, `description`, `dataType`, cardinality and options a
+field needs to render itself, and the `xmlLocation` and `xmlPath` it is written at. A structure also carries
+its `keyParameter`, and its fields as `parameters` of its own. Treat the shape of that output as a contract —
+the editor depends on it.
 
 ### Runtime
 

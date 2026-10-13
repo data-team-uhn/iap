@@ -23,6 +23,9 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
+import { forgetWorkflowTypes, WORKFLOW_TYPES_PATH } from "@iap/workflows/workflowTypes";
+
+import type { Element } from "bpmn-js/lib/model/Types";
 
 // bpmn-js drives an SVG canvas that jsdom can't lay out, so both classes are stood in for. That keeps
 // these tests about the component's own behaviour -- which class it picks, what it loads, what it
@@ -34,6 +37,7 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
     importXML: ReturnType<typeof vi.fn>;
     saveXML: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
+    getDefinitions: ReturnType<typeof vi.fn>;
     handlers: Map<string, (event: unknown) => void>;
   }
   const created: Canvas[] = [];
@@ -44,6 +48,7 @@ const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
     importXML = vi.fn(() => importFailure ? Promise.reject(importFailure) : Promise.resolve({}));
     saveXML = vi.fn().mockResolvedValue({ xml: "<saved/>" });
     destroy = vi.fn();
+    getDefinitions = vi.fn(() => ({}));
     handlers = new Map<string, (event: unknown) => void>();
     on = vi.fn((event: string, handler: (payload: unknown) => void) => this.handlers.set(event, handler));
     off = vi.fn((event: string) => this.handlers.delete(event));
@@ -82,17 +87,53 @@ vi.mock("bpmn-js/lib/NavigatedViewer", () => ({ default: ViewerMock }));
 const VERSION_PATH = "/Workflows/review/1-0";
 const DIAGRAM = "<bpmn:definitions/>";
 
-// A server answering the version's diagram with the given status and body.
-const stubFetch = (status = 200, body: string = DIAGRAM) => {
-  const fetchMock = vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : {
+// One kind of node with one parameter, which is all it takes to tell a panel that was given the
+// vocabulary from one that was not.
+const VOCABULARY = {
+  items: {
+    Tasks: [
+      {
+        name: "ServiceTask",
+        label: "Service task",
+        xmlElement: "bpmn:serviceTask",
+        jcrNodeType: "wf:Activity",
+        parameters: [
+          { name: "handler", label: "Handler", dataType: "text", minValues: 0, maxValues: 1, xmlLocation: "attribute" },
+        ],
+      },
+    ],
+  },
+};
+
+const sessionResponse = (url: string) =>
+  ({ ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }) as unknown as Response;
+
+const vocabularyResponse = (url: string, status: number) => ({
+  ok: status < 400,
+  status,
+  statusText: "Refused",
+  url,
+  json: () => Promise.resolve(VOCABULARY),
+}) as unknown as Response;
+
+// A server answering the version's diagram with the given status and body, and the vocabulary with a
+// status of its own, so that a test can fail either request alone.
+const stubFetch = (status = 200, body: string = DIAGRAM, vocabularyStatus = 200) => {
+  const fetchMock = vi.fn((url: string) => {
+    if (url === SESSION_INFO_URL) {
+      return Promise.resolve(sessionResponse(url));
+    }
+    if (url === `${WORKFLOW_TYPES_PATH}.doc.json`) {
+      return Promise.resolve(vocabularyResponse(url, vocabularyStatus));
+    }
+    return Promise.resolve({
       ok: status < 400,
       status,
       statusText: "Refused",
       url,
       text: () => Promise.resolve(body),
-    }) as unknown as Response));
+    } as unknown as Response);
+  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 };
@@ -101,15 +142,39 @@ const stubFetch = (status = 200, body: string = DIAGRAM) => {
 // whether — the request settles, and what the canvas is doing when it does.
 const deferredFetch = () => {
   let settle: (ok: boolean) => void = () => undefined;
-  vi.stubGlobal("fetch", vi.fn((url: string) => url === SESSION_INFO_URL
-    ? Promise.resolve({ ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) } as
-      unknown as Response)
-    : new Promise<Response>((resolve, reject) => {
+  vi.stubGlobal("fetch", vi.fn((url: string) => {
+    if (url === SESSION_INFO_URL) {
+      return Promise.resolve(sessionResponse(url));
+    }
+    if (url === `${WORKFLOW_TYPES_PATH}.doc.json`) {
+      return Promise.resolve(vocabularyResponse(url, 200));
+    }
+    return new Promise<Response>((resolve, reject) => {
       settle = (ok: boolean) => ok
         ? resolve({ ok: true, status: 200, url, text: () => Promise.resolve(DIAGRAM) } as unknown as Response)
         : reject(new TypeError("Failed to fetch"));
-    })));
+    });
+  }));
   return { settle: (ok: boolean) => settle(ok) };
+};
+
+// A service task as bpmn-js hands one over. The vocabulary above reads it as its one kind of node: a
+// handler with no entry of its own, named on the generic entry.
+const serviceTask = (): Element => ({
+  id: "checkBudget",
+  businessObject: {
+    $type: "bpmn:serviceTask",
+    $descriptor: { ns: { prefix: "bpmn", localName: "ServiceTask" } },
+    name: "Check the budget",
+    $attrs: { "iap:handler": "checkBudget" },
+  },
+}) as unknown as Element;
+
+// Selecting an element is how the panel comes to show anything at all, and therefore how what it was
+// given can be seen.
+const select = async (canvas: { handlers: Map<string, (event: unknown) => void> }, element: Element) => {
+  await waitFor(() => expect(canvas.handlers.has("selection.changed")).toBe(true));
+  act(() => canvas.handlers.get("selection.changed")?.({ newSelection: [ element ] }));
 };
 
 // A serializer is handed over and taken back as the canvas comes and goes; the latest one handed over
@@ -132,6 +197,8 @@ const renderEditor = (props: Partial<Parameters<typeof BpmnEditor>[0]> = {}) => 
 beforeEach(() => {
   instances.length = 0;
   refuseImports(null);
+  // The vocabulary is cached for the session, so each test has to be able to see it fetched
+  forgetWorkflowTypes();
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -147,7 +214,7 @@ describe("BpmnEditor", () => {
     expect(instances).toHaveLength(1);
     expect(instances[0].kind).toBe("viewer");
     // The diagram is a file of its own, fetched on its own path
-    expect(fetchMock.mock.calls[0][0]).toBe(`${VERSION_PATH}/bpmn.xml`);
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain(`${VERSION_PATH}/bpmn.xml`);
   });
 
   it("uses the modeler when the diagram is to be edited", async () => {
@@ -327,5 +394,47 @@ describe("BpmnEditor", () => {
     settle(false);
 
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("gives the panel the vocabulary, so a selected element's parameters can be edited", async () => {
+    stubFetch();
+    renderEditor({ editable: true });
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalled());
+
+    await select(instances[0], serviceTask());
+
+    // The panel knows nothing about service tasks by itself: the field is there because the entry
+    // fetched from the server declares the parameter
+    expect(await screen.findByLabelText(/^Handler/)).toHaveValue("checkBudget");
+  });
+
+  it("still shows a diagram whose elements it cannot explain, and says as much", async () => {
+    // A refused vocabulary costs the parameters, not the diagram: the drawing and the names are still
+    // worth having, and the panel says why there is nothing more.
+    stubFetch(200, DIAGRAM, 500);
+    renderEditor({ editable: true });
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
+
+    const report = await screen.findByRole("alert");
+    expect(report).toHaveTextContent("could not be loaded");
+    await select(instances[0], serviceTask());
+    expect(screen.getByText("Identifier: checkBudget")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Handler/)).not.toBeInTheDocument();
+  });
+
+  it("loads the diagram only into the canvas replacing the one a mode switch discards", async () => {
+    stubFetch();
+    const { rerender } = renderEditor();
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <BpmnEditor versionPath={VERSION_PATH} editable />
+      </ThemeProvider>
+    );
+
+    await waitFor(() => expect(instances[1].importXML).toHaveBeenCalledWith(DIAGRAM));
+    expect(instances[0].destroy).toHaveBeenCalled();
+    expect(instances[0].importXML).toHaveBeenCalledTimes(1);
   });
 });

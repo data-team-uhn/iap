@@ -29,7 +29,9 @@ import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-c
 
 import PropertiesPanel from "./PropertiesPanel";
 import { BPMN_FILE, EMPTY_BPMN } from "./workflowModel";
+import { loadWorkflowTypes } from "./workflowTypes";
 
+import type { FlowNodeType } from "./workflowTypes";
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 
 interface BpmnEditorProps {
@@ -54,6 +56,30 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
   // loading until the diagram for the current versionPath has been fetched — no separate flag to keep in sync.
   const [ loadedPath, setLoadedPath ] = useState<string>();
   const loading = loadedPath !== versionPath;
+  // What each element in the diagram means, and what may be edited on it. A diagram is worth showing
+  // without it, so an unavailable vocabulary leaves the panel offering names only.
+  const [ types, setTypes ] = useState<readonly FlowNodeType[]>([]);
+  const [ vocabularyLost, setVocabularyLost ] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkflowTypes(fetchUtil)
+      .then(documented => {
+        if (!cancelled) {
+          setTypes(documented);
+          setVocabularyLost(false);
+        }
+      })
+      .catch((failure: unknown) => {
+        console.error("Failed to load the workflow vocabulary; showing element names only", failure);
+        if (!cancelled) {
+          setVocabularyLost(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchUtil]);
 
   // useLayoutEffect so the container is measured before paint.
   useLayoutEffect(() => {
@@ -150,6 +176,12 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
 
   return (
     <Stack>
+      {
+        vocabularyLost && <Alert severity="warning" sx={{ mb: 1 }}>
+          The kinds of workflow node this instance supports could not be loaded, so only element names
+          are available.
+        </Alert>
+      }
       <Grid container spacing={4}>
         {/* The canvas keeps its place even while covered: bpmn-js sizes itself against the element it is
             given, so taking that element out of the layout would leave it measured against nothing */}
@@ -176,7 +208,7 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
           )}
         </Grid>
         <Grid size={{ xs: 12, xl: 2 }}>
-          <PropertiesPanel viewer={viewer} readOnly={!editable} />
+          <PropertiesPanel viewer={viewer} types={types} readOnly={!editable} />
         </Grid>
       </Grid>
     </Stack>
