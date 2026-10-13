@@ -17,7 +17,7 @@
  */
 import { type ReactNode } from "react";
 
-import { Box } from "@mui/material";
+import { Box, CircularProgress } from "@mui/material";
 
 import { MARK_CLASS, OVER_MARK_CLASS } from "./markLayer";
 import { MARK_KINDS } from "./marksModel";
@@ -40,15 +40,16 @@ function markColours(theme: Theme, outlineSelected: boolean) {
   ]));
 }
 
-// The frame PDF.js shows the document in, filling the room left to it. PDF.js needs its scrolling
-// container absolutely positioned, so the outer box gives it the room, and holds anything shown over the
-// frame, placed in the frame's coordinates. In the dialog on a phone, the document spans the full screen
-// width, past the dialog's padding.
-export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, children }: {
+// The frame PDF.js shows the document in, filling the room left to it, with a spinner while the document
+// opens. PDF.js needs its scrolling container absolutely positioned, so the outer box gives it the room,
+// and holds anything shown over the frame, placed in the frame's coordinates. In the dialog on a phone, the
+// document spans the full screen width, past the dialog's padding.
+export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
+  opening: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -88,6 +89,14 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
       >
         <div className="pdfViewer" />
       </Box>
+      {opening
+        ? (
+          <CircularProgress
+            aria-label="Opening the document"
+            sx={{ position: "absolute", top: "50%", left: "50%", translate: "-50% -50%" }}
+          />
+        )
+        : null}
       {children}
     </Box>
   );
