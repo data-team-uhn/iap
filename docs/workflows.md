@@ -175,7 +175,7 @@ disagree.
 
 **What varies between one occurrence of a kind of node and the next is a `wf:Parameter` child of the
 entry, not a hardcoded field.** Each one declares a `label` and `description`, a `dataType` saying what may
-be put in it (`text`, `boolean`, `long`, `reference` or `principal`), how many values it takes
+be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`), how many values it takes
 (`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning unbounded), and — for a
 `reference` — the `referenceType` a value must be of; a parameter may also offer a fixed set of values as
 `wf:ParameterOption` children. `CopyContent.json`, the entry behind the `copyContent` handler:
@@ -246,16 +246,70 @@ node it leaves whichever entry it matches, so its entry only adds parameters; `e
 `label` and `isDefault` come from the arc itself. A message event's `messageName` is not a
 parameter: it is the name of the message its `messageRef` points at, which the parse looks up.
 
+**A parameter whose configuration is a record, or a list of records, is a `structure`.** Its fields are the
+`wf:Parameter` nodes under its `parameters` child, a `wf:Parameters` node, in the order they are declared,
+and they may be structures in turn. Held apart from the structure's own properties, a field may take any
+name, `label` and `dataType` included. A parameter declared directly under another one is not read, and each
+parse of an element of that entry's kind reports it by its path:
+
+```json
+"fields": {
+  "jcr:primaryType": "wf:Parameter",
+  "label": "Field",
+  "dataType": "structure",
+  "maxValues": 0,
+  "keyParameter": "name",
+  "parameters": {
+    "jcr:primaryType": "wf:Parameters",
+    "name": { "jcr:primaryType": "wf:Parameter", "label": "Name", "minValues": 1 },
+    "label": { "jcr:primaryType": "wf:Parameter", "label": "Label" }
+  }
+}
+```
+
+A structure is only read from
+inside the entry's extension element, one IAP-namespaced element per record named after the parameter, and
+each record holds its fields the way an extension element holds its parameters: a single value as an
+unprefixed attribute, a list as one child per value, a structure as one child per record. A repeated
+structure names its `keyParameter`, the single-valued field that names each record:
+
+```xml
+<iap:updateContent>
+  <iap:fields name="workflow" label="Workflow" referenceType="wf/WorkflowVersion" referenceRoot="/Workflows">
+    <iap:choices value="a" label="A"/>
+    <iap:appliesWhen property="dataType"><iap:values>long</iap:values></iap:appliesWhen>
+  </iap:fields>
+</iap:updateContent>
+```
+
+A single structure is stored as a child node named after the parameter. A repeated one is a container node
+of that name, `nt:unstructured`, holding one node per record in diagram order. A record is named after its key,
+escaped where a node name cannot hold it as written, and does not hold it again as a property: a field keyed
+`jcr:title` is stored at `fields/jcr%3Atitle`, and a reader unescapes the name to get the key back. The records
+are of the structure's `jcrNodeType`, `nt:unstructured` when it names none. The example stores
+`fields/workflow`, holding `label`, `referenceType`, `referenceRoot`, `choices/a` and `appliesWhen`. Every check
+a parameter gets applies to each field at every level, and a problem names the field by its path,
+`fields/workflow/label`.
+
 Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
 STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
-required parameter (`minValues` at least one) with nothing given, more values than `maxValues` allows, fewer
-values than `minValues`, a value outside the offered options, a value the wrong shape for its `dataType`, a
-value written in the other of the two places a value can take inside an extension element (reported and
-*not* read — guessing which was meant would make where a value lives a matter of opinion), a `reference`
-naming a node that does not exist or whose primary type and mixins are none of them the declared
-`referenceType`, or a parameter whose `jcrNodeType` declares a property of the same name in another type or
+required parameter (`minValues` at least one) with nothing given, or with no value its type can store, more
+values than `maxValues` allows, fewer values than `minValues`, a value outside the offered options, a value
+the wrong shape for its `dataType`, a value written in the other of the two places a value can take inside an
+extension element (reported and *not* read — guessing which was meant would make where a value lives a matter
+of opinion), a `reference` naming a node that does not exist or whose primary type and mixins are none of them
+the declared `referenceType`, a structure outside an extension element or written as an attribute, a repeated
+structure with no single-valued `keyParameter` field, a record whose key is missing or repeats another's, or a
+parameter whose `jcrNodeType` declares a property of the same name in another type or
 cardinality — which Oak would accept through the residual definitions every flow node has, leaving a property
-in a shape its own node type says it never takes, so it is reported and not written. Every one of these is
+in a shape its own node type says it never takes, so it is reported and not written — or allows no such
+property at all, as a strict record type may not allow its key, which Oak would refuse along with the whole
+save, so it is reported and not written either. The same goes for the node a structure is stored as: a
+`jcrNodeType` that is not registered, is abstract or a mixin, or has a mandatory child node or a mandatory
+property besides its primary type, or a node holding the structure whose type declares no child of that
+name and type, by name or residually, is reported and the structure not written. A mandatory property counts
+even when it is autocreated, as `sling:resourceType` is on every `data:EntityPart` subtype, since only the JCR
+API autocreates and the parse writes below it. Every one of these is
 reported through the same problem log a bad element is, naming the parameter and the element, and parsing
 carries on regardless: a diagram that says something impossible costs at most the values it got wrong, never
 the save. **Fixed `jcrProperties` are applied after parameters and win over them**, so a handler's own
@@ -292,7 +346,8 @@ own:
 visual BPMN editor builds its toolbars from that JSON, grouped by each entry's
 `category`, with the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` and `jcrNodeType` each one stands
 for, and its `parameters`, each with the `label`, `description`, `dataType`, cardinality, options,
-`xmlLocation` and `xmlPath` it declares. **The shape of that output is a contract** the editor depends on.
+`xmlLocation` and `xmlPath` it declares. A structure also carries its `keyParameter`, and its fields as
+`parameters` of its own. **The shape of that output is a contract** the editor depends on.
 
 ### Runtime
 

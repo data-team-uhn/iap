@@ -22,5 +22,48 @@
     "jcr:primaryType": "wf:Parameter",
     "label": "Name hint",
     "description": "What names the pattern allows, in words, for a form to show."
+  },
+  "types": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Type",
+    "description": "The node types an event may ask for, in the order they are offered.",
+    "dataType": "structure",
+    "maxValues": 0,
+    "keyParameter": "name",
+    "parameters": {
+      "jcr:primaryType": "wf:Parameters",
+      "name": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name",
+        "minValues": 1
+      },
+      "nodeType": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Node type",
+        "description": "The JCR node type created, e.g. \"sch:Section\".",
+        "minValues": 1
+      },
+      "label": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Label",
+        "description": "What the type is offered as. Left blank, the node type."
+      },
+      "named": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Named",
+        "description": "Whether an event may ask for a name for content of this type. Left blank, it may.",
+        "dataType": "boolean"
+      },
+      "namePattern": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name pattern",
+        "description": "The pattern a name asked for content of this type must match, in place of the activity's."
+      },
+      "nameHint": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name hint",
+        "description": "What names this type's pattern allows, in words, in place of the activity's."
+      }
+    }
   }
 }

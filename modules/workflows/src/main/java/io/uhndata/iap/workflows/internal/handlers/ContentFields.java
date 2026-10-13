@@ -36,6 +36,8 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
 
+import org.apache.jackrabbit.util.Text;
+
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.models.Activity;
 
@@ -115,7 +117,7 @@ public final class ContentFields
     /**
      * One value a field may take.
      *
-     * @param value the value, the choice's name unless it says otherwise
+     * @param value the value, the choice's node name unescaped
      * @param label what it is called where it is picked, the value itself unless it says otherwise
      * @version $Id$
      * @since 0.1.0
@@ -352,14 +354,22 @@ public final class ContentFields
         if (fields == null) {
             return List.of();
         }
-        return fields.getChildren(Content.class).stream()
-            .map(field -> new Description(field.getName(),
-                Objects.requireNonNullElse(field.get("label", String.class), field.getName()),
-                field.get("help", String.class), Boolean.TRUE.equals(field.get("multiline", Boolean.class)),
-                new Target(field.get("referenceType", String.class), field.get("referenceRoot", String.class)),
-                choices(field),
-                applicability(field), Boolean.TRUE.equals(field.get("unique", Boolean.class))))
-            .toList();
+        return fields.getChildren(Content.class).stream().map(ContentFields::describe).toList();
+    }
+
+    /**
+     * What one field record says. The property it sets is its key.
+     *
+     * @param field a field record
+     * @return its description
+     */
+    private static Description describe(final Content field)
+    {
+        final String name = key(field);
+        return new Description(name, Objects.requireNonNullElse(field.get("label", String.class), name),
+            field.get("help", String.class), Boolean.TRUE.equals(field.get("multiline", Boolean.class)),
+            new Target(field.get("referenceType", String.class), field.get("referenceRoot", String.class)),
+            choices(field), applicability(field), Boolean.TRUE.equals(field.get("unique", Boolean.class)));
     }
 
     /**
@@ -421,10 +431,21 @@ public final class ContentFields
         }
         return choices.getChildren(Content.class).stream()
             .map(choice -> {
-                final String value = Objects.requireNonNullElse(choice.get("value", String.class), choice.getName());
+                final String value = key(choice);
                 return new Choice(value, Objects.requireNonNullElse(choice.get("label", String.class), value));
             })
             .toList();
+    }
+
+    /**
+     * The key of a record: its node name, unescaped, since a record is named after its key escaped.
+     *
+     * @param record a record of a repeated structure
+     * @return the key
+     */
+    private static String key(final Content record)
+    {
+        return Text.unescapeIllegalJcrChars(record.getName());
     }
 
     /**

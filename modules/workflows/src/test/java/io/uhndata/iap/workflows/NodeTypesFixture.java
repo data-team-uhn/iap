@@ -26,9 +26,10 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
  * The {@code /jcr:system/jcr:nodeTypes} registry a BPMN parse reads, as a plain builder tree.
  *
  * <p>The parser asks the registry two questions, and both have to be answerable for a parse to produce the same
- * nodes it does in a running repository: {@code rep:supertypes}, the transitively-expanded list, is how a
- * previously parsed child is recognized as a flow node worth clearing, and {@code jcr:supertypes}, the directly
- * declared one, is what a created node's {@code sling:resourceSuperType} is derived from. Shared so that a test
+ * nodes it does in a running repository. {@code rep:supertypes}, the transitively-expanded list, is how a
+ * previously parsed child is recognized as a flow node worth clearing. {@code jcr:supertypes}, the directly
+ * declared one, is what a created node's {@code sling:resourceSuperType} is derived from. It also reads the
+ * flattened property and child node definitions, to tell which parameters a node can hold. Shared so that a test
  * about the parser and a test about the shipped definitions agree on what the platform's own node types are.</p>
  *
  * @version $Id$
@@ -50,16 +51,18 @@ public final class NodeTypesFixture
 
     private static final String FLOW_NODE_TYPE = "wf:FlowNodeType";
 
+    private static final String NT_BASE = "nt:base";
+
     private NodeTypesFixture()
     {
         // Utility class, no instances allowed
     }
 
     /**
-     * Registers every concrete {@code wf:FlowNode}/{@code wf:SequenceFlow} type a diagram can be parsed into, the
-     * {@code wf:FlowNodeType} subtypes the vocabulary is written in, and the {@code nt:file} a version's
-     * {@code bpmn.xml} is stored as, which is registered with no flow node in its supertypes precisely so that a
-     * reparse leaves it alone.
+     * Registers every concrete {@code wf:FlowNode}/{@code wf:SequenceFlow} type a diagram can be parsed into, and
+     * the {@code wf:FlowNodeType} subtypes the vocabulary is written in. It also registers the {@code nt:file} a
+     * version's {@code bpmn.xml} is stored as, with no flow node in its supertypes, so that a reparse leaves it
+     * alone.
      *
      * @param root the repository root builder to register them under
      */
@@ -84,8 +87,14 @@ public final class NodeTypesFixture
         }
         // A sequence flow is recognized by name rather than by supertype, so only what its resource super type is
         // derived from has to be declared.
-        nodeTypes.child("wf:SequenceFlow").setProperty(JCR_SUPERTYPES, List.of("data:EntityPart"), Type.NAMES);
+        acceptingAnyProperty(nodeTypes.child("wf:SequenceFlow")
+            .setProperty(JCR_SUPERTYPES, List.of("data:EntityPart"), Type.NAMES));
         nodeTypes.child("nt:file").setProperty(REP_SUPERTYPES, List.of("nt:hierarchyNode"), Type.NAMES);
+        // What a structure is stored as when it names no node type, and what a repeated one's records sit in
+        acceptingAnyChild(acceptingAnyProperty(nodeTypes.child("nt:unstructured")
+            .setProperty(REP_SUPERTYPES, List.of(NT_BASE), Type.NAMES)));
+        acceptingAnyChild(acceptingAnyProperty(nodeTypes.child("sling:Folder")
+            .setProperty(REP_SUPERTYPES, List.of("nt:folder", "nt:hierarchyNode", NT_BASE), Type.NAMES)));
     }
 
     /**
@@ -105,8 +114,36 @@ public final class NodeTypesFixture
     private static void type(final NodeBuilder nodeTypes, final String name, final List<String> supertypes,
         final String directSupertype)
     {
-        nodeTypes.child(name)
+        acceptingAnyChild(acceptingAnyProperty(nodeTypes.child(name)
             .setProperty(REP_SUPERTYPES, supertypes, Type.NAMES)
-            .setProperty(JCR_SUPERTYPES, List.of(directSupertype), Type.NAMES);
+            .setProperty(JCR_SUPERTYPES, List.of(directSupertype), Type.NAMES)));
+    }
+
+    /**
+     * Gives a node type the residual property definitions every flow node and sequence flow inherits, as Oak
+     * flattens them. They allow any property, single or multiple, of any type.
+     *
+     * @param nodeType the node type's definition builder
+     * @return the same builder
+     */
+    public static NodeBuilder acceptingAnyProperty(final NodeBuilder nodeType)
+    {
+        final NodeBuilder residual = nodeType.child("rep:residualPropertyDefinitions");
+        residual.child("UNDEFINED");
+        residual.child("UNDEFINEDS");
+        return nodeType;
+    }
+
+    /**
+     * Gives a node type the residual child node definition every flow node inherits, as Oak flattens it. It
+     * allows a child of any name and any type.
+     *
+     * @param nodeType the node type's definition builder
+     * @return the same builder
+     */
+    public static NodeBuilder acceptingAnyChild(final NodeBuilder nodeType)
+    {
+        nodeType.child("rep:residualChildNodeDefinitions").child(NT_BASE);
+        return nodeType;
     }
 }

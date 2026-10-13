@@ -172,10 +172,13 @@
   // What the parameter means, shown to whoever is filling it in
   - description (STRING)
 
-  // What may be put in it: text, boolean, long, reference (the path of another
-  // node) or principal (the name of a user or group)
+  // What may be put in it:
+  // - Reference is the path of another node
+  // - Principal is the name of a user or group
+  // - Structure is a record of named fields, each a parameter of its own, e.g.
+  //   one of the node types Create Content offers
   - dataType (STRING) = 'text' mandatory autocreated
-    < 'text', 'boolean', 'long', 'reference', 'principal'
+    < 'text', 'boolean', 'long', 'reference', 'principal', 'structure'
 
   // How many values it takes.
   // A maximum of 0 is unbounded.
@@ -204,6 +207,14 @@
   // of a multi-instance activity. Absent when the flow node's element holds it.
   - xmlPath (STRING)
 
+  // For a repeated structure, the field whose value names the node each element
+  // is stored as, instead of being stored as a property.
+  - keyParameter (STRING)
+
+  // For a structure, the node type each element is stored as; nt:unstructured
+  // when absent.
+  - jcrNodeType (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -213,7 +224,22 @@
   // parser reports any other.
   + * (wf:ParameterOption)
 
+  // For a structure, its fields, read from inside each of its elements.
+  + parameters (wf:Parameters) = wf:Parameters
+
   // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The fields of a structure, in the order they are declared.
+[wf:Parameters]
+  orderable
+
+  + * (wf:Parameter)
+
+  // Allow any other properties and children for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------

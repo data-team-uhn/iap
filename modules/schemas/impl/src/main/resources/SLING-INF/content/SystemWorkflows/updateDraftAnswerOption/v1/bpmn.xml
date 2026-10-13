@@ -50,25 +50,11 @@
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
     <bpmn:serviceTask id="update" name="Apply the changes">
       <bpmn:extensionElements>
-        <iap:updateContent />
-        <sv:node sv:name="fields">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-          <sv:node sv:name="value">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Value</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>What answers store and conditions compare against. No two options of a question share one.</sv:value></sv:property>
-            <sv:property sv:name="unique" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="label">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="description">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-        </sv:node>
+        <iap:updateContent>
+          <iap:fields name="value" label="Value" help="What answers store and conditions compare against. No two options of a question share one." unique="true" />
+          <iap:fields name="label" label="Label" />
+          <iap:fields name="description" label="Description" multiline="true" />
+        </iap:updateContent>
       </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>

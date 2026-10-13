@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +59,10 @@ class ParameterTest
     private static final String LABEL = "label";
 
     private static final String OPTIONS = "options";
+
+    private static final String PARAMETERS = "parameters";
+
+    private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private final SlingContext context = new SlingContext();
 
@@ -191,6 +197,77 @@ class ParameterTest
             LABEL, "Workflow", "dataType", Parameter.TYPE_REFERENCE, "referenceType", "wf:WorkflowDefinition"));
 
         assertEquals("wf:WorkflowDefinition", parameter.toJsonBuilder().build().getString("referenceType"));
+    }
+
+    @Test
+    void declaresTheFieldsAndKeyOfAStructure()
+    {
+        final Map<String, Object> structure = Map.of(LABEL, "Fields", "dataType", Parameter.TYPE_STRUCTURE,
+            "maxValues", 0L, "keyParameter", "name", "jcrNodeType", "sling:Folder");
+        final Parameter parameter = this.createParameter("fields", structure);
+        this.createParameter("fields/parameters/name", Map.of(LABEL, "Name", "minValues", 1L));
+        this.createParameter("fields/parameters/choices",
+            Map.of(LABEL, "Choices", "dataType", Parameter.TYPE_STRUCTURE));
+        this.createParameter("fields/parameters/choices/parameters/value", Map.of(LABEL, "Value"));
+        this.createOption("fields/parameters", "notAField", Map.of(VALUE, "x"));
+        this.context.create().resource(ENTRY_PATH + "/fields/parameters/byResourceType",
+            Map.of(TYPE, Parameter.RESOURCE_TYPE, LABEL, "By resource type"));
+        this.context.create().resource(ENTRY_PATH + "/fields/parameters/bySubtype",
+            Map.of(PRIMARY_TYPE, "x:Field", LABEL, "By subtype"));
+        this.createParameter("fields/outside", Map.of(LABEL, "Outside"));
+
+        assertEquals("name", parameter.getKeyParameter());
+        assertEquals(List.of("name", "choices", "bySubtype"),
+            parameter.getParameters().stream().map(Parameter::getName).toList());
+        final JsonObject json = parameter.toJsonBuilder().build();
+        assertEquals("name", json.getString("keyParameter"));
+        assertEquals("choices", json.getJsonArray(PARAMETERS).getJsonObject(1).getString("name"));
+        assertEquals("value", json.getJsonArray(PARAMETERS).getJsonObject(1).getJsonArray(PARAMETERS)
+            .getJsonObject(0).getString("name"));
+    }
+
+    @Test
+    void readsFieldsNamedLikeThePropertiesOfTheirStructureFromJsonContent()
+    {
+        final String json = "{\"jcr:primaryType\": \"wf:Parameter\", \"label\": \"Field\","
+            + " \"dataType\": \"structure\", \"parameters\": {"
+            + " \"label\": {\"jcr:primaryType\": \"wf:Parameter\", \"label\": \"Label\"},"
+            + " \"dataType\": {\"jcr:primaryType\": \"wf:Parameter\", \"label\": \"Data type\"}}}";
+        this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),
+            ENTRY_PATH + "/fields");
+        final Parameter parameter = this.parameter("fields");
+
+        assertEquals("Field", parameter.getLabel());
+        assertEquals(Parameter.TYPE_STRUCTURE, parameter.getDataType());
+        assertEquals(List.of("Label", "Data type"),
+            parameter.getParameters().stream().map(Parameter::getLabel).toList());
+        assertEquals(List.of(LABEL, "dataType"),
+            parameter.getParameters().stream().map(Parameter::getName).toList());
+    }
+
+    @Test
+    void declaresNoFieldsOrKeyByDefault()
+    {
+        final Parameter parameter = this.createParameter("target", Map.of(LABEL, "Target"));
+
+        assertNull(parameter.getKeyParameter());
+        assertTrue(parameter.getParameters().isEmpty());
+        assertFalse(parameter.toJsonBuilder().build().containsKey(PARAMETERS));
+        assertFalse(parameter.toJsonBuilder().build().containsKey("keyParameter"));
+    }
+
+    @Test
+    void walksPastAChildThatCannotSayWhatNodeTypeItIs() throws RepositoryException
+    {
+        final Node broken = Mockito.mock(Node.class);
+        Mockito.when(broken.isNodeType(Mockito.anyString())).thenThrow(new RepositoryException("Gone"));
+        final Resource unreadable = Mockito.mock(Resource.class);
+        Mockito.when(unreadable.adaptTo(Node.class)).thenReturn(broken);
+        final Resource unstored = Mockito.mock(Resource.class);
+        final Resource parent = Mockito.mock(Resource.class);
+        Mockito.when(parent.getChildren()).thenReturn(List.of(unreadable, unstored));
+
+        assertTrue(Parameter.declaredIn(parent).isEmpty());
     }
 
     private Parameter parameter(final String name)
