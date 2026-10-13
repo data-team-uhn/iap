@@ -50,8 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ReplaceContentHandler}: a child is replaced by the whole tree an event gives, checked against
- * the declarations of its types before anything is written, or removed.
+ * Unit tests for {@link ReplaceContentHandler}: a child is replaced by a whole tree, checked before anything is
+ * written, or removed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -183,13 +183,13 @@ class ReplaceContentHandlerTest
             "{'jcr:primaryType': 'test:Item', 'title': 'x'}", "{'jcr:primaryType': 'test:Ghost'}",
             "{'jcr:primaryType': 'test:Rule'}", "{'jcr:primaryType': 'test:Operand'}",
             "{'jcr:primaryType': 'test:AllOf', 'x': {'jcr:primaryType': 'test:Operand'}}",
-            // Mandatory, and not created of itself
+            // Missing something the type requires
             "{'jcr:primaryType': 'test:Check', 'left': {'jcr:primaryType': 'test:Operand'}}",
             "{'jcr:primaryType': 'test:Check', 'comparator': null, 'left': {'jcr:primaryType': 'test:Operand'}}",
             "{'jcr:primaryType': 'test:Check', 'comparator': {}, 'left': {'jcr:primaryType': 'test:Operand'}}",
             "{'jcr:primaryType': 'test:Check', 'comparator': 'is'}",
             "{'jcr:primaryType': 'test:Check', 'comparator': 'is', 'left': 'x'}",
-            // Not names
+            // Keys that are not names
             "{'jcr:primaryType': 'test:AllOf', 'x/y': " + check + "}}", check + ", 'a[1]': 1}", check + ", ':x': 1}",
             check + ", 'a:b:c': 1}", check + ", 'nope:x': 1}",
             // Protected, of the wrong kind, or not values

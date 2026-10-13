@@ -74,7 +74,7 @@ final class EventJson
      *
      * @param context the executing task's context
      * @param parameter the parameter
-     * @param nullable whether JSON's {@code null} is taken, as nothing
+     * @param nullable whether JSON's {@code null} is accepted, and read as {@code null}
      * @return the object, or {@code null}
      * @throws InvalidPayloadException when the event gives none, or something else
      */
@@ -93,7 +93,7 @@ final class EventJson
                 return null;
             }
         } catch (final JsonException | IllegalStateException e) {
-            // Refused below, as anything else that is not an object
+            // Refused below, with any other value that is not an object
         }
         throw new InvalidPayloadException("The " + parameter + " must be a JSON object"
             + (nullable ? ", or null to remove it" : ""));

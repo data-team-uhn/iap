@@ -56,7 +56,7 @@
   - sling:resourceType (STRING) = "test/Crate" mandatory autocreated protected
   + * (test:Box)
 
-// A rule kept whole under a named child, as a condition is: groups of checks, each comparing two operands
+// A rule under a named child, replaced whole: groups of checks, each comparing two operands
 [test:Ruled]
   mixin
   + test:rule (test:Rule)

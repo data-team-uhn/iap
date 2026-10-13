@@ -37,14 +37,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The built-in service task replacing one child of what it acts on, the resource the execution created or else the
- * target, with the whole tree the event gives as {@code content}: a JSON object holding the child's properties, its
- * children as objects named by their keys, and each node's type as {@code jcr:primaryType}; or {@code null}, which
- * removes the child. The activity names the {@code child} it replaces and the {@code nodeTypes} the tree may hold;
- * their declarations decide the rest (see {@link ContentTree}): where each node may be, what it must have, and what
- * its properties may hold.
- * The whole tree is checked before anything is written, so content with a structure of its own, such as a condition,
- * changes in one step rather than node by node.
+ * The built-in service task that replaces one child of what it acts on with a tree of content the event gives. It
+ * acts on the resource the execution created, or else the target. The event's {@code content} is the new child as a
+ * JSON object (see {@link ContentTree}), or {@code null} to remove the child. The activity names the {@code child} it
+ * replaces and the {@code nodeTypes} the tree may hold. Their declarations decide the rest: where each node may be,
+ * what it must have, and what its properties may hold. The whole tree is checked before anything is written. Content
+ * with a structure of its own, such as a condition, then changes in one step rather than node by node.
  *
  * @version $Id$
  * @since 0.1.0

@@ -39,9 +39,9 @@ import jakarta.json.JsonValue;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 
 /**
- * Content to write whole, as a JSON object gives it: its properties as keys, its children as objects named by their
- * keys, and each node's type as {@code jcr:primaryType}, checked against the declarations of those types before any
- * of it is written.
+ * A tree of content to write, read from a JSON object and checked against the declarations of its node types. In the
+ * object, a node's properties are keys, its children are objects named by their keys, and its type is
+ * {@code jcr:primaryType}.
  *
  * @param name its name
  * @param type its node type
@@ -55,7 +55,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     /**
-     * What a tree is written with.
+     * What a tree is checked with.
      *
      * @param types the repository's node types
      * @param values makes the values written
@@ -73,7 +73,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
      *
      * @param parent the node it goes in
      * @param name the child's name
-     * @param json what it is
+     * @param json the tree, as JSON
      * @param listed the node types it may hold
      * @return what to write
      * @throws InvalidPayloadException when the tree, or anything in it, cannot be written as given
@@ -88,8 +88,8 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     }
 
     /**
-     * Writes the tree, in place of what its parent holds under its name, whether it was there before or its parent
-     * created it of itself.
+     * Writes the tree, replacing any child the parent already has under its name, even one the parent created of
+     * itself.
      *
      * @param parent the node it goes in
      * @throws RepositoryException when it cannot be written
@@ -111,10 +111,10 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     /**
      * Checks a node of the tree, with everything under it, against the declarations of its types.
      *
-     * @param planning what the tree is written with
-     * @param where the node's place in the tree, to say what is wrong where
+     * @param planning what the tree is checked with
+     * @param where the node's place in the tree, for the error messages
      * @param name its name
-     * @param json what it is
+     * @param json the node, as JSON
      * @param parentTypes the types of the node it goes in
      * @return what to write
      * @throws InvalidPayloadException when the node, or anything under it, cannot be written as given
@@ -151,9 +151,9 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     /**
      * The type a node of the tree says it is, which must be one the activity lists.
      *
-     * @param planning what the tree is written with
+     * @param planning what the tree is checked with
      * @param where the node's place in the tree
-     * @param json what it is
+     * @param json the node, as JSON
      * @return its type
      * @throws InvalidPayloadException when it says none, or one the tree may not hold
      * @throws RepositoryException when the node types cannot be read
@@ -176,7 +176,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
      *
      * @param where the node's place in the tree
      * @param type its type
-     * @param json what it is
+     * @param json the node, as JSON
      * @throws InvalidPayloadException when it leaves out a mandatory child or property
      */
     private static void checkComplete(final String where, final NodeType type, final JsonObject json)

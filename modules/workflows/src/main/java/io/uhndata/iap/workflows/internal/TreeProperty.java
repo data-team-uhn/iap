@@ -38,8 +38,9 @@ import jakarta.json.JsonValue;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 
 /**
- * A property of a {@link ContentTree}: its values stored as JSON gives them, text, whole numbers, decimals, true or
- * false, or a list of one kind of those, unless the declaration naming it requires another type.
+ * A property of a {@link ContentTree}. Its values are stored as the kind JSON gives them: text, whole numbers,
+ * decimals, true or false, or a list of one kind of those. When the declaration naming the property requires another
+ * type, the values are converted to it.
  *
  * @param name its name
  * @param values its values
@@ -132,7 +133,7 @@ record TreeProperty(String name, Value[] values, boolean multiple)
     }
 
     /**
-     * The values of an array, all of one kind: numbers are all whole, or all taken as decimals.
+     * The values of an array, all of one kind. When any number in it is a decimal, every number is taken as one.
      *
      * @param factory makes the values
      * @param at the property's place in the tree

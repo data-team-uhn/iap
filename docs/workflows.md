@@ -518,17 +518,18 @@ one instead. A name asked for, in a rename or a create, is taken as asked or not
 As after a move, the new path is what later steps act on.
 
 `replaceContent` writes content with a structure of its own, such as a condition, in one
-step rather than node by node. The event's `content` is a JSON object: the new `child`,
-its properties as keys, its children as objects named by their keys, and each node's
-type as `jcr:primaryType`; or `null`, which removes the child. Every node must be of a
-type the activity lists in `nodeTypes`, and one its parent holds there: as the
-definition naming it declares, when one does, or else as a definition of any name
-allows. What a type requires and does not create of itself must be given; what it does
-create of itself, such as a condition's `operandB`, is replaced when the tree gives it.
-Values are stored as JSON gives them, text, whole numbers, decimals, true or false, or a
-list of one kind of those, unless the declaration naming a property requires another
-type, such as a date given as text. The whole tree is checked before anything is
-written, and replaces what was there.
+step rather than node by node. The event's `content` is a JSON object holding the new
+`child`. Properties are keys, children are objects named by their keys, and each node
+gives its type as `jcr:primaryType`. A `content` of `null` removes the child. Every node
+must be of a type the activity lists in `nodeTypes`, and of one its parent can hold
+under its name. The parent's child definitions with that name decide. If it has none,
+its definitions for children of any name decide. The tree must give every mandatory
+property and child the type does not create itself. A child the type creates itself,
+such as a condition's `operandB`, is replaced by the tree's when the tree gives one.
+Values are stored as the kind JSON gives them: text, whole numbers, decimals, true or
+false, or a list of one kind of those. When a property's declaration requires another
+type, such as a date, the values given are converted to it. The whole tree is checked
+before anything is written, and replaces what was there.
 
 `copyContent` is how a workflow starts something as a copy of something else, e.g. a
 schema version from another. The copy is made with the `ContentCopier` service

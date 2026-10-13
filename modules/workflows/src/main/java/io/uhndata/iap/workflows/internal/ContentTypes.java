@@ -159,10 +159,10 @@ final class ContentTypes
     }
 
     /**
-     * Whether some node types let a child of a type go under a name, which is how content written whole is placed
-     * (see {@link ContentTree}): as the definitions naming it declare, when any does, or else as they allow a child of
-     * any name. Unlike {@link #holds(Node, NodeType)}, which says what a node is meant to hold of any name, this is
-     * about one name, so a catch-all accepting anything does allow a name no definition claims.
+     * Whether a node with the given types can hold a child of a type under a name. The definitions that name the
+     * child decide, when there are any. Otherwise a definition allowing children of any name decides, even one that
+     * accepts anything. {@link #holds(Node, NodeType)} leaves such catch-alls out, since it says what a node is meant
+     * to hold rather than what it may hold under one name.
      *
      * @param parentTypes the types of the node the child goes in
      * @param name the child's name
