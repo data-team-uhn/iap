@@ -256,7 +256,9 @@ included. `decodeAnchor` gives nothing for an anchor not kept, or one it cannot 
 
 The viewer reads pages only for as long as some passage is still being looked for: one placed or kept
 as an anchor needs only its own pages, and a document opened with no passages is not read at all, so
-reading never takes PDF.js away from drawing the pages being looked at for longer than it must.
+reading never takes PDF.js away from drawing the pages being looked at for longer than it must. While a
+passage is still being looked for, a bar along the top of the document shows how much of it has been read;
+`useMarkPlaces` gives how many pages have been, along with where the passages are.
 
 Once found, a quote is kept as spans too. The viewer draws every mark over PDF.js's text layer itself,
 and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown with its quote, and one
