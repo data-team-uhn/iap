@@ -91,6 +91,15 @@ describe("SchemaVersionView", () => {
     expect(screen.queryByText("Link")).not.toBeInTheDocument();
   });
 
+  it.each([
+    [ "v3", "Everything in this version can change until it is activated." ],
+    [ "v2", "Only the wording of this version can be corrected." ],
+  ])("says what can change in %s, as its update does", async (versionName, notice) => {
+    serveSchemas();
+    renderVersion("study", versionName);
+    expect(await screen.findByText(notice)).toBeInTheDocument();
+  });
+
   it("opens a question on what it accepts and when it is asked", async () => {
     serveSchemas();
     renderVersion("study", "v2");
