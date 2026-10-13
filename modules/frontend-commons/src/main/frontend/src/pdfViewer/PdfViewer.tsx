@@ -27,7 +27,7 @@ import { createPortal } from "react-dom";
 
 import CommentButton from "./CommentButton";
 import MarkList from "./MarkList";
-import { cannotMark, getMarkPage, getMarksKey, getMarkText, orderMarks } from "./marksModel";
+import { cannotMark, getMarkPage, getMarksKey, getMarkText, isLooking, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import PdfToolbar from "./PdfToolbar";
@@ -92,7 +92,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   // The mark the caller last selected. A change to the marks does not move the reader to it again.
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
-  const places = useMarkPlaces(pdf, marks);
+  const { places, read } = useMarkPlaces(pdf, marks);
   const firstMarkable = marks.find(mark => !cannotMark(places[mark.id]));
   const selectedId = [ selectedMarkId, chosenId ].find(id => marks.some(mark => mark.id === id))
     ?? (firstMarkable ?? marks.at(0))?.id;
@@ -167,6 +167,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       title={title ?? getFileName(url)}
       marks={marks}
       places={places}
+      pagesRead={read}
       selectedId={selectedId}
       onSelect={select}
       openError={openError}
@@ -212,6 +213,8 @@ interface ViewerBodyProps {
   title: string;
   marks: Mark[];
   places: MarkPlaces;
+  // How many pages have been read looking for the passages.
+  pagesRead: number;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   openError: string | undefined;
@@ -228,7 +231,7 @@ interface ViewerBodyProps {
 }
 
 function ViewerBody(props: ViewerBodyProps) {
-  const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
+  const { titleId, title, marks, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
@@ -387,6 +390,9 @@ function ViewerBody(props: ViewerBodyProps) {
             edgeToEdge={edgeToEdge}
             outlineSelected={several}
             opening={pageCount === undefined && openError === undefined}
+            looking={pageCount !== undefined && isLooking(places)
+              ? { share: pagesRead / pageCount, several }
+              : undefined}
           >
             {selectedText.selected === undefined || onAnnotate === undefined
               ? null
