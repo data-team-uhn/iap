@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// Where a part or an answer option may move to in a draft: where what it would be moved into may hold what it
-// is, outside itself, and somewhere other than where it already stands. No React, no fetch.
+// Where a part or an answer option of a draft may move to. The new parent must be allowed to hold its type, must
+// not be inside it, and the move must change where it stands. No React, no fetch.
 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 

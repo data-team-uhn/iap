@@ -90,8 +90,8 @@ function OptionRow({ option, question, options }: { option: JcrNode; question: J
   );
 }
 
-// A question's options. Given the question, each option carries its actions and, while an option is moving,
-// the places it may go: between them and after the last. Without it, only its text.
+// A question's options. Given the question, each option carries its actions, and a moving option is offered the
+// places between them and after the last. Without the question, each shows only its text.
 function OptionList({ options, question }: { options: JcrNode[]; question?: JcrNode }) {
   return (
     <Box component="ul" sx={{ m: 0, pl: 3 }}>

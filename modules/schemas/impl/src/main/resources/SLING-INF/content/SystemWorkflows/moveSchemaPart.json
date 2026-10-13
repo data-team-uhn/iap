@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Moves a requirement, section or question, with everything in it, to another place in its version, while its version is a draft.",
+    "description": "Moves a part of a draft version, with everything in it, elsewhere in its version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

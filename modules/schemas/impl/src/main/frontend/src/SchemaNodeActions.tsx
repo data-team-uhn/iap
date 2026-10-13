@@ -34,7 +34,7 @@ interface SchemaNodeActionsProps {
 }
 
 // What may be done to a part or an answer option where it stands: correct it, add after it, move it, remove it.
-// While something is moving, only moving is.
+// While something is moving, only Move is offered.
 function SchemaNodeActions({ node, parent, siblings, what }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
   const next = siblings.at(siblings.indexOf(node) + 1);

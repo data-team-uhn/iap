@@ -32,7 +32,7 @@ vi.mock("@iap/frontend-commons/actionsManager", () => ({
   getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
 }));
 
-// Which the test environment does not lay out, so it cannot scroll either
+// jsdom lays nothing out, and has no scrollIntoView
 const scrollIntoView = vi.fn();
 Element.prototype.scrollIntoView = scrollIntoView;
 
@@ -276,7 +276,7 @@ describe("SchemaVersionView", () => {
     expect(within(await card("Your age")).getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "true");
     expect(within(await card("Intake")).queryByRole("button", { name: /^Edit|^Add|^Remove/ }))
       .not.toBeInTheDocument();
-    // Only where it would go somewhere new, and only into what holds questions
+    // Only places that change something, and only in what may hold a question
     expect(spots()).toEqual([ "Move before Your name", "Move to the end of Follow-up" ]);
     fireEvent.click(screen.getByRole("button", { name: "Move before Your name" }));
 
@@ -342,7 +342,7 @@ describe("SchemaVersionView", () => {
     renderVersion("study", "v3");
 
     const move = within(await card("Your age")).getByRole("button", { name: "Move" });
-    // Where the places to move to push it, the page follows, so it stays under the pointer
+    // When the places that open push the button down, the page scrolls so it stays under the pointer
     const scrollBy = vi.fn();
     vi.stubGlobal("scrollBy", scrollBy);
     vi.spyOn(move, "getBoundingClientRect")
@@ -383,7 +383,7 @@ describe("SchemaVersionView", () => {
     expect(screen.getByRole("button", { name: "Move before Your name" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Move to the end of Follow-up" }));
     await waitFor(() => expect(posted).toHaveLength(2));
-    // Said again, so a second refusal is noticed too
+    // The message is rendered anew, so a repeated refusal is noticed
     await waitFor(() => expect(screen.getByText("Your age cannot move there.")).not.toBe(said));
   });
 

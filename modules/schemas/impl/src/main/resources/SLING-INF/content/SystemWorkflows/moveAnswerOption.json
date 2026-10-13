@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/AnswerOption",
-    "description": "Moves an answer option to another place among a question's options, in the same version, while its version is a draft.",
+    "description": "Moves an answer option of a draft version among a question's options in that version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

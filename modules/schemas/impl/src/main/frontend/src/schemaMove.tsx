@@ -41,7 +41,7 @@ interface Moving {
 
 interface MoveModeValue {
   moving?: Moving;
-  // Where the last move put what it moved, until it has been shown
+  // The path of what the last move moved, until it has been marked
   moved?: string;
   sending: boolean;
   isMoving: (node: JcrNode) => boolean;
@@ -61,8 +61,8 @@ export const useMoveMode = () => useContext(MoveModeContext);
 // How long what was moved stays marked
 const SHOWN_FOR = 3000;
 
-// Keeps an element where it is on the screen while the layout around it changes, as places to move to open and
-// close above it: the page scrolls by as much as the element was pushed.
+// Keeps an element at the same place on the screen while places to move to open and close above it. The page
+// scrolls by as much as the element was pushed.
 function useKeepInPlace(change: unknown) {
   const kept = useRef<{ element: HTMLElement; top: number }>(undefined);
   useLayoutEffect(() => {
@@ -78,14 +78,14 @@ function useKeepInPlace(change: unknown) {
   }, []);
 }
 
-// Moving one part or answer option of a tree at a time: choosing what moves, then where, as one event, and saying
-// once it is done.
+// Lets one part or answer option of a tree move at a time. The user chooses what moves, then where it goes. The move
+// is sent as one event, and a notice says when it is done.
 export function MoveMode({ children }: { children: ReactNode }) {
   const [ moving, setMoving ] = useState<Moving>();
   const [ moved, setMoved ] = useState<string>();
   const [ sending, setSending ] = useState(false);
   const [ error, setError ] = useState<string>();
-  // How many moves have failed, so that each failure is noticed, even one saying what the last one said
+  // Counts failed moves, so that the bar pulses again even when a failure repeats the last message
   const [ failures, setFailures ] = useState(0);
   const send = useTreeEvent();
   const notify = useNotice();
@@ -144,8 +144,8 @@ export function MoveMode({ children }: { children: ReactNode }) {
     moving, moved, sending, start, cancel, moveTo,
     isMoving: (node: JcrNode) => moving !== undefined && pathOf(moving.node) === pathOf(node),
   }), [ moving, moved, sending, start, cancel, moveTo ]);
-  // The bar stands where notices do, over the page rather than in it, so nothing moves to make room for it; room is
-  // made under the tree instead, so that its last places can be scrolled clear of it
+  // The bar floats over the page where notices appear, so the page does not shift when it opens. The padding under
+  // the tree lets its last places scroll clear of the bar.
   return (
     <MoveModeContext.Provider value={value}>
       <Box sx={{ pb: moving ? 10 : 0 }}>{children}</Box>
@@ -183,9 +183,9 @@ interface MoveSpotProps {
   onChoose?: () => void;
 }
 
-// A place the moving node may go, shown only while something is moving and only where it would go somewhere new,
-// named after what it goes before, or else what it goes at the end of; the version's own end needs no name. On a
-// phone, it is tall enough for a finger.
+// A place the moving node may go, shown only while something is moving and only where the move would change
+// something. It is named after the sibling it goes before, or else the part it goes at the end of. The end of the
+// version itself has no name. On a phone, it is tall enough for a finger.
 export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
   const { moving, sending, moveTo } = useMoveMode();
   if (!moving || !isMoveSpot(moving.node, parent, before)) {
@@ -216,12 +216,12 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
           color: "text.secondary",
           typography: "body2",
           "&:hover": { bgcolor: "background.tintedStrong", color: "primary.main" },
-          // A place with no border of its own still shows where the keyboard is
+          // A place has no border, so keyboard focus gets an outline
           "&.Mui-focusVisible": {
             bgcolor: "background.tintedStrong", color: "primary.main",
             outline: 2, outlineColor: "primary.main", outlineOffset: -2,
           },
-          // Where it is only when pointed at or reached, and always where nothing can point without pressing
+          // The label shows on hover and keyboard focus, and always on touch screens, which cannot hover
           "& .iap-move-spot-label": { opacity: 0, transition: "opacity 0.15s" },
           "&:hover .iap-move-spot-label, &.Mui-focusVisible .iap-move-spot-label": { opacity: 1 },
           "@media (hover: none)": { "& .iap-move-spot-label": { opacity: 1 } },
@@ -248,9 +248,9 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
   );
 }
 
-// How a part or an option shows that it is the one moving, cut out and on its way elsewhere, and that it is the one
-// just moved: that one is brought into view, given the focus, and marked for a moment. What has a border of its own
-// dashes it, keeping its left edge, which says what it is; anything else is outlined.
+// Marks the part or option that is moving, and the one just moved. The moving one is shaded and dashed, and its
+// content faded. A bordered element keeps the solid left edge that shows its type; anything else is outlined. The one
+// just moved is scrolled into view, focused, and tinted for a moment.
 export function useMoveHighlight<T extends HTMLElement>(node: JcrNode, { bordered }: { bordered: boolean }) {
   const { moved, isMoving } = useMoveMode();
   const ref = useRef<T>(null);
@@ -266,7 +266,7 @@ export function useMoveHighlight<T extends HTMLElement>(node: JcrNode, { bordere
 
   return {
     ref,
-    // For what it stands on
+    // Styles for the element itself
     surface: (theme: Theme) => {
       const { palette } = theme.vars ?? theme;
       const edge = palette.text.secondary;
@@ -285,7 +285,7 @@ export function useMoveHighlight<T extends HTMLElement>(node: JcrNode, { bordere
         } : {},
       };
     },
-    // For what it says
+    // Styles for its content
     content: moving ? { opacity: 0.6 } : {},
   };
 }

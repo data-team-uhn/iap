@@ -81,7 +81,8 @@ interface PartCardProps {
 // One requirement, section or question, with what it contains nested inside. Containers start open and
 // questions closed, so the outline of a version reads first and the detail is a click away. When it
 // applies stays in view either way: it is what the outline is made of. While something is moving, a closed part
-// still offers its end as a place to go, opening to show what went there, and opens to offer the rest.
+// offers a place at its end, under its heading. Choosing it opens the part to show what went there. Opening the part
+// shows the other places.
 function PartCard({ part, parent, siblings, index }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);
@@ -108,7 +109,7 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
         borderLeft: 4,
         borderLeftColor: type.accent,
         borderRadius: 1,
-        // So that a place to move to under a closed part's heading runs to its rounded edges
+        // Clips the place to move to under a closed part's heading to the card's rounded corners
         overflow: "hidden",
       }, surface ]}
     >
@@ -163,7 +164,7 @@ function PartCard({ part, parent, siblings, index }: PartCardProps) {
           {details}
           { children.length > 0
             ? <PartList parent={part} parts={children} index={index} />
-            // A question's options end with a place of their own
+            // An empty part offers one place; a question's options offer their own
             : optionsOf(part).length === 0 && <MoveSpot parent={part} /> }
           <AddAtEnd parent={part} first={nameIfAny([ ...children, ...optionsOf(part) ].at(0))} />
         </Stack>
@@ -178,7 +179,7 @@ interface PartListProps {
   index: QuestionIndex;
 }
 
-// Parts one under the other, and, while something is moving, the places between them it may go
+// A list of parts. While something is moving, it also shows the places between and after them where it may go.
 function PartList({ parent, parts, index }: PartListProps) {
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>

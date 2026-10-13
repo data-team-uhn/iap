@@ -72,8 +72,8 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip. One that stays on until pressed again says whether it is. An
-// action that only goes somewhere is a link there.
+// One action as an icon button, named by its tooltip. An action that stays on until pressed again shows whether it is
+// on through `pressed`. An action that only goes somewhere is a link there.
 export function ActionIcon({ label, icon, onClick, pressed, to }: {
   label: string;
   icon: ReactNode;

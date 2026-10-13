@@ -127,10 +127,10 @@ in a question. The new part goes before the sibling named in `before`, or else l
 options are **removed** into the archive. A question that a condition elsewhere in the version names stays, and
 the refusal names the parts whose conditions depend on it (`ConditionDependencyVeto`, a deletion veto, which asks
 the conditions module what depends on what); removing the condition's own part along with the question is fine.
-Parts and options are **moved** with the engine's `moveContent` task, into the `parent` the event names, or within
-their own, before the sibling named in `before`, or else last, so one event both reorders and moves. They go only
-where the node types say they may, and never out of their version. A condition that names a moved question by its
-path names it by its identifier from then on, so a move breaks no condition.
+Parts and options are **moved** with the engine's `moveContent` task. They go into the `parent` the event names, or
+stay in their own, and land before the sibling named in `before`, or else last. One event can therefore both reorder
+and move. They go only where the node types say they may, and never out of their version. A condition that names a
+moved question by its path names it by its identifier from then on, so a move breaks no condition.
 The guards read the version's own tags: a condition's `property` and `tags` operands resolve on the enclosing
 entity, which for a part or an option is its version.
 
