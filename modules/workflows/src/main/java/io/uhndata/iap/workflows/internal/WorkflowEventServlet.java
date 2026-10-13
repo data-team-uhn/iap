@@ -28,6 +28,7 @@ import jakarta.json.Json;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.request.RequestDispatcherOptions;
@@ -86,6 +87,9 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The extension that bypasses the engine, for the Sling POST servlet. */
     static final String IMPORT_EXTENSION = "import";
 
+    /** The request parameter naming the user an event is sent on behalf of. */
+    static final String ON_BEHALF_OF_PARAMETER = ":onBehalfOf";
+
     /** The request parameter naming a Sling POST servlet operation. */
     private static final String OPERATION_PARAMETER = ":operation";
 
@@ -136,8 +140,8 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         }
         try {
             final String name = eventName(request);
-            final WorkflowResult result =
-                this.engine.receiveEvent(request.getResource(), new WorkflowEvent(name, payload(request)));
+            final WorkflowResult result = this.engine.receiveEvent(request.getResource(),
+                new WorkflowEvent(name, payload(request)), onBehalfOf(request));
             final Object createdPath = result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
             if (createdPath instanceof String) {
                 redirect(response, (String) createdPath);
@@ -274,6 +278,18 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             // stream. Asserted rather than branched on, so there is no path a test cannot reach
             return Objects.requireNonNull(this.part.getInputStream(), "A file part always has content to read");
         }
+    }
+
+    /**
+     * Whom the sender acts for, named by the {@code :onBehalfOf} parameter. Left blank, it names nobody.
+     *
+     * @param request the incoming request
+     * @return a user id, or {@code null} when the sender acts for themselves
+     */
+    private String onBehalfOf(final SlingJakartaHttpServletRequest request)
+    {
+        final RequestParameter parameter = request.getRequestParameter(ON_BEHALF_OF_PARAMETER);
+        return parameter == null || StringUtils.isBlank(parameter.getString()) ? null : parameter.getString();
     }
 
     /**
