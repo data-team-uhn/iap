@@ -195,7 +195,7 @@ describe("references", () => {
     expect(candidateOf({ "@path": "/Elsewhere/v1" }, "/Workflows")).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ "@path": "/Elsewhere/v1" })).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
     expect(candidateOf({ title: "No path" })).toBeUndefined();
-    // What a reference stored as an identifier names it by
+    // The identifier a reference may store instead of the path
     expect(candidateOf({ "@path": "/Workflows/fast/v2", "jcr:uuid": "uuid-fast", "title": "Fast track" }))
       .toEqual({ path: "/Workflows/fast/v2", label: "Fast track", identifier: "uuid-fast" });
   });

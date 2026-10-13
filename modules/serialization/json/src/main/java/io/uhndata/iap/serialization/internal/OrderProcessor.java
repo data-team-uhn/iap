@@ -38,8 +38,8 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
  * Adds {@code @order} to a node whose type keeps its children in order. It lists the names of the children, in that
- * order. Where the order of the children matters, as for the parts of a schema version and the options of a question, a
- * reader takes it from here, not from the order of the keys. The name of this processor is {@code order}.
+ * order. A reader takes the order from here, not from the order of the keys, as for the parts of a schema version and
+ * the options of a question. The name of this processor is {@code order}.
  *
  * @version $Id$
  * @since 0.1.0

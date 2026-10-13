@@ -45,7 +45,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * event names as {@code before}, or else last. It takes the {@code name} the event asks for, which must be free and
  * one the activity allows (see {@link ContentNames}). Without one, it is named after the first field listed in
  * {@code nameFrom} that the event's {@code patch} gives. When that makes no name the activity allows, it is named
- * after its type. It starts with only what its type sets itself: an {@code updateContent} task that follows fills it
+ * after its type. It starts with only what its type sets itself. An {@code updateContent} task that follows fills it
  * in from the same patch, since it acts on what was created.
  *
  * @version $Id$

@@ -131,7 +131,7 @@ class AddLinkHandlerTest
     @Test
     void failsWhileWhatIsThereCannotBeRead()
     {
-        // As every model does for a moment while the models are registered again
+        // adaptTo answers null for a moment while the models are registered again
         final Resource unreadable = Mockito.mock(Resource.class);
         Mockito.when(this.resolver.getResource("/elsewhere")).thenReturn(unreadable);
         assertThrows(WorkflowFailedException.class,

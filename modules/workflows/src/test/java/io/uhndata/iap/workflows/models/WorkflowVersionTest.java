@@ -199,7 +199,7 @@ class WorkflowVersionTest
 
         assertEquals(List.of("tag_1", "tag_2"), elementIds(version.getActivities("addTag")));
         assertEquals(List.of("update_1"), elementIds(version.getActivities("updateContent")));
-        // No handler performs the user task, nor the events and the gateway, which are no activities
+        // Only the user task has no handler. The events and the gateway are not activities.
         assertEquals(List.of("task_1"), elementIds(version.getActivities(null)));
         assertTrue(version.getActivities("startWorkflow").isEmpty());
     }

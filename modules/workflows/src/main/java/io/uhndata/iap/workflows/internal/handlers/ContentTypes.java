@@ -47,8 +47,8 @@ import io.uhndata.iap.workflows.models.Activity;
  * {@code sling:Folder}, and so all content, inherits. So one activity can serve several kinds of container, each
  * offering only what it is meant to hold. The activity's {@code namePattern} is the rule names must match, and its
  * {@code nameHint} says the same in words. A listed type may give its own pattern and hint, or set {@code named} to
- * false so that no event may ask for a name. An entry naming no {@code nodeType} offers nothing, and is reported as
- * the authoring mistake it is.
+ * false so that no event may ask for a name. An entry naming no {@code nodeType} offers nothing, and is reported as an
+ * error.
  *
  * @version $Id$
  * @since 0.1.0

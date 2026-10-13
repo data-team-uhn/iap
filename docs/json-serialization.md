@@ -84,7 +84,7 @@ that descends at all — so Sling-style URLs like `.1.json` work without naming 
 | `creatable` | off | 50 | Adds `@creatable`, the types of content the requesting user's `create` event could add inside the node, each with the fields it starts with (contributed by `workflows`, see `createContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 
 `order` is for readers that need children in their stored order, such as the schema
-editor, for the parts of a version and the options of a question. The keys of a JSON
+editor reading the parts of a version and the options of a question. The keys of a JSON
 object cannot carry that order. Nothing promises that a reader keeps them in order, and
 JavaScript lists keys that look like whole numbers first, in numeric order. An option
 named `2` therefore comes before one named `10`, whatever order they were stored in.

@@ -75,7 +75,7 @@ export const optionLabelOf = (option: SerializedNode): string => text(option, "l
 export const shownNameOf = (node: SerializedNode): string =>
   resourceTypeOf(node) === OPTION_TYPE ? optionLabelOf(node) : headingOf(node);
 
-// The words the workflows editing questions have for each type of answer, for a question no update describes
+// Each type of answer in the words the shipped workflows use, for a question no update describes
 const DATA_TYPES: Partial<Record<string, string>> = {
   text: "Text",
   long: "Whole number",

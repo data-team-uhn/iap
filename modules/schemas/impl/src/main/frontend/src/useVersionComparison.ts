@@ -84,7 +84,7 @@ export function useComparedFields(sources: ComparedFieldSources) {
   return { fields, loadError, reload };
 }
 
-// What a reference's target is called, by each name a reference may give it: its path, and its identifier
+// A target's label, keyed by its path and by its identifier, either of which a reference may store
 const namesOf = ({ path, label, identifier }: ReferenceCandidate): [ string, string ][] =>
   [ path, ...identifier ? [ identifier ] : [] ].map(name => [ name, label ]);
 

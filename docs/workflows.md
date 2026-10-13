@@ -481,8 +481,8 @@ own pattern and hint. One listed with `named` false refuses any name asked for. 
 listed without a `nodeType`, or with one that does not exist, is offered nowhere, and
 recorded as an error. New content starts with only what its type sets itself, such as
 its autocreated defaults. An `updateContent` task that follows fills it in from the same
-patch, since it acts on what was created, and refuses to leave out a mandatory field its
-type gives no default.
+patch, since it acts on what was created. It refuses a patch that leaves out a mandatory
+field its type gives no default.
 
 The `creatable` serialization adds `@creatable` to content a `create` event would add
 to: each type the requesting user's workflow could create there, with its `label` and
@@ -510,8 +510,7 @@ answered with.
 
 Both place content among siblings the parent keeps in order, and `before` names a
 sibling, never a path. The order is the parent's, and the `order` serialization reports
-it (see [json-serialization.md](json-serialization.md)), since a JavaScript object does
-not keep the order of keys that look like whole numbers.
+it (see [json-serialization.md](json-serialization.md)).
 
 `renameContent` gives the target the `name` the event asks for, keeping its place among
 its siblings. The rename goes through the same `ContentMover`, so the same participants

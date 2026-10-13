@@ -135,8 +135,8 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
           onSave={changes => send(parent, "create", {
             type: chosen.type,
             ...placedBefore ? { before: placedBefore } : {},
-            // Only a name typed: the server makes the one suggested by the same rule, and passes over a name taken
-            // meanwhile, where one asked for would be refused
+            // Only a typed name is sent. Without one, the server names the content by the same rule as the
+            // suggestion. It also passes over a name taken meanwhile, where a name sent would be refused.
             ...identifier ? { name: identifier } : {},
             ...patch(changes),
           })}

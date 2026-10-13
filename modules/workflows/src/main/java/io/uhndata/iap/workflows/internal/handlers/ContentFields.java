@@ -133,8 +133,8 @@ public final class ContentFields
         }
     }
 
-    // Each record holding a list keeps its own copy, and hands it out through List.copyOf: the copy is immutable
-    // already, so that returns it as it is, and it is what lets static analysis see that nothing can change it
+    // Each record holding a list keeps its own immutable copy, and returns it through List.copyOf. That returns the
+    // same instance, and lets static analysis see that nothing can change the list.
     /**
      * When a field applies: while another property of the same node holds one of some values.
      *
@@ -277,8 +277,8 @@ public final class ContentFields
 
         /**
          * The field as the {@code fields} serialization lists it: what the activity says about it, and what its
-         * declaration says, its {@code kind}, whether it is {@code multiple} or {@code mandatory}, and the
-         * {@code default} new content starts with.
+         * declaration says. The declaration gives its {@code kind}, whether it is {@code multiple} or
+         * {@code mandatory}, and the {@code default} new content starts with.
          *
          * @return its description
          * @throws RepositoryException when a default cannot be read as the field's kind

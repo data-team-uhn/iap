@@ -72,7 +72,7 @@ function SchemaNodeEditAction({ node, parent, title }: SchemaNodeEditActionProps
           node={node}
           onSave={async changes => {
             await send(path, "update", patch(changes));
-            // The update read the tree again, under the new name; one refused leaves that to closing
+            // A successful update has read the tree again, rename included. A refused one leaves that to closing.
             renamed.current = false;
           }}
           onClose={() => {

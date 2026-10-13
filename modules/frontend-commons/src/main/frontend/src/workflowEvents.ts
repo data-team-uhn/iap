@@ -28,8 +28,8 @@ import type { AuthenticatedFetch } from "./reLogin";
 // The parameters go as a form, or as the FormData given, for an event that brings a file.
 //
 // Resolves with the path of what the event created, when it created something: the engine answers
-// with a redirect, which fetch has already followed. The path is given as the repository names it,
-// not percent-encoded as the URL has it, so it compares with the `@path` the serialization gives.
+// with a redirect, which fetch has already followed. The path is decoded, as the repository names it,
+// so it compares with the `@path` the serialization gives.
 export async function sendEvent(
   doFetch: AuthenticatedFetch,
   path: string,

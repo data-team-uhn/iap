@@ -61,7 +61,7 @@ describe("schemaVersionTreeModel", () => {
     expect(dataTypeOf(age)).toBe("Whole number");
     expect(dataTypeOf(code)).toBe("exotic");
     expect(dataTypeOf({})).toBe("Text");
-    // In the words of the update that would change it, as its edit dialog shows them, else in the workflows' usual ones
+    // The update's label first, else the usual one, else the stored value
     const typed = { name: "dataType", label: "Answer type", kind: "text", multiple: false, mandatory: true,
       multiline: false, choices: [ { value: "double", label: "Number with decimals" } ] };
     expect(dataTypeOf({ "dataType": "double", "@fields": [ typed ] })).toBe("Number with decimals");

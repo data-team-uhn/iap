@@ -24,8 +24,8 @@ import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * What an event names by its path in one of its entries, such as where content moves. The entry is read as every
- * handler reads one (see {@link Payloads}): absent, blank or not text, it names nothing.
+ * Finds the resource an event entry names by its path, such as where content moves. As with any entry (see
+ * {@link Payloads}), one that is absent, blank or not text names nothing.
  *
  * @version $Id$
  * @since 0.1.0

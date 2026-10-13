@@ -70,8 +70,9 @@ function OptionText({ option }: { option: SerializedNode }) {
 
 interface OptionRowProps {
   option: SerializedNode;
-  // The question it is an option of, and all of its options, in order
+  // The question it is an option of
   question: SerializedNode;
+  // All of the question's options, in order
   options: SerializedNode[];
 }
 

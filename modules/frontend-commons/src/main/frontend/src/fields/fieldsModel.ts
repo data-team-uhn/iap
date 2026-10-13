@@ -223,7 +223,7 @@ export function referenceQuery(field: Pick<ContentField, "referenceType" | "refe
 export interface ReferenceCandidate {
   path: string;
   label: string;
-  // What a reference stored as an identifier holds, for a node that has one
+  // The node's `jcr:uuid`, if it has one, which a reference may store instead of the path
   identifier?: string;
 }
 

@@ -26,11 +26,11 @@ is only a container with a name, while its actual content lives in versions.
 Requirements, sections and questions are `orderable`: the order they are stored in is
 the order they are presented in, a question's answer options included. Options are named
 after their values, often numbers, and a JavaScript object lists keys that look like
-whole numbers first, whatever order they were stored in, so the schema editor reads the
-order from `@order` (see [json-serialization.md](json-serialization.md)). A schema's
-versions are not ordered, so they are listed by label, in numeric order (`1.0`, `2.0`,
-`10.0`). Every requirement and form item is `cond:Conditionable`, so it may carry one
-condition deciding whether it applies (see [conditions.md](conditions.md)).
+whole numbers first, whatever order they were stored in. The schema editor therefore
+reads the order from `@order` (see [json-serialization.md](json-serialization.md)). A
+schema's versions are not ordered, so they are listed by label, in numeric order (`1.0`,
+`2.0`, `10.0`). Every requirement and form item is `cond:Conditionable`, so it may carry
+one condition deciding whether it applies (see [conditions.md](conditions.md)).
 Questions and requirements are referenceable, because answers, documents and reviews point back
 at them.
 

@@ -65,8 +65,8 @@ public class AnswerOperandResolver implements OperandResolver
     private static final String DATA_TYPE_PROPERTY = "dataType";
 
     /**
-     * An identifier as the repository writes it, in lower case. What depends on a question is found by that spelling
-     * (see {@link AnswerDependencies}), so no other may name it.
+     * An identifier as the repository writes it, in lower case. {@link AnswerDependencies} finds what depends on a
+     * question by that exact spelling, so no other spelling names a question.
      */
     private static final Pattern UUID_FORMAT =
         Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");

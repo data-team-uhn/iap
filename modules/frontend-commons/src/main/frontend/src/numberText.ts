@@ -19,9 +19,9 @@
 // Numbers as people type them. Number() reads more than that: hexadecimal, binary and octal literals, and whole
 // numbers too large to hold exactly, which it rounds without a word
 
-// A whole number, maybe signed, that a number holds exactly
+// Whether the text is a whole number, maybe signed, small enough to hold exactly
 export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text));
 
-// A decimal number, maybe signed, with a point and an exponent if it has them, and not too large to hold
+// Whether the text is a decimal number, maybe signed, with an optional point and exponent, and not too large to hold
 export const isDecimalNumber = (text: string): boolean =>
   /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));

@@ -34,8 +34,8 @@ export interface ComparedField extends NamedField {
 
 const labelOf = (node: SerializedNode): string => (typeof node.label === "string" ? node.label : nameOf(node));
 
-// A choice's value and its words, as the server reads them: the value it names, or else its name, and its label, or
-// else its value
+// A choice's value and label, as the server reads them. The value defaults to the choice's name, and the label to
+// its value.
 function choiceOf(choice: SerializedNode): [ string, string ] {
   const value = typeof choice.value === "string" ? choice.value : nameOf(choice);
   return [ value, typeof choice.label === "string" ? choice.label : value ];

@@ -23,8 +23,7 @@ import {
 
 import type { AuthenticatedFetch } from "../reLogin";
 
-// The nodes a reference field may point at, as the search finds them, sorted by what they are offered as; none for a
-// field naming no type of node
+// The nodes a reference field may point at, sorted by their labels. A field naming no type of node has none.
 export async function readCandidates(doFetch: AuthenticatedFetch,
   field: Pick<ContentField, "referenceType" | "referenceRoot">): Promise<ReferenceCandidate[]> {
   const query = referenceQuery(field);
