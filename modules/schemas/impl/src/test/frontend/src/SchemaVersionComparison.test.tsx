@@ -178,7 +178,7 @@ describe("SchemaVersionComparison", () => {
     renderComparison("v1", "v2");
 
     expect(await screen.findByRole("button", { name: "Show 1 unchanged question" })).toBeInTheDocument();
-    // Each opening the way it would: before what follows at the start, after what precedes at the end, else both
+    // Each band's arrow says which way it opens: up at the start, down at the end, both ways between
     expect(screen.getAllByRole("button", { name: /^Show \d+ unchanged/ })
       .map(button => button.querySelector("svg")?.getAttribute("data-testid")))
       .toEqual([ "KeyboardArrowUpIcon", "UnfoldMoreIcon", "KeyboardArrowDownIcon" ]);

@@ -27,7 +27,7 @@ import { versionPageUrl } from "./useSchemaList";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Opens a version that can still change on its own page, where it is edited
+// Opens a version on its own page to edit it, when anything about it can still change
 function SchemaVersionEditAction({ schema, version }: SchemaVersionActionProps) {
   const navigate = useNavigate();
   if (!offers(version, "update")) {

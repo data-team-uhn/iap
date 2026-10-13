@@ -29,12 +29,12 @@ export function formatDateTime(value: Date): string {
   });
 }
 
-// A stored timestamp as a dateTime column takes it, or nothing for one that is missing
+// A stored timestamp as the Date a dateTime column takes, or null when there is none
 export function dateValue(value: unknown): Date | null {
   return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
-// The day of a stored timestamp, as a card shows it where the full timestamp would crowd it
+// The day of a stored timestamp, for a card that the full timestamp would crowd
 export const dayOf = (value: unknown): string | undefined => dateValue(value)?.toLocaleDateString();
 
 // Puts the compact timestamp rendering on every dateTime column that doesn't bring its own formatter.

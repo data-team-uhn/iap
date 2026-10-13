@@ -78,7 +78,7 @@ describe("getActions", () => {
     mockedLoadExtensions.mockResolvedValue([
       { "ext:render": First, "ext:places": [ "list" ] },
       { "ext:render": Second },
-      // A single value, as a property set without saying it holds several arrives
+      // A single value, which is how a property that is not multi-valued arrives
       { "ext:render": Third, "ext:places": "page" },
     ]);
 

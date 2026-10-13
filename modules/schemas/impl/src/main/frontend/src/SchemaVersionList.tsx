@@ -32,8 +32,7 @@ import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 import { comparisonPageUrl } from "./useSchemaList";
 
 // A schema's versions, with where each stands and what can be done with it. The schema's page has already read
-// them, so the grid lists them without fetching. Edit opens a version's own page, where it is edited. Any two can be
-// picked and compared.
+// them, so the grid lists them without fetching. Any two can be picked and compared.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: JcrNode;
   reload: () => void;

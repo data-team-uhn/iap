@@ -71,8 +71,8 @@ declare module "@mui/material/styles" {
   }
   // The colours a comparison of two snapshots of content marks added or removed content with. `main` is for its
   // markers, `line` for the background of a changed line, and `word` for the stronger shade of the words that changed
-  // within it. Moved content has only `main` and `line`. So has `hunk`, what stands for unchanged content left out,
-  // which shows that content when pressed.
+  // within it. Moved content has only `main` and `line`. So has `hunk`, for the band that stands in for unchanged
+  // content left out.
   interface DiffColors {
     main: string;
     line: string;

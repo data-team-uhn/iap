@@ -36,7 +36,7 @@ interface ContributedAction {
 }
 
 // The resolved actions, per extension point, and the in-flight request for the ones being
-// resolved: an extension point is fetched once per page load, however many components ask for it.
+// resolved. An extension point is fetched once per page load, however many components ask for it.
 const actions = new Map<string, ContributedAction[]>();
 const requests = new Map<string, Promise<ContributedAction[]>>();
 
@@ -77,7 +77,7 @@ function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
 }
 
 // The action components registered on an extension point, in the order the repository lists them. An extension
-// naming the `ext:places` it is shown in is left out of any other; one naming none is shown everywhere.
+// that names `ext:places` is shown only in those places. One naming none is shown everywhere.
 //
 // Failures are absorbed, not surfaced: a broken extension is skipped, and an unreadable extension
 // point yields no actions. A page's action bar failing never hides the page itself.

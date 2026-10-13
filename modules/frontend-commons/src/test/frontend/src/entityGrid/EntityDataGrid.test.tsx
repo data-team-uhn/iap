@@ -170,7 +170,7 @@ registerEntityType(EXPANDED_TYPE, {
   columns: [ { field: "status", headerName: "Status" } ],
   children: { selectors: "1", rows: versionsOf, treeField: "label", expanded: true },
 });
-// The same, composing its card from card slots, and opening each row, a child's too, on a page of its own
+// The same, with its card composed from card slots, and a page for each row, children included
 const CARD_TREE_TYPE = "test/CardTreeEntity";
 registerEntityType(CARD_TREE_TYPE, {
   homepage: "/TreeEntities",
@@ -790,7 +790,7 @@ describe("EntityDataGrid", () => {
     );
 
     expect(await screen.findByText("Clinical study")).toBeInTheDocument();
-    // Each with its badges; one without a title of its own by its name, and without a page, not linked
+    // Each child shows its badges. One without a title shows its name, and one without a path is not linked.
     expect(screen.getByText("retired")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
     expect(screen.getByText("v2").closest("a")).toBeNull();

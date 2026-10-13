@@ -30,9 +30,9 @@ import SchemaVersionEditAction from "@iap/schemas/SchemaVersionEditAction";
 import SchemaVersionNewVersionAction from "@iap/schemas/SchemaVersionNewVersionAction";
 import SchemaVersionRetireAction from "@iap/schemas/SchemaVersionRetireAction";
 
-// The version actions this module contributes, in their extension order, each with the asset its extension renders
-// and the places it names, if any, as the actions manager would resolve them from the repository. A test holds this
-// to the extensions themselves.
+// The version actions this module contributes, in their extension order, as the actions manager would resolve them
+// from the repository. Each has the asset its extension renders and the places it names, if any. A test checks this
+// list against the extensions themselves.
 export const VERSION_ACTIONS: { asset: string; component: unknown; places?: string[] }[] = [
   { asset: "SchemaVersionEditAction", component: SchemaVersionEditAction, places: [ "versionList" ] },
   { asset: "SchemaVersionDetailsAction", component: SchemaVersionDetailsAction, places: [ "versionPage" ] },

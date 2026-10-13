@@ -293,7 +293,7 @@ describe("SchemaPage", () => {
 
     expect(await screen.findByRole("link", { name: "Version 3.0" })).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
-    // What can be done with a version, in one menu on its card
+    // A version's actions, in one menu on its card
     fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
     expect(await screen.findByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
   });

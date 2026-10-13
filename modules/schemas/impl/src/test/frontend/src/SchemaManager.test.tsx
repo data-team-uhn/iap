@@ -177,7 +177,7 @@ describe("SchemaManager", () => {
     renderManager();
 
     expect(await screen.findByText("Clinical study")).toBeInTheDocument();
-    // Its versions, each a way to its page, and what can be done with it in one menu
+    // Its versions, each linked to its page, and its actions in one menu
     expect(screen.getByRole("link", { name: "Version 1.0" })).toHaveAttribute("href", "/admin/schemas/study/v1");
     fireEvent.click(await screen.findByRole("button", { name: "Actions for “Clinical study”" }));
     expect(await screen.findByRole("menuitem", { name: "Reopen" })).toBeInTheDocument();

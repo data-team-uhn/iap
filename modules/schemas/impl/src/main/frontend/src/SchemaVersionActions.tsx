@@ -32,7 +32,7 @@ export interface SchemaVersionActionProps {
   comparisonDefaults?: string[];
 }
 
-// Where a version's actions are shown, which their extensions can name in `places`
+// Where a version's actions are shown, as their extensions name it in `ext:places`
 export type VersionActionsPlace = "versionList" | "versionPage";
 
 function SchemaVersionActions({ place, ...props }: SchemaVersionActionProps & { place: VersionActionsPlace }) {

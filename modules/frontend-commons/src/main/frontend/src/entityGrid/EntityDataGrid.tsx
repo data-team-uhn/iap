@@ -218,7 +218,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // The leading columns stay before a type's own card too, unless hidden or kept off cards
   const leadingOnCards = leadingColumns.filter(column => column.cardSlot !== "omit"
     && visibleColumns.some(visible => visible.field === column.field));
-  // And what can be done with an entity ends a bespoke card, as it ends a plain one's title line
+  // Columns in the "actions" slot end a type's own card too, unless hidden
   const actionsOnCards = visibleColumns.filter(column => column.cardSlot === "actions");
   const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) =>
     (leadingOnCards.length + actionsOnCards.length === 0

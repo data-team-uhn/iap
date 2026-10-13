@@ -159,8 +159,8 @@ interface PartListProps {
   everything: boolean;
 }
 
-// Which way unchanged parts left out open, as the diffs people know show it: before what follows them at the start of
-// a list, after what precedes them at its end, and both ways between two changes
+// The arrow on a band of unchanged parts, by where the band stands. At the start of a list the parts open above what
+// follows them, at its end below what precedes them, and between two changes both ways.
 const UNFOLDING = { start: KeyboardArrowUpIcon, end: KeyboardArrowDownIcon, between: UnfoldMoreIcon };
 
 // Parts where nothing happened, counted in a band that shows them when pressed
@@ -188,7 +188,7 @@ function UnchangedRun({ parts, fields, names, at }: Omit<PartListProps, "everyth
   );
 }
 
-// Where a run stands in its list: first or last of several, or else between changes
+// Where a run stands among the runs of its list: first or last of several, or else between others, or alone
 const placeOf = (index: number, count: number): keyof typeof UNFOLDING => {
   if (count > 1 && index === 0) {
     return "start";

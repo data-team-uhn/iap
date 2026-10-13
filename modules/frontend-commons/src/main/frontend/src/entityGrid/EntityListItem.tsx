@@ -54,18 +54,19 @@ export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNo
   return scalarContent(value);
 }
 
-// What can be done with an entity on its card, kept from the card, which opens the entity when pressed
+// Holds an entity's actions on its card. A click on them does not reach the card, which opens the entity.
 export const CardActions = ({ children }: { children: ReactNode }) =>
   <Box onClick={event => event.stopPropagation()} sx={{ display: "inline-flex" }}>{children}</Box>;
 
 // The card shown for one entity in list mode, composed from the visible columns according to
-// their card slots: the title column leads the card, badge columns sit beside it, actions end its line, caption
-// columns join into one muted " • " line below, and "row" columns — the default — become
-// labeled rows; omitted columns don't appear at all. Content comes from each column's own
+// their card slots. The title column leads the card, badge columns sit beside it, and actions end
+// its line. Caption columns join into one muted " • " line below, and "row" columns, the default,
+// become labeled rows. Omitted columns don't appear at all. Content comes from each column's own
 // rendering, unless its cardValue asks for a more compact form. Without a designated (or
 // visible) title column, the first regular column leads the card, so a plain column list
-// still makes a sensible card with no hints at all. An entity's children, for a type that has them, close the card:
-// each by its tree column, linked to its page where it has one, with its badges.
+// still makes a sensible card with no hints at all. An entity's children, for a type that has
+// them, close the card. Each is named by its tree field, shows its badges, and links to its page
+// where it has one.
 export default function EntityListItem({ row, columns, config }: {
   row: EntityRow;
   columns: EntityGridColumn[];
