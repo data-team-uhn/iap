@@ -40,11 +40,12 @@ test.describe('the personas a dashboard is arranged for', () => {
   const WAITING = 'Search what is waiting for you';
 
   test('gives a submitter the table of their own requests', async ({ page }) => {
+    const shell = new AppShell(page);
     await signInAs(page, ADMIN);
 
     // Submitter is where everyone lands: the catalogue is ordered least-permissive-first and login
     // takes the first entry
-    await expect(page.getByRole('button', { name: /^Acting as Submitter/ })).toBeVisible();
+    expect(await shell.activePersona()).toBe('Submitter');
     await expect(page.getByLabel(MINE)).toBeVisible();
   });
 

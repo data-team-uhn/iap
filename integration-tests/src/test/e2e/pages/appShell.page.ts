@@ -42,19 +42,26 @@ export class AppShell {
   }
 
   /**
-   * Puts on a different persona, the way a person does: through the control in the app bar that says
-   * which one is on.
+   * Puts on a different persona, the way a person does: through the "Acting as" section of the account
+   * menu.
    *
-   * The menu is a radio group rather than a list of commands, so the item is located as one — which
-   * also means this breaks if the switcher stops telling a screen reader which hat is currently worn.
+   * The personas are radio items rather than commands, so the item is located as one.
    *
    * @param persona the label of the persona to wear, e.g. `Reviewer`
    */
   async actAs(persona: string): Promise<void> {
-    await this.page.getByRole('button', { name: /^Acting as .*Change persona$/ }).click();
+    await this.page.getByRole('button', { name: /^Account:/ }).click();
     await this.page.getByRole('menuitemradio', { name: persona }).click();
-    await expect(this.page.getByRole('button', { name: new RegExp(`^Acting as ${persona}\\.`) }))
-      .toBeVisible();
+    await expect.poll(() => this.activePersona()).toBe(persona);
+  }
+
+  /** The persona the account menu says is worn: the one radio item it marks as selected. */
+  async activePersona(): Promise<string> {
+    await this.page.getByRole('button', { name: /^Account:/ }).click();
+    const worn = this.page.getByRole('menuitemradio').and(this.page.locator('.Mui-selected'));
+    const label = (await worn.textContent()) ?? '';
+    await this.page.keyboard.press('Escape');
+    return label.trim();
   }
 
   /** Who the shell says is signed in, which is the account control's own name for itself. */
