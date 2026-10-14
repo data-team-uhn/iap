@@ -41,7 +41,30 @@ export class SchemaVersionPage {
     await expect(dialog).toBeHidden();
   }
 
-  /** Chooses an action from the menu of what can be done to the part saying the given text. */
+  /**
+   * Adds a part of the given type with the scope's last Add button, and lets the caller fill its dialog. A container
+   * offering one type names it on the button and opens the dialog straight away; one offering several opens a menu.
+   */
+  async addWith(scope: Locator, type: string, fill: (dialog: Locator) => Promise<void>): Promise<void> {
+    const named = scope.getByRole('button', { name: `Add ${type.toLowerCase()}`, exact: true });
+    if (await named.count() > 0) {
+      await named.last().click();
+    } else {
+      await scope.getByRole('button', { name: 'Add', exact: true }).last().click();
+      await this.page.getByRole('menuitem', { name: type, exact: true }).click();
+    }
+    const dialog = this.page.getByRole('dialog', { name: `Add ${type.toLowerCase()}` });
+    await fill(dialog);
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toBeHidden();
+  }
+
+  /** On a wide screen, the button for an action on the part saying the given text: its own, not a part's inside it. */
+  action(text: string, action: string): Locator {
+    return this.part(text).getByRole('button', { name: action, exact: true }).first();
+  }
+
+  /** Chooses an action from the menu of what can be done to the part saying the given text, on a phone. */
   async act(text: string, action: string): Promise<void> {
     await this.page.getByRole('button', { name: `Actions for “${text}”` }).click();
     await this.page.getByRole('menu').getByRole('menuitem', { name: action, exact: true }).click();
