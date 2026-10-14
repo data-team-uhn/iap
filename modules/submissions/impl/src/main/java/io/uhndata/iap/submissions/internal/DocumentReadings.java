@@ -38,11 +38,12 @@ import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Extraction;
 
 /**
- * The answers read out of a document, dropped when the document goes away or is replaced.
+ * The answers read out of a document, dropped when the document is removed. A new version drops nothing: its
+ * reading decides what to replace.
  *
- * <p>A suggestion nobody touched goes as a whole: the file it came from is gone or superseded, and keeping the
- * value would make it look like something the submitter typed, and would stop the next reading from filling it
- * in. An answer the submitter confirmed, changed or typed keeps its value.</p>
+ * <p>A suggestion nobody touched goes as a whole: the file it came from is gone, and keeping the value would make
+ * it look like something the submitter typed. An answer the submitter confirmed, changed or typed keeps its
+ * value.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -64,31 +65,16 @@ final class DocumentReadings
      */
     static void dropAll(final ResourceResolver resolver, final Resource document) throws PersistenceException
     {
-        drop(resolver, document, false);
+        drop(resolver, document);
     }
 
-    /**
-     * Drop the untouched suggestions read from a document that is getting a new version, so the new file is
-     * read for them. What the submitter settled stays as it is, with the reading it came from.
-     *
-     * @param resolver the session to write through
-     * @param document the document's resource, before the new version is added
-     * @throws PersistenceException when a suggestion cannot be removed
-     */
-    static void dropSuggestions(final ResourceResolver resolver, final Resource document)
-        throws PersistenceException
-    {
-        drop(resolver, document, true);
-    }
-
-    private static void drop(final ResourceResolver resolver, final Resource document, final boolean onlySuggestions)
-        throws PersistenceException
+    private static void drop(final ResourceResolver resolver, final Resource document) throws PersistenceException
     {
         try {
             final Resource submission = Objects.requireNonNull(document.getParent(),
                 "A document is always part of a submission");
             final Set<String> versions = getVersionIdentifiers(document);
-            for (final Resource reading : getReadings(submission, versions, onlySuggestions)) {
+            for (final Resource reading : getReadings(submission, versions)) {
                 resolver.delete(reading);
             }
         } catch (final RepositoryException e) {
@@ -110,10 +96,10 @@ final class DocumentReadings
 
     /**
      * What to delete: the whole answer when it is a suggestion nobody touched, otherwise its readings of these
-     * revisions, unless only suggestions are to go.
+     * revisions.
      */
-    private static List<Resource> getReadings(final Resource submission, final Set<String> versions,
-        final boolean onlySuggestions) throws RepositoryException
+    private static List<Resource> getReadings(final Resource submission, final Set<String> versions)
+        throws RepositoryException
     {
         final List<Resource> readings = new ArrayList<>();
         for (final Resource child : submission.getChildren()) {
@@ -129,7 +115,7 @@ final class DocumentReadings
             }
             if (isUntouchedSuggestion(child, dropped)) {
                 readings.add(child);
-            } else if (!onlySuggestions) {
+            } else {
                 readings.addAll(dropped);
             }
         }

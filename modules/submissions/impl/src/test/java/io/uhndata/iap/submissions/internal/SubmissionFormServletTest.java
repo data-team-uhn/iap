@@ -243,6 +243,25 @@ class SubmissionFormServletTest
         assertEquals("Stated under Dates.", where.getString("reasoning"));
         assertFalse(where.getBoolean("reviewed"), "nobody has settled it yet");
         assertFalse(where.getBoolean("evidenceRejected"));
+        assertFalse(where.containsKey("replaced"), "nothing was replaced");
+    }
+
+    // A reading of a newer version that replaced the answer keeps what it held, for the form to offer back
+    @Test
+    void sendsWhatAReadingOfANewerVersionReplaced() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a9", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-13"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "2026-10-13", "confidence", 0.9, "replacedValue", new String[] {"2026-10-06"}));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(List.of("2026-10-06"), where.getJsonArray("replaced").stream()
+            .map(value -> ((JsonString) value).getString()).toList());
     }
 
     @Test

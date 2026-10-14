@@ -77,7 +77,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -204,9 +203,9 @@ class AttachDocumentHandlerTest
         assertNotNull(uploadedFile());
     }
 
-    // A reading leaves answered questions alone, so what the old file said has to go for the new one to be read
+    // The reading of the new version decides what to replace, so every answer and reading stays until then
     @Test
-    void dropsTheUntouchedSuggestionsOfTheFileItReplaces() throws Exception
+    void keepsEveryAnswerAndReadingWhenANewVersionArrives() throws Exception
     {
         this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
         final Resource first = present(this.context.resourceResolver().getResource(
@@ -216,9 +215,44 @@ class AttachDocumentHandlerTest
 
         this.handler.execute(context(payload(NOTE, upload("note-signed.pdf", PDF))));
 
-        assertNull(this.context.resourceResolver().getResource(untouched), "the new file is read for it");
-        assertNotNull(this.context.resourceResolver().getResource(changed), "what the submitter wrote stays");
-        assertNotNull(this.context.resourceResolver().getResource(changed + "/run"), "with its reading");
+        assertNotNull(this.context.resourceResolver().getResource(untouched + "/run"));
+        assertNotNull(this.context.resourceResolver().getResource(changed + "/run"));
+    }
+
+    // A new version mid-reading would leave the reading working on a file that is no longer the latest
+    @Test
+    void refusesANewVersionWhileTheDocumentsAreBeingRead() throws Exception
+    {
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
+        onlyDocument();
+        modify(this.target, "extractionStatus", "running");
+
+        assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(payload(NOTE, upload("note-signed.pdf", PDF)))));
+        assertEquals(1, onlyDocument().adaptTo(Document.class).getVersions().size());
+    }
+
+    @Test
+    void refusesANewVersionWhileTheLastOneIsBeingParsed() throws Exception
+    {
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
+        final Resource file = present(this.context.resourceResolver().getResource(
+            present(onlyDocument().adaptTo(Document.class).getCurrentVersion()).getPath() + "/file"));
+        modify(file, "parseStatus", "queued");
+
+        assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(payload(NOTE, upload("note-signed.pdf", PDF)))));
+    }
+
+    // Reading one document does not hold up the first upload of another
+    @Test
+    void takesAFirstUploadWhileOtherDocumentsAreBeingRead() throws Exception
+    {
+        modify(this.target, "extractionStatus", "running");
+
+        this.handler.execute(context(payload(NOTE, upload(NOTE_FILE, PDF))));
+
+        assertNotNull(onlyDocument());
     }
 
     /** An answer read from a version: the value it holds now, and what the model suggested. */

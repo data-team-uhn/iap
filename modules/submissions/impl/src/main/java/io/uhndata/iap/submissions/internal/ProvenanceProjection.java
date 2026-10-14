@@ -107,6 +107,11 @@ final class ProvenanceProjection
         if (extraction.getReasoning() != null) {
             json.add("reasoning", extraction.getReasoning());
         }
+        // What a reading of a newer version replaced, for the form to offer back
+        final String[] replaced = extraction.getReplacedValue();
+        if (replaced != null) {
+            json.add("replaced", Json.createArrayBuilder(List.of(replaced)));
+        }
         return json.build();
     }
 

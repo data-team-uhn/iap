@@ -42,11 +42,13 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.documents.api.DocumentLimits;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -153,10 +155,18 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         if (fulfilled == null) {
             throw new PersistenceException("Could not read the requirement being fulfilled");
         }
+        final Document attached = submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .findFirst()
+            .orElse(null);
+        // A new version mid-reading would leave the reading working on a file that is no longer the latest
+        if (attached != null && (ParseStatus.isParsing(attached) || ParseStatus.isRunning(submission))) {
+            throw new InvalidStateException("Wait until the document has been read, or stop the reading first");
+        }
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
-        final Resource document = findOrCreateDocument(target, submission, requirement, fulfilled, file, resolver);
+        final Resource document = findOrCreateDocument(target, attached, fulfilled, file, resolver);
         // Not named by its number, which is its position among the document's versions
         final Resource version = resolver.create(document, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
@@ -211,28 +221,20 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * of the same document, so the document's title follows the newest file.
      *
      * @param target the submission's resource
-     * @param submission the submission being attached to
-     * @param requirement the requirement the file answers
+     * @param attached the document already answering the requirement, or {@code null} for a first upload
      * @param fulfilled the requirement's resource, for the reference
      * @param file the uploaded file
      * @param resolver the resolver to write with
      * @return the document resource
      * @throws PersistenceException when the document cannot be written
      */
-    private Resource findOrCreateDocument(final Resource target, final Submission submission,
-        final DocumentRequirement requirement, final Resource fulfilled, final EventAttachment file,
-        final ResourceResolver resolver)
+    private Resource findOrCreateDocument(final Resource target, final Document attached, final Resource fulfilled,
+        final EventAttachment file, final ResourceResolver resolver)
         throws PersistenceException
     {
         final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
-        final Resource existing = submission.getDocuments().stream()
-            .filter(document -> document.isFulfilling(requirement))
-            .findFirst()
-            .map(document -> resolver.getResource(document.getPath()))
-            .orElse(null);
+        final Resource existing = attached == null ? null : resolver.getResource(attached.getPath());
         if (existing != null) {
-            // Otherwise the new file is never read for them: a reading leaves answered questions alone
-            DocumentReadings.dropSuggestions(resolver, existing);
             Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
                 "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
             return existing;
