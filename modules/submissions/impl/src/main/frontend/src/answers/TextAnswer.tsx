@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { countGuidance, isMultiple, isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -32,24 +32,26 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered }: Answer
     : question.description;
 
   return (
-    <TextField
-      label={questionLabel(question)}
-      required={isRequired(question)}
-      disabled={disabled}
-      multiline={many}
-      minRows={many ? 2 : undefined}
-      fullWidth
-      value={many ? values.join("\n") : values[0] ?? ""}
-      slotProps={{ inputLabel: { shrink: true } }}
-      helperText={helperText}
-      onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
-      // Blank lines and a blank field are not answers, so a cleared field sends no values. Each value
-      // is trimmed, since the server drops a blank one. Untrimmed, a field of spaces would be sent
-      // again each time it is left.
-      onBlur={event => onAnswered(many
-        ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
-        : [ event.target.value.trim() ].filter(Boolean))}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <TextField
+        required={isRequired(question)}
+        disabled={disabled}
+        multiline={many}
+        minRows={many ? 2 : undefined}
+        fullWidth
+        value={many ? values.join("\n") : values[0] ?? ""}
+        slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+        helperText={helperText}
+        onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
+        // Blank lines and a blank field are not answers, so a cleared field sends no values. Each value
+        // is trimmed, since the server drops a blank one. Untrimmed, a field of spaces would be sent
+        // again each time it is left.
+        onBlur={event => onAnswered(many
+          ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
+          : [ event.target.value.trim() ].filter(Boolean))}
+      />
+    </Box>
   );
 }
 

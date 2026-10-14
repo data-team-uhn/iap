@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -29,34 +29,36 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
   const whole = question.dataType === "long";
 
   return (
-    <TextField
-      label={questionLabel(question)}
-      type="number"
-      required={isRequired(question)}
-      disabled={disabled}
-      fullWidth
-      value={values[0] ?? ""}
-      slotProps={{
-        inputLabel: { shrink: true },
-        // A step of 1 makes the browser refuse decimals, and `any` allows them. A long's bounds are
-        // rounded inwards, since `min` is also where the steps start counting from.
-        htmlInput: {
-          step: whole ? 1 : "any",
-          inputMode: whole ? "numeric" : "decimal",
-          min: whole && question.minValue !== undefined ? Math.ceil(question.minValue) : question.minValue,
-          max: whole && question.maxValue !== undefined ? Math.floor(question.maxValue) : question.maxValue,
-        },
-      }}
-      helperText={question.description}
-      onChange={event => onChange([ event.target.value ])}
-      // A value the browser cannot parse reads as "", like a cleared field, and would clear the stored
-      // answer. `badInput` tells the two apart.
-      onBlur={event => {
-        if (!event.target.validity.badInput) {
-          onAnswered([ event.target.value ].filter(Boolean));
-        }
-      }}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <TextField
+        type="number"
+        required={isRequired(question)}
+        disabled={disabled}
+        fullWidth
+        value={values[0] ?? ""}
+        slotProps={{
+          // A step of 1 makes the browser refuse decimals, and `any` allows them. A long's bounds are
+          // rounded inwards, since `min` is also where the steps start counting from.
+          htmlInput: {
+            "aria-labelledby": getQuestionTextId(question),
+            step: whole ? 1 : "any",
+            inputMode: whole ? "numeric" : "decimal",
+            min: whole && question.minValue !== undefined ? Math.ceil(question.minValue) : question.minValue,
+            max: whole && question.maxValue !== undefined ? Math.floor(question.maxValue) : question.maxValue,
+          },
+        }}
+        helperText={question.description}
+        onChange={event => onChange([ event.target.value ])}
+        // A value the browser cannot parse reads as "", like a cleared field, and would clear the stored
+        // answer. `badInput` tells the two apart.
+        onBlur={event => {
+          if (!event.target.validity.badInput) {
+            onAnswered([ event.target.value ].filter(Boolean));
+          }
+        }}
+      />
+    </Box>
   );
 }
 

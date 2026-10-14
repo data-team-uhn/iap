@@ -23,7 +23,7 @@ import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
 import { useAnswerComponents } from "./answers";
-import { questionLabel } from "./answers/label";
+import QuestionText from "./answers/QuestionText";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -99,7 +99,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // registered, and the question may yet have one.
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
+        <QuestionText question={question} labelOnly />
         <CircularProgress size={16} aria-label="Loading the answer field" />
       </Box>
     );
@@ -110,7 +110,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // Shown rather than skipped, so that the form does not look complete when it is not
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
+        <QuestionText question={question} labelOnly />
         <Typography variant="placeholder">
           {`This question asks for ${question.dataType}, which cannot be answered here.`}
         </Typography>
@@ -125,7 +125,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
       onBlurCapture={() => setFocused(false)}
     >
       {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
-      <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         {createElement(Answer, {
           question,
           values: draft,
@@ -134,7 +134,8 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
           onAnswered: submit,
         })}
       </Box>
-      <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
+      {/* Lined up with the input, under the question text */}
+      <Box sx={{ pt: 4 }}><SaveStatus state={state} error={error} /></Box>
     </Box>
   );
 }
