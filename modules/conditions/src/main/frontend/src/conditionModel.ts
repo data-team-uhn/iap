@@ -75,7 +75,7 @@ export interface Comparator {
   /** How it reads in a sentence and in the list of comparisons, e.g. "is at least". */
   phrase: string;
   /** How it reads before a single value, when that differs from `phrase`. */
-  one?: string;
+  singleValuePhrase?: string;
   /** Takes no second operand, e.g. "is empty". */
   unary?: boolean;
   /** Compares one value with one other, by their order. */
@@ -94,10 +94,10 @@ export const COMPARATORS: Comparator[] = [
   { name: "greater or equal", phrase: "is at least", ordering: true },
   { name: "is empty", phrase: "is empty", unary: true },
   { name: "is not empty", phrase: "is not empty", unary: true },
-  { name: "includes", phrase: "includes all of", one: "includes", sets: true },
-  { name: "includes any", phrase: "includes any of", one: "includes", sets: true },
-  { name: "excludes", phrase: "includes none of", one: "does not include", sets: true },
-  { name: "excludes any", phrase: "does not include all of", one: "does not include", sets: true },
+  { name: "includes", phrase: "includes all of", singleValuePhrase: "includes", sets: true },
+  { name: "includes any", phrase: "includes any of", singleValuePhrase: "includes", sets: true },
+  { name: "excludes", phrase: "includes none of", singleValuePhrase: "does not include", sets: true },
+  { name: "excludes any", phrase: "does not include all of", singleValuePhrase: "does not include", sets: true },
 ];
 
 /**
@@ -463,8 +463,10 @@ function describeOperand(operand: DraftOperand, sources: OperandSource[], compar
 /** A comparison in words, e.g. "the answer to “Age” is at least 18". */
 function describeSingle(condition: DraftSingle, sources: OperandSource[]): string {
   const comparator = comparatorOf(condition.comparator);
-  const one = condition.b.source === LITERAL && condition.b.value.length === 1 ? comparator?.one : undefined;
-  const phrase = `${describeOperand(condition.a, sources)} ${one ?? comparator?.phrase ?? condition.comparator}`;
+  const singleValuePhrase = condition.b.source === LITERAL && condition.b.value.length === 1
+    ? comparator?.singleValuePhrase : undefined;
+  const comparatorPhrase = singleValuePhrase ?? comparator?.phrase ?? condition.comparator;
+  const phrase = `${describeOperand(condition.a, sources)} ${comparatorPhrase}`;
   if (comparator?.unary) {
     return phrase;
   }
