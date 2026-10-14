@@ -235,10 +235,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ServiceTaskDispatcher dispatcher = dispatcher(record);
         final Map<String, Object> variables = new LinkedHashMap<>();
         record.workflow(null, start.getWorkflowVersion());
+
+        // Before any service task runs: one may delete the target in a session of its own, leaving this one stale
+        record.affecting(target, "target");
+
         FlowNode node = start;
         for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                record.affecting(target, "target");
                 final Resource created = recordActor(resolver, variables, actor.effectiveUser());
                 if (created != null) {
                     record.affecting(created, "created");
