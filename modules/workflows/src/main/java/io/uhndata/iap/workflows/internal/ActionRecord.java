@@ -36,11 +36,12 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * A record of what one event delivery did, gathered while it runs and written to history just before it commits: one action
- * for the event, and one more for each event a workflow sent along the way, recorded as part of it.
+ * A record of what one event delivery did, gathered while it runs and written to history just before it commits: one
+ * action for the event, and one more for each event a workflow sent along the way, recorded as part of it.
  *
- * <p>Captures on action for the event, and another for each event a workflow sent along the way. Since each sent event's
- * action must name the action it is part of, and we only get that once it is written, this is written last.</p>
+ * <p>Captures on action for the event, and another for each event a workflow sent along the way. Since each sent
+ * event's action must name the action it is part of, and we only get that once it is written, this is written
+ * last.</p>
  *
  * @version $Id$
  * @since 0.1.0
