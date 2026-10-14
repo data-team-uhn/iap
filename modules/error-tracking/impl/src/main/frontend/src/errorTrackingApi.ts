@@ -22,6 +22,7 @@
 // is testable as plain functions; components pass `useAuthenticatedFetch()` in.
 
 import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
+import { readJson } from "@iap/frontend-commons/requestFailure";
 
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -288,7 +289,7 @@ export async function fetchLoggedError(
   if (!response.ok) {
     throw new Error(`The recorded error could not be read (${String(response.status)})`);
   }
-  const body = (await response.json()) as SerializedNode | null;
+  const body = await readJson<SerializedNode | null>(response);
   if (body === null) {
     throw new Error("The recorded error could not be read");
   }

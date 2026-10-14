@@ -18,6 +18,8 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 
+import { readJson } from "./requestFailure";
+
 const ASSET_PREFIX = "asset:";
 
 // The assets map, from simple asset name to the contenthashed real path
@@ -44,7 +46,7 @@ const loading = new Set<string>();
 const getAssetsJson = async function(): Promise<Record<string, string> | undefined> {
   if (!assetsJson) {
     assetsJsonRequest ??= fetch("/libs/iap/resources/assets.json")
-      .then(response => response.ok ? response.json() as Promise<Record<string, string>> : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
+      .then(response => response.ok ? readJson<Record<string, string>>(response) : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
       .then(json => assetsJson = json)
       .catch((e: unknown) => { console.error('Failed to resolve assets', e); return undefined; })
       .finally(() => assetsJsonRequest = null);
@@ -61,7 +63,7 @@ const getAssetsJson = async function(): Promise<Record<string, string> | undefin
 const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | undefined> {
   if (!assetDependenciesJson) {
     assetDependenciesJsonRequest ??= fetch("/libs/iap/resources/assetDependencies.json")
-      .then(response => response.ok ? response.json() as Promise<Record<string, string[]>> : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
+      .then(response => response.ok ? readJson<Record<string, string[]>>(response) : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
       .then(json => assetDependenciesJson = json)
       .catch((_e: unknown) => {
         // A missing manifest just means no dependencies are declared; remember it as an empty

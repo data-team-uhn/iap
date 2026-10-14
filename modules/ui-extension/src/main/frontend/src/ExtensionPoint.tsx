@@ -18,6 +18,8 @@
 
 import { useState, type ReactNode } from "react";
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
+
 const UIXP_FINDER_URL = "/uixp";
 
 interface ExtensionPointProps {
@@ -92,7 +94,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
     } else if (contentType === 'application/json') {
       // json -- call the provided callback
       if (callback !== undefined) {
-        return(response.json().then( (json) => callback(json)));
+        return(readJson<unknown>(response).then( (json) => callback(json)));
       } else {
         return(Promise.reject(new Error(
           `Fetching ExtensionPoint ${path} returned json data, but no callback was provided to its ExtensionPoint`

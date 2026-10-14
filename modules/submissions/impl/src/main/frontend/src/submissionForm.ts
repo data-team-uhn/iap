@@ -239,7 +239,7 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
   if (!response.ok) {
     throw new RequestError(response.status);
   }
-  return readJson<SubmissionForm>(response);
+  return await readJson<SubmissionForm>(response);
 }
 
 // Records one answer, by posting it to the submission as a `save` event: filling a request in is a
