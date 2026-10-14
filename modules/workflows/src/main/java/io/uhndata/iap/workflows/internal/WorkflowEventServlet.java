@@ -153,6 +153,13 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             // event, or something was and the target is not in a state that admits it
             reply(response, HttpServletResponse.SC_CONFLICT, ERROR_KEY, e.getMessage());
         } catch (final NotAuthorizedException e) {
+            final String onBehalfOf = onBehalfOf(request);
+            if (onBehalfOf != null) {
+                // Control characters stripped, as the parameter is the caller's to write and could forge log lines
+                LOGGER.warn("Refused {} sending the {} event to {} on behalf of {}",
+                    request.getResourceResolver().getUserID(), eventName(request), request.getResource().getPath(),
+                    onBehalfOf.replaceAll("\\p{Cntrl}", "?"));
+            }
             reply(response, HttpServletResponse.SC_FORBIDDEN, ERROR_KEY, e.getMessage());
         } catch (final InvalidPayloadException e) {
             reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY, e.getMessage());
