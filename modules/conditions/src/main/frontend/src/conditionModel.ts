@@ -257,7 +257,10 @@ export interface DraftGroup {
   conditions: DraftCondition[];
 }
 
-/** A condition of a type this model does not know, which can be read and removed but not written. */
+/**
+ * A condition of a type this model does not know. It is shown and can be removed, but not edited, and a draft
+ * holding one cannot be written until it is.
+ */
 export interface DraftUnknown {
   kind: "unknown";
   id: string;
