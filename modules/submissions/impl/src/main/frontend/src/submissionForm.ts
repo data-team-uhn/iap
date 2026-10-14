@@ -315,7 +315,8 @@ export async function readAgain(
 
 // Attaches a file to the requirement it answers, as an `attachDocument` event on the submission:
 // uploading is a workflow step for the same reason answering is, so what may be attached and until
-// when is the handler's answer rather than a permission on the folder.
+// when is the handler's answer rather than a permission on the folder. A file for a requirement that
+// already has one becomes a new version of that document.
 //
 // `FormData` rather than a query string, and deliberately without a `Content-Type`: the browser has
 // to set it, because only it knows the multipart boundary it just generated.
@@ -328,18 +329,5 @@ export async function attachDocument(
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
-  }
-}
-
-// Removes the document attached for a requirement, with all its versions, as a `detachDocument` event
-// on the submission.
-export async function detachDocument(
-  doFetch: AuthenticatedFetch, path: string, requirement: string): Promise<void> {
-  const body = new URLSearchParams();
-  body.append("requirement", requirement);
-  const response = await doFetch(`${path}.detachDocument.json`, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This file could not be removed (${response.status})`);
   }
 }

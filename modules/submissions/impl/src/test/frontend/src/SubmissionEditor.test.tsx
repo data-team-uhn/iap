@@ -335,14 +335,15 @@ describe("SubmissionEditor", () => {
       expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
     });
 
-    it("offers only removal while a file is attached", async () => {
+    it("offers a new version, not removal, while a file is attached", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
       render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
-      expect(await screen.findByRole("button", { name: "Remove" })).toBeInTheDocument();
+      const input = await screen.findByLabelText(/Upload a new version for "Doctor's note"/);
+      expect(input).toHaveAttribute("accept", ".doc,application/pdf");
+      expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
       expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
-      expect(screen.queryByLabelText(/Replace the file/)).toBeNull();
     });
 
     it("checks the file against the types the requirement takes before sending it", async () => {
@@ -406,40 +407,41 @@ describe("SubmissionEditor", () => {
       expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
     });
 
-    it("removes an attached file as an event on the submission, then reads the form again", async () => {
-      const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked());
+    it("posts a new version as the same event, then reads the form again", async () => {
+      const newer = { title: "note-v2.pdf", path: "/Submissions/x/d1/v2/file/uploadedFile" };
+      const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked({ attached: [ newer ] }));
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
-      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+      await userEvent.upload(await screen.findByLabelText(/Upload a new version/), pick("note-v2.doc"));
 
-      const detach = fetchMock.mock.calls.find(call => call[0] === `${PATH}.detachDocument.json`);
-      expect(detach).toBeDefined();
-      const init = detach![1] as RequestInit;
-      expect(init.method).toBe("POST");
-      expect((init.body as URLSearchParams).get("requirement")).toBe("doctorsNote");
-      expect(await screen.findByLabelText(/Attach a file/)).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
+      expect(upload).toBeDefined();
+      const body = (upload![1] as RequestInit).body as FormData;
+      expect(body.get("requirement")).toBe("doctorsNote");
+      expect((body.get("file") as File).name).toBe("note-v2.doc");
+      // What the server now says is attached, rather than what this page hoped
+      expect(await screen.findByRole("link", { name: "note-v2.pdf" })).toBeInTheDocument();
     });
 
-    it("does not offer to remove a file from a request that can no longer be changed", async () => {
+    it("does not offer a new version for a request that can no longer be changed", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] }, { editable: false })));
 
       render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
-      expect(await screen.findByRole("button", { name: "Remove" })).toBeDisabled();
+      expect(await screen.findByLabelText(/Upload a new version/)).toBeDisabled();
     });
 
-    // Removed mid-reading, the reading would wait for a parse that lands on nothing
-    it("does not offer to remove a file while the documents are being read", async () => {
+    // A new version mid-reading would leave the reading working on a file that is no longer the latest
+    it("does not offer a new version while the documents are being read", async () => {
       vi.stubGlobal("fetch", serving(asked(
         { attached: [ { title: "note.doc" } ] }, { extraction: { status: "running" } })));
 
       render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
-      const remove = await screen.findByRole("button", { name: "Remove" });
-      expect(remove).toBeDisabled();
-      expect(remove).toHaveAttribute("title", expect.stringMatching(/Wait until the document has been read/));
+      expect(await screen.findByLabelText(/Upload a new version/)).toBeDisabled();
+      expect(screen.getByText("Upload a new version").closest("label"))
+        .toHaveAttribute("title", expect.stringMatching(/Wait until the document has been read/));
     });
 
     it("names a requirement with no label by its name", async () => {
@@ -448,22 +450,6 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
       expect(await screen.findByLabelText(/Attach a file for "doctorsNote"/)).toBeInTheDocument();
-    });
-
-    it("says why a file could not be removed", async () => {
-      let refusal: unknown = { error: "This request is already sent" };
-      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
-        options?.method === "POST"
-          ? json(refusal, { ok: false, status: 409 })
-          : json(asked({ attached: [ NOTE_FILE ] }))));
-
-      render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
-      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
-      expect(await screen.findByText("This request is already sent")).toBeInTheDocument();
-
-      refusal = {};
-      await userEvent.click(screen.getByRole("button", { name: "Remove" }));
-      expect(await screen.findByText("This file could not be removed (409)")).toBeInTheDocument();
     });
 
     it("says why the engine refused a file, in the engine's own words", async () => {
