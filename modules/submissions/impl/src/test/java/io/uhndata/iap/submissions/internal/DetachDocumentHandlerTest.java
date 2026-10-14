@@ -99,7 +99,8 @@ class DetachDocumentHandlerTest
     // JCR-backed: what is removed was attached by the real handler, which writes a real REFERENCE and binary
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final AttachDocumentHandler attacher = new AttachDocumentHandler();
+    private final AttachDocumentHandler attacher =
+        new AttachDocumentHandler(AttachDocumentHandlerTest.mockLimits(50L * 1024 * 1024));
 
     private final DetachDocumentHandler handler = new DetachDocumentHandler();
 

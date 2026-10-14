@@ -19,6 +19,8 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,8 +35,11 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.documents.api.DocumentLimits;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
@@ -76,11 +81,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The payload entry carrying the file itself. */
     static final String FILE_PARAMETER = "file";
 
-    /**
-     * The largest file taken, since the document pipeline later holds a whole file in memory to parse it. The
-     * browser's check keeps its own copy, {@code MAX_FILE_SIZE} in frontend-commons' {@code fileValidation.ts}.
-     */
-    static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
+    private static final long KILOBYTE = 1024L;
 
     private static final long MEGABYTE = 1024L * 1024;
 
@@ -107,6 +108,20 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     /** The name the node type gives the upload inside a file. */
     private static final String UPLOADED_FILE_NODE = "uploadedFile";
+
+    /** The document limits, the same ones the browser checks against; only the file size is checked here. */
+    private final DocumentLimits limits;
+
+    /**
+     * The handler, checking each upload against the configured limits.
+     *
+     * @param limits the document limits
+     */
+    @Activate
+    public AttachDocumentHandler(@Reference final DocumentLimits limits)
+    {
+        this.limits = limits;
+    }
 
     @Override
     public String getName()
@@ -268,18 +283,35 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a file larger than {@link #MAX_FILE_BYTES}, before its content is opened.
+     * Refuses a file larger than the configured limit, before its content is opened.
      *
      * @param file the uploaded file
      * @throws InvalidPayloadException when the file is too large
      */
-    private static void checkSize(final EventAttachment file) throws InvalidPayloadException
+    private void checkSize(final EventAttachment file) throws InvalidPayloadException
     {
-        if (file.getSize() > MAX_FILE_BYTES) {
-            // Rounded up, so a file just over the limit does not read as being at it
-            throw new InvalidPayloadException("That file is " + (file.getSize() + MEGABYTE - 1) / MEGABYTE
-                + " MB, and the limit is " + MAX_FILE_BYTES / MEGABYTE + " MB");
+        final long maxFileSize = this.limits.getMaxFileSize();
+        if (file.getSize() > maxFileSize) {
+            // The file's size rounds up and the limit's down, so a file over the limit never reads as being at it
+            throw new InvalidPayloadException("That file is " + formatSize(file.getSize(), RoundingMode.CEILING)
+                + ", and the limit is " + formatSize(maxFileSize, RoundingMode.FLOOR));
         }
+    }
+
+    /**
+     * A size for a person to read, written as the browser's check writes it: KB under a megabyte, two decimals at
+     * most.
+     *
+     * @param bytes the size
+     * @param rounding how to round the last decimal
+     * @return the size, such as {@code 50 MB} or {@code 512.5 KB}
+     */
+    private static String formatSize(final long bytes, final RoundingMode rounding)
+    {
+        final boolean megabytes = bytes >= MEGABYTE;
+        return BigDecimal.valueOf(bytes)
+            .divide(BigDecimal.valueOf(megabytes ? MEGABYTE : KILOBYTE), 2, rounding)
+            .stripTrailingZeros().toPlainString() + (megabytes ? " MB" : " KB");
     }
 
     /**
