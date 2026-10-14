@@ -98,9 +98,9 @@ class RecordReviewHandlerTest
             ReviewComment.class, Submission.class, Activity.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
-            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
+            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
-            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(APPROVAL_PATH, Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval"));
         // A second requirement, so that "the one it names" is a real choice rather than the only child
