@@ -41,12 +41,12 @@ test.describe('creating a workflow through the bootstrap system workflow', () =>
     const created = await request.get(`${location}.json`, { headers: asAdmin });
     expect(created.ok()).toBeTruthy();
     const definition = (await created.json()) as {
-      'jcr:primaryType'?: string; title?: string; active?: boolean;
+      'jcr:primaryType'?: string; title?: string; tags?: string[];
     };
     expect(definition['jcr:primaryType']).toBe('wf:WorkflowDefinition');
     expect(definition.title).toBe('Leave request approval');
     // Freshly created definitions are inactive until someone authors and enables them
-    expect(definition.active ?? false).toBe(false);
+    expect(definition.tags ?? []).not.toContain('active');
   });
 
   test('identical titles get distinct names', async ({ request }) => {
@@ -81,8 +81,8 @@ test.describe('creating a workflow through the bootstrap system workflow', () =>
     const response = await request.get('/SystemWorkflows/createWorkflow/v1.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { active?: boolean; targetResourceType?: string };
-    expect(version.active).toBe(true);
+    const version = (await response.json()) as { tags?: string[]; targetResourceType?: string };
+    expect(version.tags).toContain('active');
     expect(version.targetResourceType).toBe('wf/WorkflowsHomepage');
   });
 });
