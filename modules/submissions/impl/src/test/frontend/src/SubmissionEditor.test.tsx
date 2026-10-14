@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
+import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched. In a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
@@ -56,6 +57,11 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 // The file check has its own tests; here it passes every file unless a test says otherwise
 vi.mock("@iap/frontend-commons/fileValidation", () => ({
   validateUpload: vi.fn(() => Promise.resolve(undefined)),
+}));
+
+// The server gives no limits unless a test says otherwise, so the check's own defaults apply
+vi.mock("@iap/frontend-commons/uploadLimits", () => ({
+  fetchUploadLimits: vi.fn(() => Promise.resolve({})),
 }));
 
 // Settles the loads before the first render, so the editor draws the form rather than a spinner,
@@ -375,8 +381,32 @@ describe("SubmissionEditor", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
       expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
-        expect.any(File), { accepted: [ "application/pdf", "image/png" ], timeoutMs: 30_000 });
+        expect.any(File), expect.objectContaining({ accepted: [ "application/pdf", "image/png" ] }));
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
+    });
+
+    it("checks the file against the server's limits", async () => {
+      vi.mocked(fetchUploadLimits).mockResolvedValueOnce({ maxFileSize: 1024 });
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
+        expect.any(File), expect.objectContaining({ limits: { maxFileSize: 1024 } })));
+    });
+
+    it("reads the limits within the check's own time, and leaves the check what remains", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalled());
+      expect(vi.mocked(fetchUploadLimits).mock.lastCall?.[1]).toBeInstanceOf(AbortSignal);
+      const timeoutMs = vi.mocked(validateUpload).mock.lastCall?.[1]?.timeoutMs ?? 0;
+      expect(timeoutMs).toBeGreaterThan(0);
+      expect(timeoutMs).toBeLessThanOrEqual(30_000);
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {
