@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -34,6 +34,8 @@ export interface AnswerComponentProps {
   // When the answer is finished: a field left, a box ticked, an option picked. This is what gets
   // saved, so a component decides for its own kind of input when an answer is done being given
   onAnswered: (values: string[]) => void;
+  // Shown beside the answer control, laid out by AnswerRow
+  aside?: ReactNode;
 }
 
 export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | null;

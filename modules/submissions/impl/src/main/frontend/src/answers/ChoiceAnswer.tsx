@@ -27,12 +27,13 @@ import {
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
+import AnswerRow from "./AnswerRow";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A question answered by picking from the options it offers.
-function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerComponentProps) {
   const labelledBy = getQuestionTextId(question);
   const help = question.description;
   const options = question.options ?? [];
@@ -49,20 +50,22 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
     return (
       <FormControl fullWidth disabled={disabled} required={question.required}>
         <QuestionText question={question} />
-        <FormGroup role="group" aria-labelledby={labelledBy}>
-          {options.map(option => (
-            <FormControlLabel
-              key={option.value}
-              label={option.label}
-              control={
-                <Checkbox
-                  checked={values.includes(option.value)}
-                  onChange={event => toggle(option.value, event.target.checked)}
-                />
-              }
-            />
-          ))}
-        </FormGroup>
+        <AnswerRow aside={aside}>
+          <FormGroup role="group" aria-labelledby={labelledBy}>
+            {options.map(option => (
+              <FormControlLabel
+                key={option.value}
+                label={option.label}
+                control={
+                  <Checkbox
+                    checked={values.includes(option.value)}
+                    onChange={event => toggle(option.value, event.target.checked)}
+                  />
+                }
+              />
+            ))}
+          </FormGroup>
+        </AnswerRow>
         {help && <FormHelperText>{help}</FormHelperText>}
       </FormControl>
     );
@@ -71,20 +74,22 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   return (
     <FormControl fullWidth disabled={disabled} required={question.required}>
       <QuestionText question={question} />
-      <RadioGroup
-        aria-labelledby={labelledBy}
-        value={values[0] ?? ""}
-        onChange={event => onAnswered([ event.target.value ])}
-      >
-        {options.map(option => (
-          <FormControlLabel
-            key={option.value}
-            value={option.value}
-            label={option.label}
-            control={<Radio />}
-          />
-        ))}
-      </RadioGroup>
+      <AnswerRow aside={aside}>
+        <RadioGroup
+          aria-labelledby={labelledBy}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          {options.map(option => (
+            <FormControlLabel
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              control={<Radio />}
+            />
+          ))}
+        </RadioGroup>
+      </AnswerRow>
       {help && <FormHelperText>{help}</FormHelperText>}
     </FormControl>
   );

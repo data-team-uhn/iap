@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
+import AnswerRow from "./AnswerRow";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -34,7 +35,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 //
 // A single checkbox would be the same control for "no" as for "not answered yet", which a question
 // that may be left unanswered has to be able to tell apart.
-function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function BooleanAnswer({ question, values, disabled, onAnswered, aside }: AnswerComponentProps) {
   return (
     <FormControl
       required={question.required}
@@ -44,16 +45,18 @@ function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerCompone
       fullWidth
     >
       <QuestionText question={question} />
-      {/* required on each input, not on the FormControl, which never forwards it to a radio */}
-      <RadioGroup
-        row
-        aria-labelledby={getQuestionTextId(question)}
-        value={values[0] ?? ""}
-        onChange={event => onAnswered([ event.target.value ])}
-      >
-        <FormControlLabel value="true" control={<Radio required={question.required} />} label="Yes" />
-        <FormControlLabel value="false" control={<Radio required={question.required} />} label="No" />
-      </RadioGroup>
+      <AnswerRow aside={aside}>
+        {/* required on each input, not on the FormControl, which never forwards it to a radio */}
+        <RadioGroup
+          row
+          aria-labelledby={getQuestionTextId(question)}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          <FormControlLabel value="true" control={<Radio required={question.required} />} label="Yes" />
+          <FormControlLabel value="false" control={<Radio required={question.required} />} label="No" />
+        </RadioGroup>
+      </AnswerRow>
       {question.description && <FormHelperText>{question.description}</FormHelperText>}
     </FormControl>
   );
