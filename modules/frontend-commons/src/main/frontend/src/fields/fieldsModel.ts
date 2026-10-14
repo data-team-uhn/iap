@@ -216,7 +216,7 @@ export const blockingFields = (fields: ContentField[], values: FieldValues, node
 
 // Where a reference field's candidates come from: the nodes of its type, under its root. Undefined when it
 // names no type, and any path may be entered.
-export function referenceQuery(field: ContentField): string | undefined {
+export function referenceQuery(field: Pick<ContentField, "referenceType" | "referenceRoot">): string | undefined {
   if (!field.referenceType) {
     return undefined;
   }

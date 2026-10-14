@@ -40,7 +40,7 @@ function scalarContent(value: unknown): ReactNode {
 // One value of the narrow-screen card, rendered the way its column would render it: through
 // the column's renderCell and valueGetter when present, generically otherwise. Our render
 // callbacks only read the row and value, so the partial params object is enough.
-function columnContent(column: EntityGridColumn, row: EntityRow): ReactNode {
+export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNode {
   const raw = row[column.field];
   const value = column.valueGetter
     ? (column.valueGetter as unknown as (value: unknown, row: EntityRow) => unknown)(raw, row)

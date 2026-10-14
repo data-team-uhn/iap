@@ -27,7 +27,7 @@ import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
-import { CONTENT, serveSchemas } from "./schemaServer.fixture";
+import { CONTENT, HOMEPAGE, serveSchemas } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
   getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
@@ -43,11 +43,11 @@ afterEach(() => {
 });
 
 // In the app's theme, which is what makes a page's title its heading
-const renderVersion = (schema: string, version: string) => render(
+const renderVersion = (schema: string, version: string, extension?: Record<string, unknown>) => render(
   <ThemeProvider theme={appTheme}>
     <MemoryRouter initialEntries={[ `/admin/schemas/${schema}/${version}` ]}>
       <Routes>
-        <Route path="/admin/schemas/*" element={<SchemaPage />} />
+        <Route path="/admin/schemas/*" element={<SchemaPage extension={extension} />} />
       </Routes>
     </MemoryRouter>
   </ThemeProvider>,
@@ -776,6 +776,46 @@ describe("SchemaVersionView", () => {
     expect(screen.queryByRole("button", { name: "New version from this one" })).not.toBeInTheDocument();
   });
 
+  it("offers the other versions to compare it with, the one the rules choose first", async () => {
+    serveSchemas();
+    renderVersion("study", "v3", { comparisonDefaults: [ "active", "source" ] });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Compare with…" }));
+    const menu = await screen.findByRole("menu");
+
+    await waitFor(() => expect(within(menu).getAllByRole("menuitem").map(item => item.textContent)).toEqual([
+      "Version 2.0The active version", "Version 1.0What it was copied from",
+    ]));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Version 1\.0/ }));
+    expect(await screen.findByRole("heading", { name: /Version 3\.0 compared with 1\.0/ })).toBeInTheDocument();
+  });
+
+  it("lists the other versions as they come without rules, saying which is the previous version", async () => {
+    const study = HOMEPAGE.study;
+    serveSchemas({ homepage: { ...HOMEPAGE, study: { ...study,
+      v1: { ...study.v1, "jcr:created": "2026-09-01T10:00:00.000-04:00" },
+      // Its links cannot be read, so nothing says where it was copied from
+      v3: { ...study.v3, "link:links": undefined } } } });
+    renderVersion("study", "v3");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Compare with…" }));
+    const menu = await screen.findByRole("menu");
+
+    expect(within(menu).getAllByRole("menuitem").map(item => item.textContent))
+      .toEqual([ "Version 1.0The previous version", "Version 2.0The active version" ]);
+    fireEvent.keyDown(menu, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  });
+
+  it("offers no comparison for a schema with a single version", async () => {
+    serveSchemas();
+    renderVersion("idea", "v1");
+
+    expect(await screen.findByRole("heading", { name: /Version 0\.1/ })).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Edit" });
+    expect(screen.queryByRole("button", { name: "Compare with…" })).not.toBeInTheDocument();
+  });
+
   it("acts on the version, and goes back to the schema once it is discarded", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
@@ -872,6 +912,16 @@ describe("SchemaVersionView", () => {
       expect(within(short).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
 
       expect(lines(await openActions("Short"))).toEqual([ "Remove" ]);
+    });
+
+    it("offers the versions to compare with from the version's menu", async () => {
+      serveSchemas();
+      renderVersion("study", "v3");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
+      fireEvent.click(await within(await screen.findByRole("menu")).findByRole("menuitem", { name: "Compare with…" }));
+
+      expect(await screen.findByRole("menuitem", { name: /Version 2\.0/ })).toBeInTheDocument();
     });
 
     it("acts on the version from its menu", async () => {
