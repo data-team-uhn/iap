@@ -101,7 +101,7 @@
     <sling.discovery.commons.version>1.1.0</sling.discovery.commons.version>
     <sling.discovery.oak.version>1.2.48</sling.discovery.oak.version>
     <sling.discovery.support.version>1.0.8</sling.discovery.support.version>
-    <sling.engine.version>3.0.2</sling.engine.version>
+    <sling.engine.version>3.0.4</sling.engine.version>
     <sling.event.api.version>1.0.4</sling.event.api.version>
     <sling.event.dea.version>1.1.6</sling.event.dea.version>
     <sling.event.version>4.4.2</sling.event.version>
