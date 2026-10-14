@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.internal;
+package io.uhndata.iap.submissions.internal.evaluators;
 
 import java.util.HashSet;
 import java.util.List;
@@ -33,15 +33,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Document;
 
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.DOCTORS_NOTE;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION_PATH;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.TYPE;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.VERSION_PATH;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.document;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.submission;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.DOCTORS_NOTE;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.SUBMISSION_PATH;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.TYPE;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.VERSION_PATH;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.document;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.submission;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link DocumentCompletenessEvaluator}.
@@ -109,24 +108,13 @@ class DocumentCompletenessEvaluatorTest
     }
 
     @Test
-    void removesAnEmptyDocumentOnceItsRequirementStopsApplying() throws Exception
+    void leavesAnEmptyDocumentWhoseRequirementStoppedApplying() throws Exception
     {
         final Resource empty = document(this.context, DOCTORS_NOTE, false);
         this.hidden.add(DOCTORS_NOTE);
 
         assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)));
-        assertNull(this.context.resourceResolver().getResource(empty.getPath()));
-    }
-
-    @Test
-    void keepsAnAttachedDocumentWhoseRequirementStoppedApplying() throws Exception
-    {
-        final Resource attached = document(this.context, DOCTORS_NOTE, true);
-        this.hidden.add(DOCTORS_NOTE);
-
-        this.evaluator.evaluate(submission(this.context));
-
-        assertNotNull(this.context.resourceResolver().getResource(attached.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(empty.getPath()));
     }
 
     @Test

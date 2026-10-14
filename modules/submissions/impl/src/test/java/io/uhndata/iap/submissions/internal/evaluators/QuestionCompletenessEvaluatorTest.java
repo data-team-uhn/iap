@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.internal;
+package io.uhndata.iap.submissions.internal.evaluators;
 
 import java.util.HashSet;
 import java.util.List;
@@ -39,16 +39,15 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.submissions.models.Answer;
 
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.NOTE;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.REASON;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.START_DATE;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION_PATH;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.VERSION_PATH;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.answer;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.submission;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.NOTE;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.REASON;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.START_DATE;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.SUBMISSION_PATH;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.VERSION_PATH;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.answer;
+import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.submission;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link QuestionCompletenessEvaluator}.
@@ -142,25 +141,14 @@ class QuestionCompletenessEvaluatorTest
     }
 
     @Test
-    void removesAnEmptyAnswerOnceItsQuestionStopsApplying() throws Exception
+    void leavesAnEmptyAnswerWhoseQuestionStoppedApplying() throws Exception
     {
         final Resource empty = answer(this.context, REASON);
         this.hidden.add("why");
 
         this.evaluator.evaluate(submission(this.context));
 
-        assertNull(this.context.resourceResolver().getResource(empty.getPath()));
-    }
-
-    @Test
-    void keepsAGivenAnswerWhoseQuestionStoppedApplying() throws Exception
-    {
-        final Resource given = answer(this.context, REASON, "A wedding");
-        this.hidden.add("why");
-
-        this.evaluator.evaluate(submission(this.context));
-
-        assertNotNull(this.context.resourceResolver().getResource(given.getPath()));
+        assertNotNull(this.context.resourceResolver().getResource(empty.getPath()));
     }
 
     @Test

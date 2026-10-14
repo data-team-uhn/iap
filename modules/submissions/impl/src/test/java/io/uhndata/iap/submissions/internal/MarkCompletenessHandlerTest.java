@@ -174,7 +174,9 @@ class MarkCompletenessHandlerTest
 
     private void evaluators(final CompletenessEvaluator... evaluators) throws ReflectiveOperationException
     {
-        CompletenessFixture.inject(this.handler, "evaluators", List.of(evaluators));
+        final var reference = MarkCompletenessHandler.class.getDeclaredField("evaluators");
+        reference.setAccessible(true);
+        reference.set(this.handler, List.of(evaluators));
     }
 
     /**

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.internal;
+package io.uhndata.iap.submissions.internal.evaluators;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,8 +45,6 @@ import io.uhndata.iap.utils.VersioningUtils;
  * something is uploaded into it, and its empty documents are incomplete while the requirement is required and
  * nothing has been uploaded for it.
  *
- * <p>An empty document for a requirement that has stopped applying is removed. One holding a file is kept.</p>
- *
  * @version $Id$
  * @since 0.1.0
  */
@@ -61,7 +59,7 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
     {
         final Submission model = Objects.requireNonNull(submission.adaptTo(Submission.class),
             "Only a submission is judged");
-        final Map<String, List<Document>> documents = documents(model);
+        final Map<String, List<Document>> documents = getDocuments(model);
         final List<Resource> incomplete = new ArrayList<>();
         final List<DocumentRequirement> asked = model.getSchemaVersion().getRequirements().stream()
             .filter(DocumentRequirement.class::isInstance)
@@ -69,22 +67,14 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
             .filter(requirement -> this.conditions.applies(requirement, model))
             .collect(Collectors.toList());
         for (final DocumentRequirement requirement : asked) {
-            final List<Document> existing = documents.remove(requirement.getPath());
+            final List<Document> existing = documents.get(requirement.getPath());
             if (existing == null) {
-                final Resource created = create(submission, requirement);
+                final Resource created = createDocument(submission, requirement);
                 if (requirement.isRequired()) {
                     incomplete.add(created);
                 }
             } else if (requirement.isRequired() && existing.stream().noneMatch(Document::isAttached)) {
-                incomplete.addAll(resources(existing, submission.getResourceResolver()));
-            }
-        }
-        // What is left is filed against a requirement no longer asked
-        for (final Document stale : documents.values().stream().flatMap(List::stream).collect(Collectors.toList())) {
-            if (!stale.isAttached()) {
-                VersioningUtils.checkOut(submission);
-                submission.getResourceResolver().delete(Objects.requireNonNull(
-                    submission.getResourceResolver().getResource(stale.getPath()), "A listed document exists"));
+                incomplete.addAll(toResources(existing, submission.getResourceResolver()));
             }
         }
         return incomplete;
@@ -97,7 +87,7 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
      * @param submission the submission
      * @return the documents, by requirement path
      */
-    private static Map<String, List<Document>> documents(final Submission submission)
+    private static Map<String, List<Document>> getDocuments(final Submission submission)
     {
         final Map<String, List<Document>> byRequirement = new HashMap<>();
         for (final Document document : submission.getDocuments()) {
@@ -109,7 +99,7 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
         return byRequirement;
     }
 
-    private static List<Resource> resources(final List<Document> documents, final ResourceResolver resolver)
+    private static List<Resource> toResources(final List<Document> documents, final ResourceResolver resolver)
     {
         return documents.stream()
             .map(document -> Objects.requireNonNull(resolver.getResource(document.getPath()),
@@ -125,7 +115,7 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
      * @return the document created
      * @throws PersistenceException when it cannot be written
      */
-    private static Resource create(final Resource submission, final DocumentRequirement requirement)
+    private static Resource createDocument(final Resource submission, final DocumentRequirement requirement)
         throws PersistenceException
     {
         final ResourceResolver resolver = submission.getResourceResolver();

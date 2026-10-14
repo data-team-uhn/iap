@@ -27,9 +27,8 @@ import org.jetbrains.annotations.NotNull;
  * Judges one kind of part of a submission: whether what its author is asked for has been supplied.
  *
  * <p>Every item the author is asked for has a part of its own, empty until they fill it in, so an item nobody has
- * started still has a node to mark. An evaluator therefore also keeps its parts in line with what is asked now. It
- * creates the part for an item that has started to apply, and removes an empty one for an item that has stopped
- * applying.</p>
+ * started still has a node to mark. An evaluator therefore also creates the part for an item that has started to
+ * apply.</p>
  *
  * <p>Implementations are OSGi services. The {@code markCompleteness} service task asks every one of them after each
  * change to a submission, and tags each part they report as {@code incomplete}.</p>
@@ -40,12 +39,11 @@ import org.jetbrains.annotations.NotNull;
 public interface CompletenessEvaluator
 {
     /**
-     * Brings this evaluator's parts of a submission in line with what the submission is asked now, and names the ones
-     * still incomplete.
+     * Creates this evaluator's missing parts of a submission, and names the parts still incomplete.
      *
      * @param submission the submission, through the session that is writing it
      * @return the parts lacking something their author has to supply, empty when nothing is missing
-     * @throws PersistenceException when a part cannot be created or removed
+     * @throws PersistenceException when a part cannot be created
      */
     @NotNull
     List<Resource> evaluate(@NotNull Resource submission) throws PersistenceException;

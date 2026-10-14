@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.internal;
+package io.uhndata.iap.submissions.internal.evaluators;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -46,9 +45,7 @@ import io.uhndata.iap.utils.VersioningUtils;
  * Judges a submission's answers. Every question the submitter is shown has an answer, empty until they fill it in,
  * and an answer is incomplete while it holds fewer non-blank values than its question's {@code minAnswers}.
  *
- * <p>A question is shown when it, every section around it and its form requirement all apply. An empty answer to a
- * question that has stopped being shown is removed. One that holds something is kept, so that changing the answer
- * a condition depends on and changing it back loses nothing.</p>
+ * <p>A question is shown when it, every section around it and its form requirement all apply.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,24 +62,16 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
         final Submission model = Objects.requireNonNull(submission.adaptTo(Submission.class),
             "Only a submission is judged");
         final Map<String, List<String>> given = model.getAnswersByQuestion();
-        final Map<String, List<Resource>> answers = answers(model, submission.getResourceResolver());
-        final List<Question> shown = shown(model);
+        final Map<String, List<Resource>> answers = getExistingAnswers(model, submission.getResourceResolver());
         final List<Resource> incomplete = new ArrayList<>();
-        for (final Question question : shown) {
-            final List<Resource> existing = answers.remove(question.getPath());
+        for (final Question question : getApplicableQuestions(model)) {
+            final List<Resource> existing = answers.get(question.getPath());
             final long values = given.getOrDefault(question.getPath(), List.of()).stream()
                 .filter(value -> !value.isBlank())
                 .count();
-            final List<Resource> parts = existing == null ? List.of(create(submission, question)) : existing;
+            final List<Resource> parts = existing == null ? List.of(createAnswer(submission, question)) : existing;
             if (values < question.getMinAnswers()) {
                 incomplete.addAll(parts);
-            }
-        }
-        // What is left answers a question no longer shown
-        for (final Resource stale : answers.values().stream().flatMap(List::stream).collect(Collectors.toList())) {
-            if (isEmpty(stale)) {
-                VersioningUtils.checkOut(submission);
-                submission.getResourceResolver().delete(stale);
             }
         }
         return incomplete;
@@ -94,26 +83,26 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
      * @param submission the submission whose conditions decide
      * @return the questions that apply
      */
-    private List<Question> shown(final Submission submission)
+    private List<Question> getApplicableQuestions(final Submission submission)
     {
-        final List<Question> shown = new ArrayList<>();
+        final List<Question> applicable = new ArrayList<>();
         submission.getSchemaVersion().getRequirements().stream()
             .filter(FormRequirement.class::isInstance)
             .filter(requirement -> this.conditions.applies(requirement, submission))
             .forEach(form -> ((FormRequirement) form).getChildren()
-                .forEach(item -> collect(item, submission, shown)));
-        return shown;
+                .forEach(item -> collect(item, submission, applicable)));
+        return applicable;
     }
 
-    private void collect(final FormItem item, final Submission submission, final List<Question> shown)
+    private void collect(final FormItem item, final Submission submission, final List<Question> applicable)
     {
         if (!this.conditions.applies(item, submission)) {
             return;
         }
         if (item instanceof Question) {
-            shown.add((Question) item);
+            applicable.add((Question) item);
         } else if (item instanceof Section) {
-            ((Section) item).getChildren().forEach(child -> collect(child, submission, shown));
+            ((Section) item).getChildren().forEach(child -> collect(child, submission, applicable));
         }
     }
 
@@ -125,7 +114,8 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
      * @param resolver the session writing it
      * @return the answers' resources, by question path
      */
-    private static Map<String, List<Resource>> answers(final Submission submission, final ResourceResolver resolver)
+    private static Map<String, List<Resource>> getExistingAnswers(final Submission submission,
+        final ResourceResolver resolver)
     {
         final Map<String, List<Resource>> byQuestion = new HashMap<>();
         for (final Answer answer : submission.getAnswers()) {
@@ -146,7 +136,8 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
      * @return the answer created
      * @throws PersistenceException when it cannot be written
      */
-    private static Resource create(final Resource submission, final Question question) throws PersistenceException
+    private static Resource createAnswer(final Resource submission, final Question question)
+        throws PersistenceException
     {
         final ResourceResolver resolver = submission.getResourceResolver();
         VersioningUtils.checkOut(submission);
@@ -155,10 +146,5 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
         ReferenceUtils.setReference(answer, "question", Objects.requireNonNull(
             resolver.getResource(question.getPath()), "A question the schema lists can be read"));
         return answer;
-    }
-
-    private static boolean isEmpty(final Resource answer)
-    {
-        return List.of(answer.getValueMap().get("value", new String[0])).stream().allMatch(String::isBlank);
     }
 }

@@ -977,7 +977,7 @@ question the submitter is shown has an answer, empty until filled in and incompl
 while it holds fewer than `minAnswers` non-blank values; every document requirement that
 applies has a document, empty until something is uploaded, and incomplete while a
 required one holds nothing. An evaluator creates the empty part for an item that starts
-to apply and removes an empty one for an item that stops. An approval never counts,
+to apply. An approval never counts,
 because somebody else gives it. The create, attach and detach workflows run the same
 step, so a new submission is marked from the start, and removing a document it needs
 marks it again.
