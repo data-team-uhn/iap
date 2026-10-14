@@ -173,6 +173,7 @@ describe("FieldsDialog", () => {
 
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Question" }), { target: { value: "Age?" } });
     save(dialog);
+    expect(within(dialog).getByRole("button", { name: "Saving…" })).toBeDisabled();
 
     expect(await within(dialog).findByText("Refused")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();

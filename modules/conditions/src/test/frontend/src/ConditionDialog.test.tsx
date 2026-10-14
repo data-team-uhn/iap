@@ -127,6 +127,7 @@ describe("ConditionDialog", () => {
     fireEvent.change(value, { target: { value: "18" } });
     expect(summary(dialog)).toBe("Only when the field age is at least 18");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(within(dialog).getByRole("button", { name: "Saving…" })).toBeDisabled();
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({
       "jcr:primaryType": "cond:ConditionGroup", "requireAll": true,
@@ -174,6 +175,7 @@ describe("ConditionDialog", () => {
     const { dialog, onSave } = renderDialog({ condition: ANY_OF_TWO });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Clear all conditions" }));
+    expect(within(dialog).getByRole("button", { name: "Clearing…" })).toBeDisabled();
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(null));
   });
