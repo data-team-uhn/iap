@@ -108,6 +108,7 @@ function PdfAnnotationsTestWidget() {
           inputRef={draftInput}
           multiline
           minRows={2}
+          maxRows={6}
           size="small"
           fullWidth
         />
