@@ -49,6 +49,16 @@ export interface QuestionProvenance {
   // `reviewed` on purpose: flagging bad evidence is telemetry, not a step in their job, so it
   // neither settles the answer nor blocks anything.
   evidenceRejected: boolean;
+  // What the answer held before a reading of a newer version of its document replaced it. Absent
+  // when the reading replaced nothing.
+  replaced?: string[];
+}
+
+// What the switch between a replaced answer and the newer reading offers: "undo" offers the old
+// answer back, "redo" offers the newer reading again.
+export interface ReplacementOffer {
+  direction: "undo" | "redo";
+  values: string[];
 }
 
 // Suggested, accepted (confirmed and still matching) or changed (differing). There is no
@@ -77,8 +87,24 @@ export function isLowConfidence(provenance: QuestionProvenance): boolean {
 // Whether the answer still says what the extraction proposed. Order matters, because a multi-value
 // answer the submitter reordered is a change they made deliberately.
 export function matchesSuggestion(provenance: QuestionProvenance, value: string[]): boolean {
-  return provenance.suggested.length === value.length
-    && provenance.suggested.every((suggested, index) => suggested === value[index]);
+  return isSameValues(provenance.suggested, value);
+}
+
+function isSameValues(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((each, index) => each === right[index]);
+}
+
+// What the switch offers for the answer as it stands, or undefined when a newer version replaced
+// nothing or the submitter has since given an answer that is neither.
+export function replacementOffer(provenance: QuestionProvenance, value: string[]): ReplacementOffer | undefined {
+  const replaced = provenance.replaced;
+  if (replaced === undefined) {
+    return undefined;
+  }
+  if (matchesSuggestion(provenance, value)) {
+    return { direction: "undo", values: replaced };
+  }
+  return isSameValues(replaced, value) ? { direction: "redo", values: provenance.suggested } : undefined;
 }
 
 export function statusOf(provenance: QuestionProvenance, value: string[]): ProvenanceStatus {

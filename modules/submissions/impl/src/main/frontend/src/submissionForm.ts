@@ -225,6 +225,13 @@ export function isMultiple(question: FormQuestion): boolean {
   return question.maxAnswers !== 1;
 }
 
+// An answer as the words that were chosen. What is stored is the option's value, which is what a
+// condition compares against - "in-repository", "prom" - and reading those back is reading the
+// schema's shorthand rather than the answer.
+export function describeValues(question: FormQuestion, values: string[]): string[] {
+  return values.map(value => question.options.find(option => option.value === value)?.label ?? value);
+}
+
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
 export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Promise<SubmissionForm> {

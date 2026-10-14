@@ -184,6 +184,46 @@ describe("SubmissionEditor", () => {
     expect(body.get("confirmed")).toBe("true");
   });
 
+  /** The question again, its reading of a newer version taken back by the submitter. */
+  function undone() {
+    return {
+      ...duration([ "No" ]),
+      provenance: { ...suggested().provenance, replaced: [ "No" ] },
+    };
+  }
+
+  // Choosing the newer reading is accepting it, and the confirmation is of the answer as saved
+  it("saves a newer reading taken back, then confirms it", async () => {
+    const fetchMock = serving(form({ requirements: [ details([ undone() ]) ] }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+    await userEvent.click(await screen.findByRole("button", { name: "What the new version says" }));
+    await userEvent.click(screen.getByRole("button", { name: "Accept this answer" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls
+      .filter(([ , options ]) => (options as { method?: string })?.method === "POST")
+      .map(([ url ]) => url)).toEqual([ `${PATH}.save.json`, `${PATH}.reviewExtraction.json` ]));
+  });
+
+  it("reports a refused confirmation of a reading taken back as the review failing", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+      if (options?.method === "POST") {
+        return url.endsWith(".reviewExtraction.json")
+          ? json({ error: "Nothing was extracted for that" }, { ok: false, status: 400 })
+          : json({});
+      }
+      return json(form({ requirements: [ details([ undone() ]) ] }));
+    }));
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+    await userEvent.click(await screen.findByRole("button", { name: "What the new version says" }));
+    await userEvent.click(screen.getByRole("button", { name: "Accept this answer" }));
+
+    expect(await screen.findByText("Review failed")).toBeInTheDocument();
+    expect(screen.queryByText("Not saved")).not.toBeInTheDocument();
+  });
+
   // The answer is unchanged, so nothing about it should read as unsaved
   it("reports a refused review without claiming the answer failed to save", async () => {
     const withProvenance = form({ requirements: [ details([ suggested() ]) ] });

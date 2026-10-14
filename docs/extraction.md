@@ -82,18 +82,17 @@ The `attachDocument` system workflow (submissions module) runs three steps in on
 The browser runs the same checks first, with the same limits, read from
 `/system/documents/limits`; see [file-validation.md](file-validation.md).
 
-A new upload for a document that already has one is a new version of it. Before it is
-added, `DocumentReadings.dropSuggestions` deletes every answer that is still only the
-model's untouched suggestion from the old versions. Reading never overwrites an answer
-(step 8), so without that the new file would never be read for those questions. An
-answer the submitter confirmed, changed or typed keeps its value.
+A submitter never removes a document. The editor offers **Upload a new version**, and a
+new upload for a document that already has one is a new version of it. Every answer and
+every reading stays: the reading of the new version decides what to replace (see "A
+newer version"). `AttachDocumentHandler` refuses a new version while the document's parse
+is `queued` or the reading is `running`: "Wait until the document has been read, or stop
+the reading first". The first upload for a requirement is taken even then.
 
-Removing a document (`detachDocument`) drops every reading of it
-(`DocumentReadings.dropAll`): untouched suggestions go whole, and other answers lose
-only the extractions that cite it, since Oak refuses to delete a version still
-referenced.
-`DetachDocumentHandler` refuses while the document's parse is `queued` or the reading is
-`running`: "Wait until the document has been read, or stop the reading first".
+The `detachDocument` workflow is still there, though the editor no longer offers it. It
+drops every reading of the document (`DocumentReadings.dropAll`): untouched suggestions
+go whole, and other answers lose only the extractions that cite it, since Oak refuses
+to delete a version still referenced. It is refused at the same times as a new version.
 
 What `parseDocuments` does, in order:
 
@@ -694,7 +693,7 @@ module), carries the reading to the page:
 | `readsDocuments` | top level | The schema version names a `readingWorkflow` |
 | `extraction` | top level, once `extractionStatus` is set | `ReadingProjection.describe`: `status`, `message`, `retryable` (a current upload's parse `failed`), `parsed` (no current upload is still `queued`), `reading` (`extractionReadingClaimed` is set) |
 | `extracted` | each form requirement | `ReadingProjection.isExtracted`: a classification, or a form with a question that has an `extractionPrompt` |
-| `provenance` | each question a model answered | `ProvenanceProjection`, from the surest extraction: `suggested`, `confidence`, `reasoning`, `reviewed`, `evidenceRejected`, and `passages`, each with `quote`, `cite` and `source` |
+| `provenance` | each question a model answered | `ProvenanceProjection`, from the surest extraction: `suggested`, `confidence`, `reasoning`, `reviewed`, `evidenceRejected`, `replaced` (what a reading of a newer version replaced, when it did), and `passages`, each with `quote`, `cite` and `source` |
 
 A passage's `cite` is "p. N", its heading, or both. Its `source` is the path of the PDF
 the run read (`File.getFilePdf()`), plus `#page=N` when the quote has a page. A quote
@@ -711,6 +710,7 @@ The frontend, in `modules/submissions/impl/src/main/frontend/src/`:
 | `SubmissionEditor.tsx` | A form that `readsDocuments` is three pages: the upload and the questions answered by hand, the classifications, then the other `extracted` requirements. A requirement's panel offers the user tasks that name it. |
 | `SubmissionTasks.tsx` | Offers a task only when its `@events` lists `complete`, and places it by the task's `requirement` (copied from the `bpmn:userTask`'s `iap:requirement` onto the `wf:TaskInstance`), so the demo's "Continue once this is confirmed" sits under `is_proposal` |
 | `AnswerProvenance.tsx`, `provenance.ts` | Per answer: a badge ("AI found:", "Matches your protocol", "You corrected this"), a "Low confidence" chip under 0.75 (`LOW_CONFIDENCE_FLOOR`) while the suggestion is untouched, and the passages. **Confirm answer** posts `confirmed=true`; "This passage doesn't support the answer" posts `evidenceRejected`. Opening a passage shows the PDF in the shared `PdfViewer` (frontend-commons, `pdfViewer/`) at its page, with the quote marked as the assistant's. |
+| `ReplacedAnswerSwitch.tsx`, `replacementOffer` in `provenance.ts` | When a reading of a newer version replaced the answer and the answer is the new reading, an Undo icon at the field's top left opens a popup with the old answer and **Accept this answer**, which saves it. The icon then turns to Auto Awesome, which offers the new reading back; accepting saves it and confirms it (`reviewExtraction` after the save). The icon goes once the answer is neither. |
 
 ## What the submitter can do
 
@@ -1142,7 +1142,7 @@ are under these folders:
 | submissions | `SystemWorkflows/attachDocument` (`.json`, `bpmn.xml`) | `attachDocument`, `markCompleteness`, then `parseDocuments` (step 1) |
 | submissions | `AttachDocumentHandler`, `PdfPageCounter` | Checks and stores an upload in the versioned document layout; counts a PDF's pages with PDFBox |
 | submissions | `DetachDocumentHandler` | Removes a document; refused while it is parsed or read |
-| submissions | `DocumentReadings` | Drops the readings of a document replaced or removed |
+| submissions | `DocumentReadings` | Drops the readings of a document removed |
 | submissions | `MarkCompletenessHandler` | Service task `markCompleteness`: the `incomplete` tag |
 | submissions | `DecisionOperandResolver` | The `decision` condition source the gateways route on (step 7) |
 | submissions | `SubmissionFormServlet`, `ReadingProjection`, `ParseStatus`, `ProvenanceProjection` | The form projection's reading parts (see "What the submitter sees") |

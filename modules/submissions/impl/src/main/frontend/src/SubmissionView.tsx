@@ -55,6 +55,7 @@ import {
   type Requirement,
   type SubmissionForm,
   describeNothingAttached,
+  describeValues,
   fetchForm,
   formatDate,
   isApprovalRequirement,
@@ -158,13 +159,8 @@ function createdBy(submission: JsonNode): unknown {
 
 // One question with its answer. An unanswered one shows the question alone: a placeholder under every
 // open question reads as pre-filled text, and there is nothing to say about an answer that is not there.
-//
-// A chosen answer is shown as the words that were chosen. What is stored is the option's value, which is
-// what a condition compares against - "in-repository", "prom" - and reading those back is reading the
-// schema's shorthand rather than the answer.
 function QuestionRow({ question }: { question: FormQuestion }) {
-  const chosen = question.value
-    .map(value => question.options.find(option => option.value === value)?.label ?? value);
+  const chosen = describeValues(question, question.value);
   return (
     <Box>
       <QuestionText question={question} labelOnly />

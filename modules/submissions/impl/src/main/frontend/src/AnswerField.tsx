@@ -26,7 +26,8 @@ import AnswerProvenance, { ConfirmAnswer } from "./AnswerProvenance";
 import { useAnswerComponents } from "./answers";
 import { questionLabel } from "./answers/label";
 import QuestionText from "./answers/QuestionText";
-import { statusOf } from "./provenance";
+import { type ReplacementOffer, replacementOffer, statusOf } from "./provenance";
+import ReplacedAnswerSwitch from "./ReplacedAnswerSwitch";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -41,8 +42,9 @@ interface AnswerFieldProps {
   disabled?: boolean;
   // Called when the answer is complete, meaning a field left, a box ticked or an option picked, rather
   // than on every keystroke. That is what makes saving as-you-go bearable, and it is also what keeps
-  // the saved answers current enough for the server to re-decide which questions apply.
-  onAnswered: (values: string[]) => void;
+  // the saved answers current enough for the server to re-decide which questions apply. `confirm`
+  // also settles the suggestion once the answer is saved.
+  onAnswered: (values: string[], confirm?: boolean) => void;
   // Called when the submitter accepts a pre-filled answer as it stands, and when they say the cited
   // passage does not support it. Both are absent for a question nothing suggested an answer to.
   onAcceptSuggestion?: () => void;
@@ -148,6 +150,12 @@ function AnswerField(
   // stand out. The answer component draws the frame round the answer itself.
   const pending = question.provenance !== undefined
     && statusOf(question.provenance, question.value) === "suggested";
+  const offer = question.provenance ? replacementOffer(question.provenance, question.value) : undefined;
+  // Taking the newer reading back is choosing it, so it is confirmed as it is saved
+  const accept = (accepted: ReplacementOffer) => {
+    setDraft(accepted.values);
+    onAnswered(accepted.values, accepted.direction === "redo");
+  };
 
   return (
     <Box
@@ -166,6 +174,9 @@ function AnswerField(
       }}
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+        {offer
+          ? <ReplacedAnswerSwitch question={question} offer={offer} disabled={disabled} onAccept={accept} />
+          : null}
         {/* Built through createElement rather than as <Answer/>, because which component this is comes
             from the registry and so is only known during the render that uses it. In JSX that is what
             react-hooks/static-components refuses: "Cannot create components during render" */}

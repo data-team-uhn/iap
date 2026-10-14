@@ -29,6 +29,7 @@ import {
   matchesSuggestion,
   openLabel,
   parsePdfSource,
+  replacementOffer,
   showsConfidence,
   statusOf,
   triggerLabel,
@@ -197,5 +198,26 @@ describe("parsePdfSource", () => {
   it("ignores a page number that is not a page", () => {
     expect(parsePdfSource(`${PDF}#page=0`)).toEqual({ url: PDF });
     expect(parsePdfSource(`${PDF}#zoom=100`)).toEqual({ url: PDF });
+  });
+});
+
+describe("switching between a replaced answer and the newer reading", () => {
+  const replacing = provenance({ suggested: [ "Yes" ], replaced: [ "No" ] });
+
+  it("offers nothing when the reading replaced nothing", () => {
+    expect(replacementOffer(provenance(), [ "Yes" ])).toBeUndefined();
+  });
+
+  it("offers the old answer back while the answer is the newer reading", () => {
+    expect(replacementOffer(replacing, [ "Yes" ])).toEqual({ direction: "undo", values: [ "No" ] });
+  });
+
+  it("offers the newer reading again once the old answer is back", () => {
+    expect(replacementOffer(replacing, [ "No" ])).toEqual({ direction: "redo", values: [ "Yes" ] });
+  });
+
+  it("offers nothing once the answer is neither", () => {
+    expect(replacementOffer(replacing, [ "Maybe" ])).toBeUndefined();
+    expect(replacementOffer(replacing, [ "No", "Yes" ])).toBeUndefined();
   });
 });

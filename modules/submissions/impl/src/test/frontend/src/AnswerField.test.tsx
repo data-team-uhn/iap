@@ -280,4 +280,69 @@ describe("AnswerField", () => {
 
     expect(screen.getByText("Low confidence")).toBeInTheDocument();
   });
+
+  describe("after a newer version replaced the answer", () => {
+    function replaced(value: string[]): FormQuestion {
+      return question({
+        dataType: "text",
+        value,
+        provenance: {
+          suggested: [ "Clinical trial" ],
+          confidence: 0.9,
+          passages: [],
+          reviewed: false,
+          evidenceRejected: false,
+          replaced: [ "Chart review" ],
+        },
+      });
+    }
+
+    it("offers the old answer back, and saves it when accepted", async () => {
+      const answered = vi.fn();
+      render(<AnswerField question={replaced([ "Clinical trial" ])} state="idle" onAnswered={answered} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Your answer before the new version" }));
+      expect(screen.getByText("Chart review")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Accept this answer" }));
+
+      expect(answered).toHaveBeenCalledWith([ "Chart review" ], false);
+    });
+
+    it("offers the newer reading again, and confirms it when accepted", async () => {
+      const answered = vi.fn();
+      render(<AnswerField question={replaced([ "Chart review" ])} state="idle" onAnswered={answered} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "What the new version says" }));
+      await userEvent.click(screen.getByRole("button", { name: "Accept this answer" }));
+
+      expect(answered).toHaveBeenCalledWith([ "Clinical trial" ], true);
+    });
+
+    it("shows the words of a chosen option, not its stored value", async () => {
+      const chosen = question({
+        dataType: "text",
+        options: [ { value: "chart", label: "Chart review" }, { value: "trial", label: "Clinical trial" } ],
+        value: [ "trial" ],
+        provenance: {
+          suggested: [ "trial" ],
+          confidence: 0.9,
+          passages: [],
+          reviewed: false,
+          evidenceRejected: false,
+          replaced: [ "chart" ],
+        },
+      });
+      render(<AnswerField question={chosen} state="idle" onAnswered={vi.fn()} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Your answer before the new version" }));
+
+      expect(screen.getByRole("presentation")).toHaveTextContent("Chart review");
+    });
+
+    it("offers nothing once the submitter has given another answer", () => {
+      render(<AnswerField question={replaced([ "Something else" ])} state="idle" onAnswered={vi.fn()} />);
+
+      expect(screen.queryByRole("button", { name: /new version/ })).not.toBeInTheDocument();
+    });
+  });
 });

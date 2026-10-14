@@ -61,7 +61,7 @@ function Items({ items, disabled, states, onAnswered, onReviewed }: {
   items: FormItem[];
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
-  onAnswered: (question: FormQuestion, values: string[]) => void;
+  onAnswered: (question: FormQuestion, values: string[], confirm?: boolean) => void;
   onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
 }) {
   return (
@@ -74,7 +74,7 @@ function Items({ items, disabled, states, onAnswered, onReviewed }: {
             disabled={disabled}
             state={states[item.path]?.state ?? "idle"}
             error={states[item.path]?.error}
-            onAnswered={values => onAnswered(item, values)}
+            onAnswered={(values, confirm) => onAnswered(item, values, confirm)}
             onAcceptSuggestion={() => onReviewed(item, { confirmed: true })}
             onRejectEvidence={rejected => onReviewed(item, { evidenceRejected: rejected })}
           />
@@ -105,7 +105,7 @@ function RequirementPanel({ path, requirement, disabled, reading, states, onAnsw
   disabled: boolean;
   reading: boolean;
   states: Record<string, FieldState | undefined>;
-  onAnswered: (question: FormQuestion, values: string[]) => void;
+  onAnswered: (question: FormQuestion, values: string[], confirm?: boolean) => void;
   onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
   onAttached: () => void;
   blockedReason?: string;
@@ -265,10 +265,15 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
     reload(token).catch((e: unknown) => setError(describeRequestFailure(e)));
   }, [ reload, refreshToken ]);
 
-  const answered = useCallback((question: FormQuestion, values: string[]) => {
+  const answered = useCallback((question: FormQuestion, values: string[], confirm = false) => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
+    // After the save, so the confirmation is of the answer as saved. A refused one leaves the answer
+    // saved, so it is reported as the review failing
+    const confirmSaved = () => reviewExtraction(doFetch, path, question.path, { confirmed: true })
+      .catch((e: unknown) => setStates(current => (
+        { ...current, [question.path]: { state: "reviewFailed", error: describeRequestFailure(e) } })));
     saveAnswer(doFetch, path, question.path, values)
       // The field's own outcome, whether or not a later answer has overtaken this one. A save that
       // succeeded is not reported as still saving because something else happened after it. Settled
@@ -278,6 +283,7 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
           setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
           // What the request is still missing lives on the submission, which the send control reads
           onChanged?.();
+          return confirm ? confirmSaved() : undefined;
         },
         (e: unknown) => setStates(current => (
           { ...current, [question.path]: { state: "failed", error: describeRequestFailure(e) } })),
