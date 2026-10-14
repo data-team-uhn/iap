@@ -54,7 +54,7 @@ class FileTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, DocumentVersion.class);
     }
 
     private void uploadOfType(final String mimeType)
@@ -70,6 +70,26 @@ class FileTest
         final Resource resource = this.context.create().resource(FILE_PATH,
             SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(File.class));
+    }
+
+    @Test
+    void namesTheRevisionItBelongsTo()
+    {
+        final String versionPath = FILE_PATH.substring(0, FILE_PATH.lastIndexOf('/'));
+        this.context.create().resource(versionPath, SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+
+        assertEquals(versionPath, resource.adaptTo(File.class).getVersion().getPath());
+    }
+
+    @Test
+    void hasNoRevisionOutsideOne()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/loose",
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+
+        assertNull(resource.adaptTo(File.class).getVersion());
     }
 
     @Test
