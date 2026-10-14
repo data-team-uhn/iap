@@ -23,14 +23,16 @@ import { loadPdfjs } from "./pdfjsClient";
 
 export const MEGABYTE = 1024 * 1024;
 
-// 50 MB, the server's limit (AttachDocumentHandler.MAX_FILE_BYTES): change both together.
+// The defaults below are only used when the caller passes no limits. Uploads pass the server's own,
+// from fetchUploadLimits, so these never need to follow a change on the server.
+
+// 50 MB. Above this an upload is slow enough to look broken.
 export const MAX_FILE_SIZE = 50 * MEGABYTE;
 
 // 500 pages. Past this the parse is long enough that a person would think it had failed.
 export const MAX_PDF_PAGES = 500;
 
-// 512 MB, the parser's own limit (IAP_MAX_EXPANDED_BYTES). A .docx is a zip, and a small one can
-// unzip to gigabytes.
+// 512 MB. A .docx is a zip, and a small one can unzip to gigabytes.
 export const MAX_UNZIPPED_SIZE = 512 * MEGABYTE;
 
 // The types the pipeline reads, by the extension that names them; the server keeps the same map

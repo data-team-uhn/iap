@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
+import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched: in a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
@@ -48,6 +49,11 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 // The file check has its own tests; here it passes every file unless a test says otherwise
 vi.mock("@iap/frontend-commons/fileValidation", () => ({
   validateUpload: vi.fn(() => Promise.resolve(undefined)),
+}));
+
+// The server gives no limits unless a test says otherwise, so the check's own defaults apply
+vi.mock("@iap/frontend-commons/uploadLimits", () => ({
+  fetchUploadLimits: vi.fn(() => Promise.resolve({})),
 }));
 
 // Settles the load before the first render, so a field draws its input rather than the spinner it
@@ -268,6 +274,20 @@ describe("SubmissionEditor", () => {
       expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
         expect.any(File), [ "application/pdf", "image/png" ], {}, expect.any(AbortSignal));
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
+    });
+
+    it("checks the file against the server's limits", async () => {
+      vi.mocked(fetchUploadLimits).mockResolvedValueOnce({ maxFileSize: 1024 });
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
+        expect.any(File), [ "application/pdf", "image/png" ], { maxFileSize: 1024 }, expect.any(AbortSignal)));
+      // The limits are read under the same time limit as the check itself
+      const [ , limitsSignal ] = vi.mocked(fetchUploadLimits).mock.lastCall ?? [];
+      expect(limitsSignal).toBe(vi.mocked(validateUpload).mock.lastCall?.[3]);
     });
 
     // The check only advises, so one that runs out of time leaves the decision to the server

@@ -46,6 +46,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.documents.api.DocumentLimits;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
@@ -105,13 +106,15 @@ class AttachDocumentHandlerTest
 
     private static final byte[] CONTENT = new byte[] {0x25, 0x50, 0x44, 0x46};
 
+    private static final long MAX_FILE_SIZE = 50L * 1024 * 1024;
+
     private static final Map<String, String> RESOURCE_TYPES = Map.of("sub:Document", Document.RESOURCE_TYPE,
         "sub:DocumentVersion", DocumentVersion.RESOURCE_TYPE, "sub:File", File.RESOURCE_TYPE);
 
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE and a real binary
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final AttachDocumentHandler handler = new AttachDocumentHandler();
+    private final AttachDocumentHandler handler = new AttachDocumentHandler(mockLimits(MAX_FILE_SIZE));
 
     private Resource target;
 
@@ -318,17 +321,39 @@ class AttachDocumentHandlerTest
     void refusesAFileOverTheLimitWithoutReadingIt()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
-            .execute(context(payload(NOTE, sized(AttachDocumentHandler.MAX_FILE_BYTES + 1)))));
+            .execute(context(payload(NOTE, sized(MAX_FILE_SIZE + 1)))));
 
-        assertEquals("That file is 51 MB, and the limit is 50 MB", failure.getMessage());
+        assertEquals("That file is 50.01 MB, and the limit is 50 MB", failure.getMessage());
     }
 
     @Test
     void takesAFileExactlyAtTheLimit() throws Exception
     {
-        this.handler.execute(context(payload(NOTE, sized(AttachDocumentHandler.MAX_FILE_BYTES))));
+        this.handler.execute(context(payload(NOTE, sized(MAX_FILE_SIZE))));
 
         assertNotNull(uploadedFile());
+    }
+
+    @Test
+    void writesALimitUnderAMegabyteInKilobytes()
+    {
+        final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(512L * 1024));
+
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class,
+            () -> strict.execute(context(payload(NOTE, sized(600L * 1024)))));
+
+        assertEquals("That file is 600 KB, and the limit is 512 KB", failure.getMessage());
+    }
+
+    @Test
+    void refusesAFileOverTheConfiguredLimit()
+    {
+        final AttachDocumentHandler strict = new AttachDocumentHandler(mockLimits(1024L * 1024));
+
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class,
+            () -> strict.execute(context(payload(NOTE, sized(2L * 1024 * 1024)))));
+
+        assertEquals("That file is 2 MB, and the limit is 1 MB", failure.getMessage());
     }
 
     @Test
@@ -577,12 +602,22 @@ class AttachDocumentHandlerTest
             @Override
             public InputStream openStream()
             {
-                if (size > AttachDocumentHandler.MAX_FILE_BYTES) {
+                if (size > MAX_FILE_SIZE) {
                     throw new AssertionError("A file over the limit was read");
                 }
                 return new ByteArrayInputStream(CONTENT);
             }
         };
+    }
+
+    /**
+     * Document limits taking files up to the given size.
+     */
+    static DocumentLimits mockLimits(final long maxFileSize)
+    {
+        final DocumentLimits limits = Mockito.mock(DocumentLimits.class);
+        Mockito.when(limits.getMaxFileSize()).thenReturn(maxFileSize);
+        return limits;
     }
 
     /**
