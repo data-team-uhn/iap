@@ -29,12 +29,13 @@ import {
 
 import { registerAnswerComponent } from "../answerComponents";
 import { answerCap, countGuidance, isMultiple, isRequired } from "../submissionForm";
+import AnswerRow from "./AnswerRow";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A question answered by picking from the options it offers.
-function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerComponentProps) {
   const labelledBy = getQuestionTextId(question);
   const help = question.description;
   const { options } = question;
@@ -55,21 +56,23 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
     return (
       <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
         <QuestionText question={question} />
-        <FormGroup role="group" aria-labelledby={labelledBy}>
-          {options.map(option => (
-            <FormControlLabel
-              key={option.value}
-              label={option.label}
-              control={
-                <Checkbox
-                  checked={values.includes(option.value)}
-                  disabled={disabled || (atCap && !values.includes(option.value))}
-                  onChange={event => toggle(option.value, event.target.checked)}
-                />
-              }
-            />
-          ))}
-        </FormGroup>
+        <AnswerRow aside={aside}>
+          <FormGroup role="group" aria-labelledby={labelledBy}>
+            {options.map(option => (
+              <FormControlLabel
+                key={option.value}
+                label={option.label}
+                control={
+                  <Checkbox
+                    checked={values.includes(option.value)}
+                    disabled={disabled || (atCap && !values.includes(option.value))}
+                    onChange={event => toggle(option.value, event.target.checked)}
+                  />
+                }
+              />
+            ))}
+          </FormGroup>
+        </AnswerRow>
         {guidance && <FormHelperText>{guidance}</FormHelperText>}
       </FormControl>
     );
@@ -78,20 +81,22 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   return (
     <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
       <QuestionText question={question} />
-      <RadioGroup
-        aria-labelledby={labelledBy}
-        value={values[0] ?? ""}
-        onChange={event => onAnswered([ event.target.value ])}
-      >
-        {options.map(option => (
-          <FormControlLabel
-            key={option.value}
-            value={option.value}
-            label={option.label}
-            control={<Radio required={isRequired(question)} />}
-          />
-        ))}
-      </RadioGroup>
+      <AnswerRow aside={aside}>
+        <RadioGroup
+          aria-labelledby={labelledBy}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          {options.map(option => (
+            <FormControlLabel
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              control={<Radio required={isRequired(question)} />}
+            />
+          ))}
+        </RadioGroup>
+      </AnswerRow>
       {/* A picked radio cannot be unpicked, so an optional answer gets a way back to none */}
       {!isRequired(question) && values.length > 0 && (
         <Button size="small" disabled={disabled} onClick={() => onAnswered([])} sx={{ alignSelf: "start" }}>

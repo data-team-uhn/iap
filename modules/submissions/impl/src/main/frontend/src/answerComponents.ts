@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/candidateRegistry";
 
@@ -34,6 +34,8 @@ export interface AnswerComponentProps {
   // Called with the values to save when the answer is finished. Each component decides when that is
   // for its own kind of input, such as when a field is left or an option picked.
   onAnswered: (values: string[]) => void;
+  // Shown beside the answer control, laid out by AnswerRow
+  aside?: ReactNode;
 }
 
 export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | null;
