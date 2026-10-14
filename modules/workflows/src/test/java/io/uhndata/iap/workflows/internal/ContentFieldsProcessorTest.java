@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.internal.handlers.FieldsFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowVersion;

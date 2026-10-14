@@ -28,7 +28,7 @@ import java.util.function.Function;
  * @version $Id$
  * @since 0.1.0
  */
-final class PartNames
+public final class PartNames
 {
     /** The properties that name a part, in the order they are tried. */
     static final List<String> NAMED_BY = List.of("text", "label", "title");
@@ -45,7 +45,7 @@ final class PartNames
      * @param pathInVersion the part's path relative to its version
      * @return the first name that is not blank, quoted, or else the path
      */
-    static String of(final Function<String, String> propertyOf, final String pathInVersion)
+    public static String of(final Function<String, String> propertyOf, final String pathInVersion)
     {
         return NAMED_BY.stream()
             .map(propertyOf)
@@ -62,7 +62,7 @@ final class PartNames
      * @param ancestorPath the path of an ancestor of that node
      * @return the part of the path below the ancestor
      */
-    static String pathIn(final String path, final String ancestorPath)
+    public static String pathIn(final String path, final String ancestorPath)
     {
         return path.substring(ancestorPath.length() + 1);
     }

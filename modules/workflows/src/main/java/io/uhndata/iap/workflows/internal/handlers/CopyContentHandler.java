@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -93,9 +92,9 @@ public class CopyContentHandler implements ServiceTaskHandler
             .map(TagDefinition::getName)
             .collect(Collectors.toSet());
         try {
-            final Node target = node(host);
+            final Node target = Nodes.of(host);
             VersioningUtils.checkOut(target);
-            this.copier.copy(node(source), target, strings(context.getActivity().get("skipProperties")),
+            this.copier.copy(Nodes.of(source), target, strings(context.getActivity().get("skipProperties")),
                 Map.of(TagManager.TAGS_PROPERTY, dropped));
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot copy " + source.getPath() + " into " + host.getPath(), e);
@@ -114,16 +113,5 @@ public class CopyContentHandler implements ServiceTaskHandler
             return Set.of((String) setting);
         }
         return setting instanceof String[] ? Set.copyOf(Arrays.asList((String[]) setting)) : Set.of();
-    }
-
-    /**
-     * The node behind a resource.
-     *
-     * @param resource a resource stored in the repository
-     * @return its node
-     */
-    private static Node node(final Resource resource)
-    {
-        return Objects.requireNonNull(resource.adaptTo(Node.class), "Content is stored in a JCR repository");
     }
 }
