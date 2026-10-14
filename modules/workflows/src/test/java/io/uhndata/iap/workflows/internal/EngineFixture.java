@@ -247,7 +247,8 @@ public final class EngineFixture
 
     /**
      * A history store that keeps what it is told, so that a test can see what an event recorded. Each action is
-     * filed under its position, so the first is {@code /History/1}.
+     * named after its position and filed in a bucket, as the real store does, so the first is
+     * {@code /History/ab/cd/ef/action1}.
      */
     static final class History implements HistoryRecorder
     {
@@ -267,7 +268,7 @@ public final class EngineFixture
         public String record(final Session session, final RecordedAction action)
         {
             this.actions.add(action);
-            return "/History/" + this.actions.size();
+            return "/History/ab/cd/ef/action" + this.actions.size();
         }
 
         @Override

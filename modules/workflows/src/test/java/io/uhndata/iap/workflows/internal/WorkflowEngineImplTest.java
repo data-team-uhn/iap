@@ -26,8 +26,10 @@ import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
+import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.nodetype.ConstraintViolationException;
+import javax.jcr.nodetype.NodeType;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -35,6 +37,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -106,6 +109,9 @@ class WorkflowEngineImplTest
 
     /** The second system workflow's start event. */
     private static final String OTHER_START = OTHER_VERSION + "/requested";
+
+    /** What the target is identified by, in the tests where it has a node. */
+    private static final String TARGET_IDENTIFIER = "1f0e8c2a-7d3b-4c51-9a8e-2b6d4f0c9e17";
 
     private static final WorkflowEvent CREATE =
         new WorkflowEvent("create", Map.of("title", "My cool workflow"));
@@ -185,6 +191,60 @@ class WorkflowEngineImplTest
         });
         EngineFixture.inject(engine, "resolverFactory", factory);
         return engine;
+    }
+
+    /**
+     * Service sessions in which {@code /Workflows} is backed by the given node, since the mock repository has none.
+     *
+     * @param node the node the homepage adapts to
+     * @return a factory to inject into the engine
+     * @throws Exception when the mock factory cannot be stubbed, which would be a bug in this test
+     */
+    private ResourceResolverFactory withTargetNode(final Node node) throws Exception
+    {
+        final ResourceResolverFactory serviceUsers = EngineFixture.serviceUsers(this.context, null);
+        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation ->
+            new ResourceResolverWrapper(serviceUsers.getServiceResourceResolver(invocation.getArgument(0)))
+            {
+                @Override
+                public Resource getResource(final String path)
+                {
+                    final Resource found = super.getResource(path);
+                    return found == null || !"/Workflows".equals(path) ? found : new ResourceWrapper(found)
+                    {
+                        @Override
+                        public <T> T adaptTo(final Class<T> type)
+                        {
+                            return type == Node.class ? type.cast(node) : super.adaptTo(type);
+                        }
+                    };
+                }
+            });
+        return factory;
+    }
+
+    /**
+     * A referenceable node that, like a node another session deleted, can no longer be read once deleted.
+     *
+     * @param deleted whether it has been deleted yet
+     * @return a stub node
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static Node staleAfter(final boolean[] deleted) throws RepositoryException
+    {
+        final NodeType type = Mockito.mock(NodeType.class);
+        Mockito.when(type.getName()).thenReturn("wf:WorkflowsHomepage");
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getIdentifier()).thenAnswer(invocation -> {
+            if (deleted[0]) {
+                throw new InvalidItemStateException("The node was removed by another session");
+            }
+            return TARGET_IDENTIFIER;
+        });
+        Mockito.when(node.getPath()).thenReturn("/Workflows");
+        Mockito.when(node.getPrimaryNodeType()).thenReturn(type);
+        return node;
     }
 
     @Test
@@ -349,6 +409,39 @@ class WorkflowEngineImplTest
         final WorkflowEngine engine = engine();
         assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(target, CREATE));
         assertTrue(this.history.actions().isEmpty());
+    }
+
+    @Test
+    void recordsATargetThatAServiceTaskDeletes() throws Exception
+    {
+        // Deletion commits in a session of its own, so by the end event the engine's view of the target is stale.
+        // Reading it then failed the event even though the deletion had already happened
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final boolean[] deleted = { false };
+        final Node node = staleAfter(deleted);
+        final WorkflowEngineImpl engine = engine(new ServiceTaskHandler()
+        {
+            @Override
+            public String getName()
+            {
+                return "noop";
+            }
+
+            @Override
+            public void execute(final WorkflowTaskContext taskContext)
+            {
+                deleted[0] = true;
+            }
+        });
+        EngineFixture.inject(engine, "resolverFactory", withTargetNode(node));
+
+        engine.receiveEvent(target, CREATE);
+
+        assertTrue(deleted[0]);
+        assertEquals("target", this.history.actions().get(0).getEffects().get(0).role());
+        assertEquals(TARGET_IDENTIFIER, this.history.actions().get(0).getEffects().get(0).subject());
     }
 
     @Test
@@ -1024,7 +1117,7 @@ class WorkflowEngineImplTest
         assertEquals(2, this.history.actions().size());
         assertEquals(CREATE.getName(), this.history.actions().get(0).getEvent());
         assertEquals("initialize", this.history.actions().get(1).getEvent());
-        assertEquals("/History/1", this.history.actions().get(1).getParentAction());
+        assertEquals("action1", this.history.actions().get(1).getParentAction());
     }
 
     @Test

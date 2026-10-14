@@ -36,11 +36,11 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * What one event delivery did, gathered while it runs and written to history just before it commits: one action
+ * A record of what one event delivery did, gathered while it runs and written to history just before it commits: one action
  * for the event, and one more for each event a workflow sent along the way, recorded as part of it.
  *
- * <p>Written last because a sent event's action must name the action it is part of, which only exists once
- * written, and because what was created is only known at the end.</p>
+ * <p>Captures on action for the event, and another for each event a workflow sent along the way. Since each sent event's
+ * action must name the action it is part of, and we only get that once it is written, this is written last.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -172,7 +172,7 @@ final class ActionRecord
      *
      * @param session the engine's session, still uncommitted
      * @param recorder where history is written
-     * @param parent the path of the action this one is part of, or {@code null}
+     * @param parent the identifier of the action this one is part of, or {@code null}
      * @throws WorkflowFailedException when the record cannot be written
      */
     private void write(final Session session, final HistoryRecorder recorder, final String parent)
@@ -184,8 +184,11 @@ final class ActionRecord
         } catch (final RepositoryException e) {
             throw new WorkflowFailedException("Could not record the " + this.event + " event in history", e);
         }
+
+        // Record the name of this action to each child's action record
+        final String identifier = path.substring(path.lastIndexOf('/') + 1);
         for (final ActionRecord child : this.sent) {
-            child.write(session, recorder, path);
+            child.write(session, recorder, identifier);
         }
     }
 }

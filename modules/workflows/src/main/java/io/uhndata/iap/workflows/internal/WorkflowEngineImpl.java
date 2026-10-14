@@ -262,9 +262,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final Actor actor, final int depth, final ActionRecord record) throws WorkflowException, PersistenceException
     {
         record.workflow(null, start.getWorkflowVersion());
+        // Before any service task runs: one may delete the target in a session of its own, leaving this one stale
+        record.affecting(target, "target");
         final Map<String, Object> variables =
             dispatcher(record).runSystemWorkflow(target, event, start, actor, depth);
-        record.affecting(target, "target");
         final Object created = variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
         if (created instanceof String) {
             record.affecting(Objects.requireNonNull(target.getResourceResolver().getResource((String) created),

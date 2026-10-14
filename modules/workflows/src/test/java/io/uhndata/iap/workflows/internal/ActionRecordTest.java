@@ -81,8 +81,8 @@ class ActionRecordTest
         assertEquals(List.of("save", "validate", "notify"),
             this.history.actions().stream().map(RecordedAction::getEvent).toList());
         assertNull(this.history.actions().get(0).getParentAction());
-        assertEquals("/History/1", this.history.actions().get(1).getParentAction());
-        assertEquals("/History/2", this.history.actions().get(2).getParentAction());
+        assertEquals("action1", this.history.actions().get(1).getParentAction());
+        assertEquals("action2", this.history.actions().get(2).getParentAction());
     }
 
     @Test

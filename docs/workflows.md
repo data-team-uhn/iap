@@ -733,7 +733,8 @@ nothing, because nothing happened. The action names:
 - **the workflow** that carried it out: the version in force, and for a task the instance;
 - **for a task**, the activity, the task itself and the outcome chosen;
 - **what it affected**: the resource the event was aimed at (`target`), anything it created
-  (`created`), and a task it completed (`completed`).
+  (`created`), and for a task, the resource its workflow drives (`host`). A task is part of
+  that resource, and history can only name a resource with an identifier of its own.
 
 An event that one workflow sends to another during the run gets an action of its own,
 naming the system workflow that ran it, with `parentAction` pointing at the action of the
