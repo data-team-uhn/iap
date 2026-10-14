@@ -1008,6 +1008,126 @@ describe("PdfViewer", () => {
         expect(screen.queryByRole("textbox", { name: /About schedule/ })).not.toBeInTheDocument();
       });
 
+      describe("on the card above the document", () => {
+        // A comment to read, with a button replying to it, which runs past the room it is given
+        const renderComment = (mark: Mark) => (
+          <div>
+            <p>{`A long comment on ${mark.id}`}</p>
+            <button type="button">{`Reply on ${mark.id}`}</button>
+          </div>
+        );
+
+        function runLong(shown: HTMLElement) {
+          Object.defineProperty(shown, "clientHeight", { value: 60 });
+          Object.defineProperty(shown, "scrollHeight", { value: 200 });
+          fireEvent.scroll(shown);
+        }
+
+        it("cuts it short, one button showing all of it", async () => {
+          showMarks({ renderMarkDetails: renderComment, markName: { one: "comment", many: "comments" } });
+          await waitFor(() => expect(getStatus()).toHaveTextContent("Comment 1 of 3 is marked on page 2."));
+          expect(screen.queryByRole("button", { name: "Show the whole comment" })).not.toBeInTheDocument();
+
+          const shown = screen.getByText("A long comment on volunteers").parentElement!.parentElement!;
+          runLong(shown);
+
+          const more = screen.getByRole("button", { name: "Show the whole comment" });
+          expect(more).toHaveAttribute("aria-expanded", "false");
+          expect(more.getAttribute("aria-controls")).toContain(shown.id);
+          await userEvent.click(more);
+          expect(screen.getByRole("button", { name: "Show less of the comment" }))
+            .toHaveAttribute("aria-expanded", "true");
+          expect(shown).not.toHaveStyle({ overflowY: "hidden" });
+        });
+
+        it("starts it from its top again once folded, wherever it was scrolled while cut", async () => {
+          showMarks({ renderMarkDetails: renderComment });
+          await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+          const shown = screen.getByText("A long comment on volunteers").parentElement!.parentElement!;
+          runLong(shown);
+          // As the browser scrolls it to show something focused in what is cut
+          shown.scrollTop = 40;
+
+          await userEvent.click(screen.getByRole("button", { name: "Show the whole passage" }));
+          await userEvent.click(screen.getByRole("button", { name: "Show less of the passage" }));
+
+          expect(shown.scrollTop).toBe(0);
+        });
+
+        it("shows all of it once the focus moves into what is cut", async () => {
+          showMarks({ renderMarkDetails: renderComment });
+          await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+          runLong(screen.getByText("A long comment on volunteers").parentElement!.parentElement!);
+
+          act(() => screen.getByRole("button", { name: "Reply on volunteers" }).focus());
+
+          expect(screen.getByRole("button", { name: "Show less of the passage" }))
+            .toHaveAttribute("aria-expanded", "true");
+        });
+
+        it("keeps the card to part of the viewer's height, scrolling it, so all it holds stays in reach", async () => {
+          showMarks({ renderMarkDetails: renderComment });
+          await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+          expect(screen.getByRole("group", { name: "Passage" })).toHaveStyle({ maxHeight: "60%", overflowY: "auto" });
+        });
+
+        describe("with a field to type in under the passage", () => {
+          // A passage running past its lines, so the card has a button saying whether it is open
+          beforeEach(() => {
+            vi.spyOn(HTMLSpanElement.prototype, "getClientRects").mockReturnValue({ length: 5 } as DOMRectList);
+          });
+
+          // A comment, written in a box opened by Reply and closed by Save
+          function Comment({ writing: startWriting }: { writing: boolean }) {
+            const [ writing, setWriting ] = useState(startWriting);
+            return writing
+              ? (
+                <>
+                  <textarea aria-label="Comment" />
+                  <button type="button" onClick={() => setWriting(false)}>Save</button>
+                </>
+              )
+              : <button type="button" onClick={() => setWriting(true)}>Reply</button>;
+          }
+
+          it("is open while the comment is written, all of it in reach, and closed once it is saved", async () => {
+            showMarks({ renderMarkDetails: () => <Comment writing /> });
+            await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+            expect(screen.queryByRole("button", { name: /^Show (the whole|less of the) passage$/ }))
+              .not.toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Comment" }).parentElement)
+              .not.toHaveStyle({ overflowY: "hidden" });
+
+            await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            expect(screen.getByRole("button", { name: "Show the whole passage" }))
+              .toHaveAttribute("aria-expanded", "false");
+          });
+
+          it("is left open after the comment is saved when the person had opened it", async () => {
+            showMarks({ renderMarkDetails: () => <Comment writing={false} /> });
+            await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+            await userEvent.click(screen.getByRole("button", { name: "Show the whole passage" }));
+
+            await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+            await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+            expect(screen.getByRole("button", { name: "Show less of the passage" }))
+              .toHaveAttribute("aria-expanded", "true");
+          });
+
+          it("is not opened by a checkbox, which has nothing to type in", async () => {
+            showMarks({ renderMarkDetails: () => <input type="checkbox" aria-label="Resolved" /> });
+            await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+            expect(screen.getByRole("button", { name: "Show the whole passage" }))
+              .toHaveAttribute("aria-expanded", "false");
+          });
+        });
+      });
+
       it("lets what it shows be typed in without taking the reader anywhere", async () => {
         stubLayout({ elementWidth: 1000 });
         const onSelectMark = showMarks({ renderMarkDetails, selectedMarkId: "volunteers" });
