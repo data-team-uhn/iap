@@ -39,6 +39,12 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
   };
 }
 
+// A passage's own text, a layer deeper in its mark's colour than its card, setting it apart from what the
+// caller shows under it, such as comments.
+export function passageLayer(theme: Theme, kind: MarkKind) {
+  return { bgcolor: passageTint(theme, kind, 0.25) };
+}
+
 // The error colour, in the shade that stays readable as small text in each scheme, on a passage's card or
 // beside a search
 export function failedColour(theme: Theme) {
