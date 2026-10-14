@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import {
   CATCHER_STATUS_PATH,
@@ -58,7 +58,7 @@ const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
 /** Reads one node, or rejects with a sentence a reader can act on. */
 const readNode = (fetchUtil: AuthenticatedFetch, url: string): Promise<SerializedNode> =>
   reporting(async () => {
-    const body = (await checkOk(await fetchUtil(url)).json()) as SerializedNode | null;
+    const body = await readJson<SerializedNode | null>(checkOk(await fetchUtil(url)));
     if (body === null) {
       // A body that parses to null is well-formed JSON and still not a node. SyntaxError is the
       // shape describeRequestFailure words as the response being unreadable, which is exactly what

@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 import { Box, Divider, Link, Typography } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
+
 // The registry of institutions participating in this deployment, one child node per
 // institution. It lives directly under /libs/iap (anonymous-readable) rather than under
 // /libs/iap/conf, because ConfigMetadata flattens every property below conf into one shared
@@ -51,7 +53,7 @@ export default function ParticipatingInstitutions() {
     fetch(INSTITUTIONS_URL)
       // A missing registry is the expected state of single-institution deployments
       .then(response => response.ok
-        ? (response.json() as Promise<Record<string, unknown>>)
+        ? readJson<Record<string, unknown>>(response)
         : Promise.reject(new Error(String(response.status))))
       .then(json => {
         if (typeof json.label === "string" && json.label) {

@@ -19,7 +19,7 @@
 import { useEffect, useState } from "react";
 
 import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
 
@@ -57,7 +57,7 @@ export function useSchemas(): SchemasOnOffer {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json().then(body => {
+        return readJson<unknown>(response).then(body => {
           if (typeof body !== "object" || body === null) {
             throw new SyntaxError("The list of schemas is not a node");
           }

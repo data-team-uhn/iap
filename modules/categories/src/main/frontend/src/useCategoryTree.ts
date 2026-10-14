@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthenticatedFetch, type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryModel";
 
@@ -138,7 +138,7 @@ export function useCategoryTree() {
   const reload = useCallback((): Promise<void> =>
     reporting(async () => {
       const response = checkOk(await authenticatedFetch(`${CATEGORIES_ROOT}.deep.simple.json`));
-      return parseCategoryTree(await response.json() as JcrNode);
+      return parseCategoryTree(await readJson<JcrNode>(response));
     })
       .then(nodes => {
         setTree(nodes);

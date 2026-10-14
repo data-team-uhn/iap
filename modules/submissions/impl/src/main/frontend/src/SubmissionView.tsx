@@ -36,7 +36,7 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
@@ -290,7 +290,7 @@ function SubmissionView() {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json() as Promise<JsonNode>;
+        return readJson<JsonNode>(response);
       })
       .then(json => {
         if (!cancelled) {
