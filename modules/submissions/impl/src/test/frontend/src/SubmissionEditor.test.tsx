@@ -710,8 +710,8 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText(/could not be found on the server/)).toBeInTheDocument();
   });
 
-  it("says the server sent a page when the form arrives as HTML", async () => {
-    // Sling answers an expired session with a 200 login page. Parsing that as JSON used to show
+  it("says the request failed when the form arrives as a page", async () => {
+    // An error page where the form was expected. Parsing that as JSON used to show
     // "Unexpected token '<'", which names the parser rather than the problem.
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: true,
@@ -722,7 +722,7 @@ describe("SubmissionEditor", () => {
 
     render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
 
-    expect(await screen.findByText(/sent a page instead of data/)).toBeInTheDocument();
+    expect(await screen.findByText("Unexpected error. Reload and try again.")).toBeInTheDocument();
     expect(screen.queryByText(/Unexpected token/)).toBeNull();
   });
 

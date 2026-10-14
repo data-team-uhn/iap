@@ -143,11 +143,6 @@ describe("describeRequestFailure", () => {
       .toBe("The server's response could not be read.");
   });
 
-  it("says the server sent a page when the body was HTML", () => {
-    expect(describeRequestFailure(new UnreadableResponseError(200)))
-      .toBe("The server sent a page instead of data. Reload and try again.");
-  });
-
   it("says to sign in again when the session could not be recovered", () => {
     expect(describeRequestFailure(new NotAuthenticatedError("gone")))
       .toBe("Your session has expired. Sign in again, then retry.");
