@@ -22,7 +22,7 @@ import { Box, ButtonBase, Typography } from "@mui/material";
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, passageCard, passageLayer, passageTint } from "./passageStyles";
+import { cutShort, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
   capitalize,
   describeAmong,
@@ -38,8 +38,11 @@ import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
 
-// Past this many lines, a passage is cut short unless it is the one selected.
-const MAX_LINES = 4;
+// Past this many lines, a passage and what the caller shows under it are each cut short unless it is the
+// one selected, what is under it fading out where it is cut. The focus inside what is cut shows all of it,
+// so nothing is typed out of sight.
+const MAX_LINES = 2;
+const MAX_DETAILS_LINES = 2;
 
 // The passages beside the document, in the order given, each on a card in its mark's colour, selecting
 // it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
@@ -124,11 +127,35 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
                 selected={selected}
                 onSelect={() => onSelect(mark.id)}
               />
-              {renderDetails?.(mark, selected)}
+              {renderDetails === undefined
+                ? null
+                : <MarkDetails cut={!selected}>{renderDetails(mark, selected)}</MarkDetails>}
             </Box>
           );
         })}
       </Box>
+    </Box>
+  );
+}
+
+function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(box);
+  return (
+    <Box
+      ref={box}
+      // Cut again as the focus leaves, it starts from its top, wherever the focus scrolled it to while it was cut
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          event.currentTarget.scrollTop = 0;
+        }
+      }}
+      sx={{
+        ...passageDetails(edges, cut ? MAX_DETAILS_LINES : undefined),
+        "&:focus-within": { maxHeight: "none", maskImage: "none" },
+      }}
+    >
+      {children}
     </Box>
   );
 }
