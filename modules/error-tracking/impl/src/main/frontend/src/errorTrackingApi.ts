@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
 import { childrenOfType, type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 
 // The client half of the error triage screens: counting what needs attention, reading one recorded
@@ -230,7 +231,7 @@ export async function fetchLoggedError(
   if (!response.ok) {
     throw new Error(`The recorded error could not be read (${String(response.status)})`);
   }
-  const body = (await response.json()) as SerializedNode | null;
+  const body = await readJson<SerializedNode | null>(response);
   if (body === null) {
     throw new Error("The recorded error could not be read");
   }

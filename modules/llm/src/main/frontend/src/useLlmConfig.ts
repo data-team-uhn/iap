@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { EMPTY_CATALOG, parseCatalog, type LlmCatalog } from "./llmConfigModel";
 
@@ -57,7 +57,7 @@ export function useLlmConfig() {
   const fetchCatalog = useCallback((): Promise<LlmCatalog> =>
     reporting(async () => {
       const response = checkOk(await authenticatedFetch(CONFIG_URL));
-      return parseCatalog(await response.json());
+      return parseCatalog(await readJson<unknown>(response));
     }), [authenticatedFetch]);
 
   const reload = useCallback((): Promise<void> =>
@@ -81,7 +81,7 @@ export function useLlmConfig() {
     const body = new URLSearchParams({ activeProvider: provider, activeModel: model });
     const saved = await reporting(async () => {
       const response = checkOk(await authenticatedFetch(CONFIG_URL, { method: "POST", body }));
-      return parseCatalog(await response.json());
+      return parseCatalog(await readJson<unknown>(response));
     });
     setCatalog(saved);
     setLoadError(undefined);

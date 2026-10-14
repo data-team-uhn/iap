@@ -17,6 +17,7 @@
  */
 
 import { getURLParameters, loadAsset, LazyAsset } from '@iap/frontend-commons/assetManager';
+import { readJson } from '@iap/frontend-commons/requestFailure';
 
 // An extension is the parsed JSON returned by the repository for one extension; its
 // shape depends on the extension point, so it is an open string-keyed record.
@@ -29,7 +30,7 @@ type Extension = Record<string, unknown>;
 // @return a Promise that will resolve to the extension point JSON
 const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   return fetch(extensionPoint.startsWith("/") ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
-    .then(response => response.ok ? response.json() as Promise<Extension[]> : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
+    .then(response => response.ok ? readJson<Extension[]>(response) : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
 }
 
 // Loads all the extensions for the given extension point.

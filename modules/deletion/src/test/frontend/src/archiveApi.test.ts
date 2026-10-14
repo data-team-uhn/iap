@@ -80,6 +80,13 @@ describe("fetchArchiveEntries", () => {
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, null));
     await expect(fetchArchiveEntries(doFetch)).rejects.toThrow();
   });
+
+  it("rejects a page with a message the browser can show as it stands", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => { /* the page goes to the console */ });
+    const doFetch = vi.fn().mockResolvedValue(new Response("<html>Down for maintenance</html>", { status: 200 }));
+    await expect(fetchArchiveEntries(doFetch)).rejects
+      .toThrow("The server's response could not be read. Reload and try again.");
+  });
 });
 
 describe("restoreEntry", () => {

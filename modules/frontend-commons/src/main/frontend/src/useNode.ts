@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAuthenticatedFetch, type AuthenticatedFetch } from "./reLogin";
-import { describeRequestFailure, messageOf, RequestError } from "./requestFailure";
+import { describeRequestFailure, messageOf, readJson, RequestError } from "./requestFailure";
 
 // A node as the repository serializes it
 type JcrNode = Record<string, unknown>;
@@ -31,7 +31,7 @@ export async function readNode(doFetch: AuthenticatedFetch, path: string, select
     if (!response.ok) {
       throw new RequestError(response.status);
     }
-    return await response.json() as JcrNode;
+    return await readJson<JcrNode>(response);
   } catch (error: unknown) {
     throw new Error(describeRequestFailure(error));
   }

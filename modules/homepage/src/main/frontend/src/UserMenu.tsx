@@ -33,6 +33,7 @@ import {
 } from "@mui/material";
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { readJson } from "@iap/frontend-commons/requestFailure";
 
 import PersonaSwitcher from "./PersonaSwitcher";
 
@@ -69,7 +70,7 @@ function UserMenu() {
 
   useEffect(() => {
     fetch(SESSION_INFO_URL)
-      .then(response => response.ok ? response.json() as Promise<{ userID?: string }> : Promise.reject(new Error(`Failed to load session info: ${response.status}`)))
+      .then(response => response.ok ? readJson<{ userID?: string }>(response) : Promise.reject(new Error(`Failed to load session info: ${response.status}`)))
       .then(json => setUserName(json.userID ?? ""))
       .catch((err: unknown) => console.error("Something went wrong identifying the current user", err));
   }, []);
@@ -79,7 +80,7 @@ function UserMenu() {
       return;
     }
     fetch(userInfoUrl(userName))
-      .then(response => response.ok ? response.json() as Promise<Record<string, unknown>> : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
+      .then(response => response.ok ? readJson<Record<string, unknown>>(response) : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
       .then(json => setFullName(fullNameOf(json)))
       // The full name is a nice-to-have; without it the menu just shows the user name
       .catch(() => setFullName(""));

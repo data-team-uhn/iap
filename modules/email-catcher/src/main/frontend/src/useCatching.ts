@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
+
 import { CATCHING_CHANGED_EVENT, CATCHING_PATH } from "./caughtMailModel";
 
 // Check whether mail is being caught.
@@ -29,7 +31,7 @@ export default function useCatching(): boolean {
 
   const ask = useCallback((applies: () => boolean) => {
     fetch(CATCHING_PATH)
-      .then(response => (response.ok ? response.json() : null))
+      .then(response => (response.ok ? readJson<{ catching?: unknown }>(response) : null))
       .then((body: { catching?: unknown } | null) => {
         if (applies()) {
           setCatching(body?.catching === true);

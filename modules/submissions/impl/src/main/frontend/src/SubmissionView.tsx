@@ -38,7 +38,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { formatDate } from "@iap/frontend-commons/dates";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
@@ -377,7 +377,7 @@ function SubmissionView() {
       if (!response.ok) {
         throw new RequestError(response.status);
       }
-      return response.json() as Promise<SerializedNode>;
+      return readJson<SerializedNode>(response);
     })
     .then(fresh => {
       const reason = whyNotReady(fresh);
@@ -395,7 +395,7 @@ function SubmissionView() {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json() as Promise<SerializedNode>;
+        return readJson<SerializedNode>(response);
       })
       .then(json => {
         if (!cancelled) {
