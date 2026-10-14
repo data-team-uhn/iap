@@ -31,6 +31,9 @@ interface PassageComment {
   draft: boolean;
 }
 
+// Each passage marked is one comment's, so the viewer counts and steps through them as comments.
+const COMMENTS = { one: "comment", many: "comments" };
+
 // A dashboard widget for trying out comments on passages of a PDF by hand. Select text in the document,
 // press Comment, and write a comment in the box under the passage. The comments last until the page is
 // reloaded. Each keeps its anchor encoded as text, and its mark is decoded from that text.
@@ -150,6 +153,7 @@ function PdfAnnotationsTestWidget() {
         <PdfViewer
           url={opened}
           marks={marks}
+          markName={COMMENTS}
           selectedMarkId={selectedId}
           onSelectMark={setSelectedId}
           onAnnotate={annotate}
