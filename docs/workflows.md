@@ -1177,8 +1177,9 @@ disagree.
   homepage.
 - **Every action the engine records stays incomplete.** No snapshot is taken after the
   commit, so `complete` is never set; see the status note in [history](history.md).
-- **Refused attempts to act for someone are not logged.** A refusal changes nothing, so it
-  is not history, and nothing else records it yet.
+- **A refused attempt to act for someone is only a log line.** A refusal changes nothing, so
+  it is not history; the servlet logs it at WARN instead, naming the sender, the event, the
+  target and the person named, but not which rule refused it.
 - **Acting for someone cannot be previewed.** `getAvailableEvents` and
   `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
   what a delegate could do for Alice.
