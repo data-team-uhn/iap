@@ -26,6 +26,7 @@ import QuestionText, { getQuestionTextId } from "./QuestionText";
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // Typed-in text, one value per line where several are allowed.
+// Always a multi-line field, which grows with what is typed, so a long answer is never cut off.
 function TextAnswer({ question, values, disabled, onChange, onAnswered, aside }: AnswerComponentProps) {
   const many = isMultiple(question);
   const helperText = many
@@ -39,8 +40,8 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered, aside }:
         <TextField
           required={isRequired(question)}
           disabled={disabled}
-          multiline={many}
-          minRows={many ? 2 : undefined}
+          multiline
+          minRows={many ? 2 : 1}
           fullWidth
           value={many ? values.join("\n") : values[0] ?? ""}
           slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
