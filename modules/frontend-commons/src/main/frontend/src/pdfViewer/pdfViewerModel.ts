@@ -57,6 +57,25 @@ export function getFileName(url: string): string {
   }
 }
 
+// What the marks are called where the viewer counts them and steps through them, as one and as several, in
+// lower case, as they go in the middle of a sentence too.
+export interface MarkName {
+  one: string;
+  many: string;
+}
+
+export const PASSAGES: MarkName = { one: "passage", many: "passages" };
+
+// A word as it starts a sentence or a label.
+export function capitalize(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+// A mark by its place among several, as in "Passage 3 of 12".
+export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {
+  return `${capitalize(name.one)} ${index} of ${count}`;
+}
+
 // The pages a passage is on, from the one it starts on to the one it ends on, if another.
 export function describePages(page: number, toPage?: number): string {
   if (toPage === undefined) {
@@ -96,13 +115,14 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
   }
 }
 
-// The passage's note as a sentence for a screen reader, which announces it apart from the passage.
-// Among several passages, it names the passage by its position. Empty when the document could not be
-// opened, since the error box says so.
+// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage,
+// naming the passage by its place among several when there are, by what the marks are called. Nothing when
+// the open failed, since the error box says it.
 export function getPassageStatus(
   { openError, page }: ViewerStatus,
   place: MarkPlace,
   among?: { index: number; count: number },
+  name = PASSAGES,
 ): string {
   if (openError !== undefined) {
     return "";
@@ -110,10 +130,12 @@ export function getPassageStatus(
   if (page === undefined) {
     return "Opening the document…";
   }
-  const passage = among === undefined ? "The passage" : `Passage ${among.index} of ${among.count}`;
+  const passage = among === undefined ? `The ${name.one}` : describeAmong(name, among);
   switch (place.status) {
     case "searching":
-      return among === undefined ? "Looking for the passage…" : `Looking for passage ${among.index} of ${among.count}…`;
+      return among === undefined
+        ? `Looking for the ${name.one}…`
+        : `Looking for ${name.one} ${among.index} of ${among.count}…`;
     case "tooShort":
       return `${passage} is too short to look for.`;
     case "notFound":
