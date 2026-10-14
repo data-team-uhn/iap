@@ -18,7 +18,9 @@ updates:
           - "minor"
           - "patch"
   - package-ecosystem: "npm"
-    directory: "/aggregated-frontend/src/main/frontend"
+    directories:
+      - "/aggregated-frontend/src/main/frontend"
+      - "/integration-tests/src/test/e2e"
     schedule:
       interval: "weekly"
     groups:
