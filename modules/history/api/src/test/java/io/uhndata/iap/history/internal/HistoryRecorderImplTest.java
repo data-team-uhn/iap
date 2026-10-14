@@ -115,9 +115,9 @@ class HistoryRecorderImplTest
         final Node old = this.node("oldVersion");
         final Node current = this.node("newVersion");
         final String path = this.recorder.record(this.session, RecordedAction
-            .by("admin", "activateVersion")
-            .affecting(RecordedEffect.on(old, "retired", "active"))
-            .affecting(RecordedEffect.on(current, "activated", "active"))
+            .by("admin", "activate")
+            .affecting(RecordedEffect.on(old, "retired", "tags"))
+            .affecting(RecordedEffect.on(current, "activated", "tags"))
             .build());
         this.session.save();
 
@@ -126,7 +126,7 @@ class HistoryRecorderImplTest
         assertEquals("activated", action.getNode(current.getIdentifier()).getProperty("role").getString());
         assertEquals("/content/oldVersion",
             action.getNode(old.getIdentifier()).getProperty("subjectPath").getString());
-        assertEquals("active",
+        assertEquals("tags",
             action.getNode(old.getIdentifier()).getProperty("changes").getValues()[0].getString());
     }
 
