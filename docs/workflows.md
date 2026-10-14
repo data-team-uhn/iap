@@ -159,11 +159,6 @@ elsewhere:
   with — the values a gateway downstream then routes on. Declared because a task list has
   to know what to offer. An empty list is a statement rather than a gap — this is a task
   there is nothing to decide about, done or not done.
-- **`hostTag` on an end event** is a tag to place on the host when execution finishes
-  there, beside whatever the host already carries. It is kept for flow nodes written by
-  hand: the vocabulary offers it on no kind of node, since the `addTag` and `removeTag`
-  service tasks below move a host between states, replacing a tag rather than adding to
-  it, and do so anywhere in a process rather than only at its end.
 
 `performers` is where authorization lives, because nobody holds repository rights on the
 content a workflow manages: the engine writes as its own service user, once the

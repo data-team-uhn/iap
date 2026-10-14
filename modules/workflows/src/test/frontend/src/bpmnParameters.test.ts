@@ -36,7 +36,7 @@ import { parseWorkflowTypes } from "@iap/workflows/workflowTypes";
 
 import {
   FROM_STATES,
-  HOST_TAG,
+  COLOUR,
   RETIRE_ACTIVE_VERSIONS,
   SERVICE_TASK,
   SET_STATE,
@@ -65,7 +65,7 @@ const diagram = (prefix: string) => `<?xml version="1.0" encoding="UTF-8"?>
     <bpmn:startEvent id="requested" ${prefix}:performers="iap-administrators, reviewers">
       <bpmn:messageEventDefinition id="activateRequested" />
     </bpmn:startEvent>
-    <bpmn:serviceTask id="promote" name="Make this the active version" ${prefix}:hostTag="promoted">
+    <bpmn:serviceTask id="promote" name="Make this the active version" ${prefix}:colour="promoted">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition" />
         <${prefix}:setState toState="ACTIVE">
@@ -129,7 +129,7 @@ describe("reading a parameter", () => {
     const { definitions, task, start } = await load(prefix);
 
     // An attribute of the node itself, and the same as a comma-separated list
-    expect(readValues(task, definitions, SET_STATE, HOST_TAG)).toEqual([ "promoted" ]);
+    expect(readValues(task, definitions, SET_STATE, COLOUR)).toEqual([ "promoted" ]);
     expect(readValues(start, definitions, START_EVENT, PERFORMERS))
       .toEqual([ "iap-administrators", "reviewers" ]);
     // An unprefixed attribute of the entry's own element, and its repeated children
@@ -142,21 +142,21 @@ describe("reading a parameter", () => {
 
     expect(readValues(start, definitions, SET_STATE, TO_STATE)).toEqual([]);
     expect(readValues(start, definitions, SET_STATE, FROM_STATES)).toEqual([]);
-    expect(readValues(start, definitions, START_EVENT, HOST_TAG)).toEqual([]);
+    expect(readValues(start, definitions, START_EVENT, COLOUR)).toEqual([]);
     expect(readValues(task, definitions, SET_STATE, parameter("unwritten"))).toEqual([]);
   });
 
   it("reads an entry with no element of its own from the node's attributes", async () => {
     const { definitions, task } = await load();
 
-    expect(readValues(task, definitions, SERVICE_TASK, parameter("hostTag"))).toEqual([ "promoted" ]);
+    expect(readValues(task, definitions, SERVICE_TASK, parameter("colour"))).toEqual([ "promoted" ]);
   });
 
   it("reads a value the diagram surrounded with space as that value", async () => {
-    const spaced = diagram(DEFAULT_IAP_PREFIX).replace('iap:hostTag="promoted"', 'iap:hostTag="  promoted  "');
+    const spaced = diagram(DEFAULT_IAP_PREFIX).replace('iap:colour="promoted"', 'iap:colour="  promoted  "');
     const { definitions, task } = await load(DEFAULT_IAP_PREFIX, spaced);
 
-    expect(readValues(task, definitions, SET_STATE, HOST_TAG)).toEqual([ "promoted" ]);
+    expect(readValues(task, definitions, SET_STATE, COLOUR)).toEqual([ "promoted" ]);
   });
 
   it("reads the entry's element's values surrounded with space as those values", async () => {
@@ -220,36 +220,37 @@ describe("editing an attribute-located parameter", () => {
   it("removes the attribute when the value is cleared", async () => {
     const { moddle, definitions, task, serialize } = await load();
 
-    apply(parameterEdit(moddle, task, definitions, SET_STATE, HOST_TAG, []));
+    apply(parameterEdit(moddle, task, definitions, SET_STATE, COLOUR, []));
 
-    expect(await serialize()).not.toContain("iap:hostTag");
-    expect(readValues(task, definitions, SET_STATE, HOST_TAG)).toEqual([]);
+    expect(await serialize()).not.toContain("iap:colour");
+    expect(readValues(task, definitions, SET_STATE, COLOUR)).toEqual([]);
   });
 
   it("ignores a value that is only blank", async () => {
     const { moddle, definitions, task, serialize } = await load();
 
-    apply(parameterEdit(moddle, task, definitions, SET_STATE, HOST_TAG, [ "" ]));
-    expect(await serialize()).not.toContain("iap:hostTag");
+    apply(parameterEdit(moddle, task, definitions, SET_STATE, COLOUR, [ "" ]));
+    expect(await serialize()).not.toContain("iap:colour");
 
     // Nothing but space too: the parser would drop it, so it is not written for the parser to drop
-    apply(parameterEdit(moddle, task, definitions, SET_STATE, HOST_TAG, [ "  " ]));
-    expect(await serialize()).not.toContain("iap:hostTag");
+    apply(parameterEdit(moddle, task, definitions, SET_STATE, COLOUR, [ "  " ]));
+    expect(await serialize()).not.toContain("iap:colour");
   });
 
   it("reads and writes under a binding the process makes rather than the document", async () => {
     // Any ancestor may bind the namespace, and the element is read and written under the binding in
     // force where it sits
     const nested = PLAIN.replace('<bpmn:process id="plain"', `<bpmn:process id="plain" xmlns:q="${IAP_NS}"`)
-      .replace('name="Do the work" />', 'name="Do the work" q:hostTag="done" />');
+      .replace('name="Do the work" />', 'name="Do the work" q:colour="done" />');
     const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, nested);
 
-    expect(readValues(task, definitions, SET_STATE, HOST_TAG)).toEqual([ "done" ]);
-    apply(parameterEdit(moddle, task, definitions, SET_STATE, HOST_TAG, [ "finished" ]));
+    expect(readValues(task, definitions, SET_STATE, COLOUR)).toEqual([ "done" ]);
+    apply(parameterEdit(moddle, task, definitions, SET_STATE, COLOUR, [ "finished" ]));
+    apply(typeEdit(moddle, task, definitions, undefined, SET_STATE));
     apply(parameterEdit(moddle, task, definitions, SET_STATE, TO_STATE, [ "ACTIVE" ]));
 
     const written = await serialize();
-    expect(written).toContain('q:hostTag="finished"');
+    expect(written).toContain('q:colour="finished"');
     expect(written).toContain('<q:setState toState="ACTIVE"');
     expect(written).not.toContain("xmlns:iap");
   });
@@ -284,7 +285,7 @@ describe("editing an element-located parameter", () => {
 
     const written = await serialize();
     expect(written).toContain('toState="ACTIVE"');
-    expect(written).toContain('iap:hostTag="promoted"');
+    expect(written).toContain('iap:colour="promoted"');
   });
 
   it("removes the attribute and the children when the values are cleared", async () => {
@@ -336,7 +337,7 @@ describe("changing what a node means", () => {
     // without the prefix, which is its doing and happens to every save.
     expect(written).toContain("<sv:node");
     // And an attribute says something about the node rather than about the entry, so it stays
-    expect(written).toContain('iap:hostTag="promoted"');
+    expect(written).toContain('iap:colour="promoted"');
   });
 
   it("keeps what the entry taken over already holds when the node carries its element", async () => {
@@ -358,14 +359,14 @@ describe("changing what a node means", () => {
     // names the handler, and be reported as an attribute nothing reads
     const { moddle, definitions, task, serialize } = await load(DEFAULT_IAP_PREFIX, PLAIN);
     task.set?.("iap:handler", "setState");
-    task.set?.("iap:hostTag", "done");
+    task.set?.("iap:colour", "done");
     definitions.set?.("xmlns:iap", IAP_NS);
 
     apply(typeEdit(moddle, task, definitions, SERVICE_TASK, SET_STATE));
 
     const written = await serialize();
     expect(written).not.toContain("iap:handler");
-    expect(written).toContain('iap:hostTag="done"');
+    expect(written).toContain('iap:colour="done"');
   });
 
   it("changes nothing when the entry chosen is the one the node already means", async () => {

@@ -120,11 +120,11 @@ describe("ElementProperties", () => {
     const { viewer } = createViewer();
     vi.spyOn(viewer, "getDefinitions").mockReturnValue(undefined);
 
-    renderProperties(task("Promote", { $attrs: { "iap:hostTag": "promoted" } }), viewer,
+    renderProperties(task("Promote", { $attrs: { "iap:colour": "promoted" } }), viewer,
       { types: VOCABULARY });
 
     expect(screen.getByText("Identifier: promote")).toBeInTheDocument();
-    expect(field("Host tag")).toHaveValue("promoted");
+    expect(field("Colour")).toHaveValue("promoted");
   });
 
   it("shows the name as text, with nothing to type into, when read-only", () => {
@@ -204,12 +204,12 @@ describe("ElementProperties", () => {
     const { viewer } = createViewer();
 
     renderProperties(task("Promote", {
-      "iap:hostTag": undefined,
-      "$attrs": { "iap:hostTag": "promoted" },
+      "iap:colour": undefined,
+      "$attrs": { "iap:colour": "promoted" },
       ...carrying(setState("ACTIVE", [ "DRAFT", "TRIAL" ])),
     }), viewer, { types: VOCABULARY });
 
-    expect(field("Host tag")).toHaveValue("promoted");
+    expect(field("Colour")).toHaveValue("promoted");
     expect(field("To state")).toHaveValue("ACTIVE");
     expect(screen.getByText("DRAFT")).toBeInTheDocument();
     expect(screen.getByText("TRIAL")).toBeInTheDocument();
@@ -274,14 +274,14 @@ describe("ElementProperties", () => {
     const element = task("Promote", carrying(setState("ACTIVE", [])));
     renderProperties(element, viewer, { types: VOCABULARY });
 
-    await user.type(field("Host tag"), "promoted");
+    await user.type(field("Colour"), "promoted");
     expect(updateModdleProperties).not.toHaveBeenCalled();
-    expect(field("Host tag")).toHaveValue("promoted");
+    expect(field("Colour")).toHaveValue("promoted");
     await user.keyboard("{enter}");
 
     expect(updateModdleProperties).toHaveBeenCalledTimes(1);
     expect(updateModdleProperties)
-      .toHaveBeenCalledWith(element, element.businessObject, { "iap:hostTag": "promoted" });
+      .toHaveBeenCalledWith(element, element.businessObject, { "iap:colour": "promoted" });
   });
 
   it("says something is being typed before any of it is written", async () => {
@@ -315,12 +315,12 @@ describe("ElementProperties", () => {
     const { viewer } = createViewer();
 
     renderProperties(task("Promote", {
-      "$attrs": { "iap:hostTag": "promoted" },
+      "$attrs": { "iap:colour": "promoted" },
       ...carrying(setState("ACTIVE", [ "DRAFT", "TRIAL" ])),
     }), viewer, { types: VOCABULARY, readOnly: true });
 
     expect(screen.getByText("Type: Set state")).toBeInTheDocument();
-    expect(screen.getByText("Host tag: promoted")).toBeInTheDocument();
+    expect(screen.getByText("Colour: promoted")).toBeInTheDocument();
     expect(screen.getByText("To state: ACTIVE")).toBeInTheDocument();
     expect(screen.getByText("From states: DRAFT, TRIAL")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
@@ -330,18 +330,18 @@ describe("ElementProperties", () => {
     const { viewer } = createViewer();
     const extension = setState("ACTIVE", [ "DRAFT" ]);
     const element = task("Promote", {
-      "$attrs": { "iap:hostTag": "promoted" },
+      "$attrs": { "iap:colour": "promoted" },
       ...carrying(extension),
     });
     const { rerender } = renderProperties(element, viewer, { types: VOCABULARY, revision: 1 });
 
     // An undo, or an edit made elsewhere
     extension.toState = "TRIAL";
-    (element.businessObject as ModdleElement).$attrs = { "iap:hostTag": "retired" };
+    (element.businessObject as ModdleElement).$attrs = { "iap:colour": "retired" };
     rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} revision={2} />);
 
     expect(field("To state")).toHaveValue("TRIAL");
-    expect(field("Host tag")).toHaveValue("retired");
+    expect(field("Colour")).toHaveValue("retired");
   });
 
   it("keeps a space being typed when the canvas reports the panel's own edit", async () => {
@@ -357,14 +357,14 @@ describe("ElementProperties", () => {
     const reportChange = (revision: number) =>
       rerender(<ElementProperties element={element} viewer={viewer} types={VOCABULARY} revision={revision} />);
 
-    await user.type(field("Host tag"), "in {enter}");
+    await user.type(field("Colour"), "in {enter}");
     reportChange(2);
-    await user.type(field("Host tag"), "review{enter}");
+    await user.type(field("Colour"), "review{enter}");
     reportChange(3);
 
-    expect(field("Host tag")).toHaveValue("in review");
+    expect(field("Colour")).toHaveValue("in review");
     expect(updateModdleProperties).toHaveBeenLastCalledWith(element, element.businessObject,
-      { "iap:hostTag": "in review" });
+      { "iap:colour": "in review" });
   });
 
   it("fills in the fields when the vocabulary arrives after the element was selected", () => {

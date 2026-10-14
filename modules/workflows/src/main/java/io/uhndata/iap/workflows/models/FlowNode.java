@@ -62,9 +62,6 @@ public abstract class FlowNode extends EntityPart
     @ValueMapValue
     private String[] performers;
 
-    @ValueMapValue
-    private String hostTag;
-
     /**
      * The stable BPMN identifier of this node, e.g. {@code task_1}. This, not the node name, is how the rest of the
      * graph refers to it: the node name is only whatever escaping the identifier needed to become a JCR name.
@@ -116,20 +113,6 @@ public abstract class FlowNode extends EntityPart
     public List<String> getPerformers()
     {
         return this.performers == null ? List.of() : List.of(this.performers);
-    }
-
-    /**
-     * The tag to place on the host when execution reaches this node, e.g. {@code approved} on the end event an
-     * approval leads to. Only an end event honours it, placing it beside whatever the host already carries. It is
-     * kept for flow nodes written by hand, since the vocabulary offers it on no kind of node. A diagram moves its
-     * host between states with the {@code addTag} and {@code removeTag} service tasks instead.
-     *
-     * @return a tag to place on the host, or {@code null} if arriving here says nothing about it
-     */
-    @Nullable
-    public String getHostTag()
-    {
-        return this.hostTag;
     }
 
     /**

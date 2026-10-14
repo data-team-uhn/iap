@@ -81,7 +81,7 @@ class ParameterTranslationTest
 
     private static final String FROM_STATES = "fromStates";
 
-    private static final String HOST_TAG = "hostTag";
+    private static final String COLOUR = "colour";
 
     private static final String HANDLER = "handler";
 
@@ -129,9 +129,9 @@ class ParameterTranslationTest
         // Whitespace around an attribute value is the diagram's formatting, not part of the state a handler is
         // then asked to move a version to
         final NodeBuilder root = withSetState();
-        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), HOST_TAG, TEXT, 1);
+        VocabularyFixture.attributeParameter(root.child(WORKFLOW_TYPES).child("SetState"), COLOUR, TEXT, 1);
 
-        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:hostTag=\" approved \">\n"
+        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:colour=\" green \">\n"
             + "      <bpmn:extensionElements>\n"
             + "        <iap:setState toState=\" ACTIVE\">"
             + "<iap:fromStates>DRAFT</iap:fromStates></iap:setState>\n"
@@ -139,7 +139,7 @@ class ParameterTranslationTest
             + "    </bpmn:serviceTask>\n");
 
         assertEquals("ACTIVE", after.getChildNode(TASK).getString(TO_STATE));
-        assertEquals("approved", after.getChildNode(TASK).getString(HOST_TAG));
+        assertEquals("green", after.getChildNode(TASK).getString(COLOUR));
     }
 
     @Test
@@ -331,15 +331,15 @@ class ParameterTranslationTest
     {
         // A declaration without the properties its node type autocreates, as stored under another node type
         final NodeBuilder root = withGenericServiceTask();
-        root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("hostTag")
+        root.child(WORKFLOW_TYPES).child(GENERIC_SERVICE_TASK).child("colour")
             .setProperty(PRIMARY_TYPE, PARAMETER_NODETYPE, Type.NAME)
             .setProperty(XML_LOCATION, "attribute");
 
-        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:hostTag=\"a, b\"/>\n");
+        final NodeState after = parse(root, "    <bpmn:serviceTask id=\"" + TASK + "\" iap:colour=\"a, b\"/>\n");
 
-        final PropertyState hostTag = after.getChildNode(TASK).getProperty("hostTag");
-        assertFalse(hostTag.isArray());
-        assertEquals("a, b", hostTag.getValue(Type.STRING));
+        final PropertyState colour = after.getChildNode(TASK).getProperty("colour");
+        assertFalse(colour.isArray());
+        assertEquals("a, b", colour.getValue(Type.STRING));
     }
 
     @Test

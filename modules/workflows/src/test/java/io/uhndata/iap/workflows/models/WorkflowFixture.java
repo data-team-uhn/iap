@@ -186,8 +186,7 @@ public final class WorkflowFixture
 
     /**
      * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
-     * installed. The engine places a host's lifecycle tag when a workflow finishes, so without this every run
-     * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
+     * installed. Without it every run that reaches an {@code addTag} task fails on the absent tags service.
      *
      * <p>Records into the resource's own {@code tags} property, which is where the service writes for real, so
      * a test can read back what a workflow placed.</p>
@@ -210,8 +209,8 @@ public final class WorkflowFixture
 
     /**
      * Teaches a mocked {@code Taggable} to place and report tags on the resource's own property. Only placing
-     * with system tags allowed is stubbed, since that is how the engine places a lifecycle tag, and an
-     * engine asking without it would place nothing here, as it would fail for real on a system tag.
+     * with system tags allowed is stubbed, since that is how a tag task places a lifecycle tag. A handler
+     * asking without it places nothing here, as it would fail for real on a system tag.
      *
      * @param taggable the mock to stub
      * @param resource the resource it stands for

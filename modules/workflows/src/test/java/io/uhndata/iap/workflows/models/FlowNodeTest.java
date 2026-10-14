@@ -206,23 +206,6 @@ class FlowNodeTest
     }
 
     @Test
-    void exposesWhatReachingANodeMeansToTheHost()
-    {
-        final Resource plain = this.context.create().resource(VERSION_PATH + "/end_p", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_p"));
-        final Resource meaningful = this.context.create().resource(VERSION_PATH + "/end_m", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_m", "hostTag", "approved"));
-        // Not only end events: a task carries the state its host is in while it waits, which is what lets a
-        // process move its host between states without finishing
-        final Resource waiting = this.context.create().resource(VERSION_PATH + "/task_w", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_w", "hostTag", "in-review"));
-
-        assertNull(plain.adaptTo(FlowNode.class).getHostTag());
-        assertEquals("approved", meaningful.adaptTo(FlowNode.class).getHostTag());
-        assertEquals("in-review", waiting.adaptTo(FlowNode.class).getHostTag());
-    }
-
-    @Test
     void exposesTheDecisionsAUserTaskOffers()
     {
         final Resource plain = this.context.create().resource(VERSION_PATH + "/task_n", Map.of(

@@ -49,27 +49,27 @@ export const type = (name: string, overrides: Partial<FlowNodeType> = {}): FlowN
 });
 
 // The state-changing step's entry, and the entries a service task carrying it could otherwise mean.
-export const HOST_TAG = parameter("hostTag", { label: "Host tag", xmlLocation: "attribute" });
+export const COLOUR = parameter("colour", { label: "Colour", xmlLocation: "attribute" });
 export const TO_STATE = parameter("toState", { label: "To state", minValues: 1 });
 export const FROM_STATES = parameter("fromStates", { label: "From states", minValues: 1, maxValues: 0 });
 
 export const SET_STATE = type("SetState", {
   label: "Set state",
   xmlExtensionElement: "setState",
-  parameters: [ HOST_TAG, TO_STATE, FROM_STATES ],
+  parameters: [ COLOUR, TO_STATE, FROM_STATES ],
 });
 
 export const RETIRE_ACTIVE_VERSIONS = type("RetireActiveVersions", {
   label: "Retire active versions",
   xmlExtensionElement: "retireActiveVersions",
-  parameters: [ HOST_TAG ],
+  parameters: [ COLOUR ],
 });
 
 // The generic fallback entry: no element of its own, so everything it carries is an attribute.
 export const SERVICE_TASK = type("ServiceTask", {
   label: "Service task",
   priority: 0,
-  parameters: [ HOST_TAG, parameter("handler", { label: "Handler" }) ],
+  parameters: [ COLOUR, parameter("handler", { label: "Handler" }) ],
 });
 
 // An element as moddle hands it over, written as `prefix:name` in the namespace given. A package is
