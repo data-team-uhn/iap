@@ -296,7 +296,8 @@ What the step does:
 1. Collects the "open" classifications. It skips one whose condition does not hold, one
    with no question, and one whose question already has an answer (same rule as the
    intake below: an empty field the form saved does not count). A second upload does not
-   pay again for a decision already made or confirmed.
+   pay again for a decision already made or confirmed, and a newer version of the
+   document does not change it either.
 2. Groups them by `document`. For each document:
    - No upload: skipped.
    - Parse `failed`: `extractionStatus=failed` with the parse error, and the step stops.
@@ -349,11 +350,12 @@ What the step does:
    with the reason.
 2. **Which questions.** Questions of the named requirements that apply (conditions
    resolved), have an `extractionPrompt`, and have **no answer yet**. A question that
-   holds a value, or that the model already suggested an answer for, is never asked
-   again: reading again fills gaps, it never overwrites. An empty answer the form saved
-   (a field somebody clicked through) is a gap; a suggestion the submitter cleared is
-   not. Questions are keyed by their path inside the schema version, so two sections may
-   both have a `title`.
+   holds a value, or that the model already suggested an answer for, is not asked again:
+   reading again fills gaps. An empty answer the form saved (a field somebody clicked
+   through) is a gap; a suggestion the submitter cleared is not. The first reading of a
+   newer version asks every question, answered or not (see "A newer version").
+   Questions are keyed by their path inside the schema version, so two sections may both
+   have a `title`.
 3. **Nothing to ask.** If every question already has an answer: `done`. If the whole
    schema asks nothing: `done`, "The schema asks nothing of the document". If a named
    requirement asks nothing (its condition did not hold): no status change.
@@ -513,7 +515,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | A quote may not join two documents sent together | `isAcrossParts` | Those words were never next to each other |
 | Confidence drops when quotes fail | `getEvidenceFactor` | See below |
 | Confidence is held to 0–1 | `ModelReplies.readConfidence` | A number outside 0–1 is clamped. A missing value or a non-number reads as 0. |
-| A question that already has an answer is not overwritten | `ExtractionFields.getAnswered` | Reading again fills gaps only. An answer counts when it holds a value or has an extraction under it, so a suggestion the submitter cleared stays cleared. An empty answer with no extraction is the form saving a field somebody clicked through, and is filled. |
+| A question that already has an answer is not overwritten | `ExtractionFields.getAnswered` | Reading again fills gaps only. An answer counts when it holds a value or has an extraction under it, so a suggestion the submitter cleared stays cleared. An empty answer with no extraction is the form saving a field somebody clicked through, and is filled. The one exception is the first reading of a newer version (see "A newer version"). |
 
 How a quote is matched (`QuoteVerifier`): both texts are lower-cased, page markers
 removed, whitespace collapsed. An exact match wins. Otherwise, for quotes longer than 24
@@ -564,6 +566,7 @@ sub:Submission
         ├── confidence      = after the evidence adjustment
         ├── reasoning
         ├── sources         → REFERENCE to every sub:DocumentVersion read
+        ├── replacedValue   = what the answer held before (only from a newer version)
         └── <uuid> (sub:Evidence), one per kept quote
             ├── quote, header, page
             └── source → REFERENCE to the version it came from
@@ -588,6 +591,33 @@ settled. When the form already saved an empty answer for the question, that node
 filled rather than a second one created; if its extraction cannot be written, its value
 is put back as it was. Each field is written on its own: one that fails to write (for
 example its source file vanished) is logged and skipped, and the others are still saved.
+
+### A newer version
+
+A submitter never deletes a document. A new upload for the same requirement adds a
+`sub:DocumentVersion`, and every older version stays.
+
+The first reading of a newer version asks every question of the step, answered or not.
+`ExtractionFields.isNewRevision` says when that is: a file the step reads is not its
+document's first version, and no answer to the step's questions cites it yet. For each
+answer, N is what the model read now, C the answer's value, and P the last suggestion
+(`Answer.getSuggestedValues`):
+
+| Case | What happens |
+| --- | --- |
+| The question has no answer yet | Written as usual |
+| N equals C, or N equals P | Nothing changes, and no extraction is added |
+| N differs from both | `value` becomes N. The new extraction keeps C in `replacedValue`, unless C was empty. |
+| The model found nothing | Nothing changes |
+
+This holds whether the submitter typed the answer, confirmed it, or left the suggestion
+as it was. The gate (step 7) is left out: a classification already answered is never
+asked again. Read again on the same version only fills gaps, since the step's answers
+now cite it.
+
+`Answer.getSurestExtraction` passes over a run when another run of the same answer read
+a newer version of one of its documents. So the form shows what the newest file said,
+and a version nobody has read yet changes nothing.
 
 ## What the submitter can do
 
@@ -657,7 +687,8 @@ Refused with a 409 while `extractionStatus` is `running` ("This request is alrea
 read"). Otherwise it sets `running`, removes the claim, and queues the same job a parse
 queues (step 5), with the job property `readAgain=true`. The job is queued before this
 walk commits, so that property tells it to wait until it sees `running`. Questions
-already answered are not asked again.
+already answered are not asked again, unless the reading is the first one of a newer
+version.
 
 ### Retry a failed parse
 
@@ -669,7 +700,7 @@ The `parseDocuments` step. Only uploads with no `parseStatus` or with
 Payload: `question` (the path inside the schema version, as the save endpoint uses), and
 either or both of `confirmed` and `evidenceRejected` (`true`/`false`, as booleans or
 strings). It finds the run the form showed, `Answer.getSurestExtraction()` (the highest
-confidence; on a tie, the earliest), and:
+confidence among runs not passed over for a newer version; on a tie, the earliest), and:
 
 - `confirmed=true`: sets `reviewed=true` and `confidence=1.0`. The person vouched for
   it.

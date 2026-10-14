@@ -24,6 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Value;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -63,6 +68,8 @@ class IntakeAnswersHandlerTest
     private static final String AIMS = "study/aims";
 
     private static final String TITLE = "study/title";
+
+    private static final String VALUE = "value";
 
     /** A prompt file only the test classpath carries, so a step naming two prompts has two to name. */
     private static final String REFERENCE_PROMPT = "test_reference.md";
@@ -319,7 +326,7 @@ class IntakeAnswersHandlerTest
     {
         final Resource gate = this.context.create().resource(this.submission.getPath() + "/a1",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
-                "value", new String[] { "proposal" }));
+                VALUE, new String[] { "proposal" }));
         SubmissionTree.reference(gate, "question", this.aims);
         stubModelFinds(new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
 
@@ -351,7 +358,7 @@ class IntakeAnswersHandlerTest
         final Resource answer = getAnswers().get(0);
         assertEquals(1, getAnswers().size());
         assertEquals(SubmissionTree.getIdentifier(this.aims), answer.getValueMap().get("question", String.class));
-        assertArrayEquals(new String[] { "To reduce readmissions" }, answer.getValueMap().get("value", String[].class));
+        assertArrayEquals(new String[] { "To reduce readmissions" }, answer.getValueMap().get(VALUE, String[].class));
         final Resource extraction = getOnlyChild(answer);
         assertEquals("sub:Extraction", extraction.getValueMap().get("jcr:primaryType", String.class));
         assertEquals("To reduce readmissions", extraction.getValueMap().get("extractedAnswer", String.class));
@@ -396,7 +403,7 @@ class IntakeAnswersHandlerTest
         this.handler.execute(createTask());
 
         assertArrayEquals(new String[] { "Sunnybrook", "St. Michael's", "SickKids" },
-            getAnswers().get(0).getValueMap().get("value", String[].class));
+            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
         assertEquals("Sunnybrook, St. Michael's , SickKids",
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class),
             "the model's answer is kept as it came");
@@ -411,7 +418,7 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { " , " }, getAnswers().get(0).getValueMap().get("value", String[].class));
+        assertArrayEquals(new String[] { " , " }, getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
     @Test
@@ -430,7 +437,7 @@ class IntakeAnswersHandlerTest
     {
         final Resource theirs = this.context.create().resource(this.submission.getPath() + "/a1",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
-                "value", new String[] { "What the person said" }));
+                VALUE, new String[] { "What the person said" }));
         SubmissionTree.reference(theirs, "question", this.aims);
         stubModelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
 
@@ -438,7 +445,7 @@ class IntakeAnswersHandlerTest
 
         assertEquals(1, getAnswers().size());
         assertArrayEquals(new String[] { "What the person said" },
-            getAnswers().get(0).getValueMap().get("value", String[].class));
+            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
     // The form saves a field when it loses focus, so an empty answer is often just a field somebody clicked through
@@ -446,7 +453,7 @@ class IntakeAnswersHandlerTest
     void fillsAFieldTheFormSavedEmpty() throws Exception
     {
         final Resource empty = this.context.create().resource(this.submission.getPath() + "/a1",
-            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value", new String[] { "" }));
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", VALUE, new String[] { "" }));
         SubmissionTree.reference(empty, "question", this.aims);
         stubModelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
 
@@ -454,7 +461,7 @@ class IntakeAnswersHandlerTest
 
         assertEquals(1, getAnswers().size(), "the empty answer is filled, not joined by a second one");
         assertArrayEquals(new String[] { "What the model read" },
-            getAnswers().get(0).getValueMap().get("value", String[].class));
+            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
         assertEquals("What the model read",
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
@@ -464,7 +471,7 @@ class IntakeAnswersHandlerTest
     void leavesASuggestionTheSubmitterClearedEmpty() throws Exception
     {
         final Resource cleared = this.context.create().resource(this.submission.getPath() + "/a1",
-            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value", new String[] { "" }));
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", VALUE, new String[] { "" }));
         SubmissionTree.reference(cleared, "question", this.aims);
         this.context.create().resource(cleared.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
             "sling:resourceType", "sub/Extraction", "extractedAnswer", "What the model read before"));
@@ -473,7 +480,7 @@ class IntakeAnswersHandlerTest
         this.handler.execute(createTask());
 
         assertEquals(1, getAnswers().size());
-        assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get("value", String[].class));
+        assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
     // Reading again fills the gaps, so a question already answered is not paid for a second time
@@ -482,11 +489,11 @@ class IntakeAnswersHandlerTest
     {
         final Resource theirs = this.context.create().resource(this.submission.getPath() + "/a1",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
-                "value", new String[] { "What the person said" }));
+                VALUE, new String[] { "What the person said" }));
         SubmissionTree.reference(theirs, "question", this.aims);
         final Resource title = this.context.create().resource(this.submission.getPath() + "/a2",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
-                "value", new String[] { "A title" }));
+                VALUE, new String[] { "A title" }));
         SubmissionTree.reference(title, "question",
             this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"));
 
@@ -495,6 +502,154 @@ class IntakeAnswersHandlerTest
         Mockito.verifyNoInteractions(this.intake);
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
         assertNull(this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
+    }
+
+    /**
+     * An answer to the aims holding a value, read from the given version when a reading is given.
+     *
+     * @param value what the answer holds
+     * @param read what the reading suggested, or {@code null} for an answer no reading backs
+     * @param version the version the reading cites
+     * @return the answer
+     */
+    private Resource answerAims(final String value, final String read, final Resource version)
+    {
+        final Resource answer = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                VALUE, new String[] { value }));
+        SubmissionTree.reference(answer, "question", this.aims);
+        if (read != null) {
+            final Resource extraction = this.context.create().resource(answer.getPath() + "/e1",
+                Map.of("jcr:primaryType", "sub:Extraction", "sling:resourceType", "sub/Extraction",
+                    "extractedAnswer", read, "confidence", 0.9));
+            try {
+                extraction.adaptTo(Node.class).setProperty("sources",
+                    new Value[] { this.context.resourceResolver().adaptTo(Session.class).getValueFactory()
+                        .createValue(version.adaptTo(Node.class)) });
+                this.context.resourceResolver().commit();
+            } catch (final RepositoryException | PersistenceException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return answer;
+    }
+
+    private static List<Resource> getExtractions(final Resource answer)
+    {
+        final List<Resource> extractions = new ArrayList<>();
+        answer.getChildren().forEach(extractions::add);
+        return extractions;
+    }
+
+    // A newer file that says something else is worth showing, with what the answer held kept to go back to
+    @Test
+    void replacesAnAnswerWhenANewerRevisionSaysSomethingElse() throws Exception
+    {
+        final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
+        final Resource newer = this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the new file says" },
+            answer.getValueMap().get(VALUE, String[].class));
+        final List<Resource> extractions = getExtractions(answer);
+        assertEquals(2, extractions.size(), "the old reading stays");
+        final Resource latest = extractions.get(1);
+        assertArrayEquals(new String[] { "What the person said" },
+            latest.getValueMap().get("replacedValue", String[].class));
+        assertArrayEquals(new String[] { SubmissionTree.getIdentifier(newer.getParent()) },
+            latest.getValueMap().get("sources", String[].class));
+    }
+
+    // The submitter typed it with no reading behind it, and the newer file still says otherwise
+    @Test
+    void replacesATypedAnswerWhenANewerRevisionSaysSomethingElse() throws Exception
+    {
+        final Resource answer = answerAims("What the person said", null, null);
+        this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the new file says" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertArrayEquals(new String[] { "What the person said" },
+            getExtractions(answer).get(0).getValueMap().get("replacedValue", String[].class));
+    }
+
+    @Test
+    void keepsAnAnswerANewerRevisionAgreesWith() throws Exception
+    {
+        final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
+        this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the person said", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the person said" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertEquals(1, getExtractions(answer).size());
+    }
+
+    // The newer file says what the old one did, so the submitter's change still stands
+    @Test
+    void keepsAnAnswerWhenANewerRevisionRepeatsTheLastSuggestion() throws Exception
+    {
+        final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
+        this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the model read", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the person said" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertEquals(1, getExtractions(answer).size());
+    }
+
+    @Test
+    void keepsAnAnswerWhenANewerRevisionHasNone() throws Exception
+    {
+        final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
+        this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, false, 0.0, null, "Not stated.", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the person said" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertEquals(1, getExtractions(answer).size());
+    }
+
+    // There was nothing to go back to, so the new reading is an ordinary suggestion
+    @Test
+    void fillsASuggestionTheSubmitterClearedWhenANewerRevisionSaysSomethingElse() throws Exception
+    {
+        final Resource answer = answerAims("", "What the model read", this.file.getParent());
+        this.tree.addVersion(this.file);
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the new file says" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertNull(getExtractions(answer).get(1).getValueMap().get("replacedValue", String[].class));
+    }
+
+    // Read again on the same revision: only the gaps are filled, and an answer it already read stays
+    @Test
+    void readingANewerRevisionAgainOnlyFillsTheGaps() throws Exception
+    {
+        final Resource newer = this.tree.addVersion(this.file);
+        final Resource answer = answerAims("What the person said", "What the model read", newer.getParent());
+        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()),
+            new FieldResult(TITLE, true, 0.8, "A title", "", List.of()));
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "What the person said" },
+            answer.getValueMap().get(VALUE, String[].class));
+        assertEquals(2, getAnswers().size(), "the title was a gap, and is filled");
     }
 
     // A reading workflow need not gate: a schema whose document is only ever the one kind it asks for has
@@ -511,7 +666,7 @@ class IntakeAnswersHandlerTest
         assertEquals(SubmissionTree.getIdentifier(this.aims),
             getAnswers().get(0).getValueMap().get("question", String.class));
         assertArrayEquals(new String[] { "To reduce readmissions" },
-            getAnswers().get(0).getValueMap().get("value", String[].class));
+            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
     /** A step that reads the named documents, in the order given. */

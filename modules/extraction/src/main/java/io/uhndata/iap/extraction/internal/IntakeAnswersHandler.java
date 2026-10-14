@@ -47,7 +47,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that reads every extractable answer out of a proposal and records it: a {@code sub:Answer}
  * holding the value, with a {@code sub:Extraction} under it saying where it came from and how sure the model was,
  * and a {@code sub:Evidence} for each quote. A question that already carries an answer is left alone, whoever
- * or whatever wrote it: reading again fills the gaps, it never replaces an answer that is already there.
+ * or whatever wrote it: reading again fills the gaps. The first reading of a newer revision of a document asks
+ * them again, and replaces an answer only when the new file says something different from both the answer and
+ * the last suggestion.
  *
  * <p>Fields are keyed by the question's path within its schema version, so two sections may both have a
  * {@code title}.</p>
@@ -144,13 +146,19 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         }
         final String[] named = context.getActivity().get(REQUIREMENT, String[].class);
         final String requirement = named == null ? null : String.join(",", named);
-        final Map<String, Question> questions = getQuestions(submission, requirement);
+        final List<File> files = parts.stream().map(Part::file).toList();
+        final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
+        final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
+        if (!newRevision) {
+            // Reading again fills the gaps
+            final Set<String> answered = ExtractionFields.getAnswered(submission);
+            questions.values().removeIf(question -> answered.contains(question.getPath()));
+        }
         if (questions.isEmpty()) {
             recordNothingToAsk(target, submission, requirement);
             return;
         }
-        this.runs.setFiles(target.getPath(),
-            parts.stream().map(part -> part.file().getPath()).collect(Collectors.toSet()));
+        this.runs.setFiles(target.getPath(), files.stream().map(File::getPath).collect(Collectors.toSet()));
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading step started: step=intake submission={} requirement={} questions={}",
             target.getPath(), requirement, questions.size());
@@ -167,29 +175,12 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
                 target.getPath(), questions.size(), (System.nanoTime() - startedAt) / 1_000_000L);
             return;
         }
-        final List<File> files = parts.stream().map(Part::file).toList();
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
-            files);
+            files, newRevision);
         ExtractionStatus.recordDone(target, null);
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
             (System.nanoTime() - startedAt) / 1_000_000L);
-    }
-
-    /**
-     * The questions this step asks, by path within the schema version, leaving out the ones already answered:
-     * reading again fills the gaps.
-     *
-     * @param submission the submission being read
-     * @param requirement the requirements the step names, comma-separated, or {@code null} for every one
-     * @return the questions to ask, in the order the schema asks them
-     */
-    private static Map<String, Question> getQuestions(final Submission submission, final String requirement)
-    {
-        final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
-        final Set<String> answered = ExtractionFields.getAnswered(submission);
-        questions.values().removeIf(question -> answered.contains(question.getPath()));
-        return questions;
     }
 
     /**

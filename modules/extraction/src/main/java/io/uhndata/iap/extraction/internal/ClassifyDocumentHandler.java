@@ -167,7 +167,9 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final Map<String, FieldResult> sure = result.fields().entrySet().stream()
             .filter(entry -> isSure(entry.getValue(), thresholds.get(entry.getKey())))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        ExtractionFields.write(context.getResourceResolver(), target, submission, questions, sure, List.of(file));
+        // Never replaced by a newer revision: a decision already made or confirmed stays
+        ExtractionFields.write(context.getResourceResolver(), target, submission, questions, sure, List.of(file),
+            false);
         LOGGER.info("Reading step done: step=classify submission={} decided={} of={} ms={}", target.getPath(),
             sure.size(), fields.size(), (System.nanoTime() - startedAt) / 1_000_000L);
         return true;
