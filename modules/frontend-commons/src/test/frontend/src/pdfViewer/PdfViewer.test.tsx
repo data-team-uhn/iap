@@ -990,6 +990,16 @@ describe("PdfViewer", () => {
           .not.toContainElement(within(passages[0]).getByRole("textbox"));
       });
 
+      it("keeps each passage listed whole, the list scrolling rather than squeezing them", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        for (const passage of within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem")) {
+          expect(passage).toHaveStyle({ flexShrink: "0" });
+        }
+      });
+
       it("shows it under the passage on the card above the document in a narrow viewer", async () => {
         showMarks({ renderMarkDetails });
         await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
