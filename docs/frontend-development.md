@@ -298,6 +298,12 @@ the viewer just reported doesn't move the reader. `marks` can be a new array on 
 viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
 and only looks for passages again when one of those changes.
 
+A caller whose marks are something more than passages, such as review comments, passes `markName`, the
+word for one and for several (`{ one: "comment", many: "comments" }`), and the viewer counts and steps
+through them by it: the heading over the list, the buttons, the list's and its entries' names, and what
+a screen reader is told ("Comment 3 of 12 is marked on page 4."). What the controls of a passage's own
+text say, such as "Show the whole passage", is still about the passage.
+
 A caller that shows something with each passage, such as the comments on it, passes
 `renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
 the passage, on its card in the list beside the document, or on the card above the document in a

@@ -23,7 +23,14 @@ import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { cutShort, passageCard, passageTint } from "./passageStyles";
-import { describePages, getPassageNote, type ViewerStatus } from "./pdfViewerModel";
+import {
+  capitalize,
+  describeAmong,
+  describePages,
+  getPassageNote,
+  type MarkName,
+  type ViewerStatus,
+} from "./pdfViewerModel";
 import StepControls from "./StepControls";
 import { fadeEdges, useScrollEdges } from "../useScrollEdges";
 
@@ -38,9 +45,10 @@ const MAX_LINES = 4;
 // The passages beside the document, in the order given, each on a card in its mark's colour, selecting
 // it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
 // one selected is shown whole and kept in view. Above them, which is selected of how many, with buttons
-// stepping through them.
-function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
+// stepping through them, each named as the marks are called.
+function MarkList({ marks, name, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
+  name: MarkName;
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
@@ -65,14 +73,14 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
       <StepControls
         position={position}
         count={marks.length}
-        itemName="passage"
-        heading={`Passage ${position} of ${marks.length}`}
+        itemName={name.one}
+        heading={describeAmong(name, { index: position, count: marks.length })}
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box
         ref={list}
         component="ul"
-        aria-label="Passages"
+        aria-label={capitalize(name.many)}
         sx={{
           flex: "1 1 auto",
           minHeight: 0,
@@ -110,6 +118,7 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
             >
               <MarkEntry
                 mark={mark}
+                name={name}
                 position={index + 1}
                 place={places[mark.id]}
                 status={status}
@@ -125,8 +134,9 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
   );
 }
 
-function MarkEntry({ mark, position, place, status, selected, onSelect }: {
+function MarkEntry({ mark, name, position, place, status, selected, onSelect }: {
   mark: Mark;
+  name: MarkName;
   position: number;
   place: MarkPlace;
   status: ViewerStatus;
@@ -155,9 +165,9 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
         )}
     </>
   );
-  let label = `Select passage ${position}`;
+  let label = `Select ${name.one} ${position}`;
   if (place.status === "found") {
-    label = `Show passage ${position} on ${describePages(place.page, place.toPage)}`;
+    label = `Show ${name.one} ${position} on ${describePages(place.page, place.toPage)}`;
   }
 
   return (
