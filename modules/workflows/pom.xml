@@ -97,6 +97,14 @@
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The addLink service task links what it acts on to other content; in tests, the link types data:Entity mixes
+         in, without which the entity node types do not register -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-links-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The events processor adds what a user could send to each serialized node -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-serialization-json</artifactId>
@@ -200,13 +208,6 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
-    </dependency>
-    <!-- The link types data:Entity mixes in, without which the entity node types do not register -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-links-api</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
