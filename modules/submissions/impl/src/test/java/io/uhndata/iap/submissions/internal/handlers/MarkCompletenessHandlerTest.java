@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.internal;
+package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
