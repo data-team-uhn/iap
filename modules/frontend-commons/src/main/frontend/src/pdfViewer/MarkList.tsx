@@ -22,7 +22,7 @@ import { Box, ButtonBase, Typography } from "@mui/material";
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, passageCard, passageTint } from "./passageStyles";
+import { cutShort, passageCard, passageLayer, passageTint } from "./passageStyles";
 import {
   capitalize,
   describeAmong,
@@ -183,6 +183,7 @@ function MarkEntry({ mark, name, position, place, status, selected, onSelect }: 
         px: 1.5,
         py: 1,
         textAlign: "start",
+        ...passageLayer(theme, mark.kind),
         "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark.kind, 0.5) } },
         "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark.kind, 0.5) },
       })}
