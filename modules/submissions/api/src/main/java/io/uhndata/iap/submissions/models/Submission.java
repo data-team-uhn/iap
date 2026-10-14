@@ -18,7 +18,9 @@
 package io.uhndata.iap.submissions.models;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -203,7 +205,8 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
+     * approved {@link Review}, or a {@code FormRequirement} with a question given fewer values than its
+     * {@code minAnswers}. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
      * reported as missing.
      *
@@ -274,14 +277,37 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return this.getAnswers().stream().anyMatch(answer -> {
-            final Question answered = answer.getQuestion();
-            if (answered == null || !question.getPath().equals(answered.getPath())) {
-                return false;
+        // A blank value is no answer. Clearing a field can leave an answer holding an empty string
+        final long given = this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
+            .filter(value -> !value.isBlank())
+            .count();
+        return given >= question.getMinAnswers();
+    }
+
+    /**
+     * What has been answered, by the path of the question each answer is for.
+     *
+     * <p>Both the completeness of a form requirement and the form shown to the submitter are read from this, so the
+     * two count the same answers. An answer whose question no longer resolves is left out. When two answers are for
+     * the same question, the one holding values wins.</p>
+     *
+     * @return the values given, by question path; empty for a submission nobody has answered
+     */
+    @NotNull
+    public Map<String, List<String>> getAnswersByQuestion()
+    {
+        final Map<String, List<String>> byQuestion = new HashMap<>();
+        for (final Answer answer : this.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question == null) {
+                continue;
             }
-            // Only read once the question matched: every call resolves the reference and copies the value array
-            final String[] value = answer.getValue();
-            return value != null && value.length > 0;
-        });
+            final List<String> value = List.of(Objects.requireNonNullElse(answer.getValue(), new String[0]));
+            final List<String> known = byQuestion.get(question.getPath());
+            if (known == null || known.isEmpty()) {
+                byQuestion.put(question.getPath(), value);
+            }
+        }
+        return byQuestion;
     }
 }

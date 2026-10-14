@@ -1,9 +1,0 @@
-{
-  "jcr:primaryType": "tag:Definition",
-  "label": "Incomplete",
-  "description": "Some required information is missing; a record containing an incomplete part is itself incomplete.",
-  "category": ["lifecycle", "validation"],
-  "aggregated": true,
-  "color": "#ff9800",
-  "order": 30
-}

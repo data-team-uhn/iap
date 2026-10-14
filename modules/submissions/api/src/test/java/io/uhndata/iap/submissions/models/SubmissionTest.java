@@ -78,6 +78,10 @@ class SubmissionTest
 
     private static final String QUESTION_1_ID = "q1-uuid";
 
+    private static final String QUESTION_1_PATH = "/Schemas/schema/1.0/form/section/q1";
+
+    private static final String QUESTION_2_PATH = "/Schemas/schema/1.0/form/q2";
+
     private static final String QUESTION_2_ID = "q2-uuid";
 
     private static final String CONSENT_ID = "consent-uuid";
@@ -119,9 +123,11 @@ class SubmissionTest
             "title", "Section"));
         this.context.create().resource("/Schemas/schema/1.0/form/section/q1", Map.of(
             SLING_RESOURCE_TYPE, Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
+            "minAnswers", 1L,
             "text", "Q1"));
         this.context.create().resource("/Schemas/schema/1.0/form/q2", Map.of(
             SLING_RESOURCE_TYPE, Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
+            "minAnswers", 1L,
             "text", "Q2"));
         this.context.create().resource("/Schemas/schema/1.0/consent", Map.of(
             SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE, "sling:resourceSuperType",
@@ -414,6 +420,137 @@ class SubmissionTest
 
         assertEquals(1, missing.size());
         assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    @Test
+    void indexesTheAnswersByTheQuestionTheyAnswer()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+        // No value at all, which the node type permits
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID));
+        // Answers no question
+        this.context.create().resource("/Submissions/submission/a3", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE));
+
+        final Map<String, List<String>> answers =
+            Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion();
+
+        assertEquals(2, answers.size());
+        assertEquals(List.of("yes"), answers.get(QUESTION_1_PATH));
+        assertEquals(List.of(), answers.get(QUESTION_2_PATH));
+    }
+
+    @Test
+    void countsAnAnswerHoldingNothingAsNoAnswerAtAll()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "   " });
+
+        // The index reports what is stored, since that is what a form shows
+        assertEquals(List.of("   "), submission.getAnswersByQuestion().get(QUESTION_2_PATH));
+        final List<Requirement> missing = submission.getMissingRequirements();
+        assertEquals(1, missing.size());
+        assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    @Test
+    void letsTheAnsweredOneWinWhenTwoAnswersAreForTheSameQuestion()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value", new String[0]));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+
+        assertEquals(List.of("yes"),
+            Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion().get(QUESTION_1_PATH));
+    }
+
+    @Test
+    void doesNotMissAnOptionalQuestionLeftBlank()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.demand(0);
+        final Submission submission = this.createFulfilledExceptQ2(new String[0]);
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    @Test
+    void reportsMissingWhileAQuestionHasFewerAnswersThanItDemands()
+        throws RepositoryException
+    {
+        // The blank value does not count towards the two
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", " " });
+
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        assertEquals(1, missing.size());
+        assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    @Test
+    void reportsFulfilledOnceAQuestionHasAsManyAnswersAsItDemands()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", "tuesday" });
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    /**
+     * Sets how many values the second question demands.
+     *
+     * @param minimum the question's {@code minAnswers}
+     */
+    private void demand(final long minimum)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(QUESTION_2_PATH)
+            .adaptTo(ModifiableValueMap.class)).put("minAnswers", minimum);
+    }
+
+    /**
+     * A submission fulfilling everything the fixture schema asks, except that its second question is answered with
+     * exactly the given values.
+     *
+     * @param q2Values the values answering the second question
+     * @return the submission to judge
+     */
+    private Submission createFulfilledExceptQ2(final String[] q2Values)
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", q2Values));
+        this.context.create().resource("/Submissions/submission/d1", Map.of(
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
+        this.context.create().resource("/Submissions/submission/r1", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+        return Objects.requireNonNull(resource.adaptTo(Submission.class));
     }
 
     @Test
