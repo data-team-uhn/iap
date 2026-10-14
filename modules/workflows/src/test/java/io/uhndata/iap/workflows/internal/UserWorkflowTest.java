@@ -36,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -103,6 +104,8 @@ class UserWorkflowTest
 
     // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+
+    private final EngineFixture.History history = new EngineFixture.History();
 
     @BeforeEach
     void setUp()
@@ -205,6 +208,7 @@ class UserWorkflowTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         inject(impl, "delegation", EngineFixture.delegation("iap-administrators"));
+        inject(impl, "recorder", this.history);
         return impl;
     }
 
@@ -339,6 +343,30 @@ class UserWorkflowTest
 
         assertEquals("completed", read(TASK).get("status"));
         assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+        final RecordedAction decision = this.history.actions().get(this.history.actions().size() - 1);
+        assertEquals(EngineFixture.ADMIN, decision.getActor());
+        assertEquals(EngineFixture.REQUESTER, decision.getOnBehalfOf());
+    }
+
+    @Test
+    void recordsTheDecisionInHistory() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        final int before = this.history.actions().size();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(before + 1, this.history.actions().size());
+        final RecordedAction decision = this.history.actions().get(before);
+        assertEquals(EngineFixture.REQUESTER, decision.getActor());
+        assertEquals(TaskCompletion.COMPLETE_EVENT, decision.getEvent());
+        assertEquals(read(TASK).get("jcr:uuid"), decision.getTaskInstance());
+        assertEquals("approved", decision.getOutcome());
+        assertEquals(read(HOST + "/wf:instances/timeOffRequest").get("jcr:uuid"), decision.getWorkflowInstance());
+        assertEquals(read(TASK).get("taskDefinitionId"), decision.getActivityId());
+        assertTrue(decision.getEffects().stream()
+            .anyMatch(effect -> "completed".equals(effect.role()) && TASK.equals(effect.subjectPath())));
     }
 
     @Test
@@ -477,6 +505,7 @@ class UserWorkflowTest
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
         inject(engine, "delegation", EngineFixture.delegation("iap-administrators"));
+        inject(engine, "recorder", this.history);
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -645,6 +674,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         inject(engine, "delegation", EngineFixture.delegation("iap-administrators"));
+        inject(engine, "recorder", this.history);
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

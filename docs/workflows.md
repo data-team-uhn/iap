@@ -863,6 +863,26 @@ Because the engine does the writing, `jcr:createdBy` on everything it creates na
 service user. The human is recorded separately, in `createdBy`, which is what an audit
 trail and any "things I raised" listing have to read.
 
+### What the engine records in history
+
+Every event the engine carries out is written to [history](history.md) as one
+`hist:Action`, in the same commit as the change itself. A refused or failed event records
+nothing, because nothing happened. The action names:
+
+- **who sent the event** (`actor`), and whom they sent it for (`onBehalfOf`), if anyone;
+- **the event** (`event`, and `operation`, which is the same name);
+- **the workflow** that carried it out: the version in force, and for a task the instance;
+- **for a task**, the activity, the task itself and the outcome chosen;
+- **what it affected**: the resource the event was aimed at (`target`), anything it created
+  (`created`), and a task it completed (`completed`).
+
+An event that one workflow sends to another during the run gets an action of its own,
+naming the system workflow that ran it, with `parentAction` pointing at the action of the
+event that caused it.
+
+Handlers can see both people too: `WorkflowTaskContext.getActor()` is whom the event counts
+as, and `getSender()` is who actually sent it.
+
 ### Acting on behalf of someone else
 
 A delegate can send an event for another user, for example to approve a request for someone
@@ -1139,9 +1159,18 @@ disagree.
   from elsewhere using `bpmn2:` or a default namespace would not be recognized.
 - **No `oak:index` definitions.** The console's listings and the homepage discovery both
   query without one.
-- **The delegate is not yet recorded anywhere.** An event sent on someone's behalf records
-  only the person it was sent for; who actually sent it is lost until the engine writes
-  every event to the history store.
+- **History records what the engine knows, not everything a handler did.** The target, what
+  was created and the task completed are recorded; what a handler changed elsewhere is not,
+  and no action names the properties that changed. Handlers reporting their own effects
+  through the task context is what is missing.
+- **A homepage never appears in history.** The store names an entry after the resource's
+  identifier, and only a referenceable node has one without slashes. Homepages are not
+  referenceable, so a create aimed at `/Submissions` records what it created, not the
+  homepage.
+- **Every action the engine records stays incomplete.** No snapshot is taken after the
+  commit, so `complete` is never set; see the status note in [history](history.md).
+- **Refused attempts to act for someone are not logged.** A refusal changes nothing, so it
+  is not history, and nothing else records it yet.
 - **Acting for someone cannot be previewed.** `getAvailableEvents` and
   `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
   what a delegate could do for Alice.

@@ -26,6 +26,7 @@ import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
+import javax.jcr.RepositoryException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
 import org.apache.sling.api.resource.LoginException;
@@ -50,6 +51,8 @@ import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.history.api.HistoryRecorder;
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -113,6 +116,8 @@ class WorkflowEngineImplTest
 
     private final SlingContext context = new SlingContext();
 
+    private final EngineFixture.History history = new EngineFixture.History();
+
     @BeforeEach
     void setUp()
     {
@@ -166,6 +171,7 @@ class WorkflowEngineImplTest
         resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
         inject(impl, "conditionEvaluator", evaluator);
         inject(impl, "delegation", EngineFixture.delegation("iap-administrators"));
+        inject(impl, "recorder", this.history);
         return impl;
     }
 
@@ -300,6 +306,83 @@ class WorkflowEngineImplTest
         assertEquals(EngineFixture.REQUESTER, handler.seen);
         // A workflow that creates nothing completes all the same: there is simply nowhere to send the caller
         assertNull(result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final ActorRecordingHandler handler = new ActorRecordingHandler();
+
+        engine(handler).receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        assertEquals(EngineFixture.REQUESTER, handler.seen);
+        assertEquals(EngineFixture.ADMIN, handler.sender);
+    }
+
+    @Test
+    void recordsTheEventInHistory() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+
+        engine().receiveEvent(target, CREATE);
+
+        assertEquals(1, this.history.actions().size());
+        final RecordedAction action = this.history.actions().get(0);
+        assertEquals(EngineFixture.ADMIN, action.getActor());
+        assertNull(action.getOnBehalfOf());
+        assertEquals(CREATE.getName(), action.getEvent());
+        assertEquals(CREATE.getName(), action.getOperation());
+        assertNull(action.getWorkflowInstance(), "A system workflow leaves no instance to name");
+        assertEquals(this.context.resourceResolver().getResource(EngineFixture.VERSION).getValueMap()
+            .get("jcr:uuid", String.class), action.getWorkflowVersion());
+        assertNull(action.getParentAction());
+    }
+
+    @Test
+    void recordsWhoReallySentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final RecordedAction action = this.history.actions().get(0);
+        assertEquals(EngineFixture.ADMIN, action.getActor());
+        assertEquals(EngineFixture.REQUESTER, action.getOnBehalfOf());
+    }
+
+    @Test
+    void recordsNothingForARefusedEvent() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(this.history.actions().isEmpty());
+    }
+
+    @Test
+    void failsTheEventWhenItCannotBeRecorded() throws Exception
+    {
+        // A change with no record of it is exactly what history exists to rule out
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        final HistoryRecorder broken = Mockito.mock(HistoryRecorder.class);
+        Mockito.when(broken.record(Mockito.any(), Mockito.any()))
+            .thenThrow(new RepositoryException("the history store is full"));
+        final WorkflowEngine engine = engine();
+        inject(engine, "recorder", broken);
+
+        assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
     }
 
     @Test
@@ -982,6 +1065,11 @@ class WorkflowEngineImplTest
         assertNotNull(chained);
         assertEquals("My cool workflow", chained.getValueMap().get("title"));
         assertEquals(EngineFixture.ADMIN, chained.getValueMap().get("createdBy"));
+        // One action for the event that came in, and one for the event it sent, recorded as part of it
+        assertEquals(2, this.history.actions().size());
+        assertEquals(CREATE.getName(), this.history.actions().get(0).getEvent());
+        assertEquals("initialize", this.history.actions().get(1).getEvent());
+        assertEquals("/History/1", this.history.actions().get(1).getParentAction());
     }
 
     @Test
@@ -1182,6 +1270,8 @@ class WorkflowEngineImplTest
     {
         private String seen;
 
+        private String sender;
+
         @Override
         public String getName()
         {
@@ -1192,6 +1282,7 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             this.seen = taskContext.getActor();
+            this.sender = taskContext.getSender();
         }
     }
 
