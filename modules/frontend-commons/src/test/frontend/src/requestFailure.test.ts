@@ -16,7 +16,15 @@
  * limitations under the License.
  */
 
-import { describeRequestFailure, isRefusal, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
+import {
+  describeRequestFailure,
+  isRefusal,
+  messageOf,
+  readJson,
+  RequestError,
+  UnreadableResponseError,
+} from "@iap/frontend-commons/requestFailure";
 
 // Every description is logged with the original, so the raw failure stays reachable in the console
 let logged: ReturnType<typeof vi.spyOn>;
@@ -103,6 +111,16 @@ describe("describeRequestFailure", () => {
     });
   });
 
+  it("says only that something went wrong when a page came back instead of data", () => {
+    // The page and its status went to the console when it was read; the user gets the next step
+    expect(describeRequestFailure(new UnreadableResponseError(502))).toBe("Unexpected error. Reload and try again.");
+  });
+
+  it("says the session has expired when it could not be recovered", () => {
+    expect(describeRequestFailure(new NotAuthenticatedError("Not authenticated: /data.json")))
+      .toBe("Your session has expired. Sign in again, then retry.");
+  });
+
   it("says a response could not be read when it did not parse", () => {
     expect(describeRequestFailure(new SyntaxError("Unexpected token < in JSON at position 0")))
       .toBe("The server's response could not be read.");
@@ -140,5 +158,50 @@ describe("describeRequestFailure", () => {
       expect(describeRequestFailure("connection reset"))
         .toBe("Something went wrong: connection reset");
     });
+  });
+});
+
+describe("readJson", () => {
+  let warned: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warned = vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+  });
+
+  it("reads the data a response carries", async () => {
+    await expect(readJson(new Response('{"title":"Leave"}', { status: 200 }))).resolves.toEqual({ title: "Leave" });
+    expect(warned).not.toHaveBeenCalled();
+  });
+
+  it("fails a login page as an expired session, without reading it", async () => {
+    const json = vi.fn();
+    const loginPage = { ok: true, status: 200, url: `${window.location.origin}/login?resource=/data.json`, json };
+
+    await expect(readJson(loginPage as unknown as Response)).rejects.toBeInstanceOf(NotAuthenticatedError);
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("fails any other page as unreadable, and logs its status and start for a developer", async () => {
+    const page = "<html><body>502 Bad Gateway</body></html>";
+
+    const failure = readJson(new Response(page, { status: 502, headers: { "Content-Type": "text/html" } }));
+
+    await expect(failure).rejects.toBeInstanceOf(UnreadableResponseError);
+    await expect(failure).rejects.toMatchObject({ status: 502 });
+    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 502)", page);
+  });
+
+  it("logs no more of a long page than its start", async () => {
+    const page = `<html>${"x".repeat(1000)}</html>`;
+
+    await expect(readJson(new Response(page, { status: 200 }))).rejects.toBeInstanceOf(UnreadableResponseError);
+    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 200)", page.slice(0, 300));
+  });
+
+  it("copes with a stand-in for a response that cannot be copied", async () => {
+    const standIn = { ok: true, status: 200, json: () => Promise.reject(new SyntaxError("Unexpected token <")) };
+
+    await expect(readJson(standIn as unknown as Response)).rejects.toBeInstanceOf(UnreadableResponseError);
+    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 200)", "");
   });
 });

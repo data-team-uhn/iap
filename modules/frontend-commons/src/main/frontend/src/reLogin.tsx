@@ -62,9 +62,10 @@ export function isNotAuthenticated(error: unknown): boolean {
 
 // Sling answers an unauthenticated request either with a 401, or -- when the authentication handler
 // prefers to redirect -- with a 200 whose body is the login page, recognisable only from the URL the
-// response came back from.
-function isLoginRedirect(response: Response): boolean {
-  return response.ok && response.url.startsWith(`${window.location.origin}/login`);
+// response came back from. A response with no URL, as a stand-in for one may be, is not a redirect.
+export function isLoginRedirect(response: Response): boolean {
+  return response.ok && typeof response.url === "string"
+    && response.url.startsWith(`${window.location.origin}/login`);
 }
 
 // Whether there is still a session behind this page. Only consulted for the statuses that are
