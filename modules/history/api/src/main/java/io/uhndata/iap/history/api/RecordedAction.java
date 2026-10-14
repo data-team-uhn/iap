@@ -93,7 +93,7 @@ public final class RecordedAction
      * @param actor who is answerable for it, as a canonical user id: what the repository calls them, not the
      *            spelling they typed at login
      * @param operation what was asked for, in the platform's own vocabulary: {@code submit},
-     *            {@code activateVersion}
+     *            {@code activate}
      * @return a builder for the rest of it
      */
     @NotNull
@@ -330,8 +330,7 @@ public final class RecordedAction
          * Records which node of the definition was being performed.
          *
          * @param id the {@code elementId} of the definition node being performed
-         * @param label its label as the definition reads now, copied because the reader may not be able to read the
-         *            definition and the definition may later be reworded
+         * @param label its label as the definition reads now
          * @return this builder
          */
         @NotNull

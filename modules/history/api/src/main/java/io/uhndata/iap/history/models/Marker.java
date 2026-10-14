@@ -67,7 +67,6 @@ public class Marker extends Content
     @Nullable
     public Calendar getSeenAt()
     {
-        // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
         return this.seenAt == null ? null : (Calendar) this.seenAt.clone();
     }
 
@@ -102,8 +101,7 @@ public class Marker extends Content
      * Whether something has happened to the item since this person looked.
      *
      * @param actionTime when the most recent action on the item happened
-     * @return {@code true} if that action is newer than this marker, and {@code true} when the marker does not say
-     *         when they looked
+     * @return {@code true} if that action is newer than this marker, or if the marker does not say when they looked
      */
     public boolean isBehind(@NotNull final Calendar actionTime)
     {

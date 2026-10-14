@@ -10,11 +10,10 @@ looked like afterwards. It is the record an authorization decision has to be def
 against months later, when nobody remembers and the log file has rotated away.
 
 > **Status.** The store, its node types, their Sling Models and the recorder exist.
-> **Nothing writes to it yet.** Recording happens where every data change already
-> happens — in the workflow engine — and the engine needs a phase that runs *after* it
-> commits, which it does not have yet. Everything below describes a mechanism that is
-> built and tested; the sentence that is not yet true is "the platform records its own
-> actions".
+> **Nothing writes to it yet.** Recording belongs in the workflow engine, where every
+> data change happens, and the engine needs a phase that runs *after* it commits, which
+> it does not have yet. Everything below is built and tested; the platform does not yet
+> record its own actions.
 
 ## Two stores, one record
 
@@ -22,8 +21,7 @@ The content of a past state is a **JCR version**, in the repository's own versio
 storage. Everything a reader needs to know *about* a change is a node of ours under
 **`/History`**. The two halves are joined by a version identifier on the entry.
 
-That split is not a compromise, it is the only shape available, and both halves of the
-reason were measured rather than assumed:
+Neither half can do the other's job:
 
 - **A version can never be annotated.** An `nt:version` and its `jcr:frozenNode` are
   entirely protected: no property, no mixin, not ever. So anything that might need to
@@ -75,7 +73,7 @@ each. Both halves are needed to say so:
 | `outcome`, `outcomeNote` | The decision, and what was said about it |
 | `event`, `component` | The event delivered, or the component that acted where no person did |
 | `parentAction` | The action this one is part of |
-| `occurredAt` | When |
+| `occurredAt` | When it happened, where that is not when it was recorded; absent, `jcr:created` |
 | `complete` | Default `false`; set once the snapshots are in — see [Recording](#recording) |
 
 | `hist:Entry` | Holds |
@@ -112,40 +110,44 @@ a second entry for the same resource in the same action.
   .task(instance, decision, note)  .event(name)  .component(name)  .partOf(identifier)
   .affecting(effect)  .build()
 
-// RecordedEffect static RecordedEffect on(Node subject, String role, String...
-changes); ```
+// RecordedEffect
+static RecordedEffect on(Node subject, String role, String... changes);
+```
 
 `RecordedEffect.on` reads the identifier, path and primary type off the node, so a
 caller names the resource once and the record keeps what it was at the time.
 
+An illustrative call, for activating a workflow version, which retires the version it
+replaces:
+
 ```java
 final String action = this.recorder.record(session, RecordedAction
-    // The canonical user id, as the repository spells it --
+    // The canonical user id, as the repository spells it,
     // not ResourceResolver.getUserID()
-    .by(actorId, "activateVersion")
+    .by(actorId, "activate")
     .workflow(instanceId, versionId)
     .activity(activity.getElementId(), activity.getLabel())
-    .affecting(RecordedEffect.on(previous, "retired", "active"))
-    .affecting(RecordedEffect.on(current, "activated", "active"))
+    .affecting(RecordedEffect.on(previous, "retired", "tags"))
+    .affecting(RecordedEffect.on(current, "activated", "tags"))
     .build());
 session.save();                       // the change and its record, together
 
 // ... take the snapshots, which cannot be part of that commit ...
 
-this.recorder.completeSnapshots(session, action, Map.of(current.getIdentifier(),
-versionName)); ```
+this.recorder.completeSnapshots(session, action,
+    Map.of(current.getIdentifier(), versionName));
+```
 
-Two rules, and both are load-bearing.
+Two rules govern recording.
 
 **The record shares the caller's transaction.** `record` leaves its nodes *pending* in
 the session the change itself is being made in, and the caller commits both together —
 so there can be no committed change without its record, and no record of a change that
 was abandoned.
 
-This is the exact opposite of [error tracking](error-tracking.md), which writes in a
-session of its own, and the contrast is worth remembering whenever either is touched: a
-failure has to be recorded *because* the caller's transaction is being rolled back,
-while history has to be rolled back *with* it.
+History has to be rolled back *with* the change it records.
+[Error tracking](error-tracking.md) writes in a session of its own instead, since it
+records failures that roll the caller's transaction back.
 
 **Snapshots come afterwards, and cannot come with it.** A JCR check-in refuses to run
 while its session has pending changes, and commits by itself. So taking a snapshot
@@ -168,9 +170,8 @@ confined to maintaining the buckets.
 ### Where an action is filed
 
 Actions are spread over a prefix tree, `/History/<xx>/<yy>/<zz>/<action>`, by
-[`PrefixTree`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/PrefixTree.java)
-— the same mechanism the archive uses, and the same layout Oak files version histories
-under. A single parent holding every action ever taken is a node no repository browser
+[`PrefixTree`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/PrefixTree.java).
+A single parent holding every action ever taken is a node no repository browser
 can open and one the repository itself starts warning about.
 
 One consequence for callers: **`PrefixTree.bucketFor` cannot run in the caller's

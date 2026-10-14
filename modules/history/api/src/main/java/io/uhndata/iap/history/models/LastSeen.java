@@ -31,10 +31,8 @@ import io.uhndata.iap.content.models.Content;
  * The markers on one piece of content: who has looked at it, and how recently.
  *
  * <p>
- * Filed under the content rather than under the person, on the cardinalities. A busy reviewer accumulates a marker
- * for every item they ever open, while an item is looked at by a handful of people. The lookup that actually happens,
- * what this person has seen of this item, is a direct path either way. Nothing enumerates one person's markers: a
- * dashboard starts from what is assigned to them and asks about each item.
+ * Filed under the content rather than under the person. An item is looked at by a handful of people, while a reviewer
+ * opens a great many items. Finding what one person has seen of one item is a path either way.
  * </p>
  *
  * <p>

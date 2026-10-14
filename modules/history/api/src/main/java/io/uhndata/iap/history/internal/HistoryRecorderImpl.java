@@ -144,8 +144,7 @@ public class HistoryRecorderImpl implements HistoryRecorder
      * Creating one cannot happen in the caller's session. {@link PrefixTree#bucketFor} saves each bucket as it makes
      * it, and calls {@code refresh(false)} to recover from a race. Either would take the caller's pending work with
      * it. A bucket that does not exist yet is made in a session of the store's own, and the caller's session is then
-     * refreshed to see it. Buckets are inert and shared, so making one
-     * outside the caller's transaction costs nothing when that transaction fails.
+     * refreshed to see it. Buckets are inert and shared, so one left behind by a transaction that fails costs nothing.
      * </p>
      */
     private Node bucketFor(final Session session, final String actionPath, final String name)
@@ -165,7 +164,7 @@ public class HistoryRecorderImpl implements HistoryRecorder
         } catch (final LoginException e) {
             throw new RepositoryException("The history store cannot reach its own service user", e);
         }
-        // Keeping the caller's own pending changes, which is the whole reason this is not a plain refresh
+        // true keeps the caller's pending changes
         session.refresh(true);
         return session.getNode(bucketPath);
     }

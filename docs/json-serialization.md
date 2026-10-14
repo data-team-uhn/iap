@@ -79,6 +79,7 @@ that descends at all — so Sling-style URLs like `.1.json` work without naming 
 | `deep` | on with a depth selector | 10 | Includes descendants |
 | `order` | off | 10 | Adds `@order` to a node that keeps its children in order: their names, in that order |
 | `simple` | off | 25 | Drops the properties that describe how content is *stored* rather than what it holds |
+| `frozen` | on for a past state | 30 | Serializes a past state from version storage as what it is a copy of: its original type and identifier, not the copy's (see [history](history.md#a-past-state-does-not-describe-itself)) |
 | `events` | off | 50 | Adds `@events`, the workflow events the requesting user could send to the node (contributed by `workflows`, see [asking without sending](workflows.md#asking-without-sending)) |
 | `fields` | off | 50 | Adds `@fields`, the fields the requesting user's `update` event could change on the node (contributed by `workflows`, see `updateContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 | `creatable` | off | 50 | Adds `@creatable`, the types of content the requesting user's `create` event could add inside the node, each with the fields it starts with (contributed by `workflows`, see `createContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |

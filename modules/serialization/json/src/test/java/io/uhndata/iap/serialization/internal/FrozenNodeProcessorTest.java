@@ -41,7 +41,6 @@ public class FrozenNodeProcessorTest
     public void testMetadata()
     {
         Assertions.assertEquals("frozen", this.processor.getName());
-        // After `simple`, whose dropping of the frozen properties this undoes
         Assertions.assertEquals(30, this.processor.getPriority());
     }
 
@@ -59,7 +58,7 @@ public class FrozenNodeProcessorTest
     public void testTheCopysOwnBookkeepingIsLeftOut() throws RepositoryException
     {
         final Node node = frozenNode();
-        // Both would otherwise describe the copy: a type nothing has heard of, and an identity nobody asked about
+        // Both describe the copy rather than the content
         Assertions.assertNull(this.processor.processPropertyName(node, property("jcr:primaryType"), "jcr:primaryType"));
         Assertions.assertNull(this.processor.processPropertyName(node, property("jcr:uuid"), "jcr:uuid"));
         Assertions.assertNull(
