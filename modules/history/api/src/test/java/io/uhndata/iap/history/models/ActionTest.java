@@ -68,7 +68,7 @@ class ActionTest
             "sling:resourceType", Action.RESOURCE_TYPE,
             "actor", "reviewer1",
             "onBehalfOf", "submitter1",
-            "operation", "activateVersion",
+            "operation", "activate",
             "workflowInstance", "11111111-1111-1111-1111-111111111111",
             "workflowVersion", "22222222-2222-2222-2222-222222222222",
             "activityId", "Activity_retireAndActivate",
@@ -79,7 +79,7 @@ class ActionTest
 
         assertEquals("reviewer1", action.getActor());
         assertEquals("submitter1", action.getOnBehalfOf());
-        assertEquals("activateVersion", action.getOperation());
+        assertEquals("activate", action.getOperation());
         assertEquals("11111111-1111-1111-1111-111111111111", action.getWorkflowInstance());
         assertEquals("22222222-2222-2222-2222-222222222222", action.getWorkflowVersion());
         assertEquals("Activity_retireAndActivate", action.getActivityId());
