@@ -22,19 +22,19 @@ import {
   FormControlLabel,
   FormGroup,
   FormHelperText,
-  FormLabel,
   Radio,
   RadioGroup
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { questionLabel } from "./label";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A question answered by picking from the options it offers.
-function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
-  const label = questionLabel(question);
+function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerComponentProps) {
+  const labelledBy = getQuestionTextId(question);
   const help = question.description;
   const options = question.options ?? [];
 
@@ -48,44 +48,48 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
         : values.filter(current => current !== value));
 
     return (
-      <FormControl component="fieldset" disabled={disabled} required={question.required}>
-        <FormLabel component="legend">{label}</FormLabel>
-        <FormGroup>
-          {options.map(option => (
-            <FormControlLabel
-              key={option.value}
-              label={option.label}
-              control={
-                <Checkbox
-                  checked={values.includes(option.value)}
-                  onChange={event => toggle(option.value, event.target.checked)}
-                />
-              }
-            />
-          ))}
-        </FormGroup>
+      <FormControl fullWidth disabled={disabled} required={question.required}>
+        <QuestionText question={question} />
+        <AnswerRow aside={aside}>
+          <FormGroup role="group" aria-labelledby={labelledBy}>
+            {options.map(option => (
+              <FormControlLabel
+                key={option.value}
+                label={option.label}
+                control={
+                  <Checkbox
+                    checked={values.includes(option.value)}
+                    onChange={event => toggle(option.value, event.target.checked)}
+                  />
+                }
+              />
+            ))}
+          </FormGroup>
+        </AnswerRow>
         {help && <FormHelperText>{help}</FormHelperText>}
       </FormControl>
     );
   }
 
   return (
-    <FormControl disabled={disabled} required={question.required}>
-      <FormLabel id={`${question.path}-label`}>{label}</FormLabel>
-      <RadioGroup
-        aria-labelledby={`${question.path}-label`}
-        value={values[0] ?? ""}
-        onChange={event => onAnswered([ event.target.value ])}
-      >
-        {options.map(option => (
-          <FormControlLabel
-            key={option.value}
-            value={option.value}
-            label={option.label}
-            control={<Radio />}
-          />
-        ))}
-      </RadioGroup>
+    <FormControl fullWidth disabled={disabled} required={question.required}>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <RadioGroup
+          aria-labelledby={labelledBy}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          {options.map(option => (
+            <FormControlLabel
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              control={<Radio />}
+            />
+          ))}
+        </RadioGroup>
+      </AnswerRow>
       {help && <FormHelperText>{help}</FormHelperText>}
     </FormControl>
   );

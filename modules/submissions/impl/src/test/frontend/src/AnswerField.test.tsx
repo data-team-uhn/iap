@@ -97,7 +97,7 @@ describe("AnswerField", () => {
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "number");
 
     rerender(<AnswerField question={question({ dataType: "text" })} state="idle" onAnswered={vi.fn()} />);
-    expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText(/Which day/).tagName).toBe("TEXTAREA");
   });
 
   it("says so when a question asks for something it has no way to answer", () => {

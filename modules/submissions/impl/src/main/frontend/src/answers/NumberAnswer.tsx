@@ -16,42 +16,50 @@
  * limitations under the License.
  */
 
-import { TextField } from "@mui/material";
+import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { questionLabel } from "./label";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A number.
-function NumberAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
+function NumberAnswer({ question, values, disabled, onChange, onAnswered, aside }: AnswerComponentProps) {
   const whole = question.dataType === "long";
 
   return (
-    <TextField
-      label={questionLabel(question)}
-      type="number"
-      required={question.required}
-      disabled={disabled}
-      fullWidth
-      value={values[0] ?? ""}
-      slotProps={{
-        inputLabel: { shrink: true },
-        // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
-        // them, which is what asking for a long is for
-        htmlInput: { step: whole ? 1 : "any", inputMode: whole ? "numeric" : "decimal" },
-      }}
-      helperText={question.description}
-      onChange={event => onChange([ event.target.value ])}
-      // An empty value now means "clear this answer", so a value the browser cannot parse must not
-      // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
-      // is how the input tells the two apart.
-      onBlur={event => {
-        if (!event.target.validity.badInput) {
-          onAnswered([ event.target.value ].filter(Boolean));
-        }
-      }}
-    />
+    <Box>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside}>
+        <TextField
+          type="number"
+          required={question.required}
+          disabled={disabled}
+          fullWidth
+          value={values[0] ?? ""}
+          slotProps={{
+            // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
+            // them, which is what asking for a long is for
+            htmlInput: {
+              "aria-labelledby": getQuestionTextId(question),
+              step: whole ? 1 : "any",
+              inputMode: whole ? "numeric" : "decimal",
+            },
+          }}
+          helperText={question.description}
+          onChange={event => onChange([ event.target.value ])}
+          // An empty value now means "clear this answer", so a value the browser cannot parse must not
+          // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
+          // is how the input tells the two apart.
+          onBlur={event => {
+            if (!event.target.validity.badInput) {
+              onAnswered([ event.target.value ].filter(Boolean));
+            }
+          }}
+        />
+      </AnswerRow>
+    </Box>
   );
 }
 

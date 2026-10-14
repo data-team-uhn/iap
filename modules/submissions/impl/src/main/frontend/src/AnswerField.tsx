@@ -23,7 +23,7 @@ import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
 import { useAnswerComponents } from "./answers";
-import { questionLabel } from "./answers/label";
+import QuestionText from "./answers/QuestionText";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -109,7 +109,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // nothing is registered yet, and saying the question cannot be answered would be untrue
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
+        <QuestionText question={question} labelOnly />
         <CircularProgress size={16} aria-label="Loading the answer field" />
       </Box>
     );
@@ -121,7 +121,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     // as complete when it is not
     return (
       <Box>
-        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
+        <QuestionText question={question} labelOnly />
         <Typography variant="placeholder">
           {`This question asks for ${question.dataType}, which cannot be answered here.`}
         </Typography>
@@ -138,7 +138,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
       {/* Built through createElement rather than as <Answer/>, because which component this is comes
           from the registry and so is only known during the render that uses it. In JSX that is what
           react-hooks/static-components refuses: "Cannot create components during render" */}
-      <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         {createElement(Answer, {
           question,
           values: draft,
@@ -147,7 +147,8 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
           onAnswered: submit,
         })}
       </Box>
-      <Box sx={{ pt: 2 }}><SaveStatus state={state} error={error} /></Box>
+      {/* Lined up with the input, under the question text */}
+      <Box sx={{ pt: 4 }}><SaveStatus state={state} error={error} /></Box>
     </Box>
   );
 }
