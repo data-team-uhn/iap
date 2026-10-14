@@ -240,7 +240,10 @@ export interface DraftSingle {
   comparator: string;
   /** What is compared. */
   a: DraftOperand;
-  /** What it is compared with. It is not written for a unary comparator. */
+  /**
+   * What it is compared with. Kept while a unary comparator is chosen, so that choosing another one brings its values
+   * back, but not written.
+   */
   b: DraftOperand;
 }
 
