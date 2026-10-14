@@ -35,32 +35,41 @@ import {
 } from "./conditionModel";
 import OperandValueInput from "./OperandValueInput";
 
-// What a source's operand names, entered as the source offering it asks, e.g. a question picked from a list
+/** What a source's operand names, entered as the source offering it asks, e.g. a question picked from a list. */
 export interface OperandEditorProps {
+  /** The input's label: the source's `valueLabel`, such as "Question". */
   label: string;
+  /** What the operand names now; empty when nothing has been chosen. */
   value: string[];
   disabled: boolean;
   required: boolean;
+  /** Called with what the operand names once it changes. */
   onChange: (value: string[]) => void;
 }
 
-// The input for each source's operands, by the source's name. Each is a function rather than a component, so that
-// a new function, knowing something new, does not remount the input.
+/**
+ * The input for each source's operands, by the source's name. A source without one gets a text field. Each is a
+ * function rather than a component, so that a new function, knowing something new, does not remount the input.
+ */
 export type OperandEditors = Partial<Record<string, (props: OperandEditorProps) => ReactNode>>;
 
+/** What every editor in the builder is given, passed down unchanged from the builder's own props. */
 interface Common {
   sources: OperandSource[];
   editors: OperandEditors;
   disabled: boolean;
 }
 
+/** A field of a fixed width in a row, such as a menu. On a phone, every field takes the full width. */
 const NARROW = { width: { xs: "100%", sm: "15rem" }, flexShrink: 0 };
+/** A field taking the rest of a row, such as the values compared with. */
 const WIDE = { flex: 1, minWidth: 0, width: { xs: "100%", sm: "auto" } };
 
 // The column where a group's conditions are joined, narrower on a phone
 const RAIL = 48;
 const PHONE_RAIL = 24;
 
+/** One row of a condition's fields, stacked into a column on a phone. */
 function Row({ children }: { children: ReactNode }) {
   return <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>{children}</Stack>;
 }
@@ -73,6 +82,7 @@ interface ChoiceSelectProps {
   onChange: (value: string) => void;
 }
 
+/** A required menu of choices, filling the width it is given. */
 function ChoiceSelect({ label, value, choices, disabled, onChange }: ChoiceSelectProps) {
   return (
     <TextField select required fullWidth label={label} value={value} disabled={disabled}
@@ -86,12 +96,17 @@ interface SourceSelectProps {
   label: string;
   value: string;
   sources: OperandSource[];
-  // The label of the choice to give values directly, when the operand may
+  /** The label of the choice to give values directly, when the operand may. */
   literal?: string;
   disabled: boolean;
+  /** Called with the name of the source picked. */
   onChange: (source: string) => void;
 }
 
+/**
+ * The menu picking where an operand's values come from. Giving values directly comes first, when the operand may. A
+ * source not among those offered is kept and shown by its name.
+ */
 function SourceSelect({ label, value, sources, literal, disabled, onChange }: SourceSelectProps) {
   const offered = [ ...literal ? [ { name: LITERAL, label: literal } ] : [], ...sources ];
   return (
@@ -105,7 +120,10 @@ interface NamedValueProps extends Common {
   onChange: (value: string[]) => void;
 }
 
-// The input for what an operand names, when its source reads something named, such as a question
+/**
+ * The input for what an operand names, when its source reads something named, such as a question. It is the
+ * source's own editor when it has one, and otherwise a text field. A source naming nothing gets no input.
+ */
 function NamedValue({ operand, sources, editors, disabled, onChange }: NamedValueProps) {
   const label = sourceOf(sources, operand.source)?.valueLabel;
   if (label === undefined) {
@@ -121,15 +139,21 @@ function NamedValue({ operand, sources, editors, disabled, onChange }: NamedValu
   );
 }
 
+/** The operand folded by the aggregate of that name, or by none for "". */
 const withAggregate = ({ aggregate: _, ...operand }: DraftOperand, aggregate: string): DraftOperand =>
   (aggregate === "" ? operand : { ...operand, aggregate });
 
 interface SingleEditorProps extends Common {
   condition: DraftSingle;
+  /** Called with the whole condition after each edit. */
   onChange: (condition: DraftSingle) => void;
   onRemove: () => void;
 }
 
+/**
+ * The fields of one condition, a row for each part: what is compared, how, and with what. The comparisons offered,
+ * and the values asked for, fit what is compared. A unary comparison such as "is empty" hides the last row.
+ */
 function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditorProps) {
   const { sources, disabled } = common;
   const { a, b } = condition;
@@ -152,6 +176,7 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
     onChange({ ...condition, a: next, comparator: kept ? condition.comparator : "equals",
       b: b.source === LITERAL ? { ...newOperand(), value: nextShape.type === "boolean" ? [ "true" ] : [] } : b });
   };
+  // A comparison taking one value keeps only the first of the values given
   const withComparator = (name: string) => {
     setJustChosen(false);
     onChange({ ...condition, comparator: name,
@@ -234,13 +259,15 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
 
 interface GroupEditorProps extends Common {
   group: DraftGroup;
-  // How deep it is, the top being 0
+  /** How deep it is, the top being 0. */
   depth: number;
+  /** Called with the whole group after each edit, its own or one of a condition in it. */
   onChange: (group: DraftGroup) => void;
-  // Absent at the top, which cannot be removed
+  /** Absent at the top, which cannot be removed. */
   onRemove?: () => void;
 }
 
+/** What a collapsed group shows instead of its conditions: the group in words, once every condition is complete. */
 function summaryOf(group: DraftGroup, sources: OperandSource[]): string {
   if (group.conditions.length === 0) {
     return "No condition yet.";
@@ -248,6 +275,11 @@ function summaryOf(group: DraftGroup, sources: OperandSource[]): string {
   return isComplete(group, sources) ? describeDraft(group, sources) : "Some of these are not complete yet.";
 }
 
+/**
+ * A group of conditions, and the buttons adding a condition or a group to it. Its conditions are joined along a line
+ * marked "And" or "Or". A nested group, or one of several conditions, has a heading that says whether all of them
+ * must hold or any one, and collapses the group. A new condition reads from the first source; a new group starts with one condition.
+ */
 function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEditorProps) {
   const { sources, disabled } = common;
   const [ open, setOpen ] = useState(true);
@@ -357,17 +389,23 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
 }
 
 interface ConditionBuilderProps {
+  /** The condition being built, as `draftOf` gives it for a stored one. */
   draft: DraftGroup;
+  /** Called with the whole draft after each edit. Whether it can be written is for `isComplete` to say. */
   onChange: (draft: DraftGroup) => void;
-  // Where the operands' values may come from, the first one offered first
+  /** Where the operands' values may come from, the first one offered first. */
   sources: OperandSource[];
-  // How the operands of some sources name what they read, when not as text
+  /** How the operands of some sources name what they read, when not as text. */
   editors?: OperandEditors;
+  /** Shows the condition without letting it change. */
   disabled?: boolean;
 }
 
-// Builds a condition out of nested groups, whose conditions must all hold, or any of them. Each condition compares
-// what a source reads with values of the type it holds, or with what another source reads.
+/**
+ * Builds a condition out of nested groups, whose conditions must all hold, or any of them. Each condition compares
+ * what a source reads with values of the type it holds, or with what another source reads. The builder holds no
+ * draft of its own: the caller keeps it, and writes it with `contentOf`.
+ */
 function ConditionBuilder({ draft, onChange, sources, editors = {}, disabled = false }: ConditionBuilderProps) {
   return (
     <GroupEditor group={draft} depth={0} onChange={onChange} sources={sources} editors={editors}
