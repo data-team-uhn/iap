@@ -37,6 +37,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -195,6 +196,19 @@ class ExtractionTest
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());
         assertTrue(extraction.getEvidence().isEmpty());
+        assertNull(extraction.getReplacedValue());
+    }
+
+    @Test
+    void keepsWhatTheAnswerHeldBeforeThisRunReplacedIt()
+    {
+        final Extraction extraction = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            "replacedValue", new String[]{ "40" })).adaptTo(Extraction.class);
+
+        assertArrayEquals(new String[]{ "40" }, extraction.getReplacedValue());
+        extraction.getReplacedValue()[0] = "changed";
+        assertArrayEquals(new String[]{ "40" }, extraction.getReplacedValue(), "callers get a copy");
     }
 
     private void registerVersion()

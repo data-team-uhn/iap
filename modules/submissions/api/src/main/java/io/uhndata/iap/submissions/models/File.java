@@ -73,6 +73,17 @@ public class File extends EntityPart
     private Long tokens;
 
     /**
+     * The document revision this file belongs to.
+     *
+     * @return the revision, or {@code null} when this file does not sit under one
+     */
+    @Nullable
+    public DocumentVersion getVersion()
+    {
+        return this.getParent(DocumentVersion.RESOURCE_TYPE, DocumentVersion.class);
+    }
+
+    /**
      * Where the parse got to: queued, completed or failed. Only the parse job record is ever active. Kept here as
      * well as on the job so that a file that failed parsing does not look like one that was never parsed.
      *

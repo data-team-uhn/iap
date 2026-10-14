@@ -150,6 +150,11 @@
   - reviewed (BOOLEAN)
   - evidenceRejected (BOOLEAN)
 
+  // What the answer held before this run replaced it with what it read in a
+  // newer document revision, so the submitter can go back to it. Absent when
+  // the run replaced nothing.
+  - replacedValue (STRING) multiple
+
   // How far the submitter's own value ended up from extractedAnswer: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
   // own length. Declared, not written yet: nothing measures it, and the review
