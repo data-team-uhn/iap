@@ -22,7 +22,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 
-import { cutShort, failedColour, passageCard } from "./passageStyles";
+import { cutShort, failedColour, passageCard, passageLayer } from "./passageStyles";
 import { describePages, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
@@ -118,7 +118,7 @@ export default function PassageCard({ ref, quote, note, markedBy, stepper, detai
       sx={theme => ({ ...passageCard(theme, markedBy), overflow: "hidden" })}
     >
       {stepper}
-      <Box sx={{ position: "relative", display: "flex" }}>
+      <Box sx={theme => ({ position: "relative", display: "flex", ...passageLayer(theme, markedBy) })}>
         <Typography
           ref={setCopy}
           variant="body2"
