@@ -306,6 +306,17 @@ narrow viewer, which shows only the selected passage. It goes outside the button
 so it can hold fields and buttons of its own, such as a box for a new comment on the passage selected.
 The passage's own text sits on a layer deeper in its mark's colour than the card, setting it apart from
 what the caller shows under it.
+On the card above the document, what it gives is cut short past a few lines (fewer on a phone) and fades
+out where it is cut. The card's one button shows all of the passage and of what is under it ("Show the
+whole comment", named by `markName`), as does moving the focus into what is cut, such as onto a reply
+button. While what is under the passage holds a field to type in (`TEXT_ENTRY`: a text box or an editable
+element, not a checkbox), such as a comment being written, the card is open whatever the person chose, so
+the field and its buttons are in reach; once the field goes, as when the comment is saved, it is as they
+chose again.
+However much it holds, the card takes at most three fifths of the viewer's height and scrolls past it, so
+all of it stays in reach, and so do the document's controls below it. A caller's field that grows with
+what is typed should stop growing after a few rows, as the PDF annotations test widget's does, so that its
+buttons stay beside it.
 
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
