@@ -91,9 +91,9 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // While passages are being looked for, the share of the document read so far, from 0 to 1, and whether
-  // there are several passages.
-  looking?: { share: number; several: boolean };
+  // How much of the document has been read looking for the marks, from 0 to 1, while some are, and what
+  // is looked for, as in "the passages".
+  looking?: { share: number; what: string };
   children?: ReactNode;
 }) {
   return (
@@ -120,7 +120,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
           <LinearProgress
             variant="determinate"
             value={Math.min(100, looking.share * 100)}
-            aria-label={looking.several ? "Looking for the passages" : "Looking for the passage"}
+            aria-label={`Looking for ${looking.what}`}
             sx={{ position: "absolute", top: 0, insetInline: 0, zIndex: 1 }}
           />
         )}
