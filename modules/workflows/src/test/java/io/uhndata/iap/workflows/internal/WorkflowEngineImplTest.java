@@ -302,7 +302,7 @@ class WorkflowEngineImplTest
     void recordsWhomADelegateActedFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
 
         engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
@@ -317,7 +317,7 @@ class WorkflowEngineImplTest
     {
         // The administrator would pass any start event, but the event counts as the requester's, and they do not
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
 
         final WorkflowEngine engine = engine();
@@ -330,7 +330,7 @@ class WorkflowEngineImplTest
     void refusesASenderOutsideTheDelegatesGroup() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
 
         final WorkflowEngine engine = engine();
@@ -342,7 +342,7 @@ class WorkflowEngineImplTest
     void asksItsDelegationPolicyWhoMayActForOthers() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
         final WorkflowEngine engine = engine();
         inject(engine, "delegation", EngineFixture.delegation(EngineFixture.REQUESTERS));
@@ -371,7 +371,7 @@ class WorkflowEngineImplTest
     void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         createNoopGraph(EngineFixture.REQUESTERS);
         final ActorRecordingHandler handler = new ActorRecordingHandler();
 
@@ -385,7 +385,7 @@ class WorkflowEngineImplTest
     void recordsTheEventInHistory() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
 
         engine().receiveEvent(target, CREATE);
@@ -406,7 +406,7 @@ class WorkflowEngineImplTest
     void recordsWhoReallySentAnEventOnSomeoneElsesBehalf() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
 
         engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
@@ -420,7 +420,7 @@ class WorkflowEngineImplTest
     void recordsNothingForARefusedEvent() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
 
         final WorkflowEngine engine = engine();
@@ -434,7 +434,7 @@ class WorkflowEngineImplTest
         // Deletion commits in a session of its own, so by the end event the engine's view of the target is stale.
         // Reading it then failed the event even though the deletion had already happened
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         createNoopGraph(EngineFixture.REQUESTERS);
         final boolean[] deleted = { false };
         final Node node = staleAfter(deleted);
@@ -466,7 +466,7 @@ class WorkflowEngineImplTest
     {
         // A change with no record of it is exactly what history exists to rule out
         final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
         final HistoryRecorder broken = Mockito.mock(HistoryRecorder.class);
         Mockito.when(broken.record(Mockito.any(), Mockito.any()))
