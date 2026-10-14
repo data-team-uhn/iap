@@ -49,6 +49,13 @@ describe("sendEvent", () => {
     await expect(sendEvent(doFetch, "/Workflows", "create", { title: "New" })).resolves.toBe("/Workflows/new");
   });
 
+  it("gives what the event created by its path in the repository, not as the URL encodes it", async () => {
+    const doFetch = answer({ ok: true, status: 200, redirected: true,
+      url: "http://localhost/Schemas/study/v1/q/%C3%A0%20la%20carte" });
+
+    await expect(sendEvent(doFetch, "/Schemas/study/v1/q/x", "move")).resolves.toBe("/Schemas/study/v1/q/à la carte");
+  });
+
   it("passes the engine's reason for a refusal on as it stands", async () => {
     const doFetch = answer({ ok: false, status: 409, redirected: false,
       json: () => Promise.resolve({ error: "This request has been submitted and can no longer be changed" }) });

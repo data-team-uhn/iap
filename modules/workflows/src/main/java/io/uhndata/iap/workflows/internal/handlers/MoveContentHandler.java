@@ -51,9 +51,6 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>The move goes through the {@link ContentMover}, which keeps references to the target's path working. The new path
  * is recorded as what later steps act on.</p>
  *
- * <p>When the activity names an {@code orderProperty}, the target and its siblings of the same type are numbered in
- * that property by their places (see {@link Placement}).</p>
- *
  * @version $Id$
  * @since 0.1.0
  */
@@ -66,8 +63,8 @@ public class MoveContentHandler implements ServiceTaskHandler
     /** The payload entry naming where the target goes. */
     static final String PARENT_PARAMETER = "parent";
 
-    /** The activity property naming the type of the ancestor the target stays inside. */
-    static final String WITHIN = "within";
+    /** The activity setting naming the type of the ancestor the target stays inside. */
+    static final String WITHIN_PARAMETER = "within";
 
     @Reference
     private ContentMover mover;
@@ -101,8 +98,6 @@ public class MoveContentHandler implements ServiceTaskHandler
             VersioningUtils.checkOut(parentNode);
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE,
                 this.mover.move(node, parentNode, name, before));
-            Placement.number(parentNode, node.getPrimaryNodeType().getName(),
-                context.getActivity().get(Placement.ORDER_PROPERTY, String.class));
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot move " + target.getPath() + ": " + e.getMessage(), e);
         }
@@ -119,16 +114,8 @@ public class MoveContentHandler implements ServiceTaskHandler
     private static Resource parent(final WorkflowTaskContext context, final Resource target)
         throws InvalidPayloadException
     {
-        final Object path = context.getEvent().get(PARENT_PARAMETER);
-        if (path == null) {
-            return target.getParent();
-        }
-        final Resource parent =
-            path instanceof String ? context.getResourceResolver().getResource((String) path) : null;
-        if (parent == null) {
-            throw new InvalidPayloadException("There is nothing at " + path + " to move into");
-        }
-        return parent;
+        final Resource named = EventPaths.resourceAt(context, PARENT_PARAMETER, "to move into");
+        return named == null ? target.getParent() : named;
     }
 
     /**
@@ -142,7 +129,7 @@ public class MoveContentHandler implements ServiceTaskHandler
     private static void checkScope(final WorkflowTaskContext context, final Resource target, final Resource parent)
         throws InvalidPayloadException
     {
-        final String within = context.getActivity().get(WITHIN, String.class);
+        final String within = context.getActivity().get(WITHIN_PARAMETER, String.class);
         if (within == null) {
             return;
         }

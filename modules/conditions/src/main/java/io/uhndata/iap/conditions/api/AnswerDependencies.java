@@ -45,9 +45,11 @@ public final class AnswerDependencies
     /** The source of an operand naming a question whose answer it compares. */
     public static final String ANSWER_SOURCE = "answer";
 
-    private static final String VALUE = "value";
+    /** The property of an operand holding what it names. */
+    private static final String VALUE_PROPERTY = "value";
 
-    private static final String SOURCE = "source";
+    /** The property of an operand saying where its value comes from. */
+    private static final String SOURCE_PROPERTY = "source";
 
     private AnswerDependencies()
     {
@@ -178,8 +180,8 @@ public final class AnswerDependencies
      */
     private static boolean isAnswerOperand(final Node node) throws RepositoryException
     {
-        return node.isNodeType("cond:ConditionOperand") && node.hasProperty(VALUE) && node.hasProperty(SOURCE)
-            && ANSWER_SOURCE.equals(node.getProperty(SOURCE).getString());
+        return node.isNodeType("cond:ConditionOperand") && node.hasProperty(VALUE_PROPERTY)
+            && node.hasProperty(SOURCE_PROPERTY) && ANSWER_SOURCE.equals(node.getProperty(SOURCE_PROPERTY).getString());
     }
 
     /**
@@ -193,7 +195,7 @@ public final class AnswerDependencies
     public static List<String> names(@NotNull final Node operand) throws RepositoryException
     {
         final List<String> names = new ArrayList<>();
-        for (final Value value : operand.getProperty(VALUE).getValues()) {
+        for (final Value value : operand.getProperty(VALUE_PROPERTY).getValues()) {
             names.add(value.getString());
         }
         return names;

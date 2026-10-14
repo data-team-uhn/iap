@@ -363,9 +363,9 @@ A few handlers are the engine's own, because what they do is generic:
 | `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
-| `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
-| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named` and its own `namePattern`, `nameHint` and `orderProperty`), `nameFrom`, `namePattern`, `nameHint`, `orderProperty` (the activity's defaults; all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
-| `moveContent` | `within` (optional: a resource type the content must stay inside), `orderProperty` (optional) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
+| `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`, `unique`) | Applies the event's `patch` to what the execution created, or else the target |
+| `createContent` | `types` (a child node listing the types it may create, each with its `nodeType` and `label`, and optionally `named` and its own `namePattern` and `nameHint`), `nameFrom`, `namePattern`, `nameHint` (the activity's defaults; all optional) | Creates, in the target, content of the event's `type`, named as the event's `name` asks or else after what it says, placed before the sibling the event names as `before`, or else last |
+| `moveContent` | `within` (optional: a resource type the content must stay inside) | Moves the target into the event's `parent`, or within its own, placed before the sibling the event names as `before`, or else last |
 | `renameContent` | `namePattern` (optional: a regular expression new names must match) | Renames the target to the event's `name`, keeping its place among its siblings |
 | `replaceContent` | `child` (the child it replaces), `nodeTypes` (the node types the new tree may hold, each with its subtypes) | Replaces that child of what the execution created, or else the target, with the tree the event gives as `content`; `null` removes it |
 | `copyContent` | `sourceType`, `skipProperties`, `dropTagCategories` (all optional) | Copies what the event's `source` holds into what the execution created, or else the target; without a `source`, does nothing |
@@ -477,9 +477,12 @@ below. Without a `name`, it is named after the first words, without accents, of 
 first field listed in `nameFrom` that the event's `patch` gives. When that makes no name
 its type allows, it is named after its type. The activity's `namePattern` is the rule a
 name must match, and its `nameHint` says the same in words. A listed type may give its
-own pattern and hint. One listed with `named` false refuses any name asked for. It is
-created empty: an `updateContent` task that follows fills it in from the same patch,
-since it acts on what was created, and refuses to leave a mandatory field empty.
+own pattern and hint. One listed with `named` false refuses any name asked for. A type
+listed without a `nodeType`, or with one that does not exist, is offered nowhere, and
+recorded as an error. New content starts with only what its type sets itself, such as
+its autocreated defaults. An `updateContent` task that follows fills it in from the same
+patch, since it acts on what was created. It refuses a patch that leaves out a mandatory
+field its type gives no default.
 
 The `creatable` serialization adds `@creatable` to content a `create` event would add
 to: each type the requesting user's workflow could create there, with its `label` and
@@ -497,7 +500,7 @@ free name when its own is already taken at the destination. The move is refused 
 new parent does not hold the target's type (by the same rule as `createContent`), when
 the target would move into itself, and, when the activity names a resource type as
 `within`, when the target would leave its nearest ancestor of that type, such as the
-schema version a question belongs to.
+schema version a question belongs to, or the question an answer option belongs to.
 
 The move goes through the `ContentMover` service (`java-utils`). Before a path changes,
 it lets each `MoveParticipant` update whatever names the content by its path: the
@@ -505,11 +508,9 @@ conditions module makes the `answer` operands that name a moved question by path
 by identifier instead. The new path is what later steps act on, and what the event is
 answered with.
 
-Both can also number content by its place, for readers that order it by a property
-rather than as it is stored. The property is the `orderProperty` of `moveContent`'s
-activity, of `createContent`'s, or of one of the types `createContent` lists. The
-content placed and its siblings of the same type are numbered in that property by their
-places, 10 apart.
+Both place content among siblings the parent keeps in order, and `before` names a
+sibling, never a path. The order is the parent's, and the `order` serialization reports
+it (see [json-serialization.md](json-serialization.md)).
 
 `renameContent` gives the target the `name` the event asks for, keeping its place among
 its siblings. The rename goes through the same `ContentMover`, so the same participants

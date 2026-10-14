@@ -92,8 +92,8 @@ class ReplaceContentHandlerTest
         }
         this.session.save();
         Mockito.when(this.activity.getPath()).thenReturn("/replace");
-        Mockito.when(this.activity.get(ReplaceContentHandler.CHILD, String.class)).thenReturn("test:rule");
-        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES, String[].class))
+        Mockito.when(this.activity.get(ReplaceContentHandler.CHILD_PARAMETER, String.class)).thenReturn("test:rule");
+        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES_PARAMETER, String[].class))
             .thenReturn(new String[] { "test:AllOf", CHECK, "test:Operand", "test:Rule", "test:Ghost" });
     }
 
@@ -208,7 +208,7 @@ class ReplaceContentHandlerTest
     @Test
     void acceptsTheSubtypesOfAnAllowedType() throws WorkflowException, PersistenceException, RepositoryException
     {
-        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES, String[].class))
+        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES_PARAMETER, String[].class))
             .thenReturn(new String[] { "test:Rule", "test:Operand" });
 
         replace(ALL_OF);
@@ -220,10 +220,10 @@ class ReplaceContentHandlerTest
     @Test
     void needsToKnowWhatItReplaces()
     {
-        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES, String[].class)).thenReturn(null);
+        Mockito.when(this.activity.get(ReplaceContentHandler.NODE_TYPES_PARAMETER, String[].class)).thenReturn(null);
         assertThrows(WorkflowDefinitionException.class, () -> replace(ALL_OF));
 
-        Mockito.when(this.activity.get(ReplaceContentHandler.CHILD, String.class)).thenReturn(null);
+        Mockito.when(this.activity.get(ReplaceContentHandler.CHILD_PARAMETER, String.class)).thenReturn(null);
         assertThrows(WorkflowDefinitionException.class, () -> replace(ALL_OF));
     }
 

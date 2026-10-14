@@ -17,14 +17,13 @@
  */
 
 import ActionBar from "@iap/frontend-commons/components/ActionBar";
-
-import type { JcrNode } from "./schemaModel";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 // A module adds an action on schemas by shipping an `ext:Extension` on this point.
 export const SCHEMA_ACTIONS_POINT = "SchemaActions";
 
 export interface SchemaActionProps {
-  schema: JcrNode;
+  schema: SerializedNode;
   reload: () => void | Promise<void>;
   // What to do once the schema itself is gone, when reloading it would find nothing
   removed?: () => void;

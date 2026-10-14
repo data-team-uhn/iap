@@ -26,15 +26,16 @@ import { visuallyHidden } from "@mui/utils";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
-import { type JcrNode, nameOf, pathOf } from "./schemaModel";
+import { nameOf, pathOf } from "./schemaModel";
 import { isMoveSpot } from "./schemaMoveModel";
 import { useTreeEvent } from "./schemaTree";
 import { resourceTypeOf, shownNameOf } from "./schemaVersionTreeModel";
 
 interface Moving {
-  node: JcrNode;
+  node: SerializedNode;
   // What it is called in the bar, such as "question"
   what: string;
   // What started the move, which gets the focus back when it is cancelled
@@ -58,11 +59,12 @@ interface MoveModeValue {
   // How far down the screen the button pressed for the move was. What moved is scrolled to the same height.
   landing?: number;
   sending: boolean;
-  isMoving: (node: JcrNode) => boolean;
+  isMoving: (node: SerializedNode) => boolean;
   start: (moving: Moving) => void;
   cancel: () => void;
-  moveTo: (node: JcrNode, parent: JcrNode, before: JcrNode | undefined, from: HTMLElement) => void;
-  step: (option: JcrNode, question: JcrNode, before: JcrNode | undefined, way: Way, from: HTMLElement) => void;
+  moveTo: (node: SerializedNode, parent: SerializedNode, before: SerializedNode | undefined, from: HTMLElement) => void;
+  step: (option: SerializedNode, question: SerializedNode, before: SerializedNode | undefined, way: Way,
+    from: HTMLElement) => void;
 }
 
 const ignore = () => undefined;
@@ -77,9 +79,9 @@ export const useMoveMode = () => useContext(MoveModeContext);
 // How long what was moved stays marked
 const SHOWN_FOR = 3000;
 
-const placeOf = (parent: JcrNode, before?: JcrNode): string => `${pathOf(parent)}/${before ? nameOf(before) : ""}`;
+const placeOf = (parent: SerializedNode, before?: SerializedNode): string => `${pathOf(parent)}/${before ? nameOf(before) : ""}`;
 
-const moveParams = (parent: JcrNode, before?: JcrNode) =>
+const moveParams = (parent: SerializedNode, before?: SerializedNode) =>
   ({ parent: pathOf(parent), ...before ? { before: nameOf(before) } : {} });
 
 const PULSE = { "50%": { scale: "1.03" } };
@@ -143,7 +145,8 @@ export function MoveMode({ children }: { children: ReactNode }) {
     setError(undefined);
     setMoving(undefined);
   }, [ moving, keepInPlace ]);
-  const moveTo = useCallback((node: JcrNode, parent: JcrNode, before: JcrNode | undefined, from: HTMLElement) => {
+  const moveTo = useCallback((node: SerializedNode, parent: SerializedNode, before: SerializedNode | undefined,
+    from: HTMLElement) => {
     setSending(true);
     setLanding(from.getBoundingClientRect().top);
     setDestination(placeOf(parent, before));
@@ -160,8 +163,8 @@ export function MoveMode({ children }: { children: ReactNode }) {
       })
       .finally(() => setSending(false));
   }, [ send, notify, shown ]);
-  const step = useCallback((option: JcrNode, question: JcrNode, before: JcrNode | undefined, way: Way,
-    from: HTMLElement) => {
+  const step = useCallback((option: SerializedNode, question: SerializedNode, before: SerializedNode | undefined,
+    way: Way, from: HTMLElement) => {
     setSending(true);
     setLanding(from.getBoundingClientRect().top);
     setStepping(pathOf(option));
@@ -203,7 +206,7 @@ export function MoveMode({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     moving, moved, stepped, steps, stepping, destination, landing, sending, start, cancel, moveTo, step,
-    isMoving: (node: JcrNode) => moving !== undefined && pathOf(moving.node) === pathOf(node),
+    isMoving: (node: SerializedNode) => moving !== undefined && pathOf(moving.node) === pathOf(node),
   }), [ moving, moved, stepped, steps, stepping, destination, landing, sending, start, cancel, moveTo, step ]);
   const failed = replaying("iapMoveFailed", failures, PULSE);
   return (
@@ -235,8 +238,8 @@ export function MoveMode({ children }: { children: ReactNode }) {
 
 interface MoveSpotProps {
   // What the moving node would go into, and the child it would go before, if not last
-  parent: JcrNode;
-  before?: JcrNode;
+  parent: SerializedNode;
+  before?: SerializedNode;
   // Whether it stands in a list, among its items
   item?: boolean;
   // What else choosing it does, such as opening the part it goes into
@@ -320,7 +323,7 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
 }
 
 // Marks the part that is moving, and the part or option just moved
-export function useMoveHighlight<T extends HTMLElement>(node: JcrNode) {
+export function useMoveHighlight<T extends HTMLElement>(node: SerializedNode) {
   const { moved, stepped, steps, stepping, landing, isMoving } = useMoveMode();
   const ref = useRef<T>(null);
   const justMoved = moved === pathOf(node);

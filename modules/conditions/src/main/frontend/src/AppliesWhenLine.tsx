@@ -28,7 +28,7 @@ interface AppliesWhenLineProps {
   onEdit?: () => void;
 }
 
-const LINE = {
+const CONDITION_LINE_STYLE = {
   alignItems: "flex-start", alignSelf: "flex-start", bgcolor: "condition.surface", borderRadius: 1, px: 1, py: 0.5,
   gap: 0.75, textAlign: "start",
 } as const;
@@ -43,11 +43,11 @@ function AppliesWhenLine({ children, onEdit }: AppliesWhenLineProps) {
     </>
   );
   if (!onEdit) {
-    return <Stack direction="row" sx={LINE}>{content}</Stack>;
+    return <Stack direction="row" sx={CONDITION_LINE_STYLE}>{content}</Stack>;
   }
   return (
     <ButtonBase aria-label="Change when it applies" aria-describedby={id} onClick={onEdit}
-      sx={{ ...LINE, "&:hover": { outline: "1px solid", outlineColor: "condition.main" } }}>
+      sx={{ ...CONDITION_LINE_STYLE, "&:hover": { outline: "1px solid", outlineColor: "condition.main" } }}>
       {content}
       <EditOutlinedIcon fontSize="small" sx={{ color: "condition.main", mt: 0.25 }} />
     </ButtonBase>

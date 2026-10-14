@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
@@ -35,10 +36,6 @@ export function schemaLabel(schemaVersion: unknown): string {
   const pathSegments = ((version["@path"] as string | undefined) ?? "").split("/");
   const schemaName = pathSegments.length > 2 ? pathSegments[pathSegments.length - 2] : "";
   return [schemaName, version.version].filter(Boolean).join(" ");
-}
-
-function dateValue(value: unknown): Date | null {
-  return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
 // The columns shared by all grids listing submissions. Fields named after an entity property are
@@ -99,7 +96,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
     // The full timestamp shown in the grid is too long for the caption line; the day is enough
-    cardValue: row => dateValue(row["jcr:lastModified"])?.toLocaleDateString(),
+    cardValue: row => dayOf(row["jcr:lastModified"]),
   },
 ];
 

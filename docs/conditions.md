@@ -114,7 +114,7 @@ operands elsewhere in its entity that use one of them, and the part each such co
 is on. The schema editor refuses to remove a question other parts' conditions depend on
 this way.
 
-## Aggregators
+### Aggregators
 
 An operand's `aggregate` folds its values into one before comparison — the
 principled way to use the single-value ordering comparators against a set, e.g.

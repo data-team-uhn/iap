@@ -122,6 +122,20 @@ class AnswerOperandResolverTest
     }
 
     @Test
+    void takesAnIdentifierOnlyInTheLowerCaseTheRepositoryWrites()
+    {
+        // Spelt otherwise, it is a path, which leads nowhere
+        final String upper = "AAAAAAAA-2222-3333-4444-555555555555";
+        final ConditionOperand operand = this.createOperand(upper);
+        final Content submission = this.context.create().resource("/Submissions/sub",
+            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+        this.context.create().resource("/Submissions/sub/a1", Map.of(
+            "question", upper, "value", new String[]{ "yes" }));
+
+        assertTrue(this.resolver.resolve(operand, submission).isEmpty());
+    }
+
+    @Test
     void uuidReferencesLoadTheQuestionTypeThroughTheSession()
         throws RepositoryException
     {

@@ -43,11 +43,9 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.internal.handlers.ContentFields;
-import io.uhndata.iap.workflows.internal.handlers.ContentNames;
 import io.uhndata.iap.workflows.internal.handlers.ContentTypes;
 import io.uhndata.iap.workflows.internal.handlers.CreateContentHandler;
 import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
-import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -120,7 +118,7 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
                 final Offer offer = offer(create);
                 json.add("@creatable", describe(ContentTypes.accepted(offer.types(), node), offer, node));
             }
-        } catch (final RepositoryException | WorkflowException e) {
+        } catch (final RepositoryException | WorkflowException | RuntimeException e) {
             // Nothing creatable is the safe answer; the serialization itself must not fail over it
             LOGGER.error("Could not list what may be created in {}: {}", node, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave").about(resource));
@@ -141,17 +139,11 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
      */
     private static Offer offer(final WorkflowVersion version)
     {
-        final List<Activity> activities = version.getFlowNodes().stream()
-            .filter(Activity.class::isInstance)
-            .map(Activity.class::cast)
-            .toList();
         return new Offer(
-            activities.stream()
-                .filter(activity -> CreateContentHandler.HANDLER_NAME.equals(activity.getHandler()))
+            version.getActivities(CreateContentHandler.HANDLER_NAME).stream()
                 .flatMap(activity -> ContentTypes.listedBy(activity).stream())
                 .toList(),
-            activities.stream()
-                .filter(activity -> UpdateContentHandler.HANDLER_NAME.equals(activity.getHandler()))
+            version.getActivities(UpdateContentHandler.HANDLER_NAME).stream()
                 .flatMap(activity -> ContentFields.describedBy(activity).stream())
                 .toList());
     }
@@ -175,12 +167,12 @@ public class CreatableContentProcessor implements ResourceJsonProcessor
                 .add("type", type.nodeType())
                 .add("label", type.label())
                 .add("defaultName", type.defaultName())
-                .add(ContentNames.NAMED, type.named())
+                .add("named", type.named())
                 .add("fields", ContentFieldsProcessor.describe(
                     ContentFields.editable(offer.fields(), List.of(nodeTypes.getNodeType(type.nodeType())))));
             if (type.named()) {
-                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_PATTERN, type.namePattern());
-                ContentFieldsProcessor.addIfSet(json, ContentNames.NAME_HINT, type.nameHint());
+                ContentFieldsProcessor.addIfSet(json, "namePattern", type.namePattern());
+                ContentFieldsProcessor.addIfSet(json, "nameHint", type.nameHint());
             }
             described.add(json);
         }

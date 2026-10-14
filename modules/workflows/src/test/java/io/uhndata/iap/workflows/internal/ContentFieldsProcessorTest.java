@@ -40,8 +40,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.internal.handlers.FieldsFixture;
-import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -86,8 +85,8 @@ class ContentFieldsProcessorTest
     void listsTheFieldsTheUpdateWouldChange() throws Exception
     {
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
-        final List<FlowNode> nodes = List.of(Mockito.mock(FlowNode.class), this.fixture.activity(), otherActivity());
-        Mockito.when(version.getFlowNodes()).thenReturn(nodes);
+        Mockito.when(version.getActivities(UpdateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(this.fixture.activity()));
         FieldsFixture.inspecting(this.engine, "update", version);
 
         final JsonObject json = serialize(this.fixture.item());
@@ -131,7 +130,8 @@ class ContentFieldsProcessorTest
         this.fixture.session().getNode("/update/fields/title").setProperty("unique", true);
         this.fixture.session().save();
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
-        Mockito.when(version.getFlowNodes()).thenReturn(List.of(this.fixture.activity()));
+        Mockito.when(version.getActivities(UpdateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(this.fixture.activity()));
         FieldsFixture.inspecting(this.engine, "update", version);
 
         assertTrue(serialize(this.fixture.item()).getJsonArray("@fields").getJsonObject(0).getBoolean("unique"));
@@ -141,7 +141,8 @@ class ContentFieldsProcessorTest
     void saysWhatTheUpdateAllowsWhenItsWorkflowSays() throws Exception
     {
         final WorkflowVersion version = Mockito.mock(WorkflowVersion.class);
-        Mockito.when(version.getFlowNodes()).thenReturn(List.of(this.fixture.activity()));
+        Mockito.when(version.getActivities(UpdateContentHandler.HANDLER_NAME))
+            .thenReturn(List.of(this.fixture.activity()));
         Mockito.when(version.getNotice()).thenReturn("Only the wording can change.");
         FieldsFixture.inspecting(this.engine, "update", version);
 
@@ -166,12 +167,13 @@ class ContentFieldsProcessorTest
         assertFalse(serialize(this.fixture.item()).containsKey("@fields"));
     }
 
-    private Activity otherActivity()
+    @Test
+    void listsNothingWhenTheEngineFailsUnexpectedly() throws Exception
     {
-        final Activity other =
-            Mockito.mock(Activity.class);
-        Mockito.when(other.getHandler()).thenReturn("addTag");
-        return other;
+        Mockito.when(this.engine.findApplicableWorkflow(Mockito.any(), Mockito.any()))
+            .thenThrow(new IllegalStateException("the engine's session was closed"));
+
+        assertFalse(serialize(this.fixture.item()).containsKey("@fields"));
     }
 
     private JsonObject serialize(final Node node) throws RepositoryException

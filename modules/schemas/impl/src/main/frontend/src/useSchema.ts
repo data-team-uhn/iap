@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 
-import { listing, SCHEMAS_ROOT, type JcrNode } from "./schemaModel";
+import { listing, SCHEMAS_ROOT } from "./schemaModel";
 
-const asNode = (node: JcrNode): JcrNode => node;
+const asNode = (node: SerializedNode): SerializedNode => node;
 
 // One schema and its versions. The changes made on its page are workflow events sent by its actions.
 export function useSchema(name: string) {

@@ -22,7 +22,6 @@
     "{https://iap.uhndata.io/bpmn}within=within",
     "{https://iap.uhndata.io/bpmn}namePattern=namePattern",
     "{https://iap.uhndata.io/bpmn}nameHint=nameHint",
-    "{https://iap.uhndata.io/bpmn}orderProperty=orderProperty",
     "{https://iap.uhndata.io/bpmn}child=child",
     "{https://iap.uhndata.io/bpmn}nodeTypes=nodeTypes[]",
     "{https://iap.uhndata.io/bpmn}to=to",

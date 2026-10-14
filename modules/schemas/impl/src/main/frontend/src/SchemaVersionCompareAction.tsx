@@ -24,10 +24,11 @@ import { useNavigate } from "react-router";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { readNode } from "@iap/frontend-commons/useNode";
 
 import { defaultBase, sourceOf } from "./comparisonDefaults";
-import { type JcrNode, labelOf, nameOf, pathOf, tagsOf, versionsOf } from "./schemaModel";
+import { labelOf, nameOf, pathOf, tagsOf, versionsOf } from "./schemaModel";
 import { comparisonPageUrl } from "./useSchemaList";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
@@ -39,7 +40,7 @@ function SchemaVersionCompareAction({ schema, version, comparisonDefaults = [] }
   const navigate = useNavigate();
   const doFetch = useAuthenticatedFetch();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
-  const [ links, setLinks ] = useState<JcrNode>();
+  const [ links, setLinks ] = useState<SerializedNode>();
   const versions = versionsOf(schema);
   if (versions.length < 2) {
     return null;
@@ -49,7 +50,7 @@ function SchemaVersionCompareAction({ schema, version, comparisonDefaults = [] }
   const chosen = defaultBase(version, versions, comparisonDefaults, source);
   const others = versions.filter(other => nameOf(other) !== nameOf(version));
   const offered = chosen ? [ chosen, ...others.filter(other => other !== chosen) ] : others;
-  const standingOf = (other: JcrNode): string | undefined => {
+  const standingOf = (other: SerializedNode): string | undefined => {
     if (tagsOf(other).includes("active")) {
       return "The active version";
     }

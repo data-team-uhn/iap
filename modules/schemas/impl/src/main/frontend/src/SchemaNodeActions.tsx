@@ -20,23 +20,24 @@ import AltRouteOutlinedIcon from "@mui/icons-material/AltRouteOutlined";
 
 import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
-import { type JcrNode, nameIfAny } from "./schemaModel";
+import { nameIfAny } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { AddBelow } from "./SchemaNodeCreateAction";
 import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
 import SchemaOptionStepActions from "./SchemaOptionStepActions";
-import { headingOf, isPart, optionLabelOf } from "./schemaVersionTreeModel";
+import { headingOf, isPart, shownNameOf } from "./schemaVersionTreeModel";
 
 interface SchemaNodeActionsProps {
-  node: JcrNode;
+  node: SerializedNode;
   // What holds it
-  parent: JcrNode;
+  parent: SerializedNode;
   // Everything the parent holds of its kind, in order
-  siblings: JcrNode[];
+  siblings: SerializedNode[];
   // What it is called in the actions' titles, such as "question"
   what: string;
   // Opens the part's condition for editing, where it can be set
@@ -50,7 +51,7 @@ function SchemaNodeActions({ node, parent, siblings, what, editCondition }: Sche
   const { moving } = useMoveMode();
   const phone = usePhone();
   const next = siblings.at(siblings.indexOf(node) + 1);
-  const label = `Actions for “${isPart(node) ? headingOf(node) : optionLabelOf(node)}”`;
+  const label = `Actions for “${shownNameOf(node)}”`;
   const edit = !moving && <SchemaNodeEditAction node={node} parent={parent} title={`Edit ${what}`} />;
   const discard = !moving && <SchemaNodeDiscardAction node={node} what={what} />;
   if (!isPart(node)) {

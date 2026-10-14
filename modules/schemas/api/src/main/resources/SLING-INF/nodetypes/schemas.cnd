@@ -236,9 +236,6 @@
   // detailing When this option applies
   - description (STRING)
 
-  // Its place among its question's options, lower first, kept by the workflows that add and move options
-  - defaultOrder (LONG) = "0" mandatory autocreated
-
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
