@@ -145,9 +145,8 @@ public class Entry extends Content
      * The identifier of the JCR version holding this resource's content as it was after the action.
      *
      * <p>
-     * Usually absent, and that is normal rather than a gap: every action is logged, while snapshots are taken only
-     * where the process says a milestone is. Whether an absence means "none wanted" or "not taken yet" is answered by
-     * {@link Action#isComplete()}.
+     * Usually absent: every action is logged, while snapshots are taken only where the process declares a milestone.
+     * Whether an absence means "none wanted" or "not taken yet" is answered by {@link Action#isComplete()}.
      * </p>
      *
      * @return a version identifier, or {@code null} when this action snapshotted nothing here
@@ -161,7 +160,7 @@ public class Entry extends Content
     /**
      * The action this entry is part of.
      *
-     * @return the owning action, or {@code null} if this entry is somehow not filed under one
+     * @return the owning action, or {@code null} if this entry is not filed under one
      */
     @Nullable
     public Action getAction()

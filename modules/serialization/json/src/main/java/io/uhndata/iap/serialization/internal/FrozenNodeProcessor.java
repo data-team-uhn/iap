@@ -68,8 +68,8 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
         "jcr:frozenUuid", "jcr:uuid");
 
     /**
-     * What describes the copy rather than the content. A copy's identity has no business being served as the
-     * content's, so it is named here rather than left to the repository not to write it.
+     * What describes the copy rather than the content. Named here, rather than relying on the repository not to write
+     * them.
      */
     private static final Map<String, String> SUPPRESSED = Map.of(
         "jcr:primaryType", "the copy's own type, which is always nt:frozenNode",
@@ -108,7 +108,7 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
             if (SUPPRESSED.containsKey(actual)) {
                 return null;
             }
-            // Deliberately ignoring `input`: `simple` will have dropped these, and putting them back is the point
+            // `input` is ignored: `simple` drops these, and this puts them back
             return RESTORED.getOrDefault(actual, input);
         } catch (final RepositoryException e) {
             LOGGER.warn("Unexpected error while naming property {} of frozen node {}: {}", property, node,

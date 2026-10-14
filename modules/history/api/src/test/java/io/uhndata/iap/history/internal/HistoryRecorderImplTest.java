@@ -48,8 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link HistoryRecorderImpl}, against a real repository: what this class is for is sharing the
- * caller's transaction, and a mock resolver cannot show that.
+ * Unit tests for {@link HistoryRecorderImpl}, against a real repository, since a mock resolver cannot show that the
+ * record shares the caller's transaction.
  *
  * @version $Id$
  * @since 0.1.0
@@ -240,7 +240,7 @@ class HistoryRecorderImplTest
     @Test
     void reusesTheBucketOnceItExistsRatherThanOpeningItsOwnSessionAgain() throws Exception
     {
-        // Pinning the name is the only way to ask for the same bucket twice, since it is random by design
+        // Names are random, so the test pins them to ask for the same bucket twice
         final HistoryRecorderImpl impl = new HistoryRecorderImpl()
         {
             private int recorded;
@@ -280,7 +280,7 @@ class HistoryRecorderImplTest
     @Test
     void reportsPlainlyWhenItCannotReachItsOwnServiceUser() throws Exception
     {
-        // The buckets do not exist yet, so recording has to open the store's own session -- and there is none
+        // The buckets do not exist yet, so recording has to open the store's own session, and there is none
         final HistoryRecorderImpl impl = new HistoryRecorderImpl();
         inject(impl, "resolverFactory", new TestResolverFactory(null));
 

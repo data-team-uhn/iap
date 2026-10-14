@@ -134,7 +134,7 @@ public class Action extends Content
     }
 
     /**
-     * What was asked for, in the platform's own vocabulary: {@code submit}, {@code activateVersion}. The one thing a
+     * What was asked for, in the platform's own vocabulary: {@code submit}, {@code activate}. The one thing a
      * reader can group actions by without reading any workflow definition.
      *
      * @return an operation name, empty only in a malformed record
@@ -213,8 +213,7 @@ public class Action extends Content
     }
 
     /**
-     * What whoever decided said about their decision. Nothing routes on this, which is exactly why it has to be
-     * recorded rather than left to be remembered.
+     * What whoever decided said about their decision.
      *
      * @return a note, or {@code null} when none was given
      */

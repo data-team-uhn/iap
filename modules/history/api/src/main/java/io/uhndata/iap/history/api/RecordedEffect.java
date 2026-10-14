@@ -63,8 +63,7 @@ public record RecordedEffect(@NotNull String subject, @NotNull String subjectPat
     }
 
     /**
-     * The effect on a resource that is still there to be asked about itself, which is the usual case. The identifier,
-     * the path and the type are read off the node, so they cannot disagree with it.
+     * The effect on a node, with its identifier, path and type read off the node itself.
      *
      * @param subject the affected node, which must be referenceable
      * @param role the part it played in the action

@@ -23,57 +23,30 @@
 //
 // History: the record of what happened to the content, kept under /History.
 //
-// TWO STORES, ONE RECORD. The *content* of a past state is a JCR version, in
-// the repository's own version storage: a frozen node is exempt from
-// referential integrity, keeps binaries by reference to the same blobs, and
-// preserves the resource type, so past content can be read back through the
-// ordinary model and serialization stack. What version storage cannot do is
-// carry a word of our own -- an nt:version and its jcr:frozenNode are both
-// entirely protected, and no property or mixin can be added to either, ever.
-// Everything a reader needs to know *about* a change therefore lives here, and
-// the two halves are joined by the version identifier in hist:Entry.snapshot.
+// The content of a past state is a JCR version, in the repository's version
+// storage. A version cannot be given a property or a mixin, so everything said
+// about a change is a node of these types. The two are joined by the version
+// identifier in hist:Entry.snapshot. docs/history.md explains the design.
 //
-// ONE COMMIT, ONE ACTION. An action is one event delivery -- one thing a user
-// or a timer asked for -- and not one step of the workflow that carried it out.
-// The engine runs a workflow to quiescence and commits it all at once, so a
-// step has no separately committed existence and cannot be an audit fact. This
-// is also what keeps the record stable when a definition is refactored: an
-// action that retires one workflow version and activates another is one action
-// whether the definition spends one service task on it or two.
-//
-// THE CAUSE IS ON THE ACTION, THE EFFECT IS ON THE ENTRY. One action affects
-// any number of resources, each in its own way, so the cause is recorded once
-// and each affected resource gets its own hist:Entry naming the part it played.
-// Neither shape says enough alone: a list of touched identifiers cannot say
-// which version was retired and which activated, and a record per resource
-// cannot say that both happened together for one reason.
-//
-// NO VALUES. An entry says *which* properties changed, never what they changed
-// to. That keeps the log small, keeps it readable at a glance, and says
-// something the snapshot beside it cannot.
+// Every pointer in this file is an identifier stored as STRING, never a
+// REFERENCE. A REFERENCE would stop anybody deleting what the record describes,
+// and the record has to outlive its subject.
 //
 // Nothing here is versionable and /History is not under a versionable
-// ancestor, so no on-parent-version attributes are needed in this file -- with
-// the single exception of the hist:Watchable mixin at the bottom, which is
-// added to content that *is* versionable, and says so where it is declared.
+// ancestor, so no on-parent-version attributes are needed in this file. The one
+// exception is the hist:Watchable mixin at the bottom, which is added to
+// content that is versionable.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // The store root at /History, and every bucket under it.
 //
-// One type for both, because the layout is a prefix tree: actions are filed
-// under <root>/<xx>/<yy>/<zz>/<action>, the buckets named after the leading
-// characters of the action's own name, exactly as PrefixTree files them and as
-// Oak files version histories. A flat parent is what this avoids -- a node with
-// hundreds of thousands of children is one no repository browser can open and
-// one the repository itself starts warning about.
+// Actions are filed in a prefix tree, under <root>/<xx>/<yy>/<zz>/<action>,
+// each bucket named after the leading characters of the action's own name.
 //
-// rep:AccessControllable because the ACL that matters is placed here: nobody
-// reads this store directly. It is read by a service user, which adapts what it
-// finds into what the person asking is allowed to see, so per-audience
-// visibility is a decision made when the history is served rather than one
-// expressed in permissions.
+// rep:AccessControllable for the ACL repoinit places here. Nobody reads this
+// store directly: a service user reads it for the person asking.
 [hist:Log] > sling:Folder, rep:AccessControllable
   // Attributes:
 
@@ -101,13 +74,13 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One action: one thing that was asked for, and everything that followed from
-// it in the single commit that carried it out.
+// One action: one event delivery, and everything that followed from it in the
+// commit that carried it out.
 //
-// data:Content > sling:Folder > nt:folder > nt:hierarchyNode > mix:created, so
-// jcr:created and jcr:createdBy are autocreated by the repository. jcr:created
-// is when the action happened; jcr:createdBy is the service user that recorded
-// it, which is why the person responsible is a property of its own below.
+// jcr:created and jcr:createdBy are autocreated, through mix:created.
+// jcr:created is when the action was recorded. jcr:createdBy is the user whose
+// session wrote the record, which is not always the person responsible, so
+// that person is a property of its own below.
 [hist:Action] > data:Content
   // Attributes:
 
@@ -118,42 +91,30 @@
 
   - sling:resourceType (STRING) = "hist/Action" mandatory autocreated protected
 
-  // Who is answerable for this. Deliberately not jcr:createdBy: every write
-  // here is made by a service user, because the engine writes as itself and
-  // the person acting often holds no more than read access on what they
-  // changed. Must be a canonical user id, as the repository spells it, and not
-  // the spelling the person typed at login -- those differ, and two spellings
-  // of one person is a record that cannot be totalled.
+  // Who is answerable for this, as a canonical user id: the repository's
+  // spelling, not the one typed at login
   - actor (STRING) mandatory
 
-  // Set when somebody acted for somebody else -- a delegate, or the system on
-  // a person's behalf. `actor` stays whoever really did it.
+  // Whom the actor acted for, when that was somebody else: a delegate, or the
+  // system acting for a person
   - onBehalfOf (STRING)
 
-  // What was asked for, in the platform's own vocabulary: "submit",
-  // "activateVersion". The one property a reader can group by without knowing
-  // any workflow definition.
+  // What was asked for, in the platform's own vocabulary, e.g. "submit",
+  // "activate"
   - operation (STRING) mandatory
 
   // The workflow instance this action moved, and the exact definition version
-  // that decided what it meant. Identifiers as STRING rather than REFERENCE,
-  // like every other pointer in this file: version storage is exempt from
-  // referential integrity but ordinary content is not, so a REFERENCE here
-  // would make the record pin what it describes and refuse to let anybody
-  // delete it. The record has to be able to outlive its subject.
+  // in force
   - workflowInstance (STRING)
   - workflowVersion (STRING)
 
   // Which node of the definition was being performed, and its label as the
-  // definition read at the time. The label is copied rather than looked up for
-  // the same reason a task copies its own: the reader may not be able to read
-  // the definition at all, and the definition may since have been reworded.
+  // definition read at the time
   - activityId (STRING)
   - activityLabel (STRING)
 
   // The task somebody completed to cause this, the decision they took, and what
-  // they said about it. Nothing routes on the note, which is exactly why it has
-  // to be recorded rather than left to be remembered.
+  // they said about it
   - taskInstance (STRING)
   - outcome (STRING)
   - outcomeNote (STRING)
@@ -161,30 +122,21 @@
   // The name of the event that was delivered
   - event (STRING)
 
-  // For an action no workflow caused -- a scheduled sweep, a migration, an
-  // import. Not every change has an actor who chose it, and a record that can
-  // only describe user actions quietly omits the rest.
+  // The component responsible, for an action no workflow caused, such as a
+  // scheduled sweep, a migration or an import
   - component (STRING)
 
-  // The action this one was performed as part of, once BPMN subprocesses exist.
-  // One property and no mechanism: the alternative is discovering later that
-  // nesting cannot be expressed without rewriting the store.
+  // The action this one was performed as part of
   - parentAction (STRING)
 
-  // Whether every snapshot this action intended was taken. It exists because
-  // they cannot all be taken with it: a check-in refuses to run while the
-  // session has pending changes and commits by itself, so the snapshots of an
-  // action affecting several resources are necessarily separate commits made
-  // after this record. Until this says otherwise, an entry with no `snapshot`
-  // may simply not have got one yet; once it does, an entry without one never
-  // wanted one.
-  // When the thing being recorded actually happened, which is not always when the row was
-  // written: the engine records after it commits, an imported log carries its own dates, and
-  // a store whose whole purpose is to answer "when did this happen" should not have to infer
-  // it from jcr:created - which is protected, so nothing can restate it. Readers fall back to
-  // jcr:created when it is absent, so nothing has to set it.
+  // When the action happened, where that is not when it was recorded, as for an
+  // imported log. When it is absent, the action happened at jcr:created.
   - occurredAt (DATE)
 
+  // Whether every snapshot this action wanted has been taken. Snapshots are
+  // taken in commits of their own, after this record is committed. Until this
+  // is true, an entry with no `snapshot` may not have got one yet. Once it is
+  // true, an entry without one never wanted one.
   - complete (BOOLEAN) = false mandatory autocreated
 
   // Allow any other properties for extensibility
@@ -202,51 +154,39 @@
 //-----------------------------------------------------------------------------
 // What one action did to one resource.
 //
-// Named after the subject's identifier, which is what makes "what did this
-// action do to that resource" a path rather than a search, and lets the
-// repository itself refuse a second entry for the same resource in the same
-// action.
+// Named after the subject's identifier, so the repository refuses a second
+// entry for the same resource in the same action.
 [hist:Entry] > data:Content
   // Attributes:
 
-  // We can query the record: this is how the history of one resource is
-  // gathered, since the entries are filed under their action rather than under
-  // their subject
+  // We can query the record. This is how one resource's history is gathered,
+  // since entries are filed under their action rather than under their subject.
   query
 
   // Properties:
 
   - sling:resourceType (STRING) = "hist/Entry" mandatory autocreated protected
 
-  // Which resource this is about, by identifier. A STRING for the reason given
-  // on the action's own pointers, and the reason applies most sharply here.
+  // Which resource this is about, by identifier
   - subject (STRING) mandatory
 
-  // Where it was and what it was at the time. Both are copies, and both are
-  // needed: a path moves when content is archived or restored, and a type is
-  // how an entry stays legible after its subject no longer exists to be asked.
+  // Where it was and what type it was, at the time. Copies, since a path moves
+  // and the subject may no longer exist to be asked.
   - subjectPath (STRING) mandatory
   - subjectType (STRING) mandatory
 
-  // The part this resource played in the action -- "submitted", "retired",
-  // "activated", "flagged". The property that carries the meaning: an action
-  // affecting two resources usually did two different things, and without this
-  // the record degenerates into a list of what it touched.
-  //
-  // Deliberately not constrained to a value list. The vocabulary belongs to the
-  // workflow definitions, which grow their own operations, and a CND constraint
-  // here would fail the commit that records a change rather than the change
-  // itself -- recording must never be what stops somebody working.
+  // The part this resource played in the action, e.g. "submitted", "retired",
+  // "activated". Not constrained to a list of values: the workflow definitions
+  // own that vocabulary, and a constraint here would fail the commit recording
+  // a change rather than the change itself.
   - role (STRING) mandatory
 
-  // Which properties changed, by name. Never their values: see the header.
+  // The names of the properties that changed, never their values
   - changes (STRING) multiple
 
   // The identifier of the JCR version holding this resource's content as it was
-  // after the action -- the join to the other store. Absent when this action
-  // took no snapshot of this resource, which is the normal case: the log
-  // records every action, snapshots are taken where the process says a
-  // milestone is.
+  // after the action. Absent when the action took no snapshot of it, which is
+  // the usual case.
   - snapshot (STRING)
 
   // Allow any other properties for extensibility
@@ -262,13 +202,9 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// Something somebody said about a past change, after it happened.
-//
-// This is the whole answer to a version being unannotatable. A frozen node
-// cannot be given a property, so a later decision -- "this is the revision the
-// approval was granted on", "this figure was wrong and here is why" -- has
-// nowhere to live in version storage. It lives here instead, appended and never
-// replaced, in the shape a triage decision on a recorded error already uses.
+// Something somebody said about a past change, after it happened, such as
+// "this is the revision the approval was granted on". A version cannot carry
+// it, so it lives here. Appended, never replaced.
 [hist:Annotation] > data:Content
   // Attributes:
 
@@ -279,7 +215,7 @@
 
   - sling:resourceType (STRING) = "hist/Annotation" mandatory autocreated protected
 
-  // Who said it. A canonical user id, as on the action.
+  // Who said it, as a canonical user id
   - author (STRING) mandatory
 
   // What they said
@@ -299,15 +235,13 @@
 //-----------------------------------------------------------------------------
 // Marks content that remembers who has looked at it.
 //
-// A mixin, and added to the content rather than declared on data:Entity,
-// because the node type registration order forbids the alternative: these types
-// build on data:Content, so a container of them named from entities.cnd would
-// need this bundle to start before the data model that it is built on.
+// A mixin added to the content, rather than a child declared on data:Entity.
+// These types build on data:Content, so entities.cnd cannot name them: this
+// bundle would have to start before the data model it builds on.
 //
-// IGNORE on-parent-version, and it is load-bearing. Without it every marker
-// would be copied into every snapshot, so a snapshot would differ from the one
-// before it because somebody opened the page, and restoring an old revision
-// would tell people they have not seen what they have.
+// IGNORE on-parent-version keeps the markers out of every snapshot. Without
+// it, opening a page would change what its next snapshot holds, and restoring
+// an old revision would tell people they have not seen what they have.
 [hist:Watchable]
   // Attributes:
 
@@ -319,14 +253,8 @@
 
 //-----------------------------------------------------------------------------
 // The markers on one piece of content, one per person who has looked at it.
-//
-// Under the content and not under the person, on the cardinalities: a busy
-// reviewer accumulates a marker for every item they ever open, while an item is
-// only ever looked at by a handful of people. The lookup that actually happens
-// -- what has this person seen of this item -- is a path either way, so what is
-// left to decide by is which parent grows without bound. The dashboard does not
-// enumerate a person's markers: it starts from what is assigned to them and
-// asks about each.
+// Under the content rather than under the person, since an item is looked at
+// by a handful of people while a reviewer opens a great many items.
 [hist:LastSeen] > data:Content
   // Attributes:
 
@@ -361,19 +289,17 @@
 
   - sling:resourceType (STRING) = "hist/Marker" mandatory autocreated protected
 
-  // When they last looked. This, and not a version, is what answers "has
-  // anything happened since?": snapshots are only taken at milestones, so the
-  // newest thing to have happened to an item usually has no version of its own,
-  // and a marker naming a version could not see it. Compared against the most
-  // recent action naming this item.
+  // When they last looked, compared against the most recent action naming the
+  // item. A version cannot answer that: snapshots are taken only at milestones,
+  // so the newest change to an item usually has no version of its own.
   - seenAt (DATE) mandatory
 
   // Which action they had seen up to, when it is worth knowing precisely
   - seenAction (STRING)
 
-  // The newest snapshot they had seen, which is what a "what changed since I
-  // looked" comparison has to start from. Necessarily coarser than `seenAt`:
-  // there may be no snapshot as recent as the moment they looked.
+  // The newest snapshot they had seen, where a "what changed since I looked"
+  // comparison starts. Coarser than `seenAt`, since no snapshot may be as recent
+  // as the moment they looked.
   - seenSnapshot (STRING)
 
   // Allow any other properties for extensibility
