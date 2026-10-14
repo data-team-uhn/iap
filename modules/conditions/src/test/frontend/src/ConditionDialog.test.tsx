@@ -26,6 +26,7 @@ import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
 import ConditionDialog from "@iap/conditions/ConditionDialog";
 import { type OperandSource, PROPERTY_SOURCE, tagsSource } from "@iap/conditions/conditionModel";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
 const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
   age: { type: "long", multiple: false },
@@ -355,5 +356,30 @@ describe("ConditionDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
 
     expect(within(dialog).getByRole("combobox", { name: "Compare" })).toHaveTextContent("literal");
+  });
+
+  describe("on a phone", () => {
+    beforeEach(() => stubPhone());
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("removes a condition or a group with what it says, at the end of what it removes", async () => {
+      const { dialog } = renderDialog();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Add a group" }));
+      const nested = within(dialog).getByRole("group", { name: "Group of conditions" });
+      const condition = within(nested).getByRole("group", { name: "Condition" });
+      const removeCondition = within(condition).getByRole("button", { name: "Remove this condition" });
+      expect(removeCondition).toHaveTextContent("Remove this condition");
+      expect(condition.lastElementChild?.lastElementChild).toBe(removeCondition);
+      const removeGroup = within(nested).getByRole("button", { name: "Remove this group" });
+      expect(within(nested).getByRole("button", { name: "Add a group" }).nextElementSibling).toBe(removeGroup);
+
+      fireEvent.click(removeCondition);
+      expect(within(nested).queryByRole("group", { name: "Condition" })).not.toBeInTheDocument();
+      fireEvent.click(removeGroup);
+      await waitFor(() => {
+        expect(within(dialog).queryByRole("group", { name: "Group of conditions" })).not.toBeInTheDocument();
+      });
+    });
   });
 });

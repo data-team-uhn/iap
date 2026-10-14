@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type MouseEvent, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -61,9 +61,9 @@ function SchemaOptionStepActions({ option, question, options }: SchemaOptionStep
   if (!offers(option, "move")) {
     return null;
   }
-  const stepTo = (way: Way, before?: JcrNode) => (event: MouseEvent<HTMLElement>) => {
+  const stepTo = (way: Way, before?: JcrNode) => (trigger: HTMLElement) => {
     setAsked(way);
-    step(option, question, before, way, event.currentTarget);
+    step(option, question, before, way, trigger);
   };
   const busy = stepping === pathOf(option);
   return (
