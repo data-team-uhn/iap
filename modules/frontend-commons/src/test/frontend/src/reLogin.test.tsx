@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 
 import {
+  isLoginRedirect,
   isNotAuthenticated,
   NotAuthenticatedError,
   ReLoginContext,
@@ -300,5 +301,20 @@ describe("isNotAuthenticated", () => {
   it("does not mistake an ordinary failure for an authentication one", () => {
     expect(isNotAuthenticated(new Error("offline"))).toBe(false);
     expect(isNotAuthenticated("offline")).toBe(false);
+  });
+});
+
+describe("isLoginRedirect", () => {
+  it("recognises the login page answering in place of the data", () => {
+    expect(isLoginRedirect(loginPage() as unknown as Response)).toBe(true);
+  });
+
+  it("does not mistake the data, or a refusal, for it", () => {
+    expect(isLoginRedirect(ok() as unknown as Response)).toBe(false);
+    expect(isLoginRedirect(unauthenticated() as unknown as Response)).toBe(false);
+  });
+
+  it("does not fail on a response that has no URL", () => {
+    expect(isLoginRedirect({ ok: true, status: 200 } as unknown as Response)).toBe(false);
   });
 });

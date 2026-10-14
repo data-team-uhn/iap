@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { isNotAuthenticated } from "./reLogin";
+import { isLoginRedirect, isNotAuthenticated, NotAuthenticatedError } from "./reLogin";
 
 // Thrown when the server answered, but not with success. The status is kept so the failure can be
 // described in the user's terms rather than the protocol's; the reason phrase is deliberately not,
@@ -40,25 +40,35 @@ export class RequestError extends Error {
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
-// Thrown when the server answered 200 with a body that is not JSON — usually Sling's HTML login
-// page or an error page, which `response.json()` would reject with a raw "Unexpected token '<'"
-// that means nothing to the person looking at it.
+// Thrown when a response that should have carried data carried a page instead, such as an error page
+// from Sling or from a proxy in front of it. The status is kept for the console, not for the user.
 export class UnreadableResponseError extends Error {
   readonly status: number;
 
   constructor(status: number) {
-    super(`Unreadable response (HTTP ${status})`);
+    super(`Expected data, got a page (HTTP ${status})`);
     this.name = "UnreadableResponseError";
     this.status = status;
   }
 }
 
-// The JSON body of a response that claimed to be data. An HTML page is refused here so callers
-// never have to catch a SyntaxError and guess what it meant.
+// How much of an unreadable page goes to the console: enough to tell a login page from an error page
+const PAGE_EXCERPT_LENGTH = 300;
+
+// The JSON body of a response that should carry data. Sling's login page, after the session has
+// gone, fails as an expired session; any other page fails as UnreadableResponseError instead of the
+// parser's "Unexpected token '<'". The page itself only goes to the console: it can name the server.
 export async function readJson<T>(response: Response): Promise<T> {
+  if (isLoginRedirect(response)) {
+    throw new NotAuthenticatedError(`Not authenticated: ${response.url}`);
+  }
+  // Read twice only when it fails, so the copy is taken before the body is used up
+  const copy = typeof response.clone === "function" ? response.clone() : undefined;
   try {
     return (await response.json()) as T;
   } catch {
+    const page = copy ? await copy.text().catch(() => "") : "";
+    console.warn(`Expected data, got a page (HTTP ${response.status})`, page.slice(0, PAGE_EXCERPT_LENGTH));
     throw new UnreadableResponseError(response.status);
   }
 }
@@ -85,10 +95,8 @@ const describe = (error: unknown): string => {
   if (isNotAuthenticated(error)) {
     return "Your session has expired. Sign in again, then retry.";
   }
-  // An HTML login or error page arriving where JSON was expected. The browser's own
-  // "Unexpected token '<'" wording is kept out: it names the parser, not the problem.
   if (error instanceof UnreadableResponseError) {
-    return "The server sent a page instead of data. Reload and try again.";
+    return "Unexpected error. Reload and try again.";
   }
   if (error instanceof SyntaxError) {
     return "The server's response could not be read.";
