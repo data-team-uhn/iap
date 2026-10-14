@@ -32,12 +32,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import io.uhndata.iap.schemas.editing.internal.AnswerOptionsCheck;
-import io.uhndata.iap.schemas.editing.internal.ConditionOperationsCheck;
-import io.uhndata.iap.schemas.editing.internal.ConditionQuestionsCheck;
-import io.uhndata.iap.schemas.editing.internal.QuestionBoundsCheck;
-import io.uhndata.iap.schemas.editing.internal.QuestionPatternCheck;
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
+import io.uhndata.iap.schemas.editing.internal.checks.AnswerOptionsCheck;
+import io.uhndata.iap.schemas.editing.internal.checks.ConditionOperationsCheck;
+import io.uhndata.iap.schemas.editing.internal.checks.ConditionQuestionsCheck;
+import io.uhndata.iap.schemas.editing.internal.checks.QuestionBoundsCheck;
+import io.uhndata.iap.schemas.editing.internal.checks.QuestionPatternCheck;
 import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;

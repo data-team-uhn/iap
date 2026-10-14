@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.editing.internal;
+package io.uhndata.iap.schemas.editing.internal.checks;
 
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -24,6 +24,7 @@ import java.util.stream.StreamSupport;
 import org.apache.sling.api.resource.Resource;
 
 import io.uhndata.iap.conditions.api.AnswerDependencies;
+import io.uhndata.iap.schemas.editing.internal.PartNames;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
