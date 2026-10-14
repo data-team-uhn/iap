@@ -26,6 +26,7 @@ import javax.jcr.Node;
 import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.SimpleCredentials;
 
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
@@ -275,6 +276,28 @@ class HistoryRecorderImplTest
         assertTrue(this.session.nodeExists(path));
         assertEquals(HistoryRecorderImpl.BUCKET_TYPE,
             this.session.getNode(path).getParent().getPrimaryNodeType().getName());
+    }
+
+    @Test
+    void leavesTheCallersWorkPendingWhenItHasToCreateABucket() throws Exception
+    {
+        // A session of the store's own, as in a deployment. Sharing the caller's, as the other tests do, would hide
+        // a bucket save that took the caller's work with it
+        final Session ownSession =
+            this.session.getRepository().login(new SimpleCredentials("admin", "admin".toCharArray()));
+        final ResourceResolver own = Mockito.mock(ResourceResolver.class);
+        Mockito.when(own.adaptTo(Session.class)).thenReturn(ownSession);
+        final HistoryRecorderImpl impl = new HistoryRecorderImpl();
+        inject(impl, "resolverFactory", new TestResolverFactory(own));
+        this.session.getNode("/content").addNode("pending", "nt:unstructured");
+
+        final String path = impl.record(this.session, RecordedAction.by("a", "submit").build());
+
+        assertTrue(this.session.nodeExists("/content/pending"), "Seeing the new bucket must not discard the work");
+        assertTrue(this.session.nodeExists(path));
+        this.session.refresh(false);
+        assertFalse(this.session.nodeExists("/content/pending"),
+            "The work must still be the caller's to commit or abandon, not saved along with the bucket");
     }
 
     @Test

@@ -59,6 +59,18 @@ public interface WorkflowTaskContext
     String getActor();
 
     /**
+     * Who actually sent the event, as their repository user id. The same as {@link #getActor()}, unless they sent
+     * it on behalf of someone else.
+     *
+     * @return the id of the user who sent the event
+     */
+    @NotNull
+    default String getSender()
+    {
+        return getActor();
+    }
+
+    /**
      * The event that set the workflow in motion.
      *
      * @return the triggering event

@@ -9,12 +9,11 @@ resource, and — where the process says a milestone was reached — what the co
 looked like afterwards. It is the record an authorization decision has to be defensible
 against months later, when nobody remembers and the log file has rotated away.
 
-> **Status.** The store, its node types, their Sling Models and the recorder exist.
-> **Nothing writes to it yet.** Recording happens where every data change already
-> happens — in the workflow engine — and the engine needs a phase that runs *after* it
-> commits, which it does not have yet. Everything below describes a mechanism that is
-> built and tested; the sentence that is not yet true is "the platform records its own
-> actions".
+> **Status.** The store, its node types, their Sling Models and the recorder exist, and
+> the workflow engine records every event it carries out, in the same commit. What is
+> not built yet is the phase *after* that commit: the engine takes no snapshots, so it
+> never calls `completeSnapshots`, and every action it records stays `complete = false`.
+> Until milestones exist, read that as "no snapshot was taken", not as "one failed".
 
 ## Two stores, one record
 

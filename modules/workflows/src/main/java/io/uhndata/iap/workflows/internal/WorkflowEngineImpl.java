@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -35,6 +37,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.history.api.HistoryRecorder;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -96,6 +99,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
 
     @Reference
     private Delegation delegation;
+
+    @Reference
+    private HistoryRecorder recorder;
 
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event, final String onBehalfOf)
@@ -164,7 +170,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor));
+            final ActionRecord record = ActionRecord.of(actor, event);
+            TaskCompletion.apply(resolver, task, event, actor, dispatcher(record).performer(event, actor), record);
+            record.write(session(resolver), this.recorder);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -191,7 +199,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = target.getResourceResolver();
         try {
-            final Map<String, Object> variables = run(target, event, start, actor, 0);
+            final ActionRecord record = ActionRecord.of(actor, event);
+            final Map<String, Object> variables = run(target, event, start, actor, 0, record);
+            record.write(session(resolver), this.recorder);
             resolver.commit();
             return new WorkflowResult(variables);
         } catch (final PersistenceException e) {
@@ -213,20 +223,26 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @param start the entry point to run from
      * @param actor the user who fired the event
      * @param depth how many sent events deep this run is, 0 for the event that came in
+     * @param record where what the run did is gathered for history
      * @return the variables the run left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      * @throws PersistenceException when a write fails
      */
     private Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final Actor actor, final int depth) throws WorkflowException, PersistenceException
+        final Actor actor, final int depth, final ActionRecord record) throws WorkflowException, PersistenceException
     {
         final ResourceResolver resolver = target.getResourceResolver();
-        final ServiceTaskDispatcher dispatcher = dispatcher();
+        final ServiceTaskDispatcher dispatcher = dispatcher(record);
         final Map<String, Object> variables = new LinkedHashMap<>();
+        record.workflow(null, start.getWorkflowVersion());
         FlowNode node = start;
         for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor.effectiveUser());
+                record.affecting(target, "target");
+                final Resource created = recordActor(resolver, variables, actor.effectiveUser());
+                if (created != null) {
+                    record.affecting(created, "created");
+                }
                 return variables;
             }
             if (node instanceof Activity) {
@@ -252,11 +268,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @param event the sent event
      * @param actor the user the sending execution acts for
      * @param depth how many sent events deep this is
+     * @param sender the record of the execution that sent the event
      * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
      * @throws PersistenceException when a write fails
      */
-    private void chain(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
-        throws WorkflowException, PersistenceException
+    private void chain(final Resource target, final WorkflowEvent event, final Actor actor, final int depth,
+        final ActionRecord sender) throws WorkflowException, PersistenceException
     {
         if (depth > MAX_SENT_EVENTS_DEPTH) {
             throw new WorkflowDefinitionException("Workflows sent events more than " + MAX_SENT_EVENTS_DEPTH
@@ -266,18 +283,31 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
         PerformerCheck.verify(resolver, start, actor.effectiveUser());
-        run(target, event, start, actor, depth);
+        run(target, event, start, actor, depth, sender.send(actor, event));
     }
 
     /**
      * How a run performs its service tasks: through the handlers registered as it begins, and this engine for the
      * workflow an event sent from one of them is waiting for.
      *
+     * @param record the record of the run, which the actions of sent events are part of
      * @return a dispatcher for one run
      */
-    private ServiceTaskDispatcher dispatcher()
+    private ServiceTaskDispatcher dispatcher(final ActionRecord record)
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain);
+        return new ServiceTaskDispatcher(this.handlers,
+            (to, sent, actor, depth) -> chain(to, sent, actor, depth, record));
+    }
+
+    /**
+     * The JCR session behind the engine's resolver, which history is written through.
+     *
+     * @param resolver the engine's own resolver
+     * @return its session
+     */
+    private static Session session(final ResourceResolver resolver)
+    {
+        return Objects.requireNonNull(resolver.adaptTo(Session.class), "The engine's resolver is always a JCR one");
     }
 
     /**
@@ -288,19 +318,21 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
      * @param actor the user the execution counts as
+     * @return what was created, or {@code null} if nothing was
      * @throws PersistenceException when the created node cannot be written to
      */
-    private void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
+    private Resource recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
         final String actor) throws PersistenceException
     {
         final Object created = variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
         if (!(created instanceof String)) {
-            return;
+            return null;
         }
         final Resource resource = Objects.requireNonNull(resolver.getResource((String) created),
             "A handler reported creating something that is not there");
         Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
             "A node the engine just created is always modifiable").put(CREATED_BY_PROPERTY, actor);
+        return resource;
     }
 
     /**
