@@ -903,6 +903,18 @@ describe("PdfViewer", () => {
         expect(screen.queryByText("1 of 3")).not.toBeInTheDocument();
       });
 
+      it("names the passages, counting and stepping through them, as the caller calls the marks", async () => {
+        showMarks({ markName: { one: "comment", many: "comments" } });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Comment 1 of 3 is marked on page 2."));
+
+        expect(screen.getByText("Comment 1 of 3")).toBeInTheDocument();
+        const list = screen.getByRole("list", { name: "Comments" });
+        expect(within(list).getByRole("button", { name: "Show comment 1 on page 2" })).toBeInTheDocument();
+        expect(within(list).getByRole("button", { name: "Select comment 3" })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Next comment" }));
+        expect(screen.getByText("Comment 2 of 3")).toBeInTheDocument();
+      });
+
       it("says above the list which passage is selected of how many, stepping through them", async () => {
         const onSelectMark = showMarks();
         await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
@@ -1144,6 +1156,16 @@ describe("PdfViewer", () => {
       render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));
 
       expect(await screen.findByRole("progressbar", { name: "Looking for the passages" })).toBeInTheDocument();
+    });
+
+    it("names what it looks for as the caller calls the marks", async () => {
+      fakePdf.holdText = true;
+      const marks: Mark[] = [ "A sentence that is nowhere in the document.", QUOTE ]
+        .map((quote, index) => ({ id: `comment-${index}`, quote, kind: "annotation" }));
+      const comments = { one: "comment", many: "comments" };
+      render(withTheme(<PdfViewer url={URL} marks={marks} markName={comments} onClose={vi.fn()} />));
+
+      expect(await screen.findByRole("progressbar", { name: "Looking for the comments" })).toBeInTheDocument();
     });
 
     it("shows nothing for a document with no passages to look for", async () => {
