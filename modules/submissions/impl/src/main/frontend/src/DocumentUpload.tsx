@@ -22,6 +22,7 @@ import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
@@ -43,6 +44,22 @@ const OFFSCREEN = {
   clipPath: "inset(50%)",
   whiteSpace: "nowrap" as const
 };
+
+// How long the browser may look at a file before sending it unchecked. The check only advises, and
+// the server checks again.
+const CHECK_TIMEOUT_MS = 30_000;
+
+// What is wrong with the file, or undefined when nothing is or the check ran out of time
+async function checkFile(file: File, accepted: string[]): Promise<string | undefined> {
+  try {
+    return await validateUpload(file, accepted, {}, AbortSignal.timeout(CHECK_TIMEOUT_MS));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return undefined;
+    }
+    throw error;
+  }
+}
 
 export interface DocumentUploadProps {
   path: string;
@@ -88,7 +105,15 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     );
   };
 
-  const upload = (file: File) => run(() => attachDocument(doFetch, path, requirement.name, file));
+  // Checked here first, so a file the server would refuse, or the parser could not read, is refused
+  // in a moment rather than after the upload
+  const upload = (file: File) => run(async () => {
+    const problem = await checkFile(file, accepted);
+    if (problem !== undefined) {
+      throw new Error(problem);
+    }
+    await attachDocument(doFetch, path, requirement.name, file);
+  });
   const remove = () => run(() => detachDocument(doFetch, path, requirement.name));
 
   return (

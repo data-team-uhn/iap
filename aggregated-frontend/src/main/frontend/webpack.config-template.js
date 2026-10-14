@@ -153,6 +153,15 @@ ENTRY_CONTENT
         {
           test:/\.css$/,
           use:['style-loader','css-loader']
+        },
+        {
+          // PDF.js's worker, served as its own file. Hashed so it is cached like the rest and never
+          // pairs with another version's PDF.js; .js because Sling serves .mjs as octet-stream.
+          test: /pdf\.worker\.min\.mjs$/,
+          type: 'asset/resource',
+          generator: {
+            filename: 'pdf.worker.min.[contenthash].js'
+          }
         }
       ]
     },
@@ -187,6 +196,9 @@ ENTRY_CONTENT
         chunks: 'all',
         cacheGroups: {
           defaultVendors: {
+            // Only what pages need up front, so a library loaded through import() (PDF.js) stays
+            // in its own chunk instead of every page downloading it.
+            chunks: 'initial',
             minChunks: 1,
             minSize: 200,
             test: /[\\/]node_modules[\\/]/,
@@ -210,7 +222,9 @@ ENTRY_CONTENT
         type: "modern-module",
       },
       path: __dirname + '/dist/SLING-INF/content/libs/iap/resources/',
-      publicPath: '/',
+      // Where Sling serves the files above. Webpack builds the URL of a lazy chunk, such as PDF.js,
+      // and of a font or a worker from this, so it has to match the path.
+      publicPath: '/libs/iap/resources/',
       filename: '[name].[contenthash].js',
     }
   }
