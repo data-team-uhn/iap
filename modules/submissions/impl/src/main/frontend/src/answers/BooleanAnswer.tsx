@@ -20,13 +20,12 @@ import {
   FormControl,
   FormControlLabel,
   FormHelperText,
-  FormLabel,
   Radio,
   RadioGroup,
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { questionLabel } from "./label";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
@@ -37,10 +36,21 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // that may be left unanswered has to be able to tell apart.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   return (
-    <FormControl required={question.required} disabled={disabled} component="fieldset">
-      <FormLabel component="legend">{questionLabel(question)}</FormLabel>
+    <FormControl
+      required={question.required}
+      disabled={disabled}
+      component="fieldset"
+      aria-labelledby={getQuestionTextId(question)}
+      fullWidth
+    >
+      <QuestionText question={question} />
       {/* required on each input, not on the FormControl, which never forwards it to a radio */}
-      <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
+      <RadioGroup
+        row
+        aria-labelledby={getQuestionTextId(question)}
+        value={values[0] ?? ""}
+        onChange={event => onAnswered([ event.target.value ])}
+      >
         <FormControlLabel value="true" control={<Radio required={question.required} />} label="Yes" />
         <FormControlLabel value="false" control={<Radio required={question.required} />} label="No" />
       </RadioGroup>
