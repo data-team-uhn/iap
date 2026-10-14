@@ -998,6 +998,34 @@ describe("PdfViewer", () => {
         expect(screen.queryByRole("textbox", { name: /About schedule/ })).not.toBeInTheDocument();
       });
 
+      it("cuts what it shows short under the passages listed but the one selected", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        const under = (name: string) => screen.getByRole("textbox", { name }).parentElement!;
+        expect(under("About volunteers, selected")).not.toHaveStyle({ overflowY: "hidden" });
+        expect(under("About schedule")).toHaveStyle({ overflowY: "hidden" });
+
+        await userEvent.click(screen.getByRole("button", { name: "Show passage 2 on page 3" }));
+        expect(under("About volunteers")).toHaveStyle({ overflowY: "hidden" });
+        expect(under("About schedule, selected")).not.toHaveStyle({ overflowY: "hidden" });
+      });
+
+      it("starts what it shows under a passage not selected from its top again once the focus leaves", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+        const field = screen.getByRole("textbox", { name: "About schedule" });
+
+        act(() => field.focus());
+        // As the browser scrolls it to show what is focused in what was cut
+        field.parentElement!.scrollTop = 40;
+        act(() => field.blur());
+
+        expect(field.parentElement!.scrollTop).toBe(0);
+      });
+
       describe("on the card above the document", () => {
         // A comment to read, with a button replying to it, which runs past the room it is given
         const renderComment = (mark: Mark) => (
