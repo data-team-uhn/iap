@@ -303,6 +303,8 @@ A caller that shows something with each passage, such as the comments on it, pas
 the passage on its card in the list beside the document. A narrow viewer shows only the selected
 passage, and puts it on the card above the document. It goes outside the button selecting the
 passage, so it can hold fields and buttons of its own, such as a box for a new comment.
+The passage's own text sits on a layer deeper in its mark's colour than the card, setting it apart from
+what the caller shows under it.
 
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
