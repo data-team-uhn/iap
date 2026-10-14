@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
+
 // Client-side access to the tag definitions stored under /Tags: the single source of truth
 // for what a tag means and how it is displayed. See the tags module's TagListServlet for the
 // serving side.
@@ -52,7 +54,7 @@ export function loadTagDefinitions(
         if (!response.ok) {
           throw new Error(`Listing the tag definitions failed: ${response.status}`);
         }
-        const result = await response.json() as { tags?: TagDefinition[] };
+        const result = await readJson<{ tags?: TagDefinition[] }>(response);
         return result.tags ?? [];
       })
       .catch(() => {

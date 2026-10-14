@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 import { Autocomplete, TextField } from "@mui/material";
 
 import { useAuthenticatedFetch } from "../reLogin";
-import { describeRequestFailure, RequestError } from "../requestFailure";
+import { describeRequestFailure, readJson, RequestError } from "../requestFailure";
 import {
   candidateOf, type ContentField, type ReferenceCandidate, referenceQuery, type SerializedNode,
 } from "./fieldsModel";
@@ -44,7 +44,7 @@ function useCandidates(field: ContentField) {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json() as Promise<{ rows?: SerializedNode[] }>;
+        return readJson<{ rows?: SerializedNode[] }>(response);
       })
       .then(result => {
         if (current) {

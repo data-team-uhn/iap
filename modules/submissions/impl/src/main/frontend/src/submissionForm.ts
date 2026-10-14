@@ -17,6 +17,7 @@
  */
 
 import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { readJson } from "@iap/frontend-commons/requestFailure";
 
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
@@ -143,7 +144,7 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
   if (!response.ok) {
     throw new Error(`This request could not be loaded (${response.status})`);
   }
-  return (await response.json()) as SubmissionForm;
+  return await readJson<SubmissionForm>(response);
 }
 
 // Records one answer, by posting it to the submission as a `save` event: filling a request in is a
