@@ -177,9 +177,13 @@ describe("SchemaVersionComparison", () => {
     serveSchemas({ homepage: HOMEPAGE });
     renderComparison("v1", "v2");
 
-    expect(await screen.findByRole("button", { name: "1 unchanged question" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "2 unchanged parts" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "2 unchanged questions" }));
+    expect(await screen.findByRole("button", { name: "Show 1 unchanged question" })).toBeInTheDocument();
+    // Each band's arrow says which way it opens: up at the start, down at the end, both ways between
+    expect(screen.getAllByRole("button", { name: /^Show \d+ unchanged/ })
+      .map(button => button.querySelector("svg")?.getAttribute("data-testid")))
+      .toEqual([ "KeyboardArrowUpIcon", "UnfoldMoreIcon", "KeyboardArrowDownIcon" ]);
+    expect(screen.getByRole("button", { name: "Show 2 unchanged parts" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 unchanged questions" }));
     expect(screen.getByText("Your nickname")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "Show unchanged parts" }));

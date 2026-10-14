@@ -16,28 +16,32 @@
  * limitations under the License.
  */
 
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import SchemaVersionActions from "@iap/schemas/SchemaVersionActions";
+import SchemaVersionActions, { type VersionActionsPlace } from "@iap/schemas/SchemaVersionActions";
 
-import { BUILTIN_ACTIONS } from "./actions.fixture";
+import { BUILTIN_ACTIONS, VERSION_ACTIONS } from "./actions.fixture";
 import { HOMEPAGE, serveSchemas, withPaths } from "./schemaServer.fixture";
 
 vi.mock("@iap/frontend-commons/actionsManager", () => ({
-  getActions: (point: string) => import("./actions.fixture").then(fixture => fixture.actionsFor(point)),
+  getActions: (point: string, place?: string) =>
+    import("./actions.fixture").then(fixture => fixture.actionsFor(point, place)),
 }));
 
 afterEach(() => vi.unstubAllGlobals());
 
 const study = withPaths("/Schemas/study", HOMEPAGE.study);
 
-const renderActions = (versionName: string) => {
+const renderActions = (versionName: string, place: VersionActionsPlace = "versionPage") => {
   const reload = vi.fn();
   const version = study[versionName] as Record<string, unknown>;
   render(<MemoryRouter>
-    <SchemaVersionActions version={version} schema={study} reload={reload} />
+    <SchemaVersionActions version={version} schema={study} reload={reload} place={place} />
   </MemoryRouter>, { wrapper: NoticeProvider });
   return { reload };
 };
@@ -50,7 +54,7 @@ const confirm = async (label: string) => {
 
 describe("SchemaVersionActions", () => {
   it("offers what each state allows", async () => {
-    expect(BUILTIN_ACTIONS).toHaveLength(6);
+    expect(BUILTIN_ACTIONS).toHaveLength(7);
     renderActions("v3");
     expect(await screen.findByRole("button", { name: "Activate" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Compare with…" })).toBeInTheDocument();
@@ -61,7 +65,8 @@ describe("SchemaVersionActions", () => {
 
   it("renders nothing if it goes away before its actions arrive", async () => {
     const { unmount } = render(<MemoryRouter>
-      <SchemaVersionActions version={study.v1 as Record<string, unknown>} schema={study} reload={vi.fn()} />
+      <SchemaVersionActions place="versionPage" version={study.v1 as Record<string, unknown>} schema={study}
+        reload={vi.fn()} />
     </MemoryRouter>);
     unmount();
     await Promise.resolve();
@@ -119,8 +124,8 @@ describe("SchemaVersionActions", () => {
   it("edits a draft's details", async () => {
     const posted = serveSchemas();
     const { reload } = renderActions("v3");
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Details of version 3.0" });
     fireEvent.change(within(dialog).getByLabelText(/Label/), { target: { value: "3.1" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
@@ -131,7 +136,7 @@ describe("SchemaVersionActions", () => {
   it("offers only the fields the update would change", async () => {
     serveSchemas();
     renderActions("v2");
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
     const published = await screen.findByRole("dialog");
     // A published version keeps its label: its update accepts only the description
     expect(within(published).queryByLabelText(/Label/)).not.toBeInTheDocument();
@@ -143,7 +148,7 @@ describe("SchemaVersionActions", () => {
   it("picks the workflow a draft follows among the workflows", async () => {
     const posted = serveSchemas();
     renderActions("v3");
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
     const draft = await screen.findByRole("dialog");
     fireEvent.mouseDown(within(draft).getByRole("combobox", { name: "Workflow" }));
     // Named by their title, or else by where they are under the workflows
@@ -152,5 +157,53 @@ describe("SchemaVersionActions", () => {
     fireEvent.click(within(draft).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ workflow: "/Workflows/fastTrack/v2" });
+  });
+
+  it("sends only what changed, and removes an emptied description", async () => {
+    const posted = serveSchemas();
+    renderActions("v2");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: " " } });
+    fireEvent.click(save);
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ description: null });
+  });
+
+  it("opens a version to edit it from the list of versions, leaving its details to its own page", async () => {
+    serveSchemas();
+    renderActions("v3", "versionList");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Edit on a version's own page", async () => {
+    serveSchemas();
+    renderActions("v3");
+    expect(await screen.findByRole("button", { name: "Edit details" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Edit where nothing about a version can change", async () => {
+    serveSchemas();
+    const fixed = { ...study.v1 as Record<string, unknown>, "@events": [ "discard" ] };
+    render(<MemoryRouter>
+      <SchemaVersionActions place="versionList" version={fixed} schema={study} reload={vi.fn()} />
+    </MemoryRouter>, { wrapper: NoticeProvider });
+    expect(await screen.findByRole("button", { name: "Discard" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  it("shows each action where its extension says, as the stand-in for the actions manager does", () => {
+    const folder = resolve(process.cwd(),
+      "../../../../modules/schemas/impl/src/main/resources/SLING-INF/content/Extensions/SchemaVersionActions");
+    const extensions = readdirSync(folder).map(file =>
+      JSON.parse(readFileSync(resolve(folder, file), "utf8")) as Record<string, unknown>)
+      .sort((one, other) => Number(one.defaultOrder) - Number(other.defaultOrder))
+      .map(extension => ({ asset: /\.(\w+)\.js$/.exec(String(extension["ext:renderURL"]))?.[1],
+        places: extension["ext:places"] }));
+    expect(VERSION_ACTIONS.map(({ asset, places }) => ({ asset, places }))).toEqual(extensions);
   });
 });

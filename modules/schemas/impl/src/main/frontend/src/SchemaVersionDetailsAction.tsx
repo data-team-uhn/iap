@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
 
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
@@ -30,7 +30,7 @@ import { labelOf, pathOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Edits a version's label and description. A published version keeps its label.
+// Edits whichever of a version's label, description and workflow can still change
 function SchemaVersionDetailsAction({ version, reload }: SchemaVersionActionProps) {
   const [ editing, setEditing ] = useState(false);
   const doFetch = useAuthenticatedFetch();
@@ -39,10 +39,11 @@ function SchemaVersionDetailsAction({ version, reload }: SchemaVersionActionProp
   }
   return (
     <>
-      <ActionIcon label="Edit" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditing(true)} />
+      <ActionIcon label="Edit details" icon={<EditNoteOutlinedIcon fontSize="small" />}
+        onClick={() => setEditing(true)} />
       { editing && (
         <FieldsDialog
-          title={`Version ${labelOf(version)}`}
+          title={`Details of version ${labelOf(version)}`}
           node={version}
           onSave={async changes => {
             await sendEvent(doFetch, pathOf(version), "update", patch(changes));
