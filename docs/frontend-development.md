@@ -316,6 +316,9 @@ However much it holds, the card takes at most three fifths of the viewer's heigh
 all of it stays in reach, and so do the document's controls below it. A caller's field that grows with
 what is typed should stop growing after a few rows, as the PDF annotations test widget's does, so that its
 buttons stay beside it.
+In the list, every entry but the selected one is cut short to a couple of lines, the passage and what is
+under it alike, so that many fit; the selected one is shown whole. The focus inside what is cut, such as a
+reply box in another entry, shows all of it while it is there, without selecting the entry.
 
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
