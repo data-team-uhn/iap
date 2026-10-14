@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { fadeEdges, type ScrollEdges } from "../useScrollEdges";
+
 import type { MarkKind } from "./marksModel";
 import type { Theme } from "@mui/material/styles";
 
@@ -42,6 +44,19 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
 // caller shows under it, such as comments.
 export function passageLayer(theme: Theme, kind: MarkKind) {
   return { bgcolor: passageTint(theme, kind, 0.25) };
+}
+
+// What the caller shows under a passage, such as comments: cut short past a number of lines of its text
+// when given one, fading out where it is cut, with room above for what reaches up out of it, such as a
+// field's label, which its edges would cut. Nothing at all when it is empty.
+export function passageDetails(edges: ScrollEdges, lines?: number) {
+  return {
+    pt: 1,
+    "&:empty": { display: "none" },
+    maxHeight: lines === undefined ? undefined : `${lines}lh`,
+    overflowY: lines === undefined ? undefined : "hidden" as const,
+    maskImage: fadeEdges(edges),
+  };
 }
 
 // The error colour, in the shade that stays readable as small text on a passage's card, or beside a

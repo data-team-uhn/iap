@@ -315,6 +315,7 @@ function ViewerBody(props: ViewerBodyProps) {
       <PassageCard
         key={selected.id}
         ref={several ? swipeRef : undefined}
+        name={markName}
         quote={getMarkText(selected, places[selected.id])}
         note={getPassageNote(status, places[selected.id])}
         markedBy={selected.kind}
