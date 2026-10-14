@@ -65,9 +65,9 @@ const NARROW = { width: { xs: "100%", sm: "15rem" }, flexShrink: 0 };
 /** A field taking the rest of a row, such as the values compared with. */
 const WIDE = { flex: 1, minWidth: 0, width: { xs: "100%", sm: "auto" } };
 
-// The column where a group's conditions are joined, narrower on a phone
-const RAIL = 48;
-const PHONE_RAIL = 24;
+// The width of the column where a group's conditions are joined, in pixels, narrower on a phone
+const JOIN_COLUMN_WIDTH = 48;
+const PHONE_JOIN_COLUMN_WIDTH = 24;
 
 /** One row of a condition's fields, stacked into a column on a phone. */
 function Row({ children }: { children: ReactNode }) {
@@ -278,7 +278,8 @@ function summaryOf(group: DraftGroup, sources: OperandSource[]): string {
 /**
  * A group of conditions, and the buttons adding a condition or a group to it. Its conditions are joined along a line
  * marked "And" or "Or". A nested group, or one of several conditions, has a heading that says whether all of them
- * must hold or any one, and collapses the group. A new condition reads from the first source; a new group starts with one condition.
+ * must hold or any one, and collapses the group. A new condition reads from the first source; a new group starts
+ * with one condition.
  */
 function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEditorProps) {
   const { sources, disabled } = common;
@@ -286,14 +287,14 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
   const first = sources.at(0)?.name ?? LITERAL;
   const nested = depth > 0;
   const phone = usePhone();
-  const rail = phone ? PHONE_RAIL : RAIL;
+  const joinColumnWidth = phone ? PHONE_JOIN_COLUMN_WIDTH : JOIN_COLUMN_WIDTH;
   const replace = (at: number, next?: DraftCondition) => onChange({ ...group,
     conditions: next ? group.conditions.map((condition, index) => (index === at ? next : condition))
       : group.conditions.filter((_condition, index) => index !== at) });
   const add = (condition: DraftCondition) => onChange({ ...group, conditions: [ ...group.conditions, condition ] });
   const joiner = group.requireAll ? "And" : "Or";
   // Joined along a line, once there is an All or Any to say how
-  const railed = nested || group.conditions.length > 1;
+  const joinsAlongLine = nested || group.conditions.length > 1;
   // At the end of the group's heading. On a phone, after the buttons that add to the group, saving the heading a line.
   const removeGroup = onRemove && (
     <Button variant="text" color="error" disabled={disabled} onClick={onRemove} sx={{ ml: { sm: "auto" } }}>
@@ -307,7 +308,7 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
       sx={nested ? { bgcolor: "background.muted", borderRadius: 1, p: 1 } : undefined}>
       { (nested || group.conditions.length > 1) && (
         <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, rowGap: 1, flexWrap: "wrap" }}>
-          <Box sx={{ width: rail, mr: -1, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+          <Box sx={{ width: joinColumnWidth, mr: -1, flexShrink: 0, display: "flex", justifyContent: "center" }}>
             <IconButton size="small" aria-label={open ? "Collapse this group" : "Expand this group"}
               aria-expanded={open} onClick={() => setOpen(current => !current)}>
               { open ? <ExpandMoreIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" /> }
@@ -336,9 +337,9 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
         <Typography variant="placeholder">No condition. It always applies.</Typography>
       ) }
       { open && (
-        <Box sx={railed ? { position: "relative", pl: `${rail}px` } : undefined}>
-          { railed && (
-            <Box aria-hidden sx={{ position: "absolute", left: rail / 2 - 1, top: 0, bottom: 0, width: 2,
+        <Box sx={joinsAlongLine ? { position: "relative", pl: `${joinColumnWidth}px` } : undefined}>
+          { joinsAlongLine && (
+            <Box aria-hidden sx={{ position: "absolute", left: joinColumnWidth / 2 - 1, top: 0, bottom: 0, width: 2,
               borderRadius: 1, bgcolor: "background.tintedStrong" }} />
           ) }
           <Stack spacing={1.5}>
@@ -347,7 +348,8 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
                 { at > 0 && (
                   <Box sx={{ position: "relative", height: 24 }}>
                     <Chip label={joiner} size="small" variant="outlined" color="primary"
-                      sx={{ position: "absolute", left: -rail / 2, translate: "-50%", bgcolor: "background.paper" }} />
+                      sx={{ position: "absolute", left: -joinColumnWidth / 2, translate: "-50%",
+                        bgcolor: "background.paper" }} />
                   </Box>
                 ) }
                 { condition.kind === "single" && (
