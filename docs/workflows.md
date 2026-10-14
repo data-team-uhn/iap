@@ -1097,6 +1097,9 @@ each completed on its own.
   recognized.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.
+- **A refused attempt to act for someone is only a log line.** A refusal changes nothing, so
+  it is not history; the servlet logs it at WARN instead, naming the sender, the event, the
+  target and the person named, but not which rule refused it.
 - **Acting for someone cannot be previewed.** `getAvailableEvents` and
   `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
   what a delegate could do for Alice.
