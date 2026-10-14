@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -120,6 +121,8 @@ class UserWorkflowTest
 
     // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+
+    private final EngineFixture.History history = new EngineFixture.History();
 
     @BeforeEach
     void setUp()
@@ -582,7 +585,10 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
         registered.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
+        final WorkflowEngineImpl engine =
+            EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
+        EngineFixture.inject(engine, "recorder", this.history);
+        return engine;
     }
 
     /**
@@ -805,6 +811,30 @@ class UserWorkflowTest
 
         assertEquals("completed", read(TASK).get("status"));
         assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+        final RecordedAction decision = this.history.actions().get(this.history.actions().size() - 1);
+        assertEquals(EngineFixture.ADMIN, decision.getActor());
+        assertEquals(EngineFixture.REQUESTER, decision.getOnBehalfOf());
+    }
+
+    @Test
+    void recordsTheDecisionInHistory() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        final int before = this.history.actions().size();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(before + 1, this.history.actions().size());
+        final RecordedAction decision = this.history.actions().get(before);
+        assertEquals(EngineFixture.REQUESTER, decision.getActor());
+        assertEquals(TaskCompletion.COMPLETE_EVENT, decision.getEvent());
+        assertEquals(read(TASK).get("jcr:uuid"), decision.getTaskInstance());
+        assertEquals("approved", decision.getOutcome());
+        assertEquals(read(HOST + "/wf:instances/timeOffRequest").get("jcr:uuid"), decision.getWorkflowInstance());
+        assertEquals(read(TASK).get("taskDefinitionId"), decision.getActivityId());
+        assertTrue(decision.getEffects().stream()
+            .anyMatch(effect -> "completed".equals(effect.role()) && TASK.equals(effect.subjectPath())));
     }
 
     @Test

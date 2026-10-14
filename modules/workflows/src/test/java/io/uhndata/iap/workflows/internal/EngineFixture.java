@@ -52,6 +52,8 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.history.api.HistoryRecorder;
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.internal.CreatorResolver;
 import io.uhndata.iap.principals.internal.MeResolver;
@@ -241,6 +243,39 @@ public final class EngineFixture
             throw new IllegalStateException("The fixture could not build its principal service", e);
         }
         return service;
+    }
+
+    /**
+     * A history store that keeps what it is told, so that a test can see what an event recorded. Each action is
+     * filed under its position, so the first is {@code /History/1}.
+     */
+    static final class History implements HistoryRecorder
+    {
+        private final List<RecordedAction> actions = new ArrayList<>();
+
+        /**
+         * What has been recorded so far.
+         *
+         * @return the actions, in the order they were recorded
+         */
+        List<RecordedAction> actions()
+        {
+            return this.actions;
+        }
+
+        @Override
+        public String record(final Session session, final RecordedAction action)
+        {
+            this.actions.add(action);
+            return "/History/" + this.actions.size();
+        }
+
+        @Override
+        public void completeSnapshots(final Session session, final String actionPath,
+            final Map<String, String> snapshots)
+        {
+            throw new UnsupportedOperationException("The engine takes no snapshots");
+        }
     }
 
     /**
@@ -447,6 +482,7 @@ public final class EngineFixture
         inject(engine, "taskCompletion", taskCompletion());
         inject(engine, "queries", queries());
         inject(engine, "delegation", delegation("iap-administrators"));
+        inject(engine, "recorder", new History());
         return engine;
     }
 

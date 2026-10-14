@@ -116,12 +116,13 @@ public class TaskCompletion
      * @param event the incoming event
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
+     * @param record where the decision is gathered for history
      * @throws WorkflowException when the event does not apply, the actor may not complete it, the outcome is missing
      *             or not one the task offers, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer, final ActionRecord record)
         throws WorkflowException, PersistenceException
     {
         final TaskEvent kind = TaskEvent.of(event);
@@ -131,14 +132,19 @@ public class TaskCompletion
         final Resource host = findHost(taskResource);
         final PerformerCheck check = this.performers.createCheck(resolver, actor.effectiveUser());
         final InstanceRunner runner = this.runners.createRunner(resolver, performer, actor);
+        // A task is part of its host, which history can name and the task cannot
+        record.affecting(host, "host");
         if (kind == TaskEvent.TIMEOUT) {
             final IntermediateCatchingEvent timer = findRunningTimer(task, definition);
             check.verify(listWhoMayFire(timer), host);
             checkDeadlinePassed(task);
+            record.task(taskResource, definition, null);
             runner.fireDeadline(task, timer);
         } else {
             check.verify(definition, host);
-            runner.completeTask(task, readOutcome(event, task, definition));
+            final String outcome = readOutcome(event, task, definition);
+            record.task(taskResource, definition, outcome);
+            runner.completeTask(task, outcome);
         }
     }
 
