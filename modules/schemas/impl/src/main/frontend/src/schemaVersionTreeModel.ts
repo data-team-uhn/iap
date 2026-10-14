@@ -125,18 +125,22 @@ export function boundsOf(question: JcrNode): string | undefined {
 // version, which is how conditions written by hand address them
 export interface QuestionIndex {
   find: (reference: string) => JcrNode | undefined;
+  // Every question of the version, in its order
+  questions: JcrNode[];
 }
 
 export function indexQuestions(version: JcrNode): QuestionIndex {
   const root = `${String(version["@path"])}/`;
   const byReference = new Map<string, JcrNode>();
+  const questions: JcrNode[] = [];
   const visit = (node: JcrNode) => partsOf(node).forEach(part => {
     if (isQuestion(part)) {
+      questions.push(part);
       byReference.set(String(part["jcr:uuid"]), part);
       byReference.set(String(part["@path"]).replace(root, ""), part);
     }
     visit(part);
   });
   visit(version);
-  return { find: reference => byReference.get(reference) };
+  return { find: reference => byReference.get(reference), questions };
 }
