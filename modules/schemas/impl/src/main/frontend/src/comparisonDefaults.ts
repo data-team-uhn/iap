@@ -20,17 +20,24 @@ import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/s
 
 import { createdOf, nameOf, pathOf, tagsOf } from "./schemaModel";
 
-// Which version another is compared with when none is named. The rules are tried in their order, and the first that
-// finds a version other than the version itself decides. A rule is a name: `active` for the active version, `source`
-// for the one it was copied from, `previous` for the one created last before it. An unknown name finds nothing. No
-// React, no fetch.
+// Which version of a schema another is compared with when nobody has named one. No React, no fetch.
 
-// Whether a reference points at the version, given as a path, an identifier, or the node it was dereferenced to
+/**
+ * Whether a link's reference points at the version. The reference may be a path, an identifier, or the node it was
+ * dereferenced to, depending on how the link was serialized.
+ */
 const pointsAt = (value: unknown, version: SerializedNode): boolean => (isNode(value)
   ? pathOf(value) === pathOf(version)
   : value === pathOf(version) || value === version["jcr:uuid"]);
 
-// The version a version's links say it was copied from, among the schema's versions
+/**
+ * The version a version was copied from, as its `copiedFrom` link names it.
+ *
+ * @param links the version's `link:links` node, serialized one level deep; undefined while it is being read
+ * @param versions the schema's versions, among which the source is looked for
+ * @returns the version it was copied from, or undefined when it has no `copiedFrom` link, or the version that link
+ *     names is not among `versions`
+ */
 export function sourceOf(links: SerializedNode | undefined, versions: SerializedNode[]): SerializedNode | undefined {
   const link = childrenOf(links ?? {}).find(child => {
     const type = isNode(child.type) ? pathOf(child.type) : String(child.type);
@@ -39,6 +46,18 @@ export function sourceOf(links: SerializedNode | undefined, versions: Serialized
   return link && versions.find(version => pointsAt(link.reference, version));
 }
 
+/**
+ * The version another is compared with when nobody has named one. The rules are tried in their order, and the first
+ * that finds a version other than `version` decides.
+ *
+ * @param version the version being compared
+ * @param versions the schema's versions, `version` included
+ * @param rules the names of the rules to try, as the schema view's `comparisonDefaults` gives them: `active` finds
+ *     the active version, `source` the version it was copied from, and `previous` the version created last before
+ *     it. A name this does not know finds nothing.
+ * @param source the version it was copied from, as `sourceOf` finds it; without it, `source` finds nothing
+ * @returns the version to compare it with, or undefined when no rule finds one
+ */
 export function defaultBase(version: SerializedNode, versions: SerializedNode[], rules: string[],
   source?: SerializedNode): SerializedNode | undefined {
   const others = versions.filter(other => nameOf(other) !== nameOf(version));
