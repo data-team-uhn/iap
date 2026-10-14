@@ -64,6 +64,9 @@ public class Extraction extends EntityPart
     private boolean evidenceRejected;
 
     @ValueMapValue
+    private String[] replacedValue;
+
+    @ValueMapValue
     private Long editDistance;
 
     @ValueMapValue
@@ -89,6 +92,19 @@ public class Extraction extends EntityPart
             }
         }
         return result;
+    }
+
+    /**
+     * What the answer held before this run replaced it with what it read in a newer revision. Kept so the
+     * submitter can go back to it.
+     *
+     * @return a copy of the replaced value(s), or {@code null} when this run replaced nothing
+     */
+    @Nullable
+    public String[] getReplacedValue()
+    {
+        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
+        return this.replacedValue == null ? null : this.replacedValue.clone();
     }
 
     /**
