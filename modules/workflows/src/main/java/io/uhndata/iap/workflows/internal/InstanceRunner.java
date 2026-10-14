@@ -228,7 +228,6 @@ final class InstanceRunner
         final FlowNode node = step.node();
         this.records.moveToken(token, node, step.arrivedBy());
         if (node instanceof EndEvent) {
-            this.records.tagHost(instance, (EndEvent) node);
             if (((EndEvent) node).isTerminate()) {
                 this.records.terminateInstance(instance);
                 return false;

@@ -63,9 +63,9 @@ const SET_STATE = {
   jcrProperties: { handler: "setState" },
   parameters: [
     {
-      name: "hostTag",
-      label: "Host tag",
-      description: "The tag to place on the host resource",
+      name: "colour",
+      label: "Colour",
+      description: "The colour to draw the task in",
       dataType: "text",
       minValues: 0,
       maxValues: 1,
@@ -148,7 +148,7 @@ describe("parseWorkflowTypes", () => {
       xmlExtensionElement: "setState",
       jcrNodeType: "wf:Activity",
     });
-    expect(type?.parameters.map(each => each.name)).toEqual([ "hostTag", "toState" ]);
+    expect(type?.parameters.map(each => each.name)).toEqual([ "colour", "toState" ]);
     expect(type?.parameters[1].options).toEqual([ { value: "DRAFT", label: "Draft" },
       { value: "ACTIVE", label: "Active" } ]);
   });

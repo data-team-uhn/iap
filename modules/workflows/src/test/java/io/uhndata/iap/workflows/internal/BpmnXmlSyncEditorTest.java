@@ -482,15 +482,15 @@ class BpmnXmlSyncEditorTest
         // The reason cardinality is declared rather than guessed: there is no way to tell "a name with a comma in
         // it" from "two names"
         final NodeBuilder root = base();
-        VocabularyFixture.attributeParameter(types(root).getChildNode("UserTask"), "hostTag", TEXT, 1);
+        VocabularyFixture.attributeParameter(types(root).getChildNode("UserTask"), "colour", TEXT, 1);
 
         final NodeState after = firstSave(root, withIapNs()
-            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:hostTag=\"a, b\" />\n"
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:colour=\"a, b\" />\n"
             + PROCESS_CLOSE + DEFS_CLOSE);
 
-        final PropertyState hostTag = after.getChildNode(TASK_1).getProperty("hostTag");
-        assertFalse(hostTag.isArray());
-        assertEquals("a, b", hostTag.getValue(Type.STRING));
+        final PropertyState colour = after.getChildNode(TASK_1).getProperty("colour");
+        assertFalse(colour.isArray());
+        assertEquals("a, b", colour.getValue(Type.STRING));
     }
 
     @Test

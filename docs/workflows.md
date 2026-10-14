@@ -133,10 +133,6 @@ elsewhere:
 - **`outcomeOptions` on an activity** lists the decisions its task may be completed
   with, which a gateway downstream routes on, so that a task list knows what to offer.
   An empty list means there is nothing to decide, only something to do.
-- **`hostTag` on an end event** places a tag on the host when a content workflow
-  finishes there, retiring the host's tags that share any of its categories. It is kept
-  for flow nodes written by hand: the vocabulary offers it on no kind of node, since the
-  `addTag` and `removeTag` service tasks do the same job anywhere in a process.
 
 ### The vocabulary
 

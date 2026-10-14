@@ -29,12 +29,10 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -215,25 +213,6 @@ final class InstanceRecords
             .map(WorkflowToken::getCurrentNode)
             .filter(Objects::nonNull)
             .toList();
-    }
-
-    /**
-     * Tags the host with what reaching an end event means, if the end event says so. The tag replaces the host's
-     * tags sharing a category with it, so a request just approved stops being in review. Every branch that reaches
-     * an end event does this, not only the last one.
-     *
-     * @param instance the running instance
-     * @param end the end event reached
-     * @throws PersistenceException when the host cannot be tagged
-     */
-    void tagHost(final Resource instance, final EndEvent end) throws PersistenceException
-    {
-        final String hostTag = end.getHostTag();
-        if (hostTag != null) {
-            // Moving the host between lifecycle tags is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class), "A workflow's host is taggable")
-                .tagReplacing(hostTag, true);
-        }
     }
 
     /**
