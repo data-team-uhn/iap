@@ -148,6 +148,27 @@ final class SubmissionTree
         return file;
     }
 
+    /**
+     * A newer version of the document a file belongs to, holding a parsed upload.
+     *
+     * @param file a file of the document
+     * @return the new version's {@code sub:File}
+     */
+    Resource addVersion(final Resource file)
+    {
+        final Resource document = file.getParent().getParent();
+        int versions = 0;
+        for (final Resource child : document.getChildren()) {
+            versions += "sub/DocumentVersion".equals(child.getResourceType()) ? 1 : 0;
+        }
+        final String version = document.getPath() + "/v" + (versions + 1);
+        this.context.create().resource(version, Map.of(TYPE, "sub/DocumentVersion"));
+        final Resource newer = this.context.create().resource(version + "/file",
+            Map.of(TYPE, "sub/File", "fileName", "proposal.pdf", "parseStatus", "completed"));
+        storeText(newer.getPath() + "/uploadedFile", "%PDF-1.4 the newer upload");
+        return newer;
+    }
+
     /** A document requirement of the schema version, which uploads are attached for. */
     Resource createDocumentRequirement(final String name)
     {

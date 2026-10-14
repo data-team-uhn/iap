@@ -19,12 +19,14 @@ package io.uhndata.iap.extraction.internal;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -36,6 +38,7 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
@@ -94,7 +97,8 @@ final class ExtractionFields
     }
 
     /**
-     * Record every answer the model found, for the questions that carry no answer yet.
+     * Record every answer the model found, for the questions that carry no answer yet. Reading a new revision,
+     * an answer already there may be replaced too; see {@link #isNewRevision}.
      *
      * @param resolver the session to write with
      * @param target the submission node
@@ -102,30 +106,88 @@ final class ExtractionFields
      * @param questions what was asked, by path within the schema version
      * @param results what the model answered, keyed the same way
      * @param files the documents the answers were read from
+     * @param newRevision whether the files include a revision these questions were not read from yet
      */
     static void write(final ResourceResolver resolver, final Resource target, final Submission submission,
-        final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files)
+        final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files,
+        final boolean newRevision)
     {
         final Set<String> answered = getAnswered(submission);
         final Map<String, Answer> empty = getEmpty(submission);
+        final Map<String, Answer> held = getHeld(submission);
         for (final Map.Entry<String, FieldResult> entry : results.entrySet()) {
             final Question question = questions.get(entry.getKey());
-            if (entry.getValue().found() && question != null && !answered.contains(question.getPath())) {
-                final Answer existing = empty.get(question.getPath());
-                // Isolated per field: one field's evidence failing to write (e.g. a source file that stopped
-                // resolving mid-transaction) must not cost every other, unrelated field its answer too.
-                try {
+            if (!entry.getValue().found() || question == null
+                || (answered.contains(question.getPath()) && !newRevision)) {
+                continue;
+            }
+            // Isolated per field: one field's evidence failing to write (e.g. a source file that stopped
+            // resolving mid-transaction) must not cost every other, unrelated field its answer too.
+            try {
+                if (answered.contains(question.getPath())) {
+                    replace(resolver, held.get(question.getPath()), question, entry.getValue(), files);
+                } else {
+                    final Answer existing = empty.get(question.getPath());
                     ExtractedAnswers.write(resolver, target,
                         existing == null ? null : resolver.getResource(existing.getPath()), question,
                         entry.getValue(), files);
-                } catch (final PersistenceException e) {
-                    LOGGER.warn("Could not record the answer for {}: {}", question.getPath(), e.getMessage(), e);
-                    // The reading still says done, so a lost answer would go unnoticed
-                    ErrorLogger.logError(e, ErrorContext.of(ExtractionFields.class, "write").about(target)
-                        .with("question", question.getPath()));
                 }
+            } catch (final PersistenceException e) {
+                LOGGER.warn("Could not record the answer for {}: {}", question.getPath(), e.getMessage(), e);
+                // The reading still says done, so a lost answer would go unnoticed
+                ErrorLogger.logError(e, ErrorContext.of(ExtractionFields.class, "write").about(target)
+                    .with("question", question.getPath()));
             }
         }
+    }
+
+    /**
+     * Put what a newer revision says in place of an answer, when it differs both from the answer and from what
+     * the last reading suggested. Equal to either, the newer file has nothing new to say about it.
+     */
+    private static void replace(final ResourceResolver resolver, final Answer answer, final Question question,
+        final FieldResult result, final List<File> files) throws PersistenceException
+    {
+        final List<String> read = Answer.readAnswer(result.value(), question);
+        final String[] value = answer.getValue();
+        final List<String> current = value == null ? List.of() : Arrays.asList(value);
+        if (read.equals(current) || read.equals(answer.getSuggestedValues())) {
+            return;
+        }
+        final Resource resource = resolver.getResource(answer.getPath());
+        if (resource == null) {
+            throw new PersistenceException("Could not read the answer " + answer.getPath());
+        }
+        ExtractedAnswers.replace(resolver, resource, question, result, files, current);
+    }
+
+    /**
+     * Whether a step reads a revision its questions were not read from yet: one of the files is not the first
+     * revision of its document, and no answer to these questions cites it. Such a reading may replace answers,
+     * not only fill gaps. Read again on the same revision, it only fills gaps.
+     *
+     * @param submission the submission
+     * @param questions the questions the step asks, answered or not
+     * @param files the files the step reads
+     * @return {@code true} for a first reading of a newer revision
+     */
+    static boolean isNewRevision(final Submission submission, final Collection<Question> questions,
+        final List<File> files)
+    {
+        final Set<String> revisions = files.stream()
+            .map(File::getVersion)
+            .filter(version -> version != null && version.getNumber() > 1)
+            .map(DocumentVersion::getPath)
+            .collect(Collectors.toSet());
+        if (revisions.isEmpty()) {
+            return false;
+        }
+        final Set<String> asked = questions.stream().map(Question::getPath).collect(Collectors.toSet());
+        return submission.getAnswers().stream()
+            .filter(answer -> isAsking(answer.getQuestion(), asked))
+            .flatMap(answer -> answer.getExtractions().stream())
+            .flatMap(extraction -> extraction.getSources().stream())
+            .noneMatch(source -> revisions.contains(source.getPath()));
     }
 
     /**
@@ -166,6 +228,24 @@ final class ExtractionFields
             }
         }
         return empty;
+    }
+
+    private static boolean isAsking(final Question question, final Set<String> asked)
+    {
+        return question != null && asked.contains(question.getPath());
+    }
+
+    /** The answers a reading must otherwise leave alone, by the path of the question they answer. */
+    private static Map<String, Answer> getHeld(final Submission submission)
+    {
+        final Map<String, Answer> held = new HashMap<>();
+        for (final Answer answer : submission.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question != null && !isEmpty(answer)) {
+                held.putIfAbsent(question.getPath(), answer);
+            }
+        }
+        return held;
     }
 
     /** Whether an answer holds no value and the model never suggested one for it. */

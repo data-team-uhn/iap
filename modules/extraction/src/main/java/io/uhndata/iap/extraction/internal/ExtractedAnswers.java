@@ -77,7 +77,46 @@ final class ExtractedAnswers
         if (questionResource == null) {
             throw new PersistenceException("Could not read the question " + question.getPath());
         }
-        // The versions the files belong to are what the answer was read from
+        final List<Resource> versions = getVersions(resolver, files);
+        final String[] values = readValues(question, result.value());
+        if (existing != null) {
+            fill(resolver, existing, values, result, versions, null);
+            return;
+        }
+        final Resource answer = resolver.create(target, UUID.randomUUID().toString(),
+            Map.of(PRIMARY_TYPE, "sub:Answer", VALUE, values));
+        try {
+            ReferenceUtils.setReference(answer, QUESTION, questionResource);
+            writeExtraction(resolver, answer, result, versions, null);
+        } catch (final PersistenceException e) {
+            resolver.delete(answer);
+            throw e;
+        }
+    }
+
+    /**
+     * Replace an answer with what a newer revision of its document says, keeping the value it held on the new
+     * extraction so the submitter can go back to it.
+     *
+     * @param resolver the session to write through
+     * @param existing the answer to replace
+     * @param question the question it answers
+     * @param result what the model found in the newer revision
+     * @param files the files it was read from
+     * @param replaced what the answer held, empty when it held nothing
+     * @throws PersistenceException if anything cannot be written
+     */
+    static void replace(final ResourceResolver resolver, final Resource existing, final Question question,
+        final FieldResult result, final List<File> files, final List<String> replaced) throws PersistenceException
+    {
+        fill(resolver, existing, readValues(question, result.value()), result, getVersions(resolver, files),
+            replaced.stream().allMatch(String::isBlank) ? null : replaced.toArray(new String[0]));
+    }
+
+    /** The versions the files belong to, which are what an answer was read from. */
+    private static List<Resource> getVersions(final ResourceResolver resolver, final List<File> files)
+        throws PersistenceException
+    {
         final List<Resource> versions = new ArrayList<>();
         for (final File file : files) {
             final Resource fileResource = resolver.getResource(file.getPath());
@@ -86,28 +125,15 @@ final class ExtractedAnswers
             }
             versions.add(fileResource.getParent());
         }
-        final String[] values = readValues(question, result.value());
-        if (existing != null) {
-            fill(resolver, existing, values, result, versions);
-            return;
-        }
-        final Resource answer = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Answer", VALUE, values));
-        try {
-            ReferenceUtils.setReference(answer, QUESTION, questionResource);
-            writeExtraction(resolver, answer, result, versions);
-        } catch (final PersistenceException e) {
-            resolver.delete(answer);
-            throw e;
-        }
+        return versions;
     }
 
     /**
-     * Put the answer into an empty one the form already saved for the question, putting it back as it was if
-     * the extraction under it cannot be written.
+     * Put the answer into one the form already saved for the question, putting it back as it was if the
+     * extraction under it cannot be written.
      */
     private static void fill(final ResourceResolver resolver, final Resource existing, final String[] values,
-        final FieldResult result, final List<Resource> versions) throws PersistenceException
+        final FieldResult result, final List<Resource> versions, final String[] replaced) throws PersistenceException
     {
         final ModifiableValueMap properties = existing.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
@@ -116,7 +142,7 @@ final class ExtractedAnswers
         final Object before = properties.get(VALUE);
         properties.put(VALUE, values);
         try {
-            writeExtraction(resolver, existing, result, versions);
+            writeExtraction(resolver, existing, result, versions, replaced);
         } catch (final PersistenceException e) {
             if (before == null) {
                 properties.remove(VALUE);
@@ -131,7 +157,7 @@ final class ExtractedAnswers
      * Write the extraction under an answer, with its evidence, removing it again if any of it cannot be written.
      */
     private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
-        final FieldResult result, final List<Resource> versions) throws PersistenceException
+        final FieldResult result, final List<Resource> versions, final String[] replaced) throws PersistenceException
     {
         final Map<String, Object> extraction = new HashMap<>();
         extraction.put(PRIMARY_TYPE, "sub:Extraction");
@@ -139,6 +165,9 @@ final class ExtractedAnswers
         extraction.put("confidence", result.confidence());
         if (result.reasoning() != null) {
             extraction.put("reasoning", result.reasoning());
+        }
+        if (replaced != null) {
+            extraction.put("replacedValue", replaced);
         }
         final Resource extracted = resolver.create(answer, UUID.randomUUID().toString(), extraction);
         try {
