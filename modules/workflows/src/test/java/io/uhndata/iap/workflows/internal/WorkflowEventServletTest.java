@@ -365,6 +365,20 @@ class WorkflowEventServletTest
     }
 
     @Test
+    void refusesAnEventSentOnSomeoneElsesBehalfLikeAnyOther() throws WorkflowException, IOException, ServletException
+    {
+        // Logged for whoever audits delegation, but the caller learns no more than from any other refusal
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenThrow(new NotAuthorizedException("not allowed"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, "alice\nforged")), response);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getOutputAsString().contains("not allowed"));
+    }
+
+    @Test
     void mapsInvalidStateToConflict() throws WorkflowException, IOException, ServletException
     {
         assertEquals(409, statusFor(new InvalidStateException("already submitted")));
