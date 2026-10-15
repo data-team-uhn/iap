@@ -148,8 +148,10 @@ function AnswerField(
 
   // An answer the model drafted and nobody has checked yet is framed, so the ones still to check
   // stand out. The answer component draws the frame round the answer itself.
+  // Read from what is being typed, not what was saved: an edit stops being the model's suggestion at once,
+  // and the frame and the Confirm button go with the first keystroke rather than when the field is left
   const pending = question.provenance !== undefined
-    && statusOf(question.provenance, question.value) === "suggested";
+    && statusOf(question.provenance, draft) === "suggested";
   const offer = question.provenance ? replacementOffer(question.provenance, question.value) : undefined;
   // Taking the newer reading back is choosing it, so it is confirmed as it is saved
   const accept = (accepted: ReplacementOffer) => {
@@ -192,7 +194,7 @@ function AnswerField(
               ? (
                 <ConfirmAnswer
                   provenance={question.provenance}
-                  value={question.value}
+                  value={draft}
                   disabled={disabled}
                   onAccept={() => onAcceptSuggestion?.()}
                 />
@@ -206,7 +208,7 @@ function AnswerField(
         ? (
           <AnswerProvenance
             provenance={question.provenance}
-            value={question.value}
+            value={draft}
             disabled={disabled}
             onRejectEvidence={rejected => onRejectEvidence?.(rejected)}
           />

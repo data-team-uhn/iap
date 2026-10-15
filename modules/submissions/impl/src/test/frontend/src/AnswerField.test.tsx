@@ -259,6 +259,30 @@ describe("AnswerField", () => {
     expect(accepted).toHaveBeenCalled();
   });
 
+  // Typing over a suggestion is already a correction, before anything is saved
+  it("stops offering to confirm a suggestion as soon as it is edited", async () => {
+    const answered = vi.fn();
+    const pre = question({
+      dataType: "text",
+      value: [ "Clinical trial" ],
+      provenance: {
+        suggested: [ "Clinical trial" ],
+        confidence: 0.9,
+        passages: [ { quote: "This is a prospective interventional phase II study." } ],
+        reviewed: false,
+        evidenceRejected: false,
+      },
+    });
+    render(<AnswerField question={pre} state="idle" onAnswered={answered} onAcceptSuggestion={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Confirm answer" })).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/Which day/), "s");
+
+    expect(screen.queryByRole("button", { name: "Confirm answer" })).not.toBeInTheDocument();
+    expect(screen.getByText("You corrected this")).toBeInTheDocument();
+    expect(answered).not.toHaveBeenCalled();
+  });
+
   // The two callbacks are optional, so a caller that wires neither still renders rather than throwing
   it("copes with a caller that wired neither verdict", async () => {
     const pre = question({
