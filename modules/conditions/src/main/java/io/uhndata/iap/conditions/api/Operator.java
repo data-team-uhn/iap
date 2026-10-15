@@ -21,71 +21,114 @@ import java.util.Arrays;
 import java.util.function.BiPredicate;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.conditions.spi.ConditionComparator;
 
 /**
- * The comparator of a condition, as indicated in the {@code comparator} property of a {@code cond:SingleCondition}
- * node, including the logic evaluating it on actual operand values. Except where noted, operators accept
- * multi-valued operands; the ordering operators require both operands to hold exactly one value and evaluate to
- * {@code false} otherwise.
+ * The comparators every instance has, named by the {@code comparator} property of a {@code cond:SingleCondition}
+ * node, with the logic evaluating them on actual operand values. Except where noted, they accept multi-valued
+ * operands; the ordering comparators require both operands to hold exactly one value and evaluate to {@code false}
+ * otherwise. A module adds others as {@link ConditionComparator} services.
  *
  * @version $Id$
  * @since 0.1.0
  */
-public enum Operator
+public enum Operator implements ConditionComparator
 {
     /** Check that the two operands hold the same set of values. */
-    EQUALS("equals", true, (left, right) -> left.stream()
-        .allMatch(lv -> right.stream().anyMatch(rv -> lv.compareTo(rv) == 0))
-        && right.stream()
-            .allMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
+    EQUALS("equals", "is", null, Kind.ANY, "Holds when the two operands hold the same values.",
+        (left, right) -> left.stream()
+            .allMatch(lv -> right.stream().anyMatch(rv -> lv.compareTo(rv) == 0))
+            && right.stream()
+                .allMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
 
     /** Check that the two operands do not hold the same set of values. */
-    NOT_EQUALS("not equals", true, (left, right) -> !EQUALS.evaluate(left, right)),
+    NOT_EQUALS("not equals", "is not", null, Kind.ANY, "Holds when the two operands do not hold the same values.",
+        (left, right) -> !EQUALS.evaluate(left, right)),
 
     /** Check that the first operand is less than the second. Requires single valued operands. */
-    LESS_THAN("less than", false, (left, right) -> left.get(0).compareTo(right.get(0)) < 0),
+    LESS_THAN("less than", "is less than", null, Kind.ORDERING, "Holds when the first value comes before the second.",
+        (left, right) -> left.get(0).compareTo(right.get(0)) < 0),
 
     /** Check that the first operand is less than or equal to the second. Requires single valued operands. */
-    LESS_OR_EQUAL("less or equal", false, (left, right) -> left.get(0).compareTo(right.get(0)) <= 0),
+    LESS_OR_EQUAL("less or equal", "is at most", null, Kind.ORDERING,
+        "Holds when the first value does not come after the second.",
+        (left, right) -> left.get(0).compareTo(right.get(0)) <= 0),
 
     /** Check that the first operand is greater than the second. Requires single valued operands. */
-    GREATER_THAN("greater than", false, (left, right) -> left.get(0).compareTo(right.get(0)) > 0),
+    GREATER_THAN("greater than", "is more than", null, Kind.ORDERING,
+        "Holds when the first value comes after the second.",
+        (left, right) -> left.get(0).compareTo(right.get(0)) > 0),
 
     /** Check that the first operand is greater than or equal to the second. Requires single valued operands. */
-    GREATER_OR_EQUAL("greater or equal", false, (left, right) -> left.get(0).compareTo(right.get(0)) >= 0),
+    GREATER_OR_EQUAL("greater or equal", "is at least", null, Kind.ORDERING,
+        "Holds when the first value does not come before the second.",
+        (left, right) -> left.get(0).compareTo(right.get(0)) >= 0),
 
     /** Check that the first operand holds no values; the second operand is ignored. */
-    IS_EMPTY("is empty", true, (left, right) -> left.isEmpty()),
+    IS_EMPTY("is empty", "is empty", null, Kind.UNARY, "Holds when the operand holds no value.",
+        (left, right) -> left.isEmpty()),
 
     /** Check that the first operand holds at least one value; the second operand is ignored. */
-    IS_NOT_EMPTY("is not empty", true, (left, right) -> !left.isEmpty()),
+    IS_NOT_EMPTY("is not empty", "is not empty", null, Kind.UNARY, "Holds when the operand holds a value.",
+        (left, right) -> !left.isEmpty()),
 
     /** Check that the first operand contains every value of the second. */
-    INCLUDES("includes", true, (left, right) -> right.stream()
-        .allMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
+    INCLUDES("includes", "includes all of", "includes", Kind.SETS,
+        "Holds when the first operand holds every value of the second.",
+        (left, right) -> right.stream()
+            .allMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
 
     /** Check that the first operand contains at least one value of the second. */
-    INCLUDES_ANY("includes any", true, (left, right) -> right.stream()
-        .anyMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
+    INCLUDES_ANY("includes any", "includes any of", "includes", Kind.SETS,
+        "Holds when the first operand holds at least one value of the second.",
+        (left, right) -> right.stream()
+            .anyMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
 
     /** Check that the first operand contains no value of the second. */
-    EXCLUDES("excludes", true, (left, right) -> right.stream()
-        .noneMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
+    EXCLUDES("excludes", "includes none of", "does not include", Kind.SETS,
+        "Holds when the first operand holds no value of the second.",
+        (left, right) -> right.stream()
+            .noneMatch(rv -> left.stream().anyMatch(lv -> lv.compareTo(rv) == 0))),
 
     /** Check that the first operand lacks at least one value of the second. */
-    EXCLUDES_ANY("excludes any", true, (left, right) -> right.stream()
-        .anyMatch(rv -> left.stream().noneMatch(lv -> lv.compareTo(rv) == 0)));
+    EXCLUDES_ANY("excludes any", "does not include all of", "does not include", Kind.SETS,
+        "Holds when the first operand lacks at least one value of the second.",
+        (left, right) -> right.stream()
+            .anyMatch(rv -> left.stream().noneMatch(lv -> lv.compareTo(rv) == 0)));
+
+    /**
+     * What a comparator expects of its operands.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private enum Kind
+    {
+        ANY, ORDERING, UNARY, SETS
+    }
 
     private final String name;
 
-    private final boolean supportsMultivalue;
+    private final String phrase;
+
+    private final String singleValuePhrase;
+
+    private final Kind kind;
+
+    private final String description;
 
     private final BiPredicate<Operand, Operand> evaluator;
 
-    Operator(final String name, final boolean supportsMultivalue, final BiPredicate<Operand, Operand> evaluator)
+    Operator(final String name, final String phrase, final String singleValuePhrase, final Kind kind,
+        final String description, final BiPredicate<Operand, Operand> evaluator)
     {
         this.name = name;
-        this.supportsMultivalue = supportsMultivalue;
+        this.phrase = phrase;
+        this.singleValuePhrase = singleValuePhrase;
+        this.kind = kind;
+        this.description = description;
         this.evaluator = evaluator;
     }
 
@@ -94,10 +137,50 @@ public enum Operator
      *
      * @return an operator name, e.g. {@code less than}
      */
+    @Override
     @NotNull
     public String getName()
     {
         return this.name;
+    }
+
+    @Override
+    @NotNull
+    public String getDescription()
+    {
+        return this.description;
+    }
+
+    @Override
+    @NotNull
+    public String getPhrase()
+    {
+        return this.phrase;
+    }
+
+    @Override
+    @Nullable
+    public String getSingleValuePhrase()
+    {
+        return this.singleValuePhrase;
+    }
+
+    @Override
+    public boolean isUnary()
+    {
+        return this.kind == Kind.UNARY;
+    }
+
+    @Override
+    public boolean isOrdering()
+    {
+        return this.kind == Kind.ORDERING;
+    }
+
+    @Override
+    public boolean isSets()
+    {
+        return this.kind == Kind.SETS;
     }
 
     /**
@@ -107,9 +190,10 @@ public enum Operator
      * @param right the second operand, may be empty if this is an unary operator
      * @return {@code true} if the two operands pass this operator, {@code false} otherwise
      */
+    @Override
     public boolean evaluate(@NotNull final Operand left, @NotNull final Operand right)
     {
-        if (!this.supportsMultivalue && (left.size() != 1 || right.size() != 1)) {
+        if (this.kind == Kind.ORDERING && (left.size() != 1 || right.size() != 1)) {
             return false;
         }
         return this.evaluator.test(left, right);
