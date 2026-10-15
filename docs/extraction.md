@@ -739,7 +739,7 @@ Messages the submitter can see in `extractionMessage`:
 | --- | --- |
 | No document has been uploaded | Nothing to read |
 | The document has not been read yet | A parse is still queued |
-| The document could not be read. `<parseError>` | The parse failed |
+| The document could not be read. Please try again | The parse failed. Its reason stays in the file's `parseError`, in the log ("Parse job ... failed") and in error tracking |
 | No uploaded document could be read | Uploads exist, none parsed |
 | The document has no text that can be read | The Markdown is blank |
 | The questions leave no room to show the model the document | The prompt fills the window |
