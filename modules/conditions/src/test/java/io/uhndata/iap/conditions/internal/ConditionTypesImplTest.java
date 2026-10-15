@@ -20,6 +20,7 @@ package io.uhndata.iap.conditions.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 
+import org.apache.sling.api.resource.Resource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +28,8 @@ import io.uhndata.iap.conditions.api.Aggregator;
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.api.Operator;
+import io.uhndata.iap.conditions.spi.Candidate;
+import io.uhndata.iap.conditions.spi.CandidateProvider;
 import io.uhndata.iap.conditions.spi.ConditionAggregator;
 import io.uhndata.iap.conditions.spi.ConditionComparator;
 
@@ -85,6 +88,30 @@ class ConditionTypesImplTest
         assertNull(this.types.getComparator("rhymes with"));
         assertNull(this.types.getAggregator("mode"));
         assertNull(this.types.getSource("weather"));
+    }
+
+    @Test
+    void findsWhatListsASourcesCandidates() throws ReflectiveOperationException
+    {
+        final CandidateProvider questions =
+            new CandidateProvider()
+            {
+                @Override
+                public String getSource()
+                {
+                    return "answer";
+                }
+
+                @Override
+                public List<Candidate> getCandidates(
+                    final Resource context)
+                {
+                    return List.of();
+                }
+            };
+        inject("providers", List.of(questions));
+        assertSame(questions, this.types.getCandidateProvider("answer"));
+        assertNull(this.types.getCandidateProvider("tags"));
     }
 
     @Test

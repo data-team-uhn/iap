@@ -22,6 +22,7 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.conditions.spi.CandidateProvider;
 import io.uhndata.iap.conditions.spi.ConditionAggregator;
 import io.uhndata.iap.conditions.spi.ConditionComparator;
 import io.uhndata.iap.conditions.spi.OperandResolver;
@@ -86,4 +87,13 @@ public interface ConditionTypes
      */
     @NotNull
     List<OperandResolver> getSources();
+
+    /**
+     * What lists the candidates of an operand source, when something does.
+     *
+     * @param source a source name
+     * @return the provider, or {@code null} when nothing lists that source's candidates
+     */
+    @Nullable
+    CandidateProvider getCandidateProvider(@NotNull String source);
 }
