@@ -195,6 +195,8 @@ export default defineConfig([
     extends: [js.configs.recommended],
 
     languageOptions: {
+      // The unused-variable rule is typescript-eslint's, which reads its own parser's scope analysis
+      parser: tseslint.parser,
       ecmaVersion: "latest",
       sourceType: "module",
       // nodeBuiltin rather than node: this is an ES module, so the CommonJS-only globals
