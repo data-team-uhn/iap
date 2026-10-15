@@ -53,6 +53,10 @@ public class Content
     @SlingObject
     protected Resource resource;
 
+    /** The node's {@code jcr:uuid}, set only on a referenceable node, for the models of such nodes to expose. */
+    @ValueMapValue(name = "jcr:uuid")
+    protected String identifier;
+
     @ValueMapValue(name = "jcr:created")
     private Calendar created;
 

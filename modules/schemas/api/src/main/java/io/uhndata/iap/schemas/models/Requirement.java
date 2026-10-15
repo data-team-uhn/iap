@@ -24,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * The abstract base for anything a submission must fulfill: a set of questions to answer
@@ -39,7 +40,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  * @version $Id$
  * @since 0.1.0
  */
-public abstract class Requirement extends EntityPart implements Conditionable
+public abstract class Requirement extends EntityPart implements Conditionable, Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sch:Requirement} node. */
     public static final String RESOURCE_TYPE = "sch/Requirement";
@@ -77,5 +78,12 @@ public abstract class Requirement extends EntityPart implements Conditionable
     public Condition getCondition()
     {
         return this.getChild("cond:condition", Condition.class);
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

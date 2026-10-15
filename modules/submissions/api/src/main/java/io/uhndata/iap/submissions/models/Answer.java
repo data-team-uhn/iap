@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:Answer} node: the answer to a single schema question. Only simple storage;
@@ -38,7 +39,7 @@ import io.uhndata.iap.schemas.models.Question;
  */
 @Model(adaptables = Resource.class, resourceType = Answer.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Answer extends EntityPart
+public class Answer extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:Answer} node. */
     public static final String RESOURCE_TYPE = "sub/Answer";
@@ -94,5 +95,12 @@ public class Answer extends EntityPart
     {
         final List<Extraction> extractions = this.getExtractions();
         return extractions.isEmpty() ? null : extractions.get(extractions.size() - 1);
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

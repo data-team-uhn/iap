@@ -66,6 +66,16 @@ class LinkDefinitionTest
     }
 
     @Test
+    void exposesItsIdentifier()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/identified", Map.of(
+            SLING_RESOURCE_TYPE, INTERNAL,
+            "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
+
+        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(LinkDefinition.class).getIdentifier());
+    }
+
+    @Test
     void adaptingToTheBaseYieldsTheActualKind()
     {
         final Resource internal = this.context.create().resource("/LinkTypes/references",

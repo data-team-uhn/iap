@@ -54,6 +54,16 @@ class DocumentVersionTest
     }
 
     @Test
+    void exposesItsIdentifier()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/identified", Map.of(
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE,
+            "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
+
+        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(DocumentVersion.class).getIdentifier());
+    }
+
+    @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource(DOCUMENT_PATH + "/v0",

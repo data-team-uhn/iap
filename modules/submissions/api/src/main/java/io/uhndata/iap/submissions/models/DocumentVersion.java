@@ -20,9 +20,11 @@ package io.uhndata.iap.submissions.models;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:DocumentVersion} node: one revision of a {@link Document}, holding exactly
@@ -34,7 +36,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  */
 @Model(adaptables = Resource.class, resourceType = DocumentVersion.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class DocumentVersion extends EntityPart
+public class DocumentVersion extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:DocumentVersion} node. */
     public static final String RESOURCE_TYPE = "sub/DocumentVersion";
@@ -69,5 +71,12 @@ public class DocumentVersion extends EntityPart
             .map(DocumentVersion::getPath)
             .toList()
             .indexOf(this.getPath()) + 1;
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }
