@@ -26,8 +26,9 @@ import { type SubmissionTask, tasksFrom } from "./taskModel";
 // The workflow container, read on its own rather than with the whole submission: the answers are
 // large, this is small, and reading it separately is what lets the editor show the same controls as
 // the read-only page. References stay as paths, since an instance's names a workflow the reader
-// may not read, and `events` says which tasks are the reader's to complete.
-const CONTAINER = "/wf:instances.deep.simple.-dereference.events.json";
+// may not read, and `events` says which tasks are the reader's to complete. Not `simple`: it drops
+// `sling:resourceType`, which is how the instances and their tasks are told apart.
+const CONTAINER = "/wf:instances.deep.-dereference.events.json";
 
 // What a submission's workflows are waiting for, read again whenever asked.
 //

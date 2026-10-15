@@ -80,7 +80,7 @@ describe("SubmissionTasks", () => {
     // else says so here without a line of code changing
     expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
     // The container alone, its references left as paths, and the events the reader may send each task
-    expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.simple.-dereference.events.json");
+    expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.-dereference.events.json");
   });
 
   // A step can open while this bar is on screen - starting the reading from Next opens the
