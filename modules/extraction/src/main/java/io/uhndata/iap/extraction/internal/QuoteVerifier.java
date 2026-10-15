@@ -64,7 +64,10 @@ final class QuoteVerifier
     /** How many of those one anchor may claim, so a repeating opening cannot use up the lot. */
     private static final int CANDIDATES_PER_ANCHOR = 2;
 
-    /** How much longer than the quote the compared stretch is, for a model that added a few words. */
+    /**
+     * How far past a hit, in quote lengths, the compared stretch runs. It starts half a quote before the hit, so
+     * the whole stretch is about twice the quote: room for a model that added a few words.
+     */
     private static final double WINDOW_FACTOR = 1.5;
 
     /** Words whose loss or addition turns a statement around. */

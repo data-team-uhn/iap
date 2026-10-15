@@ -74,7 +74,7 @@
 
   // Where reading answers out of the attached documents got to: running, done or
   // failed - with a short message for the person looking at it.
-  // Set by the extraction system workflows, read by the submission view.
+  // Set by the extraction module's steps and its reading job.
   - extractionStatus (STRING)
   - extractionMessage (STRING)
 
@@ -126,15 +126,14 @@
 
 //-----------------------------------------------------------------------------
 // One extraction run against one answer: what a model read out of the submitted
-// documents, and what it read to get there. The run's own existence is the
-// record that extraction happened, so a run that found nothing is a node
-// without an extractedAnswer rather than a flag, and jcr:created is when it ran.
+// documents, and what it read to get there. jcr:created is when it ran. Only a
+// run that found an answer is stored today; the type also allows one without
+// an extractedAnswer, to record a run that found nothing.
 [sub:Extraction] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
 
-  // The document revisions this run read, whether or not it found an answer in
-  // them. A revision is what a submitter replaces, so this is what tells a
-  // later reader that an extraction is stale.
+  // The document revisions this run read. A revision is what a submitter
+  // replaces, so this is what tells a later reader that an extraction is stale.
   - sources (REFERENCE) multiple
 
   // The answer the model read out of the documents, absent when the run found
@@ -205,8 +204,8 @@
   // The nearest detected header of the quoted text
   - header (STRING)
 
-  // Page in the source PDF, when known. Absent for documents that carry no
-  // page markers, e.g. anything that came in as DOCX.
+  // The page the model gave for the quote; not checked. Absent for documents
+  // that carry no page markers, e.g. anything that came in as DOCX.
   - page (LONG)
 
   // Allow any other properties for extensibility

@@ -65,7 +65,7 @@ final class ExtractionStatus
     /** Every answer that could be read has been recorded. */
     static final String STATUS_DONE = "done";
 
-    /** Parsing or reading ended without answers; the message says why. */
+    /** Parsing or reading did not finish as it should; the message says why. Earlier answers may stay. */
     static final String STATUS_FAILED = "failed";
 
     /** What the view is told when the submitter stopped the reading. */
@@ -73,7 +73,7 @@ final class ExtractionStatus
 
     private ExtractionStatus()
     {
-        // Constants and one helper
+        // Constants and helpers
     }
 
     /**

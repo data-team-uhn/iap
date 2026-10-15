@@ -118,7 +118,7 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
      * The extraction the submitter was looking at when they gave this verdict, or {@code null} when there is
      * none.
      *
-     * <p>Which run that is comes from the model, not from here: the form shows whichever was surest, so a rule
+     * <p>Which run that is comes from the model, not from here: the form shows whichever is surest, so a rule
      * of its own here could land the verdict on a different run from the one that was on screen - which would
      * work, and be wrong, and say nothing about it.</p>
      */

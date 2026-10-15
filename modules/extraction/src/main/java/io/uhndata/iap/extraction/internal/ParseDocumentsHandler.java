@@ -135,8 +135,8 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
      * <p>This step is the one place in the reading that reaches outside the engine's transaction: staging writes
      * to the shared volume and queueing commits a job node through a session of its own, both before the walk
      * that asked for them has committed. It is that way round on purpose - the job node has to be visible to the
-     * consumer before the Sling job is queued - and it is why a failure here discards what it staged rather than
-     * leaving a folder on the volume that no job node names and no sweep can find.</p>
+     * consumer before the Sling job is queued - and it is why a failure to queue discards what it staged rather
+     * than leave the folder to a sweep that may never find it.</p>
      *
      * @return {@code false} when the file holds no upload to parse
      */
@@ -168,8 +168,8 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             properties.put(SHARED_PATH, staged);
             LOGGER.info("Document sent to be parsed: file={} job={} name={}", file.getPath(), jobId, name);
         } catch (final IOException e) {
-            // A copy staged for a parse that was never queued is a folder nothing names: no job node records it,
-            // so no sweep will ever come back for it. It goes now or it stays for good.
+            // A copy staged for a parse that was never queued usually has no job node naming it, so no sweep would
+            // come back for it. It goes now. A stage that failed partway names nothing to delete, and stays.
             this.parseService.discardStaging(staged);
             throw new PersistenceException("Could not queue the parse of " + file.getPath() + ": " + e.getMessage(),
                 e);

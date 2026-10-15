@@ -45,7 +45,7 @@ import io.uhndata.iap.submissions.models.Submission;
  * Which questions a step asks of a document, and what becomes of the answers.
  *
  * <p>Shared by every {@code intakeAnswers} step, so a schema read in stages is asked the same way and written
- * the same way in every stage.</p>
+ * the same way in every stage. {@code classifyDocument} writes its picks through it too.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -161,9 +161,9 @@ final class ExtractionFields
     }
 
     /**
-     * Whether a step reads a revision its questions were not read from yet: one of the files is not the first
-     * revision of its document, and no answer to these questions cites it. Such a reading may replace answers,
-     * not only fill gaps. Read again on the same revision, it only fills gaps.
+     * Whether a step reads revisions its questions were not read from yet: the files include a revision that is
+     * not its document's first, and no answer to these questions cites any of those revisions. Such a reading may
+     * replace answers, not only fill gaps. Once an answer cites one of them, reading again only fills gaps.
      *
      * @param submission the submission
      * @param questions the questions the step asks, answered or not

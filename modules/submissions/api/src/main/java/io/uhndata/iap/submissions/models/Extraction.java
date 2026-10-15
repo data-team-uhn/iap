@@ -32,8 +32,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 /**
  * A Sling Model wrapping a {@code sub:Extraction} node: one run of answer extraction against one
  * {@link Answer} — what a model read out of the submitted documents, and which document revisions it read to get
- * there. The run's existence is the record that extraction happened, so a run that found nothing is one with no
- * {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
+ * there. {@link #getCreated()} is when it ran. Only a run that found an answer is stored today; one with no
+ * {@link #getExtractedAnswer() extracted answer} would record a run that found nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,8 +73,8 @@ public class Extraction extends EntityPart
     private Double percentageDistance;
 
     /**
-     * The document revisions this run read, whether or not it found an answer in them. A revision is what a
-     * submitter replaces, so this is what tells a later reader that the run is stale.
+     * The document revisions this run read. A revision is what a submitter replaces, so this is what tells a later
+     * reader that the run is stale.
      *
      * @return a list of revisions, empty if none were recorded or none of them resolve
      */

@@ -93,7 +93,7 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The most recent extraction run, which is the one a submitter is shown.
+     * The most recent extraction run. Not the one a submitter is shown: that is {@link #getSurestExtraction()}.
      *
      * @return the newest run, or {@code null} if extraction has never run
      */

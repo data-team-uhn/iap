@@ -34,8 +34,8 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Service task {@code readAgain}: the submitter asks for an already parsed submission to be read again, after the
- * model failed. The reading is queued as a job, like one a parse queues, so it runs with the same claim, the same
+ * Service task {@code readAgain}: the submitter asks for the submission to be read again, after a reading ended.
+ * The reading is queued as a job, like one a parse queues, so it runs with the same claim, the same
  * progress and the same way to stop it, instead of inside the request that asked.
  *
  * @version $Id$
