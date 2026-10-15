@@ -34,9 +34,6 @@ import { fitsTheScreen, PHONE } from '../../../support/phone';
  *
  * Each step has its own spec. This one alone checks that a version's copy and its comparison work together at a
  * phone's width. The copy remembers where it came from, and the comparison is reachable from the copy's own actions.
- *
- * It runs on the demo instance, not beside the platform's archive story. Dropping a question puts it in the archive,
- * and that story expects the archive to hold only what it deleted itself.
  */
 test.describe('stories: a new version checked from a phone', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
