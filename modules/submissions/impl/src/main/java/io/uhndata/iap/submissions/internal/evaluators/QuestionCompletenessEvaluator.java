@@ -22,30 +22,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.schemas.models.FormItem;
-import io.uhndata.iap.schemas.models.FormRequirement;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.internal.ApplicableItems;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
-import io.uhndata.iap.utils.ReferenceUtils;
-import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * Judges a submission's answers. Every question the submitter is shown has an answer, empty until they fill it in,
- * and an answer is incomplete while it holds fewer non-blank values than its question's {@code minAnswers}.
- *
- * <p>A question is shown when it, every section around it and its form requirement all apply.</p>
+ * Judges a submission's answers. An answer to a question the submitter is shown is incomplete while it holds fewer
+ * non-blank values than its question's {@code minAnswers}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,57 +49,38 @@ import io.uhndata.iap.utils.VersioningUtils;
 @Component(service = CompletenessEvaluator.class)
 public class QuestionCompletenessEvaluator implements CompletenessEvaluator
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuestionCompletenessEvaluator.class);
+
     @Reference
     private ConditionEvaluator conditions;
 
     @Override
-    public List<Resource> evaluate(final Resource submission) throws PersistenceException
+    public List<Resource> evaluate(final Resource submission)
     {
         final Submission model = Objects.requireNonNull(submission.adaptTo(Submission.class),
             "Only a submission is judged");
         final Map<String, List<String>> given = model.getAnswersByQuestion();
         final Map<String, List<Resource>> answers = getExistingAnswers(model, submission.getResourceResolver());
         final List<Resource> incomplete = new ArrayList<>();
-        for (final Question question : getApplicableQuestions(model)) {
+        for (final Question question : ApplicableItems.getQuestions(model, this.conditions)) {
             final List<Resource> existing = answers.get(question.getPath());
             final long values = given.getOrDefault(question.getPath(), List.of()).stream()
                 .filter(value -> !value.isBlank())
                 .count();
-            final List<Resource> parts = existing == null ? List.of(createAnswer(submission, question)) : existing;
+            if (existing == null) {
+                LOGGER.warn("{} has no answer to {}, it should have been automatically created",
+                    submission.getPath(), question.getPath());
+                // A problem rather than a failure: a part creator left an item without its part
+                ErrorLogger.logProblem("A submission has no answer to a question",
+                    ErrorContext.of(QuestionCompletenessEvaluator.class, "evaluate")
+                        .about(submission.getPath())
+                        .with("question", question.getPath()));
+            }
             if (values < question.getMinAnswers()) {
-                incomplete.addAll(parts);
+                incomplete.addAll(existing == null ? List.of(submission) : existing);
             }
         }
         return incomplete;
-    }
-
-    /**
-     * The questions the submitter is shown, in schema order.
-     *
-     * @param submission the submission whose conditions decide
-     * @return the questions that apply
-     */
-    private List<Question> getApplicableQuestions(final Submission submission)
-    {
-        final List<Question> applicable = new ArrayList<>();
-        submission.getSchemaVersion().getRequirements().stream()
-            .filter(FormRequirement.class::isInstance)
-            .filter(requirement -> this.conditions.applies(requirement, submission))
-            .forEach(form -> ((FormRequirement) form).getChildren()
-                .forEach(item -> collect(item, submission, applicable)));
-        return applicable;
-    }
-
-    private void collect(final FormItem item, final Submission submission, final List<Question> applicable)
-    {
-        if (!this.conditions.applies(item, submission)) {
-            return;
-        }
-        if (item instanceof Question) {
-            applicable.add((Question) item);
-        } else if (item instanceof Section) {
-            ((Section) item).getChildren().forEach(child -> collect(child, submission, applicable));
-        }
     }
 
     /**
@@ -111,7 +88,7 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
      * resolves is left out.
      *
      * @param submission the submission
-     * @param resolver the session writing it
+     * @param resolver the session reading it
      * @return the answers' resources, by question path
      */
     private static Map<String, List<Resource>> getExistingAnswers(final Submission submission,
@@ -126,24 +103,5 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
             }
         }
         return byQuestion;
-    }
-
-    /**
-     * Creates the empty answer to a question nobody has answered.
-     *
-     * @param submission the submission
-     * @param question the question
-     * @return the answer created
-     * @throws PersistenceException when it cannot be written
-     */
-    private static Resource createAnswer(final Resource submission, final Question question)
-        throws PersistenceException
-    {
-        final ResourceResolver resolver = submission.getResourceResolver();
-        VersioningUtils.checkOut(submission);
-        final Resource answer = resolver.create(submission, UUID.randomUUID().toString(),
-            Map.of("jcr:primaryType", "sub:Answer"));
-        ReferenceUtils.setReference(answer, "question", question);
-        return answer;
     }
 }

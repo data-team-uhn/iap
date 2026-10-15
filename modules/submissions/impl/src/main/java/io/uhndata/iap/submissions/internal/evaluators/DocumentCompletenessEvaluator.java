@@ -22,28 +22,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.submissions.internal.ApplicableItems;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
-import io.uhndata.iap.utils.ReferenceUtils;
-import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * Judges a submission's documents. Every document requirement that applies has at least one document, empty until
- * something is uploaded into it, and its empty documents are incomplete while the requirement is required and
- * nothing has been uploaded for it.
+ * Judges a submission's documents. If a document requirement that applies and is mandatory doesn't have an attached
+ * file, it is incomplete.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,30 +51,32 @@ import io.uhndata.iap.utils.VersioningUtils;
 @Component(service = CompletenessEvaluator.class)
 public class DocumentCompletenessEvaluator implements CompletenessEvaluator
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DocumentCompletenessEvaluator.class);
+
     @Reference
     private ConditionEvaluator conditions;
 
     @Override
-    public List<Resource> evaluate(final Resource submission) throws PersistenceException
+    public List<Resource> evaluate(final Resource submission)
     {
         final Submission model = Objects.requireNonNull(submission.adaptTo(Submission.class),
             "Only a submission is judged");
         final Map<String, List<Document>> documents = getDocuments(model);
         final List<Resource> incomplete = new ArrayList<>();
-        final List<DocumentRequirement> asked = model.getSchemaVersion().getRequirements().stream()
-            .filter(DocumentRequirement.class::isInstance)
-            .map(DocumentRequirement.class::cast)
-            .filter(requirement -> this.conditions.applies(requirement, model))
-            .collect(Collectors.toList());
-        for (final DocumentRequirement requirement : asked) {
+        for (final DocumentRequirement requirement : ApplicableItems.getDocumentRequirements(model, this.conditions)) {
             final List<Document> existing = documents.get(requirement.getPath());
             if (existing == null) {
-                final Resource created = createDocument(submission, requirement);
-                if (requirement.isRequired()) {
-                    incomplete.add(created);
-                }
-            } else if (requirement.isRequired() && existing.stream().noneMatch(Document::isAttached)) {
-                incomplete.addAll(toResources(existing, submission.getResourceResolver()));
+                LOGGER.warn("{} has no document for {}, it should have been automatically created", submission.getPath(),
+                    requirement.getPath());
+                // A problem rather than a failure: a part creator left an item without its part
+                ErrorLogger.logProblem("A submission has no document for a requirement",
+                    ErrorContext.of(DocumentCompletenessEvaluator.class, "evaluate")
+                        .about(submission.getPath())
+                        .with("requirement", requirement.getPath()));
+            }
+            if (requirement.isRequired() && (existing == null || existing.stream().noneMatch(Document::isAttached))) {
+                incomplete.addAll(existing == null ? List.of(submission)
+                    : toResources(existing, submission.getResourceResolver()));
             }
         }
         return incomplete;
@@ -105,24 +107,5 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
             .map(document -> Objects.requireNonNull(resolver.getResource(document.getPath()),
                 "A listed document exists"))
             .collect(Collectors.toList());
-    }
-
-    /**
-     * Creates the empty document for a requirement nothing has been uploaded for.
-     *
-     * @param submission the submission
-     * @param requirement the requirement
-     * @return the document created
-     * @throws PersistenceException when it cannot be written
-     */
-    private static Resource createDocument(final Resource submission, final DocumentRequirement requirement)
-        throws PersistenceException
-    {
-        final ResourceResolver resolver = submission.getResourceResolver();
-        VersioningUtils.checkOut(submission);
-        final Resource document = resolver.create(submission, UUID.randomUUID().toString(),
-            Map.of("jcr:primaryType", "sub:Document"));
-        ReferenceUtils.setReference(document, "fulfills", requirement);
-        return document;
     }
 }

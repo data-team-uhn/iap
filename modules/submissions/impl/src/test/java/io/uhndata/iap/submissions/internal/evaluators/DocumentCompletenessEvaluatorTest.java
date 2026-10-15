@@ -34,17 +34,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.internal.CompletenessFixture;
 import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.models.Document;
 
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.DOCTORS_NOTE;
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.SUBMISSION_PATH;
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.TYPE;
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.VERSION_PATH;
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.document;
-import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.submission;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.DOCTORS_NOTE;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION_PATH;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.TYPE;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.VERSION_PATH;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.document;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.submission;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * Unit tests for {@link DocumentCompletenessEvaluator}.
@@ -71,14 +71,12 @@ class DocumentCompletenessEvaluatorTest
     }
 
     @Test
-    void givesARequirementNothingIsFiledForAnEmptyDocument() throws Exception
+    void reportsTheSubmissionWhenARequiredRequirementHasNoDocument() throws Exception
     {
-        final List<Resource> incomplete = this.evaluator.evaluate(submission(this.context));
-
-        assertEquals(List.of(VERSION_PATH + "/" + DOCTORS_NOTE), filed());
-        assertEquals(1, incomplete.size());
-        assertEquals(VERSION_PATH + "/" + DOCTORS_NOTE,
-            incomplete.get(0).adaptTo(Document.class).getFulfills().getPath());
+        assertEquals(List.of(SUBMISSION_PATH),
+            this.evaluator.evaluate(submission(this.context)).stream().map(Resource::getPath).toList());
+        // Judging creates nothing
+        assertEquals(List.of(), filed());
     }
 
     @Test
@@ -88,8 +86,6 @@ class DocumentCompletenessEvaluatorTest
         document(this.context, DOCTORS_NOTE, true);
 
         assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)));
-        // Still asked, so it still has a document to upload into
-        assertEquals(List.of(VERSION_PATH + "/" + DOCTORS_NOTE, VERSION_PATH + "/" + SPONSOR_LETTER), filed());
     }
 
     @Test
@@ -112,23 +108,20 @@ class DocumentCompletenessEvaluatorTest
     }
 
     @Test
-    void leavesAnEmptyDocumentWhoseRequirementStoppedApplying() throws Exception
+    void asksNothingOfARequirementThatDoesNotApply() throws Exception
     {
-        final Resource empty = document(this.context, DOCTORS_NOTE, false);
         this.hidden.add(DOCTORS_NOTE);
 
         assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)));
-        assertNotNull(this.context.resourceResolver().getResource(empty.getPath()));
     }
 
     @Test
-    void leavesADocumentFulfillingNothingAlone() throws Exception
+    void ignoresADocumentFulfillingNothing() throws Exception
     {
         document(this.context, DOCTORS_NOTE, true);
         this.context.create().resource(SUBMISSION_PATH + "/loose", Map.of(TYPE, Document.RESOURCE_TYPE));
 
         assertEquals(List.of(), this.evaluator.evaluate(submission(this.context)));
-        assertNotNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/loose"));
     }
 
     private void optional() throws RepositoryException, PersistenceException

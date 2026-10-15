@@ -43,6 +43,15 @@
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
     <!-- Submission extends Entity extends Content, so javac needs both to resolve the hierarchy even though
          no source here names them. The tests also register the models. -->
     <dependency>

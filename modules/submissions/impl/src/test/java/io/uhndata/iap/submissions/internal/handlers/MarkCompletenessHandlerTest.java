@@ -128,6 +128,28 @@ class MarkCompletenessHandlerTest
     }
 
     @Test
+    void tagsTheSubmissionItselfWhenAnEvaluatorReportsIt() throws Exception
+    {
+        evaluators(reporting(SUBMISSION_PATH));
+
+        this.handler.execute(context());
+
+        assertTrue(tags(SUBMISSION_PATH).contains(MarkCompletenessHandler.INCOMPLETE_TAG));
+    }
+
+    @Test
+    void untagsTheSubmissionOnceNoEvaluatorReportsIt() throws Exception
+    {
+        evaluators(reporting(SUBMISSION_PATH));
+        this.handler.execute(context());
+        evaluators();
+
+        this.handler.execute(context());
+
+        assertEquals(Set.of(), tags(SUBMISSION_PATH));
+    }
+
+    @Test
     void judgesWhatTheCreateWorkflowJustMadeRatherThanItsOwnTarget() throws Exception
     {
         // The target is not a submission at all, so reading it instead of the created path would fail outright

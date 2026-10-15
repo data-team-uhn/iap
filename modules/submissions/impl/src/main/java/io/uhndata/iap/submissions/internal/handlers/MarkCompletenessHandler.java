@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -44,8 +45,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code incomplete} tag.
  *
  * <p>Every registered {@link CompletenessEvaluator} judges its own kind of part. The parts they report are tagged,
- * and the submission's other parts lose the tag. The tag is aggregated, so the submission carries it while any of
- * its parts does.</p>
+ * and the submission's other parts lose the tag. So does the submission itself, which an evaluator reports when an
+ * item has no part. The tag is aggregated, so the submission carries it while any of its parts does.</p>
  *
  * <p>It acts on the submission an earlier step of the run created, if there is one, and otherwise on the event's
  * target. So the create workflow marks a new submission from the start, and the save and attach workflows mark the
@@ -88,7 +89,10 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
                 taggable(part).tag(INCOMPLETE_TAG, true);
             }
         }
-        for (final Resource part : target.getChildren()) {
+        // The submission itself is reported when an item it is asked has no part at all
+        final List<Resource> marked = new ArrayList<>(List.of(target));
+        target.getChildren().forEach(marked::add);
+        for (final Resource part : marked) {
             final Taggable taggable = part.adaptTo(Taggable.class);
             if (taggable != null && !incomplete.contains(part.getPath()) && taggable.hasOwnTag(INCOMPLETE_TAG)) {
                 taggable.untag(INCOMPLETE_TAG, true);

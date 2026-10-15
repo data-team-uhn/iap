@@ -25,6 +25,18 @@
       "label": "Record the answers",
       "handler": "saveAnswers",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toParts": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParts",
+        "targetRef": "parts"
+      }
+    },
+    "parts": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parts",
+      "label": "Give each item asked for a part of its own",
+      "handler": "createParts",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMark": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMark",
