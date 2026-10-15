@@ -91,7 +91,7 @@ class SystemWorkflowDefinitionsTest
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "callActivity", "addTag", "removeTag", "delete",
         "addLink", "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
-        CreateSchemaVersionHandler.HANDLER_NAME, "checkValid");
+        "retireActiveVersions", CreateSchemaVersionHandler.HANDLER_NAME, "checkValid");
 
     private final SlingContext context = new SlingContext();
 

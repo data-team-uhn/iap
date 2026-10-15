@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
-    "description": "Opens a draft to new submissions, once nothing in it would break when frozen. The version it replaces is left alone.",
+    "description": "Opens a draft to new submissions, once nothing in it would break when frozen, and retires the version it replaces.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -54,6 +54,18 @@
       "elementId": "check",
       "label": "Check it can be published",
       "handler": "checkValid",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toRetire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRetire",
+        "targetRef": "retire"
+      }
+    },
+    "retire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "retire",
+      "label": "Retire the version this one replaces",
+      "handler": "retireActiveVersions",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMarkActive": {
         "jcr:primaryType": "wf:SequenceFlow",

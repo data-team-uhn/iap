@@ -78,11 +78,26 @@ describe("SchemaVersionActions", () => {
     const { reload } = renderActions("v3");
 
     fireEvent.click(await screen.findByRole("button", { name: "Activate" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Version 2.0 is retired in the same step");
     await confirm("Activate");
 
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(posted[0].url).toBe("/Schemas/study/v3.activate.json");
     expect(await screen.findByRole("alert")).toHaveTextContent("Version 3.0 is active");
+  });
+
+  it("says nothing is retired when no version is active", async () => {
+    const retiredOnly = withPaths("/Schemas/study", {
+      ...HOMEPAGE.study, v2: { ...(HOMEPAGE.study.v2 as Record<string, unknown>), tags: [ "retired" ] },
+    });
+    render(<MemoryRouter>
+      <SchemaVersionActions version={retiredOnly.v3 as Record<string, unknown>} schema={retiredOnly} reload={vi.fn()}
+        place="versionPage" />
+    </MemoryRouter>, { wrapper: NoticeProvider });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Activate" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Nothing is retired");
   });
 
   it("shows why a draft cannot be published yet", async () => {

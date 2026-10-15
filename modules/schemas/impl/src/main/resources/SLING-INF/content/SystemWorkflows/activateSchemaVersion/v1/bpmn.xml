@@ -65,9 +65,14 @@
     <bpmn:sequenceFlow id="toCheck" sourceRef="requested" targetRef="check" />
     <bpmn:serviceTask id="check" iap:handler="checkValid" name="Check it can be published">
       <bpmn:incoming>toCheck</bpmn:incoming>
+      <bpmn:outgoing>toRetire</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toRetire" sourceRef="check" targetRef="retire" />
+    <bpmn:serviceTask id="retire" iap:handler="retireActiveVersions" name="Retire the version this one replaces">
+      <bpmn:incoming>toRetire</bpmn:incoming>
       <bpmn:outgoing>toMarkActive</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toMarkActive" sourceRef="check" targetRef="markActive" />
+    <bpmn:sequenceFlow id="toMarkActive" sourceRef="retire" targetRef="markActive" />
     <bpmn:serviceTask id="markActive" iap:handler="addTag" iap:replaceExisting="true" iap:tag="active" name="Mark it as active">
       <bpmn:incoming>toMarkActive</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
@@ -88,26 +93,33 @@
       <bpmndi:BPMNShape id="checkShape" bpmnElement="check">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="markActiveShape" bpmnElement="markActive">
+      <bpmndi:BPMNShape id="retireShape" bpmnElement="retire">
         <dc:Bounds x="410" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markActiveShape" bpmnElement="markActive">
+        <dc:Bounds x="570" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="730" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="532" y="223" width="113" height="14" />
+          <dc:Bounds x="692" y="223" width="113" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toMarkActiveEdge" bpmnElement="toMarkActive">
+      <bpmndi:BPMNEdge id="toRetireEdge" bpmnElement="toRetire">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toMarkActiveEdge" bpmnElement="toMarkActive">
         <di:waypoint x="510" y="198" />
         <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="670" y="198" />
+        <di:waypoint x="730" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
