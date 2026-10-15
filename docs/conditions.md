@@ -1,8 +1,10 @@
 # Conditions
 
 **Module:** `modules/conditions` · **Bundle:** `iap-conditions` ·
-**Packages:** `…conditions.api` (evaluator, `Operand`, `OperandType`, `Operator`,
-`Aggregator`), `…conditions.spi` (`OperandResolver`), `…conditions.models`
+**Packages:** `…conditions.api` (evaluator, `ConditionTypes`, `Operand`,
+`OperandType`, `Operator`, `Aggregator`), `…conditions.spi` (`ConditionComparator`,
+`ConditionAggregator`, `OperandResolver`, `CandidateProvider`, `Candidate`),
+`…conditions.models`
 
 Content that only applies *sometimes* — a question shown when a previous answer calls
 for it, a requirement imposed on certain submissions, a review step needed when a
@@ -42,7 +44,9 @@ content always applies. The submissions module's `QuestionCompletenessEvaluator`
 caller to look at for reference: requirements, sections and questions whose condition
 doesn't hold are not asked of the submitter.
 
-Evaluation **fails closed**. An unknown comparator, unknown operand source,
+Every comparator, aggregator and operand source is looked up in the `ConditionTypes`
+registry: the built-in ones, and those other modules register as services. Evaluation
+**fails closed**. An unknown comparator, unknown operand source,
 unrecognized condition type, or incompatible operand types all yield *not satisfied*,
 so content behind a broken condition stays hidden rather than leaking. A
 mis-authored definition (bad comparator or aggregate name) is additionally recorded
@@ -131,10 +135,20 @@ Aggregating an empty operand yields an empty operand, so absence stays detectabl
 with `is empty` instead of silently becoming a number. `sum` against a non-numeric
 comparison type returns null, which the evaluator reports as unevaluable.
 
-## Adding an operand source
+## Adding a comparator, an aggregator or a source
 
-Implement `OperandResolver` and register it as an OSGi component. The evaluator
-matches `getSource()` against the operand's `source` property.
+Each is a service, and registering one is all it takes: the evaluator uses it, the
+schema checks accept its name, the catalogue lists it, and the condition builder offers
+it. A registered comparator or aggregator with a built-in name is ignored.
+
+| Implement | Stored in | Says, for the catalogue |
+|---|---|---|
+| `ConditionComparator` | `comparator` | `getPhrase()`, `getSingleValuePhrase()`, `isUnary()`, `isOrdering()`, `isSets()` |
+| `ConditionAggregator` | `aggregate` | `getDocumentationLabel()`, `getPhrase()`, `getAcceptedTypes()`, `getOutputType()` |
+| `OperandResolver` | `source` | `getDocumentationLabel()`, `getValueLabel()`, `getPhrase()`, `getValueType()`, `isMultiple()`, `getChoices()`, `isOffered()`, `getOrder()` |
+
+All three extend autodoc's `DocumentedItem`, so a name and a description are always
+there. Everything else has a default, so a minimal source is still two methods:
 
 ```java
 @Component
@@ -151,15 +165,61 @@ public class WeekdayOperandResolver implements OperandResolver
 }
 ```
 
-Contract: return values in their natural stored types — coercion is the evaluator's
-job — declaring the type you are authoritative about via `Operand.of(value, type)`,
-or `Operand.of(value)` to leave it open. Return `Operand.EMPTY`, never null, when
-nothing matches, so `is empty` can test for absence.
-
+A resolver's contract: return values in their natural stored types, since coercion is
+the evaluator's job. Declare the type you are authoritative about via
+`Operand.of(value, type)`, or `Operand.of(value)` to leave it open. Return
+`Operand.EMPTY`, never null, when nothing matches, so `is empty` can test for absence.
 The `Content` model is all you need to walk the repository (`get`, `getParent`,
 `getChild`, `getChildren`, `getReference`, `isOfType`).
 `OperandResolver.findEnclosingEntity(content)` is the shared helper for the "which
 record is this about?" walk, used by both `tags` and `property`.
+
+A source whose value names something picked from a list, such as a question, also needs
+a `CandidateProvider` for its name. The module that knows those things provides it,
+which need not be the one evaluating the source: the schemas module lists a version's
+questions for `answer`.
+
+## The catalogue
+
+`/ConditionTypes` is a `cond:TypesHomepage` with the autodoc mixin, readable by
+everyone. `/ConditionTypes.doc.json` and `.doc.md` list what the registry holds, under
+`Comparators`, `Aggregators` and `Sources`; nothing is stored under the node. The
+condition builder reads the JSON, so it never lists anything itself:
+
+```json
+{ "name": "includes", "label": "includes all of", "phrase": "includes all of",
+  "singleValuePhrase": "includes", "unary": false, "ordering": false, "sets": true }
+
+{ "name": "count", "label": "The number of values", "phrase": "the number of values in",
+  "accepts": "any", "output": "long" }
+
+{ "name": "answer", "label": "The answer to a question", "valueLabel": "Question",
+  "phrase": "the answer to “{label}”", "offered": true, "order": 10,
+  "candidates": "{+path}.conditionCandidates.json?source=answer" }
+
+{ "name": "tags", "label": "The tags", "phrase": "the tag list", "type": "text",
+  "multiple": true, "choices": "/Tags.doc.json", "offered": true, "order": 20 }
+```
+
+A source's `phrase` is how an operand reads in a sentence, `{label}` standing for what
+its value names. A source naming nothing gives its operands' `type` and `multiple`, and
+`choices`, the path of an autodoc catalogue whose items are the values to compare with.
+A source naming something gives `candidates`, an RFC 6570 template whose one variable,
+`path`, is the content the condition is on. Expanded, it answers a JSON list:
+
+```json
+[ { "value": "4f3c…", "label": "What do you need?", "type": "text", "multiple": false,
+    "choices": [ { "value": "laptop", "label": "Laptop" } ],
+    "aliases": [ "form/what" ], "detail": "what" } ]
+```
+
+Each candidate says what the operand then holds, from the same code that evaluates it.
+`aliases` are other names an operand may give it, such as a question's path in its
+version, and `detail` tells it apart from another called the same, such as a question's
+identifier; the builder shows it beside the label.
+`ConditionCandidatesServlet` answers the `conditionCandidates` selector on any content
+by asking the `CandidateProvider` for the source, and answers an empty list when none
+lists it.
 
 ## Example
 
