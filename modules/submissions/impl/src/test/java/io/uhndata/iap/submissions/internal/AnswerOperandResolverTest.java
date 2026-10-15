@@ -24,6 +24,8 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import jakarta.json.JsonObject;
+
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -120,6 +122,17 @@ class AnswerOperandResolverTest
     void implementsTheAnswerSource()
     {
         assertEquals("answer", this.resolver.getSource());
+    }
+
+    @Test
+    void describesItselfAsNamingAQuestion()
+    {
+        final JsonObject answer = this.resolver.documentationJsonBuilder().build();
+        assertEquals("The answer to a question", answer.getString("label"));
+        assertEquals("Question", answer.getString("valueLabel"));
+        assertEquals("the answer to “{label}”", answer.getString("phrase"));
+        assertEquals(10, answer.getInt("order"));
+        assertTrue(this.resolver.getDescription().contains("answer"));
     }
 
     @Test
