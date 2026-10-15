@@ -49,6 +49,7 @@ import {
   toFileUrl
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
+import SubmissionTasks from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
@@ -275,6 +276,8 @@ function SubmissionView() {
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
   // fetch for the currently displayed path has settled, one way or the other
   const [loadedPath, setLoadedPath] = useState<string>();
+  // Bumped after a decision, which changes what the request reads as
+  const [reloads, setReloads] = useState(0);
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
 
@@ -311,7 +314,7 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil, editing]);
+  }, [path, fetchUtil, editing, reloads]);
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
@@ -391,11 +394,14 @@ function SubmissionView() {
         <Typography variant="description">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            // The person it was raised by or for; jcr:createdBy is the engine's service user
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${
+              formatValue(submission.createdBy ?? submission["jcr:createdBy"])}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>
       </Box>
+      <SubmissionTasks path={path} onCompleted={() => setReloads(current => current + 1)} />
       {forms.map((form, index) => (
         <Panel
           key={"form-" + index}

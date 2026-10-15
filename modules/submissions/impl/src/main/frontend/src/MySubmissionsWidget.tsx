@@ -30,8 +30,9 @@ import NewSubmissionDialog from "./NewSubmissionDialog";
 import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// Only the submissions created by the current user; `@me` is resolved server-side.
-const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "jcr:createdBy", value: "@me" }];
+// Only the submissions created by the current user; `@me` is resolved server-side. `createdBy` and not
+// `jcr:createdBy`, which names the workflow engine's service user on everything it creates.
+const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // One dashboard widget extension, as the dashboard hands it to the widget it renders.
 type WidgetExtension = Record<string, unknown>;

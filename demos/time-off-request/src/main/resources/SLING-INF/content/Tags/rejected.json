@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Rejected",
+  "description": "The request was decided on, and refused.",
+  "category": ["lifecycle"],
+  "targetResourceTypes": ["sub/Submission"],
+  "color": "#b3261e",
+  "icon": "CancelOutlined",
+  "order": 21
+}

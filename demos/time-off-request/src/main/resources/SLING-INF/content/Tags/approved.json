@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Approved",
+  "description": "The request was decided on, and granted.",
+  "category": ["lifecycle"],
+  "targetResourceTypes": ["sub/Submission"],
+  "color": "#1d6a3a",
+  "icon": "CheckCircleOutlined",
+  "order": 20
+}

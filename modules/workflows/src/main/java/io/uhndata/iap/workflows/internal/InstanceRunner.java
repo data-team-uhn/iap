@@ -308,6 +308,10 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            // Copied so whoever does the task can see its choices without being able to read the definition
+            "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // As written in the definition: @creator is not resolved, which the demo does not need
+            "performers", activity.getPerformers().toArray(String[]::new),
             STATUS_PROPERTY, "created",
             START_TIME_PROPERTY, Calendar.getInstance()));
     }

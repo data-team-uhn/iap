@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="timeOffRequestDefinitions"
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
@@ -28,7 +29,8 @@
       <bpmn:outgoing>toApproval</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toApproval" sourceRef="requestSubmitted" targetRef="approveRequest" />
-    <bpmn:userTask id="approveRequest" name="Approve the request">
+    <bpmn:userTask id="approveRequest" name="Approve the request" iap:performers="time-off-approvers"
+                   iap:outcomes="approved,rejected">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>
@@ -39,13 +41,13 @@
       <bpmn:outgoing>toRejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="requestApproved">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
-    <bpmn:endEvent id="requestApproved" name="Time off approved">
+    <bpmn:endEvent id="requestApproved" name="Time off approved" iap:hostTag="approved">
       <bpmn:incoming>toApproved</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="requestRejected" name="Time off refused">
+    <bpmn:endEvent id="requestRejected" name="Time off refused" iap:hostTag="rejected">
       <bpmn:incoming>toRejected</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
