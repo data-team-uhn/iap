@@ -16,7 +16,8 @@
       "description": "The proposal or protocol, as a PDF or Word document. Everything below is read out of it.",
       "acceptedFileTypes": [
         "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword"
       ],
       "required": true
     },
