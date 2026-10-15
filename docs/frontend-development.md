@@ -358,6 +358,11 @@ Its parts can be combined apart: `usePdfDocument` opens the file and reads each 
 `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
 in a frame, with the marks drawn, moves the reader, and searches it.
 
+Before a file is uploaded, check it with `validateUpload` from
+`@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
+caller does not take, and a PDF or Word file whose content does not match its name; see
+[file validation](file-validation.md).
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme
