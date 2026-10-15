@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+from dataclasses import dataclass
 import os
 import sys
 import tempfile
@@ -132,6 +133,61 @@ def _get_env_limit(variable: str, default: int) -> int | None:
     return read_positive_number_from_env(variable, default)
 
 
+@dataclass(frozen=True)
+class RequestedLimits:
+    """The limits the caller sent with ``/parse``; ``None`` where it sent none.
+
+    The platform owns its document limits and sends them with each parse. They can only lower
+    the daemon's own ceilings, never raise them, so a caller cannot push the daemon past what
+    it is sized for.
+    """
+
+    max_bytes: int | None = None
+    max_pages: int | None = None
+    max_expanded_bytes: int | None = None
+
+
+REQUESTED_LIMIT_PARAMETERS = ("max_bytes", "max_pages", "max_expanded_bytes")
+
+# A caller that sent no limits, where only the daemon's own apply
+NO_REQUESTED_LIMITS = RequestedLimits()
+
+
+def get_requested_limits(query: dict[str, list[str]]) -> RequestedLimits:
+    """Read the caller's limits from a ``/parse`` query.
+
+    @param query: the parsed query string
+    @return: the limits, with ``None`` for each one left out
+    @raise ParseRequestError: when a limit is not a positive integer
+    """
+    values = {}
+    for name in REQUESTED_LIMIT_PARAMETERS:
+        raw = (query.get(name, [""])[0] or "").strip()
+        if not raw:
+            values[name] = None
+            continue
+        if not raw.isdigit() or int(raw) <= 0:
+            raise ParseRequestError(f"{name} must be a positive integer")
+        values[name] = int(raw)
+    return RequestedLimits(**values)
+
+
+def _get_lower_limit(own: int | None, requested: int | None) -> int | None:
+    """The stricter of two ceilings, where ``None`` is no ceiling."""
+    if own is None:
+        return requested
+    if requested is None:
+        return own
+    return min(own, requested)
+
+
+def _describe_limit(variable: str, own: int | None, limit: int) -> str:
+    """Where a ceiling came from, for the refusal, so the operator knows what to change."""
+    if own == limit:
+        return f"{variable} raises or disables it"
+    return "the platform's document limits set it"
+
+
 def get_max_input_pages() -> int | None:
     """The configured PDF page ceiling, or ``None`` when the limit is off."""
     return _get_env_limit(PAGE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_PAGES)
@@ -142,7 +198,7 @@ def get_max_input_bytes() -> int | None:
     return _get_env_limit(BYTE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_BYTES)
 
 
-def refuse_oversized_input(path: Path) -> None:
+def refuse_oversized_input(path: Path, requested: RequestedLimits = NO_REQUESTED_LIMITS) -> None:
     """Reject a document bigger than the pipeline is sized for, by size and by page count.
 
     Three ceilings are needed: bytes cover every type but say little about conversion time,
@@ -150,9 +206,11 @@ def refuse_oversized_input(path: Path) -> None:
     nothing about what reading it costs.
 
     @param path: the resolved input path
+    @param requested: the caller's limits, applied where lower than the daemon's own
     @raise ParseRequestError: when the document is over any of the ceilings
     """
-    byte_limit = get_max_input_bytes()
+    own_limit = get_max_input_bytes()
+    byte_limit = _get_lower_limit(own_limit, requested.max_bytes)
     if byte_limit is not None:
         try:
             size = path.stat().st_size
@@ -161,11 +219,11 @@ def refuse_oversized_input(path: Path) -> None:
         if size is not None and size > byte_limit:
             raise ParseRequestError(
                 f"document is {size:,} bytes, over the {byte_limit:,}-byte limit "
-                f"({BYTE_LIMIT_VARIABLE} raises or disables it)"
+                f"({_describe_limit(BYTE_LIMIT_VARIABLE, own_limit, byte_limit)})"
             )
     # Each of these returns at once for a type it does not cover.
-    refuse_oversized_pdf(path)
-    refuse_oversized_docx(path)
+    refuse_oversized_pdf(path, requested.max_pages)
+    refuse_oversized_docx(path, requested.max_expanded_bytes)
 
 
 def open_pdf_reader(source):
@@ -213,7 +271,7 @@ def refuse_empty_pdf(pages: int) -> None:
         raise ParseRequestError("document has no pages")
 
 
-def refuse_oversized_pdf(path: Path) -> None:
+def refuse_oversized_pdf(path: Path, requested_pages: int | None = None) -> None:
     """Reject a PDF with no pages, or with more pages than :func:`get_max_input_pages` allows.
 
     A PDF this cannot read is refused rather than waved through. Exempting it made the page
@@ -221,6 +279,7 @@ def refuse_oversized_pdf(path: Path) -> None:
     Docling will make nothing of such a file either.
 
     @param path: the resolved input path
+    @param requested_pages: the caller's page limit, applied where lower than the daemon's own
     @raise ParseRequestError: when the document has no pages, cannot be read, is over the
         ceiling, or is password-locked
     """
@@ -243,15 +302,16 @@ def refuse_oversized_pdf(path: Path) -> None:
         print(f"WARNING: refusing '{path.name}': {exc}", file=sys.stderr, flush=True)
         raise ParseRequestError("document could not be read as a PDF") from exc
     refuse_empty_pdf(pages)
-    limit = get_max_input_pages()
+    own_limit = get_max_input_pages()
+    limit = _get_lower_limit(own_limit, requested_pages)
     if limit is not None and pages > limit:
         raise ParseRequestError(
             f"document has {pages} pages, over the {limit}-page limit "
-            f"({PAGE_LIMIT_VARIABLE} raises or disables it)"
+            f"({_describe_limit(PAGE_LIMIT_VARIABLE, own_limit, limit)})"
         )
 
 
-def refuse_oversized_docx(path: Path) -> None:
+def refuse_oversized_docx(path: Path, requested_bytes: int | None = None) -> None:
     """Reject a DOCX that expands past :data:`EXPANDED_LIMIT_VARIABLE`.
 
     The zip's own central directory supplies the sizes, and a crafted archive cannot exceed
@@ -259,12 +319,14 @@ def refuse_oversized_docx(path: Path) -> None:
     the CRC, so a lie truncates rather than overruns.
 
     @param path: the resolved input path
+    @param requested_bytes: the caller's limit, applied where lower than the daemon's own
     @raise ParseRequestError: when the document expands past the ceiling, or is not a readable
         zip
     """
     if path.suffix.lower() != ".docx":
         return
-    limit = _get_env_limit(EXPANDED_LIMIT_VARIABLE, DEFAULT_MAX_EXPANDED_BYTES)
+    own_limit = _get_env_limit(EXPANDED_LIMIT_VARIABLE, DEFAULT_MAX_EXPANDED_BYTES)
+    limit = _get_lower_limit(own_limit, requested_bytes)
     if limit is None:
         return
     try:
@@ -279,7 +341,7 @@ def refuse_oversized_docx(path: Path) -> None:
     if expanded > limit:
         raise ParseRequestError(
             f"document expands to {expanded:,} bytes, over the {limit:,}-byte limit "
-            f"({EXPANDED_LIMIT_VARIABLE} raises or disables it)"
+            f"({_describe_limit(EXPANDED_LIMIT_VARIABLE, own_limit, limit)})"
         )
 
 

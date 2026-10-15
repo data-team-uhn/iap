@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
@@ -47,6 +47,13 @@ const SEND = {
   "@events": [ "complete" ],
 };
 
+// The same task, carrying the decisions its definition offered it: what an approver meets
+const DECISION = {
+  ...SEND,
+  "label": "Approve the request",
+  "outcomeOptions": [ "approved", "rejected" ],
+};
+
 // Answers the container read, and whatever the completion is answered with.
 //
 // Every answer carries a `url`, which the authenticated fetch reads to tell a real response from a
@@ -74,6 +81,58 @@ describe("SubmissionTasks", () => {
     expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
     // The container alone, its references left as paths, and the events the reader may send each task
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.simple.-dereference.events.json");
+  });
+
+  // A step can open while this bar is on screen - starting the reading from Next opens the
+  // page's "send" step - and the bar only learns of it by reading again when the page says so
+  it("shows a step that opened since it last looked, once the page asks it to look again", async () => {
+    let container: unknown = {};
+    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => Promise.resolve(
+      { url, ok: true, status: 200, json: () => Promise.resolve(container) } as unknown as Response)));
+
+    const { rerender } = render(<SubmissionTasks path={PATH} refreshToken={0} />, { wrapper: NoticeProvider });
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+    container = waitingOn(SEND);
+    rerender(<SubmissionTasks path={PATH} refreshToken={1} />);
+
+    expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+  });
+
+  it("refuses to offer the step while the request is not ready to be sent", async () => {
+    // The one thing this control decides for itself, and it is not about who may act: whether there is
+    // anything left to answer, which the save workflow has already worked out
+    const fetchMock = repository(waitingOn(SEND));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionTasks path={PATH} blockedReason="Answer everything this request asks for." />,
+      { wrapper: NoticeProvider });
+    const button = await screen.findByRole("button", { name: /Say when you want/ });
+
+    expect(button).toBeDisabled();
+    // The reason has to be reachable: a disabled button fires no events, so it hangs on the wrapper
+    fireEvent.mouseOver(button.parentElement!);
+    expect(await screen.findByRole("tooltip"))
+      .toHaveTextContent("Answer everything this request asks for.");
+    // And nothing was sent
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
+  });
+
+  it("offers a requirement's step under that requirement only, and hides it while it is blocked", async () => {
+    const fetchMock = repository(waitingOn({ ...SEND, requirement: "documents" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <>
+        <SubmissionTasks path={PATH} />
+        <SubmissionTasks path={PATH} requirement="documents" blockedReason="Upload a document first." />
+        <SubmissionTasks path={PATH} requirement="documents" />
+      </>,
+      { wrapper: NoticeProvider },
+    );
+
+    expect(await screen.findByRole("button", { name: /Say when you want/ })).toBeEnabled();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("completes the task and tells the page, which is what makes it a submit button", async () => {
@@ -114,9 +173,6 @@ describe("SubmissionTasks", () => {
     // Not disabled, not greyed out, absent: naming a reviewer's step to a submitter discloses what
     // they may do with the request whether or not the control can be pressed
     [ "is not the reader's", { "@events": [] } ],
-    // An approval needs somewhere to say why, which belongs with the review screen rather than being
-    // smuggled in as two more buttons here
-    [ "carries a decision", { outcomeOptions: [ "approved", "rejected" ] } ],
     [ "is already done", { status: "completed" } ],
   ])("offers nothing for a task that %s", async (_case, difference) => {
     const container = waitingOn(SEND);
@@ -150,6 +206,73 @@ describe("SubmissionTasks", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("offers a control per decision the task may be completed with", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(DECISION)));
+
+    renderTasks();
+
+    // Under the task's own name, and named by the definition's own outcomes rather than by a list
+    // of decisions this page knows about
+    expect(await screen.findByText("Approve the request")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Approved" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Rejected" })).toBeInTheDocument();
+  });
+
+  it("records the decision with what the deciding person said about it", async () => {
+    const fetchMock = repository(waitingOn(DECISION));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: "Rejected" }));
+    await userEvent.type(await screen.findByLabelText("Note"), "Too much of the team away that week");
+    await userEvent.click(await screen.findByRole("button", { name: "Record decision" }));
+
+    const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
+    expect(post?.[0]).toBe(TASK + ".complete.json");
+    expect(String(post?.[1]?.body)).toBe(
+      "outcome=rejected&outcomeNote=Too+much+of+the+team+away+that+week");
+  });
+
+  it("records a decision nobody had anything to add to", async () => {
+    // Optional, because requiring a note would make "Approved, nothing to add" a sentence somebody
+    // has to invent. The engine treats a blank one as nothing said, so none is sent
+    const fetchMock = repository(waitingOn(DECISION));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: "Approved" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Record decision" }));
+
+    const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
+    expect(String(post?.[1]?.body)).toBe("outcome=approved");
+  });
+
+  it("decides nothing when the dialog is dismissed", async () => {
+    const fetchMock = repository(waitingOn(DECISION));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: "Approved" }));
+    await userEvent.type(await screen.findByLabelText("Note"), "on second thoughts");
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(false);
+    // And the note does not follow the reader to the next decision they open
+    await userEvent.click(await screen.findByRole("button", { name: "Rejected" }));
+    expect(await screen.findByLabelText("Note")).toHaveValue("");
+  });
+
+  it("does not hold back a decision while the request is unanswered", async () => {
+    // The block is about sending: whether the request was complete enough to send is settled by the
+    // time somebody is deciding on it, and an approver blocked by the requester's unanswered
+    // question would be stuck with no way to act
+    vi.stubGlobal("fetch", repository(waitingOn(DECISION)));
+
+    render(<SubmissionTasks path={PATH} blockedReason="Some questions are unanswered" />, { wrapper: NoticeProvider });
+
+    expect(await screen.findByRole("button", { name: "Approved" })).toBeEnabled();
   });
 
   it("offers nothing when the answer is not a node at all", async () => {

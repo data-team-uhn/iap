@@ -85,10 +85,12 @@
   // guidance for submitters and as input for AI-assisted categorization
   - description (STRING)
 
-  // The sch:SchemaVersion governing submissions filed under this category;
-  // the schema version in turn references the workflow they follow. Only
-  // leaf categories are expected to carry this - node types cannot express
-  // that restriction, so it is upheld by the administrative UI.
+  // The sch:SchemaVersion a new submission under this category follows; the
+  // schema version in turn references the workflow. Carried by top-level
+  // categories, which are what a submitter picks when starting a submission.
+  // The categories below them are what a classification of the uploaded
+  // document picks from. Node types cannot express where it may be set, so
+  // that is upheld by the administrative UI.
   - schemaVersion (REFERENCE)
 
   // Retirement -- no new submissions may be filed under this category or its

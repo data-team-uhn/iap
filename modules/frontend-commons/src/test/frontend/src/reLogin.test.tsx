@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 
 import {
+  isLoginRedirect,
   isNotAuthenticated,
   NotAuthenticatedError,
   ReLoginContext,
@@ -97,6 +98,18 @@ describe("useAuthenticatedFetch", () => {
   };
 
   const requestsFor = (url: string) => fetchMock.mock.calls.filter(([called]) => called === url);
+
+  it("does not treat a 200 with no url as a login page", async () => {
+    const onResult = vi.fn();
+    const requestReLogin = vi.fn(() => Promise.resolve(true));
+    answer([{ ok: true, status: 200, text: () => Promise.resolve("payload") }]);
+    renderCaller(requestReLogin, onResult);
+
+    screen.getByRole("button").click();
+
+    await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:payload"); });
+    expect(requestReLogin).not.toHaveBeenCalled();
+  });
 
   it("passes an ordinary response straight through", async () => {
     const onResult = vi.fn();
@@ -288,5 +301,20 @@ describe("isNotAuthenticated", () => {
   it("does not mistake an ordinary failure for an authentication one", () => {
     expect(isNotAuthenticated(new Error("offline"))).toBe(false);
     expect(isNotAuthenticated("offline")).toBe(false);
+  });
+});
+
+describe("isLoginRedirect", () => {
+  it("recognises the login page answering in place of the data", () => {
+    expect(isLoginRedirect(loginPage() as unknown as Response)).toBe(true);
+  });
+
+  it("does not mistake the data, or a refusal, for it", () => {
+    expect(isLoginRedirect(ok() as unknown as Response)).toBe(false);
+    expect(isLoginRedirect(unauthenticated() as unknown as Response)).toBe(false);
+  });
+
+  it("does not fail on a response that has no URL", () => {
+    expect(isLoginRedirect({ ok: true, status: 200 } as unknown as Response)).toBe(false);
   });
 });

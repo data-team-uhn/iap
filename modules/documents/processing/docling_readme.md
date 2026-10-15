@@ -144,7 +144,7 @@ Environment:
 | `IAP_LIBREOFFICE_SOFFICE`                      | `soffice`      | LibreOffice executable                                                                                                         |
 | `IAP_DOCLING_TOKEN`                            | _unset_        | When set, `/parse`, `/cancel` and `/shutdown` require `Authorization: Bearer <token>`. Unset, the port is the only boundary |
 | `IAP_MAX_INPUT_PAGES`                          | `500`         | Largest PDF accepted, in pages; a bigger one is refused with 400 once it holds the single parse slot — counting pages means reading it. 0 disables the limit |
-| `IAP_MAX_INPUT_BYTES`                          | `67108864`     | Largest input accepted, in bytes, whatever its type — a `.docx` has no pages to count. 0 disables the limit |
+| `IAP_MAX_INPUT_BYTES`                          | `67108864`     | Largest input accepted, in bytes, whatever its type — a `.docx` has no pages to count. 0 disables the limit. The page, byte and unzipped-size limits Java sends with each `/parse` apply under these |
 | `IAP_LIBREOFFICE_TIMEOUT_SECONDS`              | `300`          | Seconds one `soffice` run may take before its process group is killed. For a `.doc` the kill is a hard failure, so keep it in step with `IAP_MAX_INPUT_BYTES` |
 | `IAP_SHARED_DOCS_HOST`                         | `../shared-docs` | Compose only. Host directory bind-mounted at `/shared-docs`. **Create it first** — Docker creates a missing one as `root:root`, which the default `user: 1000:1000` cannot write to |
 | `IAP_DOCLING_UID` / `IAP_DOCLING_GID`          | `1000`         | Compose only. Who the container runs as; must own the host directory behind `/shared-docs` or the daemon cannot write its output |

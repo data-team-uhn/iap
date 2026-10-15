@@ -34,7 +34,6 @@ import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.principals.api.PrincipalContext;
 import io.uhndata.iap.principals.api.PrincipalService;
-import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -72,8 +71,11 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  */
 final class InstanceRunner
 {
-    /** The variable a completed task's outcome is recorded under. Gateways route on it. */
+    /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
+
+    /** The activity property naming the requirement a task is about; see {@code wf:TaskInstance}. */
+    static final String REQUIREMENT_PROPERTY = "requirement";
 
     /**
      * How many nodes one delivery may pass through, counted across all its branches, before the definition is
@@ -81,6 +83,9 @@ final class InstanceRunner
      * instead of spinning.
      */
     static final int MAX_STEPS = 200;
+
+    /** Where what the deciding person said about their decision is kept, on the task alone. */
+    private static final String OUTCOME_NOTE = "outcomeNote";
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
@@ -193,10 +198,12 @@ final class InstanceRunner
      *
      * @param task the task being completed
      * @param outcome what the person decided; gateways downstream route on it
+     * @param note what the person said about their decision, if anything
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
-    void complete(final TaskInstance task, final String outcome) throws WorkflowException, PersistenceException
+    void complete(final TaskInstance task, final String outcome, final String note)
+        throws WorkflowException, PersistenceException
     {
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
@@ -213,6 +220,11 @@ final class InstanceRunner
         if (outcome != null) {
             properties.put(OUTCOME_VARIABLE, outcome);
             setOutcome(instanceResource, outcome);
+        }
+        // Blank is nothing said, not something said emptily: a form posts an untouched field as "", and a task
+        // carrying an empty note would read as a decision somebody explained badly rather than not at all
+        if (note != null && !note.isBlank()) {
+            properties.put(OUTCOME_NOTE, note);
         }
 
         // An activity has exactly one way out. If it leads to a gateway, the walk forks there
@@ -477,15 +489,13 @@ final class InstanceRunner
      *
      * @param instance the running instance
      * @param end the end event reached
+     * @throws WorkflowException when the end event names a tag the host cannot carry
      * @throws PersistenceException when the host cannot be tagged
      */
-    private void tellHost(final Resource instance, final EndEvent end) throws PersistenceException
+    private void tellHost(final Resource instance, final EndEvent end) throws WorkflowException, PersistenceException
     {
-        final String hostTag = end.getHostTag();
-        if (hostTag != null) {
-            // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class),
-                "A workflow's host is taggable").tag(hostTag, true);
+        if (end.getHostTag() != null) {
+            HostLifecycle.record(hostOf(instance), end);
         }
     }
 
@@ -550,6 +560,12 @@ final class InstanceRunner
                 .toArray(String[]::new),
             STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
+        // Copied for the same reason as the options: a form placing this task beside the requirement it is about
+        // cannot read the definition to find out which one that is
+        final String requirement = activity.get(REQUIREMENT_PROPERTY, String.class);
+        if (requirement != null && !requirement.isBlank()) {
+            properties.put(REQUIREMENT_PROPERTY, requirement);
+        }
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
         this.resolver.create(instance, name, properties);
     }

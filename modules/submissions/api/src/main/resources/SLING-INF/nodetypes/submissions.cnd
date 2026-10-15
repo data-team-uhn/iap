@@ -62,6 +62,12 @@
   // The sch:SchemaVersion this submission answers
   - schemaVersion (REFERENCE) mandatory
 
+  // The sch:Schema that version belongs to. Redundant with schemaVersion's parent, and
+  // deliberately so: "every submission against this schema, whichever version" is the
+  // ordinary question, and answering it from schemaVersion alone needs a join. Nobody
+  // sets it by hand - the system workflow that creates a submission writes both.
+  - schema (REFERENCE) mandatory
+
   // The lifecycle state (draft, submitted, in-review, approved, rejected) is not a dedicated
   // property: it is a `lifecycle`-category tag in the inherited `tags` property, defined under
   // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
@@ -347,8 +353,9 @@
   - author (STRING) mandatory
 
   // The part of the submission this comment is about,
-  // e.g. a sub:Answer or a sub:Document
-  - subject (REFERENCE)
+  // e.g. a sub:Answer or a sub:Document. Weak, so removing that part is
+  // never blocked by a comment about it.
+  - subject (WEAKREFERENCE)
 
   // Optional anchors narrowing this comment down to a specific selection
   // within the subject (e.g. a range of text within a sub:Answer, or a

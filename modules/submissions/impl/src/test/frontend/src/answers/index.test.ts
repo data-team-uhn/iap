@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
+import { act, renderHook } from "@testing-library/react";
+
 import { getAnswerComponent } from "@iap/submissions/answerComponents";
-import { ANSWER_COMPONENT_POINT, loadAnswerComponents } from "@iap/submissions/answers";
+import { ANSWER_COMPONENT_POINT, loadAnswerComponents, useAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched: in a browser each of these arrives as its own asset, named by an
 // extension on the point below, and registers itself as it is evaluated. Importing does the same
 // thing, and is the only way to get them here.
@@ -43,8 +45,9 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     path: "details/duration",
     text: "How long?",
     dataType: "text",
-    required: false,
-    multiple: false,
+    minAnswers: 0,
+    maxAnswers: 1,
+    options: [],
     value: [],
     ...overrides,
   };
@@ -97,5 +100,15 @@ describe("the answer components that ship with this module", () => {
   // be given some default input that stores a value the schema will not accept
   it("offers nothing for a data type none of them recognizes", () => {
     expect(getAnswerComponent(question({ dataType: "invented" }))).toBeNull();
+  });
+});
+
+describe("useAnswerComponents", () => {
+  // A field gone before the components arrive has nothing to tell
+  it("does not report to a field that has gone away", async () => {
+    const { unmount } = renderHook(() => useAnswerComponents());
+    unmount();
+
+    await act(() => loadAnswerComponents());
   });
 });

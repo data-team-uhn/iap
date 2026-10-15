@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Stores a file a submitter uploads for something their schema asks for, as a document recording which requirement it fulfills.",
+    "description": "What happens when a submitter uploads a file for something their schema asks for: the file is stored on the submission as a document recording which requirement it fulfills, and whether anything is still missing is recorded again - an upload can be the thing that completes a request, so the same tag a save maintains has to be maintained here too. Then the upload is sent to be parsed, when the schema reads its documents. Uploading is a workflow rather than a write for the same reason answering is: a submitter can read their own submission and nothing more, so there is no path by which they could put a file there themselves, and what may be attached and until when is decided by the handler rather than by an ACL. The start event admits everyone because the rule that matters is *the person who raised this particular submission*, which no performer can express.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -25,6 +25,32 @@
       "elementId": "attach",
       "label": "Store the document",
       "handler": "attachDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toParse": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParse",
+        "targetRef": "parse"
+      }
+    },
+    // Provided by the extraction module. It does nothing for a schema that names no reading workflow, and
+    // sends only uploads not yet parsed, so a schema that reads its documents starts reading on upload.
+    "parse": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parse",
+      "label": "Start reading the document",
+      "handler": "parseDocuments",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

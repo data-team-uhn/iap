@@ -29,6 +29,7 @@ import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -74,10 +75,17 @@ public class DetachDocumentHandler implements ServiceTaskHandler
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(
                 "Nothing is attached for " + requirement.getLabel() + ", so there is nothing to remove"));
+        // Removed mid-parse, the parse lands on nothing and the reading it was for never ends
+        if (ParseStatus.isParsing(attached) || ParseStatus.isRunning(submission)) {
+            throw new InvalidStateException("Wait until the document has been read, or stop the reading first");
+        }
 
         final ResourceResolver resolver = context.getResourceResolver();
         final Resource document = Objects.requireNonNull(resolver.getResource(attached.getPath()),
             "A document the submission just listed can be read by the same resolver");
+        // A reading stores strong references to the revisions it read, and Oak refuses to delete a revision
+        // that is still referenced
+        DocumentReadings.dropAll(resolver, document);
         VersioningUtils.checkOut(target);
         resolver.delete(document);
     }

@@ -22,12 +22,53 @@ import MinimizerPlugin from 'minimizer-webpack-plugin';
 import ESLintPlugin from 'eslint-webpack-plugin';
 import { defineReactCompilerLoaderOption, reactCompilerLoader } from 'react-compiler-webpack';
 
+import { createHash } from 'crypto';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isProduction = process.argv.find(arg => arg.startsWith("--mode"))?.substring(7) == 'production';
+
+const FRONTEND_RESOURCES_PATH = '/libs/iap/resources/';
+
+// Folders of packages that some library fetches files from by name at run time, such as fonts and
+// decoders, as the modules declare them in their package-folders.config. Each is published as it is,
+// in a folder named after the package folder and its contents, and keyed in assets.json by the
+// package folder with a dot for the slash, which a repository property name cannot have, so code finds
+// it with getAssetURL("asset:<package>.<folder>"). CacheHeadersFilter serves anything with ".<hash>."
+// in its path as immutable.
+const PACKAGE_FOLDERS = [
+PACKAGE_FOLDERS_CONTENT
+];
+const publishedFolders = PACKAGE_FOLDERS.map(folder => {
+  const source = fs.realpathSync(path.join(__dirname, 'node_modules', folder));
+  const files = fs.readdirSync(source, { recursive: true, withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .map(entry => path.relative(source, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+    .sort()
+    .map(name => ({ name, content: fs.readFileSync(path.join(source, name)) }));
+  const hash = createHash('sha256');
+  for (const { name, content } of files) {
+    hash.update(name).update(content);
+  }
+  return { folder, published: `${folder}.${hash.digest('hex').slice(0, 20)}.data`, files };
+});
+
+// A plugin that adds files to the output as they are. They belong to no chunk, so none can take a
+// chunk's key in assets.json.
+function emitStaticAssets(label, assets) {
+  return {
+    apply: compiler => compiler.hooks.thisCompilation.tap(`Emit ${label}`, compilation =>
+      compilation.hooks.processAssets.tap(
+        { name: `Emit ${label}`, stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
+        () => assets.forEach(({ name, content, info = {} }) =>
+          compilation.emitAsset(name, new compiler.webpack.sources.RawSource(content), info))
+      )
+    )
+  };
+}
 
 /**
  * Helper function to format and log React Compiler events
@@ -103,26 +144,30 @@ ENTRY_CONTENT
     },
     plugins: [
       new WebpackAssetsManifest({
-        output: "assets.json"
+        output: "assets.json",
+        // A published folder is found by one key, rather than by a key per file in a map every page loads
+        customize: entry =>
+          !publishedFolders.some(({ published }) => String(entry.value).startsWith(`${published}/`)) && entry,
+        transform: assets => ({
+          ...assets,
+          ...Object.fromEntries(publishedFolders.map(({ folder, published }) =>
+            [ folder.replaceAll('/', '.'), `${published}/` ])),
+        }),
       }),
       // The MUI X license key belongs to the deployment rather than to this (public) repository,
       // so it is read from the build environment and substituted in here.
       new webpack.DefinePlugin({
         "process.env.MUI_LICENSE_KEY": JSON.stringify(process.env.MUI_LICENSE_KEY),
       }),
+      // As published, so the minimizer leaves them alone
+      emitStaticAssets('the package folders', publishedFolders.flatMap(({ published, files }) =>
+        files.map(({ name, content }) => ({ name: `${published}/${name}`, content, info: { minimized: true } })))),
       // The client-side assetManager fetches an asset *dependencies* manifest alongside the
       // assets.json name map (see frontend-commons/src/assetManager.tsx). No IAP entry point
       // declares runtime dependencies on other entry points, so emit an empty manifest to
       // keep that fetch from 404ing; when real cross-entry dependencies appear, replace this
       // with a proper per-module declaration + aggregation step.
-      {
-        apply: compiler => compiler.hooks.thisCompilation.tap('EmitAssetDependencies', compilation =>
-          compilation.hooks.processAssets.tap(
-            { name: 'EmitAssetDependencies', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
-            () => compilation.emitAsset('assetDependencies.json', new compiler.webpack.sources.RawSource('{}\n'))
-          )
-        )
-      },
+      emitStaticAssets('assetDependencies.json', [ { name: 'assetDependencies.json', content: '{}\n' } ]),
       !env.quick && new ESLintPlugin({
         extensions: ['js', 'jsx', 'ts', 'tsx'],
         emitWarning: false,   // Show warnings in ESLint output, not as webpack warnings
@@ -186,7 +231,10 @@ ENTRY_CONTENT
       splitChunks: {
         chunks: 'all',
         cacheGroups: {
+          // What pages load up front; a package only ever imported with import() keeps a chunk of
+          // its own, loaded the first time a screen asks for it
           defaultVendors: {
+            chunks: 'initial',
             minChunks: 1,
             minSize: 200,
             test: /[\\/]node_modules[\\/]/,
@@ -210,7 +258,8 @@ ENTRY_CONTENT
         type: "modern-module",
       },
       path: __dirname + '/dist/SLING-INF/content/libs/iap/resources/',
-      publicPath: '/',
+      // Where the runtime loads a chunk from when the code asks for it later, with import()
+      publicPath: FRONTEND_RESOURCES_PATH,
       filename: '[name].[contenthash].js',
     }
   }

@@ -35,8 +35,8 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     path: "details/duration",
     text: "Is this a half day, a full day, or several days?",
     dataType: "text",
-    required: false,
-    multiple: false,
+    minAnswers: 0,
+    maxAnswers: 1,
     options: OPTIONS,
     value: [],
     ...overrides,
@@ -88,9 +88,21 @@ describe("ChoiceAnswer", () => {
     expect(screen.getByText("Pick the one that fits.")).toBeInTheDocument();
   });
 
+  it("shows what an option means, under its label", () => {
+    renderChoice({
+      options: [
+        { value: "prom", label: "PROM", description: "Studies collecting new data going forward." },
+        { value: "prem", label: "PREM" },
+      ],
+    });
+
+    expect(screen.getByText("Studies collecting new data going forward.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "PREM" })).toBeInTheDocument();
+  });
+
   describe("a question that takes several answers", () => {
     it("offers them as boxes to tick rather than a single pick", async () => {
-      const onAnswered = renderChoice({ multiple: true });
+      const onAnswered = renderChoice({ maxAnswers: 0 });
 
       expect(screen.queryByRole("radio")).not.toBeInTheDocument();
       await userEvent.click(screen.getByRole("checkbox", { name: "Full day" }));
@@ -100,7 +112,7 @@ describe("ChoiceAnswer", () => {
 
     // Two people answering the same way should store the same thing, whatever order they clicked in
     it("keeps the answers in the order they are offered, not the order they were picked", async () => {
-      const onAnswered = renderChoice({ multiple: true }, [ "multiple-days" ]);
+      const onAnswered = renderChoice({ maxAnswers: 0 }, [ "multiple-days" ]);
 
       await userEvent.click(screen.getByRole("checkbox", { name: "Half day" }));
 
@@ -108,7 +120,7 @@ describe("ChoiceAnswer", () => {
     });
 
     it("takes an answer back when its box is unticked", async () => {
-      const onAnswered = renderChoice({ multiple: true }, [ "half-day", "full-day" ]);
+      const onAnswered = renderChoice({ maxAnswers: 0 }, [ "half-day", "full-day" ]);
 
       await userEvent.click(screen.getByRole("checkbox", { name: "Half day" }));
 
@@ -116,9 +128,43 @@ describe("ChoiceAnswer", () => {
     });
 
     it("describes the question when the schema explains it", () => {
-      renderChoice({ multiple: true, description: "As many as apply." });
+      renderChoice({ maxAnswers: 0, description: "As many as apply." });
 
       expect(screen.getByText("As many as apply.")).toBeInTheDocument();
     });
+
+    // The rule is shown, not merely enforced: at the cap the remaining boxes grey out instead of
+    // letting a pick be made only to be refused by the save
+    it("stops offering once as many as the question takes are picked", () => {
+      renderChoice({ maxAnswers: 2 }, [ "half-day", "full-day" ]);
+
+      expect(screen.getByRole("checkbox", { name: "Several days" })).toBeDisabled();
+      // The picked ones stay live, so the choice can still be changed
+      expect(screen.getByRole("checkbox", { name: "Half day" })).toBeEnabled();
+    });
+
+    it("keeps offering while the cap is not reached", () => {
+      renderChoice({ maxAnswers: 2 }, [ "half-day" ]);
+
+      expect(screen.getByRole("checkbox", { name: "Several days" })).toBeEnabled();
+    });
+
+    it("says how many to choose", () => {
+      renderChoice({ minAnswers: 2, maxAnswers: 3, description: "Your days." });
+
+      expect(screen.getByText("Your days. Choose at least 2. Choose up to 3.")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ChoiceAnswer, as a suggestion", () => {
+  it("frames the option a reading suggested, one or several", () => {
+    const { rerender } = render(<ChoiceAnswer question={question()} values={[ "full-day" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Full day" })).toBeChecked();
+
+    rerender(<ChoiceAnswer question={question({ maxAnswers: 0 })} values={[ "half-day" ]} disabled={false}
+      suggested onChange={vi.fn()} onAnswered={vi.fn()} />);
+    expect(screen.getByRole("checkbox", { name: "Half day" })).toBeChecked();
   });
 });

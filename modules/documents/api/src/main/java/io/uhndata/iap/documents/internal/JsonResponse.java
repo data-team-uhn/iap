@@ -25,9 +25,9 @@ import jakarta.json.JsonObject;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 
 /**
- * Writes the JSON bodies that {@link ParseServlet} and {@link ParseCallbackServlet} answer with. Both endpoints
- * are consumed by the same clients, so the content type, the encoding and the shape of an error body are settled
- * here rather than in each servlet.
+ * Writes the JSON bodies that {@link ParseServlet}, {@link ParseCallbackServlet} and {@link DocumentLimitsServlet}
+ * answer with. The endpoints are consumed by the same clients, so the content type, the encoding and the shape of an
+ * error body are settled here rather than in each servlet.
  *
  * @version $Id$
  * @since 0.1.0

@@ -427,6 +427,75 @@ class TestPageCeiling:
             shared_docs.refuse_oversized_input(self._pdf(tmp_path, 4))
 
 
+class TestRequestedLimits:
+    """The platform sends its own limits with each parse; they only ever lower the daemon's."""
+
+    def _pdf(self, tmp_path, pages):
+        from pypdf import PdfWriter
+
+        path = tmp_path / "big.pdf"
+        writer = PdfWriter()
+        for _ in range(pages):
+            writer.add_blank_page(width=72, height=72)
+        with open(path, "wb") as handle:
+            writer.write(handle)
+        return path
+
+    def _docx(self, tmp_path, size):
+        path = tmp_path / "big.docx"
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("word/document.xml", b"x" * size)
+        return path
+
+    def test_reads_the_limits_from_the_query(self):
+        query = {"max_bytes": ["100"], "max_pages": ["5"], "max_expanded_bytes": ["2000"]}
+        assert shared_docs.get_requested_limits(query) == shared_docs.RequestedLimits(100, 5, 2000)
+
+    def test_a_limit_left_out_is_none(self):
+        assert shared_docs.get_requested_limits({"max_pages": [""]}) == (
+            shared_docs.NO_REQUESTED_LIMITS)
+
+    @pytest.mark.parametrize("value", ["0", "-1", "ten", "1.5"])
+    def test_a_limit_that_is_not_a_positive_integer_is_refused(self, value):
+        with pytest.raises(shared_docs.ParseRequestError, match="max_bytes"):
+            shared_docs.get_requested_limits({"max_bytes": [value]})
+
+    def test_a_lower_requested_page_limit_applies(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "10")
+        requested = shared_docs.RequestedLimits(max_pages=2)
+        with pytest.raises(shared_docs.ParseRequestError, match="2-page limit.*document limits"):
+            shared_docs.refuse_oversized_input(self._pdf(tmp_path, 3), requested)
+
+    def test_a_higher_requested_page_limit_does_not_raise_the_daemons(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "2")
+        requested = shared_docs.RequestedLimits(max_pages=10)
+        expected = "2-page limit.*IAP_MAX_INPUT_PAGES"
+        with pytest.raises(shared_docs.ParseRequestError, match=expected):
+            shared_docs.refuse_oversized_input(self._pdf(tmp_path, 3), requested)
+
+    def test_a_requested_limit_applies_when_the_daemons_is_off(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
+        requested = shared_docs.RequestedLimits(max_pages=2)
+        with pytest.raises(shared_docs.ParseRequestError, match="2-page limit"):
+            shared_docs.refuse_oversized_input(self._pdf(tmp_path, 3), requested)
+
+    def test_a_lower_requested_byte_limit_applies(self, tmp_path):
+        path = self._pdf(tmp_path, 1)
+        requested = shared_docs.RequestedLimits(max_bytes=10)
+        with pytest.raises(shared_docs.ParseRequestError, match="10-byte limit.*document limits"):
+            shared_docs.refuse_oversized_input(path, requested)
+
+    def test_a_lower_requested_expanded_limit_applies(self, tmp_path):
+        requested = shared_docs.RequestedLimits(max_expanded_bytes=100)
+        with pytest.raises(shared_docs.ParseRequestError, match="100-byte limit.*document limits"):
+            shared_docs.refuse_oversized_input(self._docx(tmp_path, 1000), requested)
+
+    def test_a_document_within_every_limit_passes(self, tmp_path):
+        requested = shared_docs.RequestedLimits(
+            max_bytes=10**6, max_pages=5, max_expanded_bytes=10**6)
+        shared_docs.refuse_oversized_input(self._pdf(tmp_path, 3), requested)
+
+
 class TestOpenPdfReader:
     """AES-encrypted PDFs with an empty user password must still be readable.
 

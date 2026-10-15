@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { isLoginRedirect, isNotAuthenticated, NotAuthenticatedError } from "./reLogin";
+
 // Thrown when the server answered, but not with success. The status is kept so the failure can be
 // described in the user's terms rather than the protocol's; the reason phrase is deliberately not,
 // since HTTP/2 drops it and it would render as a dangling blank.
@@ -38,6 +40,39 @@ export class RequestError extends Error {
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
+// Thrown when a response that should have carried data carried a page instead, such as an error page
+// from Sling or from a proxy in front of it. The status is kept for the console, not for the user.
+export class UnreadableResponseError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Expected data, got a page (HTTP ${status})`);
+    this.name = "UnreadableResponseError";
+    this.status = status;
+  }
+}
+
+// How much of an unreadable page goes to the console: enough to tell a login page from an error page
+const PAGE_EXCERPT_LENGTH = 300;
+
+// The JSON body of a response that should carry data. Sling's login page, after the session has
+// gone, fails as an expired session; any other page fails as UnreadableResponseError instead of the
+// parser's "Unexpected token '<'". The page itself only goes to the console: it can name the server.
+export async function readJson<T>(response: Response): Promise<T> {
+  if (isLoginRedirect(response)) {
+    throw new NotAuthenticatedError(`Not authenticated: ${response.url}`);
+  }
+  // Read twice only when it fails, so the copy is taken before the body is used up
+  const copy = typeof response.clone === "function" ? response.clone() : undefined;
+  try {
+    return (await response.json()) as T;
+  } catch {
+    const page = copy ? await copy.text().catch(() => "") : "";
+    console.warn(`Expected data, got a page (HTTP ${response.status})`, page.slice(0, PAGE_EXCERPT_LENGTH));
+    throw new UnreadableResponseError(response.status);
+  }
+}
+
 // What a rejection has to say for itself. Anything can be thrown, so the many places that end up
 // having to display one need this, and none of them need to care that it is not always an Error.
 export const messageOf = (error: unknown): string =>
@@ -56,6 +91,12 @@ const describe = (error: unknown): string => {
       ? "You appear to be offline. Check your connection, then try again."
       : "The server could not be reached. It may be restarting, or the connection may have dropped. "
         + "Try again in a moment.";
+  }
+  if (isNotAuthenticated(error)) {
+    return "Your session has expired. Sign in again, then retry.";
+  }
+  if (error instanceof UnreadableResponseError) {
+    return "Unexpected error. Reload and try again.";
   }
   if (error instanceof SyntaxError) {
     return "The server's response could not be read.";

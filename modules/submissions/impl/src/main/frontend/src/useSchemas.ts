@@ -18,12 +18,17 @@
 
 import { useEffect, useState } from "react";
 
-import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { isNotAuthenticated, SIGNED_OUT_MESSAGE, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
-import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
+import {
+  CATEGORIES_URL, type JsonNode, type SchemaChoice, SCHEMAS_URL, submissionChoices,
+} from "./schemaModel";
 
 // Reading what a submission may be raised against, once. The parsing is in schemaModel.
+//
+// The top categories are offered first, then the open schemas no category offers. When the
+// categories cannot be read, the open schemas are offered as they are.
 
 export interface SchemasOnOffer {
   /** What may be picked, empty until the read has settled and whenever it failed. */
@@ -52,21 +57,21 @@ export function useSchemas(): SchemasOnOffer {
 
   useEffect(() => {
     let cancelled = false;
-    doFetch(SCHEMAS_URL)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
+    const readTree = (url: string) => doFetch(url).then(response => {
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      return readJson<unknown>(response).then(body => {
+        if (typeof body !== "object" || body === null) {
+          throw new SyntaxError(`${url} is not a node`);
         }
-        return response.json().then(body => {
-          if (typeof body !== "object" || body === null) {
-            throw new SyntaxError("The list of schemas is not a node");
-          }
-          return body as JsonNode;
-        });
-      })
-      .then(tree => {
+        return body as JsonNode;
+      });
+    });
+    Promise.all([ readTree(SCHEMAS_URL), readTree(CATEGORIES_URL).catch(() => ({})) ])
+      .then(([ schemas, categories ]) => {
         if (!cancelled) {
-          setChoices(schemaChoices(tree));
+          setChoices(submissionChoices(categories, schemas));
         }
       })
       .catch((failure: unknown) => {
@@ -75,9 +80,7 @@ export function useSchemas(): SchemasOnOffer {
         }
         // The session went and they chose not to sign in again. Describing that as a request
         // failure would send them to check their network instead.
-        setError(isNotAuthenticated(failure)
-          ? "You are no longer signed in. Sign in and try again."
-          : describeRequestFailure(failure));
+        setError(isNotAuthenticated(failure) ? SIGNED_OUT_MESSAGE : describeRequestFailure(failure));
       })
       .finally(() => {
         if (!cancelled) {

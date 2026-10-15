@@ -62,6 +62,17 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>iap-documents-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <!-- The version the app ships, in packaging/slingfeature's base.json -->
+      <version>2.0.35</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -74,6 +85,10 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>

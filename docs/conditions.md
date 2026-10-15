@@ -114,6 +114,13 @@ operands elsewhere in its entity that use one of them, and the part each such co
 is on. The schema editor refuses to remove a question other parts' conditions depend on
 this way.
 
+Where a question offers a fixed set of answers (`sch:AnswerOption` children), what is
+compared is the chosen option's **`value`**, never the label the submitter read. That
+is what makes such a condition dependable: the label may be reworded or translated
+freely, and a value from outside the offered set is refused when the answer is saved,
+so the comparison cannot quietly stop matching because somebody typed the phrase
+differently.
+
 ## Aggregators
 
 An operand's `aggregate` folds its values into one before comparison — the

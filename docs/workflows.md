@@ -896,6 +896,21 @@ REFERENCE.
 — a `POST` to `<submission>.save.json` — is a workflow event like any other. Whose
 request it is, and whether it is still a draft, is decided by its handler.
 
+The definition runs `saveAnswers` (write the answers), then `validateAnswers` (put them
+past every registered `AnswerValidator`), then `markCompleteness` (record whether
+anything the schema still asks for is unanswered, as the `incomplete` tag). Each step can
+refuse, and a refusal reverts the whole run, so the tag is only written for answers that
+were accepted. A required question that a condition hides is not missing. The tag is a
+system tag in its own `completeness` category, so nobody can place it by hand and it does
+not displace the lifecycle state. A control offering to send a request refuses while it
+is there.
+
+Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
+`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
+`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
+answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
+a service task).
+
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person
@@ -915,7 +930,7 @@ POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │
-                                                        ▼  hostTag: the submission is now "approved"
+                                                        ▼  hostTag: the submission is now tagged "approved"
 ```
 
 **A user task is an activity with no handler.** The engine parks the token there and
@@ -1032,11 +1047,14 @@ each completed on its own.
   onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
-- **A gateway's guards cannot name a question by its path.** They are evaluated against
-  the instance, which is a part of its host, so `variable` reaches what the run knows,
-  and `tags` and `property` read the host. An `answer` operand resolves a relative
-  question path against the definition it sits in, and a workflow holds no questions,
-  so routing on a request's own answers needs the question's identifier.
+- **A gateway's `answer` guards cannot name a question by its path.** They are
+  evaluated against the instance, which is a part of its host, so `variable` reaches
+  what the run knows, and `tags` and `property` read the host. An `answer` operand
+  resolves a relative question path against the definition it sits in, and a workflow
+  holds no questions, so routing on a request's own answers needs the question's
+  identifier. The `decision` source (submissions module) has no such limit: it reads
+  the path against the submission's schema version, but counts only a settled answer
+  (see [extraction.md](extraction.md#step-7-the-gate-classifying-the-document)).
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem is recorded; a guard is written as a `cond:condition` in
   the arc's `extensionElements`.

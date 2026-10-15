@@ -124,7 +124,7 @@ describe("useCategoryTree", () => {
     } as unknown as Response)));
     const result = await loadedHook();
 
-    expect(result.current.loadError).toBe("The server's response could not be read.");
+    expect(result.current.loadError).toBe("Unexpected error. Reload and try again.");
   });
 
   it("reports a server it could not reach", async () => {

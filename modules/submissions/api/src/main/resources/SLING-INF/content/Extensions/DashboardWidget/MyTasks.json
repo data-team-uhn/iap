@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "Waiting for you",
+  "ext:subtitle": "Requests with something you still have to do",
+  "ext:renderURL": "asset:iap-submissions.MyTasksWidget.js",
+  "defaultOrder": 2,
+  "ext:widgetWidth": "full"
+}

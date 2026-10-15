@@ -19,11 +19,14 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import javax.jcr.Node;
@@ -33,14 +36,19 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.documents.api.DocumentLimits;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -76,8 +84,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The payload entry carrying the file itself. */
     static final String FILE_PARAMETER = "file";
 
-    /** The largest file taken, since the document pipeline later holds a whole file in memory to parse it. */
-    static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
+    private static final long KILOBYTE = 1024L;
 
     private static final long MEGABYTE = 1024L * 1024;
 
@@ -90,9 +97,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final String GENERIC_TYPE = "application/octet-stream";
 
-    /** Types a browser may not know and send untyped, by the extension that names them. */
+    private static final String PDF_TYPE = "application/pdf";
+
+    /**
+     * Types a browser may not know and send untyped, by the extension that names them. The browser's check keeps
+     * its own copy, {@code MIME_TYPE_BY_EXTENSION} in frontend-commons' {@code fileValidation.ts}.
+     */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
-        "pdf", "application/pdf",
+        "pdf", PDF_TYPE,
         "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "doc", "application/msword");
 
@@ -101,6 +113,20 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     /** The name the node type gives the upload inside a file. */
     private static final String UPLOADED_FILE_NODE = "uploadedFile";
+
+    /** The document limits, the same ones the browser checks against; only the file size is checked here. */
+    private final DocumentLimits limits;
+
+    /**
+     * The handler, checking each upload against the configured limits.
+     *
+     * @param limits the document limits
+     */
+    @Activate
+    public AttachDocumentHandler(@Reference final DocumentLimits limits)
+    {
+        this.limits = limits;
+    }
 
     @Override
     public String getName()
@@ -124,14 +150,23 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final String mimeType = getMimeType(file);
         checkAcceptedType(requirement, mimeType);
         checkSize(file);
+        checkPages(file, mimeType);
         final Resource fulfilled = context.getResourceResolver().getResource(requirement.getPath());
         if (fulfilled == null) {
             throw new PersistenceException("Could not read the requirement being fulfilled");
         }
+        final Document attached = submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .findFirst()
+            .orElse(null);
+        // A new version mid-reading would leave the reading working on a file that is no longer the latest
+        if (attached != null && (ParseStatus.isParsing(attached) || ParseStatus.isRunning(submission))) {
+            throw new InvalidStateException("Wait until the document has been read, or stop the reading first");
+        }
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
-        final Resource document = findOrCreateDocument(target, submission, requirement, fulfilled, file, resolver);
+        final Resource document = findOrCreateDocument(target, attached, fulfilled, file, resolver);
         // Not named by its number, which is its position among the document's versions
         final Resource version = resolver.create(document, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
@@ -186,25 +221,19 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * of the same document, so the document's title follows the newest file.
      *
      * @param target the submission's resource
-     * @param submission the submission being attached to
-     * @param requirement the requirement the file answers
+     * @param attached the document already answering the requirement, or {@code null} for a first upload
      * @param fulfilled the requirement's resource, for the reference
      * @param file the uploaded file
      * @param resolver the resolver to write with
      * @return the document resource
      * @throws PersistenceException when the document cannot be written
      */
-    private Resource findOrCreateDocument(final Resource target, final Submission submission,
-        final DocumentRequirement requirement, final Resource fulfilled, final EventAttachment file,
-        final ResourceResolver resolver)
+    private Resource findOrCreateDocument(final Resource target, final Document attached, final Resource fulfilled,
+        final EventAttachment file, final ResourceResolver resolver)
         throws PersistenceException
     {
         final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
-        final Resource existing = submission.getDocuments().stream()
-            .filter(document -> document.isFulfilling(requirement))
-            .findFirst()
-            .map(document -> resolver.getResource(document.getPath()))
-            .orElse(null);
+        final Resource existing = attached == null ? null : resolver.getResource(attached.getPath());
         if (existing != null) {
             Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
                 "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
@@ -233,7 +262,9 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             return declared;
         }
         final String name = Objects.requireNonNullElse(file.getFileName(), "");
-        final String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        // A name with no dot has no extension: a file called "pdf" is not a PDF
+        final int dot = name.lastIndexOf('.');
+        final String extension = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
         return TYPE_BY_EXTENSION.getOrDefault(extension, declared.isEmpty() ? null : declared);
     }
 
@@ -260,17 +291,62 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a file larger than {@link #MAX_FILE_BYTES}, before its content is opened.
+     * Refuses a file larger than the configured limit, before its content is opened.
      *
      * @param file the uploaded file
      * @throws InvalidPayloadException when the file is too large
      */
-    private static void checkSize(final EventAttachment file) throws InvalidPayloadException
+    private void checkSize(final EventAttachment file) throws InvalidPayloadException
     {
-        if (file.getSize() > MAX_FILE_BYTES) {
-            // Rounded up, so a file just over the limit does not read as being at it
-            throw new InvalidPayloadException("That file is " + (file.getSize() + MEGABYTE - 1) / MEGABYTE
-                + " MB, and the limit is " + MAX_FILE_BYTES / MEGABYTE + " MB");
+        final long maxFileSize = this.limits.getMaxFileSize();
+        if (file.getSize() > maxFileSize) {
+            // The file's size rounds up and the limit's down, so a file over the limit never reads as being at it
+            throw new InvalidPayloadException("That file is " + formatSize(file.getSize(), RoundingMode.CEILING)
+                + ", and the limit is " + formatSize(maxFileSize, RoundingMode.FLOOR));
+        }
+    }
+
+    /**
+     * A size for a person to read, written as the browser's check writes it: KB under a megabyte, two decimals at
+     * most.
+     *
+     * @param bytes the size
+     * @param rounding how to round the last decimal
+     * @return the size, such as {@code 50 MB} or {@code 512.5 KB}
+     */
+    private static String formatSize(final long bytes, final RoundingMode rounding)
+    {
+        final boolean megabytes = bytes >= MEGABYTE;
+        return BigDecimal.valueOf(bytes)
+            .divide(BigDecimal.valueOf(megabytes ? MEGABYTE : KILOBYTE), 2, rounding)
+            .stripTrailingZeros().toPlainString() + (megabytes ? " MB" : " KB");
+    }
+
+    /**
+     * Refuses a PDF with more pages than the configured limit. A PDF that cannot be read is let through: the parser
+     * refuses it later, with its own reason.
+     *
+     * @param file the uploaded file
+     * @param mimeType the upload's type, as {@link #getMimeType} reads it
+     * @throws InvalidPayloadException when the PDF has too many pages
+     * @throws PersistenceException when the upload cannot be read
+     */
+    private void checkPages(final EventAttachment file, final String mimeType)
+        throws InvalidPayloadException, PersistenceException
+    {
+        if (!PDF_TYPE.equals(mimeType)) {
+            return;
+        }
+        final OptionalInt pages;
+        try (InputStream content = file.openStream()) {
+            pages = PdfPageCounter.countPages(content);
+        } catch (final IOException e) {
+            throw new PersistenceException("Could not read the uploaded file", e);
+        }
+        final int maxPages = this.limits.getMaxPdfPages();
+        if (pages.isPresent() && pages.getAsInt() > maxPages) {
+            throw new InvalidPayloadException(
+                "That PDF has " + pages.getAsInt() + " pages, and the limit is " + maxPages);
         }
     }
 

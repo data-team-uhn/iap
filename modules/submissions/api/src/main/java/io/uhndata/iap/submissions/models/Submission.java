@@ -41,6 +41,7 @@ import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.tags.models.Taggable;
@@ -76,6 +77,9 @@ public class Submission extends Entity
 
     @ValueMapValue
     private String schemaVersion;
+
+    @ValueMapValue
+    private String schema;
 
     /**
      * The title of the submission.
@@ -116,6 +120,55 @@ public class Submission extends Entity
     }
 
     /**
+     * The schema this submission answers, whichever of its versions it was raised against.
+     *
+     * <p>Held on the submission rather than reached through {@link #getSchemaVersion()}, because "everything
+     * submitted against this schema" is the ordinary question and reaching it through the version makes every
+     * such query a join. Both are written when the submission is created, so they cannot disagree.</p>
+     *
+     * @return the schema
+     */
+    @NotNull
+    public Schema getSchema()
+    {
+        return Objects.requireNonNull(this.getReference(this.schema, Schema.class),
+            "Missing mandatory schema reference");
+    }
+
+    /**
+     * The values answering a particular question, which is named by the tail of its path.
+     *
+     * <p>A suffix rather than a whole path because a question's path names the schema version it belongs to, and
+     * the caller almost always means "this question, in whichever version this submission answers" — a rule
+     * written against one version's path stops working the day a second one is published.</p>
+     *
+     * @param questionPathSuffix the end of the path of the question to read, e.g. {@code /details/startDate}
+     * @return the values given, empty when the question is unanswered or not asked here
+     */
+    @NotNull
+    public List<String> getAnswersTo(@NotNull final String questionPathSuffix)
+    {
+        return this.getAnswersByQuestion().entrySet().stream()
+            .filter(answer -> answer.getKey().endsWith(questionPathSuffix))
+            .map(Map.Entry::getValue)
+            .flatMap(List::stream)
+            .filter(value -> !value.isBlank())
+            .toList();
+    }
+
+    /**
+     * The single value answering a particular question, for the questions that take one.
+     *
+     * @param questionPathSuffix the end of the path of the question to read, e.g. {@code /details/startDate}
+     * @return the first value given, or {@code null} when the question is unanswered or not asked here
+     */
+    @Nullable
+    public String getAnswerTo(@NotNull final String questionPathSuffix)
+    {
+        return this.getAnswersTo(questionPathSuffix).stream().findFirst().orElse(null);
+    }
+
+    /**
      * The submitter's answers to the schema questions.
      *
      * @return a list of answers, empty if none
@@ -146,6 +199,29 @@ public class Submission extends Entity
     public List<Review> getReviews()
     {
         return this.getChildren(Review.RESOURCE_TYPE, Review.class);
+    }
+
+    /**
+     * The reviews recorded against one requirement, in the order they were added.
+     *
+     * <p>A review that names no requirement is about the submission as a whole and is not returned here, and one
+     * naming a requirement of some other schema version is not either: the comparison is by path, so a
+     * requirement that was replaced does not collect the reviews of the one that replaced it.</p>
+     *
+     * @param requirement the requirement to collect the reviews of
+     * @return the reviews about it, empty when nobody has reviewed it
+     */
+    @NotNull
+    public List<Review> getReviewsOf(@NotNull final Requirement requirement)
+    {
+        return this.getReviews().stream()
+            .filter(review -> {
+                // Resolved into a local: the reference lookup is not free, and a null check would not apply to a
+                // second, separate call
+                final Requirement reviewed = review.getRequirement();
+                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -205,8 +281,9 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
-     * questions whose condition doesn't currently hold for this submission don't apply, so they are never
+     * approved {@link Review}, or a {@code FormRequirement} with a question given fewer answers than its
+     * {@code minAnswers} demands. An optional question left blank fulfils it just as well. Requirements, sections
+     * and questions whose condition doesn't currently hold for this submission don't apply, so they are never
      * reported as missing.
      *
      * @return a list of unfulfilled requirements, empty if none are missing
@@ -240,16 +317,14 @@ public class Submission extends Entity
                 || this.getDocuments().stream().anyMatch(document -> document.isFulfilling(requirement));
         }
         if (requirement instanceof ApprovalRequirement) {
-            return this.getReviews().stream().anyMatch(review -> {
-                if (!review.isApproved()) {
-                    return false;
-                }
-                final Requirement reviewed = review.getRequirement();
-                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
-            });
+            return this.getReviewsOf(requirement).stream().anyMatch(Review::isApproved);
         }
-        // FormRequirement is the only other concrete requirement type today.
-        return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
+        // FormRequirement is the only other concrete requirement type today. Only questions demanding at least one
+        // value can leave it unfulfilled: an optional one is asked, not demanded, and a submission is not
+        // incomplete for declining to answer it. Without this filter `minAnswers` would mean nothing at all
+        return this.getQuestionsOf((FormRequirement) requirement).stream()
+            .filter(Question::isRequired)
+            .allMatch(this::isAnswered);
     }
 
     /**
@@ -327,14 +402,21 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).isEmpty();
+        // Blank counts as unanswered, not as answered. Clearing a field posts an empty value rather than removing
+        // the answer node, so the node stays behind holding nothing — and counting that as an answer would let a
+        // demanded question be satisfied by emptying it. Counted rather than merely detected, because a question
+        // may ask for more than one value, and one of three is as unanswered as none
+        final long given = this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
+            .filter(value -> !value.isBlank())
+            .count();
+        return given >= question.getMinAnswers();
     }
 
     /**
      * What has been answered, by the path of the question it answers.
      *
-     * <p>Used by fulfilment, to decide whether a form requirement is fulfilled, and by the extraction intake. One
-     * index, so the two cannot disagree on what counts as an answer.</p>
+     * <p>Used by fulfilment, to decide whether a form requirement is fulfilled, by the extraction intake, and to
+     * render a form. One index, so they cannot disagree on what counts as an answer.</p>
      *
      * <p>An answer whose question no longer resolves answers nothing being asked, and is left out. Where more than
      * one answer node addresses the same question — which only degenerate content produces — the one carrying a

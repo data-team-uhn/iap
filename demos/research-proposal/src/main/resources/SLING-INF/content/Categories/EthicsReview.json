@@ -1,0 +1,7 @@
+{
+  // A top category with nothing below it: the ethics review demo reads no classification
+  "jcr:primaryType": "cat:Category",
+  "label": "Ethics review demo",
+  "description": "A study document checked against TCPS2, the national research ethics policy, with nothing else read first.",
+  "jcr:reference:schemaVersion": "/Schemas/ethicsReviewDemo/v1"
+}

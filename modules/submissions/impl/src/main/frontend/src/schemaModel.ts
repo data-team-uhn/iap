@@ -109,3 +109,69 @@ export function schemaChoices(tree: JsonNode): SchemaChoice[] {
       } ];
     });
 }
+
+/** The category tree, deep, with each category's schema version inlined by the dereference processor. */
+export const CATEGORIES_URL = "/Categories.deep.simple.json";
+
+const CATEGORY_PRIMARY_TYPE = "cat:Category";
+
+// The category tag that closes it to new submissions
+const RETIRED_TAG = "retired";
+
+function isRetired(category: JsonNode): boolean {
+  const tags = category.tags;
+  return Array.isArray(tags) && tags.includes(RETIRED_TAG);
+}
+
+// The path of the schema a version belongs to: /Schemas/<schema>/<version> gives /Schemas/<schema>
+function getSchemaPath(versionPath: string): string {
+  return versionPath.substring(0, versionPath.lastIndexOf("/"));
+}
+
+/**
+ * The top categories a submission may be raised under, each offering its schema's active version. A top
+ * category names the schema its submissions answer; the categories below it are picked later, from the
+ * uploaded document. A category whose schema is not open, or that is retired, is not offered.
+ *
+ * @param categories a `/Categories` listing, serialized as `CATEGORIES_URL` asks for
+ * @param schemas what `schemaChoices` offers, which says which schemas are open and at which version
+ * @returns what may be picked, in stored order
+ */
+export function categoryChoices(categories: JsonNode, schemas: SchemaChoice[]): SchemaChoice[] {
+  const open = new Map(schemas.map(choice => [ getSchemaPath(choice.path), choice ]));
+  return Object.values(categories)
+    .filter((value): value is JsonNode => typeof value === "object" && value !== null
+      && (value as JsonNode)["jcr:primaryType"] === CATEGORY_PRIMARY_TYPE)
+    .filter(category => !isRetired(category))
+    .flatMap(category => {
+      const version = category.schemaVersion;
+      const versionPath = typeof version === "object" && version !== null
+        ? (version as JsonNode)["@path"]
+        : undefined;
+      const schema = typeof versionPath === "string" ? open.get(getSchemaPath(versionPath)) : undefined;
+      if (!schema) {
+        return [];
+      }
+      return [ {
+        path: schema.path,
+        // A category is picked by what it is, so the schema's version label is not shown after it
+        version: "",
+        title: text(category, "label") ?? text(category, "@name") ?? schema.title,
+        description: text(category, "description") ?? schema.description,
+      } ];
+    });
+}
+
+/**
+ * What the new-submission dialog offers: the top categories, then every open schema no category offers.
+ *
+ * @param categories a `/Categories` listing, serialized as `CATEGORIES_URL` asks for
+ * @param schemas a `/Schemas` listing, serialized as `SCHEMAS_URL` asks for
+ * @returns what may be picked
+ */
+export function submissionChoices(categories: JsonNode, schemas: JsonNode): SchemaChoice[] {
+  const open = schemaChoices(schemas);
+  const byCategory = categoryChoices(categories, open);
+  const offered = new Set(byCategory.map(choice => choice.path));
+  return [ ...byCategory, ...open.filter(choice => !offered.has(choice.path)) ];
+}

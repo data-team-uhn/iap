@@ -57,6 +57,26 @@ resolved at runtime through the content-hashed `assets.json`. If a new component
 not appear, check that entry exists in `assets.json` first — a missing one means the
 build did not pick up the config change.
 
+### Libraries only some screens need
+
+A package imported where a page starts joins the `vendor` chunk every page loads. One imported only
+with `import()` where a screen needs it gets chunks of its own instead, loaded the first time a
+screen asks for them, as PDF.js is. A worker the library runs is started with
+`new Worker(new URL("<package>/<script>", import.meta.url), { type: "module" })`, which webpack
+bundles the same way.
+
+Some libraries also fetch files by name at run time, like PDF.js's fonts and decoders. A module
+names the package folders they come from in its `package-folders.config`, beside `assets.config`:
+
+```
+'pdfjs-dist/standard_fonts'
+'pdfjs-dist/wasm'
+```
+
+The build publishes each folder as it is, in a folder named after its contents' hash, which the
+server has browsers keep for good, and keys it in `assets.json` by the package folder, with a dot
+for the slash: `getAssetURL("asset:pdfjs-dist.standard_fonts")` gives the folder's URL.
+
 ## Talking to the server
 
 ### Use `useAuthenticatedFetch`, not `fetch`
@@ -157,6 +177,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
+| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it |
 
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
@@ -181,6 +202,167 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
 card per schema, so the card describes its versions.
 
+Before a file is uploaded, check it with `validateUpload` from
+`@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
+caller does not take, and a PDF or Word file whose content does not match its name; see
+[file validation](file-validation.md).
+
+`PdfViewer` shows a PDF with PDF.js's own viewer, and finds and marks passages in it:
+
+```tsx
+<PdfViewer
+  url={file}
+  page={evidence.page}
+  marks={[
+    { id: evidence.id, quote: evidence.quote, page: evidence.page, kind: "assistant" },
+  ]}
+  title="Protocol"
+  onClose={close}
+/>
+```
+
+Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
+(`annotation`), so it is coloured accordingly. Where it is comes in one of three ways:
+
+- a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
+  case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
+- `spans`, when its place is known exactly, such as a change between two versions. Each span is a `page` and the `start` and `end` offsets the passage covers in that
+  page's text, one span per page it runs over. A span whose `start` equals its `end` is a point
+  between two characters. The viewer reads the pages a mark's spans are on first, and places the mark
+  without searching. Spans that run backwards or past their page's text are not in the document;
+- an `anchor`, for a passage kept to be shown again, such as one a person selected to comment on. It is
+  placed where it says as soon as its pages are read, while the text there still says its quote, and
+  otherwise found again, as described below.
+
+Offsets are into a page's text as PDF.js reads it for its text layer (`getTextContent` with
+`disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
+`usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
+them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
+passage as shown (`getPassageText`) puts a space there. Text selected in the text layers maps back to
+the same offsets: `getSelectedSpans` gives what a range selects as a span on each page it selects text
+of, without the spaces at either end.
+
+A `TextAnchor` keeps a passage the way the W3C's position and quote selectors do: where it starts and
+where it ends, each a `page` and a `char` offset into that page's text; what it says (`quote`); and up to
+32 characters of the text `before` and `after` it on its pages, as the text reads. `getTextAnchor` makes
+one from the spans of a passage. The offsets are quick to place, but they are only right for the text
+PDF.js reads today: a later PDF.js may read the same file differently. So the quote is what is trusted.
+When the text at the offsets no longer says it, the viewer looks for the quote everywhere, and takes the
+occurrence with the text around it most like what was around it, whole on a page rather than across a
+break, and nearest the anchor's page. A quote too short to trust, such as a single word, is only taken
+where some of that text is still the same.
+
+An anchor is kept as text with what it anchors, such as a review comment. `encodeAnchor` gives it as an
+`EncodedAnchor`, and `decodeAnchor` reads it back. Its `start` and `end` points are each written as
+PDF.js's open parameters and RFC 5147's text fragments write one, `page=3&char=120`, and its `text`, what
+the passage says, as a text fragment directive writes it, without its `text=`: `before-,quote,-after`, each
+part percent-encoded, dashes included. `decodeAnchor` gives nothing for an anchor not kept, or one it
+cannot read.
+
+The viewer reads pages only for as long as some passage is still being looked for: one placed or kept
+as an anchor needs only its own pages, and a document opened with no passages is not read at all, so
+reading never takes PDF.js away from drawing the pages being looked at for longer than it must. While a
+passage is still being looked for, a bar along the top of the document shows how much of it has been read;
+`useMarkPlaces` gives how many pages have been, along with where the passages are.
+
+Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
+itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
+the quote itself for a quote or an anchor. Marks let the pointer through, so text can still be selected
+across them, and a click is matched to a mark by where it falls.
+
+If only one passage is passed to the viewer, it is shown on a card above the document. When there
+are multiple passages to highlight, they are listed beside it, in the order given, with those that
+cannot be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one
+at a time above it instead, with controls stepping through them. It is the viewer's width that
+counts, not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
+Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), in the
+text's full colour, with buttons stepping through them as the controls on the card do.
+The list scrolls when there are more passages than fit, and fades out at its top or bottom where
+there are more that way (`useScrollEdges` says where, and `fadeEdges` makes the fade).
+The card above the document can also be swiped by touch, as the content moves: left to the next
+passage, right to the previous, as far as the ends. It follows the finger, springs back when let go of
+too soon, and the next card slides in from where the finger went, unless the person prefers reduced
+motion (`useSwipe`, for any element stepping through something by touch).
+
+Selecting a passage from the list scrolls the document to take the reader to it; similarly, clicking
+its mark in the document selects the corresponding card in the list and brings it in view (or, in a
+narrow viewer, shows it on the card above the document). When the viewer opens, it selects the first
+passage in the order given, skipping any that are not found in the document, and takes the reader to
+it once found. The selection stays there until the person selects another.
+
+A caller that needs to follow or set the selection, such as a review screen showing comments beside
+the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports each passage the person
+selects through `onSelectMark`. When the caller sets `selectedMarkId` to another mark, the viewer
+selects it and takes the reader to it, as if it had been picked from the list. Echoing back the mark
+the viewer just reported doesn't move the reader. `marks` can be a new array on every render: the
+viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
+and only looks for passages again when one of those changes.
+
+A caller whose marks are something more than passages, such as review comments, passes `markName`, the
+word for one and for several (`{ one: "comment", many: "comments" }`), and the viewer counts and steps
+through them by it: the heading over the list, the buttons, the list's and its entries' names, and what
+a screen reader is told ("Comment 3 of 12 is marked on page 4."). What the controls of a passage's own
+text say, such as "Show the whole passage", is still about the passage.
+
+A caller that shows something with each passage, such as the comments on it, passes
+`renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
+the passage, on its card in the list beside the document, or on the card above the document in a
+narrow viewer, which shows only the selected passage. It goes outside the button selecting the passage,
+so it can hold fields and buttons of its own, such as a box for a new comment on the passage selected.
+The passage's own text sits on a layer deeper in its mark's colour than the card, setting it apart from
+what the caller shows under it.
+On the card above the document, what it gives is cut short past a few lines (fewer on a phone) and fades
+out where it is cut. The card's one button shows all of the passage and of what is under it ("Show the
+whole comment", named by `markName`), as does moving the focus into what is cut, such as onto a reply
+button. While what is under the passage holds a field to type in (`TEXT_ENTRY`: a text box or an editable
+element, not a checkbox), such as a comment being written, the card is open whatever the person chose, so
+the field and its buttons are in reach; once the field goes, as when the comment is saved, it is as they
+chose again.
+However much it holds, the card takes at most three fifths of the viewer's height and scrolls past it, so
+all of it stays in reach, and so do the document's controls below it. A caller's field that grows with
+what is typed should stop growing after a few rows, as the PDF annotations test widget's does, so that its
+buttons stay beside it.
+In the list, every entry but the selected one is cut short to a couple of lines, the passage and what is
+under it alike, so that many fit; the selected one is shown whole. The focus inside what is cut, such as a
+reply box in another entry, shows all of it while it is there, without selecting the entry.
+
+A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
+someone has selected text in the document and the selection has settled (the pointer let go of, and
+nothing changing for `SETTLE_TIME`), the viewer offers a Comment button under the end of the selection,
+running towards the side of the document with more room, and kept inside it. When the text was selected
+by touch, the button sits further down, past the phone's handles, and out of the way of its own menu
+above the selection. The button is the same height on every screen, so that it can be tapped anywhere.
+Scrolling puts it away until the document is still again; zooming in PDF.js lets go of the selection
+altogether, so the button goes with it. Escape puts the button away until the selection changes, without
+closing the viewer. Pressing it gives `onAnnotate` the passage selected, as a `TextAnchor`, and lets go
+of the selection, so the mark the caller makes of it shows. Pressing it holds what was selected first,
+as tapping a button clears the selection on some phones, until the pointer is pressed anywhere else.
+What happens next is the caller's to decide, such as adding the passage as a mark and opening a comment
+box for it. Text in a PDF can only be selected with a pointer, so commenting on a passage needs one too.
+`useSelectedText` follows the selection, for a view combining the parts apart.
+
+The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case and
+accents. Every match is highlighted, the one shown more deeply; the field says which match is shown of
+how many, the count growing as PDF.js searches the pages, with a spinner until it has searched them all,
+and the up and down buttons beside it step through them, wrapping round at the ends. In the field, Enter
+and Shift+Enter do the same, and Escape clears the search. Where the toolbar has no room for the field,
+a button opens it in the toolbar's place, and Escape closes it. Ctrl+F, or Cmd+F, searches while the
+focus is in the viewer.
+
+A spinner shows in the frame until PDF.js has laid out the document's pages.
+
+On a phone, the space between the viewer's rows and around it is kept small, and the document runs to
+the bottom of the screen, as it does to its sides. Scrolling the document stops at its ends, rather than
+going on to scroll the dialog holding it.
+
+It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
+a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
+`null`, as a ref is before React attaches it, shows nothing until the element is there.
+
+Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
+`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
+in a frame, with the marks drawn, moves the reader, and searches it.
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme
@@ -197,6 +379,13 @@ using those extensions is what keeps a deployment's rebranding effective:
   emphasised widgets.
 - `background.muted` for surfaces that need to recede — translucent, so it composes
   with whatever it overlaps rather than assuming white.
+- `assistant` for anything an AI assistant contributed, wherever it appears, and `annotation`
+  for what a person marked: full palette colours (`color="assistant"` on a `Chip`, `Button`,
+  `IconButton` or icon, `"assistant.main"` in `sx`), built on a lilac accent and a soft
+  highlighter yellow.
+- `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
+  and `highlight.search` for the matches of a search, each with a `…Current` variant for the one
+  in focus. They stay the same in both colour schemes, since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.

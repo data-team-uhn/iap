@@ -42,6 +42,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.tags.internal.TagOperations;
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -68,6 +70,7 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -125,7 +128,8 @@ class UserWorkflowTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        WorkflowFixture.enableTagging(this.context);
+        this.context.addModelsForClasses(Taggable.class);
+        this.context.registerService(TagOperations.class, EngineFixture.lifecycleTags());
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         // createdBy is what the engine records when it raises something, jcr:createdBy naming the engine itself;
         // it is what a task coming back to whoever raised the host is answered by
@@ -256,7 +260,7 @@ class UserWorkflowTest
         assertEquals("cancelled", read(TASK).get("status"));
         assertNull(read(TASK).get("assignee"));
         assertNull(read(TASK).get("outcome"));
-        assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("expired"), hostTags());
         assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get("status"));
     }
 
@@ -313,7 +317,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
 
         assertEquals("cancelled", read(TASK).get("status"));
-        assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("expired"), hostTags());
     }
 
     @Test
@@ -384,7 +388,7 @@ class UserWorkflowTest
         assertThrows(NoApplicableWorkflowException.class,
             () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
         assertEquals("completed", read(TASK).get("status"));
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test
@@ -627,6 +631,18 @@ class UserWorkflowTest
         return resource == null ? Map.of() : resource.getValueMap();
     }
 
+    /**
+     * The lifecycle the host is in, which an end event is what changes.
+     *
+     * @return the tags the host carries
+     */
+    private Set<String> hostTags()
+    {
+        this.context.resourceResolver().refresh();
+        return EngineFixture.tagsOf(
+            Objects.requireNonNull(this.context.resourceResolver().getResource(HOST), "The host always exists"));
+    }
+
     @Test
     void startsAnInstanceInsideTheResourceItDrives() throws Exception
     {
@@ -655,6 +671,30 @@ class UserWorkflowTest
 
         // Copied onto the task, so that what it may be decided with can be read without reading the definition
         assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("outcomeOptions"));
+    }
+
+    // A task can belong to one part of the form rather than to the request as a whole, and the form offers it
+    // there. Carried on the task because whoever reads it cannot necessarily read the definition.
+    @Test
+    void raisesTasksNamingTheRequirementTheyAreAbout() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("requirement", "proposal"));
+
+        started();
+
+        assertEquals("proposal", read(TASK).get("requirement"));
+    }
+
+    @Test
+    void raisesTasksNamingNoRequirementWhenTheDefinitionNamesNone() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("requirement", "   "));
+
+        started();
+
+        assertNull(read(TASK).get("requirement"), "a blank name is no requirement at all");
     }
 
     @Test
@@ -741,6 +781,37 @@ class UserWorkflowTest
     }
 
     @Test
+    void recordsWhatTheDecidingPersonSaidAboutTheirDecision() throws Exception
+    {
+        // The outcome says which way it went; the note says why, which no outcome on offer can express. Nothing
+        // routes on it, which is exactly why it has to be written down rather than remembered
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
+            Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved",
+                TaskCompletion.OUTCOME_NOTE, "Cover arranged with Dev")));
+
+        assertEquals("approved", read(TASK).get("outcome"));
+        assertEquals("Cover arranged with Dev", read(TASK).get("outcomeNote"));
+    }
+
+    @Test
+    void treatsAnEmptyNoteAsNothingSaid() throws Exception
+    {
+        // An untouched form field posts as "", and a task carrying an empty note would read as a decision
+        // somebody explained badly rather than one they did not explain at all
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
+            Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved", TaskCompletion.OUTCOME_NOTE, "   ")));
+
+        assertEquals("approved", read(TASK).get("outcome"));
+        assertFalse(read(TASK).containsKey("outcomeNote"));
+    }
+
+    @Test
     void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
     {
         createProcess("@creator");
@@ -791,8 +862,7 @@ class UserWorkflowTest
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test
@@ -804,7 +874,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(
             TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "rejected")));
 
-        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("rejected"), hostTags());
     }
 
     @Test
@@ -817,7 +887,7 @@ class UserWorkflowTest
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
         // Refused before anything moved
         assertEquals("created", read(TASK).get("status"));
-        assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("draft"), hostTags());
     }
 
     @Test
@@ -902,7 +972,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of()));
 
-        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("rejected"), hostTags());
         assertNull(read(TASK).get("outcome"));
     }
 
@@ -982,8 +1052,7 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test
@@ -1106,8 +1175,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
-        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test

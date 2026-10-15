@@ -70,9 +70,8 @@ public final class Tagging
     /**
      * Teaches the mock to answer from, and write to, the resource's own {@code tags} property.
      *
-     * <p>Placing is stubbed as well as reading, because the creation handler places a submission's {@code draft}
-     * tag: without it, raising a submission fails on the absent tags service rather than on anything the test
-     * is about.</p>
+     * <p>Placing and removing are stubbed as well as reading, because handlers place and retire a submission's
+     * tags: without it, the test fails on the absent tags service rather than on anything it is about.</p>
      *
      * @param taggable the mock standing in for the view
      * @param resource the resource it stands for
@@ -82,13 +81,32 @@ public final class Tagging
     {
         Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
             Set.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
-        Mockito.when(taggable.tag(Mockito.anyString())).thenAnswer(invocation -> {
-            final ModifiableValueMap properties =
-                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class));
-            final Set<String> names = new LinkedHashSet<>(List.of(properties.get("tags", new String[0])));
-            final boolean added = names.add(invocation.getArgument(0));
+        Mockito.when(taggable.tag(Mockito.anyString())).thenAnswer(invocation ->
+            write(resource, invocation.getArgument(0), true));
+        Mockito.when(taggable.tag(Mockito.anyString(), Mockito.anyBoolean())).thenAnswer(invocation ->
+            write(resource, invocation.getArgument(0), true));
+        Mockito.when(taggable.untag(Mockito.anyString())).thenAnswer(invocation ->
+            write(resource, invocation.getArgument(0), false));
+        Mockito.when(taggable.untag(Mockito.anyString(), Mockito.anyBoolean())).thenAnswer(invocation ->
+            write(resource, invocation.getArgument(0), false));
+    }
+
+    /**
+     * Places or removes one tag on a node, reading the tags it carries now rather than when it was adapted.
+     *
+     * @param resource the node to change
+     * @param name the tag to place or remove
+     * @param placing {@code true} to place it, {@code false} to remove it
+     * @return whether the node's tags changed
+     */
+    private static boolean write(final Resource resource, final String name, final boolean placing)
+    {
+        final ModifiableValueMap properties = Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class));
+        final Set<String> names = new LinkedHashSet<>(List.of(properties.get("tags", new String[0])));
+        final boolean changed = placing ? names.add(name) : names.remove(name);
+        if (changed) {
             properties.put("tags", names.toArray(new String[0]));
-            return added;
-        });
+        }
+        return changed;
     }
 }
