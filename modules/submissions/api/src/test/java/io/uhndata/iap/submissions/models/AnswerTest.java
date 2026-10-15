@@ -35,6 +35,8 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -52,20 +54,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class AnswerTest
 {
+    private static final String RESOURCE_TYPE = "sling:resourceType";
+
+    private static final String SUBMISSION_PATH = "/Submissions/submission";
+
+    private static final String PROTOCOL_V1 = "protocol-v1";
+
+    private static final String PROTOCOL_V2 = "protocol-v2";
+
+    private static final String CONSENT_V1 = "consent-v1";
+
+    private static final String CONSENT_V2 = "consent-v2";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class,
-            Extraction.class);
+            Extraction.class, AnswerOption.class, Document.class, DocumentVersion.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/answer",
-            "sling:resourceType", Answer.RESOURCE_TYPE);
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(Answer.class));
     }
 
@@ -74,7 +88,7 @@ class AnswerTest
         throws RepositoryException
     {
         this.context.create().resource("/Schemas/schema/1.0/q1",
-            "sling:resourceType", Question.RESOURCE_TYPE, "text", "Does this involve human subjects?");
+            RESOURCE_TYPE, Question.RESOURCE_TYPE, "text", "Does this involve human subjects?");
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/q1");
         final Session session = Mockito.mock(Session.class);
@@ -82,7 +96,7 @@ class AnswerTest
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
         final Resource resource = this.context.create().resource("/Submissions/submission/answer", Map.of(
-            "sling:resourceType", Answer.RESOURCE_TYPE,
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE,
             "question", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "value", new String[]{ "yes" }));
         final Answer answer = resource.adaptTo(Answer.class);
@@ -95,7 +109,7 @@ class AnswerTest
     void toleratesMissingOptionalProperties()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/bare",
-            "sling:resourceType", Answer.RESOURCE_TYPE);
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         final Answer answer = resource.adaptTo(Answer.class);
 
         assertNotNull(answer);
@@ -103,20 +117,94 @@ class AnswerTest
         assertNull(answer.getValue());
         assertTrue(answer.getExtractions().isEmpty());
         assertNull(answer.getLatestExtraction());
+        assertNull(answer.getSurestExtraction());
+    }
+
+    // The form shows the surest run and the review records a verdict on it, so both have to mean the same run
+    @Test
+    void namesTheSurestRunAsTheOneToShow()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/surest",
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/surest/extraction0", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "40", "confidence", 0.4));
+        this.context.create().resource("/Submissions/submission/surest/extraction1", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42", "confidence", 0.9));
+        this.context.create().resource("/Submissions/submission/surest/extraction2", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "44", "confidence", 0.6));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        assertEquals("42", answer.getSurestExtraction().getExtractedAnswer());
+        assertEquals("44", answer.getLatestExtraction().getExtractedAnswer(), "which is not the newest");
+    }
+
+    // A run that did not say how sure it was is not sure at all, and ties go to the earlier run so that two
+    // readers of this always name the same one
+    @Test
+    void treatsARunThatSaidNothingAsNotSureAndKeepsTheFirstOfATie()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/tied",
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/tied/extraction0", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "first", "confidence", 0.5));
+        this.context.create().resource("/Submissions/submission/tied/extraction1", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "second", "confidence", 0.5));
+        this.context.create().resource("/Submissions/submission/tied/extraction2", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "unsaid"));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        assertEquals("first", answer.getSurestExtraction().getExtractedAnswer());
+    }
+
+    // Once a newer file is read, a surer reading of the replaced one is not what to show
+    @Test
+    void namesTheSurestRunOfTheNewestRevisionRead()
+        throws RepositoryException
+    {
+        this.registerRevisions();
+        final Resource resource = this.answerWithRuns("revised",
+            run("old", 0.9, PROTOCOL_V1), run("new", 0.5, PROTOCOL_V2), run("newer", 0.4, PROTOCOL_V2));
+
+        assertEquals("new", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
+    }
+
+    // A third revision nobody has read yet does not hide what was read from the second
+    @Test
+    void keepsShowingTheLastRevisionReadUntilANewerOneIsRead()
+        throws RepositoryException
+    {
+        this.registerRevisions();
+        final Resource resource = this.answerWithRuns("unread",
+            run("first", 0.9, PROTOCOL_V1), run("second", 0.5, PROTOCOL_V2));
+
+        // The protocol has a third revision, which no run cites
+        assertEquals("second", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
+    }
+
+    // Two runs that each read a newer revision of a different document both stay in the running
+    @Test
+    void comparesRunsThatEachReadSomethingNewerOnConfidenceAlone()
+        throws RepositoryException
+    {
+        this.registerRevisions();
+        final Resource resource = this.answerWithRuns("crossed",
+            run("protocol", 0.4, PROTOCOL_V2, CONSENT_V1), run("consent", 0.7, PROTOCOL_V1, CONSENT_V2));
+
+        assertEquals("consent", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
     }
 
     @Test
     void listsExtractionRunsInTheOrderTheyRan()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/participants",
-            "sling:resourceType", Answer.RESOURCE_TYPE);
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
-            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
         this.context.create().resource("/Submissions/submission/participants/extraction1", Map.of(
-            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
         // A file-type answer keeps its upload here too, and that is not an extraction
         this.context.create().resource("/Submissions/submission/participants/upload",
-            "sling:resourceType", "nt:file");
+            RESOURCE_TYPE, "nt:file");
         final Answer answer = resource.adaptTo(Answer.class);
 
         final List<Extraction> extractions = answer.getExtractions();
@@ -131,14 +219,199 @@ class AnswerTest
     void keepsAnUnapprovedExtractionOutOfTheValue()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/participants",
-            "sling:resourceType", Answer.RESOURCE_TYPE);
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
-            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
         final Answer answer = resource.adaptTo(Answer.class);
 
         // The submitter has not accepted it, so the answer is still unanswered
         assertNull(answer.getValue());
         assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
         assertNull(answer.getLatestExtraction().getEditDistance());
+    }
+
+    @Test
+    void readsASingleValuedReplyAsTheOneValueItIs()
+    {
+        assertEquals(List.of("St Michael's, Sunnybrook"),
+            Answer.splitAnswer("St Michael's, Sunnybrook", false));
+    }
+
+    // A model may name an option by what it is called rather than by its value, in any case
+    @Test
+    void readsAReplyAsTheOptionItNames()
+    {
+        final Question question = Mockito.mock(Question.class);
+        Mockito.when(question.getOfferedOptions()).thenReturn(List.of(
+            new OfferedOption("yes", "Yes, a proposal", ""), new OfferedOption("no", "No", "")));
+
+        assertEquals(List.of("yes"), Answer.readAnswer("YES", question));
+        assertEquals(List.of("yes"), Answer.readAnswer("yes, a proposal", question));
+        assertEquals(List.of("maybe"), Answer.readAnswer("maybe", question), "no option, so the reply stays");
+    }
+
+    // A stray space would keep the reply from matching the option it names
+    @Test
+    void trimsASingleValuedReply()
+    {
+        assertEquals(List.of("yes"), Answer.splitAnswer(" yes \n", false));
+        assertEquals(List.of("  "), Answer.splitAnswer("  ", false), "a blank reply is kept as it came");
+    }
+
+    // The model is asked for several values as one comma-separated string, so this is how many it gave
+    @Test
+    void splitsAMultiValuedReplyIntoAValueEach()
+    {
+        assertEquals(List.of("St Michael's", "Sunnybrook", "Mount Sinai"),
+            Answer.splitAnswer("St Michael's,  Sunnybrook , Mount Sinai", true));
+    }
+
+    // A model that answered with punctuation only still said something, and storing nothing would lose it
+    @Test
+    void keepsAReplyThatSplitsIntoNothingWholeInstead()
+    {
+        assertEquals(List.of(" , , "), Answer.splitAnswer(" , , ", true));
+    }
+
+    // What the form will compare against the stored values, so it has to be split the same way they were stored
+    @Test
+    void suggestsTheSameValuesAMultiValuedAnswerIsStoredAs() throws RepositoryException
+    {
+        final Answer answer = createAnswer("participatingSites", 0, "St Michael's, Sunnybrook");
+
+        assertEquals(List.of("St Michael's", "Sunnybrook"), answer.getSuggestedValues());
+    }
+
+    @Test
+    void suggestsASingleValuedAnswerWhole() throws RepositoryException
+    {
+        final Answer answer = createAnswer("sponsor", 1, "University Health Network, Toronto");
+
+        assertEquals(List.of("University Health Network, Toronto"), answer.getSuggestedValues());
+    }
+
+    @Test
+    void suggestsNothingWhenNoModelAnsweredAndWhenItNamedNoValue() throws RepositoryException
+    {
+        final Resource bare = this.context.create().resource("/Submissions/submission/unsuggested",
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
+        assertEquals(List.of(), bare.adaptTo(Answer.class).getSuggestedValues());
+
+        assertEquals(List.of(), createAnswer("valueless", 1, null).getSuggestedValues());
+    }
+
+    // A question that has gone from the schema leaves its answer behind; it is single-valued as far as anybody
+    // can now tell, which is the reading that cannot split something nobody can check
+    @Test
+    void suggestsWholeWhenTheQuestionCannotBeRead()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/orphan",
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/orphan/extraction0", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "one, two", "confidence", 0.9));
+
+        assertEquals(List.of("one, two"), resource.adaptTo(Answer.class).getSuggestedValues());
+    }
+
+    // A model names an option as a person reads it. What is stored, ticked and compared is the option's value,
+    // so the reply is matched to the option it names, by label or value and whatever the case.
+    @Test
+    void suggestsTheOptionAReplyNames() throws RepositoryException
+    {
+        final Answer answer = createAnswer("languages", 0, "English, FRENCH, Klingon");
+        option("languages", "english", "English");
+        option("languages", "french", "French");
+
+        assertEquals(List.of("english", "french", "Klingon"), answer.getSuggestedValues(),
+            "a language the question does not offer is kept as the model said it");
+    }
+
+    // Two categories can end up sharing a label after a rename; resolving to whichever happens to come
+    // first would risk silently storing the wrong one, so neither is picked
+    @Test
+    void keepsAReplyWhoseLabelMatchesMoreThanOneOption() throws RepositoryException
+    {
+        final Answer answer = createAnswer("languages", 0, "English");
+        option("languages", "en-ca", "English");
+        option("languages", "en-us", "English");
+
+        assertEquals(List.of("English"), answer.getSuggestedValues(),
+            "a label two options share cannot be resolved from the reply alone");
+    }
+
+    private void option(final String question, final String value, final String label)
+    {
+        this.context.create().resource("/Schemas/schema/1.0/" + question + "/" + value, Map.of(
+            RESOURCE_TYPE, AnswerOption.RESOURCE_TYPE, "value", value, "label", label));
+    }
+
+    /**
+     * An answer to a question of the given cardinality, carrying one extraction run.
+     *
+     * @param name what to call the question and the answer
+     * @param maxAnswers the most values the question takes; 0 for any number
+     * @param suggested what the model answered, or {@code null} for a run that named nothing
+     * @return the answer
+     */
+    private Answer createAnswer(final String name, final long maxAnswers, final String suggested)
+        throws RepositoryException
+    {
+        final String questionPath = "/Schemas/schema/1.0/" + name;
+        this.context.create().resource(questionPath, Map.of(
+            RESOURCE_TYPE, Question.RESOURCE_TYPE, "text", name, "maxAnswers", maxAnswers));
+        final Node questionNode = Mockito.mock(Node.class);
+        Mockito.when(questionNode.getPath()).thenReturn(questionPath);
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier(name)).thenReturn(questionNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
+        final Resource resource = this.context.create().resource("/Submissions/submission/" + name, Map.of(
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", name));
+        final Map<String, Object> run = suggested == null
+            ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
+            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested,
+                "confidence", 0.9);
+        this.context.create().resource("/Submissions/submission/" + name + "/extraction0", run);
+        return resource.adaptTo(Answer.class);
+    }
+
+    /** An extraction run's properties: what it read, how sure it was, and which revisions it read. */
+    private static Map<String, Object> run(final String answer, final double confidence, final String... sources)
+    {
+        return Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", answer, "confidence", confidence,
+            "sources", sources);
+    }
+
+    @SafeVarargs
+    private Resource answerWithRuns(final String name, final Map<String, Object>... runs)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name,
+            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
+        for (int i = 0; i < runs.length; ++i) {
+            this.context.create().resource(answer.getPath() + "/extraction" + i, runs[i]);
+        }
+        return answer;
+    }
+
+    /**
+     * A protocol with three revisions and a consent form with two, each revision referenceable by an identifier
+     * named after it.
+     */
+    private void registerRevisions()
+        throws RepositoryException
+    {
+        final Session session = Mockito.mock(Session.class);
+        for (final String document : List.of("protocol", "consent")) {
+            final String path = SUBMISSION_PATH + "/" + document;
+            this.context.create().resource(path, RESOURCE_TYPE, Document.RESOURCE_TYPE);
+            for (int number = 1; number <= ("protocol".equals(document) ? 3 : 2); ++number) {
+                final String version = path + "/v" + number;
+                this.context.create().resource(version, RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
+                final Node node = Mockito.mock(Node.class);
+                Mockito.when(node.getPath()).thenReturn(version);
+                Mockito.when(session.getNodeByIdentifier(document + "-v" + number)).thenReturn(node);
+            }
+        }
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 }

@@ -72,14 +72,17 @@ POST /parse?path=/shared-docs/.../file.pdf
 ```
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
-request body is ignored. The daemon also serves `GET /health`, and `POST /shutdown` when
-started with `--enable-shutdown`.
+request body is ignored. The daemon also serves `GET /health`, `POST /cancel?job_id=...`
+to stop an accepted parse (one not started is dropped; a PDF stops at its next check,
+every `ABANDON_POLL_SECONDS`, after the batches already running finish; a DOC or DOCX
+runs to the end; neither sends a callback), and `POST /shutdown` when started with
+`--enable-shutdown`.
 
-`/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
-header — nothing that legitimately drives the daemon is a web page, and loopback binding is
-no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` additionally
-requires it as a bearer token on those two endpoints. `GET /health` stays open so container
-probes need no credential.
+`/parse`, `/cancel` and `/shutdown` change state, so they refuse any request carrying an
+`Origin` header — nothing that legitimately drives the daemon is a web page, and loopback
+binding is no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN`
+additionally requires it as a bearer token on those endpoints. `GET /health` stays open so
+container probes need no credential.
 
 **Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a
 container the entrypoint has to bind `0.0.0.0`, because Docker forwards a published port no
@@ -125,7 +128,7 @@ failed to the caller — so no job is left waiting on a callback that will never
 
 | Module | Role |
 |---|---|
-| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
+| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `POST /cancel?job_id=...`, `GET /health`, `POST /shutdown` |
 | `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the configured callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → bookmark heading levels → write `{stem}.md` |
 | `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |

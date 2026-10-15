@@ -147,6 +147,12 @@ extension attributes wherever a version says its BPMN is authoritative, and set 
   finishes there, retiring whatever tag the host carries in the same category. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
 
+A service task's configuration reaches the stored node through the `properties` list of
+its vocabulary entry, `ServiceTask.json`: each line maps an `iap:` attribute to an
+activity property, and a trailing `[]` makes it a list, written comma-separated. A
+handler parameter with no line there is dropped when the diagram is parsed, and nothing
+reports it, so a new parameter needs a new line.
+
 ### The vocabulary
 
 `/WorkflowTypes` is the translation table between BPMN and the repository. Each
@@ -310,7 +316,7 @@ the execution has created, once it has created something, and on the target othe
 | --- | --- | --- |
 | `createEntity` | `entityType` | Creates an entity of that type under the target, named by camel-casing the event's `title` with a numeric suffix on collision, and reports its path in `createdPath`, which the servlet turns into a redirect |
 | `callActivity` | `message` | Runs the system workflow waiting for that event on the host, with the event's payload, before carrying on |
-| `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait |
+| `startWorkflow` | `workflowFrom`, `replaceActive` (optional) | Starts the content workflow a chain of references leads to, e.g. `schemaVersion/workflow`, and runs it to its first wait; with `replaceActive`, first cancels any active instance of the same workflow on the host |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
 | `removeTag` | `tag` | Removes the tag |
 | `updateContent` | `fields` (a child node listing the fields, with their `label`, `help`, `multiline`, `referenceType`, `referenceRoot`, `choices`, `appliesWhen`) | Applies the event's `patch` to what the execution created, or else the target |
@@ -330,14 +336,17 @@ authorized as if the user had sent it, and the caller is still answered with wha
 calling workflow created. Calls nest at most `MAX_SENT_EVENTS_DEPTH` (10) deep.
 
 `startWorkflow` is the equivalent for content workflows. It starts an instance on a
-newly created host, inside the calling workflow, and runs it until it first has to wait:
-at a user task, or at an end event if nothing needs a person. `workflowFrom` names the
-workflow version as a chain of reference properties from the host — for a submission,
-`schemaVersion/workflow`, its schema version and then that version's workflow. Naming
-the chain rather than hard-coding it keeps the workflows module from knowing what a
-submission is. A chain that breaks off or does not end on a workflow version starts
-nothing, which is not an error; a missing `workflowFrom`, an inactive version, or one
-without exactly one start event is a definition error.
+host, usually one the calling workflow just created, and runs it until it first has to
+wait: at a user task, or at an end event if nothing needs a person. With `replaceActive`
+set to `true`, it first cancels every active instance of the same workflow on the host,
+whatever its version, with the tasks it waits on, so a new start replaces an old one
+instead of running beside it. `workflowFrom` names the workflow version as a chain of
+reference properties from the host — for a submission, `schemaVersion/workflow`, its
+schema version and then that version's workflow. Naming the chain rather than
+hard-coding it keeps the workflows module from knowing what a submission is. A chain
+that breaks off or does not end on a workflow version starts nothing, which is not an
+error; a missing `workflowFrom`, an inactive version, or one without exactly one start
+event is a definition error.
 
 The tag tasks make a lifecycle content: a transition is a guarded event followed by an
 `addTag` with `replaceExisting`. They may place and remove `system` tags, and touch only
@@ -810,6 +819,7 @@ void             setVariable(String name, Object value);
 ResourceResolver getResourceResolver();
 void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
+void             startWorkflow(Resource host, WorkflowVersion version, boolean replaceActive);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);
@@ -828,6 +838,9 @@ fired the event. Two calls ask the engine for more within the same execution and
 `sendEvent` runs the system workflow waiting for an event, and `startWorkflow` starts an
 instance of a workflow on a resource. The built-in `callActivity` and `startWorkflow`
 handlers are thin over them.
+The three-argument `startWorkflow` is a default method: with `false` it calls the
+two-argument one, and with `true` it throws `UnsupportedOperationException` unless the
+context overrides it, as the engine's own does.
 
 The two helpers are what keeps a module's own handlers consistent with the built-in ones,
 which live privately in `internal.handlers`. `ExecutionHost.of` is what a task acts on:

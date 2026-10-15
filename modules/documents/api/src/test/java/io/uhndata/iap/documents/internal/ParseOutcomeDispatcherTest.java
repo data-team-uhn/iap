@@ -142,7 +142,7 @@ class ParseOutcomeDispatcherTest
 
         assertEquals(1, handler.seen.size());
         assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(JOB_ID)),
-            "left for somebody to look at");
+            "offered again on the next sweep");
     }
 
     @Test
@@ -185,24 +185,27 @@ class ParseOutcomeDispatcherTest
         assertTrue(handler.seen.isEmpty());
     }
 
+    // The sweep shares one session across every record, so a failed delete must not stay in it
     @Test
-    void keepsARecordItCannotDelete()
+    void keepsARecordItCannotDelete() throws PersistenceException
     {
         this.dispatcher.bindHandler(new RecordingHandler(true));
         final ResourceResolver undeletable = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
-            public void delete(final Resource resource) throws PersistenceException
+            public void commit() throws PersistenceException
             {
-                throw new PersistenceException("Not allowed to delete " + resource.getPath());
+                throw new PersistenceException("Not allowed to delete the record");
             }
         };
         final Resource job = completed(TARGET, MARKDOWN);
+        this.context.resourceResolver().commit();
 
         this.dispatcher.settle(undeletable, job);
 
         assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(JOB_ID)),
-            "a stale record is better than handing the outcome over twice");
+            "the record is kept, and the handler sees the outcome is already recorded");
+        assertFalse(this.context.resourceResolver().hasChanges(), "the failed delete is not left pending");
     }
 
     /** The same job node, with the size the daemon measured recorded on it. */

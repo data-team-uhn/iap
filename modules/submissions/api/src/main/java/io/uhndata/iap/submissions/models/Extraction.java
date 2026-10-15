@@ -58,6 +58,15 @@ public class Extraction extends EntityPart
     private String reasoning;
 
     @ValueMapValue
+    private boolean reviewed;
+
+    @ValueMapValue
+    private boolean evidenceRejected;
+
+    @ValueMapValue
+    private String[] replacedValue;
+
+    @ValueMapValue
     private Long editDistance;
 
     @ValueMapValue
@@ -83,6 +92,19 @@ public class Extraction extends EntityPart
             }
         }
         return result;
+    }
+
+    /**
+     * What the answer held before this run replaced it with what it read in a newer revision. Kept so the
+     * submitter can go back to it.
+     *
+     * @return a copy of the replaced value(s), or {@code null} when this run replaced nothing
+     */
+    @Nullable
+    public String[] getReplacedValue()
+    {
+        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
+        return this.replacedValue == null ? null : this.replacedValue.clone();
     }
 
     /**
@@ -119,10 +141,31 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Written when
-     * the submitter accepts or edits the extracted answer.
+     * Whether the submitter confirmed this answer. Editing the answer does not set it.
      *
-     * @return an edit distance, or {@code null} while nobody has acted on this run
+     * @return {@code true} once the submitter has confirmed it
+     */
+    public boolean isReviewed()
+    {
+        return this.reviewed;
+    }
+
+    /**
+     * Whether the submitter said the quoted passage does not support the answer. Separate from
+     * {@link #isReviewed()}: it is a verdict on the evidence, not on the answer, and settles nothing.
+     *
+     * @return {@code true} if the passage was reported as wrong
+     */
+    public boolean isEvidenceRejected()
+    {
+        return this.evidenceRejected;
+    }
+
+    /**
+     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Declared but
+     * not written yet: nothing measures it.
+     *
+     * @return an edit distance, or {@code null} when none was recorded, which is always for now
      */
     @Nullable
     public Long getEditDistance()
@@ -134,7 +177,7 @@ public class Extraction extends EntityPart
      * How far the submitter's own value ended up from the extracted answer, as a percentage of the extracted
      * answer's own length.
      *
-     * @return a percentage, or {@code null} while nobody has acted on this run
+     * @return a percentage, or {@code null} when none was recorded, which is always for now
      */
     @Nullable
     public Double getPercentageDistance()
@@ -154,10 +197,10 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter has acted on this run, which is what an edit distance records. A distance of zero
-     * means the extracted answer was accepted as it stood; anything higher means it was edited or replaced.
+     * Whether the submitter has acted on this run, read from the edit distance. A distance of zero would mean the
+     * extracted answer was accepted as it stood. Nothing writes that distance yet, so this is {@code false} for now.
      *
-     * @return {@code true} once the submitter has accepted or edited the extracted answer
+     * @return {@code true} when an edit distance was recorded
      */
     public boolean isActedOn()
     {

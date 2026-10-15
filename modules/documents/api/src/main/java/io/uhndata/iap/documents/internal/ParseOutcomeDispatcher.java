@@ -71,8 +71,8 @@ public class ParseOutcomeDispatcher
 
     /**
      * Tell the handlers how a job ended, and delete its record when one of them took the outcome. A record that
-     * cannot be deleted is left where it is: the outcome was taken, and a stale record is better than a retry
-     * that hands it over twice.
+     * cannot be deleted is left where it is, and the sweep offers it again; the handler sees it is already
+     * recorded.
      *
      * @param resolver the session the job node was read through, which is also what deletes it
      * @param jobNode the settled job, its outcome already recorded and committed
@@ -96,7 +96,7 @@ public class ParseOutcomeDispatcher
             }
         }
         if (!taken) {
-            LOGGER.warn("No handler took the outcome of parse job {}; its record is left for somebody to look at",
+            LOGGER.warn("No handler took the outcome of parse job {}; it is offered again on the next sweep",
                 outcome.jobId());
             return;
         }
@@ -105,6 +105,8 @@ public class ParseOutcomeDispatcher
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot delete the record of parse job {}: {}", outcome.jobId(), e.getMessage(), e);
+            // The sweep goes on with this session, and a failed delete left in it would fail every later commit
+            resolver.revert();
         }
     }
 
