@@ -19,6 +19,7 @@ package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.Objects;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -26,6 +27,7 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -35,10 +37,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that removes the document attached for a requirement, with all its versions.
+ * The service task that removes what was uploaded for a requirement: every version of its document, and the title the
+ * last upload gave it.
  *
- * <p>Under the same rule as attaching: the person who raised the request, while it is still a draft. The whole
- * document goes, since removing says the file was wrong, not that it has a history worth keeping.</p>
+ * <p>Under the same rule as attaching: the person who raised the request, while it is still a draft. Every version
+ * goes, since removing says the file was wrong, not that it has a history worth keeping. The document stays, empty,
+ * as the requirement's part.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,6 +85,11 @@ public class DetachDocumentHandler implements ServiceTaskHandler
         final Resource document = Objects.requireNonNull(resolver.getResource(attached.getPath()),
             "A document the submission just listed can be read by the same resolver");
         VersioningUtils.checkOut(target);
-        resolver.delete(document);
+        for (final DocumentVersion version : attached.getVersions()) {
+            resolver.delete(Objects.requireNonNull(resolver.getResource(version.getPath()),
+                "A version the document just listed can be read by the same resolver"));
+        }
+        Objects.requireNonNull(document.adaptTo(ModifiableValueMap.class),
+            "A document read through a writing resolver is always modifiable").remove("title");
     }
 }
