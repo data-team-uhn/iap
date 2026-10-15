@@ -217,8 +217,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     {
         final String existing = answers.get(question.getPath());
         if (existing == null && values.length == 0) {
-            // Clearing a question nobody has answered. Creating the node anyway would store nothing, count
-            // towards the answers the submission reports, and hold its question against deletion for ever
+            // Clearing a question that has no answer yet. Its empty answer is markCompleteness's to create
             return;
         }
         if (existing != null) {
