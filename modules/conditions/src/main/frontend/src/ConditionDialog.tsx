@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import { Alert, Box, Button, DialogActions, DialogContent, Stack } from "@mui/material";
+import { Alert, Box, Button, DialogActions, DialogContent, LinearProgress, Stack } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -26,31 +26,31 @@ import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 import AppliesWhenLine from "./AppliesWhenLine";
-import ConditionBuilder, { type OperandEditors } from "./ConditionBuilder";
-import {
-  contentOf, draftOf, fingerprintOf, isComplete, type OperandSource, whenDraftApplies,
-} from "./conditionModel";
+import ConditionBuilder from "./ConditionBuilder";
+import { contentOf, draftOf, fingerprintOf, isComplete, whenDraftApplies } from "./conditionModel";
+import { useConditionTypes } from "./conditionTypes";
 
 interface ConditionDialogProps {
   title: string;
   // The condition as stored, if there is one
   condition?: SerializedNode;
-  sources: OperandSource[];
-  editors?: OperandEditors;
+  // The content the condition is on, which decides what it can name
+  path: string;
   onClose: () => void;
   // Given the condition to write, or null to remove it
   onSave: (condition: SerializedNode | null) => Promise<unknown>;
 }
 
 // Edits a condition whole, saying as it changes when what it guards will apply
-function ConditionDialog({ title, condition, sources, editors, onClose, onSave }: ConditionDialogProps) {
+function ConditionDialog({ title, condition, path, onClose, onSave }: ConditionDialogProps) {
+  const types = useConditionTypes(path);
   const [ draft, setDraft ] = useState(() => draftOf(condition));
   const [ initial ] = useState(() => fingerprintOf(draft));
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
   const [ clearing, setClearing ] = useState(false);
 
-  const complete = isComplete(draft, sources);
-  const content = contentOf(draft, sources);
+  const complete = types !== undefined && isComplete(draft, types);
+  const content = types && contentOf(draft, types);
   const changed = fingerprintOf(draft) !== initial;
 
   return (
@@ -59,10 +59,12 @@ function ConditionDialog({ title, condition, sources, editors, onClose, onSave }
         <Stack spacing={2}>
           <Box aria-live="polite">
             { complete && draft.conditions.length > 0 && (
-              <AppliesWhenLine>{whenDraftApplies(draft, sources) ?? "Always applies."}</AppliesWhenLine>
+              <AppliesWhenLine>{whenDraftApplies(draft, types) ?? "Always applies."}</AppliesWhenLine>
             ) }
           </Box>
-          <ConditionBuilder draft={draft} onChange={setDraft} sources={sources} editors={editors} disabled={working} />
+          { types
+            ? <ConditionBuilder draft={draft} onChange={setDraft} types={types} disabled={working} />
+            : <LinearProgress aria-label="Loading what conditions can say" /> }
           { failure && <Alert severity="error">{failure}</Alert> }
         </Stack>
       </DialogContent>
@@ -80,7 +82,7 @@ function ConditionDialog({ title, condition, sources, editors, onClose, onSave }
         <Button variant="contained" disabled={working || !complete || !changed} loading={working && !clearing}
           onClick={() => {
             setClearing(false);
-            run(() => onSave(content));
+            run(() => onSave(content ?? null));
           }}>
           { working && !clearing ? "Saving…" : "Save" }
         </Button>

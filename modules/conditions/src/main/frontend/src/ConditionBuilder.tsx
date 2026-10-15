@@ -23,40 +23,22 @@ import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import {
-  Box, Button, Chip, IconButton, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Autocomplete, Box, Button, Chip, IconButton, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from "@mui/material";
 
+import CodePill from "@iap/frontend-commons/components/CodePill";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import {
-  aggregatesFor, type Choice, choicesOf, comparatorOf, comparatorsFor, describeDraft, type DraftCondition,
-  type DraftGroup, type DraftOperand, type DraftSingle, isChosen, isComplete, LITERAL, newGroup, newOperand,
-  newSingle, type OperandSource, secondShapeOf, shapeOf, sourceOf, valuesTaken, withCurrent,
+  aggregatesFor, type Choice, choicesOf, comparatorOf, comparatorsFor, type ConditionTypes, describeDraft,
+  type DraftCondition, type DraftGroup, type DraftOperand, type DraftSingle, isChosen, isComplete, LITERAL, newGroup,
+  newOperand, newSingle, secondShapeOf, shapeOf, sourceOf, valuesTaken, withCurrent,
 } from "./conditionModel";
 import OperandValueInput from "./OperandValueInput";
 
-/** What a source's operand names, entered as the source offering it asks, e.g. a question picked from a list. */
-export interface OperandEditorProps {
-  /** The input's label: the source's `valueLabel`, such as "Question". */
-  label: string;
-  /** What the operand names now; empty when nothing has been chosen. */
-  value: string[];
-  disabled: boolean;
-  required: boolean;
-  /** Called with what the operand names once it changes. */
-  onChange: (value: string[]) => void;
-}
-
-/**
- * The input for each source's operands, by the source's name. A source without one gets a text field. Each is a
- * function rather than a component, so that a new function, knowing something new, does not remount the input.
- */
-export type OperandEditors = Partial<Record<string, (props: OperandEditorProps) => ReactNode>>;
-
 /** What every editor in the builder is given, passed down unchanged from the builder's own props. */
 interface Common {
-  sources: OperandSource[];
-  editors: OperandEditors;
+  types: ConditionTypes;
   disabled: boolean;
 }
 
@@ -92,10 +74,13 @@ function ChoiceSelect({ label, value, choices, disabled, onChange }: ChoiceSelec
   );
 }
 
+/** The sources the builder offers as something to compare. */
+const offeredOf = (types: ConditionTypes) => types.sources.filter(source => source.offered !== false);
+
 interface SourceSelectProps {
   label: string;
   value: string;
-  sources: OperandSource[];
+  types: ConditionTypes;
   /** The label of the choice to give values directly, when the operand may. */
   literal?: string;
   disabled: boolean;
@@ -104,16 +89,18 @@ interface SourceSelectProps {
 }
 
 /**
- * The menu picking where an operand's values come from. Giving values directly comes first, when the operand may. A
- * source not among those offered is kept and shown by its name.
+ * The menu picking where an operand's values come from: the sources offered, after giving values directly when the
+ * operand may. A source not offered, or not known, is kept when it is the current one.
  */
-function SourceSelect({ label, value, sources, literal, disabled, onChange }: SourceSelectProps) {
-  const offered = [ ...literal ? [ { name: LITERAL, label: literal } ] : [], ...sources ];
+function SourceSelect({ label, value, types, literal, disabled, onChange }: SourceSelectProps) {
+  const offered = [ ...literal ? [ { name: LITERAL, label: literal } ] : [], ...offeredOf(types) ];
   return (
     <ChoiceSelect label={label} value={value} disabled={disabled} onChange={onChange}
-      choices={withCurrent(offered.map(source => ({ value: source.name, label: source.label })), value)} />
+      choices={withCurrent(offered.map(source => ({ value: source.name, label: source.label })), value,
+        name => sourceOf(types, name)?.label ?? name)} />
   );
 }
+
 
 interface NamedValueProps extends Common {
   operand: DraftOperand;
@@ -121,20 +108,36 @@ interface NamedValueProps extends Common {
 }
 
 /**
- * The input for what an operand names, when its source reads something named, such as a question. It is the
- * source's own editor when it has one, and otherwise a text field. A source naming nothing gets no input.
+ * The input for what an operand names, when its source reads something named, such as a question: picked among the
+ * source's candidates when it lists them, and typed otherwise. A source naming nothing gets no input.
  */
-function NamedValue({ operand, sources, editors, disabled, onChange }: NamedValueProps) {
-  const label = sourceOf(sources, operand.source)?.valueLabel;
+function NamedValue({ operand, types, disabled, onChange }: NamedValueProps) {
+  const source = sourceOf(types, operand.source);
+  const label = source?.valueLabel;
   if (label === undefined) {
     return null;
   }
-  const editor = editors[operand.source];
-  if (editor) {
-    return editor({ label, value: operand.value, disabled, required: true, onChange });
+  const current = operand.value.at(0);
+  if (source?.candidates) {
+    const choices: Choice[] = withCurrent(source.candidates, current);
+    const labelOf = (value: string) => choices.find(choice => choice.value === value)?.label ?? value;
+    return (
+      <Autocomplete<string> options={choices.map(choice => choice.value)} getOptionLabel={labelOf}
+        value={current ?? null} disabled={disabled} onChange={(_event, picked) => onChange(picked ? [ picked ] : [])}
+        renderOption={({ key, ...props }, value) => {
+          const detail = choices.find(choice => choice.value === value)?.detail;
+          return (
+            <Box component="li" key={key} {...props} sx={{ gap: 1, flexWrap: "wrap" }}>
+              <Typography>{labelOf(value)}</Typography>
+              { detail && <CodePill name={detail} /> }
+            </Box>
+          );
+        }}
+        renderInput={params => <TextField {...params} label={label} required />} />
+    );
   }
   return (
-    <TextField required fullWidth label={label} value={operand.value.at(0) ?? ""} disabled={disabled}
+    <TextField required fullWidth label={label} value={current ?? ""} disabled={disabled}
       onChange={event => onChange(event.target.value === "" ? [] : [ event.target.value ])} />
   );
 }
@@ -155,24 +158,24 @@ interface SingleEditorProps extends Common {
  * and the values asked for, fit what is compared. A unary comparison such as "is empty" hides the last row.
  */
 function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditorProps) {
-  const { sources, disabled } = common;
+  const { types, disabled } = common;
   const { a, b } = condition;
-  const shape = shapeOf(a, sources);
-  const aggregates = aggregatesFor(shapeOf({ ...a, aggregate: undefined }, sources));
-  const offered = comparatorsFor(shape);
-  const comparator = comparatorOf(condition.comparator);
+  const shape = shapeOf(a, types);
+  const aggregates = aggregatesFor(types, shapeOf({ ...a, aggregate: undefined }, types));
+  const offered = comparatorsFor(types, shape);
+  const comparator = comparatorOf(types, condition.comparator);
   const phone = usePhone();
   const taken = valuesTaken(comparator, shape);
-  const waiting = disabled || !isChosen(a, sources);
+  const waiting = disabled || !isChosen(a, types);
   // Opens the values' choices as soon as what is compared has been chosen
   const [ justChosen, setJustChosen ] = useState(false);
 
   // A new first operand clears the values it is compared with, or sets "Yes" for a yes or no
   const withA = (next: DraftOperand) => {
-    const nextShape = shapeOf(next, sources);
-    const kept = comparatorsFor(nextShape).some(item => item.name === condition.comparator)
+    const nextShape = shapeOf(next, types);
+    const kept = comparatorsFor(types, nextShape).some(item => item.name === condition.comparator)
       || comparator === undefined;
-    setJustChosen(isChosen(next, sources) && choicesOf(nextShape).length > 0);
+    setJustChosen(isChosen(next, types) && choicesOf(nextShape).length > 0);
     onChange({ ...condition, a: next, comparator: kept ? condition.comparator : "equals",
       b: b.source === LITERAL ? { ...newOperand(), value: nextShape.type === "boolean" ? [ "true" ] : [] } : b });
   };
@@ -180,7 +183,7 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
   const withComparator = (name: string) => {
     setJustChosen(false);
     onChange({ ...condition, comparator: name,
-      b: b.source === LITERAL && valuesTaken(comparatorOf(name), shape) === "one"
+      b: b.source === LITERAL && valuesTaken(comparatorOf(types, name), shape) === "one"
         ? { ...b, value: b.value.slice(0, 1) } : b });
   };
 
@@ -191,10 +194,10 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
       <Stack spacing={2.5} sx={{ flex: 1, minWidth: 0 }}>
         <Row>
           <Box sx={NARROW}>
-            <SourceSelect label="Compare" value={a.source} sources={sources} disabled={disabled}
+            <SourceSelect label="Compare" value={a.source} types={types} disabled={disabled}
               onChange={source => withA(newOperand(source))} />
           </Box>
-          { sourceOf(sources, a.source)?.valueLabel !== undefined && (
+          { sourceOf(types, a.source)?.valueLabel !== undefined && (
             <Box sx={WIDE}>
               <NamedValue {...common} operand={a} onChange={value => withA({ ...a, value })} />
             </Box>
@@ -212,14 +215,14 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
           <Box sx={NARROW}>
             <ChoiceSelect label="Comparison" value={condition.comparator} disabled={disabled}
               choices={withCurrent(offered.map(item => ({ value: item.name, label: item.phrase })),
-                condition.comparator, name => comparatorOf(name)?.phrase ?? name)}
+                condition.comparator, name => comparatorOf(types, name)?.phrase ?? name)}
               onChange={withComparator} />
           </Box>
         </Row>
         { taken !== "none" && (
           <Row>
             <Box sx={NARROW}>
-              <SourceSelect label="Compared with" value={b.source} sources={sources} disabled={disabled}
+              <SourceSelect label="Compared with" value={b.source} types={types} disabled={disabled}
                 literal={taken === "several" ? "Specific values" : "A specific value"}
                 onChange={source => onChange({ ...condition, b: newOperand(source) })} />
             </Box>
@@ -228,7 +231,7 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
                 ? (
                   <OperandValueInput key={a.value.at(0)} label={taken === "several" ? "Values" : "Value"} required
                     open={justChosen}
-                    shape={secondShapeOf(condition, sources)} several={taken === "several"} value={b.value}
+                    shape={secondShapeOf(condition, types)} several={taken === "several"} value={b.value}
                     disabled={waiting} onChange={value => {
                       setJustChosen(false);
                       onChange({ ...condition, b: { ...b, value } });
@@ -268,11 +271,11 @@ interface GroupEditorProps extends Common {
 }
 
 /** What a collapsed group shows instead of its conditions: the group in words, once every condition is complete. */
-function summaryOf(group: DraftGroup, sources: OperandSource[]): string {
+function summaryOf(group: DraftGroup, types: ConditionTypes): string {
   if (group.conditions.length === 0) {
     return "No condition yet.";
   }
-  return isComplete(group, sources) ? describeDraft(group, sources) : "Some of these are not complete yet.";
+  return isComplete(group, types) ? describeDraft(group, types) : "Some of these are not complete yet.";
 }
 
 /**
@@ -282,9 +285,9 @@ function summaryOf(group: DraftGroup, sources: OperandSource[]): string {
  * with one condition.
  */
 function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEditorProps) {
-  const { sources, disabled } = common;
+  const { types, disabled } = common;
   const [ open, setOpen ] = useState(true);
-  const first = sources.at(0)?.name ?? LITERAL;
+  const first = offeredOf(types).at(0)?.name ?? LITERAL;
   const nested = depth > 0;
   const phone = usePhone();
   const joinColumnWidth = phone ? PHONE_JOIN_COLUMN_WIDTH : JOIN_COLUMN_WIDTH;
@@ -330,8 +333,8 @@ function GroupEditor({ group, depth, onChange, onRemove, ...common }: GroupEdito
         </Stack>
       ) }
       {/* At the top, the dialog's own line already reads out a complete condition */}
-      { !open && (nested || !isComplete(group, sources)) && (
-        <Typography variant="description" sx={{ px: 1 }}>{summaryOf(group, sources)}</Typography>
+      { !open && (nested || !isComplete(group, types)) && (
+        <Typography variant="description" sx={{ px: 1 }}>{summaryOf(group, types)}</Typography>
       ) }
       { open && !nested && group.conditions.length === 0 && (
         <Typography variant="placeholder">No condition. It always applies.</Typography>
@@ -395,10 +398,8 @@ interface ConditionBuilderProps {
   draft: DraftGroup;
   /** Called with the whole draft after each edit. Whether it can be written is for `isComplete` to say. */
   onChange: (draft: DraftGroup) => void;
-  /** Where the operands' values may come from, the first one offered first. */
-  sources: OperandSource[];
-  /** How the operands of some sources name what they read, when not as text. */
-  editors?: OperandEditors;
+  /** What conditions can say here, as `useConditionTypes` reads it: the first source offered comes first. */
+  types: ConditionTypes;
   /** Shows the condition without letting it change. */
   disabled?: boolean;
 }
@@ -408,10 +409,9 @@ interface ConditionBuilderProps {
  * what a source reads with values of the type it holds, or with what another source reads. The builder holds no
  * draft of its own: the caller keeps it, and writes it with `contentOf`.
  */
-function ConditionBuilder({ draft, onChange, sources, editors = {}, disabled = false }: ConditionBuilderProps) {
+function ConditionBuilder({ draft, onChange, types, disabled = false }: ConditionBuilderProps) {
   return (
-    <GroupEditor group={draft} depth={0} onChange={onChange} sources={sources} editors={editors}
-      disabled={disabled} />
+    <GroupEditor group={draft} depth={0} onChange={onChange} types={types} disabled={disabled} />
   );
 }
 

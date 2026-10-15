@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -25,13 +25,12 @@ import { type SystemStyleObject } from "@mui/system";
 
 import AppliesWhenLine from "@iap/conditions/AppliesWhenLine";
 import { whenApplies } from "@iap/conditions/conditionModel";
-import { useTagChoices } from "@iap/conditions/useTagChoices";
+import { useConditionTypes } from "@iap/conditions/conditionTypes";
 import CodePill from "@iap/frontend-commons/components/CodePill";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
-import { offeredOf, schemaSources } from "./conditionModel";
 import { nameIfAny, nameOf, pathOf } from "./schemaModel";
 import {
   MoveMode, MoveSpot, useMoveHighlight,
@@ -42,10 +41,9 @@ import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import { ReloadTree } from "./schemaTree";
 import { EXPANDER_COLUMN, ICON_COLUMN, TOUCH_REACH } from "./schemaTreeLayout";
 import {
-  conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
+  conditionOf, detailOf, headingOf, isQuestion, optionsOf, resourceTypeOf, partsOf,
 } from "./schemaVersionTreeModel";
 import { useConditionEditor } from "./useConditionEditor";
-import { useOptionsFrom } from "./useOptionsFrom";
 import { useVersionConditions, VersionConditionsContext } from "./versionConditions";
 
 // One of a part's chips
@@ -73,8 +71,8 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);
   const condition = conditionOf(part);
-  const { sources } = useVersionConditions();
-  const when = condition && whenApplies(condition, sources);
+  const types = useVersionConditions();
+  const when = condition && types && whenApplies(condition, types);
   const conditionEditor = useConditionEditor(part, type.label.toLowerCase());
   const description = detailOf(part, "description");
   const details = type.details?.(part) ?? null;
@@ -196,13 +194,7 @@ interface SchemaVersionTreeProps {
 
 // Everything a version asks of a submission, in the order it asks it.
 function SchemaVersionTree({ version, reload }: SchemaVersionTreeProps) {
-  const tags = useTagChoices();
-  const index = useMemo(() => indexQuestions(version), [ version ]);
-  const items = useOptionsFrom(index);
-  const conditions = useMemo(() => {
-    const sources = schemaSources(index, tags, items);
-    return { index, sources, offered: offeredOf(sources) };
-  }, [ index, tags, items ]);
+  const conditions = useConditionTypes(pathOf(version));
   const parts = partsOf(version);
   return (
     <ReloadTree value={reload}>

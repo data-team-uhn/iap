@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-// Reading and editing conditions as the conditions module stores them (see docs/conditions.md). This holds the
-// catalogs of comparators and aggregates, and what an operand holds. It turns a stored condition into a draft a
-// builder edits, a draft into the content a replaceContent event writes, and either into words. Operand sources are
-// pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
+// Reading and editing conditions as the conditions module stores them (see docs/conditions.md). It turns a stored
+// condition into a draft a builder edits, a draft into the content a replaceContent event writes, and either into
+// words. What a condition can compare, and how, comes from the server's catalogue (see conditionTypes.ts), so nothing
+// here lists a comparator, an aggregate or a source. No React, no fetch.
 
 import { isDecimalNumber, isWholeNumber } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
@@ -33,6 +33,8 @@ export interface Choice {
   value: string;
   /** What the list shows for it. */
   label: string;
+  /** What tells it apart from another called the same, shown beside it, e.g. a question's identifier. */
+  detail?: string;
 }
 
 /**
@@ -88,22 +90,6 @@ export interface Comparator {
   sets?: boolean;
 }
 
-/** Every comparator the conditions module evaluates, in the order a builder offers them. */
-export const COMPARATORS: Comparator[] = [
-  { name: "equals", phrase: "is" },
-  { name: "not equals", phrase: "is not" },
-  { name: "less than", phrase: "is less than", ordering: true },
-  { name: "less or equal", phrase: "is at most", ordering: true },
-  { name: "greater than", phrase: "is more than", ordering: true },
-  { name: "greater or equal", phrase: "is at least", ordering: true },
-  { name: "is empty", phrase: "is empty", unary: true },
-  { name: "is not empty", phrase: "is not empty", unary: true },
-  { name: "includes", phrase: "includes all of", singleValuePhrase: "includes", sets: true },
-  { name: "includes any", phrase: "includes any of", singleValuePhrase: "includes", sets: true },
-  { name: "excludes", phrase: "includes none of", singleValuePhrase: "does not include", sets: true },
-  { name: "excludes any", phrase: "does not include all of", singleValuePhrase: "does not include", sets: true },
-];
-
 /**
  * A way to fold an operand's values into one, such as counting them. The result is of the type the aggregate outputs:
  * a fixed one, or the type of the values it folds ("same").
@@ -121,10 +107,13 @@ export interface Aggregate {
   output: ValueType | "same";
 }
 
-/** Every aggregate the conditions module evaluates. */
-export const AGGREGATES: Aggregate[] = [
-  { name: "count", label: "The number of values", phrase: "the number of values in", accepts: "any", output: "long" },
-];
+/** What conditions can say, for the content a condition is on, as the server's catalogue lists it. */
+export interface ConditionTypes {
+  comparators: Comparator[];
+  aggregates: Aggregate[];
+  /** Every source but the literal one, in the order the builder offers them. */
+  sources: OperandSource[];
+}
 
 /** The source of an operand whose values are written in the condition itself. A stored operand without one has it. */
 export const LITERAL = "literal";
@@ -151,22 +140,25 @@ export const choicesOf = (shape: OperandShape): Choice[] =>
 const ORDERED: ValueType[] = [ "long", "double", "decimal", "date" ];
 
 /** The comparator of that name, or undefined when this model does not know it. */
-export const comparatorOf = (name: string): Comparator | undefined => COMPARATORS.find(item => item.name === name);
+export const comparatorOf = (types: ConditionTypes, name: string): Comparator | undefined =>
+  types.comparators.find(item => item.name === name);
 
 /** The aggregate of that name, or undefined when there is none or this model does not know it. */
-export const aggregateOf = (name?: string): Aggregate | undefined => AGGREGATES.find(item => item.name === name);
+export const aggregateOf = (types: ConditionTypes, name?: string): Aggregate | undefined =>
+  types.aggregates.find(item => item.name === name);
 
 /**
  * The comparators that can hold for an operand of this shape. An ordering needs an operand holding one value, of a
  * type with an order when the type is known. A set comparison needs an operand that may hold several.
  */
-export const comparatorsFor = (shape: OperandShape): Comparator[] => COMPARATORS.filter(comparator =>
-  (!comparator.ordering || (shape.multiple !== true && (shape.type === undefined || ORDERED.includes(shape.type))))
-  && (!comparator.sets || shape.multiple !== false));
+export const comparatorsFor = (types: ConditionTypes, shape: OperandShape): Comparator[] =>
+  types.comparators.filter(comparator =>
+    (!comparator.ordering || (shape.multiple !== true && (shape.type === undefined || ORDERED.includes(shape.type))))
+    && (!comparator.sets || shape.multiple !== false));
 
 /** The aggregates that can fold an operand of this shape. Only an operand holding several values has any. */
-export const aggregatesFor = (shape: OperandShape): Aggregate[] => (shape.multiple !== true ? [] : AGGREGATES
-  .filter(aggregate => aggregate.accepts === "any"
+export const aggregatesFor = (types: ConditionTypes, shape: OperandShape): Aggregate[] =>
+  (shape.multiple !== true ? [] : types.aggregates.filter(aggregate => aggregate.accepts === "any"
     || (shape.type !== undefined && aggregate.accepts.includes(shape.type))));
 
 /** What an operand of this shape holds once folded by the aggregate: one value. Without an aggregate, the shape. */
@@ -340,49 +332,49 @@ export function draftOf(condition?: SerializedNode): DraftGroup {
 // ---- What operands hold, and whether a draft can be written
 
 /** The source of that name, or undefined when none of the sources has it. */
-export const sourceOf = (sources: OperandSource[], name: string): OperandSource | undefined =>
-  sources.find(source => source.name === name);
+export const sourceOf = (types: ConditionTypes, name: string): OperandSource | undefined =>
+  types.sources.find(source => source.name === name);
 
 /** What an operand holds, as its source says, folded when it names an aggregate. A literal says nothing. */
-export function shapeOf(operand: DraftOperand, sources: OperandSource[]): OperandShape {
-  const shape = sourceOf(sources, operand.source)?.shape(operand.value) ?? {};
-  return aggregated(shape, aggregateOf(operand.aggregate));
+export function shapeOf(operand: DraftOperand, types: ConditionTypes): OperandShape {
+  const shape = sourceOf(types, operand.source)?.shape(operand.value) ?? {};
+  return aggregated(shape, aggregateOf(types, operand.aggregate));
 }
 
 /** What the second operand holds. A literal holds what the first operand holds; another source says for itself. */
-export const secondShapeOf = (condition: DraftSingle, sources: OperandSource[]): OperandShape =>
-  (condition.b.source === LITERAL ? shapeOf(condition.a, sources) : shapeOf(condition.b, sources));
+export const secondShapeOf = (condition: DraftSingle, types: ConditionTypes): OperandShape =>
+  (condition.b.source === LITERAL ? shapeOf(condition.a, types) : shapeOf(condition.b, types));
 
 /** Whether an operand reads from a source whose value names something, such as a question. */
-const named = (operand: DraftOperand, sources: OperandSource[]): boolean =>
-  operand.source !== LITERAL && sourceOf(sources, operand.source)?.valueLabel !== undefined;
+const named = (operand: DraftOperand, types: ConditionTypes): boolean =>
+  operand.source !== LITERAL && sourceOf(types, operand.source)?.valueLabel !== undefined;
 
 /** Whether what an operand reads has been chosen: a source other than a literal, and what it names, if anything. */
-export const isChosen = (operand: DraftOperand, sources: OperandSource[]): boolean =>
-  operand.source !== LITERAL && (!named(operand, sources) || operand.value.length > 0);
+export const isChosen = (operand: DraftOperand, types: ConditionTypes): boolean =>
+  operand.source !== LITERAL && (!named(operand, types) || operand.value.length > 0);
 
 /** Whether the second operand gives the comparator all it needs: nothing, a chosen source, or valid values. */
-function secondIsComplete(condition: DraftSingle, sources: OperandSource[]): boolean {
-  const taken = valuesTaken(comparatorOf(condition.comparator), shapeOf(condition.a, sources));
+function secondIsComplete(condition: DraftSingle, types: ConditionTypes): boolean {
+  const taken = valuesTaken(comparatorOf(types, condition.comparator), shapeOf(condition.a, types));
   if (taken === "none") {
     return true;
   }
   if (condition.b.source !== LITERAL) {
-    return isChosen(condition.b, sources);
+    return isChosen(condition.b, types);
   }
-  const type = secondShapeOf(condition, sources).type;
+  const type = secondShapeOf(condition, types).type;
   return (taken === "one" ? condition.b.value.length === 1 : condition.b.value.length > 0)
     && condition.b.value.every(value => valueProblem(value, type) === undefined);
 }
 
 /** Whether a condition can be written. A group must not be empty. An unknown condition blocks writing. */
-function isCompleteCondition(condition: DraftCondition, sources: OperandSource[]): boolean {
+function isCompleteCondition(condition: DraftCondition, types: ConditionTypes): boolean {
   switch (condition.kind) {
     case "single":
-      return isChosen(condition.a, sources) && secondIsComplete(condition, sources);
+      return isChosen(condition.a, types) && secondIsComplete(condition, types);
     case "group":
       return condition.conditions.length > 0
-        && condition.conditions.every(child => isCompleteCondition(child, sources));
+        && condition.conditions.every(child => isCompleteCondition(child, types));
     case "unknown":
       return false;
   }
@@ -392,8 +384,8 @@ function isCompleteCondition(condition: DraftCondition, sources: OperandSource[]
  * Whether a draft can be written: each condition says all it needs to, and each group below the top holds some. The
  * top may be empty, for no condition at all.
  */
-export const isComplete = (draft: DraftGroup, sources: OperandSource[]): boolean =>
-  draft.conditions.every(condition => isCompleteCondition(condition, sources));
+export const isComplete = (draft: DraftGroup, types: ConditionTypes): boolean =>
+  draft.conditions.every(condition => isCompleteCondition(condition, types));
 
 /** What a draft says, whatever its conditions' ids. Two drafts saying the same thing have the same fingerprint. */
 export const fingerprintOf = (draft: DraftGroup): string =>
@@ -423,22 +415,22 @@ function operandContent(operand: DraftOperand, shape: OperandShape): SerializedN
 }
 
 /** The node to write for a condition, its children named `condition1`, `condition2` and so on. */
-function conditionContent(condition: DraftSingle | DraftGroup, sources: OperandSource[]): SerializedNode {
+function conditionContent(condition: DraftSingle | DraftGroup, types: ConditionTypes): SerializedNode {
   if (condition.kind === "group") {
     return {
       "jcr:primaryType": "cond:ConditionGroup",
       "requireAll": condition.requireAll,
       ...Object.fromEntries(condition.conditions
         .filter(child => child.kind !== "unknown")
-        .map((child, at) => [ `condition${at + 1}`, conditionContent(child, sources) ])),
+        .map((child, at) => [ `condition${at + 1}`, conditionContent(child, types) ])),
     };
   }
-  const unary = comparatorOf(condition.comparator)?.unary === true;
+  const unary = comparatorOf(types, condition.comparator)?.unary === true;
   return {
     "jcr:primaryType": "cond:SingleCondition",
     "comparator": condition.comparator,
     "operandA": operandContent(condition.a, {}),
-    ...!unary && { operandB: operandContent(condition.b, secondShapeOf(condition, sources)) },
+    ...!unary && { operandB: operandContent(condition.b, secondShapeOf(condition, types)) },
   };
 }
 
@@ -446,11 +438,11 @@ function conditionContent(condition: DraftSingle | DraftGroup, sources: OperandS
  * The condition to write for a draft, as the content of a replaceContent event.
  *
  * @param draft a draft that `isComplete` accepts
- * @param sources the sources its operands may read from, which give the literals their types
+ * @param types what conditions can say, whose sources give the literals their types
  * @returns a `cond:ConditionGroup` node, or null for a draft holding nothing, which always applies
  */
-export const contentOf = (draft: DraftGroup, sources: OperandSource[]): SerializedNode | null =>
-  (draft.conditions.length === 0 ? null : conditionContent(draft, sources));
+export const contentOf = (draft: DraftGroup, types: ConditionTypes): SerializedNode | null =>
+  (draft.conditions.length === 0 ? null : conditionContent(draft, types));
 
 // ---- Reading
 
@@ -458,10 +450,10 @@ export const contentOf = (draft: DraftGroup, sources: OperandSource[]): Serializ
 const quoted = (value: string): string => (/^-?\d+(\.\d+)?$/.test(value) ? value : `“${value}”`);
 
 /** An operand in words. `compared` is what the other side holds, whose choices label a literal's values. */
-function describeOperand(operand: DraftOperand, sources: OperandSource[], compared?: OperandShape): string {
-  const source = operand.source === LITERAL ? undefined : sourceOf(sources, operand.source);
+function describeOperand(operand: DraftOperand, types: ConditionTypes, compared?: OperandShape): string {
+  const source = operand.source === LITERAL ? undefined : sourceOf(types, operand.source);
   if (source) {
-    const aggregate = aggregateOf(operand.aggregate);
+    const aggregate = aggregateOf(types, operand.aggregate);
     const described = source.describe(operand.value);
     return aggregate ? `${aggregate.phrase} ${described}` : described;
   }
@@ -471,17 +463,17 @@ function describeOperand(operand: DraftOperand, sources: OperandSource[], compar
 }
 
 /** A comparison in words, e.g. "the answer to “Age” is at least 18". */
-function describeSingle(condition: DraftSingle, sources: OperandSource[]): string {
-  const comparator = comparatorOf(condition.comparator);
+function describeSingle(condition: DraftSingle, types: ConditionTypes): string {
+  const comparator = comparatorOf(types, condition.comparator);
   const singleValuePhrase = condition.b.source === LITERAL && condition.b.value.length === 1
     ? comparator?.singleValuePhrase : undefined;
   const comparatorPhrase = singleValuePhrase ?? comparator?.phrase ?? condition.comparator;
-  const phrase = `${describeOperand(condition.a, sources)} ${comparatorPhrase}`;
+  const phrase = `${describeOperand(condition.a, types)} ${comparatorPhrase}`;
   if (comparator?.unary) {
     return phrase;
   }
-  const compared = condition.a.aggregate ? undefined : sourceOf(sources, condition.a.source)?.shape(condition.a.value);
-  return `${phrase} ${describeOperand(condition.b, sources, compared)}`;
+  const compared = condition.a.aggregate ? undefined : sourceOf(types, condition.a.source)?.shape(condition.a.value);
+  return `${phrase} ${describeOperand(condition.b, types, compared)}`;
 }
 
 /**
@@ -502,21 +494,21 @@ function settled(condition: DraftCondition): boolean | undefined {
  * A draft condition in words: "always", "never", or its comparisons joined by "and" or "or". A nested group of
  * several conditions is put in parentheses.
  */
-export function describeDraft(condition: DraftCondition, sources: OperandSource[]): string {
+export function describeDraft(condition: DraftCondition, types: ConditionTypes): string {
   const known = settled(condition);
   if (known !== undefined) {
     return known ? "always" : "never";
   }
   switch (condition.kind) {
     case "single":
-      return describeSingle(condition, sources);
+      return describeSingle(condition, types);
     case "group": {
       if (condition.conditions.length === 1) {
-        return describeDraft(condition.conditions[0], sources);
+        return describeDraft(condition.conditions[0], types);
       }
       return condition.conditions
         .map(child => (child.kind === "group" && child.conditions.length > 1
-          ? `(${describeDraft(child, sources)})` : describeDraft(child, sources)))
+          ? `(${describeDraft(child, types)})` : describeDraft(child, types)))
         .join(condition.requireAll ? " and " : " or ");
     }
     case "unknown":
@@ -525,72 +517,22 @@ export function describeDraft(condition: DraftCondition, sources: OperandSource[
 }
 
 /** A stored condition in words, as `describeDraft` says it. */
-export const describeCondition = (condition: SerializedNode, sources: OperandSource[]): string =>
-  describeDraft(draftConditionOf(condition), sources);
+export const describeCondition = (condition: SerializedNode, types: ConditionTypes): string =>
+  describeDraft(draftConditionOf(condition), types);
 
 /**
  * The line saying when something applies, for a draft as it stands.
  *
  * @returns "Never", "Only when" and the draft in words, or undefined for a draft that always holds
  */
-export function whenDraftApplies(draft: DraftGroup, sources: OperandSource[]): string | undefined {
+export function whenDraftApplies(draft: DraftGroup, types: ConditionTypes): string | undefined {
   const known = settled(draft);
   if (known !== undefined) {
     return known ? undefined : "Never";
   }
-  return `Only when ${describeDraft(draft, sources)}`;
+  return `Only when ${describeDraft(draft, types)}`;
 }
 
 /** The line saying when something applies, for a stored condition, as `whenDraftApplies` says it. */
-export const whenApplies = (condition: SerializedNode, sources: OperandSource[]): string | undefined =>
-  whenDraftApplies(draftOf(condition), sources);
-
-// ---- Built-in sources
-
-// Each takes `of`, what the module using it calls the thing it reads from, such as "submission"
-
-/**
- * The source reading the tags of what the condition is evaluated for.
- *
- * @param choices the tags to offer, by name and label; with none, a tag is typed in
- * @param of what the module calls the thing tagged, such as "submission"
- */
-export const tagsSource = (choices: Choice[] = [], of?: string): OperandSource => ({
-  name: "tags",
-  label: of ? `The ${of}'s tags` : "The tags",
-  shape: () => ({ type: "text", multiple: true, ...choices.length > 0 && { choices } }),
-  describe: () => (of ? `the ${of}'s tag list` : "the tag list"),
-});
-
-/**
- * The source reading a property of what the condition is evaluated for, named by the operand's value.
- *
- * @param of what the module calls the thing read from, such as "submission"
- */
-export const propertySource = (of?: string): OperandSource => ({
-  name: "property",
-  label: of ? `A property of the ${of}` : "A property",
-  valueLabel: "Property",
-  shape: () => ({}),
-  describe: value => `the ${of ? `${of}'s ` : ""}${value.at(0) ?? "property"}`,
-});
-
-/**
- * The source reading a property of what the condition is on itself, such as a question, rather than of what it is
- * evaluated for.
- *
- * @param of what the module calls the thing the condition is on, such as "part"
- */
-export const ownPropertySource = (of?: string): OperandSource => ({
-  name: "ownProperty",
-  label: of ? `A property of this ${of}` : "One of its own properties",
-  valueLabel: "Property",
-  shape: () => ({}),
-  describe: value => `${of ? `this ${of}'s` : "its own"} ${value.at(0) ?? "property"}`,
-});
-
-/** The property source, for a module with no name for what it reads from. */
-export const PROPERTY_SOURCE = propertySource();
-
-/** The own-property source, for a module with no name for what the condition is on. */
-export const OWN_PROPERTY_SOURCE = ownPropertySource();
+export const whenApplies = (condition: SerializedNode, types: ConditionTypes): string | undefined =>
+  whenDraftApplies(draftOf(condition), types);

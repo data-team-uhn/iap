@@ -18,55 +18,47 @@
 
 import { type ComponentProps } from "react";
 
-import { MenuItem, TextField } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
 import ConditionDialog from "@iap/conditions/ConditionDialog";
-import { type OperandSource, PROPERTY_SOURCE, tagsSource } from "@iap/conditions/conditionModel";
+import { CATALOGUE, catalogueFetch } from "@iap/conditions/conditionTypes.fixture";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
-const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
-  age: { type: "long", multiple: false },
-  colours: {
-    type: "text", multiple: true, choices: [ { value: "red", label: "Red" }, { value: "blue", label: "Blue" } ],
-  },
-  due: { type: "date", multiple: false },
-  consent: { type: "boolean", multiple: false },
-  notes: { type: "text", multiple: true },
-  free: { multiple: false },
-};
-const FIELD_SOURCE: OperandSource = {
-  name: "field",
-  label: "A field",
-  valueLabel: "Field",
-  shape: value => FIELDS[value.at(0) ?? ""] ?? {},
-  describe: value => `the field ${value.at(0) ?? "nowhere"}`,
-};
-const SOURCES = [ FIELD_SOURCE, tagsSource([ { value: "urgent", label: "Urgent" } ]), PROPERTY_SOURCE ];
+// What the fields of the content a condition is on hold, as their source lists them
+const FIELDS = [
+  { value: "age", label: "age", type: "long", multiple: false },
+  { value: "colours", label: "colours", type: "text", multiple: true,
+    choices: [ { value: "red", label: "Red" }, { value: "blue", label: "Blue" } ] },
+  { value: "due", label: "due", type: "date", multiple: false },
+  { value: "consent", label: "consent", type: "boolean", multiple: false },
+  { value: "notes", label: "notes", type: "text", multiple: true },
+  { value: "free", label: "free", multiple: false },
+];
+const PATH = "/Content/part";
+// The catalogue, with a source naming those fields offered first
+const WITH_FIELDS = { ...CATALOGUE, items: { ...CATALOGUE.items, Sources: [
+  { name: "field", label: "A field", valueLabel: "Field", phrase: "the field {label}", offered: true, order: 5,
+    candidates: "{+path}.conditionCandidates.json?source=field" },
+  ...CATALOGUE.items.Sources,
+] } };
 
-// A source's own input for what its operands name: a field picked from a list
-function FieldPicker({ label, value, disabled, required, onChange }: OperandEditorProps) {
-  return (
-    <TextField select label={label} value={value.at(0) ?? ""} disabled={disabled} required={required}
-      onChange={event => onChange([ event.target.value ])}>
-      { Object.keys(FIELDS).map(name => <MenuItem key={name} value={name}>{name}</MenuItem>) }
-    </TextField>
-  );
-}
-
-const renderDialog = (props: Partial<ComponentProps<typeof ConditionDialog>> = {}) => {
+const renderDialog = async (props: Partial<ComponentProps<typeof ConditionDialog>> = {},
+  catalogue: unknown = WITH_FIELDS) => {
+  const candidates = { [`${PATH}.conditionCandidates.json?source=field`]: FIELDS };
+  vi.stubGlobal("fetch", vi.fn(catalogueFetch(candidates, catalogue)));
   const onSave = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
   render(
     <ThemeProvider theme={appTheme} defaultMode="light">
-      <ConditionDialog title="When it applies" sources={SOURCES}
-        editors={{ field: editor => <FieldPicker {...editor} /> }} onSave={onSave} onClose={onClose} {...props} />
+      <ConditionDialog title="When it applies" path={PATH} onSave={onSave} onClose={onClose} {...props} />
     </ThemeProvider>
   );
-  return { onSave, onClose, dialog: screen.getByRole("dialog") };
+  const dialog = screen.getByRole("dialog");
+  // Once what conditions can say has been read
+  await within(dialog).findAllByRole("button", { name: "Add a condition" });
+  return { onSave, onClose, dialog };
 };
 
 const pick = async (scope: HTMLElement, label: string, option: string) => {
@@ -94,8 +86,10 @@ const ANY_OF_TWO = {
 const summary = (dialog: HTMLElement) => within(dialog).queryByText(/^Only when/)?.textContent;
 
 describe("ConditionDialog", () => {
-  it("starts with no condition, which always applies", () => {
-    const { dialog } = renderDialog();
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("starts with no condition, which always applies", async () => {
+    const { dialog } = await renderDialog();
 
     expect(within(dialog).getByText("No condition. It always applies.")).toBeInTheDocument();
     expect(summary(dialog)).toBeUndefined();
@@ -104,7 +98,7 @@ describe("ConditionDialog", () => {
   });
 
   it("builds a condition from sensible defaults, summing it up only once it is complete", async () => {
-    const { dialog, onSave, onClose } = renderDialog();
+    const { dialog, onSave, onClose } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
@@ -142,7 +136,7 @@ describe("ConditionDialog", () => {
   });
 
   it("edits a stored condition: which must be true, how they are joined, and what they hold", async () => {
-    const { dialog, onSave } = renderDialog({ condition: ANY_OF_TWO });
+    const { dialog, onSave } = await renderDialog({ condition: ANY_OF_TWO });
 
     expect(summary(dialog)).toBe("Only when the field age is empty or the tag list includes “Urgent”");
     expect(within(dialog).getByRole("button", { name: "Any" })).toHaveAttribute("aria-pressed", "true");
@@ -165,15 +159,15 @@ describe("ConditionDialog", () => {
     })));
   });
 
-  it("shows a stored value that is no longer among the choices for what it is", () => {
-    const { dialog } = renderDialog({ condition: single("equals", field("consent"), { value: [ "maybe" ] }) });
+  it("shows a stored value that is no longer among the choices for what it is", async () => {
+    const { dialog } = await renderDialog({ condition: single("equals", field("consent"), { value: [ "maybe" ] }) });
 
     expect(within(dialog).getByRole("combobox", { name: "Value" })).toHaveTextContent("maybe");
     expect(within(dialog).getByText("Choose yes or no.")).toBeInTheDocument();
   });
 
   it("clears all conditions", async () => {
-    const { dialog, onSave } = renderDialog({ condition: ANY_OF_TWO });
+    const { dialog, onSave } = await renderDialog({ condition: ANY_OF_TWO });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Clear all conditions" }));
     expect(within(dialog).getByRole("button", { name: "Clearing…" })).toBeDisabled();
@@ -182,7 +176,7 @@ describe("ConditionDialog", () => {
   });
 
   it("offers the choices as soon as what is compared has some, and counts several values", async () => {
-    const { dialog, onSave } = renderDialog();
+    const { dialog, onSave } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
@@ -209,7 +203,7 @@ describe("ConditionDialog", () => {
   });
 
   it("types in several values where there are no choices", async () => {
-    const { dialog } = renderDialog();
+    const { dialog } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
@@ -224,7 +218,7 @@ describe("ConditionDialog", () => {
   });
 
   it("asks for a single value as its type calls for, starting from yes, or for none", async () => {
-    const { dialog } = renderDialog();
+    const { dialog } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
@@ -250,7 +244,7 @@ describe("ConditionDialog", () => {
   });
 
   it("compares with what another source reads", async () => {
-    const { dialog } = renderDialog();
+    const { dialog } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     const [ condition ] = conditions(dialog);
@@ -271,7 +265,7 @@ describe("ConditionDialog", () => {
   });
 
   it("keeps groups inside groups, each of which closes to what it says", async () => {
-    const { dialog } = renderDialog();
+    const { dialog } = await renderDialog();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a group" }));
     const nested = within(dialog).getByRole("group", { name: "Group of conditions" });
@@ -297,7 +291,7 @@ describe("ConditionDialog", () => {
   });
 
   it("closes a complete group to what it says, and the top to nothing more than the summary", async () => {
-    const { dialog } = renderDialog({ condition: {
+    const { dialog } = await renderDialog({ condition: {
       ...ANY_OF_TWO,
       "third": { "jcr:primaryType": "cond:ConditionGroup", "sling:resourceSuperType": "cond/Condition",
         "requireAll": true, "only": single("is empty", field("due")) },
@@ -314,8 +308,7 @@ describe("ConditionDialog", () => {
   });
 
   it("keeps what it does not know, and saves only once it is gone", async () => {
-    const { dialog, onSave } = renderDialog({
-      editors: {},
+    const { dialog, onSave } = await renderDialog({
       condition: {
         "jcr:primaryType": "cond:ConditionGroup", "sling:resourceSuperType": "cond/Condition", "requireAll": true,
         "odd": { "jcr:primaryType": "cond:Strange", "sling:resourceSuperType": "cond/Condition" },
@@ -338,11 +331,12 @@ describe("ConditionDialog", () => {
     })));
   });
 
-  it("names what a source reads as text when it asks for nothing else, and reports a refused save", async () => {
-    const { dialog, onClose } = renderDialog({ editors: {}, onSave: vi.fn().mockRejectedValue(new Error("Refused")) });
+  it("names what a source reads as text when it lists nothing, and reports a refused save", async () => {
+    const { dialog, onClose } = await renderDialog({ onSave: vi.fn().mockRejectedValue(new Error("Refused")) });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "Field" }), { target: { value: "age" } });
+    await pick(dialog, "Compare", "A property");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Property" }), { target: { value: "status" } });
     await pick(dialog, "Comparison", "is not empty");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -350,12 +344,20 @@ describe("ConditionDialog", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("offers nothing to compare when no source is given", () => {
-    const { dialog } = renderDialog({ sources: [] });
+  it("offers nothing to compare when the catalogue lists no source", async () => {
+    const { dialog } = await renderDialog({}, { ...CATALOGUE, items: { ...CATALOGUE.items, Sources: [] } });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
 
     expect(within(dialog).getByRole("combobox", { name: "Compare" })).toHaveTextContent("literal");
+  });
+
+  it("waits for what conditions can say before building one", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+    render(<ConditionDialog title="When it applies" path={PATH} onSave={vi.fn()} onClose={vi.fn()} />);
+
+    expect(screen.getByRole("progressbar", { name: "Loading what conditions can say" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   describe("on a phone", () => {
@@ -363,7 +365,7 @@ describe("ConditionDialog", () => {
     afterEach(() => vi.unstubAllGlobals());
 
     it("removes a condition or a group with what it says, at the end of what it removes", async () => {
-      const { dialog } = renderDialog();
+      const { dialog } = await renderDialog();
 
       fireEvent.click(within(dialog).getByRole("button", { name: "Add a group" }));
       const nested = within(dialog).getByRole("group", { name: "Group of conditions" });

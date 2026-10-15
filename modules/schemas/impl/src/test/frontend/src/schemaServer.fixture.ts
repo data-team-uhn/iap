@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { CATALOGUE } from "@iap/conditions/conditionTypes.fixture";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // A stand-in server for the schema tool's tests: it serves the schemas, the lifecycle tag
@@ -227,6 +228,37 @@ const LIFECYCLE = {
   ],
 };
 
+// What a version's questions are, as the server lists them for the answer source: each by its identifier and its path
+// in the version, with what its answers hold. Every one of them when asked about the version itself; otherwise all
+// but the part asked about and what it holds.
+const DATA_TYPES: Record<string, string | undefined> = { text: "text", long: "long", double: "double",
+  boolean: "boolean", date: "date" };
+function candidatesIn(version: Record<string, unknown>, versionPath: string, part: string): unknown[] {
+  const found: unknown[] = [];
+  const visit = (node: Record<string, unknown>, path: string) => Object.entries(node)
+    .filter((entry): entry is [ string, Record<string, unknown> ] =>
+      typeof entry[1] === "object" && entry[1] !== null && !Array.isArray(entry[1]))
+    .forEach(([ name, child ]) => {
+      const at = `${path}/${name}`;
+      if (child["sling:resourceType"] === "sch/Question" && typeof child["jcr:uuid"] === "string"
+        && (part === versionPath || (at !== part && !at.startsWith(`${part}/`)))) {
+        const options = Object.values(child).filter((value): value is Record<string, unknown> =>
+          typeof value === "object" && value !== null && (value as Record<string, unknown>)["sling:resourceType"]
+            === "sch/AnswerOption");
+        found.push({
+          value: child["jcr:uuid"], aliases: [ at.slice(versionPath.length + 1) ], detail: name,
+          label: child.text ?? name, type: DATA_TYPES[String(child.dataType ?? "text")],
+          multiple: (child.maxAnswers ?? 1) !== 1,
+          ...options.length > 0 && { choices: options.map(option =>
+            ({ value: option.value, label: option.label ?? option.value })) },
+        });
+      }
+      visit(child, at);
+    });
+  visit(version, versionPath);
+  return found;
+}
+
 const json = (url: string, body: unknown, status = 200) => Promise.resolve({
   ok: status < 400, status, url, redirected: false, json: () => Promise.resolve(body),
 } as unknown as Response);
@@ -285,6 +317,20 @@ export function serveSchemas(
     }
     if (url.startsWith("/Tags.search.json")) {
       return json(url, LIFECYCLE);
+    }
+    if (url === "/ConditionTypes.doc.json") {
+      return json(url, CATALOGUE);
+    }
+    if (url === "/Tags.doc.json") {
+      return json(url, { items: { lifecycle: LIFECYCLE.tags } });
+    }
+    const asked = /^\/Schemas\/([^./]+)\/([^./]+)((?:\/[^.]+)?)\.conditionCandidates\.json\?source=answer$/.exec(url);
+    if (asked) {
+      const [ , schema, name, rest ] = asked;
+      const node = (homepage[schema] as Record<string, Record<string, unknown>> | undefined)?.[name];
+      const versionPath = `/Schemas/${schema}/${name}`;
+      return node ? json(url, candidatesIn({ ...node, ...CONTENT[`${schema}/${name}`] }, versionPath,
+        `${versionPath}${rest}`)) : json(url, [], 200);
     }
     if (url.startsWith("/search.json")) {
       return json(url, { rows: WORKFLOWS });
