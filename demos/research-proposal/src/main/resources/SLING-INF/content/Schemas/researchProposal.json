@@ -193,48 +193,30 @@
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Working with participants",
       "description": "Asked only of prospective studies: those that meet participants or collect something new from them.",
-      // Asked only of a document settled as a research proposal, whatever its category says.
       // Named by the askProspective and askRetrospective steps, which ask whichever of these two
       // the settled category let through. Both conditions name every category path that should trigger them: the
       // condition vocabulary compares against a list of values, and has no way to test a path prefix.
       "cond:condition": {
-        "jcr:primaryType": "cond:ConditionGroup",
-        "requireAll": true,
-        "isProposal": {
-          "jcr:primaryType": "cond:SingleCondition",
-          "comparator": "includes any",
-          "operandA": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "source": "decision",
-            "value": [ "is_proposal/decision" ]
-          },
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes any",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "decision",
+          "value": [ "proposal_category/decision" ]
+        },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "yes" ]
+            "value": [
+              "/Categories/Proposal/Prospective",
+              "/Categories/Proposal/Prospective/Observational",
+              "/Categories/Proposal/Prospective/Observational/SurveysEducation",
+              "/Categories/Proposal/Prospective/Observational/SensitiveDataClinical",
+              "/Categories/Proposal/Prospective/Interventional",
+              "/Categories/Proposal/Prospective/Interventional/Behavioral",
+              "/Categories/Proposal/Prospective/Interventional/SocTrials",
+              "/Categories/Proposal/Prospective/Interventional/ClinicalTrials"
+            ]
           }
-        },
-        "category": {
-          "jcr:primaryType": "cond:SingleCondition",
-          "comparator": "includes any",
-          "operandA": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "source": "decision",
-            "value": [ "proposal_category/decision" ]
-          },
-            "operandB": {
-              "jcr:primaryType": "cond:ConditionOperand",
-              "value": [
-                "/Categories/Proposal/Prospective",
-                "/Categories/Proposal/Prospective/Observational",
-                "/Categories/Proposal/Prospective/Observational/SurveysEducation",
-                "/Categories/Proposal/Prospective/Observational/SensitiveDataClinical",
-                "/Categories/Proposal/Prospective/Interventional",
-                "/Categories/Proposal/Prospective/Interventional/Behavioral",
-                "/Categories/Proposal/Prospective/Interventional/SocTrials",
-                "/Categories/Proposal/Prospective/Interventional/ClinicalTrials"
-              ]
-            }
-        }
       },
       "consent": {
         "jcr:primaryType": "sch:Question",
@@ -249,38 +231,21 @@
       "label": "Working with what already exists",
       "description": "Asked only of retrospective studies: those that work from records or specimens collected before the study began.",
       "cond:condition": {
-        "jcr:primaryType": "cond:ConditionGroup",
-        "requireAll": true,
-        "isProposal": {
-          "jcr:primaryType": "cond:SingleCondition",
-          "comparator": "includes any",
-          "operandA": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "source": "decision",
-            "value": [ "is_proposal/decision" ]
-          },
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes any",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "decision",
+          "value": [ "proposal_category/decision" ]
+        },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "yes" ]
+            "value": [
+              "/Categories/Proposal/Retrospective",
+              "/Categories/Proposal/Retrospective/RetrospectiveData",
+              "/Categories/Proposal/Retrospective/RetrospectiveBiospecimen"
+            ]
           }
-        },
-        "category": {
-          "jcr:primaryType": "cond:SingleCondition",
-          "comparator": "includes any",
-          "operandA": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "source": "decision",
-            "value": [ "proposal_category/decision" ]
-          },
-            "operandB": {
-              "jcr:primaryType": "cond:ConditionOperand",
-              "value": [
-                "/Categories/Proposal/Retrospective",
-                "/Categories/Proposal/Retrospective/RetrospectiveData",
-                "/Categories/Proposal/Retrospective/RetrospectiveBiospecimen"
-              ]
-            }
-        }
       },
       "dataSources": {
         "jcr:primaryType": "sch:Question",
