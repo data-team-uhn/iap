@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Incomplete",
-  "description": "Something this part of a request is asked for has not been provided yet. A request carries it while any of its parts does.",
+  "description": "Something has not been provided yet.",
   "category": ["completeness"],
   "system": true,
   "aggregated": true,
