@@ -27,6 +27,18 @@
           "value": ["draft", "trial", "retired"]
         }
       },
+      "toCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheck",
+        "targetRef": "check"
+      }
+    },
+    "check": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "check",
+      "label": "Check it can run",
+      "handler": "checkValid",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toRetire": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toRetire",

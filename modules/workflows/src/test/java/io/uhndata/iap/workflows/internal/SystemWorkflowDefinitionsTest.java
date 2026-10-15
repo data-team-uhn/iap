@@ -54,11 +54,17 @@ import io.uhndata.iap.conditions.models.ConditionGroup;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.workflows.internal.checks.StartEventCheck;
+import io.uhndata.iap.workflows.internal.checks.SystemWorkflowTriggerCheck;
+import io.uhndata.iap.workflows.internal.checks.SystemWorkflowUserTaskCheck;
+import io.uhndata.iap.workflows.internal.handlers.CheckValidHandler;
 import io.uhndata.iap.workflows.internal.handlers.CopyContentHandler;
 import io.uhndata.iap.workflows.internal.handlers.CreateVersionHandler;
 import io.uhndata.iap.workflows.internal.handlers.RetireActiveVersionsHandler;
 import io.uhndata.iap.workflows.internal.handlers.SaveDiagramHandler;
 import io.uhndata.iap.workflows.internal.handlers.SavePropertiesHandler;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,7 +88,8 @@ class SystemWorkflowDefinitionsTest
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "addTag", "callActivity",
         CopyContentHandler.HANDLER_NAME, CreateVersionHandler.HANDLER_NAME, SavePropertiesHandler.HANDLER_NAME,
-        SaveDiagramHandler.HANDLER_NAME, RetireActiveVersionsHandler.HANDLER_NAME);
+        SaveDiagramHandler.HANDLER_NAME, RetireActiveVersionsHandler.HANDLER_NAME,
+        CheckValidHandler.HANDLER_NAME);
 
     private final SlingContext context = new SlingContext();
 
@@ -125,6 +132,23 @@ class SystemWorkflowDefinitionsTest
                 .map(JsonValue::asJsonObject)
                 .filter(node -> "wf:Activity".equals(node.getString("jcr:primaryType")))
                 .forEach(activity -> assertTrue(HANDLERS.contains(activity.getString("handler")), name));
+        }
+    }
+
+    @Test
+    void everyShippedVersionCouldRun() throws IOException, URISyntaxException
+    {
+        // The flow nodes are read through their models, which need the type registry to dispatch
+        WorkflowFixture.setUp(this.context);
+        final List<ValidityCheck> checks = List.of(new StartEventCheck(), new SystemWorkflowTriggerCheck(),
+            new SystemWorkflowUserTaskCheck());
+        for (final Path path : definitions()) {
+            final Resource version = this.context.resourceResolver().getResource(
+                "/SystemWorkflows/" + path.getFileName().toString().replace(".json", "") + "/v1");
+            assertEquals(List.of(), checks.stream()
+                .filter(check -> check.appliesTo(version))
+                .flatMap(check -> check.check(version).stream())
+                .toList(), path.getFileName().toString());
         }
     }
 

@@ -691,7 +691,7 @@ Three things this buys, none of which an endpoint could:
 
 Three of them are more than one write, which is the reason the run commits once:
 
-- **Activating** is `retireActiveVersions` then `addTag active`. Retiring the outgoing version in a
+- **Activating** is `checkValid`, `retireActiveVersions`, then `addTag active`. Retiring the outgoing version in a
   second request would leave a window in which two versions of one workflow both claim to be current, and
   a client that failed between the two would leave it that way for good. As two steps of one run there is
   no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
@@ -709,6 +709,14 @@ Three of them are more than one write, which is the reason the run commits once:
   diagram arrive together or neither does. Posting directly cannot do that: Sling creates the node a file
   part's path implies before it applies `jcr:primaryType`, so a combined write leaves a `sling:Folder`
   behind and the diagram has to follow in a second request.
+
+Activating a version, or putting it on trial, first runs `checkValid`. It asks every
+`ValidityCheck` service (`io.uhndata.iap.workflows.spi`) that applies to its target what
+would stop it from moving on, and refuses it with every problem at once. The same step
+publishes a schema version, with the schema checks. The workflow checks ask for exactly
+one start event, and of a system workflow a `targetResourceType`, a named message start
+and no user task, since a system workflow runs to its end inside one request. A module
+protects what it adds by registering another check.
 
 `bpmnAuthoritative` says whether a version's diagram owns its flow nodes. `BpmnXmlSyncEditor` reparses the
 diagram of a version that says so whenever its bytes change, replacing the graph; a version that does not
