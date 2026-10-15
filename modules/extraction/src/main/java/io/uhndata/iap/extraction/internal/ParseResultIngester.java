@@ -108,14 +108,14 @@ public class ParseResultIngester
             // The daemon named a file it should not know about: misconfigured, or not the daemon it should be
             ErrorLogger.logProblem("The document daemon named a file outside the shared volume",
                 ErrorContext.of(ParseResultIngester.class, "ingest").about(file).with("named", markdown));
-            recordLostParse(file, markdown);
+            recordLostParse(file, markdown, "which is not on the shared volume");
             return;
         }
         if (markdown == null || !Files.isRegularFile(markdown)) {
             // The daemon said it finished and named this file, and it is not there. Recorded as completed it
             // would hand the extraction an empty document, and the submitter would be told their document
             // could not be identified rather than that the parse was lost.
-            recordLostParse(file, markdown);
+            recordLostParse(file, markdown, "which is not there");
             return;
         }
         final long startedAt = System.nanoTime();
@@ -133,14 +133,15 @@ public class ParseResultIngester
             markdownBytes, pdfBytes, tokens, (System.nanoTime() - startedAt) / 1_000_000L);
     }
 
-    /** Say on the file that the parse named a Markdown the volume does not have. */
-    private static void recordLostParse(final Resource file, final Path markdown) throws PersistenceException
+    /** Say on the file that the parse named a Markdown it cannot be read from, and why. */
+    private static void recordLostParse(final Resource file, final Path markdown, final String why)
+        throws PersistenceException
     {
         applyProperties(file, Map.of(
             ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
             ParsePropertyNames.PARSE_ERROR, markdown == null
                 ? "The parse finished without naming the text it produced"
-                : "The parse named " + markdown + ", which is not on the shared volume"));
+                : "The parse named " + markdown + ", " + why));
     }
 
     /**
