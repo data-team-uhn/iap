@@ -143,8 +143,7 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
         VersioningUtils.checkOut(submission);
         final Resource answer = resolver.create(submission, UUID.randomUUID().toString(),
             Map.of("jcr:primaryType", "sub:Answer"));
-        ReferenceUtils.setReference(answer, "question", Objects.requireNonNull(
-            resolver.getResource(question.getPath()), "A question the schema lists can be read"));
+        ReferenceUtils.setReference(answer, "question", question);
         return answer;
     }
 }

@@ -122,8 +122,7 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
         VersioningUtils.checkOut(submission);
         final Resource document = resolver.create(submission, UUID.randomUUID().toString(),
             Map.of("jcr:primaryType", "sub:Document"));
-        ReferenceUtils.setReference(document, "fulfills", Objects.requireNonNull(
-            resolver.getResource(requirement.getPath()), "A requirement the schema lists can be read"));
+        ReferenceUtils.setReference(document, "fulfills", requirement);
         return document;
     }
 }

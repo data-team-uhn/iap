@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.jcr.RepositoryException;
+
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.models.Document;
 
 import static io.uhndata.iap.submissions.internal.evaluators.CompletenessFixture.DOCTORS_NOTE;
@@ -127,11 +131,12 @@ class DocumentCompletenessEvaluatorTest
         assertNotNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/loose"));
     }
 
-    private void optional()
+    private void optional() throws RepositoryException, PersistenceException
     {
         this.context.create().resource(VERSION_PATH + "/" + SPONSOR_LETTER, Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, "sling:resourceSuperType", "sch/Requirement",
             "label", "Sponsor letter", "required", false));
+        Referenceables.identify(this.context, VERSION_PATH + "/" + SPONSOR_LETTER);
     }
 
     private List<String> filed()
