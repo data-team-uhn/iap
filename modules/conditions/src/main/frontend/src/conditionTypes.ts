@@ -25,18 +25,12 @@ import { useEffect, useState } from "react";
 import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
-import type { Aggregate, Choice, Comparator, OperandShape, OperandSource, ValueType } from "./conditionModel";
+import type {
+  Aggregate, Choice, Comparator, ConditionTypes, OperandShape, OperandSource, ValueType,
+} from "./conditionModel";
 
 /** Where the catalogue is served. */
 export const CATALOGUE_URL = "/ConditionTypes.doc.json";
-
-/** The comparators, aggregates and operand sources a condition can use, read from the server for its content. */
-export interface ConditionTypes {
-  comparators: Comparator[];
-  aggregates: Aggregate[];
-  /** Every source but the literal one, in the order the builder offers them. */
-  sources: OperandSource[];
-}
 
 /** The catalogue entry of an operand source. */
 interface SourceEntry {
@@ -58,6 +52,10 @@ interface SourceEntry {
 interface Candidate extends OperandShape {
   value: string;
   label: string;
+  /** Other operand values that name it too, e.g. a question's path in its version. */
+  aliases?: string[];
+  /** A short text telling it apart from another candidate with the same label, e.g. a question's identifier. */
+  detail?: string;
 }
 
 /** The JSON body a URL answers, or undefined if the request fails or answers an error status. */
@@ -84,20 +82,23 @@ async function sourceOf(doFetch: AuthenticatedFetch, entry: SourceEntry, path: s
     entry.choices ? read<Parameters<typeof choicesIn>[0]>(doFetch, entry.choices) : undefined,
   ]);
   const choices = choicesIn(catalogue);
-  const named = (value: string[]) => candidates.find(candidate => candidate.value === value.at(0));
+  const named = ([ name ]: string[]) => candidates.find(candidate =>
+    candidate.value === name || candidate.aliases?.includes(name));
   return {
     name: entry.name,
     label: entry.label,
     valueLabel: entry.valueLabel,
     offered: entry.offered,
-    ...entry.candidates ? { candidates: candidates.map(({ value, label }) => ({ value, label })) } : {},
+    ...entry.candidates ? { candidates: candidates.map(({ value, label, detail }) => ({ value, label, detail })) } : {},
     shape: value => {
       const candidate = named(value);
       return candidate
         ? { type: candidate.type, multiple: candidate.multiple, choices: candidate.choices }
         : { type: entry.type, multiple: entry.multiple, ...choices.length > 0 && { choices } };
     },
-    describe: value => entry.phrase.replace("{label}", named(value)?.label ?? value.at(0) ?? entry.valueLabel ?? ""),
+    // Before it names anything, an operand reads as the kind of thing it will name, e.g. "its own property"
+    describe: value => entry.phrase.replace("{label}",
+      named(value)?.label ?? value.at(0) ?? entry.valueLabel?.toLowerCase() ?? ""),
   };
 }
 

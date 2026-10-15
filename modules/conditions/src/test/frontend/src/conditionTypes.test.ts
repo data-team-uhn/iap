@@ -24,7 +24,7 @@ import { catalogueFetch } from "@iap/conditions/conditionTypes.fixture";
 const QUESTIONS = [
   { value: "u-what", label: "What do you need?", type: "text", multiple: false,
     choices: [ { value: "laptop", label: "Laptop" } ] },
-  { value: "u-many", label: "How many?", type: "long", multiple: false },
+  { value: "u-many", label: "How many?", type: "long", multiple: false, aliases: [ "form/many" ] },
 ];
 
 const load = (candidates: Record<string, unknown[]> = { "/Schemas/loan/v1/why": QUESTIONS }) =>
@@ -48,10 +48,12 @@ describe("conditionTypes", () => {
     expect(answer?.candidates).toEqual([
       { value: "u-what", label: "What do you need?" }, { value: "u-many", label: "How many?" } ]);
     expect(answer?.shape([ "u-many" ])).toEqual({ type: "long", multiple: false, choices: undefined });
+    // An operand may name a candidate by one of its aliases, such as the question's path
+    expect(answer?.describe([ "form/many" ])).toBe("the answer to “How many?”");
     expect(answer?.describe([ "u-what" ])).toBe("the answer to “What do you need?”");
     // An operand naming no listed candidate reads as the value it stores
     expect(answer?.describe([ "form/gone" ])).toBe("the answer to “form/gone”");
-    expect(answer?.describe([])).toBe("the answer to “Question”");
+    expect(answer?.describe([])).toBe("the answer to “question”");
   });
 
   it("gives a source naming nothing its own shape, with the choices of the catalogue it names", async () => {

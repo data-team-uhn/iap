@@ -71,13 +71,16 @@ const answer = (url: string, body: unknown, status = 200) => Promise.resolve({
 } as unknown as Response);
 
 /**
- * A fetch serving the catalogues, and the candidates given here by the path of the content they are asked about.
- * Anything else is not found.
+ * A fetch serving the condition catalogue, the tag catalogue and the given candidates, keyed by URL. The answer
+ * source's candidates may be keyed by the path of the content asked about instead. Any other URL answers 404.
  */
-export function catalogueFetch(candidates: Record<string, unknown[]> = {}) {
+export function catalogueFetch(candidates: Record<string, unknown[]> = {}, catalogue: unknown = CATALOGUE) {
   return (url: string) => {
     if (url === "/ConditionTypes.doc.json") {
-      return answer(url, CATALOGUE);
+      return answer(url, catalogue);
+    }
+    if (url in candidates) {
+      return answer(url, candidates[url]);
     }
     if (url === "/Tags.doc.json") {
       return answer(url, TAG_CATALOGUE);
