@@ -112,7 +112,7 @@
     <sling.hc.api.version>1.0.4</sling.hc.api.version>
     <sling.hc.support.version>1.0.10</sling.hc.support.version>
     <sling.i18n.version>3.0.0</sling.i18n.version>
-    <sling.installer.console.version>1.1.2</sling.installer.console.version>
+    <sling.installer.console.version>2.0.0</sling.installer.console.version>
     <sling.installer.core.version>3.14.6</sling.installer.core.version>
     <sling.installer.factory.configuration.version>2.0.0</sling.installer.factory.configuration.version>
     <sling.installer.factory.packages.version>1.0.4</sling.installer.factory.packages.version>
