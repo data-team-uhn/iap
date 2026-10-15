@@ -254,6 +254,13 @@ function useTicksSince(key: boolean | ReadingPhase, tick: number): number {
 function ExtractionProgress(
   { extraction, waiting }: { extraction: ExtractionState; waiting: boolean }
 ) {
+  // The parse's own reason names the daemon and its paths, so it goes to the console, not the page
+  const detail = extraction.status === "failed" ? extraction.detail : undefined;
+  useEffect(() => {
+    if (detail !== undefined) {
+      console.warn(`The document could not be parsed: ${detail}`);
+    }
+  }, [ detail ]);
   if (extraction.status === "running" && !waiting) {
     // Stopped asking, and the server still says it is running. Nothing more will arrive on its own, so
     // say so rather than spin: a spinner that never stops cannot be told from work still going on.

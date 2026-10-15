@@ -70,6 +70,24 @@ final class ParseStatus
     }
 
     /**
+     * Why the first current upload that failed to parse failed, as the parse wrote it down. For the browser's
+     * console, not for the submitter: it names the daemon, its paths and its workers.
+     *
+     * @param submission the submission being read
+     * @return the parse's own reason, or {@code null} when no current upload failed with one
+     */
+    static String findParseError(final Submission submission)
+    {
+        return submission.getDocuments().stream()
+            .map(ParseStatus::getFile)
+            .filter(file -> file != null && FAILED.equals(file.getParseStatus()))
+            .map(File::getParseError)
+            .filter(error -> error != null && !error.isBlank())
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
      * Whether every current upload has left the daemon. A file never sent has no status, which is not a parse
      * still going; one still {@code queued} is.
      *

@@ -89,6 +89,10 @@ final class ReadingProjection
             json.add("message", message);
         }
         json.add("retryable", ParseStatus.hasFailed(submission));
+        final String detail = ParseStatus.findParseError(submission);
+        if (detail != null) {
+            json.add("detail", detail);
+        }
         json.add("parsed", ParseStatus.isSettled(submission));
         json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
         return json;

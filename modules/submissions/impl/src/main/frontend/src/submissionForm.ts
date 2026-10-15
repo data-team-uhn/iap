@@ -175,6 +175,8 @@ export interface ExtractionState {
   // Whether a job has taken the reading, which is after the parse has been read in and before the
   // model is asked. Absent on a form served before this was recorded.
   reading?: boolean;
+  // Why a parse failed, in the daemon's words. For the console only: the submitter sees `message`.
+  detail?: string;
 }
 
 export interface SubmissionForm {

@@ -738,6 +738,27 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(`Extraction stopped. ${message}`);
     });
 
+    // The daemon's words name its paths and workers, so the page keeps them to the console
+    it("shows the submitter the message and puts why the parse failed in the console", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        const message = "The document could not be read. Please try again";
+        const detail = "PDF worker pool is broken; restart the daemon";
+        vi.stubGlobal("fetch", serving(projection([], {
+          extraction: { status: "failed", message, retryable: true, parsed: true, detail },
+        })));
+
+        renderAt("/Submissions/demo-1");
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(`Parsing stopped. ${message}`);
+        expect(screen.queryByText(/worker pool/)).not.toBeInTheDocument();
+        // Logged from an effect, which may run after the alert is first found
+        await waitFor(() => expect(warn).toHaveBeenCalledWith(`The document could not be parsed: ${detail}`));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     it("keeps no reading clock going once the reading failed", async () => {
       const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
       try {

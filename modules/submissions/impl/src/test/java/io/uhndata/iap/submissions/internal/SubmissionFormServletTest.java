@@ -743,6 +743,26 @@ class SubmissionFormServletTest
         assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("retryable"));
     }
 
+    // The submitter is told to try again; the parse's own reason goes to the browser's console only
+    @Test
+    void sendsWhyTheParseFailedApartFromTheMessage() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "failed");
+        this.context.create().resource(SUBMISSION_PATH + "/d6", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        final String version = documentVersionWith("d6", null);
+        modify(version + "/file", "parseStatus", "failed");
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").containsKey("detail"), "the parse left no reason");
+
+        modify(version + "/file", "parseError", " ");
+        assertFalse(form(REQUESTER).getJsonObject("extraction").containsKey("detail"), "a blank reason is none");
+
+        modify(version + "/file", "parseError", "PDF worker pool is broken; restart the daemon");
+        assertEquals("PDF worker pool is broken; restart the daemon",
+            form(REQUESTER).getJsonObject("extraction").getString("detail"));
+    }
+
     // The two moments the progress bar can see. A queued parse is still with the daemon; once it has
     // been read in, and a job has claimed the reading, the bar moves on.
     @Test

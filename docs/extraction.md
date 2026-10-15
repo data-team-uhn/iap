@@ -692,7 +692,7 @@ module), carries the reading to the page:
 | Key | Where | What it says |
 | --- | --- | --- |
 | `readsDocuments` | top level | The schema version names a `readingWorkflow` |
-| `extraction` | top level, once `extractionStatus` is set | `ReadingProjection.describe`: `status`, `message`, `retryable` (a current upload's parse `failed`), `parsed` (no current upload is still `queued`), `reading` (`extractionReadingClaimed` is set) |
+| `extraction` | top level, once `extractionStatus` is set | `ReadingProjection.describe`: `status`, `message`, `retryable` (a current upload's parse `failed`), `parsed` (no current upload is still `queued`), `reading` (`extractionReadingClaimed` is set), `detail` (a failed parse's own reason, which the page writes to the browser console and never shows) |
 | `extracted` | each form requirement | `ReadingProjection.isExtracted`: a classification, or a form with a question that has an `extractionPrompt` |
 | `provenance` | each question a model answered | `ProvenanceProjection`, from the surest extraction: `suggested`, `confidence`, `reasoning`, `reviewed`, `evidenceRejected`, `replaced` (what a reading of a newer version replaced, when it did), and `passages`, each with `quote`, `cite` and `source` |
 
