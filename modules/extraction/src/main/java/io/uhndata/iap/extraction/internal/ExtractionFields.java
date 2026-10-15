@@ -161,9 +161,9 @@ final class ExtractionFields
     }
 
     /**
-     * Whether a step reads revisions its questions were not read from yet: the files include a revision that is
-     * not its document's first, and no answer to these questions cites any of those revisions. Such a reading may
-     * replace answers, not only fill gaps. Once an answer cites one of them, reading again only fills gaps.
+     * Whether a step reads a revision its questions were not read from yet: a file that is not its document's
+     * first revision, and that no answer to these questions cites. Each file counts on its own, so a newer revision
+     * already read does not hide another nobody has read. Such a reading may replace answers, not only fill gaps.
      *
      * @param submission the submission
      * @param questions the questions the step asks, answered or not
@@ -182,11 +182,13 @@ final class ExtractionFields
             return false;
         }
         final Set<String> asked = questions.stream().map(Question::getPath).collect(Collectors.toSet());
-        return submission.getAnswers().stream()
+        final Set<String> cited = submission.getAnswers().stream()
             .filter(answer -> isAsking(answer.getQuestion(), asked))
             .flatMap(answer -> answer.getExtractions().stream())
             .flatMap(extraction -> extraction.getSources().stream())
-            .noneMatch(source -> revisions.contains(source.getPath()));
+            .map(DocumentVersion::getPath)
+            .collect(Collectors.toSet());
+        return revisions.stream().anyMatch(revision -> !cited.contains(revision));
     }
 
     /**
