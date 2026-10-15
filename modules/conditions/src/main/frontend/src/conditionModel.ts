@@ -62,6 +62,10 @@ export interface OperandSource {
    * thing whatever the value, such as the tag list.
    */
   valueLabel?: string;
+  /** Whether the builder offers it as something to compare; one that is not is still shown. Offered unless false. */
+  offered?: boolean;
+  /** What its value can name, picked from a list, when the source names something listed, such as a question. */
+  candidates?: Choice[];
   /** What an operand of this source holds, given what its `value` names. */
   shape: (value: string[]) => OperandShape;
   /** How an operand of this source reads in a sentence, e.g. "the answer to “Age”". */
