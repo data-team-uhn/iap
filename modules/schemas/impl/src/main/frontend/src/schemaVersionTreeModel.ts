@@ -82,7 +82,6 @@ const DATA_TYPES: Partial<Record<string, string>> = {
   double: "Decimal number",
   boolean: "Yes or no",
   date: "Date",
-  file: "File",
 };
 
 // A question's type of answer, in the words of the update that would change it, as its edit dialog shows it

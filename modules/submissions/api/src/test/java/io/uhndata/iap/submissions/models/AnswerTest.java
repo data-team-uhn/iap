@@ -124,7 +124,7 @@ class AnswerTest
             "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
         this.context.create().resource("/Submissions/submission/participants/extraction1", Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
-        // A file-type answer keeps its upload here too, and that is not an extraction
+        // An answer may hold other children too, and those are not extractions
         this.context.create().resource("/Submissions/submission/participants/upload",
             "sling:resourceType", "nt:file");
         final Answer answer = resource.adaptTo(Answer.class);

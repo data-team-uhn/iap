@@ -26,7 +26,6 @@ import { loadAnswerComponents } from "@iap/submissions/answers";
 import "@iap/submissions/answers/BooleanAnswer";
 import "@iap/submissions/answers/ChoiceAnswer";
 import "@iap/submissions/answers/DateAnswer";
-import "@iap/submissions/answers/FileAnswer";
 import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
@@ -134,14 +133,6 @@ describe("AnswerField", () => {
     await userEvent.tab();
 
     expect(answered).toHaveBeenCalledWith([ "Monday", "Tuesday" ]);
-  });
-
-  it("says a file cannot be attached here yet, rather than pretending otherwise", () => {
-    // A text box would quietly store a filename, which is worse than saying so
-    render(<AnswerField question={question({ dataType: "file" })} state="idle" onAnswered={vi.fn()} />);
-
-    expect(screen.getByText(/not available yet/)).toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("shows what the save is doing, including that it failed", () => {
