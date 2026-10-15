@@ -22,7 +22,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.schemas.models.Schema;
-import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
@@ -48,18 +47,6 @@ final class SchemaContent
     static Schema asSchema(@NotNull final Resource target)
     {
         return target.isResourceType(Schema.RESOURCE_TYPE) ? target.adaptTo(Schema.class) : null;
-    }
-
-    /**
-     * The target as a schema version, if it is one.
-     *
-     * @param target the workflow's target
-     * @return the version model, or {@code null} when the target is something else
-     */
-    @Nullable
-    static SchemaVersion asVersion(@NotNull final Resource target)
-    {
-        return target.isResourceType(SchemaVersion.RESOURCE_TYPE) ? target.adaptTo(SchemaVersion.class) : null;
     }
 
     /**

@@ -15,9 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.editing.internal.handlers;
+package io.uhndata.iap.schemas.editing.internal.checks;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,58 +32,45 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
-import io.uhndata.iap.schemas.editing.internal.checks.AnswerOptionsCheck;
-import io.uhndata.iap.schemas.editing.internal.checks.ConditionOperationsCheck;
-import io.uhndata.iap.schemas.editing.internal.checks.ConditionQuestionsCheck;
-import io.uhndata.iap.schemas.editing.internal.checks.QuestionBoundsCheck;
-import io.uhndata.iap.schemas.editing.internal.checks.QuestionPatternCheck;
-import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
-import io.uhndata.iap.workflows.api.InvalidStateException;
-import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link CheckPublishableHandler}: a draft goes on only when nothing in it would break once frozen,
- * and every problem is reported at once.
+ * Unit tests for the checks a schema version must pass to be published, run together on one draft as the
+ * {@code checkValid} step runs them.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class CheckPublishableHandlerTest
+class SchemaVersionChecksTest
 {
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
-    private final CheckPublishableHandler handler = new CheckPublishableHandler();
+    private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
+        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
 
     private SchemaFixture fixture;
 
     private Resource schema;
 
     @BeforeEach
-    void setUp() throws PersistenceException, ReflectiveOperationException
+    void setUp() throws PersistenceException
     {
         this.fixture = new SchemaFixture(this.context);
         this.schema = this.fixture.schema("study");
-        checks(new QuestionBoundsCheck(), new QuestionPatternCheck(), new AnswerOptionsCheck(),
-            new ConditionOperationsCheck(), new ConditionQuestionsCheck());
     }
 
     @Test
-    void hasItsAdvertisedName()
+    void applyToSchemaVersionsOnly() throws PersistenceException
     {
-        assertEquals(CheckPublishableHandler.HANDLER_NAME, this.handler.getName());
-    }
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
 
-    @Test
-    void servesOnlySchemaVersions()
-    {
-        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(task(this.schema)));
+        assertTrue(this.checks.stream().allMatch(check -> check.appliesTo(draft)));
+        assertTrue(this.checks.stream().noneMatch(check -> check.appliesTo(this.schema)));
     }
 
     @Test
@@ -96,7 +82,7 @@ class CheckPublishableHandlerTest
             "dataType", "long", "minAnswers", 1L, "maxAnswers", 1L, "minValue", 0.0d, "maxValue", 120.0d,
             "pattern", "[0-9]+"));
 
-        assertDoesNotThrow(() -> this.handler.execute(task(draft)));
+        assertEquals("", problems(draft));
     }
 
     @Test
@@ -129,10 +115,7 @@ class CheckPublishableHandlerTest
             Map.of("source", "answer", "value", new String[] { "00000000-0000-0000-0000-000000000000" }));
         resolver.commit();
 
-        final InvalidStateException refusal =
-            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
-
-        final String message = refusal.getMessage();
+        final String message = problems(draft);
         assertTrue(message.contains("\"Counts\" asks for at least 3 answers but allows at most 2"), message);
         assertTrue(message.contains("\"Counts\" has a smallest accepted value above its largest"), message);
         assertTrue(message.contains("\"Counts\" has a pattern that is not a valid regular expression"), message);
@@ -171,7 +154,7 @@ class CheckPublishableHandlerTest
         condition(resolver, onTags, "includes", Map.of("source", "tags"));
         resolver.commit();
 
-        assertDoesNotThrow(() -> this.handler.execute(task(draft)));
+        assertEquals("", problems(draft));
     }
 
     @Test
@@ -186,32 +169,14 @@ class CheckPublishableHandlerTest
         condition(resolver, section, "equals", Map.of("source", "answer", "value", new String[0]));
         resolver.commit();
 
-        final InvalidStateException refusal =
-            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
-
-        assertTrue(refusal.getMessage().contains("form/nameless has a condition on a question"),
-            refusal.getMessage());
-        assertFalse(refusal.getMessage().contains("comparing"));
+        final String message = problems(draft);
+        assertTrue(message.contains("form/nameless has a condition on a question"), message);
+        assertFalse(message.contains("comparing"));
     }
 
-    @Test
-    void runsTheChecksOtherModulesRegister() throws PersistenceException, ReflectiveOperationException
+    private String problems(final Resource version)
     {
-        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
-        checks(new QuestionBoundsCheck(), version -> List.of("the module's own rule is broken"));
-
-        final InvalidStateException refusal =
-            assertThrows(InvalidStateException.class, () -> this.handler.execute(task(draft)));
-
-        assertEquals("Version v1 cannot be published yet: the module's own rule is broken.", refusal.getMessage());
-    }
-
-    // Set as the component runtime would, by reflection, since a unit test has no component metadata to go by
-    private void checks(final SchemaValidityCheck... checks) throws ReflectiveOperationException
-    {
-        final Field field = CheckPublishableHandler.class.getDeclaredField("checks");
-        field.setAccessible(true);
-        field.set(this.handler, List.of(checks));
+        return String.join("; ", this.checks.stream().flatMap(check -> check.check(version).stream()).toList());
     }
 
     private static void condition(final ResourceResolver resolver, final Resource on, final String comparator,
@@ -222,10 +187,5 @@ class CheckPublishableHandlerTest
         final Map<String, Object> operand = new HashMap<>(operandA);
         operand.put("jcr:primaryType", "cond:ConditionOperand");
         resolver.create(condition, "operandA", operand);
-    }
-
-    private TaskContext task(final Resource target)
-    {
-        return new TaskContext(target, Map.of(), Map.of());
     }
 }

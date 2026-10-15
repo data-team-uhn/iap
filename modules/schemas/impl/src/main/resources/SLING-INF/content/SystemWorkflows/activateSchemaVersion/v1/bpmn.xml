@@ -63,7 +63,7 @@
       <bpmn:messageEventDefinition id="activateRequested" messageRef="activateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCheck" sourceRef="requested" targetRef="check" />
-    <bpmn:serviceTask id="check" iap:handler="checkPublishable" name="Check it can be published">
+    <bpmn:serviceTask id="check" iap:handler="checkValid" name="Check it can be published">
       <bpmn:incoming>toCheck</bpmn:incoming>
       <bpmn:outgoing>toMarkActive</bpmn:outgoing>
     </bpmn:serviceTask>
