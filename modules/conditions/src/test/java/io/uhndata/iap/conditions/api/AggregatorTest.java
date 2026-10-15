@@ -19,10 +19,18 @@ package io.uhndata.iap.conditions.api;
 
 import java.math.BigDecimal;
 import java.util.Calendar;
+import java.util.List;
+import java.util.Set;
+
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.conditions.spi.ConditionAggregator;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -129,5 +137,30 @@ class AggregatorTest
     void rejectsUnknownAggregators()
     {
         assertThrows(IllegalArgumentException.class, () -> Aggregator.parse("median"));
+    }
+
+    @Test
+    void describesWhatEachFoldsAndHowItReads()
+    {
+        assertEquals("The number of values", Aggregator.COUNT.getDocumentationLabel());
+        assertEquals("the number of values in", Aggregator.COUNT.getPhrase());
+        assertEquals(Set.of(), Aggregator.COUNT.getAcceptedTypes());
+        assertTrue(Aggregator.MIN.getAcceptedTypes().contains(OperandType.DATE));
+        for (final Aggregator aggregator : Aggregator.values()) {
+            assertNotNull(aggregator.getDescription());
+            assertEquals(List.of(ConditionAggregator.CATEGORY), aggregator.getDocumentationCategories());
+        }
+    }
+
+    @Test
+    void documentsItsTypesInTheCatalogue()
+    {
+        final JsonObject count = Aggregator.COUNT.documentationJsonBuilder().build();
+        assertEquals("any", count.getString("accepts"));
+        assertEquals("long", count.getString("output"));
+        final JsonObject sum = Aggregator.SUM.documentationJsonBuilder().build();
+        assertEquals("same", sum.getString("output"));
+        assertEquals(List.of("decimal", "double", "long"), sum.getJsonArray("accepts").getValuesAs(
+            value -> ((JsonString) value).getString()));
     }
 }
