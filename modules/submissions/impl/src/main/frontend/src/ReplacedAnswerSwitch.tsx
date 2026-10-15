@@ -18,6 +18,7 @@
 import { useState } from "react";
 
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import UndoIcon from "@mui/icons-material/UndoOutlined";
 import { Button, IconButton, Popover, Stack, Tooltip, Typography } from "@mui/material";
 
@@ -65,7 +66,12 @@ function ReplacedAnswerSwitch({ question, offer, disabled = false, onAccept }: R
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
       >
         <Stack spacing={1} sx={{ p: 2, maxWidth: 360, alignItems: "flex-start" }}>
-          <Typography variant="subtitle2">{title}</Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", alignSelf: "stretch" }}>
+            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>{title}</Typography>
+            <IconButton size="small" aria-label="Close" onClick={() => setAnchor(null)} sx={{ mt: -1, mr: -1 }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
           <Typography>{describeValues(question, offer.values).join(", ")}</Typography>
           <Button
             size="small"

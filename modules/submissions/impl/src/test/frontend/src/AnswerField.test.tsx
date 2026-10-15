@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AnswerField from "@iap/submissions/AnswerField";
@@ -364,6 +364,17 @@ describe("AnswerField", () => {
       await userEvent.click(screen.getByRole("button", { name: "Your answer before the new version" }));
 
       expect(screen.getByRole("presentation")).toHaveTextContent("Chart review");
+    });
+
+    it("closes the popup without changing the answer", async () => {
+      const answered = vi.fn();
+      render(<AnswerField question={replaced([ "Clinical trial" ])} state="idle" onAnswered={answered} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Your answer before the new version" }));
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Accept this answer" })).toBeNull());
+      expect(answered).not.toHaveBeenCalled();
     });
 
     it("offers nothing once the submitter has given another answer", () => {
