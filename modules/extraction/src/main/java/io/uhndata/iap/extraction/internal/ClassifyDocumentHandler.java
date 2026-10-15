@@ -120,8 +120,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
                 continue;
             }
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
-                    SubmissionFiles.describeUnreadable(file));
+                ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, SubmissionFiles.describeUnreadable());
                 return;
             }
             if (!ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {

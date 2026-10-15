@@ -120,21 +120,14 @@ class SubmissionFilesTest
         assertEquals("No document has been uploaded", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
+    // The daemon's reason names its address, paths and workers, which the submitter can do nothing about
     @Test
-    void saysWhyTheParseFailed()
+    void saysTheParseFailedWithoutTheDaemonsReason()
     {
         failWith(this.tree.createFile("failed"), "Calling the daemon at http://localhost:18765 failed: refused");
 
-        assertEquals("The document could not be read. Calling the daemon at http://localhost:18765 failed: refused",
+        assertEquals("The document could not be read. Please try again",
             SubmissionFiles.describeNothingToRead(getModel()));
-    }
-
-    @Test
-    void saysTheParseFailedWhenItLeftNoReason()
-    {
-        this.tree.createFile("failed");
-
-        assertEquals("The document could not be read", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
     @Test
