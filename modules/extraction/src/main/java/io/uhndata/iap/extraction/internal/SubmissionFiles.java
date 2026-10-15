@@ -104,7 +104,7 @@ final class SubmissionFiles
         }
         for (final File file : files) {
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                return describeUnreadable(file);
+                return describeUnreadable();
             }
         }
         for (final File file : files) {
@@ -133,16 +133,15 @@ final class SubmissionFiles
     }
 
     /**
-     * Why one file cannot be read, including the reason the parse wrote down when it left one.
+     * What the submitter is told when a file could not be parsed. The parse's own reason stays on the file and
+     * in the log: it names the daemon, its paths and its workers, which tells the submitter nothing they can act
+     * on.
      *
-     * @param file a file whose parse failed
-     * @return the reason, ready to show
+     * @return the message, ready to show
      */
-    static String describeUnreadable(final File file)
+    static String describeUnreadable()
     {
-        final String reason = file.getParseError();
-        return reason == null || reason.isBlank()
-            ? "The document could not be read" : "The document could not be read. " + reason;
+        return "The document could not be read. Please try again";
     }
 
     /**
