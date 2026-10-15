@@ -41,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link RetireActiveVersionsHandler}: making room for a promotion by retiring whatever was
@@ -165,24 +164,26 @@ class RetireActiveVersionsHandlerTest
     }
 
     @Test
-    void refusesAVersionStoredOutsideAWorkflowDefinition()
+    void retiresAmongTheVersionsOfAnyKindOfParent() throws WorkflowException, PersistenceException
     {
-        // Nothing to retire and no telling what promoting it would make current
-        this.context.create().resource("/loose/1-0", Map.of(
-            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
-        final WorkflowTaskContext request = AuthoringFixture.context(
-            this.context.resourceResolver().getResource("/loose/1-0"), "activate", Map.of(), this.activity,
-            new HashMap<>());
+        // A schema's versions, say: siblings of the same type, under something that is not a workflow definition
+        final Resource current = this.context.create().resource("/Schemas/leave/v1", Map.of(
+            WorkflowFixture.TYPE, "sch/SchemaVersion", WorkflowFixture.TAGS, WorkflowFixture.tags("active")));
+        final Resource promoted = this.context.create().resource("/Schemas/leave/v2", Map.of(
+            WorkflowFixture.TYPE, "sch/SchemaVersion", WorkflowFixture.TAGS, WorkflowFixture.tags("draft")));
+        final Map<String, Object> variables = new HashMap<>();
 
-        final WorkflowDefinitionException refusal =
-            assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(request));
-        assertTrue(refusal.getMessage().contains("not stored under a workflow definition"));
+        this.handler.execute(AuthoringFixture.context(promoted, "activate", Map.of(), this.activity, variables));
+
+        assertEquals(Set.of("retired"), TaggingFixture.tags(current));
+        assertArrayEquals(new String[] {current.getPath()},
+            (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
 
     @Test
     void refusesAVersionStoredAtTheRoot()
     {
-        // A resource with no parent at all: the same refusal, reached the other way
+        // Nothing to retire and no telling what promoting it would make current
         final Resource orphan = this.context.create().resource("/orphan", Map.of(
             WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
         final Resource rootless = org.mockito.Mockito.spy(orphan);

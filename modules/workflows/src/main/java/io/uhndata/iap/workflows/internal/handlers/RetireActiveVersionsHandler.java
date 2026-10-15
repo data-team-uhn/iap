@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,20 +27,21 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Retires whichever versions of a workflow are currently active, to make room for the version being promoted in
- * their place, the one this step acts on: their {@code active} tag becomes {@code retired}. The step before that
- * version is tagged {@code active} in the activation workflow.
+ * Retires whichever versions are currently active beside the version being promoted, the one this step acts on:
+ * their {@code active} tag becomes {@code retired}. The versions it compares are that version's siblings of the same
+ * resource type, so it serves a workflow definition's versions and a schema's alike. The step comes before the
+ * promoted version is tagged {@code active} in an activation workflow.
  *
- * <p>At most one version of a definition may be active at a time. Retiring and promoting happen as two steps of
- * one workflow run, committed together at its end, so a promotion that can't complete retires nothing and the
- * invariant never lapses.</p>
+ * <p>At most one version may be active at a time. Retiring and promoting happen as two steps of one workflow run,
+ * committed together at its end, so a promotion that can't complete retires nothing and the invariant never
+ * lapses.</p>
  *
  * <p>Every active version is retired, not only the first one found, since more than one being active is already
  * a broken invariant that a promotion is the natural moment to repair.</p>
@@ -59,6 +61,12 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     /** The variable the retired versions' paths are left in. */
     public static final String RETIRED_VERSIONS_VARIABLE = "retiredVersions";
 
+    /** The property a resource's own tags are stored in. */
+    private static final String TAGS_PROPERTY = "tags";
+
+    /** The lifecycle tag of a current version. */
+    private static final String ACTIVE_TAG = "active";
+
     /** The lifecycle tag an outgoing version is given. */
     private static final String RETIRED_TAG = "retired";
 
@@ -72,19 +80,23 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource promoted = ExecutionHost.of(context);
+        final Resource parent = promoted.getParent();
+        if (parent == null) {
+            throw new WorkflowDefinitionException(promoted.getPath() + " has no parent to hold other versions");
+        }
         final List<String> retired = new ArrayList<>();
-        for (final Resource sibling : VersionEdits.definitionOf(promoted).getChildren()) {
+        for (final Resource sibling : parent.getChildren()) {
             if (sibling.getPath().equals(promoted.getPath())
-                || !sibling.isResourceType(WorkflowVersion.RESOURCE_TYPE)) {
+                || !sibling.getResourceType().equals(promoted.getResourceType())) {
                 continue;
             }
-            final WorkflowVersion version = sibling.adaptTo(WorkflowVersion.class);
-            if (version == null || !version.isActive()) {
+            // Read off the stored tags, as a version's own isActive does, rather than through the tags service
+            if (!Arrays.asList(sibling.getValueMap().get(TAGS_PROPERTY, new String[0])).contains(ACTIVE_TAG)) {
                 continue;
             }
             final Taggable tags = Objects.requireNonNull(sibling.adaptTo(Taggable.class),
                 "Retiring a version takes the tags service, as tagging it active did");
-            tags.untag(WorkflowVersion.ACTIVE_TAG, true);
+            tags.untag(ACTIVE_TAG, true);
             tags.tag(RETIRED_TAG, true);
             retired.add(sibling.getPath());
         }

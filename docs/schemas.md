@@ -98,8 +98,8 @@ version inherits from its schema; where it matters whether the schema is retired
 | a schema | `discard` | | delete it, with its versions |
 | a version | `update` (`patch`) | `draft` | edit `version`, `description`, `workflow` |
 | a version | `update` (`patch`) | not `draft` | edit `description` |
-| a version | `activate` | `draft`, schema not retired | check it can be published, tag it `active` |
-| a version | `activate` | `retired`, schema not retired | tag it `active` |
+| a version | `activate` | `draft`, schema not retired | check it can be published, retire the active version, tag it `active` |
+| a version | `activate` | `retired`, schema not retired | retire the active version, tag it `active` |
 | a version | `retire` | `active` | tag it `retired` |
 | a version | `discard` | | delete it |
 | a version | `create` (`type`, optional `before`, `patch`) | `draft` | add a form, document or approval requirement |
@@ -195,8 +195,9 @@ value bounds that are not upside down, patterns that compile, option values that
 unique, and conditions that use known comparisons on questions of this same version. Every problem
 is reported at once. Each rule is a `ValidityCheck` service (`io.uhndata.iap.workflows.spi`) that
 applies to schema versions, and publishing runs every one that applies, so a module that adds parts
-to a schema can add the checks they need. Publishing a draft does not retire the version before it;
-several versions may be active at once.
+to a schema can add the checks they need. Activating a version retires the one that was active, in
+the same run, so one version at a time takes new submissions. Those already filed against the
+retired one carry on.
 
 **Discarding** goes through the deletion service, into the archive: anything something else refers
 to, such as a version that submissions or a category point at, is refused, with the referrers

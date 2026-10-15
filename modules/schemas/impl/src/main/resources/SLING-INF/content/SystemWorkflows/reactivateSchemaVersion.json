@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
-    "description": "Opens a retired version to new submissions again, while its schema is open.",
+    "description": "Opens a retired version to new submissions again, while its schema is open, and retires the version it replaces.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
@@ -43,6 +43,18 @@
           }
         }
       },
+      "toRetire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRetire",
+        "targetRef": "retire"
+      }
+    },
+    "retire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "retire",
+      "label": "Retire the version this one replaces",
+      "handler": "retireActiveVersions",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMarkActive": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkActive",

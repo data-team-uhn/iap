@@ -21,17 +21,19 @@ import PublishOutlinedIcon from "@mui/icons-material/PublishOutlined";
 import { EventAction } from "@iap/frontend-commons/components/EventAction";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { labelOf, pathOf } from "./schemaModel";
+import { labelOf, pathOf, tagsOf, versionsOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
 // Opens a version to new submissions: a draft for the first time, once it passes the publish checks,
-// or a retired version again.
+// or a retired version again. The confirmation names the version this retires, which the row the action sits in
+// does not show.
 function SchemaVersionActivateAction(props: SchemaVersionActionProps) {
-  const { version } = props;
+  const { version, schema } = props;
   if (!offers(version, "activate")) {
     return null;
   }
+  const outgoing = versionsOf(schema).find(candidate => tagsOf(candidate).includes("active"));
   return (
     <EventAction
       path={pathOf(version)}
@@ -41,7 +43,11 @@ function SchemaVersionActivateAction(props: SchemaVersionActionProps) {
       event="activate"
       title={`Activate version ${labelOf(version)}`}
       explanation={"New submissions will be possible against this version. A draft is checked first, and "
-        + "from then on only its wording can change. Activating it does not retire other versions."}
+        + "from then on only its wording can change."
+        + (outgoing
+          ? ` Version ${labelOf(outgoing)} is retired in the same step: submissions already filed against it carry`
+            + " on, but no new ones can be started from it."
+          : " Nothing is retired: this schema has no active version at the moment.")}
       done={`Version ${labelOf(version)} is active`}
     />
   );

@@ -43,6 +43,7 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -162,6 +163,28 @@ class SaveDiagramHandlerTest
     }
 
     @Test
+    void refusesAVersionStoredOutsideAWorkflowDefinition()
+    {
+        this.context.create().resource("/loose/1-0", Map.of(
+            "sling:resourceType", WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(this.saveAt(this.context.resourceResolver().getResource("/loose/1-0"))));
+        assertTrue(refusal.getMessage().contains("not stored under a workflow definition"));
+    }
+
+    @Test
+    void refusesAVersionStoredAtTheRoot()
+    {
+        final Resource orphan = this.context.create().resource("/orphan", Map.of(
+            "sling:resourceType", WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
+        final Resource rootless = Mockito.spy(orphan);
+        Mockito.doReturn(null).when(rootless).getParent();
+
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(this.saveAt(rootless)));
+    }
+
+    @Test
     void refusesATargetThatIsNotAVersion()
     {
         // A definition that sends the save of anything but a version here is the mistake, not the request
@@ -268,5 +291,12 @@ class SaveDiagramHandlerTest
         }
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.path(name)),
             "save", payload, this.activity, new HashMap<>());
+    }
+
+    private WorkflowTaskContext saveAt(final Resource version)
+    {
+        return AuthoringFixture.context(version, "save",
+            Map.of(VersionEdits.BPMN_XML_FILE_NAME, AuthoringFixture.upload(REPLACEMENT, null)), this.activity,
+            new HashMap<>());
     }
 }
