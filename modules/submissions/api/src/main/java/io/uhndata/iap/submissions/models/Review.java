@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:Review} node: one reviewer's assessment of the submission.
@@ -39,7 +40,7 @@ import io.uhndata.iap.tags.models.Taggable;
  */
 @Model(adaptables = Resource.class, resourceType = Review.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Review extends EntityPart
+public class Review extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:Review} node. */
     public static final String RESOURCE_TYPE = "sub/Review";
@@ -107,5 +108,12 @@ public class Review extends EntityPart
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(Submission.APPROVED_TAG);
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

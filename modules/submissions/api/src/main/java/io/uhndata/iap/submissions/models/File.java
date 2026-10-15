@@ -28,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
@@ -38,7 +39,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  */
 @Model(adaptables = Resource.class, resourceType = File.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class File extends EntityPart
+public class File extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:File} node. */
     public static final String RESOURCE_TYPE = "sub/File";
@@ -118,5 +119,12 @@ public class File extends EntityPart
             }
         }
         return result;
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

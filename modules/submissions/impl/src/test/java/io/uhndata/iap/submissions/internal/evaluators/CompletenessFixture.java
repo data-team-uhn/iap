@@ -44,6 +44,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
@@ -119,6 +120,8 @@ final class CompletenessFixture
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "minAnswers", 1L));
         context.create().resource(VERSION_PATH + "/" + DOCTORS_NOTE, Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
+        Referenceables.identify(context, VERSION_PATH + "/" + START_DATE, VERSION_PATH + "/" + NOTE,
+            VERSION_PATH + "/" + REASON, VERSION_PATH + "/" + DOCTORS_NOTE);
 
         context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "demo-requester"));

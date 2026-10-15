@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:Document} node: a document attached to the submission, e.g. the signed
@@ -38,7 +39,7 @@ import io.uhndata.iap.schemas.models.Requirement;
  */
 @Model(adaptables = Resource.class, resourceType = Document.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Document extends EntityPart
+public class Document extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:Document} node. */
     public static final String RESOURCE_TYPE = "sub/Document";
@@ -130,5 +131,12 @@ public class Document extends EntityPart
     public boolean isAttached()
     {
         return !this.getVersions().isEmpty();
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

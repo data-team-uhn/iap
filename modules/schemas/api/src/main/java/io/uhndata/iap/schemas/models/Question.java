@@ -27,6 +27,8 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.utils.Referenceable;
+
 /**
  * A Sling Model wrapping a {@code sch:Question} node: a single question the submitter must answer.
  *
@@ -35,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @Model(adaptables = Resource.class, adapters = FormItem.class, resourceType = Question.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Question extends FormItem
+public class Question extends FormItem implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sch:Question} node. */
     public static final String RESOURCE_TYPE = "sch/Question";
@@ -268,5 +270,12 @@ public class Question extends FormItem
     public String getResponseShape()
     {
         return this.responseShape;
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

@@ -60,4 +60,28 @@ public final class ReferenceUtils
             throw new PersistenceException(failure, e);
         }
     }
+
+    /**
+     * Points a property of a resource at a referenceable model, as a {@code REFERENCE}.
+     *
+     * @param holder the resource the property is set on, through the session that writes it
+     * @param property the property's name
+     * @param target what it points at, found through the holder's session
+     * @throws PersistenceException when the holder is not a node, that session cannot find the target, or the
+     *     repository refuses the reference
+     */
+    public static void setReference(@NotNull final Resource holder, @NotNull final String property,
+        @NotNull final Referenceable target) throws PersistenceException
+    {
+        final Node node = holder.adaptTo(Node.class);
+        final String failure = "Cannot point " + property + " of " + holder.getPath() + " at " + target.getIdentifier();
+        if (node == null) {
+            throw new PersistenceException(failure);
+        }
+        try {
+            node.setProperty(property, node.getSession().getNodeByIdentifier(target.getIdentifier()));
+        } catch (final RepositoryException e) {
+            throw new PersistenceException(failure, e);
+        }
+    }
 }

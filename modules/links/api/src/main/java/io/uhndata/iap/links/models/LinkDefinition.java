@@ -31,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping an {@code link:Definition} node: the definition of a type of link, stored under
@@ -48,7 +49,7 @@ import io.uhndata.iap.content.models.Content;
  * @version $Id$
  * @since 0.1.0
  */
-public abstract class LinkDefinition extends Content implements DocumentedItem
+public abstract class LinkDefinition extends Content implements DocumentedItem, Referenceable
 {
     /** The {@code sling:resourceType} of an {@code link:Definition} node, shared by every kind of definition. */
     public static final String RESOURCE_TYPE = "link/Definition";
@@ -204,5 +205,12 @@ public abstract class LinkDefinition extends Content implements DocumentedItem
             Arrays.stream(types).forEach(list::add);
             json.add(name, list);
         }
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

@@ -94,4 +94,35 @@ class ReferenceUtilsTest
 
         assertInstanceOf(RepositoryException.class, failure.getCause());
     }
+
+    @Test
+    void pointsAPropertyAtAReferenceableModel() throws PersistenceException, RepositoryException
+    {
+        final String identifier = this.session.getNode("/target").getIdentifier();
+
+        ReferenceUtils.setReference(this.context.resourceResolver().getResource("/holder"), "points",
+            () -> identifier);
+
+        assertEquals(PropertyType.REFERENCE, this.session.getNode("/holder").getProperty("points").getType());
+        assertEquals("/target", this.session.getNode("/holder").getProperty("points").getNode().getPath());
+    }
+
+    @Test
+    void refusesToPointWhatIsNoNodeAtAModel()
+    {
+        final Resource notNode = Mockito.mock(Resource.class);
+
+        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(notNode, "points", () -> "x"));
+    }
+
+    @Test
+    void reportsAnIdentifierTheRepositoryRefuses()
+    {
+        final Resource holder = this.context.resourceResolver().getResource("/holder");
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> ReferenceUtils.setReference(holder, "points", () -> "not an identifier"));
+
+        assertInstanceOf(RepositoryException.class, failure.getCause());
+    }
 }

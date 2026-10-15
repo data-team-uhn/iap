@@ -53,6 +53,7 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
@@ -121,7 +122,7 @@ class AttachDocumentHandlerTest
     private Node node;
 
     @BeforeEach
-    void setUp() throws RepositoryException
+    void setUp() throws RepositoryException, PersistenceException
     {
         this.node = Mockito.mock(Node.class);
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
@@ -143,6 +144,7 @@ class AttachDocumentHandlerTest
         // that name"
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
+        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
@@ -505,25 +507,6 @@ class AttachDocumentHandlerTest
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(context(payload(NOTE, broken))));
         assertTrue(failure.getMessage().contains("Could not store"));
-    }
-
-    @Test
-    void refusesARequirementThatCannotBeReadBack()
-    {
-        // Its own model was built from the schema, so what can go wrong is not that it is missing but that the
-        // session doing the writing cannot see it
-        final ResourceResolver blind = new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                return NOTE_PATH.equals(path) ? null : super.getResource(path);
-            }
-        };
-
-        final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, blind)));
-        assertTrue(failure.getMessage().contains("Could not read"));
     }
 
     private Map<String, Object> payload(final String requirement, final Object file)

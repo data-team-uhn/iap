@@ -57,6 +57,16 @@ class RequirementTest
     }
 
     @Test
+    void exposesItsIdentifier()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/identified", Map.of(
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
+            "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
+
+        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(Requirement.class).getIdentifier());
+    }
+
+    @Test
     void exposesRequirementProperties()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(

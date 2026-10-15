@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping an {@code data:Entity} node, a first-class, standalone, versionable data entity. On top of
@@ -38,13 +39,10 @@ import io.uhndata.iap.content.models.Content;
  */
 @Model(adaptables = Resource.class, resourceType = Entity.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Entity extends Content
+public class Entity extends Content implements Referenceable
 {
     /** The {@code sling:resourceType} of an {@code data:Entity} node. */
     public static final String RESOURCE_TYPE = "data/Entity";
-
-    @ValueMapValue(name = "jcr:uuid")
-    private String identifier;
 
     @ValueMapValue(name = "jcr:lastModified")
     private Calendar lastModified;
@@ -57,6 +55,7 @@ public class Entity extends Content
      *
      * @return an UUID
      */
+    @Override
     @NotNull
     public String getIdentifier()
     {

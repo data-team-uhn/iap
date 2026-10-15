@@ -124,14 +124,10 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final String mimeType = getMimeType(file);
         checkAcceptedType(requirement, mimeType);
         checkSize(file);
-        final Resource fulfilled = context.getResourceResolver().getResource(requirement.getPath());
-        if (fulfilled == null) {
-            throw new PersistenceException("Could not read the requirement being fulfilled");
-        }
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
-        final Resource document = findOrCreateDocument(target, submission, requirement, fulfilled, file, resolver);
+        final Resource document = findOrCreateDocument(target, submission, requirement, file, resolver);
         // Not named by its number, which is its position among the document's versions
         final Resource version = resolver.create(document, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
@@ -188,15 +184,13 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * @param target the submission's resource
      * @param submission the submission being attached to
      * @param requirement the requirement the file answers
-     * @param fulfilled the requirement's resource, for the reference
      * @param file the uploaded file
      * @param resolver the resolver to write with
      * @return the document resource
      * @throws PersistenceException when the document cannot be written
      */
     private Resource findOrCreateDocument(final Resource target, final Submission submission,
-        final DocumentRequirement requirement, final Resource fulfilled, final EventAttachment file,
-        final ResourceResolver resolver)
+        final DocumentRequirement requirement, final EventAttachment file, final ResourceResolver resolver)
         throws PersistenceException
     {
         final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
@@ -214,7 +208,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         // taken from what somebody uploaded is a name chosen by them for a node in our tree
         final Resource document = resolver.create(target, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:Document", TITLE_PROPERTY, title));
-        ReferenceUtils.setReference(document, FULFILLS_PROPERTY, fulfilled);
+        ReferenceUtils.setReference(document, FULFILLS_PROPERTY, requirement);
         return document;
     }
 

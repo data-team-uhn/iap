@@ -48,6 +48,7 @@ import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
@@ -108,7 +109,7 @@ class DetachDocumentHandlerTest
     private Resource target;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws RepositoryException, PersistenceException
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class,
@@ -124,6 +125,7 @@ class DetachDocumentHandlerTest
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Anything at all"));
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
+        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
