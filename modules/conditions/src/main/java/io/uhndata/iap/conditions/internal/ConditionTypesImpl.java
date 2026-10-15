@@ -33,13 +33,15 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 import io.uhndata.iap.conditions.api.Aggregator;
 import io.uhndata.iap.conditions.api.ConditionTypes;
 import io.uhndata.iap.conditions.api.Operator;
+import io.uhndata.iap.conditions.spi.CandidateProvider;
 import io.uhndata.iap.conditions.spi.ConditionAggregator;
 import io.uhndata.iap.conditions.spi.ConditionComparator;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 
 /**
- * The built-in comparators and aggregators, with those registered as services after them, and every registered
- * operand source. A registered one with a built-in name is ignored: the built-in one wins.
+ * The registry of condition types: the built-in comparators and aggregators followed by those registered as
+ * services, and every registered operand source and candidate provider. A registered comparator or aggregator with a
+ * built-in's name is ignored.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,6 +60,10 @@ public class ConditionTypesImpl implements ConditionTypes
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)
     private volatile List<OperandResolver> sources;
+
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
+        policyOption = ReferencePolicyOption.GREEDY)
+    private volatile List<CandidateProvider> providers;
 
     @Override
     public ConditionComparator getComparator(final String name)
@@ -95,6 +101,12 @@ public class ConditionTypesImpl implements ConditionTypes
         return this.sources.stream()
             .sorted(Comparator.comparingInt(OperandResolver::getOrder).thenComparing(OperandResolver::getSource))
             .toList();
+    }
+
+    @Override
+    public CandidateProvider getCandidateProvider(final String source)
+    {
+        return named(this.providers, source, CandidateProvider::getSource);
     }
 
     private static <T> List<T> withBuiltIns(final List<? extends T> builtIns, final List<? extends T> registered,

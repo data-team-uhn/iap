@@ -451,7 +451,8 @@ public final class EngineFixture
     {
         final ConditionTypesImpl types = new ConditionTypesImpl();
         final Map<String, List<?>> registered = Map.of("comparators", List.of(), "aggregators", List.of(),
-            "sources", List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
+            "sources", List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()),
+            "providers", List.of());
         for (final Map.Entry<String, List<?>> entry : registered.entrySet()) {
             final Field field = ConditionTypesImpl.class.getDeclaredField(entry.getKey());
             field.setAccessible(true);

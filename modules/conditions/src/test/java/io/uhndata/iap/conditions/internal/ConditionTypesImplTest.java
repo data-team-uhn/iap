@@ -19,6 +19,7 @@ package io.uhndata.iap.conditions.internal;
 
 import java.util.List;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,8 @@ import io.uhndata.iap.conditions.api.Aggregator;
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.api.Operator;
+import io.uhndata.iap.conditions.spi.Candidate;
+import io.uhndata.iap.conditions.spi.CandidateProvider;
 import io.uhndata.iap.conditions.spi.ConditionAggregator;
 import io.uhndata.iap.conditions.spi.ConditionComparator;
 import io.uhndata.iap.conditions.spi.OperandResolver;
@@ -96,6 +99,30 @@ class ConditionTypesImplTest
         assertNull(this.types.getComparator("rhymes with"));
         assertNull(this.types.getAggregator("mode"));
         assertNull(this.types.getSource("weather"));
+    }
+
+    @Test
+    void findsWhatListsASourcesCandidates()
+    {
+        final CandidateProvider questions =
+            new CandidateProvider()
+            {
+                @Override
+                public String getSource()
+                {
+                    return "answer";
+                }
+
+                @Override
+                public List<Candidate> getCandidates(
+                    final Resource context)
+                {
+                    return List.of();
+                }
+            };
+        this.context.registerService(CandidateProvider.class, questions);
+        assertSame(questions, this.types.getCandidateProvider("answer"));
+        assertNull(this.types.getCandidateProvider("tags"));
     }
 
     @Test
