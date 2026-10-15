@@ -278,7 +278,7 @@
       <bpmn:outgoing>toFinishNotAProposal</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toFinishNotAProposal" sourceRef="markNotAProposal" targetRef="finishNotAProposal" />
-    <bpmn:serviceTask id="finishNotAProposal" iap:handler="finishReading" name="The reading is over">
+    <bpmn:serviceTask id="finishNotAProposal" iap:blocks="true" iap:handler="finishReading" iap:message="This document is not a research proposal. Upload the research proposal as a new version to go on." name="The reading is over">
       <bpmn:incoming>toFinishNotAProposal</bpmn:incoming>
       <bpmn:outgoing>toEndNotAProposal</bpmn:outgoing>
     </bpmn:serviceTask>

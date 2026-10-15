@@ -814,6 +814,33 @@ describe("SubmissionEditor", () => {
     expect(screen.queryByText("Is this a research proposal?")).toBeNull();
   });
 
+  // The reading workflow said the request cannot go on, so there is nothing past the classification to do
+  it("holds Next back past the classification when the reading blocked the request", async () => {
+    const message = "This document is not a research proposal.";
+    const classification = {
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: true, items: [ duration([ "No" ]) ],
+    };
+    const study = {
+      name: "common", path: "/Schemas/proposal/v1/common", type: FORM_REQUIREMENT, label: "The study", extracted: true,
+      items: [ duration() ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ classification, study ],
+      extraction: { status: "done", message, blocked: true },
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    const next = screen.getByRole("button", { name: "Next" });
+    expect(next).toBeDisabled();
+    expect(next.parentElement).toHaveAttribute("aria-label", message);
+  });
+
   it("holds Next back until a required document is attached", async () => {
     const proposal = {
       name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",

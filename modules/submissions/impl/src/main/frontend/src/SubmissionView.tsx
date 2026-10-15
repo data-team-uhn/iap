@@ -54,6 +54,7 @@ import {
   type FormQuestion,
   type Requirement,
   type SubmissionForm,
+  describeBlock,
   describeNothingAttached,
   describeValues,
   fetchForm,
@@ -126,6 +127,10 @@ function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | und
   const extraction = form?.extraction?.status;
   if (extraction === "running") {
     return "Wait until the uploaded document has been read.";
+  }
+  const blocked = describeBlock(form?.extraction);
+  if (blocked !== undefined) {
+    return blocked;
   }
   const stillToBeRead = form?.readsDocuments === true && extraction === undefined
     && asked.some(requirement => documentsFulfilling(requirement, documents).length > 0);

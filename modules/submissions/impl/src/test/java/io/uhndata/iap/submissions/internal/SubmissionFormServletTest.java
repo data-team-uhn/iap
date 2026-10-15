@@ -785,6 +785,19 @@ class SubmissionFormServletTest
         assertTrue(extraction.getBoolean("reading"));
     }
 
+    // The reading workflow said the request cannot go on, such as for a document that is not a proposal
+    @Test
+    void saysWhenTheReadingBlockedTheRequest() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "done");
+
+        assertFalse(form(REQUESTER).getJsonObject("extraction").getBoolean("blocked"));
+
+        modify(SUBMISSION_PATH, "extractionBlocked", Boolean.TRUE);
+
+        assertTrue(form(REQUESTER).getJsonObject("extraction").getBoolean("blocked"));
+    }
+
     @Test
     void leavesOutWhatTheReadingHasNotSaidYet() throws IOException
     {

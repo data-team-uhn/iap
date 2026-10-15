@@ -515,6 +515,19 @@ describe("SubmissionView", () => {
     expect(step).toBeEnabled();
   });
 
+  // The reading workflow said the request cannot go on; its own words say why
+  it("will not offer the step when the reading blocked the request", async () => {
+    const message = "This document is not a research proposal.";
+    vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED,
+      { extraction: { status: "done", message, blocked: true } }));
+
+    renderAt("/Submissions/demo-1");
+
+    const step = await screen.findByRole("button", { name: /Send it/ });
+    await waitFor(() => expect(step).toBeDisabled());
+    expect(step.parentElement).toHaveAttribute("aria-label", message);
+  });
+
   // Nothing reads the attached document here, so there is no reading to wait for and the unanswered
   // questions are the submitter's own. A request that attaches a doctor's note is this case.
   it("insists on the missing answers when nothing reads the attached document", async () => {

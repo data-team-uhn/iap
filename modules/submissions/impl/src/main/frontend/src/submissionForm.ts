@@ -177,6 +177,9 @@ export interface ExtractionState {
   reading?: boolean;
   // Why a parse failed, in the daemon's words. For the console only: the submitter sees `message`.
   detail?: string;
+  // Whether the reading ended with the request unable to go on, such as for a document that is not
+  // what the request asks for. `message` says why. The request's workflow refuses to send it too.
+  blocked?: boolean;
 }
 
 export interface SubmissionForm {
@@ -236,6 +239,14 @@ export function describeValues(question: FormQuestion, values: string[]): string
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
+// What stops a request from going on, as its reading workflow said it, or undefined when nothing does.
+export function describeBlock(extraction: ExtractionState | undefined): string | undefined {
+  if (extraction?.blocked !== true) {
+    return undefined;
+  }
+  return extraction.message ?? "The uploaded document does not let this request go on.";
+}
+
 export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Promise<SubmissionForm> {
   const response = await doFetch(`${path}.form.json`);
   if (!response.ok) {

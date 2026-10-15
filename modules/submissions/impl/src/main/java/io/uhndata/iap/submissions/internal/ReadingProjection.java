@@ -43,6 +43,9 @@ final class ReadingProjection
 
     private static final String EXTRACTION_MESSAGE = "extractionMessage";
 
+    /** Set by a reading that ended with the request unable to go on; its message says why. */
+    private static final String EXTRACTION_BLOCKED = "extractionBlocked";
+
     /** Set once a job has taken the reading, which is after every parse has been read in. */
     private static final String READING_CLAIMED = "extractionReadingClaimed";
 
@@ -95,6 +98,7 @@ final class ReadingProjection
         }
         json.add("parsed", ParseStatus.isSettled(submission));
         json.add("reading", Boolean.TRUE.equals(submission.get(READING_CLAIMED, Boolean.class)));
+        json.add("blocked", Boolean.TRUE.equals(submission.get(EXTRACTION_BLOCKED, Boolean.class)));
         return json;
     }
 

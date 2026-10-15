@@ -28,10 +28,45 @@
         "@creator"
       ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toCanSend": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCanSend",
+        "targetRef": "canSend"
+      }
+    },
+    "canSend": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "canSend",
+      "label": "Can it be sent?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toCompleteAgain": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCompleteAgain",
+        "label": "The reading blocked it",
+        "targetRef": "complete",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [
+              "extractionBlocked"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "true"
+            ]
+          }
+        }
+      },
       "toMarkSubmitted": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkSubmitted",
-        "targetRef": "markSubmitted"
+        "targetRef": "markSubmitted",
+        "isDefault": true
       }
     },
     "markSubmitted": {

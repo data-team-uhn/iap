@@ -32,9 +32,47 @@
     <bpmn:sequenceFlow id="toComplete" sourceRef="created" targetRef="complete" />
     <bpmn:userTask id="complete" iap:performers="@creator" name="Send for review">
       <bpmn:incoming>toComplete</bpmn:incoming>
-      <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
+      <bpmn:incoming>toCompleteAgain</bpmn:incoming>
+      <bpmn:outgoing>toCanSend</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="toMarkSubmitted" sourceRef="complete" targetRef="markSubmitted" />
+    <bpmn:sequenceFlow id="toCanSend" sourceRef="complete" targetRef="canSend" />
+    <bpmn:exclusiveGateway id="canSend" default="toMarkSubmitted" name="Can it be sent?">
+      <bpmn:incoming>toCanSend</bpmn:incoming>
+      <bpmn:outgoing>toCompleteAgain</bpmn:outgoing>
+      <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toCompleteAgain" name="The reading blocked it" sourceRef="canSend" targetRef="complete">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>property</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>extractionBlocked</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>true</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toMarkSubmitted" sourceRef="canSend" targetRef="markSubmitted" />
     <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted" name="Mark it submitted">
       <bpmn:incoming>toMarkSubmitted</bpmn:incoming>
       <bpmn:outgoing>toReview</bpmn:outgoing>
@@ -105,62 +143,81 @@
       <bpmndi:BPMNShape id="completeShape" bpmnElement="complete">
         <dc:Bounds x="550" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="canSendShape" bpmnElement="canSend" isMarkerVisible="true">
+        <dc:Bounds x="695" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="680" y="143" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
-        <dc:Bounds x="700" y="158" width="100" height="80" />
+        <dc:Bounds x="800" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="reviewShape" bpmnElement="review">
-        <dc:Bounds x="850" y="158" width="100" height="80" />
+        <dc:Bounds x="950" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="recordShape" bpmnElement="record">
-        <dc:Bounds x="1000" y="158" width="100" height="80" />
+        <dc:Bounds x="1100" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="1160" y="173" width="50" height="50" />
+        <dc:Bounds x="1260" y="173" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1159" y="143" width="53" height="14" />
+          <dc:Bounds x="1259" y="143" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="approvedShape" bpmnElement="approved">
-        <dc:Bounds x="1270" y="100" width="36" height="36" />
+        <dc:Bounds x="1370" y="100" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1244" y="143" width="88" height="14" />
+          <dc:Bounds x="1344" y="143" width="88" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="rejectedShape" bpmnElement="rejected">
-        <dc:Bounds x="1270" y="260" width="36" height="36" />
+        <dc:Bounds x="1370" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1248" y="303" width="80" height="14" />
+          <dc:Bounds x="1348" y="303" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toCompleteEdge" bpmnElement="toComplete">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="550" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toMarkSubmittedEdge" bpmnElement="toMarkSubmitted">
+      <bpmndi:BPMNEdge id="toCanSendEdge" bpmnElement="toCanSend">
         <di:waypoint x="650" y="198" />
-        <di:waypoint x="700" y="198" />
+        <di:waypoint x="695" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkSubmittedEdge" bpmnElement="toMarkSubmitted">
+        <di:waypoint x="745" y="198" />
+        <di:waypoint x="800" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCompleteAgainEdge" bpmnElement="toCompleteAgain">
+        <di:waypoint x="720" y="223" />
+        <di:waypoint x="720" y="290" />
+        <di:waypoint x="600" y="290" />
+        <di:waypoint x="600" y="238" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="605" y="296" width="110" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">
-        <di:waypoint x="800" y="198" />
-        <di:waypoint x="850" y="198" />
+        <di:waypoint x="900" y="198" />
+        <di:waypoint x="950" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRecordEdge" bpmnElement="toRecord">
-        <di:waypoint x="950" y="198" />
-        <di:waypoint x="1000" y="198" />
+        <di:waypoint x="1050" y="198" />
+        <di:waypoint x="1100" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
-        <di:waypoint x="1100" y="198" />
-        <di:waypoint x="1160" y="198" />
+        <di:waypoint x="1200" y="198" />
+        <di:waypoint x="1260" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="1185" y="173" />
-        <di:waypoint x="1185" y="118" />
-        <di:waypoint x="1270" y="118" />
+        <di:waypoint x="1285" y="173" />
+        <di:waypoint x="1285" y="118" />
+        <di:waypoint x="1370" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="1185" y="223" />
-        <di:waypoint x="1185" y="278" />
-        <di:waypoint x="1270" y="278" />
+        <di:waypoint x="1285" y="223" />
+        <di:waypoint x="1285" y="278" />
+        <di:waypoint x="1370" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

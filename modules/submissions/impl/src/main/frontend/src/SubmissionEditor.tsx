@@ -38,6 +38,7 @@ import {
   isFormRequirement,
   isQuestion,
   isRequired,
+  describeBlock,
   reviewExtraction,
   saveAnswer,
 } from "./submissionForm";
@@ -203,12 +204,14 @@ function whyNextWaits(requirements: Requirement[]): string | undefined {
   return open ? "Answer every required question before going on." : undefined;
 }
 
-// Turns to the next page. Uploading is what starts the reading.
-function NextButton({ requirements, onOpened }: {
+// Turns to the next page. Uploading is what starts the reading. `blocked` is the reading workflow
+// saying the request cannot go on, which holds Next back whatever this page holds.
+function NextButton({ requirements, blocked, onOpened }: {
   requirements: Requirement[];
+  blocked?: string;
   onOpened: () => void;
 }) {
-  const waiting = whyNextWaits(requirements);
+  const waiting = blocked ?? whyNextWaits(requirements);
   return (
     <Tooltip title={waiting ?? ""}>
       <span>
@@ -357,7 +360,11 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
       { form.readsDocuments && page === 2 && (
         <Stack direction="row" sx={{ justifyContent: "space-between" }}>
           <Button onClick={() => setPage(1)}>Back</Button>
-          <NextButton requirements={shown(form, 2)} onOpened={() => setPage(3)} />
+          <NextButton
+            requirements={shown(form, 2)}
+            blocked={describeBlock(form.extraction)}
+            onOpened={() => setPage(3)}
+          />
         </Stack>
       ) }
       { form.readsDocuments && page === 3 && shown(form, 3).length === 0 && (
