@@ -47,6 +47,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
 import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
@@ -111,6 +112,7 @@ class SystemWorkflowDefinitionsTest
         this.context.registerInjectActivateService(new PropertyOperandResolver());
         this.context.registerInjectActivateService(new TagsOperandResolver());
         this.context.registerInjectActivateService(new OwnPropertyOperandResolver());
+        this.context.registerInjectActivateService(new ConditionTypesImpl());
         this.evaluator = this.context.registerInjectActivateService(new ConditionEvaluatorImpl());
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();

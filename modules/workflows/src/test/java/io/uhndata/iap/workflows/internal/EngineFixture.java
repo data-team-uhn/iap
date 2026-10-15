@@ -53,6 +53,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.notifications.api.NotificationService;
@@ -441,18 +442,25 @@ public final class EngineFixture
      * Builds a condition evaluator with the operand sources a workflow's guards use: literals, tags, and the
      * instance's variables.
      *
-     * <p>Wired by hand, because the bundle plugin generates the DS metadata only at packaging time.</p>
+     * <p>Wired by hand, because the fixture's callers give it no OSGi context to register services in.</p>
      *
      * @return an evaluator a gateway's guards can be asked of
      * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
      */
     static ConditionEvaluator conditions() throws ReflectiveOperationException
     {
+        final ConditionTypesImpl types = new ConditionTypesImpl();
+        final Map<String, List<?>> registered = Map.of("comparators", List.of(), "aggregators", List.of(),
+            "sources", List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
+        for (final Map.Entry<String, List<?>> entry : registered.entrySet()) {
+            final Field field = ConditionTypesImpl.class.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(types, entry.getValue());
+        }
         final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(evaluator,
-            List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
+        final Field registry = ConditionEvaluatorImpl.class.getDeclaredField("types");
+        registry.setAccessible(true);
+        registry.set(evaluator, types);
         return evaluator;
     }
 
