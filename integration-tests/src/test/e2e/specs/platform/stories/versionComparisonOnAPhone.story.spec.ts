@@ -63,7 +63,9 @@ test.describe('stories: a new version checked from a phone', () => {
       const dialog = page.getByRole('dialog', { name: 'New schema' });
       await dialog.getByLabel('Title').fill(SCHEMA);
       await dialog.getByRole('button', { name: 'Create' }).click();
-      await page.getByText('Version 1.0').click();
+      // The schema list shows other schemas' versions until the new schema's page replaces it
+      await expect(page.getByRole('heading', { name: SCHEMA, level: 1 })).toBeVisible();
+      await page.getByRole('main').getByText('Version 1.0').click();
       await expect(page.getByRole('heading', { name: /Version 1\.0/ })).toBeVisible();
     });
 
