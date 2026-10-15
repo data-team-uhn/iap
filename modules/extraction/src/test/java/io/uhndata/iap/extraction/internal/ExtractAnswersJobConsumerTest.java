@@ -213,6 +213,25 @@ class ExtractAnswersJobConsumerTest
         assertGaveUpBeforeReading();
     }
 
+    // A schema version this job's session cannot reach: without giving up, the submission would stay `running`
+    @Test
+    void givesUpWhenTheSchemaVersionCannotBeRead() throws Exception
+    {
+        this.context.resourceResolver().getResource(this.submission.getPath()).adaptTo(ModifiableValueMap.class)
+            .put("schemaVersion", "5c4e3a1b-0000-0000-0000-000000000000");
+        this.context.resourceResolver().commit();
+        setJobSubmission(this.submission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        Mockito.verifyNoInteractions(this.engine);
+        final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
+            .getValueMap();
+        assertEquals(ExtractionStatus.FAILED, properties.get(ExtractionStatus.PROPERTY, String.class));
+        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ,
+            properties.get(ExtractionStatus.MESSAGE, String.class));
+    }
+
     private ModifiableValueMap getSchemaVersionProperties()
     {
         return this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH)
