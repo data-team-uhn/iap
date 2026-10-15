@@ -223,6 +223,7 @@ committed state.
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. It was queued before the walk asking for it committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but has not committed yet looks "queued" for a moment. |
+| The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem logged for an administrator. Thrown on instead, it would end the job with `running` left behind. |
 | The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Fired anyway, the reading would start nothing and leave `running` for good. |
 | `extractionReadingClaimed` is not set, and setting it, with the job's Sling job id in `extractionReadingClaimedBy`, commits. A claim that already holds this job's own id counts as its own: Sling runs an unfinished job again, with the same id, after a restart. | A claim held by another id: another job has the reading, and this one is dropped. Two jobs that race write different ids, and the repository refuses the second commit. |
 
@@ -745,7 +746,7 @@ Messages the submitter can see in `extractionMessage`:
 | The model's answer could not be read | Two unreadable replies |
 | The model could not be reached | The call failed: the model is down, has no active settings, or the call slot did not come free in time |
 | The document's text could not be read | The stored Markdown could not be read back out of the repository |
-| The document could not be read | The reading workflow threw, or its version is not tagged `active` |
+| The document could not be read | The reading workflow threw, its version is not tagged `active`, or the job cannot read the schema version |
 | Reading was stopped. | Stop |
 | Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists |
 | The schema asks nothing of the document | No extractable question in the whole schema |
@@ -863,7 +864,7 @@ their own; those steps say why.
 
 | Where | Setting | Default | Meaning |
 | --- | --- | --- | --- |
-| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` and `jcr:modifyProperties` on `/Submissions`: it only sets the claim and the status; the engine writes everything else as its own user. `jcr:read` on `/Workflows`, to check the reading workflow exists |
+| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` and `jcr:modifyProperties` on `/Submissions`: it only sets the claim and the status; the engine writes everything else as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it |
 | same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
 | documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |

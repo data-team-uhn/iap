@@ -79,6 +79,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     /** What the submitter is told when the schema names no reading workflow that exists. */
     static final String NOTHING_READS = "Nothing is set up to read this request's documents";
 
+    /** What the submitter is told when the reading failed for a reason that is an administrator's to fix. */
+    static final String COULD_NOT_READ = "The document could not be read";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtractAnswersJobConsumer.class);
 
     @Reference
@@ -149,13 +152,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         if (isTooEarly(job, submission)) {
             return JobResult.FAILED;
         }
-        if (!hasReadingWorkflow(resolver, submission)) {
-            // Fired anyway, the reading would start nothing and leave `running` behind for good
-            LOGGER.warn("The schema of {} names no reading workflow that exists", path);
-            // A schema set up to parse its documents but with nothing to read them
-            ErrorLogger.logProblem("The schema version names no reading workflow that exists",
-                ErrorContext.of(ExtractAnswersJobConsumer.class, "findReadingWorkflow").about(path));
-            giveUp(resolver, submission, NOTHING_READS);
+        if (!canStart(resolver, submission)) {
             return JobResult.CANCEL;
         }
         if (!claimReading(resolver, submission, job.getId())) {
@@ -177,13 +174,42 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             // The engine reverted the whole walk, so the `running` the parse step committed is still there and
             // this job still holds the claim. Left alone that is a submission nothing can ever read again and a
             // spinner that never stops, which is the one outcome this pipeline treats as worse than a bad answer.
-            giveUp(resolver, submission, "The document could not be read");
+            giveUp(resolver, submission, COULD_NOT_READ);
             throw e;
         }
         LOGGER.info("Reading run done: submission={} status={} ms={}", path,
             submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class),
             (System.nanoTime() - startedAt) / 1_000_000L);
         return JobResult.OK;
+    }
+
+    /**
+     * Whether a reading can start at all, giving it up when it cannot: fired anyway, it would start nothing and
+     * leave `running` behind for good.
+     *
+     * @param resolver this job's session
+     * @param submission the submission to read
+     * @return {@code true} when the schema version can be read and names a reading workflow that exists
+     */
+    private static boolean canStart(final ResourceResolver resolver, final Resource submission)
+    {
+        final String path = submission.getPath();
+        if (SubmissionFiles.getSubmission(submission).findSchemaVersion() == null) {
+            LOGGER.error("The extraction service user cannot read the schema version of {}", path);
+            ErrorLogger.logProblem("The extraction service user cannot read a submission's schema version",
+                ErrorContext.of(ExtractAnswersJobConsumer.class, "findSchemaVersion").about(path));
+            giveUp(resolver, submission, COULD_NOT_READ);
+            return false;
+        }
+        if (!hasReadingWorkflow(resolver, submission)) {
+            LOGGER.warn("The schema of {} names no reading workflow that exists", path);
+            // A schema set up to parse its documents but with nothing to read them
+            ErrorLogger.logProblem("The schema version names no reading workflow that exists",
+                ErrorContext.of(ExtractAnswersJobConsumer.class, "findReadingWorkflow").about(path));
+            giveUp(resolver, submission, NOTHING_READS);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -203,15 +229,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             return true;
         }
         if (!SubmissionFiles.isEveryParseSettled(SubmissionFiles.getSubmission(submission))) {
-            // Looked at again in a moment rather than dropped, because "still going" is not always true. This
-            // job is queued from inside the walk that records the parse, and the JobManager commits the job
-            // node in a session of its own - so a job that starts quickly enough reads the very parse it was
-            // queued for as unfinished. Dropping on that leaves a submission at `running` with nothing left to
-            // move it on and a spinner that never stops, which is exactly what happens when the last two
-            // parses of a submission land seconds apart.
-            //
-            // A parse that really is still going fails this again until Sling gives up on the job, by which
-            // time the one its own landing queues has taken the reading.
+            // Retried, not dropped: this job is queued before the walk recording its parse commits, so it can
+            // see that parse as unfinished. A parse really still going queues its own job when it lands.
             LOGGER.info("A parse of {} is still going, or has not been committed yet; looking again shortly",
                 submission.getPath());
             return true;
@@ -241,10 +260,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             return;
         }
-        properties.put(ExtractionStatus.PROPERTY, ExtractionStatus.FAILED);
-        properties.put(ExtractionStatus.MESSAGE, reason);
         ExtractionStatus.releaseClaim(properties);
         try {
+            ExtractionStatus.record(submission, ExtractionStatus.FAILED, reason);
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),
