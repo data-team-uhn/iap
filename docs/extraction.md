@@ -400,7 +400,7 @@ In a diagram these are the service task's `iap:requirement`, `iap:documents`,
 `iap:promptFrom` and `iap:recordWhen` attributes. `documents` and `promptFrom` are
 lists, written comma-separated. `requirement` is one string, which the handler splits on
 commas itself. The `properties` list of `ServiceTask.json` maps those four, with
-`iap:message` (step 9) and `iap:replaceActive` (step 6). `UserTask.json` maps
+`iap:message` and `iap:blocks` (step 9) and `iap:replaceActive` (step 6). `UserTask.json` maps
 `iap:requirement` on a user task, which only places the task in the form (see "What the
 submitter sees"). See
 [What an executable graph carries](workflows.md#what-an-executable-graph-carries) for
@@ -445,6 +445,12 @@ Moves `extractionStatus` from `running` to `done`, with the step's `message`
 submitter. Any other status is left alone, because a step that already wrote `failed`
 said something this one does not know. A reading workflow puts this at the end of every
 path, so the view never spins forever.
+
+A step that ends with the request unable to go on also sets `blocks` (`iap:blocks` in a
+diagram), for example after a document settled as not what the request asks for. It
+sets `extractionBlocked=true` on the submission, with the `message` saying why. A new
+reading takes it down when it records `running`: after a new version, a retried parse,
+or Read again. The request's own workflow and the form read it to stop it going on.
 
 ## Asking the model
 
@@ -889,6 +895,7 @@ On `sub:Submission`:
 | `extractionMessage` | String | A short message for the person looking |
 | `extractionReadingClaimed` | Boolean | A job has taken this reading; removed when new documents are sent, on Stop, on Read again, and when a reading gives up |
 | `extractionReadingClaimedBy` | String | The claiming job's Sling job id. Two jobs racing would both write `true`, which the repository merges silently; their ids differ, so the second commit is refused. A job Sling runs again after a restart keeps its id, and finds the claim still its own. Removed with the claim. |
+| `extractionBlocked` | Boolean | The last reading ended with the request unable to go on (`finishReading` with `blocks`); taken down when a new reading records `running` |
 
 On `sub:File`:
 
