@@ -250,7 +250,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             }
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
                 ExtractionStatus.record(context.getTarget(), ExtractionStatus.FAILED,
-                    SubmissionFiles.describeUnreadable(file));
+                    SubmissionFiles.describeUnreadable());
                 return null;
             }
             if (ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {

@@ -121,6 +121,13 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             }
             LOGGER.info("Parse came back: job={} file={} submission={} succeeded={} tokens={}", outcome.jobId(),
                 outcome.target(), submission.getPath(), outcome.succeeded(), outcome.tokens());
+            if (!outcome.succeeded()) {
+                // The submitter is only told to try again; why it failed is for an administrator
+                LOGGER.warn("Parse job {} for {} failed: {}", outcome.jobId(), outcome.target(), outcome.error());
+                ErrorLogger.logProblem("A document could not be parsed: " + outcome.error(),
+                    ErrorContext.of(ParseCompletionHandler.class, "handle").about(outcome.target())
+                        .with("job", outcome.jobId()));
+            }
             final String staged = getStagedFolder(outcome, file);
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT, buildPayload(outcome)));
             // Only now the repository has committed what the parse produced. Until this point the volume holds
