@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link StartEventCheck}.
+ * Unit tests for {@link StartEventCheck} and {@link SystemWorkflowTriggerCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class WorkflowChecksTest
 {
+    private static final String SYSTEM_VERSION = "/SystemWorkflows/saveThing/v1";
+
     private static final String USER_VERSION = "/Workflows/approveThing/v1";
 
     private final SlingContext context = new SlingContext();
@@ -87,6 +89,35 @@ class WorkflowChecksTest
         assertTrue(new StartEventCheck().appliesTo(version(USER_VERSION, null)));
         assertFalse(new StartEventCheck().appliesTo(this.context.create().resource("/Schemas/leave/v1",
             Map.of(WorkflowFixture.TYPE, "sch/SchemaVersion"))));
+    }
+
+    @Test
+    void asksNothingMoreOfAUserWorkflow()
+    {
+        assertTrue(new SystemWorkflowTriggerCheck().appliesTo(version(SYSTEM_VERSION, "sub/Submission")));
+        assertFalse(new SystemWorkflowTriggerCheck().appliesTo(version(USER_VERSION, null)));
+        assertFalse(new SystemWorkflowTriggerCheck().appliesTo(this.context.create().resource("/SystemWorkflows/notes",
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured"))));
+    }
+
+    @Test
+    void acceptsASystemWorkflowThatSaysWhatTriggersIt()
+    {
+        final Resource version = version(SYSTEM_VERSION, "sub/Submission");
+        start(version, "requested", "save");
+
+        assertEquals(List.of(), new SystemWorkflowTriggerCheck().check(version));
+    }
+
+    @Test
+    void refusesASystemWorkflowThatDoesNotSayWhatTriggersIt()
+    {
+        final Resource version = version(SYSTEM_VERSION, null);
+        start(version, "requested", null);
+
+        assertEquals(List.of("a system workflow must name the type it acts on in targetResourceType",
+            "a system workflow must be started by a named message"),
+            new SystemWorkflowTriggerCheck().check(version));
     }
 
     private Resource version(final String path, final String targetType)
