@@ -239,6 +239,9 @@ export function describeValues(question: FormQuestion, values: string[]): string
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
+// What the form says while the uploaded documents are being parsed or read.
+export const STILL_READING = "Wait until the uploaded document has been read.";
+
 // What stops a request from going on, as its reading workflow said it, or undefined when nothing does.
 export function describeBlock(extraction: ExtractionState | undefined): string | undefined {
   if (extraction?.blocked !== true) {

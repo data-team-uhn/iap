@@ -41,6 +41,7 @@ import {
   describeBlock,
   reviewExtraction,
   saveAnswer,
+  STILL_READING,
 } from "./submissionForm";
 import SubmissionTasks from "./SubmissionTasks";
 
@@ -204,8 +205,8 @@ function whyNextWaits(requirements: Requirement[]): string | undefined {
   return open ? "Answer every required question before going on." : undefined;
 }
 
-// Turns to the next page. Uploading is what starts the reading. `blocked` is the reading workflow
-// saying the request cannot go on, which holds Next back whatever this page holds.
+// Turns to the next page. Uploading is what starts the reading. `blocked` holds Next back whatever this
+// page holds: while the documents are read, and when the reading said the request cannot go on.
 function NextButton({ requirements, blocked, onOpened }: {
   requirements: Requirement[];
   blocked?: string;
@@ -354,7 +355,11 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
       )) }
       { form.readsDocuments && page === 1 && (
         <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-          <NextButton requirements={shown(form, 1)} onOpened={() => setPage(2)} />
+          <NextButton
+            requirements={shown(form, 1)}
+            blocked={form.extraction?.status === "running" ? STILL_READING : undefined}
+            onOpened={() => setPage(2)}
+          />
         </Box>
       ) }
       { form.readsDocuments && page === 2 && (
@@ -362,7 +367,7 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
           <Button onClick={() => setPage(1)}>Back</Button>
           <NextButton
             requirements={shown(form, 2)}
-            blocked={describeBlock(form.extraction)}
+            blocked={form.extraction?.status === "running" ? STILL_READING : describeBlock(form.extraction)}
             onOpened={() => setPage(3)}
           />
         </Stack>

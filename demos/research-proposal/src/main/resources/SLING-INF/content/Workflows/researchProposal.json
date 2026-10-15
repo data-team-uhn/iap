@@ -42,23 +42,41 @@
       "toCompleteAgain": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toCompleteAgain",
-        "label": "The reading blocked it",
+        "label": "Blocked, or something is missing",
         "targetRef": "complete",
         "cond:condition": {
-          "jcr:primaryType": "cond:SingleCondition",
-          "comparator": "equals",
-          "operandA": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "source": "property",
-            "value": [
-              "extractionBlocked"
-            ]
+          "jcr:primaryType": "cond:ConditionGroup",
+          "requireAll": false,
+          "blocked": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "property",
+              "value": [
+                "extractionBlocked"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "true"
+              ]
+            }
           },
-          "operandB": {
-            "jcr:primaryType": "cond:ConditionOperand",
-            "value": [
-              "true"
-            ]
+          "incomplete": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "tags"
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "incomplete"
+              ]
+            }
           }
         }
       },

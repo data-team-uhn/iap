@@ -66,6 +66,7 @@ import {
   isQuestion,
   readAgain,
   stopProcessing,
+  STILL_READING,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -107,15 +108,9 @@ function documentsFulfilling(requirement: Requirement, documents: JsonNode[]): J
 
 // Why the waiting step may not be completed yet, or nothing when it may.
 //
-// Two things are checked. A document the request insists on that nobody has attached: completing a
-// step without it moves the process on with nothing to read, and nothing shows that it happened. And
-// the incomplete tag the save placed, but not while an attached document is still to be read: the
-// answers the tag counts as missing are the ones the reading fills in, so the step that sends the
-// document to be read must not wait for them. While the reading runs, the step waits for it instead.
-//
-// Only a form whose schema version reads its documents gets that second exemption. Without asking
-// that, a request that attaches a document nothing ever reads waits for a reading that will not
-// happen, and the incomplete tag stops meaning anything.
+// A document the request insists on that nobody has attached; a reading still going; a reading that
+// said the request cannot go on; and the incomplete tag the server placed, for a required question
+// still unanswered. Uploading is what starts the reading now, so sending waits for every answer.
 function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | undefined): string | undefined {
   const documents = submission ? childrenOfType(submission, "sub/Document") : [];
   const asked = (form?.requirements ?? []).filter(isDocumentRequirement);
@@ -126,18 +121,13 @@ function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | und
   }
   const extraction = form?.extraction?.status;
   if (extraction === "running") {
-    return "Wait until the uploaded document has been read.";
+    return STILL_READING;
   }
   const blocked = describeBlock(form?.extraction);
   if (blocked !== undefined) {
     return blocked;
   }
-  const stillToBeRead = form?.readsDocuments === true && extraction === undefined
-    && asked.some(requirement => documentsFulfilling(requirement, documents).length > 0);
-  if (stillToBeRead || !isIncomplete(submission)) {
-    return undefined;
-  }
-  return "Answer everything this request asks for before sending it.";
+  return isIncomplete(submission) ? "Answer everything this request asks for before sending it." : undefined;
 }
 
 

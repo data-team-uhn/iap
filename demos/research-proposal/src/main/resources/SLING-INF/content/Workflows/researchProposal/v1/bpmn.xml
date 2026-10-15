@@ -41,34 +41,66 @@
       <bpmn:outgoing>toCompleteAgain</bpmn:outgoing>
       <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="toCompleteAgain" name="The reading blocked it" sourceRef="canSend" targetRef="complete">
+    <bpmn:sequenceFlow id="toCompleteAgain" name="Blocked, or something is missing" sourceRef="canSend" targetRef="complete">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
           <sv:property sv:name="jcr:primaryType" sv:type="Name">
-            <sv:value>cond:SingleCondition</sv:value>
+            <sv:value>cond:ConditionGroup</sv:value>
           </sv:property>
-          <sv:property sv:name="comparator" sv:type="String">
-            <sv:value>equals</sv:value>
+          <sv:property sv:name="requireAll" sv:type="Boolean">
+            <sv:value>false</sv:value>
           </sv:property>
-          <sv:node sv:name="operandA">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name">
-              <sv:value>cond:ConditionOperand</sv:value>
-            </sv:property>
-            <sv:property sv:name="source" sv:type="String">
-              <sv:value>property</sv:value>
-            </sv:property>
-            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-              <sv:value>extractionBlocked</sv:value>
-            </sv:property>
-          </sv:node>
-          <sv:node sv:name="operandB">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name">
-              <sv:value>cond:ConditionOperand</sv:value>
-            </sv:property>
-            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-              <sv:value>true</sv:value>
-            </sv:property>
-          </sv:node>
+            <sv:node sv:name="blocked">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                <sv:value>cond:SingleCondition</sv:value>
+              </sv:property>
+              <sv:property sv:name="comparator" sv:type="String">
+                <sv:value>equals</sv:value>
+              </sv:property>
+              <sv:node sv:name="operandA">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                  <sv:value>cond:ConditionOperand</sv:value>
+                </sv:property>
+                <sv:property sv:name="source" sv:type="String">
+                  <sv:value>property</sv:value>
+                </sv:property>
+                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                  <sv:value>extractionBlocked</sv:value>
+                </sv:property>
+              </sv:node>
+              <sv:node sv:name="operandB">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                  <sv:value>cond:ConditionOperand</sv:value>
+                </sv:property>
+                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                  <sv:value>true</sv:value>
+                </sv:property>
+              </sv:node>
+            </sv:node>
+            <sv:node sv:name="incomplete">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                <sv:value>cond:SingleCondition</sv:value>
+              </sv:property>
+              <sv:property sv:name="comparator" sv:type="String">
+                <sv:value>includes</sv:value>
+              </sv:property>
+              <sv:node sv:name="operandA">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                  <sv:value>cond:ConditionOperand</sv:value>
+                </sv:property>
+                <sv:property sv:name="source" sv:type="String">
+                  <sv:value>tags</sv:value>
+                </sv:property>
+              </sv:node>
+              <sv:node sv:name="operandB">
+                <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                  <sv:value>cond:ConditionOperand</sv:value>
+                </sv:property>
+                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                  <sv:value>incomplete</sv:value>
+                </sv:property>
+              </sv:node>
+            </sv:node>
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
@@ -194,7 +226,7 @@
         <di:waypoint x="600" y="290" />
         <di:waypoint x="600" y="238" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="605" y="296" width="110" height="14" />
+          <dc:Bounds x="585" y="296" width="170" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">

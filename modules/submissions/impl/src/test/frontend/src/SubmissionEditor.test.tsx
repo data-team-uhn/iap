@@ -841,6 +841,24 @@ describe("SubmissionEditor", () => {
     expect(next.parentElement).toHaveAttribute("aria-label", message);
   });
 
+  it("holds Next back while the uploaded document is being read", async () => {
+    const proposal = {
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal ],
+      extraction: { status: "running" },
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+
+    const next = await screen.findByRole("button", { name: "Next" });
+    expect(next).toBeDisabled();
+    expect(next.parentElement).toHaveAttribute("aria-label", "Wait until the uploaded document has been read.");
+  });
+
   it("holds Next back until a required document is attached", async () => {
     const proposal = {
       name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",

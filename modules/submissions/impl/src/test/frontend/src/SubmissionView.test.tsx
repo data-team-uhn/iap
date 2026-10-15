@@ -503,16 +503,15 @@ describe("SubmissionView", () => {
     await waitFor(() => expect(step).toBeDisabled());
   });
 
-  // The answers the tag counts as missing are the ones reading the document fills in, so the step that
-  // sends it to be read cannot wait for them
-  it("offers the step once that document is attached, unanswered questions or not", async () => {
+  // Uploading starts the reading, so nothing is left for sending to start: every required answer first
+  it("will not offer the step while a required question is unanswered, document attached or not", async () => {
     vi.stubGlobal("fetch", servingWithSendStepAsking(WITH_PROPOSAL_ATTACHED));
 
     renderAt("/Submissions/demo-1");
 
     const step = await screen.findByRole("button", { name: /Send it/ });
-    await act(() => Promise.resolve());
-    expect(step).toBeEnabled();
+    await waitFor(() => expect(step).toBeDisabled());
+    expect(step.parentElement).toHaveAttribute("aria-label", "Answer everything this request asks for before sending it.");
   });
 
   // The reading workflow said the request cannot go on; its own words say why
