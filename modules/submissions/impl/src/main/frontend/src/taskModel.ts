@@ -39,6 +39,8 @@ export interface SubmissionTask {
   // The events the reader may send the task, as the server listed them: `complete` when the task
   // is theirs to do
   "@events": string[];
+  // Whether the reader may complete the task on behalf of someone else, which `@events` does not say
+  "@delegable"?: true;
 }
 
 function asTask(node: SerializedNode): SubmissionTask | null {
@@ -51,6 +53,7 @@ function asTask(node: SerializedNode): SubmissionTask | null {
     label: typeof node.label === "string" ? node.label : lastSegmentOf(path),
     outcomeOptions: stringsOf(node.outcomeOptions),
     "@events": stringsOf(node["@events"]),
+    ...(node["@delegable"] === true ? { "@delegable": true } : {}),
   };
 }
 

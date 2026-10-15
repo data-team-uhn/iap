@@ -46,6 +46,7 @@ import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
 import ApprovalState from "./ApprovalState";
+import DecisionTasks from "./DecisionTasks";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
@@ -519,6 +520,7 @@ function SubmissionView() {
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>
       </Box>
+      <DecisionTasks path={path} onCompleted={readAgain} />
       {forms.map((form, index) => (
         <Panel
           key={"form-" + index}

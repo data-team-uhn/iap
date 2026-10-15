@@ -67,10 +67,10 @@
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
-    <bpmn:endEvent id="requestApproved" name="Time off approved">
+    <bpmn:endEvent id="requestApproved" name="Time off approved" iap:hostTag="approved">
       <bpmn:incoming>toApproved</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="requestRejected" name="Time off refused">
+    <bpmn:endEvent id="requestRejected" name="Time off refused" iap:hostTag="rejected">
       <bpmn:incoming>toRejected</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>

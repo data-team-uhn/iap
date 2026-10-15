@@ -20,7 +20,10 @@ package io.uhndata.iap.workflows.internal;
 import java.util.List;
 
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Activate;
@@ -95,6 +98,34 @@ public final class Delegation
         }
         final String id = id(represented);
         return id.equals(sender) ? Actor.of(sender) : new Actor(sender, id);
+    }
+
+    /**
+     * Whether whoever is behind a session may act for others. For deciding what to show them only: {@link #actor}
+     * still decides what they may do.
+     *
+     * @param session the reader's own session
+     * @return {@code true} for a member of the delegates group, or the administrator
+     * @throws RepositoryException when the session cannot say who it is
+     */
+    boolean isDelegate(final Session session) throws RepositoryException
+    {
+        return UserIds.principalsOf(session).contains(this.delegates) || isAdministrator(session);
+    }
+
+    /**
+     * Whether a session belongs to the administrator.
+     *
+     * @param session the session
+     * @return {@code true} for the administrator
+     * @throws RepositoryException when the session cannot look its own user up
+     */
+    private static boolean isAdministrator(final Session session) throws RepositoryException
+    {
+        final Authorizable self = session instanceof JackrabbitSession
+            ? ((JackrabbitSession) session).getUserManager().getAuthorizable(session.getUserID())
+            : null;
+        return self instanceof User && ((User) self).isAdmin();
     }
 
     /**
