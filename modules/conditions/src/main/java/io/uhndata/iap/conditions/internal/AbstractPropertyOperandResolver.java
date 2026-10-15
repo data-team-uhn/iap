@@ -40,6 +40,12 @@ abstract class AbstractPropertyOperandResolver implements OperandResolver
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @Override
+    public String getValueLabel()
+    {
+        return "Property";
+    }
+
+    @Override
     public final Operand resolve(final ConditionOperand operand, final Content context)
     {
         final String[] value = operand.getValue();

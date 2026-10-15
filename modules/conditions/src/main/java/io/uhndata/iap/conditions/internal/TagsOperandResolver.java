@@ -53,6 +53,48 @@ public class TagsOperandResolver implements OperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "The tags";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Every tag the entity carries: placed on it, inherited, or aggregated from its parts.";
+    }
+
+    @Override
+    public String getPhrase()
+    {
+        return "the tag list";
+    }
+
+    @Override
+    public OperandType getValueType()
+    {
+        return OperandType.TEXT;
+    }
+
+    @Override
+    public Boolean isMultiple()
+    {
+        return Boolean.TRUE;
+    }
+
+    @Override
+    public String getChoices()
+    {
+        return "/Tags.doc.json";
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 20;
+    }
+
+    @Override
     public Operand resolve(final ConditionOperand operand, final Content context)
     {
         final Content entity = Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);

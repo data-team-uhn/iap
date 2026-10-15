@@ -99,6 +99,36 @@ public class AnswerOperandResolver implements OperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "The answer to a question";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "The answer recorded for a question, in the content the condition is asked about.";
+    }
+
+    @Override
+    public String getValueLabel()
+    {
+        return "Question";
+    }
+
+    @Override
+    public String getPhrase()
+    {
+        return "the answer to “{label}”";
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 10;
+    }
+
+    @Override
     public Operand resolve(final ConditionOperand operand, final Content context)
     {
         final String[] value = operand.getValue();
