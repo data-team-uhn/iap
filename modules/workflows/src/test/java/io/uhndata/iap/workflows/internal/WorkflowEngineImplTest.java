@@ -45,6 +45,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
@@ -161,9 +162,14 @@ class WorkflowEngineImplTest
         allHandlers.add(new StartWorkflowHandler());
         inject(impl, "handlers", allHandlers);
         final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
+        final ConditionTypesImpl types = new ConditionTypesImpl();
+        final Field sources = ConditionTypesImpl.class.getDeclaredField("sources");
+        sources.setAccessible(true);
+        sources.set(types,
+            List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
+        final Field registry = ConditionEvaluatorImpl.class.getDeclaredField("types");
+        registry.setAccessible(true);
+        registry.set(evaluator, types);
         inject(impl, "conditionEvaluator", evaluator);
         return impl;
     }

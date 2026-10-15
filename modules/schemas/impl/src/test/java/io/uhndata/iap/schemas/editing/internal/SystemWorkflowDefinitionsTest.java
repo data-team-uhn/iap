@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
 import io.uhndata.iap.conditions.internal.PropertyOperandResolver;
@@ -107,10 +108,14 @@ class SystemWorkflowDefinitionsTest
         this.context.create().resource("/libs/cond/SingleCondition", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/cond/ConditionGroup", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver(),
+        final ConditionTypesImpl types = new ConditionTypesImpl();
+        final Field sources = ConditionTypesImpl.class.getDeclaredField("sources");
+        sources.setAccessible(true);
+        sources.set(types, List.of(new LiteralOperandResolver(), new PropertyOperandResolver(),
             new TagsOperandResolver(), new OwnPropertyOperandResolver()));
+        final Field registry = ConditionEvaluatorImpl.class.getDeclaredField("types");
+        registry.setAccessible(true);
+        registry.set(this.evaluator, types);
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();
             this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),

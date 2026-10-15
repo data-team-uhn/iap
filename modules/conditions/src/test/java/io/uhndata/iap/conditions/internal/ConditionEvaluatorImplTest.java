@@ -69,9 +69,13 @@ class ConditionEvaluatorImplTest
         // The bundle plugin only generates the DS metadata at packaging time, so the service is
         // instantiated directly and its references are injected by hand.
         this.evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver()));
+        final ConditionTypesImpl types = new ConditionTypesImpl();
+        final Field sources = ConditionTypesImpl.class.getDeclaredField("sources");
+        sources.setAccessible(true);
+        sources.set(types, List.of(new LiteralOperandResolver()));
+        final Field registry = ConditionEvaluatorImpl.class.getDeclaredField("types");
+        registry.setAccessible(true);
+        registry.set(this.evaluator, types);
         this.evaluationContext = this.context.create().resource("/Submissions/sub",
             SLING_RESOURCE_TYPE, "data/Entity").adaptTo(Content.class);
     }
