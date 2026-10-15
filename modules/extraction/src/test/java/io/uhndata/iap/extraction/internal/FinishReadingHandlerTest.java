@@ -99,6 +99,31 @@ class FinishReadingHandlerTest
         assertEquals("Confirm the classification to go on", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
+    // A document that is not what the request asks for: the request cannot go on, and the message says why
+    @Test
+    void marksTheRequestBlockedWhenTheStepSaysSo() throws Exception
+    {
+        setStatus(ExtractionStatus.STATUS_RUNNING, null);
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of(),
+            Map.of("message", "This document is not a research proposal", "blocks", "true")));
+
+        assertEquals("done", getProperty(ExtractionStatus.STATUS_PROPERTY));
+        assertEquals("This document is not a research proposal", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
+        assertEquals("true", getProperty(ExtractionStatus.BLOCKED_PROPERTY));
+    }
+
+    @Test
+    void leavesTheRequestOpenWhenTheStepDoesNotBlock() throws Exception
+    {
+        setStatus(ExtractionStatus.STATUS_RUNNING, null);
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of(),
+            Map.of("message", "Confirm the classification to go on", "blocks", false)));
+
+        assertNull(getProperty(ExtractionStatus.BLOCKED_PROPERTY));
+    }
+
     // A step that already said how the reading ended knew something this one does not
     @Test
     void leavesAReadingThatAlreadyFailedAlone() throws Exception

@@ -90,8 +90,8 @@ final class TaskContexts
     private static Activity createActivity(final Map<String, Object> properties)
     {
         final Activity activity = Mockito.mock(Activity.class);
-        // Only the String form: every activity property a handler reads here is one, and a raw Class matcher
-        // would make the stubbing unchecked, which this build treats as an error.
+        // One stub per type a handler reads: a raw Class matcher would make the stubbing unchecked, which this
+        // build treats as an error.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(String.class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
@@ -103,6 +103,13 @@ final class TaskContexts
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
                 return value instanceof String one ? new String[] { one } : value;
+            });
+        // And the Boolean form, for a flag such as finishReading's `blocks`. A diagram writes it as text, which a
+        // ValueMap converts.
+        Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(Boolean.class)))
+            .thenAnswer(invocation -> {
+                final Object value = properties.get(invocation.<String>getArgument(0));
+                return value instanceof String text ? Boolean.valueOf(text) : value;
             });
         return activity;
     }
