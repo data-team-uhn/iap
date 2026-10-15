@@ -43,7 +43,8 @@ import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * The extraction pass: one call that asks for every field at once, over the whole document.
+ * The extraction pass: one call that asks for every field at once. A long document is cut to its opening and
+ * its end to fit the call; quotes are still checked against the whole of it.
  *
  * <p>Nothing is made up. Every quote is checked against the document, and a field's confidence is scaled by
  * how much of its evidence held up; a field with no value at all is reported as not found whatever the model

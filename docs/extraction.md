@@ -79,7 +79,8 @@ What it does, in order:
    means nothing is parsed**, so a schema that never reads its documents costs nothing.
 3. For each document, takes the latest upload (`SubmissionFiles.getCurrentFiles`). An
    upload is sent when its `parseStatus` is empty (never sent) or `failed`. One that is
-   `queued` or `completed` is left alone.
+   `queued` or `completed` is left alone. An upload with no content is skipped, and the
+   problem "An uploaded file holds no content to parse" is recorded.
 4. For each upload sent:
    - `ParseService.stage` copies the bytes into a new folder on the shared volume,
      `/shared-docs/<uuid>/<name>`. The name is `fileName` on the `sub:File`, or the
@@ -89,20 +90,24 @@ What it does, in order:
      `target`.
    - The file records `parseStatus=queued`, `parseJobId`, `sharedPath`, and loses any
      old `parseError`.
-   - If queueing fails, the staged folder is deleted at once. No job node names it, so
-     no sweep would ever find it later.
-5. If at least one upload was sent: the submission gets `extractionStatus=running`, and
-   the claim (`extractionReadingClaimed`, `extractionReadingClaimedBy`) is removed,
-   since a new document is a new reading.
+   - If queueing fails, the staged folder is deleted at once, since usually no job node
+     names it and no sweep would find it. If staging itself fails partway, the
+     half-written folder is left behind.
+5. If at least one upload was sent: the submission gets `extractionStatus=running`,
+   loses its `extractionMessage` and `extractionBlocked`, and the claim
+   (`extractionReadingClaimed`, `extractionReadingClaimedBy`) is removed, since a new
+   document is a new reading.
 
-Staging and queueing happen before the engine commits. That is on purpose: the job node
-has to exist before the Sling job runs.
+Staging and queueing happen inside the walk, before it commits, and `queue` commits the
+job node in a session of its own so the Sling job can see it. So an outcome can arrive
+before the file's `parseJobId` is committed; step 4 then refuses it and the sweep offers
+it again.
 
 ## Step 2: the daemon parses it
 
 **Code:** `modules/documents/processing` (Python). **Called by:** `ParseJobConsumer` in
-the documents module, which sends `POST /parse?path=&job_id=` and moves the job node
-from `queued` to `active`.
+the documents module, which marks the job node `active` (only if it is still `queued`),
+then sends `POST /parse?path=&job_id=`.
 
 The daemon answers "queued" at once and converts in the background. One conversion runs
 at a time (`MAX_CONCURRENT_PARSES` = 1). It writes `<stem>.md` beside the staged file,
@@ -134,9 +139,9 @@ The same `settle` is also called by:
 
 | Caller | When |
 | --- | --- |
-| `ParseJobConsumer` | The daemon refused the dispatch or could not be reached. The job is marked failed. |
-| `StaleParseJobSweeper` | A job got no answer within `maxAgeMinutes` (30). It is marked failed: "No outcome arrived within 30 minutes; the parse was given up on". |
-| `StaleParseJobSweeper` | A job settled at least 2 minutes ago (`RETRY_AFTER_MILLISECONDS`) and no handler took it. It is offered again on every sweep. |
+| `ParseJobConsumer` | The daemon refused the dispatch or could not be reached, or no callback token is set. The job is marked failed. |
+| `StaleParseJobSweeper` | A job got no answer within `maxAgeMinutes` (30). It is marked failed: "No outcome arrived within 30 minutes; the parse was given up on". Its staging folder is deleted at once. |
+| `StaleParseJobSweeper` | A job settled at least 2 minutes ago (`RETRY_AFTER_MILLISECONDS`) and no handler took it. It is offered again on every sweep until it is 30 minutes old. |
 
 The sweep runs every 5 minutes (`DEFAULT_PERIOD_SECONDS` = 300), on the cluster leader
 only. A settled record older than 30 minutes that still nobody took is deleted with its
@@ -166,6 +171,11 @@ It opens a session as the `iap-extraction` service user and checks:
 | The file's `parseJobId` equals this outcome's job id | Returns "not taken". This is an old parse the file no longer waits for. |
 | The file's `parseStatus` is still `queued` | Returns "taken" without doing anything. This is the same outcome delivered twice. |
 
+On a failed parse it logs a `WARN` with the daemon's reason and records the problem "A
+document could not be parsed: <reason>" for an administrator; the submitter is only
+told to try again. That comes before the engine call, so an outcome the sweep offers
+again is logged again.
+
 Then it fires `documentParsed` on the submission, as the `iap-extraction` user. The
 payload carries the file path, `succeeded`, `error`, `markdown`, `tokens`, and `pdf`
 when a `<stem>.pdf` exists beside the Markdown.
@@ -182,16 +192,18 @@ The `documentParsed` system workflow runs two steps:
    so the reading can report the failure.
 
 Only after the engine has committed does `ParseCompletionHandler` ask the documents
-module to delete the staging folder (`ParseService.discardStaging`). Until that commit,
-the volume holds the only copy of the parse.
+module to delete the staging folder (`ParseResultIngester.discardStaging`, which calls
+`ParseService.discardStaging`). Until that commit, the volume holds the only copy of the
+parse. If that delete fails, only a warning is logged: the job record is still dropped,
+so nothing comes back for the folder.
 
 What `ParseResultIngester.ingest` checks and writes:
 
 | Check | Result |
 | --- | --- |
-| The Markdown path is on the shared volume (`ParseService.isStagedPath`) | If not: `parseStatus=failed`, "The parse named …, which is not on the shared volume". A file outside the volume is never read. |
+| The Markdown path is on the shared volume (`ParseService.isStagedPath`) | If not: `parseStatus=failed`, "The parse named …, which is not on the shared volume", and the problem "The document daemon named a file outside the shared volume" is recorded. A file outside the volume is never read. |
 | The Markdown file exists | If not: `parseStatus=failed`, with the same "The parse named …, which is not on the shared volume" message. |
-| The PDF path is on the shared volume | If not: the PDF is skipped and a warning logged. |
+| The PDF path is on the shared volume | If not: the PDF is skipped, a warning logged, and the same problem recorded. |
 | The upload is itself a PDF (`File.isUploadAPdf`, which reads `uploadedFile/jcr:content/jcr:mimeType`) | The PDF is not stored a second time. `File.getFilePdf()` falls back to the upload. |
 
 The ingester also has a message for a success that names no Markdown, "The parse
@@ -295,13 +307,14 @@ from. It also carries:
 What the step does:
 
 1. Collects the "open" classifications. It skips one whose condition does not hold, one
-   with no question, and one whose question already has an answer (same rule as the
-   intake below: an empty field the form saved does not count). A second upload does not
-   pay again for a decision already made or confirmed, and a newer version of the
-   document does not change it either.
+   with no question or no `document`, and one whose question already has an answer (same
+   rule as the intake below: an empty field the form saved does not count). A second
+   upload does not pay again for a decision already made or confirmed, and a newer
+   version of the document does not change it either.
 2. Groups them by `document`. For each document:
    - No upload: skipped.
-   - Parse `failed`: `extractionStatus=failed` with the parse error, and the step stops.
+   - Parse `failed`: `extractionStatus=failed`, "The document could not be read. Please
+     try again", and the step stops. The parse's own reason stays in `parseError`.
    - Parse not `completed` yet: skipped.
    - Otherwise one model call for all of that document's classifications.
 3. The call goes through `AnswerIntakeService`, the same code as the intake (step 8).
@@ -332,7 +345,7 @@ Activity properties a reading workflow can set on this step:
 | `requirement` | One requirement name, or several (a list, or comma-separated). All are asked in one call, in that order. | Every question the schema asks |
 | `documents` | Document requirement names to read, in order. Each one's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
 | `promptFrom` | Extra system-prompt files from the bundle's `/prompts` folder, added in front of the intake prompt | No extra prompt |
-| `recordWhen` | `path=value`, the path being the question's path inside the schema version. The model is still asked everything, but answers are only saved when that field holds that value: the model's reply matched to the question's options, ignoring case, or, when the field already had an answer and was not asked again, that answer. | Always save |
+| `recordWhen` | `path=value`, the path being the question's path inside the schema version. The model is still asked everything, but answers are only saved when that field holds that value: the model's reply matched to the question's options, ignoring case, or, when this step did not ask that field, the answer it already holds. | Always save |
 
 In a diagram these are the service task's `iap:requirement`, `iap:documents`,
 `iap:promptFrom` and `iap:recordWhen` attributes. `documents` and `promptFrom` are
@@ -347,7 +360,8 @@ What the step does:
 
 1. **Which documents.** With `documents`: each named one with a completed parse is read.
    A named one never uploaded is skipped. A named one whose parse failed fails the step
-   with its parse error. If none is left: fail with the reason
+   with "The document could not be read. Please try again"; the reason stays in
+   `parseError`. If none is left: fail with the reason
    (`describeNothingToRead`). Without `documents`: the first completed upload, or fail
    with the reason.
 2. **Which questions.** Questions of the named requirements that apply (conditions
@@ -384,10 +398,16 @@ said something this one does not know. A reading workflow puts this at the end o
 path, so the view never spins forever.
 
 A step that ends with the request unable to go on also sets `blocks` (`iap:blocks` in a
-diagram), for example after a document settled as not what the request asks for. It
-sets `extractionBlocked=true` on the submission, with the `message` saying why. A new
-reading takes it down when it records `running`: after a new version, a retried parse,
-or Read again. The request's own workflow and the form read it to stop it going on.
+diagram), for example after a document settled as not what the request asks for. If
+the status is still `running`, it sets `extractionBlocked=true` on the submission, with
+the `message` saying why. A new reading takes it down when it records `running`: when
+Retry queues a parse, or on Read again. Nothing on this branch reads it yet; the
+request's own workflow and the form are meant to, to stop the request going on.
+
+`intakeAnswers` already writes `done`, so a `finishReading` after an intake step on the
+same path changes nothing: its `message` and `blocks` are dropped. Put them on a
+`finishReading` that no intake step runs before, such as the end of a classify-only
+path.
 
 ## Asking the model
 
@@ -448,10 +468,10 @@ saying the middle was left out, and the intake prompt tells the model that the t
 either side does not follow on.
 
 `DocumentBudget` logs every cut as `Document cut to fit`, with the stage, the file, and
-how many characters were sent and left out. If no room is left at all, it returns empty
-text and `AnswerIntakeService` does not ask the model: the step fails with "The questions
-leave no room to show the model the document". A blank document fails with "The document
-has no text that can be read".
+how many characters were sent and left out. If there is not even room for the omission
+note, it returns empty text and `AnswerIntakeService` does not ask the model: the step
+fails with "The questions leave no room to show the model the document". A blank
+document fails with "The document has no text that can be read".
 
 This is a real limit: an answer that is only in the middle of a very long protocol is
 not found, and the confidence says nothing about it. Sending the whole document instead
@@ -465,7 +485,8 @@ it asks once more with a `# Correction` section saying what was wrong: empty, no
 never closed (cut off), or not one object with a key per field. A second bad reply means
 "degraded": nothing is saved, and the step fails with "The model's answer could not be
 read". Each attempt resends the whole document, so a third would pay for it a third
-time.
+time. Separately, the LLM client resends a request that fails, such as on a timeout,
+once.
 
 ### One call at a time
 
@@ -502,8 +523,8 @@ sees.
 
 Extraction makes one call per document to classify, then one intake call per
 `intakeAnswers` step, so the limit bites across submissions more than within one. At
-about 39 s a call, ten queued proposals mean the last one waits some six and a half
-minutes.
+about 39 s a call, ten proposals of one call each finish some six and a half minutes
+after the first starts; a classify plus an intake call each roughly doubles that.
 
 If this is ever measured again, give every call its own document. The same run with one
 identical body for every call reported 3.8 s per call and made a limit of 8 look right.
@@ -514,7 +535,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 
 | Rule | Where | What happens |
 | --- | --- | --- |
-| A question without an `extractionPrompt` is never sent | `ExtractionField.isExtractable` | Questions meant only for people stay out of the model's way |
+| The intake never sends a question without an `extractionPrompt` | `ExtractionField.isExtractable` | Questions meant only for people stay out of the model's way. The gate asks with the classification's own `prompt`. |
 | A field with no `value` is "not found", whatever `found_answer` says | `AnswerIntakeService.readField` | Nothing is written for it |
 | A quote must be really in the document | `QuoteVerifier` via `DocumentScan.locate` | Quotes that are not found are dropped, never stored |
 | Quotes shorter than 6 characters do not count | `MIN_QUOTE_LENGTH` = 6 | Too easy to match by chance |
@@ -534,8 +555,9 @@ fewest edits to the quote. The best stretch must reach 0.85 and agree on numbers
 negations. A longer quote has to be there exactly.
 
 The anchors are there because comparing a quote against a whole protocol is quadratic.
-The three anchors are found cheaply, and only a window where each hit says the quote may
-start (1.5 times the quote's length, `WINDOW_FACTOR`) is compared edit by edit. A model
+The three anchors are found cheaply, and only the text around each hit, from half a
+quote before it to 1.5 quote lengths after it (`WINDOW_FACTOR`), is compared edit by
+edit. A model
 that changed all three anchors did not copy the passage. A quote past 1000 characters
 that is not there word for word was built, not copied.
 
@@ -562,7 +584,8 @@ lines matching `#` to `######`), so the reviewer can see which section it came f
 
 ## Writing an answer
 
-**Classes:** `ExtractionFields.write`, `ExtractedAnswers.write`. Every found field gets:
+**Classes:** `ExtractionFields.write`, `ExtractedAnswers.write`, and
+`ExtractedAnswers.replace` for a newer version. Every found field gets:
 
 ```
 sub:Submission
@@ -575,9 +598,9 @@ sub:Submission
         ├── reasoning
         ├── sources         → REFERENCE to every sub:DocumentVersion read
         ├── replacedValue   = what the answer held before (only from a newer version)
-        └── <uuid> (sub:Evidence), one per kept quote
+        └── <uuid> (sub:Context), one per kept quote
             ├── quote, header, page
-            └── source → REFERENCE to the version it came from
+            └── source → WEAKREFERENCE to the version it came from
                           (only when the step names its `documents`)
 ```
 
@@ -590,15 +613,17 @@ How the value is stored (`Answer.readAnswer`):
   path, such as `/Categories/...`. If no option matches, or two options match equally,
   the model's own words are kept, so a person can see what it said and fix it.
 
-The form uses the same rule to show the suggestion (`Answer.getSuggestedValues`), so an
-answer nobody touched never looks "changed".
+The suggestion is read back by the same rule (`Answer.getSuggestedValues`), so comparing
+it with the stored value never shows a change nobody made. A newer version uses it as P
+(below).
 
 The answer is written straight into `value`, so the form shows it pre-filled.
-`sub:Extraction.reviewed` tells a suggestion nobody has looked at from one the submitter
-settled. When the form already saved an empty answer for the question, that node is
-filled rather than a second one created; if its extraction cannot be written, its value
-is put back as it was. Each field is written on its own: one that fails to write (for
-example its source file vanished) is logged and skipped, and the others are still saved.
+`sub:Extraction.reviewed` marks a suggestion the submitter confirmed; editing the answer
+does not set it. When the form already saved an empty answer for the question, that node
+is filled rather than a second one created; if its extraction cannot be written, its
+value is put back as it was. Each field is written on its own: one that fails to write
+(for example its source file vanished) is logged and skipped, and the others are still
+saved.
 
 ### A newer version
 
@@ -606,8 +631,9 @@ A submitter never deletes a document. A new upload for the same requirement adds
 `sub:DocumentVersion`, and every older version stays.
 
 The first reading of a newer version asks every question of the step, answered or not.
-`ExtractionFields.isNewRevision` says when that is: a file the step reads is not its
-document's first version, and no answer to the step's questions cites it yet. For each
+`ExtractionFields.isNewRevision` says when that is: the files the step reads include a
+version that is not its document's first, and no answer to the step's questions cites
+any of those versions yet. For each
 answer, N is what the model read now, C the answer's value, and P the last suggestion
 (`Answer.getSuggestedValues`):
 
@@ -620,12 +646,14 @@ answer, N is what the model read now, C the answer's value, and P the last sugge
 
 This holds whether the submitter typed the answer, confirmed it, or left the suggestion
 as it was. The gate (step 7) is left out: a classification already answered is never
-asked again. Read again on the same version only fills gaps, since the step's answers
-now cite it.
+asked again. Once an answer cites the new version, Read again on it only fills gaps. If
+the first reading of it changed nothing, nothing cites the version yet, so the next
+reading asks everything again.
 
 `Answer.getSurestExtraction` passes over a run when another run of the same answer read
-a newer version of one of its documents. So the form shows what the newest file said,
-and a version nobody has read yet changes nothing.
+a newer version of one of its documents. So the last suggestion (P) and a review verdict
+come from the run that read the newest file, and a version nobody has read yet changes
+nothing.
 
 ## What the submitter can do
 
@@ -639,7 +667,7 @@ not the submitter is refused too.
 | --- | --- | --- |
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is going |
 | `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed |
-| `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed |
+| `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow |
 | `reviewExtraction` | `ReviewExtractionHandler` | Records what the submitter thinks of a pre-filled answer |
 
 ### Stop
@@ -668,14 +696,16 @@ not the submitter is refused too.
 The interrupted job sees the stop, writes the same "Reading was stopped." status in its
 own commit, and ends.
 
-`ParseControl.abandon` (`ParseAbandonment`, documents module) sends `/cancel` to the
-daemon without waiting for the answer, then reads the job record:
+`ParseControl.abandon` (`ParseAbandonment`, documents module) reads the job record
+first, then sends `/cancel` to the daemon without waiting for the answer, unless the
+record already has an outcome:
 
 | Job record | What `abandon` does | Returns |
 | --- | --- | --- |
-| Missing, or no valid job id | Nothing more | `true`: no record names the staging folder, so `StopProcessingHandler` wipes it (`sharedPath`) |
-| Already `completed` or `failed` | Leaves it as it is | `false` |
-| `queued` or `active` | Marks it `failed` with error `Stopped`, sets `finished`, removes the outputs, keeps `target` and the staging path, and commits in a session of its own. If that commit conflicts (a callback or the sweep changed the record first), it reverts and logs at `INFO`. | `false` |
+| No job id, or not a valid one | Nothing, not even a cancel | `true`: no record names the staging folder, so `StopProcessingHandler` wipes it (`sharedPath`) |
+| Valid id, record missing | Sends the cancel | `true`, for the same reason |
+| Already `completed` or `failed` | Leaves it, and sends no cancel | `false` |
+| `queued` or `active` | Marks it `failed` with error `Stopped`, sets `finished`, removes the outputs, keeps `target` and the staging path, and commits in a session of its own, then sends the cancel. If that commit conflicts (a callback or the sweep changed the record first), it reverts and logs at `INFO`. | `false` |
 
 It never wipes the staging folder or deletes the record itself. What then becomes of a
 stopped record depends on the Stop's own walk:
@@ -683,6 +713,7 @@ stopped record depends on the Stop's own walk:
 - **The walk commits.** The file no longer names the job. The sweep offers the `Stopped`
   record to the handlers, `ParseCompletionHandler` does not take it (the job id does not
   match), and 30 minutes after it settled the sweep drops the record with its folder.
+  Until then each sweep logs a `WARN` that no handler took it.
 - **The walk reverts.** The file still waits on the job. The first sweep at least 2
   minutes after the stop hands the `Stopped` failure to `ParseCompletionHandler`, and
   the file settles as `failed`.
@@ -695,13 +726,14 @@ Refused with a 409 while `extractionStatus` is `running` ("This request is alrea
 read"). Otherwise it sets `running`, removes the claim, and queues the same job a parse
 queues (step 5), with the job property `readAgain=true`. The job is queued before this
 walk commits, so that property tells it to wait until it sees `running`. Questions
-already answered are not asked again, unless the reading is the first one of a newer
-version.
+already answered are not asked again. An intake step asks them again only on its first
+reading of a newer version; a classification that is answered is never asked again.
 
 ### Retry a failed parse
 
 The `parseDocuments` step. Only uploads with no `parseStatus` or with
-`failed` are sent. Usually the daemon was down, not the document broken.
+`failed` are sent, and nothing is sent when the schema names no reading workflow.
+Usually the daemon was down, not the document broken.
 
 ### Review a pre-filled answer
 
@@ -716,6 +748,7 @@ confidence among runs not passed over for a newer version; on a tie, the earlies
   a report about the extraction, not about the answer, so it settles nothing.
 
 A missing `question` gives a 400, and so does a question nothing was extracted for.
+`confirmed=false`, or a payload with neither field, changes nothing.
 
 ## Statuses
 
@@ -747,13 +780,14 @@ Messages the submitter can see in `extractionMessage`:
 | No document has been uploaded | Nothing to read |
 | The document has not been read yet | A parse is still queued |
 | The document could not be read. Please try again | The parse failed. Its reason stays in the file's `parseError`, in the log ("Parse job ... failed") and in error tracking |
-| No uploaded document could be read | Uploads exist, none parsed |
+| No uploaded document could be read | Uploads exist, but none has a finished parse, and none failed or is queued (for example, never sent to be parsed). With `documents` set, this is worked out from every upload, not only the named ones. |
 | The document has no text that can be read | The Markdown is blank |
 | The questions leave no room to show the model the document | The prompt fills the window |
 | The model's answer could not be read | Two unreadable replies |
-| The model could not be reached | The call failed: the model is down, has no active settings, or the call slot did not come free in time |
+| The model could not be reached | The call failed: the model is down, has no active settings, the call slot did not come free in time, or it answered with empty text (for example, it ran out of output tokens) |
 | The document's text could not be read | The stored Markdown could not be read back out of the repository |
-| The document could not be read | The reading workflow threw, its version is not tagged `active`, or the job cannot read the schema version |
+| The document could not be read | Firing the reading threw in the job (a step failed, or the version is not tagged `active`), or the job cannot read the schema version |
+| (the reading workflow's own text) | A `finishReading` step's `message` |
 | Reading was stopped. | Stop |
 | Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists |
 | The schema asks nothing of the document | No extractable question in the whole schema |
@@ -769,16 +803,22 @@ for without adding anything. In order, for one submission:
 | `Document sent to be parsed` | `ParseDocumentsHandler` | The `sub:File`, the job and the file name |
 | `Reading started` | `ParseDocumentsHandler` | The submission and how many parses this step queued (`parsesQueued`) |
 | `Parse dispatched` | documents (`ParseJobConsumer`) | `acceptedInMs`: how long the daemon took to accept the work, not to do it |
-| `parse job=... done` | the daemon | `waitMs` for the parse slot, `parseMs` for the conversion |
+| `parse job=... done` | the daemon (stderr) | `waitMs` for the parse slot, `parseMs` for the conversion, `tokens`, the Markdown path |
 | `Parse completed` / `Parse failed` | documents (`ParseCallbackServlet`) | `parseMs` measured from the dispatch, and `tokens` |
+| `Parse outcome handed over` | documents (`ParseOutcomeDispatcher`) | The job, the target, whether it succeeded, how many handlers |
 | `Parse came back` | `ParseCompletionHandler` | The job, the file, the submission, whether it succeeded, `tokens` |
 | `Parse read in` | `ParseResultIngester` | The Markdown and PDF bytes stored, `tokens`, and the milliseconds to store them |
 | `Reading queued` | `QueueExtractionHandler` | The submission, once per parse that lands; the job waits until every parse has settled |
-| `Reading run started` / `Reading run done` | `ExtractAnswersJobConsumer` | Brackets the whole reading; `done` carries the status and `ms` |
+| `Parse staging removed` | documents (`ParseJobService`) | The staging folder, once the parse is in the repository |
+| `Reading run started` / `Reading run done` | `ExtractAnswersJobConsumer` | Brackets a reading that finishes; `done` carries the status and `ms`. A failed reading logs an `ERROR` instead, and a stopped one `Reading of ... was stopped`. |
 | `Reading step started` / `Reading step done` | `ClassifyDocumentHandler`, `IntakeAnswersHandler` | `step=classify` with the file and the number of classifications, or `step=intake` with the requirement and the number of questions; `ms` on `done` |
 | `Document cut to fit` | `DocumentBudget` | The stage, the file, and how many characters were sent and left out |
 | `LLM request served` | `OpenAIClient` (llm) | The model, `gateWaitMs` and `callMs`, split |
 | `LLM call done` | `DefaultLLMClient` (llm) | The stage, the prompt size, `maxOutputTokens`, the milliseconds, the reply size |
+
+A failed parse also logs `Parse job ... for ... failed: <reason>` at `WARN` from
+`ParseCompletionHandler`. A daemon that never answers, or refuses the dispatch, logs a
+`WARN` from the documents module instead of `Parse failed`.
 
 The two LLM lines are split on purpose. The call gate holds calls to one at a time, so a
 slow reading is usually a reading that waited, and one total would not say which it was.
@@ -834,17 +874,18 @@ with their descriptions (`OptionCatalog`).
 | `ParseResultIngester` | component | the two above | `ParseService.isStagedPath`, `.discardStaging` |
 | `QueueExtractionHandler` | handler `queueExtraction` | `documentParsed` | `JobManager.addJob` |
 | `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingRuns`, engine (`extractAnswers`) |
-| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `ExtractionFields.write` |
+| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DocumentText.readText` (templates), `ExtractionFields.getAnswered`, `.write` |
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments` or `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
 | `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging`, `ParsedDocuments.forget` |
 | `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getSurestExtraction` |
-| `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `DocumentBudget`, `IntakePayload`, `ModelCall`, `QuoteVerifier` |
+| `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `Prompts`, `DocumentBudget`, `IntakePayload`, `ModelCall`, `ModelReplies`, `QuoteVerifier` |
 | `ParsedDocuments` | component | classify, intake, stop | `DocumentText.readText`, `DocumentScan.of` |
 | `ReadingRuns` | component | job, classify, intake, stop | (thread registry) |
 
-Helpers with no state: `SubmissionFiles` (current uploads, reasons, settled check),
+Helpers with no state of their own (`Prompts` keeps a static cache of the prompt files):
+`SubmissionFiles` (current uploads, reasons, settled check),
 `SubmitterAccess`, `ExtractionStatus`, `ParsePropertyNames`, `ExtractionField(s)`,
 `ExtractedAnswers`, `FieldResult`, `IntakePayload`, `ModelCall`, `ModelReplies`,
 `DocumentBudget`, `DocumentScan`, `DocumentText`, `QuoteVerifier`, `Prompts`.
@@ -875,13 +916,14 @@ their own; those steps say why.
 | `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` and `jcr:modifyProperties` on `/Submissions`: it only sets the claim and the status; the engine writes everything else as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it |
 | same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
-| documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |
+| documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` (`http://docling:18765`; `http://localhost:18765` with no configuration) | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |
 | same PID | `responseTimeout` | 30 s | How long to wait for the daemon to answer a dispatch or a `/cancel`. A Stop does not wait for `/cancel`; only the log hears the answer. |
 | same PID | `daemonToken` | `IAP_DOCLING_TOKEN` | Overrides the environment's daemon token |
 | PIDs of `ParseJobConsumer` and `ParseCallbackServlet` | `callbackToken` | `IAP_DOCLING_CALLBACK_JWT` | Overrides the environment's callback token |
 | documents `feature.json` | `StaleParseJobSweeper.maxAgeMinutes` | 30 | When an unanswered parse is given up |
 | environment | `IAP_DOCLING_CALLBACK_JWT` | | The shared token for callbacks; without it no parse is dispatched |
 | environment | `IAP_DOCLING_TOKEN` | | Optional bearer token for `/parse` and `/cancel` |
+| PID `io.uhndata.iap.documents.internal.ParseJobService` | `sharedDocs` | `IAP_SHARED_DOCS`, then `/shared-docs` | Where uploads are staged; overrides the environment |
 | environment | `IAP_SHARED_DOCS` | `/shared-docs` | The shared volume |
 | LLM settings | the active model and its context window | 131072 tokens if unset | See the `llm` module |
 
@@ -905,6 +947,8 @@ Keep in mind:
 - Every path must end at `finishReading`, or the submission stays `running`.
 - A user task that waits for the submitter should come after a `finishReading` with a
   `message`, so the view stops spinning while it waits.
+- `intakeAnswers` already writes `done`, so a `finishReading` after it drops its
+  `message` and `blocks` (see step 9).
 - Up to its first user task the reading runs as `iap-extraction`, in the job. After it,
   the rest runs in the request that completes the task, as that person (see step 6).
 - Tag the reading workflow's version `active`. The job only checks that the version
@@ -921,7 +965,7 @@ Keep in mind:
 | Gap | Effect |
 | --- | --- |
 | The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
-| The `decision` condition source and `markCompleteness` are not merged | Reading workflows cannot route on a settled pick yet |
+| The `decision` condition source is not merged | Reading workflows cannot route on a settled pick yet |
 | A `recordWhen` gate on a question the same `intakeAnswers` step asks has no confidence threshold | An unsure intake answer can still open the gate |
 | The submission view that shows `extractionStatus` and the provenance of answers is not merged | Nobody sees the status yet |
 | Only the start and end of a long document are read | The middle of a document past the context window is never read, and the confidence does not say so |
@@ -995,12 +1039,12 @@ repository root. Classes are in
 | `ExtractAnswersJobConsumer` | The background job that decides whose turn it is to read and fires `extractAnswers` |
 | `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it; picks sure enough are written as pre-filled answers |
 | `IntakeAnswersHandler` | Service task `intakeAnswers`: the intake for one or more requirements, over the named documents (see step 8) |
-| `FinishReadingHandler` | Service task `finishReading`: moves a still-`running` submission to `done` |
+| `FinishReadingHandler` | Service task `finishReading`: moves a still-`running` submission to `done` with the step's `message`, and marks it blocked when the step sets `blocks` |
 | `ReviewExtractionHandler` | Service task `reviewExtraction`: the submitter's verdict on a pre-filled answer |
 | `StopProcessingHandler` | Service task `stopProcessing`: stops a parse or a reading that is still going |
 | `ReadingRuns` | Which thread is reading each submission, so a Stop can interrupt it |
 | `SubmitterAccess` | Lets only the submitter, and only while the request is a draft, change how it is read |
-| `ExtractionStatus` | The `extractionStatus` and `extractionMessage` the view reads, and the values they take |
+| `ExtractionStatus` | The submission's reading state: `extractionStatus`, `extractionMessage`, the claim and the blocked flag, and the values they take |
 | `SubmissionFiles` | A submission's latest uploads, the first one parsed, and whether every parse has settled |
 | `ExtractedAnswers` | Writes an answer, its extraction and its evidence. References are set with `ReferenceUtils` from `iap-java-utils`. |
 | `SystemWorkflows/documentParsed` (`.json`, `bpmn.xml`) | Reads a finished parse in, then queues the reading. Performer: `iap-extraction` only. |

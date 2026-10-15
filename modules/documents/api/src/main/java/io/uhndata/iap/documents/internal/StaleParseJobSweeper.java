@@ -45,12 +45,12 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * staging folders off the shared volume with them.
  *
  * <p>
- * Only the daemon's callback, or a caller that abandons the parse, ends an {@code active} job. A daemon killed
- * mid-parse, a container replaced while it was working, a callback refused because the token was wrong — each leaves
- * a job {@code active} for good. Nothing upstream copes with that: the {@code sub:File} stays {@code queued}, so no
- * submission ever sees all its parses settle, the reading is never queued, and the submitter is left with a
- * spinner that has nothing behind it. A stuck job is worse than a failed one, because a failure can be retried and
- * a spinner cannot.
+ * Only the daemon's callback, a refused dispatch, or a caller that abandons the parse ends an {@code active} job. A
+ * daemon killed mid-parse, a container replaced while it was working, a callback refused because the token was wrong —
+ * each leaves a job {@code active} for good. Nothing upstream copes with that: the {@code sub:File} stays {@code
+ * queued}, so no submission ever sees all its parses settle, the reading is never queued, and the submitter is left
+ * with a spinner that has nothing behind it. A stuck job is worse than a failed one, because a failure can be retried
+ * and a spinner cannot.
  * </p>
  *
  * <p>
@@ -90,7 +90,8 @@ public class StaleParseJobSweeper implements Runnable
 
     /**
      * How long a job may go unanswered before it is declared lost. Half an hour, which is above the daemon's own
-     * quarter-hour ceiling on a whole conversion, with room for the queue in front of it.
+     * quarter-hour ceiling on a PDF conversion, with room for the queue in front of it. A Word document has no
+     * ceiling of its own.
      */
     static final long DEFAULT_MAX_AGE_MINUTES = 30;
 

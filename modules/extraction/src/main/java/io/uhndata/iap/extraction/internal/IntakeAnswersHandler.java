@@ -87,7 +87,8 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     /**
      * The activity property that decides whether this step writes what the model found. {@code path=value},
      * for example {@code screening/kind=questionnaire}. The model is still asked every question; if that field
-     * did not come back as the value, nothing is recorded and the reading is marked done.
+     * did not come back as the value, nothing is recorded. When this step did not ask that field, the answer it
+     * already holds is compared instead.
      */
     static final String RECORD_WHEN = "recordWhen";
 

@@ -90,8 +90,8 @@ final class SubmissionFiles
     }
 
     /**
-     * Why there is nothing to read: no upload, a failed parse (with its reason), a parse still queued, or uploads
-     * never sent.
+     * Why there is nothing to read: no upload, a failed parse (a fixed message; its reason stays on the file and in
+     * the log), a parse still queued, or uploads never sent.
      *
      * @param submission the submission
      * @return the reason, ready to show

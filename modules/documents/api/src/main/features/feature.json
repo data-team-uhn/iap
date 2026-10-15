@@ -44,11 +44,11 @@
     "io.uhndata.iap.documents.internal.DaemonConnection":{
       "daemonUrl":"${docling.url}"
     },
-    // Only the daemon's callback or a stop ends a job, so a daemon killed mid-parse leaves one
-    // active for good, and everything waiting on it waits for good with it. The sweep gives up on such
-    // a job and takes its staging folder with it. Half an hour sits above the daemon's own quarter-hour
-    // ceiling on a whole conversion, with room for the queue in front of it; raise it if parses
-    // legitimately take longer.
+    // Only the daemon's callback, a refused dispatch or a stop ends a job, so a daemon killed mid-parse
+    // leaves one active for good, and everything waiting on it waits for good with it. The sweep gives up on
+    // such a job and takes its staging folder with it. Half an hour sits above the daemon's own quarter-hour
+    // ceiling on a PDF conversion (a Word document has none), with room for the queue in front of it; raise
+    // it if parses legitimately take longer.
     "io.uhndata.iap.documents.internal.StaleParseJobSweeper":{
       "maxAgeMinutes":30
     }

@@ -41,11 +41,11 @@ import io.uhndata.iap.submissions.models.File;
 /**
  * Reads a finished parse into the repository.
  *
- * <p>The daemon leaves everything it produced on the shared volume: a Markdown rendition of the document and the
- * PDF it was read out of. This copies what is kept onto the {@code sub:File} node, so the repository, not the
- * volume, is where the parse lives. Clearing the folder afterwards is {@link ParseCompletionHandler}'s, once the
- * repository has committed: until then the volume holds the only copy, and a commit that fails after the delete
- * would lose the parse for good.
+ * <p>The daemon leaves everything it produced on the shared volume: a Markdown rendition of the document and, for
+ * an office document, the PDF LibreOffice made of it. This copies what is kept onto the {@code sub:File} node, so
+ * the repository, not the volume, is where the parse lives. Clearing the folder afterwards is
+ * {@link ParseCompletionHandler}'s, once the repository has committed: until then the volume holds the only copy,
+ * and a commit that fails after the delete would lose the parse for good.
  *
  * <p>Only the Markdown and the PDF are kept, and the PDF only when it is not the upload already. Anything else
  * the pipeline made along the way — a {@code .docx} rendered from a {@code .doc}, say — is a step towards those
@@ -91,7 +91,7 @@ public class ParseResultIngester
      *
      * @param file the {@code sub:File} node the parse was for
      * @param markdown the Markdown rendition of the whole document
-     * @param pdf the PDF the Markdown was read out of, or {@code null} when the parse produced none; ignored
+     * @param pdf the PDF of the document, or {@code null} when the parse produced none; ignored
      *            when the upload is itself a PDF, which is then the only copy kept
      * @param tokens how large the daemon measured the document to be, or {@code null} when it did not say
      * @throws IOException if what the parse produced cannot be read
@@ -184,7 +184,7 @@ public class ParseResultIngester
     }
 
     /**
-     * Keep the PDF the Markdown was read out of, unless the upload is that PDF already. A PDF upload is staged as
+     * Keep the PDF of the document, unless the upload is that PDF already. A PDF upload is staged as
      * itself, so the PDF beside the Markdown is the upload; only one copy is kept. {@code File.getFilePdf} knows
      * to fall back to the upload, so callers never have to.
      */

@@ -70,8 +70,8 @@ public class ParsedDocuments
     }
 
     /**
-     * Drop the text kept from the last reading. A stop deletes that Markdown, and the next reading must not be
-     * served a document the submitter just threw out.
+     * Drop the text kept from the last reading. A stop may delete that Markdown, and the next reading must not be
+     * served a document the submitter just threw out, so every stop drops it.
      */
     public void forget()
     {

@@ -65,7 +65,8 @@ import io.uhndata.iap.utils.JsonResponses;
  * </p>
  *
  * <p>
- * A repeated delivery for the same job simply overwrites the same outcome, so the daemon's retries are harmless.
+ * A repeated delivery for the same job overwrites the same outcome, or gets a 404 once a handler took it and the
+ * record is gone, so the daemon's retries are harmless.
  * </p>
  *
  * @version $Id$

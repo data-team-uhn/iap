@@ -129,8 +129,8 @@ final class ExtractedAnswers
     }
 
     /**
-     * Put the answer into one the form already saved for the question, putting it back as it was if the
-     * extraction under it cannot be written.
+     * Put the values into an existing answer - an empty one the form saved, or one a newer revision replaces -
+     * putting it back as it was if the extraction under it cannot be written.
      */
     private static void fill(final ResourceResolver resolver, final Resource existing, final String[] values,
         final FieldResult result, final List<Resource> versions, final String[] replaced) throws PersistenceException

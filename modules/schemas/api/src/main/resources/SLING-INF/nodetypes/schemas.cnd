@@ -275,8 +275,8 @@
   // The name of the document requirement whose upload is classified
   - document (STRING) mandatory
 
-  // The confidence a pick should reach before it is acted on without the
-  // submitter. Not enforced yet.
+  // The confidence a pick needs to be saved. A less sure pick is not saved,
+  // and the question waits for the submitter.
   - confidenceThreshold (DOUBLE) = '0.7' autocreated
 
   // Optional reference text the model is shown with the prompt, e.g. the

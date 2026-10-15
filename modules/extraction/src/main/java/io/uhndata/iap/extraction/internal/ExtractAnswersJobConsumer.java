@@ -45,7 +45,8 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Runs the reading of a submission's answers in the background: fires the {@code extractAnswers} event on the
- * submission, and the system workflow catching it does the rest - the schema's reading workflow - in one commit.
+ * submission, and the system workflow catching it starts the schema's reading workflow, which runs in one commit up
+ * to its first user task.
  * The submitter asks for another reading through {@code readAgain}, which queues one of these jobs too.
  *
  * <p>Every parse that lands queues one of these, so this is also where it is decided whose turn it is. Its own
@@ -123,8 +124,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             return JobResult.CANCEL;
         } catch (final WorkflowException | RuntimeException e) {
             // RuntimeException too, because a malformed definition throws rather than returning.
-            // Not left to Sling's retry: giveUp has already let the claim go, so a retry would claim the reading
-            // again and pay the model twice.
+            // Not left to Sling's retry: a failed reading has already let the claim go through giveUp, so a retry
+            // would claim it again and pay the model twice.
             LOGGER.error("Extracting answers from {} failed: {}", path, e.getMessage(), e);
             // The submitter only sees that the document could not be read; the cause is for an administrator
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "read").about(path));
@@ -171,7 +172,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 Thread.interrupted();
                 throw new ReadingRuns.Stopped();
             }
-            // The engine reverted the whole walk, so the `running` the parse step committed is still there and
+            // The engine reverted the whole walk, so the `running` a parse or Read again committed is still there and
             // this job still holds the claim. Left alone that is a submission nothing can ever read again and a
             // spinner that never stops, which is the one outcome this pipeline treats as worse than a bad answer.
             giveUp(resolver, submission, COULD_NOT_READ);
