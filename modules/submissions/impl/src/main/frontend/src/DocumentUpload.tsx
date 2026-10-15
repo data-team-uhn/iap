@@ -21,6 +21,7 @@ import { type ChangeEvent, Fragment, useEffect, useState } from "react";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
@@ -78,6 +79,22 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
   );
 }
 
+// How long the browser may look at a file before sending it unchecked. The check only advises, and
+// the server checks again.
+const CHECK_TIMEOUT_MS = 30_000;
+
+// What is wrong with the file, or undefined when nothing is or the check ran out of time
+async function checkFile(file: File, accepted: string[]): Promise<string | undefined> {
+  try {
+    return await validateUpload(file, accepted, {}, AbortSignal.timeout(CHECK_TIMEOUT_MS));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
@@ -107,11 +124,18 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     return () => window.removeEventListener("beforeunload", warn);
   }, [busy]);
 
-  // Reloads the form on success, since what it asks and what is attached may have changed
+  // Checked here first, so a file the server would refuse, or the parser could not read, is refused
+  // in a moment rather than after the upload. Reloads the form on success, since what it asks and what
+  // is attached may have changed.
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
-    attachDocument(doFetch, path, requirement.name, file).then(
+    checkFile(file, accepted).then(problem => {
+      if (problem !== undefined) {
+        throw new Error(problem);
+      }
+      return attachDocument(doFetch, path, requirement.name, file);
+    }).then(
       () => {
         setBusy(false);
         onAttached();
