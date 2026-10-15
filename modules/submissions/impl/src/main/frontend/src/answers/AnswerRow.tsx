@@ -21,14 +21,15 @@ import type { ReactNode } from "react";
 import { Box } from "@mui/material";
 
 // The answer control, with whatever goes beside it - such as the button confirming a drafted answer.
-function AnswerRow({ aside, children }: { aside?: ReactNode; children: ReactNode }) {
-  if (!aside) {
+// `corner` is for a control with no box of its own to put it in, and goes first.
+function AnswerRow({ aside, corner, children }: { aside?: ReactNode; corner?: ReactNode; children: ReactNode }) {
+  if (!aside && !corner) {
     return <>{children}</>;
   }
   return (
     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>{children}</Box>
-      <Box sx={{ flexShrink: 0 }}>{aside}</Box>
+      <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 1 }}>{corner}{aside}</Box>
     </Box>
   );
 }

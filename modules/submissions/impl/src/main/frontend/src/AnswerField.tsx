@@ -176,9 +176,6 @@ function AnswerField(
       }}
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
-        {offer
-          ? <ReplacedAnswerSwitch question={question} offer={offer} disabled={disabled} onAccept={accept} />
-          : null}
         {/* Built through createElement rather than as <Answer/>, because which component this is comes
             from the registry and so is only known during the render that uses it. In JSX that is what
             react-hooks/static-components refuses: "Cannot create components during render" */}
@@ -190,6 +187,9 @@ function AnswerField(
             onChange: setDraft,
             onAnswered: submit,
             suggested: pending,
+            corner: offer
+              ? <ReplacedAnswerSwitch question={question} offer={offer} disabled={disabled} onAccept={accept} />
+              : undefined,
             aside: question.provenance
               ? (
                 <ConfirmAnswer

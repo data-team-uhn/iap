@@ -325,6 +325,9 @@ describe("AnswerField", () => {
       const answered = vi.fn();
       render(<AnswerField question={replaced([ "Clinical trial" ])} state="idle" onAnswered={answered} />);
 
+      // In the top right corner of the answer's own box, not beside the field
+      expect(screen.getByRole("textbox").closest(".MuiInputBase-root"))
+        .toContainElement(screen.getByRole("button", { name: "Your answer before the new version" }));
       await userEvent.click(screen.getByRole("button", { name: "Your answer before the new version" }));
       expect(screen.getByText("Chart review")).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "Accept this answer" }));

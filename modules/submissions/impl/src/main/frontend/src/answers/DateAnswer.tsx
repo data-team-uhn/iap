@@ -22,6 +22,7 @@ import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
 import { getInputFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
+import { getCornerAdornment } from "./cornerAdornment";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -30,7 +31,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // displays. Picking a day finishes the answer, but typing one digit at a time does not, so this
 // still saves on blur.
 function DateAnswer(
-  { question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps,
+  { question, values, disabled, onChange, onAnswered, suggested, aside, corner }: AnswerComponentProps,
 ) {
   return (
     <Box>
@@ -43,7 +44,10 @@ function DateAnswer(
           fullWidth
           sx={getInputFrame(suggested === true)}
           value={values[0] ?? ""}
-          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          slotProps={{
+            input: { endAdornment: getCornerAdornment(corner) },
+            htmlInput: { "aria-labelledby": getQuestionTextId(question) },
+          }}
           helperText={question.description}
           onChange={event => onChange([ event.target.value ])}
           // An empty value now means "clear this answer", so a value the browser cannot parse must not

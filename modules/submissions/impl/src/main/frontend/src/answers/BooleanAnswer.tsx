@@ -38,7 +38,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // A single checkbox would be the same control for "no" as for "not answered yet", which a question
 // that may be left unanswered has to be able to tell apart.
 function BooleanAnswer(
-  { question, values, disabled, onAnswered, suggested, aside }: AnswerComponentProps,
+  { question, values, disabled, onAnswered, suggested, aside, corner }: AnswerComponentProps,
 ) {
   const required = isRequired(question);
   return (
@@ -50,7 +50,7 @@ function BooleanAnswer(
       fullWidth
     >
       <QuestionText question={question} />
-      <AnswerRow aside={aside}>
+      <AnswerRow aside={aside} corner={corner}>
         {/* required on each input, not on the FormControl, which never forwards it to a radio */}
         <RadioGroup
           row

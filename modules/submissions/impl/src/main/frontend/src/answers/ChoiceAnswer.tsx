@@ -40,7 +40,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // Picking is a finished answer as it happens, so it saves on change. What is stored is the option's
 // value, never its label: the value is what a condition compares against.
 function ChoiceAnswer(
-  { question, values, disabled, onAnswered, suggested, aside }: AnswerComponentProps,
+  { question, values, disabled, onAnswered, suggested, aside, corner }: AnswerComponentProps,
 ) {
   const labelledBy = getQuestionTextId(question);
   const options = question.options;
@@ -66,7 +66,7 @@ function ChoiceAnswer(
     return (
       <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
         <QuestionText question={question} />
-        <AnswerRow aside={aside}>
+        <AnswerRow aside={aside} corner={corner}>
           <FormGroup role="group" aria-labelledby={labelledBy}>
             {options.map(option => (
               <FormControlLabel
@@ -96,7 +96,7 @@ function ChoiceAnswer(
   return (
     <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
       <QuestionText question={question} />
-      <AnswerRow aside={aside}>
+      <AnswerRow aside={aside} corner={corner}>
         <RadioGroup
           aria-labelledby={labelledBy}
           value={values[0] ?? ""}

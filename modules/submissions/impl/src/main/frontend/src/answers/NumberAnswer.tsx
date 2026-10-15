@@ -22,6 +22,7 @@ import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
 import { getInputFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
+import { getCornerAdornment } from "./cornerAdornment";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -29,7 +30,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // A number. The two numeric data types differ here rather than sharing one input: `long` steps in
 // whole numbers and refuses a decimal point, `double` does neither.
 function NumberAnswer(
-  { question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps,
+  { question, values, disabled, onChange, onAnswered, suggested, aside, corner }: AnswerComponentProps,
 ) {
   const whole = question.dataType === "long";
 
@@ -45,6 +46,7 @@ function NumberAnswer(
           sx={getInputFrame(suggested === true)}
           value={values[0] ?? ""}
           slotProps={{
+            input: { endAdornment: getCornerAdornment(corner) },
             // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
             // them, which is what asking for a long is for.
             // The schema's bounds become the input's own hints; the save is what enforces them.

@@ -39,6 +39,9 @@ export interface AnswerComponentProps {
   suggested?: boolean;
   // Shown beside the answer control, such as the button confirming a drafted answer
   aside?: ReactNode;
+  // Shown in the top right corner of the answer's input box, such as the switch back to the answer a
+  // newer document replaced. A component with no box shows it beside the answer instead.
+  corner?: ReactNode;
 }
 
 export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | null;

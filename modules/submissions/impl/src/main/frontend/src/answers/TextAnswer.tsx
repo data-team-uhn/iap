@@ -22,13 +22,14 @@ import { registerAnswerComponent } from "../answerComponents";
 import { isMultiple, isRequired } from "../submissionForm";
 import { getInputFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
+import { getCornerAdornment } from "./cornerAdornment";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // Typed-in text. Several values are typed one per line. A question that offers its answers is a ChoiceAnswer instead.
 function TextAnswer(
-  { question, values, disabled, onChange, onAnswered, suggested, aside }: AnswerComponentProps,
+  { question, values, disabled, onChange, onAnswered, suggested, aside, corner }: AnswerComponentProps,
 ) {
   const many = isMultiple(question);
   const helperText = many
@@ -47,7 +48,10 @@ function TextAnswer(
           fullWidth
           sx={getInputFrame(suggested === true)}
           value={many ? values.join("\n") : values[0] ?? ""}
-          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          slotProps={{
+            input: { endAdornment: getCornerAdornment(corner) },
+            htmlInput: { "aria-labelledby": getQuestionTextId(question) },
+          }}
           helperText={helperText}
           onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
           // Blank lines and a blank field are not answers; dropping them here is what makes clearing a
