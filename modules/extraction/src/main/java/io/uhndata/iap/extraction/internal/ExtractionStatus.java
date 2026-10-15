@@ -53,6 +53,12 @@ final class ExtractionStatus
      */
     static final String READING_CLAIMED_BY = "extractionReadingClaimedBy";
 
+    /**
+     * The property on the submission saying the last reading ended with the request unable to go on, such as a
+     * document that is not what the request asks for. Its message says why. Taken down when a new reading starts.
+     */
+    static final String BLOCKED = "extractionBlocked";
+
     /** Documents are being parsed or read; answers may still appear. */
     static final String RUNNING = "running";
 
@@ -97,6 +103,21 @@ final class ExtractionStatus
     }
 
     /**
+     * Record that the request cannot go on after this reading, until a new reading starts.
+     *
+     * @param submission the submission's resource, through a session that may write it
+     * @throws PersistenceException if the submission cannot be written
+     */
+    static void markBlocked(final Resource submission) throws PersistenceException
+    {
+        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
+        if (properties == null) {
+            throw new PersistenceException("Not allowed to mark " + submission.getPath() + " as blocked");
+        }
+        properties.put(BLOCKED, true);
+    }
+
+    /**
      * Record that a step read what it could, unless an earlier step of the same reading already recorded a
      * failure: that one said something this step does not know, and the submitter must still see it.
      *
@@ -129,6 +150,10 @@ final class ExtractionStatus
             throw new PersistenceException("Not allowed to record the extraction state on " + submission.getPath());
         }
         properties.put(PROPERTY, status);
+        if (RUNNING.equals(status)) {
+            // A new reading decides afresh whether the request can go on
+            properties.remove(BLOCKED);
+        }
         if (message == null) {
             properties.remove(MESSAGE);
         } else {

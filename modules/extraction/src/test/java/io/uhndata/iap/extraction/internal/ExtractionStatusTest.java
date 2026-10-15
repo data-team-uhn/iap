@@ -55,6 +55,22 @@ class ExtractionStatusTest
             submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
     }
 
+    // A new reading decides afresh whether the request can go on
+    @Test
+    void takesABlockDownWhenANewReadingStarts() throws PersistenceException
+    {
+        final Resource submission = this.context.create().resource("/Submissions/s1", Map.of());
+        ExtractionStatus.markBlocked(submission);
+        assertEquals(Boolean.TRUE, submission.getValueMap().get(ExtractionStatus.BLOCKED, Boolean.class));
+
+        ExtractionStatus.record(submission, ExtractionStatus.DONE, null);
+        assertEquals(Boolean.TRUE, submission.getValueMap().get(ExtractionStatus.BLOCKED, Boolean.class),
+            "only a new reading takes it down");
+
+        ExtractionStatus.record(submission, ExtractionStatus.RUNNING, null);
+        assertNull(submission.getValueMap().get(ExtractionStatus.BLOCKED, Boolean.class));
+    }
+
     @Test
     void clearsAnEarlierMessageWhenThereIsNoneToRecord() throws PersistenceException
     {
@@ -149,5 +165,6 @@ class ExtractionStatusTest
         };
 
         assertThrows(PersistenceException.class, () -> ExtractionStatus.record(readOnly, ExtractionStatus.DONE, null));
+        assertThrows(PersistenceException.class, () -> ExtractionStatus.markBlocked(readOnly));
     }
 }

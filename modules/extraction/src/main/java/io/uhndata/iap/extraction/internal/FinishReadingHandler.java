@@ -33,7 +33,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>Only {@code running} is moved on. A step that already said the reading failed has said something this one
  * does not know, and overwriting it with "done" would lose it.</p>
  *
- * <p>A step that pauses names a {@code message}, so the view can say the reading waits for the submitter.</p>
+ * <p>A step that pauses names a {@code message}, so the view can say the reading waits for the submitter. A step
+ * that ends with the request unable to go on, such as a document that is not what the request asks for, also sets
+ * {@code blocks}: the submission is marked blocked until a new reading starts.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,6 +49,9 @@ public class FinishReadingHandler implements ServiceTaskHandler
     /** The activity property holding what to tell the submitter, if anything. */
     static final String MESSAGE = "message";
 
+    /** The activity property saying the request cannot go on after this reading. */
+    static final String BLOCKS = "blocks";
+
     @Override
     public String getName()
     {
@@ -59,6 +64,9 @@ public class FinishReadingHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         if (ExtractionStatus.RUNNING.equals(target.getValueMap().get(ExtractionStatus.PROPERTY, String.class))) {
             ExtractionStatus.record(target, ExtractionStatus.DONE, context.getActivity().get(MESSAGE, String.class));
+            if (Boolean.TRUE.equals(context.getActivity().get(BLOCKS, Boolean.class))) {
+                ExtractionStatus.markBlocked(target);
+            }
         }
     }
 }
