@@ -24,6 +24,7 @@ import { LoginPage } from '../../../pages/login.page';
 import { SubmissionPage } from '../../../pages/submission.page';
 import { basicAuth } from '../../../support/auth';
 import { childNodes } from '../../../support/nodes';
+import { onePagePdf } from '../../../support/pdf';
 import { APPROVER, REQUESTER } from '../../../support/timeOffDemo';
 import { uniqueTitle } from '../../../support/titles';
 
@@ -31,6 +32,9 @@ import { uniqueTitle } from '../../../support/titles';
 const TIME_OFF_REQUEST = /Time off request 1\.0/;
 
 const LAST_DAY_AWAY = /Which is your last day away/;
+
+/** The doctor's note Priya attaches: a real PDF, since the browser opens one before sending it. */
+const SICK_NOTE = onePagePdf('Unfit for work on the 14th');
 
 const FIRST_DAY_AWAY = /Which day does your time off start/;
 
@@ -308,7 +312,7 @@ test.describe('a story: being off sick, and having to prove it', () => {
         await page.getByLabel(/Attach a file for "Doctor's note"/).setInputFiles({
           name: 'sick-note.pdf',
           mimeType: 'application/pdf',
-          buffer: Buffer.from('%PDF-1.4 unfit for work on the 14th'),
+          buffer: SICK_NOTE,
         });
 
         // What the server says is there, not what the browser just sent
@@ -353,7 +357,7 @@ test.describe('a story: being off sick, and having to prove it', () => {
 
         const download = await request.get(file?.['@path'] as string, { headers: basicAuth(REQUESTER) });
         expect(download.ok()).toBeTruthy();
-        expect(await download.text()).toBe('%PDF-1.4 unfit for work on the 14th');
+        expect(await download.body()).toEqual(SICK_NOTE);
       });
     });
 });
