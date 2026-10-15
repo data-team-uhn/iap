@@ -752,7 +752,7 @@ class IntakeAnswersHandlerTest
 
         Mockito.verifyNoInteractions(this.intake);
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.PROPERTY, String.class));
-        assertEquals("The document could not be read. the daemon refused",
+        assertEquals("The document could not be read. Please try again",
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE, String.class));
     }
 
