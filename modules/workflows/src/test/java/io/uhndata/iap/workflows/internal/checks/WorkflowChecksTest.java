@@ -28,16 +28,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link StartEventCheck} and {@link SystemWorkflowTriggerCheck}.
+ * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck} and {@link SystemWorkflowUserTaskCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -94,10 +96,15 @@ class WorkflowChecksTest
     @Test
     void asksNothingMoreOfAUserWorkflow()
     {
-        assertTrue(new SystemWorkflowTriggerCheck().appliesTo(version(SYSTEM_VERSION, "sub/Submission")));
-        assertFalse(new SystemWorkflowTriggerCheck().appliesTo(version(USER_VERSION, null)));
-        assertFalse(new SystemWorkflowTriggerCheck().appliesTo(this.context.create().resource("/SystemWorkflows/notes",
-            Map.of(WorkflowFixture.TYPE, "nt:unstructured"))));
+        final Resource system = version(SYSTEM_VERSION, "sub/Submission");
+        final Resource user = version(USER_VERSION, null);
+        final Resource notes = this.context.create().resource("/SystemWorkflows/notes",
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured"));
+        for (final ValidityCheck check : List.of(new SystemWorkflowTriggerCheck(), new SystemWorkflowUserTaskCheck())) {
+            assertTrue(check.appliesTo(system));
+            assertFalse(check.appliesTo(user));
+            assertFalse(check.appliesTo(notes));
+        }
     }
 
     @Test
@@ -120,6 +127,26 @@ class WorkflowChecksTest
             new SystemWorkflowTriggerCheck().check(version));
     }
 
+    @Test
+    void acceptsASystemWorkflowThatWaitsForNobody()
+    {
+        final Resource version = version(SYSTEM_VERSION, "sub/Submission");
+        start(version, "requested", "save");
+
+        assertEquals(List.of(), new SystemWorkflowUserTaskCheck().check(version));
+    }
+
+    @Test
+    void refusesASystemWorkflowThatWaitsForAPerson()
+    {
+        final Resource version = version(SYSTEM_VERSION, "sub/Submission");
+        start(version, "requested", "save");
+        userTask(version);
+
+        assertEquals(List.of("a system workflow cannot wait for a person, but it has a user task"),
+            new SystemWorkflowUserTaskCheck().check(version));
+    }
+
     private Resource version(final String path, final String targetType)
     {
         final Map<String, Object> properties = new HashMap<>();
@@ -140,5 +167,11 @@ class WorkflowChecksTest
             properties.put("messageName", messageName);
         }
         this.context.create().resource(version, name, properties);
+    }
+
+    private void userTask(final Resource version)
+    {
+        this.context.create().resource(version, "review", Map.of(
+            WorkflowFixture.TYPE, Activity.RESOURCE_TYPE, "elementId", "review"));
     }
 }
