@@ -42,10 +42,15 @@
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
-      <bpmn:outgoing>toMove</bpmn:outgoing>
+      <bpmn:outgoing>toCheck</bpmn:outgoing>
       <bpmn:messageEventDefinition id="startTrialRequested" messageRef="startTrialMessage" />
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toMove" sourceRef="requested" targetRef="move" />
+    <bpmn:sequenceFlow id="toCheck" sourceRef="requested" targetRef="check" />
+    <bpmn:serviceTask id="check" iap:handler="checkValid" name="Check it can run">
+      <bpmn:incoming>toCheck</bpmn:incoming>
+      <bpmn:outgoing>toMove</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMove" sourceRef="check" targetRef="move" />
     <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="trial" name="Put the version on trial">
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
@@ -63,22 +68,29 @@
           <dc:Bounds x="143" y="223" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="moveShape" bpmnElement="move">
+      <bpmndi:BPMNShape id="checkShape" bpmnElement="check">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="moveShape" bpmnElement="move">
+        <dc:Bounds x="410" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="410" y="180" width="36" height="36" />
+        <dc:Bounds x="570" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="398" y="223" width="61" height="14" />
+          <dc:Bounds x="558" y="223" width="61" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toMoveEdge" bpmnElement="toMove">
+      <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toMoveEdge" bpmnElement="toMove">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="510" y="198" />
+        <di:waypoint x="570" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

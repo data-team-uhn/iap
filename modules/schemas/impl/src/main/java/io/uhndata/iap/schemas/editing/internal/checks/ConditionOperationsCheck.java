@@ -26,7 +26,7 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.conditions.api.Aggregator;
 import io.uhndata.iap.conditions.api.Operator;
-import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
  * Check that every condition uses known comparators and aggregators.
@@ -34,8 +34,8 @@ import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = SchemaValidityCheck.class)
-public class ConditionOperationsCheck implements SchemaValidityCheck
+@Component(service = ValidityCheck.class)
+public class ConditionOperationsCheck extends SchemaVersionCheck
 {
     @Override
     public List<String> check(final Resource version)

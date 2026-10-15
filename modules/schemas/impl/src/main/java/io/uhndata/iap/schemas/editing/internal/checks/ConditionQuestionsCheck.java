@@ -28,7 +28,7 @@ import javax.jcr.Session;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
  * Check that every condition on an answer names a question of the same schema version.
@@ -36,8 +36,8 @@ import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = SchemaValidityCheck.class)
-public class ConditionQuestionsCheck implements SchemaValidityCheck
+@Component(service = ValidityCheck.class)
+public class ConditionQuestionsCheck extends SchemaVersionCheck
 {
     private static final Pattern UUID_FORMAT =
         Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", Pattern.CASE_INSENSITIVE);

@@ -53,7 +53,7 @@
       "jcr:primaryType": "wf:Activity",
       "elementId": "check",
       "label": "Check it can be published",
-      "handler": "checkPublishable",
+      "handler": "checkValid",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toMarkActive": {
         "jcr:primaryType": "wf:SequenceFlow",

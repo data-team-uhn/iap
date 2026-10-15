@@ -24,7 +24,7 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
  * Check that no question's bounds are reversed.
@@ -32,8 +32,8 @@ import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = SchemaValidityCheck.class)
-public class QuestionBoundsCheck implements SchemaValidityCheck
+@Component(service = ValidityCheck.class)
+public class QuestionBoundsCheck extends SchemaVersionCheck
 {
     @Override
     public List<String> check(final Resource version)

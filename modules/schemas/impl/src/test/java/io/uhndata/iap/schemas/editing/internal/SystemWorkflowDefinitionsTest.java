@@ -56,7 +56,6 @@ import io.uhndata.iap.conditions.models.ConditionGroup;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
-import io.uhndata.iap.schemas.editing.internal.handlers.CheckPublishableHandler;
 import io.uhndata.iap.schemas.editing.internal.handlers.CreateSchemaVersionHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,7 +91,7 @@ class SystemWorkflowDefinitionsTest
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "callActivity", "addTag", "removeTag", "delete",
         "addLink", "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
-        CreateSchemaVersionHandler.HANDLER_NAME, CheckPublishableHandler.HANDLER_NAME);
+        CreateSchemaVersionHandler.HANDLER_NAME, "checkValid");
 
     private final SlingContext context = new SlingContext();
 

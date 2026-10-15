@@ -24,7 +24,7 @@ import java.util.regex.PatternSyntaxException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
+import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
  * Check that every pattern a question's answers must match is a valid regular expression.
@@ -32,8 +32,8 @@ import io.uhndata.iap.schemas.spi.SchemaValidityCheck;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = SchemaValidityCheck.class)
-public class QuestionPatternCheck implements SchemaValidityCheck
+@Component(service = ValidityCheck.class)
+public class QuestionPatternCheck extends SchemaVersionCheck
 {
     @Override
     public List<String> check(final Resource version)
