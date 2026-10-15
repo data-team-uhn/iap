@@ -314,7 +314,9 @@ class ParseResultIngesterTest
         this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
 
         assertEquals("failed", getProperties().get("parseStatus", String.class));
-        assertTrue(getProperties().get("parseError", String.class).contains("not on the shared volume"));
+        // On the volume, just not there: saying it is not on the volume would send somebody looking elsewhere
+        assertEquals("The parse named " + this.markdown + ", which is not there",
+            getProperties().get("parseError", String.class));
         assertNull(getFile().getChild("markdownFile"));
         assertEquals(List.of(), this.discarded, "and clearing the volume is still the committer's");
     }

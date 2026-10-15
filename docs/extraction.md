@@ -202,7 +202,7 @@ What `ParseResultIngester.ingest` checks and writes:
 | Check | Result |
 | --- | --- |
 | The Markdown path is on the shared volume (`ParseService.isStagedPath`) | If not: `parseStatus=failed`, "The parse named …, which is not on the shared volume", and the problem "The document daemon named a file outside the shared volume" is recorded. A file outside the volume is never read. |
-| The Markdown file exists | If not: `parseStatus=failed`, with the same "The parse named …, which is not on the shared volume" message. |
+| The Markdown file exists | If not: `parseStatus=failed`, "The parse named …, which is not there". |
 | The PDF path is on the shared volume | If not: the PDF is skipped, a warning logged, and the same problem recorded. |
 | The upload is itself a PDF (`File.isUploadAPdf`, which reads `uploadedFile/jcr:content/jcr:mimeType`) | The PDF is not stored a second time. `File.getFilePdf()` falls back to the upload. |
 
@@ -631,9 +631,10 @@ A submitter never deletes a document. A new upload for the same requirement adds
 `sub:DocumentVersion`, and every older version stays.
 
 The first reading of a newer version asks every question of the step, answered or not.
-`ExtractionFields.isNewRevision` says when that is: the files the step reads include a
-version that is not its document's first, and no answer to the step's questions cites
-any of those versions yet. For each
+`ExtractionFields.isNewRevision` says when that is: a file the step reads is not its
+document's first version, and no answer to the step's questions cites it yet. Each file
+counts on its own, so a newer version already read does not hide another nobody has
+read. For each
 answer, N is what the model read now, C the answer's value, and P the last suggestion
 (`Answer.getSuggestedValues`):
 
