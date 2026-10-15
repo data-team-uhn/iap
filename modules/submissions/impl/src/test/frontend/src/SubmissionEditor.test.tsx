@@ -814,6 +814,30 @@ describe("SubmissionEditor", () => {
     expect(screen.queryByText("Is this a research proposal?")).toBeNull();
   });
 
+  // A document settled as not a proposal lets nothing through: there is no page to go on to
+  it("offers no Next past the classification when nothing after it applies", async () => {
+    const proposal = {
+      name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",
+      required: true, acceptedFileTypes: [ "application/pdf" ], attached: [ { title: "protocol.pdf" } ],
+    };
+    const classification = {
+      name: "is_proposal", path: "/Schemas/proposal/v1/is_proposal",
+      type: CLASSIFICATION_REQUIREMENT, label: "Is this a research proposal?",
+      extracted: true, items: [ duration([ "No" ]) ],
+    };
+    vi.stubGlobal("fetch", vi.fn((url: string) => json(url.includes("wf:instances") ? {} : form({
+      readsDocuments: true,
+      requirements: [ proposal, classification ],
+    }), { url })));
+
+    render(<SubmissionEditor path={PATH} />, { wrapper: NoticeProvider });
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Is this a research proposal?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+  });
+
   it("holds Next back until a required document is attached", async () => {
     const proposal = {
       name: "proposal", path: "/Schemas/proposal/v1/proposal", type: DOCUMENT_REQUIREMENT, label: "Research proposal",

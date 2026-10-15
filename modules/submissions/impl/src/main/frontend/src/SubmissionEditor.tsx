@@ -357,7 +357,11 @@ function SubmissionEditor({ path, onChanged, blockedReason, onTaskCompleted, ref
       { form.readsDocuments && page === 2 && (
         <Stack direction="row" sx={{ justifyContent: "space-between" }}>
           <Button onClick={() => setPage(1)}>Back</Button>
-          <NextButton requirements={shown(form, 2)} onOpened={() => setPage(3)} />
+          {/* Nothing applies past the classification until it lets something through, such as a
+              document settled as not what this request is for: there is then no page to go on to */}
+          { shown(form, 3).length > 0 && (
+            <NextButton requirements={shown(form, 2)} onOpened={() => setPage(3)} />
+          ) }
         </Stack>
       ) }
       { form.readsDocuments && page === 3 && shown(form, 3).length === 0 && (

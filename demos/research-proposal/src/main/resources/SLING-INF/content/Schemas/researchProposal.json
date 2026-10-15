@@ -68,6 +68,21 @@
       "jcr:primaryType": "sch:FormRequirement",
       "label": "The study",
       "description": "What every proposal is asked, whatever kind of study it turns out to be. Filled in from the document where it could be; check and complete it.",
+      // Asked only once the document is settled as a research proposal: a document that is not one has
+      // nothing more to fill in, and the editor then offers no Next past the classification
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes any",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "decision",
+          "value": [ "is_proposal/decision" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "yes" ]
+        }
+      },
       "title": {
         "jcr:primaryType": "sch:Question",
         "text": "What is the title of the study?",
