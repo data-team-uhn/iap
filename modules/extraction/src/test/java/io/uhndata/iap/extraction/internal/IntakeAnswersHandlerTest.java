@@ -636,6 +636,21 @@ class IntakeAnswersHandlerTest
         assertNull(getExtractions(answer).get(1).getValueMap().get("replacedValue", String[].class));
     }
 
+    // Each newer version counts on its own: one already read does not hide another nobody has read yet
+    @Test
+    void countsANewerVersionOfAnotherDocumentAsNewToo() throws Exception
+    {
+        final Resource newerProtocol = this.tree.addVersion(this.file);
+        answerAims("What the person said", "What the model read", newerProtocol.getParent());
+        final Resource newerConsent = this.tree.addVersion(this.tree.createFile("completed"));
+        final List<Question> asked = List.of(this.aims.adaptTo(Question.class));
+
+        assertTrue(ExtractionFields.isNewRevision(SubmissionFiles.getSubmission(this.submission), asked,
+            List.of(newerProtocol.adaptTo(File.class), newerConsent.adaptTo(File.class))));
+        assertFalse(ExtractionFields.isNewRevision(SubmissionFiles.getSubmission(this.submission), asked,
+            List.of(newerProtocol.adaptTo(File.class))), "the version already read is not new");
+    }
+
     // Read again on the same revision: only the gaps are filled, and an answer it already read stays
     @Test
     void readingANewerRevisionAgainOnlyFillsTheGaps() throws Exception
