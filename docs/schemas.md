@@ -37,10 +37,10 @@ comments point back at them.
 
 An approval requirement lists, in order, the **topics** its approvers want assessed: a
 broad area such as privacy or consent rather than one checkbox per point, so a reviewer
-is guided without being buried. Its `description` says what to look for, `sources` names
-the requirements and questions that bear on it, and `assessmentPrompt` is what the AI is
-asked. Each review, and the AI's screening, assesses every topic on its own, so topics are
-referenceable too.
+is guided without being overwhelmed. Its `description` says what to look for, `sources`
+names the requirements and questions that bear on it, and `assessmentPrompt` is what the
+AI is asked. Each review, and the AI's screening, assesses every topic on its own, so
+topics are referenceable too.
 
 ### Questions
 

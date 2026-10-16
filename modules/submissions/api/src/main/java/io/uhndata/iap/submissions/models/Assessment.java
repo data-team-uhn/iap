@@ -74,7 +74,7 @@ public class Assessment extends EntityPart implements Referenceable
     }
 
     /**
-     * The reviewer's verdict on the topic. The AI never sets one: its view is the summary and the comments.
+     * The reviewer's verdict on the topic.
      *
      * @return the assessment, or {@code null} if not yet assessed
      */
@@ -125,7 +125,7 @@ public class Assessment extends EntityPart implements Referenceable
     }
 
     /**
-     * The comments raised about this topic, the AI's concerns among them, in the order they were raised.
+     * The comments raised about this topic, in the order they were raised.
      *
      * @return a list of comments, empty if none
      */

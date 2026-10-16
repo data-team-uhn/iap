@@ -333,13 +333,14 @@
   // Optional longer explanation displayed to the submitter
   - description (STRING)
 
-  // The prompt an LLM is given to assess this topic from the submission
-  - assessmentPrompt (STRING)
-
   // The requirements and questions that bear on this topic: where a reviewer
   // and the AI look first. Weak, so one can be removed without first
   // unlinking it from every topic.
   - sources (WEAKREFERENCE) multiple
+
+  // The prompt an LLM is given to assess this topic from the submission;
+  // it is extended with the answers and uploaded documents for the linked sources
+  - assessmentPrompt (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

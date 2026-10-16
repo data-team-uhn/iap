@@ -346,8 +346,7 @@
   - topic (REFERENCE) mandatory
 
   // The reviewer's verdict on the topic. Its shape, a few fixed choices or a
-  // yes/no, is still to be decided. The AI never sets it: its view is the
-  // summary and the comments.
+  // yes/no, is still to be decided.
   - value (STRING)
 
   // A short summary of this assessment
