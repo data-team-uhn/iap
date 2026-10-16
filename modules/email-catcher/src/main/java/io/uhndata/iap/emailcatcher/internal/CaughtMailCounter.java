@@ -50,10 +50,10 @@ import io.uhndata.iap.metrics.api.MetricsManager;
 final class CaughtMailCounter
 {
     /** The metric counting the messages filed instead of sent. */
-    static final String METRIC = "caughtMail";
+    static final String METRIC_NAME = "caughtMail";
 
     /** Nightly at midnight, as a Quartz cron expression. */
-    static final String NIGHTLY = "0 0 0 * * ?";
+    static final String NIGHTLY_SCHEDULE = "0 0 0 * * ?";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CaughtMailCounter.class);
 
@@ -77,7 +77,7 @@ final class CaughtMailCounter
     static CaughtMailCounter define(@NotNull final MetricsManager metrics, @NotNull final String homePath)
     {
         try {
-            return new CaughtMailCounter(metrics.createMetric(METRIC)
+            return new CaughtMailCounter(metrics.createMetric(METRIC_NAME)
                 .withLabel("Caught emails")
                 .withDescription("Messages the email catcher filed under " + homePath + " instead of sending them.")
                 .withCategory("Email")
@@ -85,14 +85,14 @@ final class CaughtMailCounter
                 // The catcher is a development facility, and how much of it has been exercised is not a fact
                 // about the service that the people using the platform have any business reading
                 .withAccessLevel(Metric.AccessLevel.ADMIN)
-                .withRolloverSchedule(NIGHTLY)
+                .withRolloverSchedule(NIGHTLY_SCHEDULE)
                 .create());
         } catch (final MetricsException e) {
             LOGGER.error("The caught mail counter could not be defined, so mail will be caught uncounted: {}",
                 e.getMessage(), e);
             // Recorded as well as logged: nothing else reports this, and a counter that silently stopped counting
             // is the kind of fault only noticed once somebody needs the number
-            ErrorLogger.logError(e, ErrorContext.of(CaughtMailCounter.class, "define").with("metric", METRIC));
+            ErrorLogger.logError(e, ErrorContext.of(CaughtMailCounter.class, "define").with("metric", METRIC_NAME));
             return new CaughtMailCounter(null);
         }
     }

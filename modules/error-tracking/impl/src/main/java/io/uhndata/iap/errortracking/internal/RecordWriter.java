@@ -49,7 +49,7 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 final class RecordWriter
 {
     /** The name of the property counting how many times one fault was recorded. */
-    static final String OCCURRENCES = "occurrences";
+    static final String OCCURRENCES_PROPERTY = "occurrences";
 
     /** The name of the property holding when a fault was last recorded. */
     static final String LAST_OCCURRENCE = "lastOccurrence";
@@ -62,13 +62,13 @@ final class RecordWriter
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     /** The property holding a bounded sample of the paths a fault happened to. */
-    private static final String SUBJECTS = "subjects";
+    private static final String SUBJECTS_PROPERTY = "subjects";
 
     /** The property holding a bounded sample of the users a fault happened to. */
-    private static final String ACTORS = "actors";
+    private static final String ACTORS_PROPERTY = "actors";
 
     /** The property holding a bounded sample of the messages one fault was seen with. */
-    private static final String MESSAGES = "messages";
+    private static final String MESSAGES_PROPERTY = "messages";
 
     /** Opens the sessions that do the writing. */
     private final ResourceResolverFactory resolverFactory;
@@ -121,7 +121,7 @@ final class RecordWriter
     {
         final Map<String, Object> properties = new HashMap<>();
         properties.put(PRIMARY_TYPE, pending.getPrimaryType());
-        properties.put(OCCURRENCES, pending.getOccurrences());
+        properties.put(OCCURRENCES_PROPERTY, pending.getOccurrences());
         properties.put(LAST_OCCURRENCE, at(pending.getLastSeen()));
         put(properties, "component", pending.getComponent());
         put(properties, "operation", pending.getOperation());
@@ -129,9 +129,9 @@ final class RecordWriter
         put(properties, "problem", pending.getProblem());
         put(properties, "stackTrace", pending.getStackTrace());
         put(properties, "lastContext", pending.getLastContext());
-        putAll(properties, SUBJECTS, pending.getSubjects());
-        putAll(properties, ACTORS, pending.getActors());
-        putAll(properties, MESSAGES, pending.getMessages());
+        putAll(properties, SUBJECTS_PROPERTY, pending.getSubjects());
+        putAll(properties, ACTORS_PROPERTY, pending.getActors());
+        putAll(properties, MESSAGES_PROPERTY, pending.getMessages());
         return properties;
     }
 
@@ -148,14 +148,14 @@ final class RecordWriter
         if (values == null) {
             throw new PersistenceException("The recorded error at " + known.getPath() + " cannot be updated");
         }
-        values.put(OCCURRENCES, values.get(OCCURRENCES, 0L) + pending.getOccurrences());
+        values.put(OCCURRENCES_PROPERTY, values.get(OCCURRENCES_PROPERTY, 0L) + pending.getOccurrences());
         values.put(LAST_OCCURRENCE, at(pending.getLastSeen()));
         if (pending.getLastContext() != null) {
             values.put("lastContext", pending.getLastContext());
         }
-        mergeSample(values, SUBJECTS, pending.getSubjects(), PendingError.MAX_SUBJECTS);
-        mergeSample(values, ACTORS, pending.getActors(), PendingError.MAX_ACTORS);
-        mergeSample(values, MESSAGES, pending.getMessages(), PendingError.MAX_MESSAGES);
+        mergeSample(values, SUBJECTS_PROPERTY, pending.getSubjects(), PendingError.MAX_SUBJECTS);
+        mergeSample(values, ACTORS_PROPERTY, pending.getActors(), PendingError.MAX_ACTORS);
+        mergeSample(values, MESSAGES_PROPERTY, pending.getMessages(), PendingError.MAX_MESSAGES);
     }
 
     /**

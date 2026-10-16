@@ -101,7 +101,7 @@ import org.slf4j.LoggerFactory;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = JobConsumer.class, property = { JobConsumer.PROPERTY_TOPICS + "=" + ParseJob.TOPIC })
+@Component(service = JobConsumer.class, property = { JobConsumer.PROPERTY_TOPICS + "=" + ParseJob.JOB_TOPIC })
 public class ParseJobConsumer implements JobConsumer
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseJobConsumer.class);

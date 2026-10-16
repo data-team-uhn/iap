@@ -65,7 +65,7 @@ public final class ContentTypes
     static final String LABEL_PROPERTY = "label";
 
     /** The name of a definition allowing children, or properties, of any name. */
-    static final String RESIDUAL = "*";
+    static final String RESIDUAL_NAME = "*";
 
     /** The type every node is, which a definition accepting anything requires. */
     private static final String CATCH_ALL = "nt:base";
@@ -257,7 +257,7 @@ public final class ContentTypes
         }
         return parentTypes.stream()
             .flatMap(parentType -> Arrays.stream(parentType.getChildNodeDefinitions()))
-            .filter(definition -> RESIDUAL.equals(definition.getName()) && !definition.isProtected()
+            .filter(definition -> RESIDUAL_NAME.equals(definition.getName()) && !definition.isProtected()
                 && !BUILT_IN.contains(prefix(definition.getDeclaringNodeType().getName())))
             .flatMap(definition -> Arrays.stream(definition.getRequiredPrimaryTypeNames()))
             .anyMatch(required -> !CATCH_ALL.equals(required) && child.isNodeType(required));

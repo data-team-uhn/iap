@@ -19,10 +19,10 @@ package io.uhndata.iap.deletion.api;
 
 import org.junit.jupiter.api.Test;
 
-import static io.uhndata.iap.deletion.api.DeletionOptions.ARCHIVE;
-import static io.uhndata.iap.deletion.api.DeletionOptions.NOT_RECURSIVE;
-import static io.uhndata.iap.deletion.api.DeletionOptions.PERMANENT;
-import static io.uhndata.iap.deletion.api.DeletionOptions.RECURSIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.MOVE_TO_ARCHIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.REFUSE_IF_REFERENCED;
+import static io.uhndata.iap.deletion.api.DeletionOptions.DELETE_PERMANENTLY;
+import static io.uhndata.iap.deletion.api.DeletionOptions.DELETE_RECURSIVELY;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,10 +44,10 @@ class DeletionOptionsTest
     @Test
     void explicitOptionsAreKept()
     {
-        final DeletionOptions options = DeletionOptions.of(RECURSIVE, PERMANENT);
+        final DeletionOptions options = DeletionOptions.of(DELETE_RECURSIVELY, DELETE_PERMANENTLY);
         assertTrue(options.isRecursive());
         assertTrue(options.isPermanent());
-        assertFalse(DeletionOptions.of(NOT_RECURSIVE, PERMANENT).isRecursive());
-        assertFalse(DeletionOptions.of(RECURSIVE, ARCHIVE).isPermanent());
+        assertFalse(DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY).isRecursive());
+        assertFalse(DeletionOptions.of(DELETE_RECURSIVELY, MOVE_TO_ARCHIVE).isPermanent());
     }
 }

@@ -48,7 +48,7 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
         throws RepositoryException
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
-            && AnswerOperandResolver.SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
+            && AnswerOperandResolver.SOURCE_NAME.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
             // A path resolves against the operand's entity, which the copy keeps whole, so it stays valid.
             // An identifier names the original question, so it is changed to the copy's.
             OperandValues.rename(copy, named -> identifiers.getOrDefault(named, named));

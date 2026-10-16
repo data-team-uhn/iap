@@ -53,14 +53,14 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 public class TagAggregationProcessor implements TagProcessor
 {
     /** The name of the property holding the tags aggregated from descendants. */
-    public static final String PROPERTY = Phase.BOTTOM_UP.getPropertyName();
+    public static final String AGGREGATED_TAGS_PROPERTY = Phase.BOTTOM_UP.getPropertyName();
 
     /**
      * The child properties an aggregated tag can reach this node through: the tags belonging to the child itself,
      * and the chain of what the child aggregated from its own descendants.
      */
-    private static final List<String> SOURCES =
-        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), PROPERTY);
+    private static final List<String> SOURCE_PROPERTIES =
+        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), AGGREGATED_TAGS_PROPERTY);
 
     @Override
     public Phase getPhase()
@@ -95,6 +95,6 @@ public class TagAggregationProcessor implements TagProcessor
      */
     private static Stream<String> sourceTags(final NodeState child)
     {
-        return SOURCES.stream().flatMap(property -> TagProcessor.readTags(child, property).stream());
+        return SOURCE_PROPERTIES.stream().flatMap(property -> TagProcessor.readTags(child, property).stream());
     }
 }

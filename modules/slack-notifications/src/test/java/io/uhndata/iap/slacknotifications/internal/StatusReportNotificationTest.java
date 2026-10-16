@@ -143,7 +143,7 @@ class StatusReportNotificationTest
             StatusReportNotification.TARGET_LEVEL, "warning",
             // The blank entry in the middle is what a hand-edited configuration looks like
             StatusReportNotification.INCLUDE_TAGS, " problems , , errors ",
-            StatusReportNotification.UNPRIVILEGED, "true"));
+            StatusReportNotification.UNPRIVILEGED_PARAMETER, "true"));
 
         assertEquals(StatusReport.Status.WARNING, this.reports.level);
         assertEquals(Set.of("problems", "errors"), this.reports.tags);

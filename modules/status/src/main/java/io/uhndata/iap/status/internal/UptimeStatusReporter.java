@@ -35,21 +35,21 @@ import io.uhndata.iap.status.spi.StatusReporter;
 @Component(immediate = true)
 public class UptimeStatusReporter implements StatusReporter
 {
-    private static final String TITLE = "System Started";
+    private static final String REPORT_TITLE = "System Started";
 
-    private static final ZonedDateTime STARTED = ZonedDateTime.now();
+    private static final ZonedDateTime STARTED_AT = ZonedDateTime.now();
 
     @Override
     public String getName()
     {
-        return TITLE;
+        return REPORT_TITLE;
     }
 
     @Override
     public StatusReport report(final boolean unprivileged)
     {
-        return new StatusReport(TITLE, StatusReport.Status.INFO,
-            STARTED.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        return new StatusReport(REPORT_TITLE, StatusReport.Status.INFO,
+            STARTED_AT.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
     }
 
     @Override

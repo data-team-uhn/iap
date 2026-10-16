@@ -40,7 +40,7 @@ final class DraftParts
     static final String PRIMARY_TYPE = "jcr:primaryType";
 
     /** A question's node type. */
-    static final String QUESTION = "sch:Question";
+    static final String QUESTION_TYPE = "sch:Question";
 
     private DraftParts()
     {

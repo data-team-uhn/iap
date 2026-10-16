@@ -1357,7 +1357,12 @@
 
                       <module name="CommentsIndentation" />
 
-                      <module name="ConstantName" />
+                      <!-- A constant is named for what it holds, with a suffix saying what kind of thing that is
+                           (VERSION_PROPERTY, CREATED_PATH_VARIABLE), never for its value alone. LOGGER and
+                           INSTANCE are the idioms everyone recognizes. -->
+                      <module name="ConstantName">
+                        <property name="format" value="^(LOGGER|INSTANCE|[A-Z][A-Z0-9]*(_[A-Z0-9]+)+)$" />
+                      </module>
 
                       <module name="ConstructorsDeclarationGrouping" />
 

@@ -79,7 +79,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The largest file taken, since the document pipeline later holds a whole file in memory to parse it. */
     static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
 
-    private static final long MEGABYTE = 1024L * 1024;
+    private static final long BYTES_PER_MEGABYTE = 1024L * 1024;
 
     /** Where the document records what it fulfills. */
     private static final String FULFILLS_PROPERTY = "fulfills";
@@ -263,8 +263,9 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     {
         if (file.getSize() > MAX_FILE_BYTES) {
             // Rounded up, so a file just over the limit does not read as being at it
-            throw new InvalidPayloadException("That file is " + (file.getSize() + MEGABYTE - 1) / MEGABYTE
-                + " MB, and the limit is " + MAX_FILE_BYTES / MEGABYTE + " MB");
+            throw new InvalidPayloadException("That file is " + (file.getSize()
+                + BYTES_PER_MEGABYTE - 1) / BYTES_PER_MEGABYTE
+                + " MB, and the limit is " + MAX_FILE_BYTES / BYTES_PER_MEGABYTE + " MB");
         }
     }
 

@@ -140,7 +140,7 @@ final class SystemWorkflowLocator
         final ConditionEvaluator evaluator, final Predicate<String> asked)
     {
         final Content context = target.adaptTo(Content.class);
-        final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.PATH);
+        final Resource home = serviceResolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH);
         final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
         return homepage == null ? List.of()
             : homepage.getWorkflows().stream()

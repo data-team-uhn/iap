@@ -42,14 +42,14 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 public class TagInheritanceProcessor implements TagProcessor
 {
     /** The name of the property holding the tags inherited from ancestors. */
-    public static final String PROPERTY = Phase.TOP_DOWN.getPropertyName();
+    public static final String INHERITED_TAGS_PROPERTY = Phase.TOP_DOWN.getPropertyName();
 
     /**
      * The parent properties an inheritable tag can reach this node through: the tags belonging to the parent itself,
      * and the chain of what the parent inherited from its own ancestors.
      */
-    private static final List<String> SOURCES =
-        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), PROPERTY);
+    private static final List<String> SOURCE_PROPERTIES =
+        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), INHERITED_TAGS_PROPERTY);
 
     @Override
     public Phase getPhase()
@@ -73,7 +73,7 @@ public class TagInheritanceProcessor implements TagProcessor
         final TagDefinitions definitions = context.getDefinitions();
         // The chained values were already filtered when the parent's own properties were computed, but re-filtering
         // sheds values left over from a definition that stopped being inheritable
-        return SOURCES.stream()
+        return SOURCE_PROPERTIES.stream()
             .flatMap(property -> TagProcessor.readTags(parent, property).stream())
             .filter(definitions::isInheritable)
             .collect(Collectors.toCollection(LinkedHashSet::new));

@@ -55,7 +55,7 @@ import io.uhndata.iap.utils.copy.CopyParticipant;
 public class ContentCopierImpl implements ContentCopier
 {
     /** The modification stamps of mix:lastModified, which the copy gets its own of. */
-    private static final Set<String> STAMPS = Set.of("jcr:lastModified", "jcr:lastModifiedBy");
+    private static final Set<String> MODIFICATION_STAMPS = Set.of("jcr:lastModified", "jcr:lastModifiedBy");
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY, fieldOption = FieldOption.UPDATE)
@@ -165,7 +165,8 @@ public class ContentCopierImpl implements ContentCopier
             while (properties.hasNext()) {
                 final Property property = properties.nextProperty();
                 final String name = property.getName();
-                if (property.getDefinition().isProtected() || STAMPS.contains(name) || skipped.contains(name)
+                if (property.getDefinition().isProtected() || MODIFICATION_STAMPS.contains(name)
+                    || skipped.contains(name)
                     || skips(property)) {
                     continue;
                 }

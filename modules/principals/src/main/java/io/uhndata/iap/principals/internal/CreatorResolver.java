@@ -44,7 +44,7 @@ public class CreatorResolver implements SpecialNameResolver
     @Override
     public String getName()
     {
-        return PrincipalService.CREATOR;
+        return PrincipalService.CREATOR_SPECIAL_NAME;
     }
 
     @Override

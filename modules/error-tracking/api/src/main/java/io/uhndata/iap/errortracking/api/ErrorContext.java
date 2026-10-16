@@ -51,7 +51,7 @@ import org.jetbrains.annotations.Nullable;
 public final class ErrorContext
 {
     /** A caller that knows nothing beyond the failure itself. */
-    public static final ErrorContext EMPTY = new ErrorContext(null, null, null, null, Map.of());
+    public static final ErrorContext NO_CONTEXT = new ErrorContext(null, null, null, null, Map.of());
 
     /**
      * How many details are kept. A detail is a hint for whoever reads the record, not a data feed, and one that
@@ -78,7 +78,7 @@ public final class ErrorContext
     private final Map<String, String> details;
 
     /**
-     * Full constructor, private because instances are built by copying from {@link #EMPTY} or from a factory.
+     * Full constructor, private because instances are built by copying from {@link #NO_CONTEXT} or from a factory.
      *
      * @param component which code was running
      * @param operation what it was trying to do

@@ -135,7 +135,7 @@ class NotifyHandlerTest
             "handler", "notify",
             "event", "approved",
             "template", "/libs/iap/notificationTemplates/timeOffApproved",
-            "recipients", new String[] { PrincipalService.CREATOR },
+            "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME },
             "urgency", NotificationContext.IMMEDIATE_URGENCY)));
 
         assertEquals(1, this.raised.size());
@@ -145,14 +145,14 @@ class NotifyHandlerTest
         assertEquals(NotificationContext.IMMEDIATE_URGENCY, notification.getUrgency());
         assertEquals(this.submission.getPath(), notification.getSubject().getPath());
         assertEquals("an-approver", notification.getActor());
-        assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
+        assertEquals(List.of(PrincipalService.CREATOR_SPECIAL_NAME), this.audiences.get(0));
     }
 
     @Test
     void carriesTheDecisionAndItsReasonToTheWording() throws Exception
     {
         this.handler.execute(this.taskWith(
-            Map.of("event", "rejected", "recipients", new String[] { PrincipalService.CREATOR }),
+            Map.of("event", "rejected", "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME }),
             Map.of("outcome", "rejected", "outcomeNote", "We are short-staffed that week")));
 
         final Map<String, Object> variables = this.raised.get(0).getVariables();
@@ -164,7 +164,7 @@ class NotifyHandlerTest
     void leavesOutADecisionNoteThatWasNotGiven() throws Exception
     {
         this.handler.execute(this.taskWith(
-            Map.of("event", "approved", "recipients", new String[] { PrincipalService.CREATOR }),
+            Map.of("event", "approved", "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME }),
             Map.of("outcome", "approved", "outcomeNote", "   ", "unrelated", 7)));
 
         final Map<String, Object> variables = this.raised.get(0).getVariables();
@@ -178,7 +178,7 @@ class NotifyHandlerTest
     void fallsBackOnTheNodesIdWhenNoEventIsNamed() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "recipients", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME })));
 
         assertEquals("notifyApproved", this.raised.get(0).getEvent());
     }
@@ -187,7 +187,7 @@ class NotifyHandlerTest
     void defaultsToImmediateWhenTheNodeDoesNotSay() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "recipients", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME })));
 
         assertEquals(NotificationContext.IMMEDIATE_URGENCY, this.raised.get(0).getUrgency());
         assertNull(this.raised.get(0).getTemplate());
@@ -211,6 +211,6 @@ class NotifyHandlerTest
         });
 
         this.handler.execute(this.taskWith(Map.of(
-            "recipients", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR_SPECIAL_NAME })));
     }
 }

@@ -65,9 +65,9 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveSummaryServlet.class);
 
     /** The outcome word and wording used whichever way the query fails to run. */
-    private static final String FAILED = "failed";
+    private static final String FAILED_OUTCOME = "failed";
 
-    private static final String UNQUERYABLE = "The archive cannot be queried";
+    private static final String UNQUERYABLE_MESSAGE = "The archive cannot be queried";
 
     /** Reads the current instant. A field so that tests can pin the windows down instead of racing them. */
     private final transient LongSupplier clock;
@@ -112,7 +112,8 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+                UNQUERYABLE_MESSAGE);
             return;
         }
         final String root = request.getResource().getPath();
@@ -129,7 +130,8 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
             JsonResponses.send(response, HttpServletResponse.SC_OK, body);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to count the archive entries: {}", e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+                UNQUERYABLE_MESSAGE);
         }
     }
 

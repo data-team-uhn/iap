@@ -108,7 +108,7 @@ public class RemoteNodeServletTest
         when(this.tokenManager.parse(VALID_TOKEN)).thenReturn(this.token);
 
         when(this.resolverFactory.getServiceResourceResolver(any())).thenReturn(this.resolver);
-        when(this.resolver.getResource(RemoteNodeServlet.ROOT)).thenReturn(this.root);
+        when(this.resolver.getResource(RemoteNodeServlet.ROOT_PATH)).thenReturn(this.root);
 
         this.servlet = new RemoteNodeServlet(this.tokenManager, this.resolverFactory);
     }
@@ -123,7 +123,7 @@ public class RemoteNodeServletTest
         verify(this.resolver).create(eq(this.root), eq(NAME), any());
         verify(this.resolver).commit();
         verify(this.response).setStatus(HttpServletResponse.SC_CREATED);
-        Assertions.assertTrue(this.body.toString().contains(RemoteNodeServlet.ROOT + "/" + NAME),
+        Assertions.assertTrue(this.body.toString().contains(RemoteNodeServlet.ROOT_PATH + "/" + NAME),
             this.body.toString());
     }
 
@@ -212,7 +212,7 @@ public class RemoteNodeServletTest
     @Test
     public void anExistingNodeIsNotOverwritten() throws Exception
     {
-        when(this.resolver.getResource(RemoteNodeServlet.ROOT + "/" + NAME)).thenReturn(this.root);
+        when(this.resolver.getResource(RemoteNodeServlet.ROOT_PATH + "/" + NAME)).thenReturn(this.root);
         request(VALID_TOKEN, VALID_BODY);
 
         this.servlet.doPost(this.request, this.response);
@@ -224,7 +224,7 @@ public class RemoteNodeServletTest
     @Test
     public void aMissingRemoteRootIsReportedAsAServerFault() throws Exception
     {
-        when(this.resolver.getResource(RemoteNodeServlet.ROOT)).thenReturn(null);
+        when(this.resolver.getResource(RemoteNodeServlet.ROOT_PATH)).thenReturn(null);
         request(VALID_TOKEN, VALID_BODY);
 
         this.servlet.doPost(this.request, this.response);

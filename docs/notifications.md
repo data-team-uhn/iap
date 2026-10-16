@@ -49,9 +49,9 @@ What a chat notification says comes from producers, not from the channel. Implem
 @NotNull List<JsonObject> prepareMessages(@NotNull Map<String, String> extraParameters);
 ```
 
-The SPI also carries the attachment keys — `TITLE`, `TEXT`, `COLOR` — and the four
-colours to use, so producers agree on what a severity looks like: `INFO` `999`,
-`SUCCESS` `393`, `WARNING` `BA0`, `ERROR` `900`.
+The SPI also carries the attachment keys, `TITLE_KEY`, `TEXT_KEY` and `COLOR_KEY`, and
+the four colours to use, so producers agree on what a severity looks like:
+`INFO_COLOR` `999`, `SUCCESS_COLOR` `393`, `WARNING_COLOR` `BA0`, `ERROR_COLOR` `900`.
 
 **Return an empty list to say nothing.** That counts as silence, so a notification whose
 producers are all quiet posts nothing at all when `skipEmpty` is set.

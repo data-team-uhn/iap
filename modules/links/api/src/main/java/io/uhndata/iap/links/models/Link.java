@@ -49,7 +49,7 @@ public abstract class Link extends Content
     /** The name of the property holding a link's optional extra label. */
     public static final String LABEL_PROPERTY = "label";
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^}]+)\\}");
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)\\}");
 
     // The internal service the write behavior delegates to; the models only hand it their own wrapped resource,
     // which keeps the resource itself out of the public API
@@ -167,7 +167,7 @@ public abstract class Link extends Content
         if (template == null || template.isBlank()) {
             return this.getDefaultTargetLabel();
         }
-        final Matcher matcher = PLACEHOLDER.matcher(template);
+        final Matcher matcher = PLACEHOLDER_PATTERN.matcher(template);
         final StringBuilder result = new StringBuilder();
         while (matcher.find()) {
             matcher.appendReplacement(result, Matcher.quoteReplacement(this.resolvePlaceholder(matcher.group(1))));

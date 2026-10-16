@@ -76,11 +76,11 @@ import io.uhndata.iap.documents.api.ParseService;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletPaths(value = ParseServlet.PATH)
+@SlingServletPaths(value = ParseServlet.SERVLET_PATH)
 public class ParseServlet extends SlingJakartaAllMethodsServlet
 {
     /** The path this endpoint is served at. */
-    static final String PATH = "/system/documents/parse";
+    static final String SERVLET_PATH = "/system/documents/parse";
 
     private static final long serialVersionUID = 2946115948960530740L;
 
@@ -90,7 +90,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     private static final String JOB_ID_KEY = "job_id";
 
     /** What the caller is told when the service session cannot be opened. */
-    private static final String INACCESSIBLE = "The parse jobs storage is not accessible";
+    private static final String INACCESSIBLE_MESSAGE = "The parse jobs storage is not accessible";
 
     /** What is logged when the service session cannot be opened. */
     private static final String LOG_INACCESSIBLE = "Cannot access the parse jobs storage: {}";
@@ -121,7 +121,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
         }
         // Built from the constant servlet path, never from the request, so nothing
         // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
-        response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
+        response.setHeader("Location", SERVLET_PATH + "?" + JOB_ID_KEY + "=" + jobId);
         JsonResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
             .add(JOB_ID_KEY, jobId)
             .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
@@ -151,7 +151,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             JsonResponse.write(response, HttpServletResponse.SC_OK, toJson(jobId, properties));
         } catch (final LoginException e) {
             LOGGER.error(LOG_INACCESSIBLE, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE_MESSAGE);
         }
     }
 

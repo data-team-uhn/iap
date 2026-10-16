@@ -58,7 +58,7 @@ public interface ErrorLoggerService
      *
      * @param error the throwable to record, ignored when {@code null}
      * @param context which code was running, what it was doing, and what it was doing it to; {@code null} is the
-     *            same as {@link ErrorContext#EMPTY}
+     *            same as {@link ErrorContext#NO_CONTEXT}
      */
     void logError(@Nullable Throwable error, @Nullable ErrorContext context);
 
@@ -72,7 +72,7 @@ public interface ErrorLoggerService
      *            phrase that quotes something is recorded all the same, under its stable leading part, with the whole
      *            phrase kept the way a throwable's message is. Ignored only when {@code null} or blank
      * @param context which code noticed, what it was doing, and what it was looking at; {@code null} is the same as
-     *            {@link ErrorContext#EMPTY}
+     *            {@link ErrorContext#NO_CONTEXT}
      */
     void logProblem(@Nullable String problem, @Nullable ErrorContext context);
 

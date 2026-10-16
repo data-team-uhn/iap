@@ -59,7 +59,7 @@ public final class ErrorLogger
      */
     public static void logError(@Nullable final Throwable error)
     {
-        logError(error, ErrorContext.EMPTY);
+        logError(error, ErrorContext.NO_CONTEXT);
     }
 
     /**

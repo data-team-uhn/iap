@@ -70,9 +70,9 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailTestEndpoint.class);
 
-    private static final String SUBJECT = "IAP test message";
+    private static final String MESSAGE_SUBJECT = "IAP test message";
 
-    private static final String TEXT = "Here is a test message from the Institutional Authorization Platform.";
+    private static final String MESSAGE_TEXT = "Here is a test message from the Institutional Authorization Platform.";
 
     /**
      * What the caller is told instead of what the mail server said. That text routinely names the relay, its port
@@ -127,10 +127,11 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
                 .from(fromEmail, fromName)
                 .to(toEmail, toName)
                 .replyTo(fromEmail)
-                .subject(SUBJECT)
-                .text(TEXT);
+                .subject(MESSAGE_SUBJECT)
+                .text(MESSAGE_TEXT);
             if ("true".equals(request.getParameter("isHtml"))) {
-                message.html("<html><head><title>Rich Text</title></head><body><p>" + TEXT + "</p></body></html>");
+                message.html("<html><head><title>Rich Text</title></head><body><p>" + MESSAGE_TEXT
+                    + "</p></body></html>");
             }
             sending = logTheOutcome(this.mailService.sendMessage(message.build()));
         } catch (final MessagingException e) {

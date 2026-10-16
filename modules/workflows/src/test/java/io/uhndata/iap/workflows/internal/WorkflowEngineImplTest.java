@@ -796,7 +796,7 @@ class WorkflowEngineImplTest
             @Override
             public Resource getResource(final String path)
             {
-                return path.startsWith(SystemWorkflowsHomepage.PATH) ? null : super.getResource(path);
+                return path.startsWith(SystemWorkflowsHomepage.HOMEPAGE_PATH) ? null : super.getResource(path);
             }
         };
         final Resource unseen = new ResourceWrapper(target)

@@ -46,7 +46,7 @@ public class SystemWorkflowsHomepage extends EntityHomepage
     public static final String RESOURCE_TYPE = "wf/SystemWorkflowsHomepage";
 
     /** The fixed path of the system workflows tree. */
-    public static final String PATH = "/SystemWorkflows";
+    public static final String HOMEPAGE_PATH = "/SystemWorkflows";
 
     /**
      * The system workflows installed on this platform.

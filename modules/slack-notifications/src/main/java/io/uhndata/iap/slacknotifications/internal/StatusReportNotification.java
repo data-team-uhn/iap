@@ -60,7 +60,7 @@ public class StatusReportNotification implements SlackNotificationProducer
     static final String INCLUDE_TAGS = "statusReport.includeTags";
 
     /** The extra parameter asking for a report fit for an unprivileged audience. */
-    static final String UNPRIVILEGED = "statusReport.unprivileged";
+    static final String UNPRIVILEGED_PARAMETER = "statusReport.unprivileged";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StatusReportNotification.class);
 
@@ -76,7 +76,7 @@ public class StatusReportNotification implements SlackNotificationProducer
     @Override
     public List<JsonObject> prepareMessages(final Map<String, String> extraParameters)
     {
-        final boolean unprivileged = Boolean.parseBoolean(extraParameters.get(UNPRIVILEGED));
+        final boolean unprivileged = Boolean.parseBoolean(extraParameters.get(UNPRIVILEGED_PARAMETER));
         final List<StatusReport> reports =
             this.statusReportManager.getReports(unprivileged, targetLevel(extraParameters), tags(extraParameters));
         return reports.stream().map(this::asAttachment).toList();
@@ -91,20 +91,20 @@ public class StatusReportNotification implements SlackNotificationProducer
     private JsonObject asAttachment(final StatusReport report)
     {
         return Json.createObjectBuilder()
-            .add(TITLE, report.getName())
+            .add(TITLE_KEY, report.getName())
             // A report with nothing more to say than its status has no body at all
-            .add(TEXT, report.getText() == null ? "" : report.getText())
-            .add(COLOR, colorOf(report.getStatus()))
+            .add(TEXT_KEY, report.getText() == null ? "" : report.getText())
+            .add(COLOR_KEY, colorOf(report.getStatus()))
             .build();
     }
 
     private String colorOf(final StatusReport.Status status)
     {
         return switch (status) {
-            case SUCCESS -> SlackNotificationProducer.SUCCESS;
-            case WARNING -> SlackNotificationProducer.WARNING;
-            case ERROR -> SlackNotificationProducer.ERROR;
-            default -> SlackNotificationProducer.INFO;
+            case SUCCESS -> SlackNotificationProducer.SUCCESS_COLOR;
+            case WARNING -> SlackNotificationProducer.WARNING_COLOR;
+            case ERROR -> SlackNotificationProducer.ERROR_COLOR;
+            default -> SlackNotificationProducer.INFO_COLOR;
         };
     }
 
