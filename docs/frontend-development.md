@@ -178,6 +178,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
 | `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it |
+| `PdfComparison` (`pdfViewer/`) | Two versions of a PDF, with what changed between them marked |
 
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
@@ -217,7 +218,8 @@ card per schema, so the card describes its versions.
 ```
 
 Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
-(`annotation`), so it is coloured accordingly. Where it is comes in one of three ways:
+(`annotation`), or what a comparison found (`added`, `removed`), so it is coloured accordingly. Where it
+is comes in one of three ways:
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
@@ -351,7 +353,63 @@ into a dialog and back, keeping the page, the zoom, the marks and the search. A 
 
 Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
 `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
-in a frame, with the marks drawn, moves the reader, and searches it.
+in a frame, with the marks drawn, moves the reader, and searches it. `ViewerPlacement` and
+`ViewerTitle` put a viewer in place or in a dialog, and `ViewerToolbar` is its toolbar.
+
+### Comparing two versions
+
+`PdfComparison` shows what changed between two versions of a PDF. The caller says which two:
+
+```tsx
+<PdfComparison
+  olderUrl={previous.file}
+  newerUrl={current.file}
+  olderLabel="Version 2"
+  newerLabel="Version 3"
+  onClose={close}
+/>
+```
+
+It compares the text only, word by word, as PDF.js reads it for the text layer. Each version's pages
+are read into words, each with its page and offsets, so a change is marked straight from them, even
+across a page break, and versions that break into pages differently still compare. The pure part is in
+`revisionDiffModel.ts`: `compareRevisions` diffs the words with jsdiff, behind a promise, so it can move
+to a worker without its callers changing.
+
+One function, `getWordKey`, decides when two words are the same. By default it leaves out spacing,
+line ends, hyphens breaking a word across lines, case, and punctuation. A number keeps its separators
+and its sign, so "1,000" and "1.000" differ. A line under the stepper says how many changes that leaves
+out ("4 changes to punctuation or case hidden"), with a button showing them. The choice is kept in
+local storage, through `useStrictComparison`.
+
+There are two views:
+
+| View | Shows | Changes shown as |
+|---|---|---|
+| Side by side | Both versions, each with its own page bar, under one search and one zoom | Removed text in the older version, added text in the newer |
+| Newer version alone | The newer version | Added text, and a marker where text was removed, opening the removed text |
+
+A viewer narrower than `NARROW_VIEWER_WIDTH` shows the newer version alone, whatever was chosen. The
+choice is kept through `useComparisonView`, and a narrow viewer does not overwrite it. Both settings
+are stored with `useStoredSetting` from frontend-commons, which falls back to the default where storage
+is blocked.
+
+The changes are stepped through in order, with "Previous change" and "Next change". Each step selects
+the change, takes every version shown to it, and tells a screen reader what changed and where ("Change
+3 of 17. Removed on page 4: “…”."). Selecting a removal marker, by stepping or clicking, opens the removed
+text over the document. Escape, a tap outside or the next step closes it. A marker is a caret, tappable
+over 40px on a touch screen.
+
+Side by side, the versions scroll together, matched by their text (`useScrollSync`). The place in the
+middle of the version scrolled by hand goes to the middle of the other, through the words the
+comparison paired (`mapPoint`). A word only one version has goes to where its change sits in the other,
+so the panes move at different speeds through added or removed text. After a zoom or a search, the
+older version follows the newer.
+
+While the versions are read and compared, a line says how far it has got, and a bar runs along the
+documents. A version without text, such as a scan, cannot be compared, and two versions too different
+for the diff's limits (`DIFF_LIMITS`, a time and a number of edits) are not. The viewer says so in both
+cases.
 
 Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
@@ -383,8 +441,9 @@ using those extensions is what keeps a deployment's rebranding effective:
   marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
   `IconButton` or icon, `"assistant.main"` in `sx`.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
-  and `highlight.search` for the matches of a search, each with a `…Current` variant for the one
-  in focus. They stay the same in both colour schemes, since the content under them stays light.
+  `highlight.search` for the matches of a search, and `highlight.added` and `highlight.removed` for
+  what a comparison found, each with a `…Current` variant for the one in focus. They stay the same in
+  both colour schemes, since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.
