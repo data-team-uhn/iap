@@ -41,13 +41,33 @@ public class Context extends EntityPart
     public static final String RESOURCE_TYPE = "sub/Context";
 
     @ValueMapValue
+    private String source;
+
+    @ValueMapValue
     private String quote;
+
+    @ValueMapValue
+    private String prefix;
+
+    @ValueMapValue
+    private String suffix;
 
     @ValueMapValue
     private String header;
 
     @ValueMapValue
     private Long page;
+
+    /**
+     * The document revision or the answer the quote comes from. The link is weak, so one removed since is skipped.
+     *
+     * @return the source, or {@code null} if not recorded or no longer there
+     */
+    @Nullable
+    public EntityPart getSource()
+    {
+        return this.getReference(this.source, EntityPart.class);
+    }
 
     /**
      * The quoted text.
@@ -58,6 +78,30 @@ public class Context extends EntityPart
     public String getQuote()
     {
         return this.quote;
+    }
+
+    /**
+     * A little of the text just before the quote, so the passage can still be found when the same words occur more
+     * than once.
+     *
+     * @return the text before the quote, or {@code null} if not recorded
+     */
+    @Nullable
+    public String getPrefix()
+    {
+        return this.prefix;
+    }
+
+    /**
+     * A little of the text just after the quote, so the passage can still be found when the same words occur more
+     * than once.
+     *
+     * @return the text after the quote, or {@code null} if not recorded
+     */
+    @Nullable
+    public String getSuffix()
+    {
+        return this.suffix;
     }
 
     /**
