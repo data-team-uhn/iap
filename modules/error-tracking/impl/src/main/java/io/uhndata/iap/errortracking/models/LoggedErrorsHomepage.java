@@ -114,6 +114,6 @@ public class LoggedErrorsHomepage extends EntityHomepage
     {
         final String[] aggregated =
             this.get(TagProcessor.Phase.BOTTOM_UP.getPropertyName(), String[].class);
-        return aggregated != null && List.of(aggregated).contains(LoggedError.UNACKNOWLEDGED);
+        return aggregated != null && List.of(aggregated).contains(LoggedError.UNACKNOWLEDGED_TAG);
     }
 }

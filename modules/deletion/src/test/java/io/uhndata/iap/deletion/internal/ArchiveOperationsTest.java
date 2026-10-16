@@ -36,9 +36,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.deletion.api.DeletionException;
 import io.uhndata.iap.deletion.api.DeletionOptions;
 
-import static io.uhndata.iap.deletion.api.DeletionOptions.NOT_RECURSIVE;
-import static io.uhndata.iap.deletion.api.DeletionOptions.PERMANENT;
-import static io.uhndata.iap.deletion.api.DeletionOptions.RECURSIVE;
+import static io.uhndata.iap.deletion.api.DeletionOptions.REFUSE_IF_REFERENCED;
+import static io.uhndata.iap.deletion.api.DeletionOptions.DELETE_PERMANENTLY;
+import static io.uhndata.iap.deletion.api.DeletionOptions.DELETE_RECURSIVELY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -84,7 +84,8 @@ class ArchiveOperationsTest
         this.session.save();
         // A stale plan that missed the referrer: the repository itself blocks the commit, and the failure is
         // reported as a clean exception instead of leaking the raw repository error
-        final DeletionPlan plan = this.plan(DeletionOptions.of(NOT_RECURSIVE, PERMANENT), "/content/victim");
+        final DeletionPlan plan = this.plan(DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY),
+            "/content/victim");
         plan.getRoots().put("/content/victim", victim);
         final ArchiveOperations operations =
             ArchiveOperations.forResolver(this.context.resourceResolver());
@@ -105,7 +106,8 @@ class ArchiveOperationsTest
         this.session.save();
         this.session.getWorkspace().getVersionManager().checkin("/content/versionable");
 
-        final DeletionPlan plan = this.plan(DeletionOptions.of(RECURSIVE, PERMANENT), "/content/versionable");
+        final DeletionPlan plan = this.plan(DeletionOptions.of(DELETE_RECURSIVELY, DELETE_PERMANENTLY),
+            "/content/versionable");
         plan.getLinksToRemove().put(stray.getPath(), stray);
         plan.getRoots().put("/content/versionable", versionable);
         plan.getRoots().put("/content/victim", victim);
@@ -157,7 +159,8 @@ class ArchiveOperationsTest
             }
         };
         final DeletionPlan plan =
-            new DeletionPlan(DeletionOptions.of(NOT_RECURSIVE, PERMANENT), "/content/victim", this.session, blind);
+            new DeletionPlan(DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY), "/content/victim",
+                this.session, blind);
         new CascadeResolver(plan, List.of()).resolve(victim);
         final String linkPath = link.getPath();
         assertEquals(List.of(linkPath), List.copyOf(plan.getLinksToRemove().keySet()));

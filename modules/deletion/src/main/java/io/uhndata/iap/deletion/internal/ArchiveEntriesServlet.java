@@ -77,9 +77,9 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
     private static final long DEFAULT_LIMIT = 25;
 
     /** The outcome word and wording used whichever way the query fails to run. */
-    private static final String FAILED = "failed";
+    private static final String FAILED_OUTCOME = "failed";
 
-    private static final String UNQUERYABLE = "The archive cannot be queried";
+    private static final String UNQUERYABLE_MESSAGE = "The archive cannot be queried";
 
     /** How many entries are returned at most, whatever {@code limit} asks for. */
     private static final long MAX_LIMIT = 200;
@@ -91,7 +91,8 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
         final ResourceResolver resolver = request.getResourceResolver();
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+                UNQUERYABLE_MESSAGE);
             return;
         }
         final long offset = Math.max(0, parseLong(request.getParameter("offset"), 0));
@@ -105,7 +106,8 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
             send(response, resolver, page, offset, limit, sortBy, descending);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to list the archive entries: {}", e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+                UNQUERYABLE_MESSAGE);
         }
     }
 
@@ -131,7 +133,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
             .add("returnedrows", returned)
             .add("totalrows", page.total().value())
             .add("totalIsApproximate", page.total().approximate())
-            .add("sortBy", ArchiveQuery.SORTABLE.contains(sortBy) ? sortBy : ArchiveQuery.DEFAULT_SORT)
+            .add("sortBy", ArchiveQuery.SORTABLE_PROPERTIES.contains(sortBy) ? sortBy : ArchiveQuery.DEFAULT_SORT)
             .add("descending", descending);
         JsonResponses.send(response, HttpServletResponse.SC_OK, body);
     }

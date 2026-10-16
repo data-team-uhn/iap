@@ -49,7 +49,7 @@ public enum Aggregator
         @Override
         public Operand apply(final Operand input, final OperandType comparisonType)
         {
-            return input.isEmpty() ? Operand.EMPTY
+            return input.isEmpty() ? Operand.NO_VALUES
                 : Operand.of((long) input.size(), OperandType.LONG).coerce(comparisonType);
         }
     },
@@ -62,7 +62,7 @@ public enum Aggregator
         {
             final Operand coerced = input.coerce(comparisonType);
             if (coerced.isEmpty()) {
-                return Operand.EMPTY;
+                return Operand.NO_VALUES;
             }
             final Object sum = switch (comparisonType) {
                 case LONG -> coerced.rawStream().map(Long.class::cast).reduce(0L, Long::sum);
@@ -89,7 +89,7 @@ public enum Aggregator
         {
             final Operand coerced = input.coerce(OperandType.DOUBLE);
             if (coerced.isEmpty()) {
-                return Operand.EMPTY;
+                return Operand.NO_VALUES;
             }
             final double mean = coerced.rawStream()
                 .map(Double.class::cast)
@@ -107,7 +107,7 @@ public enum Aggregator
         public Operand apply(final Operand input, final OperandType comparisonType)
         {
             final Operand coerced = input.coerce(comparisonType);
-            return coerced.isEmpty() ? Operand.EMPTY
+            return coerced.isEmpty() ? Operand.NO_VALUES
                 : new Operand(List.of(coerced.stream().min(Comparator.naturalOrder()).orElseThrow()),
                     comparisonType);
         }
@@ -120,7 +120,7 @@ public enum Aggregator
         public Operand apply(final Operand input, final OperandType comparisonType)
         {
             final Operand coerced = input.coerce(comparisonType);
-            return coerced.isEmpty() ? Operand.EMPTY
+            return coerced.isEmpty() ? Operand.NO_VALUES
                 : new Operand(List.of(coerced.stream().max(Comparator.naturalOrder()).orElseThrow()),
                     comparisonType);
         }

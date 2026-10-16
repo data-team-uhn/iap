@@ -87,7 +87,7 @@ class AutodocServletTest
     void acceptsDocumentedNodes() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN)).thenReturn(true);
+        Mockito.when(node.isNodeType(AutoDocumentable.DOCUMENTED_MIXIN)).thenReturn(true);
         this.context.registerAdapter(Resource.class, Node.class, node);
 
         assertTrue(this.servlet.accepts(request("md")));
@@ -97,7 +97,7 @@ class AutodocServletTest
     void declinesUndocumentedNodes() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN)).thenReturn(false);
+        Mockito.when(node.isNodeType(AutoDocumentable.DOCUMENTED_MIXIN)).thenReturn(false);
         this.context.registerAdapter(Resource.class, Node.class, node);
 
         assertFalse(this.servlet.accepts(request("md")));
@@ -114,7 +114,7 @@ class AutodocServletTest
     void declinesOnRepositoryErrors() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN))
+        Mockito.when(node.isNodeType(AutoDocumentable.DOCUMENTED_MIXIN))
             .thenThrow(new RepositoryException("unavailable"));
         this.context.registerAdapter(Resource.class, Node.class, node);
 
@@ -161,7 +161,7 @@ class AutodocServletTest
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
         request.setResource(this.context.resourceResolver().getResource("/Things"));
-        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString(AutodocServlet.SELECTOR);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString(AutodocServlet.DOCUMENTATION_SELECTOR);
         ((MockRequestPathInfo) request.getRequestPathInfo()).setExtension(extension);
         return request;
     }

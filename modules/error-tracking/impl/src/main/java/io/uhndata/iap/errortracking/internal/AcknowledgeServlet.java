@@ -164,7 +164,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
      */
     private boolean isTriageTag(final String resolution)
     {
-        if (resolution == null || resolution.isBlank() || LoggedError.UNACKNOWLEDGED.equals(resolution)) {
+        if (resolution == null || resolution.isBlank() || LoggedError.UNACKNOWLEDGED_TAG.equals(resolution)) {
             return false;
         }
         final List<TagDefinition> triage = this.tagManager.findDefinitions(LoggedError.TRIAGE_CATEGORY, null);

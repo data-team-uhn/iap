@@ -80,7 +80,7 @@ class ParseServletTest
     @Test
     void postRecordsTheNodeTheParseIsFor() throws Exception
     {
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         final MockSlingJakartaHttpServletResponse response = post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
@@ -94,7 +94,7 @@ class ParseServletTest
     @Test
     void postQueuesAJob() throws Exception
     {
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         final MockSlingJakartaHttpServletResponse response =
@@ -105,13 +105,13 @@ class ParseServletTest
         final String jobId = json.getString("job_id");
         assertEquals(ParseJob.STATUS_QUEUED, json.getString("status"));
         // Points at the poll endpoint, built from the constant servlet path, never from the request
-        assertEquals(ParseServlet.PATH + "?job_id=" + jobId, response.getHeader("Location"));
+        assertEquals(ParseServlet.SERVLET_PATH + "?job_id=" + jobId, response.getHeader("Location"));
 
         final ValueMap job = jobProperties(jobId);
         assertEquals(ParseJob.STATUS_QUEUED, job.get(ParseJob.PN_STATUS, String.class));
         assertEquals("/shared-docs/proposal.pdf", job.get(ParseJob.PN_PATH, String.class));
         assertNotNull(job.get(ParseJob.PN_CREATED));
-        Mockito.verify(this.jobManager).addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
+        Mockito.verify(this.jobManager).addJob(ParseJob.JOB_TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
     }
 
     @Test

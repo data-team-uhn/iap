@@ -61,7 +61,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * @since 0.1.0
  */
 @Component(immediate = true, property = {
-    ResourceChangeListener.PATHS + "=" + SystemWorkflowsHomepage.PATH,
+    ResourceChangeListener.PATHS + "=" + SystemWorkflowsHomepage.HOMEPAGE_PATH,
     ResourceChangeListener.CHANGES + "=ADDED",
     ResourceChangeListener.CHANGES + "=CHANGED",
     ResourceChangeListener.CHANGES + "=REMOVED"
@@ -145,7 +145,7 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
         found.add(TaskInstance.RESOURCE_TYPE);
         try (ResourceResolver resolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
-            final Resource home = resolver.getResource(SystemWorkflowsHomepage.PATH);
+            final Resource home = resolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH);
             if (home != null) {
                 // Read as resources, not as models. Sling Models withdraws its adapters while it restarts, and a
                 // scan in that gap would bind none of these types until /SystemWorkflows changes again.

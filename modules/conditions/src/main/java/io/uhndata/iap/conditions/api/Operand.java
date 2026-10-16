@@ -39,7 +39,7 @@ import org.jetbrains.annotations.Nullable;
 public final class Operand
 {
     /** An operand with no values and no declared type. */
-    public static final Operand EMPTY = new Operand(List.of(), null);
+    public static final Operand NO_VALUES = new Operand(List.of(), null);
 
     private final List<Object> values;
 
@@ -75,7 +75,7 @@ public final class Operand
     public static Operand of(@Nullable final Object rawValue, @Nullable final OperandType declaredType)
     {
         if (rawValue == null) {
-            return declaredType == null ? EMPTY : new Operand(List.of(), declaredType);
+            return declaredType == null ? NO_VALUES : new Operand(List.of(), declaredType);
         }
         final Stream<Object> rawValues = rawValue instanceof Object[]
             ? Arrays.stream((Object[]) rawValue) : Stream.of(rawValue);

@@ -64,7 +64,7 @@ import org.jetbrains.annotations.Nullable;
 public class EmailTemplate
 {
     /** The node type of a stored email template. */
-    public static final String NODETYPE = "mail:Template";
+    public static final String TEMPLATE_TYPE = "mail:Template";
 
     /** The path holding the header, footer and attachments shared by every template. */
     public static final String COMMON_TEMPLATES_PATH = "/libs/iap/mailTemplates/";
@@ -298,7 +298,7 @@ public class EmailTemplate
      * Start building a template from a stored one. If the stored template is fully configured it can be
      * {@link Builder#build() built} straight away, but more properties or attachments may be added first.
      *
-     * @param template a JCR node of type {@value #NODETYPE}
+     * @param template a JCR node of type {@value #TEMPLATE_TYPE}
      * @param resolver a resource resolver, needed for determining the media type of the attachments
      * @return a template builder already set up with the stored data
      * @throws RepositoryException if reading the repository fails

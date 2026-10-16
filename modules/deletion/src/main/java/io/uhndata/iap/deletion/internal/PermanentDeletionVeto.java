@@ -62,7 +62,7 @@ public class PermanentDeletionVeto implements DeletionVeto
     private static final Logger LOGGER = LoggerFactory.getLogger(PermanentDeletionVeto.class);
 
     /** The deletions that leave nothing behind to restore. */
-    private static final Set<DeletionMode> IRREVERSIBLE = EnumSet.of(DeletionMode.PERMANENT, DeletionMode.PURGE);
+    private static final Set<DeletionMode> IRREVERSIBLE_MODES = EnumSet.of(DeletionMode.PERMANENT, DeletionMode.PURGE);
 
     private volatile boolean preventPermanentDeletion;
 
@@ -87,7 +87,7 @@ public class PermanentDeletionVeto implements DeletionVeto
     public String veto(final Node node, final DeletionMode mode, final Session requester)
         throws RepositoryException
     {
-        if (!this.preventPermanentDeletion || !IRREVERSIBLE.contains(mode)) {
+        if (!this.preventPermanentDeletion || !IRREVERSIBLE_MODES.contains(mode)) {
             return null;
         }
         if (this.isExempt(requester)) {

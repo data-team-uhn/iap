@@ -130,7 +130,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
      * throwing on the very node being written, most plausibly — is logged and dropped rather than tallied, which is
      * what stops a fault that touches error tracking from feeding itself forever.
      */
-    private static final ThreadLocal<Boolean> RECORDING = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Boolean> ALREADY_RECORDING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -221,7 +221,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     @Override
     public void logError(final Throwable error)
     {
-        logError(error, ErrorContext.EMPTY);
+        logError(error, ErrorContext.NO_CONTEXT);
     }
 
     @Override
@@ -230,7 +230,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         if (error == null) {
             return;
         }
-        final ErrorContext described = context == null ? ErrorContext.EMPTY : context;
+        final ErrorContext described = context == null ? ErrorContext.NO_CONTEXT : context;
         submit(error, () -> {
             final String stated = component(described.getComponent());
             final String component = stated != null ? stated : component(Fingerprint.inferComponent(error));
@@ -251,7 +251,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         if (problem == null || problem.isBlank()) {
             return;
         }
-        final ErrorContext described = context == null ? ErrorContext.EMPTY : context;
+        final ErrorContext described = context == null ? ErrorContext.NO_CONTEXT : context;
         final String phrase = problem.strip();
         // What decides identity still has to be stable, but a phrase that is not must be recorded all the same: the
         // caller is reporting something wrong, and dropping it here would make the component whose whole purpose is
@@ -276,7 +276,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
      */
     private void submit(final Object subject, final Runnable tallying)
     {
-        if (Boolean.TRUE.equals(RECORDING.get())) {
+        if (Boolean.TRUE.equals(ALREADY_RECORDING.get())) {
             LOGGER.error("Not recording {}, it was raised while recording another error", subject);
             return;
         }
@@ -375,7 +375,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         if (batch.isEmpty()) {
             return;
         }
-        RECORDING.set(Boolean.TRUE);
+        ALREADY_RECORDING.set(Boolean.TRUE);
         try {
             this.records.write(batch);
             batch.keySet().forEach(fingerprint -> this.lastWritten.put(fingerprint, now));
@@ -384,7 +384,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
             keep(batch);
             noteFailedWrite(e, now);
         } finally {
-            RECORDING.remove();
+            ALREADY_RECORDING.remove();
         }
     }
 

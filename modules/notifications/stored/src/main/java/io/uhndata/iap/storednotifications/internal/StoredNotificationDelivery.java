@@ -74,7 +74,7 @@ import io.uhndata.iap.utils.PrefixTree;
 public class StoredNotificationDelivery implements NotificationDelivery
 {
     /** The subservice name under which this bundle's service user is mapped. */
-    static final String SUBSERVICE = "storednotifications";
+    static final String SUBSERVICE_NAME = "storednotifications";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StoredNotificationDelivery.class);
 
@@ -90,7 +90,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
             return false;
         }
         try (ResourceResolver resolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
             store(resolver, notification, recipient, message);
             resolver.commit();
             LOGGER.debug("Stored the {} notification about {}", notification.getEvent(),

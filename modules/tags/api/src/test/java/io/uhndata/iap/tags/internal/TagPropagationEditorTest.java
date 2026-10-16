@@ -73,9 +73,9 @@ class TagPropagationEditorTest
 
     private static final String TAGS = TagManager.TAGS_PROPERTY;
 
-    private static final String AGGREGATED = TagAggregationProcessor.PROPERTY;
+    private static final String AGGREGATED = TagAggregationProcessor.AGGREGATED_TAGS_PROPERTY;
 
-    private static final String INHERITED = TagInheritanceProcessor.PROPERTY;
+    private static final String INHERITED = TagInheritanceProcessor.INHERITED_TAGS_PROPERTY;
 
     private static final String INCOMPLETE = "incomplete";
 

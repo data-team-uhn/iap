@@ -75,7 +75,7 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
             return;
         }
         try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, LinkManagerImpl.SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, LinkManagerImpl.SUBSERVICE_NAME))) {
             final Resource resource = serviceResolver.getResource(path);
             if (resource != null) {
                 this.linkOperations.addBacklink(resource);

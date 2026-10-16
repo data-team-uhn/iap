@@ -114,7 +114,7 @@ class NotificationServiceImplTest
     @Test
     void tellsNobodyWhenNothingCanDeliver()
     {
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
     }
 
     @Test
@@ -125,7 +125,7 @@ class NotificationServiceImplTest
         this.deliveries(first, second);
         Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, first.told.size());
         assertEquals(1, second.told.size());
@@ -155,7 +155,7 @@ class NotificationServiceImplTest
         this.deliveries(declining);
         Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, declining.told.size());
     }
@@ -169,7 +169,7 @@ class NotificationServiceImplTest
         }, working);
         Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, working.told.size());
     }
@@ -183,7 +183,7 @@ class NotificationServiceImplTest
         final Resource orphan = this.context.create().resource("/Submissions/orphan", "title", "Nobody's");
 
         this.service.notify(NotificationContext.about(orphan).becauseOf("approved").build(),
-            List.of(PrincipalService.CREATOR));
+            List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertTrue(channel.told.isEmpty());
     }

@@ -123,7 +123,7 @@ public class ParseJobService implements ParseService
                 throw new IOException("The parse jobs storage is not initialized");
             }
             final Resource jobNode = record(resolver, jobsRoot, jobId, path, target);
-            final Job job = this.jobManager.addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
+            final Job job = this.jobManager.addJob(ParseJob.JOB_TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
             if (job == null) {
                 markUnqueueable(resolver, jobNode);
                 throw new IOException("The parse job could not be queued");

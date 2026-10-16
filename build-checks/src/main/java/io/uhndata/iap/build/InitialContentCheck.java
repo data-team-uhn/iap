@@ -55,7 +55,7 @@ import org.apache.sling.jcr.contentloader.internal.readers.JsonReader;
 public final class InitialContentCheck
 {
     /** Where a bundle's initial content lives. Only this tree is read by the content loader. */
-    private static final String CONTENT = "src/main/resources/SLING-INF/content";
+    private static final String CONTENT_PATH = "src/main/resources/SLING-INF/content";
 
     private InitialContentCheck()
     {
@@ -153,7 +153,7 @@ public final class InitialContentCheck
             return tree
                 .map(path -> path.toString().replace('\\', '/'))
                 .filter(path -> path.endsWith(".json"))
-                .filter(path -> path.contains(CONTENT))
+                .filter(path -> path.contains(CONTENT_PATH))
                 // Build output is a copy of what is already being checked
                 .filter(path -> !path.contains("/target/"))
                 .sorted()

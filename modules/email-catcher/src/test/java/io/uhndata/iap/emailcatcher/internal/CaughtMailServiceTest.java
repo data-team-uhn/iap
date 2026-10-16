@@ -207,8 +207,8 @@ class CaughtMailServiceTest
     {
         this.service.activate(Mockito.mock(BundleContext.class), switchedTo(true));
 
-        Mockito.verify(this.metrics).createMetric(CaughtMailCounter.METRIC);
-        Mockito.verify(this.builder).withRolloverSchedule(CaughtMailCounter.NIGHTLY);
+        Mockito.verify(this.metrics).createMetric(CaughtMailCounter.METRIC_NAME);
+        Mockito.verify(this.builder).withRolloverSchedule(CaughtMailCounter.NIGHTLY_SCHEDULE);
         // A development facility's usage is not a fact the people using the platform have any business reading
         Mockito.verify(this.builder).withAccessLevel(Metric.AccessLevel.ADMIN);
         Mockito.verify(this.builder).create();

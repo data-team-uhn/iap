@@ -58,9 +58,9 @@ class OperandTest
     void treatsNullAsEmpty()
     {
         assertTrue(Operand.of(null).isEmpty());
-        assertTrue(Operand.EMPTY.isEmpty());
-        assertEquals(0, Operand.EMPTY.size());
-        assertNull(Operand.EMPTY.getType());
+        assertTrue(Operand.NO_VALUES.isEmpty());
+        assertEquals(0, Operand.NO_VALUES.size());
+        assertNull(Operand.NO_VALUES.getType());
     }
 
     @Test
@@ -93,6 +93,6 @@ class OperandTest
         assertEquals(OperandType.LONG, Operand.of(42L).getEffectiveType());
         // Strings deliberately infer nothing, they follow the other side of the comparison
         assertNull(Operand.of("42").getEffectiveType());
-        assertNull(Operand.EMPTY.getEffectiveType());
+        assertNull(Operand.NO_VALUES.getEffectiveType());
     }
 }

@@ -58,13 +58,13 @@ public abstract class LoggedError extends Content
     public static final String TRIAGE_CATEGORY = "error-triage";
 
     /** The tag marking an error nobody has dealt with yet, or one that has happened again since somebody did. */
-    public static final String UNACKNOWLEDGED = "unacknowledged";
+    public static final String UNACKNOWLEDGED_TAG = "unacknowledged";
 
     /**
      * The tag marking an error somebody has dealt with. Always present on an acknowledged error, alongside the tag
      * naming what was decided — which may be this same one, since a plain {@code acknowledged} is a decision too.
      */
-    public static final String ACKNOWLEDGED = "acknowledged";
+    public static final String ACKNOWLEDGED_TAG = "acknowledged";
 
     /** Which code was running. */
     @ValueMapValue
@@ -257,7 +257,7 @@ public abstract class LoggedError extends Content
         // there would read as acknowledged the moment some unrelated processor tagged an error for its own reasons.
         // An error whose markers have not been computed yet reads as needing attention, which is by far the better
         // way round to be wrong
-        return triageMarkers().contains(ACKNOWLEDGED);
+        return triageMarkers().contains(ACKNOWLEDGED_TAG);
     }
 
     /**

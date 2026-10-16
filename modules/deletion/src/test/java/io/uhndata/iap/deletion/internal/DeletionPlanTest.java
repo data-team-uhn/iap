@@ -24,8 +24,8 @@ import org.junit.jupiter.api.Test;
 import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.spi.DeletionMode;
 
-import static io.uhndata.iap.deletion.api.DeletionOptions.NOT_RECURSIVE;
-import static io.uhndata.iap.deletion.api.DeletionOptions.PERMANENT;
+import static io.uhndata.iap.deletion.api.DeletionOptions.REFUSE_IF_REFERENCED;
+import static io.uhndata.iap.deletion.api.DeletionOptions.DELETE_PERMANENTLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -62,7 +62,7 @@ class DeletionPlanTest
     {
         assertEquals(DeletionMode.ARCHIVE, this.plan.getMode());
         assertEquals(DeletionMode.PERMANENT,
-            new DeletionPlan(DeletionOptions.of(NOT_RECURSIVE, PERMANENT), "/x", null, null).getMode());
+            new DeletionPlan(DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY), "/x", null, null).getMode());
     }
 
     @Test

@@ -78,7 +78,8 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
         @NotNull final String requestedPath)
     {
         try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, DeletionServiceImpl.SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE,
+                DeletionServiceImpl.SUBSERVICE_NAME))) {
             final Session serviceSession = serviceResolver.adaptTo(Session.class);
             if (serviceSession == null) {
                 throw new RepositoryException("The deletion service resolver is not backed by a repository session");

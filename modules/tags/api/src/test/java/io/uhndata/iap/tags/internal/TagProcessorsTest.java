@@ -89,11 +89,11 @@ class TagProcessorsTest
     void describeThemselves()
     {
         assertEquals(Phase.TOP_DOWN, this.inheritance.getPhase());
-        assertEquals(Phase.TOP_DOWN.getPropertyName(), TagInheritanceProcessor.PROPERTY);
+        assertEquals(Phase.TOP_DOWN.getPropertyName(), TagInheritanceProcessor.INHERITED_TAGS_PROPERTY);
         assertEquals(Scope.NODE, this.inheritance.getScope());
         assertEquals(100, this.inheritance.getPriority());
         assertEquals(Phase.BOTTOM_UP, this.aggregation.getPhase());
-        assertEquals(Phase.BOTTOM_UP.getPropertyName(), TagAggregationProcessor.PROPERTY);
+        assertEquals(Phase.BOTTOM_UP.getPropertyName(), TagAggregationProcessor.AGGREGATED_TAGS_PROPERTY);
         assertEquals(Scope.NODE, this.aggregation.getScope());
         assertEquals(100, this.aggregation.getPriority());
     }
@@ -113,7 +113,7 @@ class TagProcessorsTest
         // Only inheritable tags flow down, from the parent's explicit, computed and already inherited tags alike
         parent.setProperty(TAGS, List.of(INH, AGG, "plain", "unknown"), Type.STRINGS);
         parent.setProperty(Phase.LOCAL.getPropertyName(), List.of(INH, "computedStale"), Type.STRINGS);
-        parent.setProperty(TagInheritanceProcessor.PROPERTY, List.of(INH, "stale"), Type.STRINGS);
+        parent.setProperty(TagInheritanceProcessor.INHERITED_TAGS_PROPERTY, List.of(INH, "stale"), Type.STRINGS);
 
         assertEquals(Set.of(INH),
             this.inheritance.computeTags(context(EmptyNodeState.EMPTY_NODE, parent.getNodeState())));
@@ -142,7 +142,8 @@ class TagProcessorsTest
         final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder();
         // Only aggregated tags flow up, from the children's explicit, computed and already aggregated tags alike
         node.child("first").setProperty(TAGS, List.of(AGG, INH, "plain", "unknown"), Type.STRINGS);
-        node.child("second").setProperty(TagAggregationProcessor.PROPERTY, List.of(AGG, "stale"), Type.STRINGS);
+        node.child("second").setProperty(TagAggregationProcessor.AGGREGATED_TAGS_PROPERTY, List.of(AGG, "stale"),
+            Type.STRINGS);
         node.child("third").setProperty(Phase.LOCAL.getPropertyName(), List.of(AGG, "computedStale"), Type.STRINGS);
         node.child("untagged");
 

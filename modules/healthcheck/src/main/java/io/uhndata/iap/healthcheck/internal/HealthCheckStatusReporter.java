@@ -47,7 +47,7 @@ public class HealthCheckStatusReporter implements StatusReporter
     /** Default logger. */
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthCheckStatusReporter.class);
 
-    private static final String TITLE = "Health Check";
+    private static final String REPORT_TITLE = "Health Check";
 
     /** Runs all the registered health checks. */
     @Reference
@@ -56,7 +56,7 @@ public class HealthCheckStatusReporter implements StatusReporter
     @Override
     public String getName()
     {
-        return TITLE;
+        return REPORT_TITLE;
     }
 
     @Override
@@ -70,7 +70,7 @@ public class HealthCheckStatusReporter implements StatusReporter
             .filter(check -> !check.getHealthCheckResult().isOk())
             .toList();
         if (failedChecks.isEmpty()) {
-            return new StatusReport(TITLE, StatusReport.Status.SUCCESS, "All is good!");
+            return new StatusReport(REPORT_TITLE, StatusReport.Status.SUCCESS, "All is good!");
         }
         LOGGER.warn("There are {} failed checks! {}", failedChecks.size(),
             failedChecks.stream().map(check -> check.getHealthCheckMetadata().getName()).toList());
@@ -81,7 +81,7 @@ public class HealthCheckStatusReporter implements StatusReporter
         }
         final Status status = failedChecks.stream().map(check -> check.getHealthCheckResult().getStatus())
             .reduce(Status.OK, (worst, next) -> worst.compareTo(next) < 0 ? next : worst);
-        return new StatusReport(TITLE,
+        return new StatusReport(REPORT_TITLE,
             status.ordinal() >= Status.TEMPORARILY_UNAVAILABLE.ordinal() ? StatusReport.Status.ERROR
                 : StatusReport.Status.WARNING,
             text.toString());
