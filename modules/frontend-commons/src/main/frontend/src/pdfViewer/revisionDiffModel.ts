@@ -107,8 +107,23 @@ function isBrokenWord(end: string, start: string): boolean {
 }
 
 // What a number may carry at its start and its end that changes what it says.
-const NUMBER_START = /^[^\p{L}\p{N}+\-±$€£¥]+/u;
-const NUMBER_END = /[^\p{L}\p{N}%‰]+$/u;
+const NUMBER_START = /^[\p{L}\p{N}+\-±$€£¥]$/u;
+const NUMBER_END = /^[\p{L}\p{N}%‰]$/u;
+
+// A number without the punctuation around it. Trimmed character by character, as a pattern trimming the end
+// takes time growing with the square of a long run of punctuation, which a document can hold.
+function trimNumber(text: string): string {
+  const chars = Array.from(text);
+  let start = 0;
+  while (start < chars.length && !NUMBER_START.test(chars[start])) {
+    start++;
+  }
+  let end = chars.length;
+  while (end > start && !NUMBER_END.test(chars[end - 1])) {
+    end--;
+  }
+  return chars.slice(start, end).join("");
+}
 
 // When two words are the same: when this gives the same for both. Compared strictly, a word is as it
 // reads. Otherwise case and punctuation are left out, except in a number, which keeps its separators and
@@ -120,7 +135,7 @@ export function getWordKey(text: string, strict: boolean): string | undefined {
     return plain === "" ? undefined : plain;
   }
   const key = /\p{N}/u.test(plain)
-    ? plain.replace(NUMBER_START, "").replace(NUMBER_END, "")
+    ? trimNumber(plain)
     : plain.replace(/[^\p{L}\p{M}\p{N}]/gu, "");
   return key === "" ? undefined : key.toLowerCase();
 }
