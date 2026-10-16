@@ -70,7 +70,12 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
   return marks.flatMap(({ id, kind }) => {
     const place = places[id];
     return place.status === "found"
-      ? place.spans.filter(span => span.page === page).map(({ start, end }) => ({ id, kind, start, end }))
+      ? place.spans.filter(span => span.page === page).map(span => ({
+        id,
+        kind: span.kind ?? kind,
+        start: span.start,
+        end: span.end,
+      }))
       : [];
   });
 }

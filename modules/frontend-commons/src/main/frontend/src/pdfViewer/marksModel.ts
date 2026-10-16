@@ -26,22 +26,34 @@ import {
   type QuoteMatch,
 } from "./quoteMatch";
 
-export const MARK_KINDS = [ "assistant", "annotation" ] as const;
+// Whose mark a passage is, an AI assistant's or a person's, and what a comparison of two versions of a
+// document found.
+export const PASSAGE_KINDS = [ "assistant", "annotation" ] as const;
+export const CHANGE_KINDS = [ "added", "removed" ] as const;
+export const MARK_KINDS = [ ...PASSAGE_KINDS, ...CHANGE_KINDS ] as const;
 
 export type MarkKind = typeof MARK_KINDS[number];
+export type PassageKind = typeof PASSAGE_KINDS[number];
+export type ChangeKind = typeof CHANGE_KINDS[number];
+
+export function isChangeKind(kind: MarkKind): kind is ChangeKind {
+  return (CHANGE_KINDS as readonly string[]).includes(kind);
+}
 
 // What a mark covers on one page, as offsets into the page's text as PDF.js reads it for its text
 // layer: the whole passage, or the part of it on that page. Equal offsets are a point between two
-// characters.
+// characters, drawn as a marker. A span may be drawn as a kind other than its mark's, as where a change
+// removed text and added other text in its place.
 export interface MarkSpan {
   page: number;
   start: number;
   end: number;
+  kind?: MarkKind;
 }
 
 interface MarkBase {
   id: string;
-  // Whose mark it is, an AI assistant's or a person's. It is coloured accordingly.
+  // Whose mark it is, or what change. It is coloured accordingly.
   kind: MarkKind;
 }
 
@@ -420,9 +432,11 @@ export function getMarksKey(marks: Mark[]): string {
       const point = ({ page, char }: TextPoint) => ({ page, char });
       return { id, kind, anchor: { start: point(start), end: point(end), quote, before, after } };
     }
-    return "spans" in mark
-      ? { id, kind, spans: mark.spans.map(({ page, start, end }) => ({ page, start, end })) }
-      : { id, quote: mark.quote, page: mark.page, kind };
+    if ("spans" in mark) {
+      const spans = mark.spans.map(span => ({ page: span.page, start: span.start, end: span.end, kind: span.kind }));
+      return { id, kind, spans };
+    }
+    return { id, quote: mark.quote, page: mark.page, kind };
   }));
 }
 

@@ -151,6 +151,36 @@ describe("drawMarks", () => {
     expect(drawn(textLayer)).toEqual([]);
   });
 
+  it("draws a point as a marker the line's height, after the character before it", () => {
+    const textLayer = createTextLayer();
+
+    // After "Volunteers", and after the last character of the first line
+    drawMarks(textLayer, [
+      { id: "a", kind: "removed", start: 10, end: 10 },
+      { id: "b", kind: "added", start: 34, end: 34 },
+    ], "a");
+
+    expect(drawn(textLayer)).toEqual([
+      {
+        id: "a",
+        className: "iap-mark iap-mark-removed iap-mark-point selected",
+        top: "0%",
+        left: "12.5%",
+        width: "0%",
+        height: "2%",
+      },
+      { id: "b", className: "iap-mark iap-mark-added iap-mark-point", top: "0%", left: "42.5%", width: "0%", height: "2%" },
+    ]);
+  });
+
+  it("draws a point at the start of the text before the first character", () => {
+    const textLayer = createTextLayer();
+
+    drawMarks(textLayer, [ { id: "a", kind: "removed", start: 0, end: 0 } ], undefined);
+
+    expect(drawn(textLayer).map(({ left, top }) => [ left, top ])).toEqual([ [ "0%", "0%" ] ]);
+  });
+
   it("draws nothing on a page without text", () => {
     const textLayer = createTextLayer([]);
 
@@ -330,6 +360,15 @@ describe("findMark", () => {
     expect(findMark(frame, "b\"")).toBe(frame.lastElementChild);
     expect(findMark(frame, "c")).toBeUndefined();
   });
+
+  it("finds a mark's point, past its other pieces", () => {
+    const frame = document.createElement("div");
+    frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div>'
+      + '<div class="iap-mark iap-mark-point" data-mark-id="a"></div>';
+
+    expect(findMark(frame, "a", { point: true })).toBe(frame.lastElementChild);
+    expect(findMark(frame, "b", { point: true })).toBeUndefined();
+  });
 });
 
 describe("markAt", () => {
@@ -355,6 +394,34 @@ describe("markAt", () => {
     frame.children[0].classList.remove("selected");
     frame.children[1].classList.add("selected");
     expect(markAt(frame, 50, 10)).toBe("a");
+  });
+});
+
+describe("markAt on a point", () => {
+  // A point drawn 100 along the line, as thin as a point is
+  function createPoint(): HTMLElement {
+    const frame = document.createElement("div");
+    frame.innerHTML = '<div class="iap-mark iap-mark-point" data-mark-id="p"></div>';
+    (frame.firstElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(100, 0, 0, 20);
+    return frame;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("finds a point within a few pixels of it, with a mouse", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const frame = createPoint();
+
+    expect(markAt(frame, 107, 10)).toBe("p");
+    expect(markAt(frame, 112, 10)).toBeUndefined();
+  });
+
+  it("finds a point within a fingertip of it, on a touch screen", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(pointer: coarse)" }));
+    const frame = createPoint();
+
+    expect(markAt(frame, 118, 28)).toBe("p");
+    expect(markAt(frame, 122, 10)).toBeUndefined();
   });
 });
 

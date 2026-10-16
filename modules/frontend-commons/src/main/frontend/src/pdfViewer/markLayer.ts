@@ -19,6 +19,9 @@ import type { MarkKind, MarkSpan } from "./marksModel";
 
 export const MARK_CLASS = "iap-mark";
 
+// Set on a mark that is a point between two characters, such as where a comparison found text removed.
+export const POINT_CLASS = "iap-mark-point";
+
 // Set on the frame while the pointer is over a mark.
 export const OVER_MARK_CLASS = "iap-over-mark";
 const LAYER_CLASS = "iap-marks";
@@ -100,6 +103,17 @@ function joinLines(rects: DOMRect[]): DOMRect[] {
   return joined;
 }
 
+// Where a point between two characters is drawn: at the end of the character before it, or at the start of
+// the text when it has none, as a box with no width, the line's height.
+function getPointRect(nodes: TextNodeAt[], offset: number): DOMRect | undefined {
+  const before = offset > 0 ? getTextRects(nodes, offset - 1, offset).at(-1) : undefined;
+  if (before !== undefined) {
+    return new DOMRect(before.right, before.top, 0, before.height);
+  }
+  const after = getTextRects(nodes, offset, offset + 1).at(0);
+  return after === undefined ? undefined : new DOMRect(after.left, after.top, 0, after.height);
+}
+
 const percent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
 
 // Draws the marks over a page's text layer, inside it, since PDF.js keeps it when zooming, and in
@@ -115,10 +129,15 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
   Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none" });
   const box = textLayer.getBoundingClientRect();
   for (const { id, kind, start, end } of marks) {
-    for (const rect of joinLines(getTextRects(nodes, start, end))) {
+    const point = start === end;
+    const rects = point
+      ? [ getPointRect(nodes, start) ].filter(rect => rect !== undefined)
+      : getTextRects(nodes, start, end);
+    for (const rect of joinLines(rects)) {
       const element = document.createElement("div");
       element.dataset.markId = id;
       element.classList.add(MARK_CLASS, `${MARK_CLASS}-${kind}`);
+      element.classList.toggle(POINT_CLASS, point);
       element.classList.toggle("selected", id === selectedId);
       element.style.position = "absolute";
       element.style.left = percent(rect.left - box.left, box.width);
@@ -175,9 +194,25 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
   return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
 }
 
-// The first piece of a mark drawn in the frame, if its page has been drawn.
-export function findMark(frame: HTMLElement, id: string): HTMLElement | undefined {
-  return Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).find(mark => mark.dataset.markId === id);
+// The first piece of a mark drawn in the frame, if its page has been drawn, or its first point.
+export function findMark(frame: HTMLElement, id: string, { point = false } = {}): HTMLElement | undefined {
+  return Array.from(frame.querySelectorAll<HTMLElement>(`.${point ? POINT_CLASS : MARK_CLASS}`))
+    .find(mark => mark.dataset.markId === id);
+}
+
+// How wide and high a point is to the pointer, however thin it is drawn: a fingertip on a touch screen.
+const POINT_HIT_SIZE = { touch: 40, mouse: 16 };
+
+function getHitBox(mark: HTMLElement): DOMRect {
+  const box = mark.getBoundingClientRect();
+  if (!mark.classList.contains(POINT_CLASS)) {
+    return box;
+  }
+  const touch = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  const size = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
+  const width = Math.max(box.width, size);
+  const height = Math.max(box.height, size);
+  return new DOMRect(box.left + (box.width - width) / 2, box.top + (box.height - height) / 2, width, height);
 }
 
 // The mark drawn at a point in the frame, if any. Marks let the pointer through to the text, so text
@@ -185,7 +220,7 @@ export function findMark(frame: HTMLElement, id: string): HTMLElement | undefine
 // one not selected comes first, so clicking again reaches the other.
 export function markAt(frame: HTMLElement, x: number, y: number): string | undefined {
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).filter(mark => {
-    const { left, right, top, bottom } = mark.getBoundingClientRect();
+    const { left, right, top, bottom } = getHitBox(mark);
     return x >= left && x <= right && y >= top && y <= bottom;
   });
   return (hits.find(mark => !mark.classList.contains("selected")) ?? hits.at(0))?.dataset.markId;
