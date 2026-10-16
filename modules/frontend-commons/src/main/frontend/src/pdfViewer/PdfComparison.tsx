@@ -163,7 +163,10 @@ function ComparisonSession(props: PdfComparisonProps) {
       olderView.showMark(id);
     }
   };
-  const closeRemoved = useCallback(() => setSelection(previous => previous && { ...previous, showRemoved: false }), []);
+  // Closes what a change removed, unless another change was selected since, as by the click closing it.
+  const closeRemoved = useCallback((id: string) => setSelection(previous => (
+    previous?.id === id ? { ...previous, showRemoved: false } : previous
+  )), []);
   const titleId = useId();
   const toolbarRef = useRef<ViewerToolbarHandle>(null);
   const opened = newerView.pageCount !== undefined;
@@ -193,7 +196,19 @@ function ComparisonSession(props: PdfComparisonProps) {
     [ newerView, olderView ].forEach(zoom);
     lead("newer");
   };
-  const { line, said } = describeComparison(comparison);
+  // The older version, shown again beside the newer, takes the zoom the newer was given meanwhile.
+  const { shown: olderShown, zoomTo: zoomOlderTo } = olderView;
+  const { getScaleValue: getNewerScale } = newerView;
+  useEffect(() => {
+    const scale = getNewerScale();
+    if (olderShown !== undefined && scale !== undefined) {
+      zoomOlderTo(scale);
+      lead("newer");
+    }
+  }, [olderShown, getNewerScale, zoomOlderTo, lead]);
+  // A version that could not be opened says so itself, and nothing is compared.
+  const openFailed = older.openError !== undefined || newer.openError !== undefined;
+  const { line, said } = openFailed ? { line: "", said: "" } : describeComparison(comparison);
   const among = { index: position + 1, count: changes.length };
   let status = said;
   if (newerView.search.outcome !== "none") {
@@ -203,10 +218,10 @@ function ComparisonSession(props: PdfComparisonProps) {
   }
   const share = comparison.status === "reading" && comparison.total > 0 ? comparison.read / comparison.total : 1;
   const reading = comparison.status === "reading" || comparison.status === "comparing";
-  const looking = reading && opened ? { share, what: "the changes" } : undefined;
+  const looking = reading && opened && !openFailed ? { share, what: "the changes" } : undefined;
   const hidden = comparison.status === "compared" ? comparison.hidden : 0;
 
-  const pane = (version: "older" | "newer", edgeToEdge: boolean, removed: ReactNode = null) => {
+  const renderPane = (version: "older" | "newer", edgeToEdge: boolean, removed: ReactNode = null) => {
     const view = version === "older" ? olderView : newerView;
     const file = version === "older" ? older : newer;
     return (
@@ -328,10 +343,11 @@ function ComparisonSession(props: PdfComparisonProps) {
             onFitWidth={zoomBoth(view => view.fitWidth())}
           />
           <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-            {split ? pane("older", false) : null}
-            {pane("newer", !split && inDialog, showsRemoved && newerView.shown !== undefined
+            {split ? renderPane("older", false) : null}
+            {renderPane("newer", !split && inDialog, showsRemoved && newerView.shown !== undefined
               ? (
                 <RemovedText
+                  key={selected.id}
                   frame={newerView.shown.frame}
                   id={selected.id}
                   text={selected.removed}
@@ -381,7 +397,7 @@ function RemovedText({ frame, id, text, onClose }: {
   frame: HTMLElement;
   id: string;
   text: string;
-  onClose: () => void;
+  onClose: (id: string) => void;
 }) {
   const [marker, setMarker] = useState<HTMLElement | undefined>(undefined);
   useEffect(() => {
@@ -410,12 +426,12 @@ function RemovedText({ frame, id, text, onClose }: {
     const onEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onClose(id);
       }
     };
     document.addEventListener("keydown", onEscape, { capture: true });
     return () => document.removeEventListener("keydown", onEscape, { capture: true });
-  }, [shown, onClose]);
+  }, [shown, id, onClose]);
 
   return (
     <Popper
@@ -435,7 +451,7 @@ function RemovedText({ frame, id, text, onClose }: {
           const { target } = event;
           const onFrame = event instanceof MouseEvent && target instanceof Node && frame.contains(target);
           if (!onFrame || markAt(frame, event.clientX, event.clientY) !== id) {
-            onClose();
+            onClose(id);
           }
         }}
       >
