@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.models.LoggedError;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * Records a decision about one recorded error, at
@@ -79,7 +80,6 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
         final Resource target = request.getResource();
@@ -88,7 +88,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         final LoggedError error =
             target.isResourceType(LoggedError.RESOURCE_TYPE) ? target.adaptTo(LoggedError.class) : null;
         if (error == null) {
-            reply(response, HttpServletResponse.SC_NOT_FOUND, "This is not a recorded error");
+            JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "This is not a recorded error");
             return;
         }
         final String resolution = request.getParameter("resolution");
@@ -96,21 +96,19 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
             // What was rejected goes to the log rather than into the answer: the caller already knows what it sent,
             // and an error response is not the place to hand a value from the request back to a browser
             LOGGER.debug("Refusing to acknowledge {} with the unknown resolution {}", target.getPath(), resolution);
-            reply(response, HttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "resolution must name one of the " + LoggedError.TRIAGE_CATEGORY + " tags");
             return;
         }
         try {
             final Resource decision = record(target, error, resolution, request.getParameter("note"));
             target.getResourceResolver().commit();
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.getWriter().write(Json.createObjectBuilder()
-                .add("status", "ok")
-                .add("acknowledgement", decision.getPath())
-                .build().toString());
+            JsonResponses.write(response, HttpServletResponse.SC_OK, "ok",
+                Json.createObjectBuilder().add("acknowledgement", decision.getPath()));
         } catch (final PersistenceException e) {
             LOGGER.warn("Could not acknowledge the error at {}: {}", target.getPath(), e.getMessage(), e);
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Could not record the decision");
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Could not record the decision");
         }
     }
 
@@ -169,23 +167,5 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         }
         final List<TagDefinition> triage = this.tagManager.findDefinitions(LoggedError.TRIAGE_CATEGORY, null);
         return triage.stream().anyMatch(definition -> resolution.equals(definition.getName()));
-    }
-
-    /**
-     * Answers with a status and an explanation.
-     *
-     * @param response the response to write to
-     * @param status the HTTP status to answer with
-     * @param error what went wrong
-     * @throws IOException if the response cannot be written
-     */
-    private static void reply(final SlingJakartaHttpServletResponse response, final int status, final String error)
-        throws IOException
-    {
-        response.setStatus(status);
-        response.getWriter().write(Json.createObjectBuilder()
-            .add("status", "error")
-            .add("error", error)
-            .build().toString());
     }
 }

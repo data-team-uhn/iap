@@ -19,7 +19,6 @@ package io.uhndata.iap.storednotifications.internal;
 
 import java.io.IOException;
 
-import jakarta.json.Json;
 import jakarta.servlet.Servlet;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -37,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.storednotifications.api.StoredNotifications;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -67,7 +67,7 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final Resource target = request.getResource();
         final ModifiableValueMap writable = target.adaptTo(ModifiableValueMap.class);
         if (writable == null) {
-            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
+            JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
             return;
         }
         final String recipient = writable.get(StoredNotifications.RECIPIENT_PROPERTY, String.class);
@@ -75,39 +75,18 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         if (recipient == null || !recipient.equals(caller)) {
             LOGGER.warn("Did not mark {} as read due to not being its recipient",
                 target.getPath());
-            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
+            JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
             return;
         }
         try {
             writable.put(StoredNotifications.READ_PROPERTY, Boolean.TRUE);
             target.getResourceResolver().commit();
-            reply(response, HttpServletResponse.SC_OK, null);
+            JsonResponses.write(response, HttpServletResponse.SC_OK, "ok");
         } catch (final PersistenceException e) {
             LOGGER.error("Could not mark {} as read: {}", target.getPath(), e.getMessage(), e);
             ErrorLogger.logError(e,
                 ErrorContext.of(MarkReadServlet.class, "markRead").about(target.getPath()));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unable to mark as read");
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unable to mark as read");
         }
-    }
-
-    /**
-     * Answers the caller in the one shape the interface reads.
-     *
-     * @param response where to write
-     * @param status the HTTP status to answer with
-     * @param error what went wrong, or {@code null} for a success
-     * @throws IOException when the response cannot be written
-     */
-    private static void reply(final SlingJakartaHttpServletResponse response, final int status,
-        final String error) throws IOException
-    {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.setStatus(status);
-        final var body = Json.createObjectBuilder().add("status", error == null ? "ok" : "error");
-        if (error != null) {
-            body.add("error", error);
-        }
-        response.getWriter().write(body.build().toString());
     }
 }
