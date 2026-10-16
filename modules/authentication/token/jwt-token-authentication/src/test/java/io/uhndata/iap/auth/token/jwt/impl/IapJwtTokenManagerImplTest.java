@@ -17,13 +17,17 @@
  */
 package io.uhndata.iap.auth.token.jwt.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.jcr.Node;
 import javax.jcr.Property;
 
@@ -38,11 +42,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Encoders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -75,9 +81,9 @@ public class IapJwtTokenManagerImplTest
 
     private static final String KEY_PATH = "/jcr:system/iap-jwt/JWTRSA256Key";
 
-    private static final String SELF_ID = "localhost8080";
+    private static final String SELF_ID = "https://iap.example.org";
 
-    private static final String PEER_ID = "localhost8081";
+    private static final String PEER_ID = "https://peer.example.org:8443/iap/";
 
     private static final String PEER_KEY_PATH_PREFIX = "/jcr:system/iap-jwt/";
 
@@ -111,6 +117,9 @@ public class IapJwtTokenManagerImplTest
     @Mock
     private Property peerIssuerProperty;
 
+    /** This instance's own keypair. Its public half is what an attacker is assumed to know. */
+    private KeyPair keyPair;
+
     private IapJwtTokenManagerImpl manager;
 
     @BeforeEach
@@ -118,7 +127,7 @@ public class IapJwtTokenManagerImplTest
     {
         // Generate a RS256 keypair and expose it exactly as the component reads it from
         // the repository.
-        final KeyPair keyPair = Jwts.SIG.RS256.keyPair().build();
+        this.keyPair = Jwts.SIG.RS256.keyPair().build();
         when(this.resolverFactory.getServiceResourceResolver(any())).thenReturn(this.resolver);
         // Calling resolve() can return null in these tests despite being marked @NotNull in the actual resolver
         // Fix it by throwing a proper error
@@ -130,11 +139,11 @@ public class IapJwtTokenManagerImplTest
         when(this.keyNode.getProperty("key")).thenReturn(this.keyProperty);
         when(this.keyNode.hasProperty("verify")).thenReturn(true);
         when(this.keyNode.getProperty("verify")).thenReturn(this.verifyProperty);
-        when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPrivate().getEncoded()));
-        when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPublic().getEncoded()));
+        when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPrivate().getEncoded()));
+        when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPublic().getEncoded()));
 
         // Activate the component via its @Activate constructor.
-        this.manager = new IapJwtTokenManagerImpl(this.resolverFactory);
+        this.manager = new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID));
     }
 
     @Test
@@ -250,16 +259,140 @@ public class IapJwtTokenManagerImplTest
         when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
 
         // Test using a second set of keys that we've accepted
-        String selfID = IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
 
         final String foreign = Jwts.builder()
-            .issuer("localhost8081")
-            .audience().add(selfID).and()
+            .issuer(PEER_ID)
+            .audience().add(SELF_ID).and()
             .expiration(oneHourFromNow().getTime())
             .header().keyId(peerFingerprint).and()
             .signWith(peerPair.getPrivate())
             .compact();
         Assertions.assertNotNull(this.manager.parse(foreign), "A foreign, trusted issued token must parse back");
+    }
+
+    @Test
+    public void parseRejectsUnsecuredTokenBuiltByTheLibrary()
+    {
+        // Claims an attacker cannot otherwise produce, with no signature at all. JJWT refuses unsecured JWTs
+        // unless the parser opts in with unsecured(), which this one does not; asserted so that adding the
+        // opt-in later cannot pass unnoticed.
+        final String unsecured = Jwts.builder()
+            .issuer(SELF_ID)
+            .audience().add(SELF_ID).and()
+            .subject("attacker")
+            .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
+            .header().keyId(selfFingerprint()).and()
+            .compact();
+        Assertions.assertNull(this.manager.parse(unsecured), "An unsecured (alg:none) token must not parse");
+    }
+
+    @Test
+    public void parseRejectsHandRolledAlgNoneToken()
+    {
+        // The same attack spelled out by hand, since a library that declines to *build* an unsecured JWT says
+        // nothing about whether the parser would accept one off the wire. An alg:none JWT is the signing input
+        // followed by an empty third segment.
+        Assertions.assertNull(this.manager.parse(signingInput("none") + "."),
+            "A hand-rolled alg:none token must not parse");
+    }
+
+    @Test
+    public void parseRejectsAlgorithmConfusion() throws Exception
+    {
+        // RS256 -> HS256 confusion: the attacker re-labels the token as HMAC and signs it with the one piece of
+        // key material they are assumed to have, the public key. A parser that picks the algorithm from the
+        // header and uses whatever key the locator returned would verify this.
+        final String input = signingInput("HS256");
+        final Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(this.keyPair.getPublic().getEncoded(), "HmacSHA256"));
+        final String signature = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
+
+        Assertions.assertNull(this.manager.parse(input + "." + signature),
+            "A token re-signed as HMAC with the public key must not parse");
+    }
+
+    @Test
+    public void parseRejectsBlankToken()
+    {
+        // What an "Authorization: Bearer " header with nothing after it comes down to
+        Assertions.assertNull(this.manager.parse(""));
+        Assertions.assertNull(this.manager.parse("   "));
+    }
+
+    @Test
+    public void parseRejectsTokenWithoutExpiry()
+    {
+        // Correctly signed and addressed, but valid forever, and a JWT cannot be revoked
+        final String unexpiring = Jwts.builder()
+            .issuer(SELF_ID)
+            .audience().add(SELF_ID).and()
+            .subject("guest-patient")
+            .header().keyId(selfFingerprint()).and()
+            .signWith(this.keyPair.getPrivate())
+            .compact();
+        Assertions.assertNull(this.manager.parse(unexpiring), "A token without an expiry must not parse");
+    }
+
+    @Test
+    public void mintedTokensCarryTheConfiguredIdentityUnaltered()
+    {
+        // Peers register this identity and address their tokens to it, character for character
+        final String token = this.manager.create("guest-patient", oneHourFromNow(), Map.of()).getToken();
+        final Claims claims = Jwts.parser().verifyWith(this.keyPair.getPublic()).build()
+            .parseSignedClaims(token).getPayload();
+
+        Assertions.assertEquals(SELF_ID, claims.getIssuer());
+        Assertions.assertEquals(Set.of(SELF_ID), claims.getAudience());
+    }
+
+    @Test
+    public void anUnusableIdentityRefusesToActivate()
+    {
+        // Better no token manager at all than one minting tokens no peer could ever accept
+        for (final String identity : new String[] {"", " https://iap.example.org", "a/b:c", "https://exa mple.org"}) {
+            Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(identity)),
+                "Activated with the identity '" + identity + "'");
+        }
+    }
+
+    /**
+     * The header and payload of a token that would pass every claim check, left for the caller to sign (or not).
+     *
+     * @param algorithm the value of the {@code alg} header
+     * @return the two BASE64URL segments, joined by a period
+     */
+    private String signingInput(final String algorithm)
+    {
+        final long expiry = System.currentTimeMillis() / 1000 + 3600;
+        return base64Url("{\"alg\":\"" + algorithm + "\",\"kid\":\"" + selfFingerprint() + "\"}")
+            + "."
+            + base64Url("{\"iss\":\"" + SELF_ID + "\",\"aud\":[\"" + SELF_ID
+                + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
+    }
+
+    private String selfFingerprint()
+    {
+        return IapJwtTokenManagerImpl.getFingerprint(this.keyPair.getPublic());
+    }
+
+    /**
+     * A configuration naming the given identity, as DS would supply it.
+     *
+     * @param identity the configured identity
+     * @return the configuration
+     */
+    static IapJwtTokenManagerConfiguration configWithIdentity(final String identity)
+    {
+        final IapJwtTokenManagerConfiguration config = mock(IapJwtTokenManagerConfiguration.class);
+        when(config.identity()).thenReturn(identity);
+        return config;
+    }
+
+    private static String base64Url(final String value)
+    {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static Calendar oneHourFromNow()
