@@ -17,10 +17,18 @@
  */
 package io.uhndata.iap.conditions.api;
 
+import java.util.List;
+
+import jakarta.json.JsonObject;
+
 import org.junit.jupiter.api.Test;
+
+import io.uhndata.iap.conditions.spi.ConditionComparator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -132,6 +140,37 @@ class OperatorTest
         for (final Operator operator : Operator.values()) {
             assertEquals(operator, Operator.parse(operator.getName()));
         }
+    }
+
+    @Test
+    void describesWhatEachExpectsOfItsOperands()
+    {
+        assertTrue(Operator.IS_EMPTY.isUnary());
+        assertTrue(Operator.LESS_THAN.isOrdering());
+        assertTrue(Operator.INCLUDES.isSets());
+        assertFalse(Operator.EQUALS.isUnary() || Operator.EQUALS.isOrdering() || Operator.EQUALS.isSets());
+        assertEquals("is at least", Operator.GREATER_OR_EQUAL.getPhrase());
+        assertEquals("does not include", Operator.EXCLUDES.getSingleValuePhrase());
+        assertNull(Operator.EQUALS.getSingleValuePhrase());
+        for (final Operator operator : Operator.values()) {
+            assertNotNull(operator.getDescription());
+            assertEquals(operator.getPhrase(), operator.getDocumentationLabel());
+            assertEquals(List.of(ConditionComparator.CATEGORY), operator.getDocumentationCategories());
+        }
+    }
+
+    @Test
+    void documentsItsPhrasesAndKindInTheCatalogue()
+    {
+        final JsonObject includes = Operator.INCLUDES.documentationJsonBuilder().build();
+        assertEquals("includes", includes.getString("name"));
+        assertEquals("includes all of", includes.getString("phrase"));
+        assertEquals("includes", includes.getString("singleValuePhrase"));
+        assertTrue(includes.getBoolean("sets"));
+        assertFalse(includes.getBoolean("unary"));
+        assertFalse(includes.getBoolean("ordering"));
+        // Left out rather than null when it reads the same before one value
+        assertFalse(Operator.EQUALS.documentationJsonBuilder().build().containsKey("singleValuePhrase"));
     }
 
     @Test

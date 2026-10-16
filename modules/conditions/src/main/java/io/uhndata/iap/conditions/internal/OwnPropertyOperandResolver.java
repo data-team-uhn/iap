@@ -40,6 +40,37 @@ public class OwnPropertyOperandResolver extends AbstractPropertyOperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "One of its own properties";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "A property of the content the condition is on, named by the operand.";
+    }
+
+    @Override
+    public String getPhrase()
+    {
+        return "its own {label}";
+    }
+
+    @Override
+    public boolean isOffered()
+    {
+        // Written by hand in system workflows, not offered to authors
+        return false;
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 40;
+    }
+
+    @Override
     protected Content holder(final Content context)
     {
         return context;

@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.editing.internal.checks;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
@@ -50,18 +52,23 @@ class SchemaVersionChecksTest
 {
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
+    private final ConditionOperationsCheck operations = new ConditionOperationsCheck();
+
     private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
-        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
+        new AnswerOptionsCheck(), this.operations, new ConditionQuestionsCheck());
 
     private SchemaFixture fixture;
 
     private Resource schema;
 
     @BeforeEach
-    void setUp() throws PersistenceException
+    void setUp() throws PersistenceException, ReflectiveOperationException
     {
         this.fixture = new SchemaFixture(this.context);
         this.schema = this.fixture.schema("study");
+        final Field types = ConditionOperationsCheck.class.getDeclaredField("types");
+        types.setAccessible(true);
+        types.set(this.operations, new ConditionTypesImpl());
     }
 
     @Test

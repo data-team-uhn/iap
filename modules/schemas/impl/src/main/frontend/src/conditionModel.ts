@@ -16,85 +16,12 @@
  * limitations under the License.
  */
 
-// The operand sources of a schema version's conditions. The schemas add their own `answer` source, whose operand
-// holds the answers to the question of the version it names. No React, no fetch.
+// The conditions of two versions of a schema, in a form the comparison can tell apart. No React, no fetch.
 
-import {
-  type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
-  type ValueType,
-} from "@iap/conditions/conditionModel";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 import { nameOf, pathOf } from "./schemaModel";
-import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
-
-// The comparison types of the question data types; a file has none
-const VALUE_TYPES: Record<string, ValueType | undefined> = {
-  text: "text",
-  long: "long",
-  double: "double",
-  boolean: "boolean",
-  date: "date",
-};
-
-// The items a question's options come from, by the path it takes them from
-export type ItemChoices = Record<string, Choice[]>;
-
-// The items under a node at any depth, as its deep serialization gives them. Each is named by its path and called by
-// its title or label, or else by its name.
-export function itemChoicesOf(node: SerializedNode): Choice[] {
-  return Object.entries(node)
-    .filter((entry): entry is [ string, SerializedNode ] => isNode(entry[1]) && !entry[0].includes(":"))
-    .flatMap(([ name, item ]) => [
-      { value: String(item["@path"]), label: strings(item.title ?? item.label).at(0) ?? name },
-      ...itemChoicesOf(item),
-    ]);
-}
-
-// What the answers to a question hold: its type, one or several of them, and its options. These are the ones it
-// lists, or else the items it takes its options from, once they are loaded.
-export function answerShapeOf(question: SerializedNode, items: ItemChoices = {}): OperandShape {
-  const listed = optionsOf(question).map(option => ({
-    value: strings(option.value).at(0) ?? "",
-    label: optionLabelOf(option),
-  }));
-  const options = listed.length > 0 ? listed : items[strings(question.optionsFrom).at(0) ?? ""] ?? [];
-  const maxAnswers = typeof question.maxAnswers === "number" ? question.maxAnswers : 1;
-  return {
-    type: VALUE_TYPES[strings(question.dataType).at(0) ?? "text"],
-    multiple: maxAnswers !== 1,
-    ...options.length > 0 ? { choices: options } : {},
-  };
-}
-
-export const answerSource = (index: QuestionIndex, items: ItemChoices = {}): OperandSource => ({
-  name: "answer",
-  label: "The answer to a question",
-  valueLabel: "Question",
-  shape: value => {
-    const question = index.find(value.at(0) ?? "");
-    return question ? answerShapeOf(question, items) : {};
-  },
-  describe: value => {
-    const question = index.find(value.at(0) ?? "");
-    return question
-      ? `the answer to “${headingOf(question)}”`
-      : `the answer to ${value.at(0) ?? "a missing question"}`;
-  },
-});
-
-// Every source a schema's conditions may use, with the labels of the tags when they are known
-export const schemaSources = (index: QuestionIndex, tags: Choice[] = [], items: ItemChoices = {}): OperandSource[] =>
-  [ answerSource(index, items), tagsSource(tags, "submission"), propertySource("submission"),
-    ownPropertySource("part") ];
-
-// The sources the editor offers: what a submission answers, how it is tagged, and its properties
-export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
-  sources.filter(source => source.name !== "ownProperty");
-
-// The questions a part's condition can compare the answers to: any in its version except itself and those it holds
-export const questionsFor = (part: SerializedNode, index: QuestionIndex): SerializedNode[] => index.questions
-  .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));
+import { type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
 // A condition in a form two versions can compare: what it stores, without the repository's bookkeeping. The questions
 // it compares the answers of go by their identifiers in the version, which a copy keeps and a move does not change. The

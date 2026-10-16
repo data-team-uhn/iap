@@ -17,11 +17,11 @@
  */
 
 import {
-  AGGREGATES, aggregated, aggregatesFor, COMPARATORS, comparatorsFor, contentOf, describeCondition, describeDraft,
-  draftOf, type DraftGroup, type DraftSingle, isChosen, isComplete, newGroup, newSingle, type OperandSource,
-  OWN_PROPERTY_SOURCE, ownPropertySource, PROPERTY_SOURCE, propertySource, shapeOf, tagsSource, valueProblem,
-  valuesTaken, whenApplies, whenDraftApplies, withCurrent,
+  type Aggregate, aggregated, aggregatesFor, type Comparator, comparatorsFor, type ConditionTypes, contentOf,
+  describeCondition, describeDraft, draftOf, type DraftGroup, type DraftSingle, isChosen, isComplete, newGroup,
+  newSingle, type OperandSource, shapeOf, valueProblem, valuesTaken, whenApplies, whenDraftApplies, withCurrent,
 } from "@iap/conditions/conditionModel";
+import { CATALOGUE } from "@iap/conditions/conditionTypes.fixture";
 
 // A source whose operands name a field of a known type
 const FIELDS: Record<string, { type?: "long" | "text" | "date" | "boolean"; multiple?: boolean }> = {
@@ -41,8 +41,24 @@ const FIELD_SOURCE: OperandSource = {
   }),
   describe: value => `the field ${value.at(0) ?? "nowhere"}`,
 };
-const TAGS = tagsSource([ { value: "urgent", label: "Urgent" } ]);
-const SOURCES = [ FIELD_SOURCE, TAGS, PROPERTY_SOURCE, OWN_PROPERTY_SOURCE ];
+// Sources as the catalogue makes them: one naming nothing, with choices, and two naming a property
+const TAGS: OperandSource = {
+  name: "tags", label: "The tags",
+  shape: () => ({ type: "text", multiple: true, choices: [ { value: "urgent", label: "Urgent" } ] }),
+  describe: () => "the tag list",
+};
+const property = (name: string, phrase: (value: string) => string, offered = true): OperandSource => ({
+  name, label: name, valueLabel: "Property", offered, shape: () => ({}),
+  describe: value => phrase(value.at(0) ?? "property"),
+});
+const COMPARATORS = CATALOGUE.items.Comparators as Comparator[];
+const AGGREGATES = CATALOGUE.items.Aggregators as Aggregate[];
+const SOURCES: ConditionTypes = {
+  comparators: COMPARATORS,
+  aggregates: AGGREGATES,
+  sources: [ FIELD_SOURCE, TAGS, property("property", value => `the ${value}`),
+    property("ownProperty", value => `its own ${value}`, false) ],
+};
 
 const single = (comparator: string, a: Record<string, unknown>, b?: Record<string, unknown>) => ({
   "jcr:primaryType": "cond:SingleCondition", "sling:resourceSuperType": "cond/Condition", comparator,
@@ -60,15 +76,16 @@ const rooted = (...conditions: DraftGroup["conditions"]): DraftGroup => ({ ...ne
 
 describe("conditionModel", () => {
   describe("the catalogs", () => {
-    it("names every comparator and aggregate the conditions module evaluates", () => {
+    it("takes every comparator and aggregate from the catalogue", () => {
       expect(COMPARATORS.map(comparator => comparator.name)).toEqual([ "equals", "not equals", "less than",
         "less or equal", "greater than", "greater or equal", "is empty", "is not empty", "includes", "includes any",
         "excludes", "excludes any" ]);
-      expect(AGGREGATES.map(aggregate => aggregate.name)).toEqual([ "count" ]);
+      expect(AGGREGATES.map(aggregate => aggregate.name)).toEqual([ "count", "sum" ]);
     });
 
     it("offers ordering for single values that have an order, and sets for several", () => {
-      const names = (shape: Parameters<typeof comparatorsFor>[0]) => comparatorsFor(shape).map(item => item.name);
+      const names = (shape: Parameters<typeof comparatorsFor>[1]) =>
+        comparatorsFor(SOURCES, shape).map(item => item.name);
       expect(names({ type: "long", multiple: false })).toEqual([ "equals", "not equals", "less than",
         "less or equal", "greater than", "greater or equal", "is empty", "is not empty" ]);
       expect(names({ type: "text", multiple: false })).toEqual([ "equals", "not equals", "is empty",
@@ -80,10 +97,10 @@ describe("conditionModel", () => {
     });
 
     it("folds several values into one of the type the aggregate outputs, as the evaluator does", () => {
-      expect(aggregatesFor({ type: "text", multiple: false })).toEqual([]);
-      expect(aggregatesFor({ type: "text", multiple: true })).toEqual(AGGREGATES);
+      expect(aggregatesFor(SOURCES, { type: "text", multiple: false })).toEqual([]);
+      expect(aggregatesFor(SOURCES, { type: "text", multiple: true })).toEqual([ AGGREGATES[0] ]);
       // Only where several values are known to be held
-      expect(aggregatesFor({})).toEqual([]);
+      expect(aggregatesFor(SOURCES, {})).toEqual([]);
       // count's output is fixed: a whole number, whatever it counts
       expect(aggregated({ type: "date", multiple: true, choices: [] }, AGGREGATES[0]))
         .toEqual({ type: "long", multiple: false });
@@ -94,16 +111,9 @@ describe("conditionModel", () => {
     });
 
     it("keeps an aggregate to the types it accepts", () => {
-      const numeric = { name: "sum", label: "The total", phrase: "the total of", accepts: [ "long" as const ],
-        output: "same" as const };
-      AGGREGATES.push(numeric);
-      try {
-        expect(aggregatesFor({ type: "long", multiple: true })).toContain(numeric);
-        expect(aggregatesFor({ type: "text", multiple: true })).not.toContain(numeric);
-        expect(aggregatesFor({ multiple: true })).not.toContain(numeric);
-      } finally {
-        AGGREGATES.pop();
-      }
+      expect(aggregatesFor(SOURCES, { type: "long", multiple: true })).toContain(AGGREGATES[1]);
+      expect(aggregatesFor(SOURCES, { type: "text", multiple: true })).not.toContain(AGGREGATES[1]);
+      expect(aggregatesFor(SOURCES, { multiple: true })).not.toContain(AGGREGATES[1]);
     });
 
     it("says how many values a comparison takes", () => {
@@ -243,7 +253,8 @@ describe("conditionModel", () => {
       for (const type of [ "double", "decimal" ] as const) {
         const draft = rooted(draftSingle({ source: "field", value: [ "x" ] }, "equals",
           { source: "literal", value: [ "1.5" ] }));
-        expect(contentOf(draft, [ withType(type) ])).toMatchObject({ condition1: { operandB: { value: [ 1.5 ] } } });
+        expect(contentOf(draft, { ...SOURCES, sources: [ withType(type) ] }))
+          .toMatchObject({ condition1: { operandB: { value: [ 1.5 ] } } });
       }
     });
   });
@@ -303,29 +314,11 @@ describe("conditionModel", () => {
         .toEqual([ ...choices, { value: "b", label: "B" } ]);
     });
 
-    it("names what the built-in sources read, as the module using them calls it", () => {
-      expect([ tagsSource([], "submission").label, propertySource("submission").label,
-        ownPropertySource("part").label ]).toEqual([ "The submission's tags", "A property of the submission",
-        "A property of this part" ]);
-      expect([ tagsSource([], "submission").describe([]), propertySource("submission").describe([ "status" ]),
-        ownPropertySource("part").describe([ "optionsFrom" ]) ]).toEqual([ "the submission's tag list",
-        "the submission's status", "this part's optionsFrom" ]);
-      expect([ tagsSource().label, PROPERTY_SOURCE.label, OWN_PROPERTY_SOURCE.label ])
-        .toEqual([ "The tags", "A property", "One of its own properties" ]);
-    });
-
     it("knows when what an operand reads has been chosen", () => {
       expect(isChosen({ source: "field", value: [] }, SOURCES)).toBe(false);
       expect(isChosen({ source: "field", value: [ "age" ] }, SOURCES)).toBe(true);
       expect(isChosen({ source: "tags", value: [] }, SOURCES)).toBe(true);
       expect(isChosen({ source: "literal", value: [ "x" ] }, SOURCES)).toBe(false);
-    });
-
-    it("offers tags as text, with their labels when they are known", () => {
-      expect(tagsSource().shape([])).toEqual({ type: "text", multiple: true });
-      expect(TAGS.shape([])).toMatchObject({ choices: [ { value: "urgent", label: "Urgent" } ] });
-      expect(PROPERTY_SOURCE.shape([ "status" ])).toEqual({});
-      expect(OWN_PROPERTY_SOURCE.shape([])).toEqual({});
     });
   });
 });

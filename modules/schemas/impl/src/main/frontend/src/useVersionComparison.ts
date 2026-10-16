@@ -18,8 +18,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { whenApplies } from "@iap/conditions/conditionModel";
-import { useTagChoices } from "@iap/conditions/useTagChoices";
+import { type ConditionTypes, whenApplies } from "@iap/conditions/conditionModel";
+import { useConditionTypes } from "@iap/conditions/conditionTypes";
 import type { ReferenceCandidate } from "@iap/frontend-commons/fields/fieldsModel";
 import { readCandidates } from "@iap/frontend-commons/fields/referenceCandidates";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -28,11 +28,10 @@ import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { readNode, useNode } from "@iap/frontend-commons/useNode";
 
 import { type ComparedField, fieldsOfDefinitions } from "./comparisonFields";
-import { conditionKeyOf, schemaSources } from "./conditionModel";
+import { conditionKeyOf } from "./conditionModel";
 import { compareVersions, type ConditionSaid, type VersionComparison } from "./schemaComparisonModel";
 import { pathOf } from "./schemaModel";
 import { conditionOf, indexQuestions } from "./schemaVersionTreeModel";
-import { useOptionsFrom } from "./useOptionsFrom";
 
 const asNode = (node: SerializedNode): SerializedNode => node;
 
@@ -110,29 +109,28 @@ export function useVersionComparison(schemaPath: string, names: [ string, string
   const after = useNode(`${schemaPath}/${names[1]}`, "deep.-dereference.order", asNode);
   const indexBefore = useMemo(() => indexQuestions(before.value ?? {}), [ before.value ]);
   const indexAfter = useMemo(() => indexQuestions(after.value ?? {}), [ after.value ]);
-  // Read once for both versions: the tags conditions name, and the items questions take their options from
-  const tags = useTagChoices();
-  const items = useOptionsFrom(useMemo(() => ({ ...indexAfter,
-    questions: [ ...indexBefore.questions, ...indexAfter.questions ] }), [ indexBefore, indexAfter ]));
+  // What each version's conditions can say, to put them into words
+  const typesBefore = useConditionTypes(`${schemaPath}/${names[0]}`);
+  const typesAfter = useConditionTypes(`${schemaPath}/${names[1]}`);
   const comparison = useMemo((): VersionComparison | undefined => {
     if (!fields || !before.value || !after.value) {
       return undefined;
     }
-    const saidIn = (version: SerializedNode, index: typeof indexAfter) => {
-      const sources = schemaSources(index, tags, items);
-      return (part: SerializedNode): ConditionSaid | undefined => {
+    const saidIn = (version: SerializedNode, index: typeof indexAfter, types?: ConditionTypes) =>
+      (part: SerializedNode): ConditionSaid | undefined => {
         const condition = conditionOf(part);
         return condition && {
           key: conditionKeyOf(condition, index, pathOf(version)),
-          words: whenApplies(condition, sources),
+          words: types && whenApplies(condition, types),
         };
       };
-    };
     return compareVersions(before.value, after.value, {
       versionFields: fields.version, partFields: fields.part, optionFields: fields.option,
-      conditionOf: { before: saidIn(before.value, indexBefore), after: saidIn(after.value, indexAfter) },
+      conditionOf: {
+        before: saidIn(before.value, indexBefore, typesBefore), after: saidIn(after.value, indexAfter, typesAfter),
+      },
     });
-  }, [ before.value, after.value, fields, tags, items, indexBefore, indexAfter ]);
+  }, [ before.value, after.value, fields, typesBefore, typesAfter, indexBefore, indexAfter ]);
   return {
     comparison,
     loading: before.loading || after.loading,

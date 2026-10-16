@@ -18,25 +18,9 @@
 
 import { createContext, useContext } from "react";
 
-import type { OperandSource } from "@iap/conditions/conditionModel";
+import type { ConditionTypes } from "@iap/conditions/conditionModel";
 
-import { schemaSources } from "./conditionModel";
-import { indexQuestions, type QuestionIndex } from "./schemaVersionTreeModel";
+// What the conditions of a version's parts can say, read once for the version to show them. Undefined while it loads.
+export const VersionConditionsContext = createContext<ConditionTypes | undefined>(undefined);
 
-// What the conditions of a version's parts are read and built with, made once for the version. It holds the version's
-// questions, every source its conditions may use, and the sources an editor offers.
-export interface VersionConditions {
-  index: QuestionIndex;
-  sources: OperandSource[];
-  offered: OperandSource[];
-}
-
-const NO_QUESTIONS = indexQuestions({});
-
-export const VersionConditionsContext = createContext<VersionConditions>({
-  index: NO_QUESTIONS,
-  sources: schemaSources(NO_QUESTIONS),
-  offered: [],
-});
-
-export const useVersionConditions = (): VersionConditions => useContext(VersionConditionsContext);
+export const useVersionConditions = (): ConditionTypes | undefined => useContext(VersionConditionsContext);

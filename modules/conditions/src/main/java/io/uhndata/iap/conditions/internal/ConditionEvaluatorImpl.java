@@ -17,26 +17,24 @@
  */
 package io.uhndata.iap.conditions.internal;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.conditions.api.Aggregator;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.api.ConditionTypes;
 import io.uhndata.iap.conditions.api.Operand;
 import io.uhndata.iap.conditions.api.OperandType;
-import io.uhndata.iap.conditions.api.Operator;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionGroup;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.conditions.spi.ConditionAggregator;
+import io.uhndata.iap.conditions.spi.ConditionComparator;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -44,8 +42,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Straightforward implementation of {@link ConditionEvaluator}: single conditions are compared through the
- * {@link Operator} matching their comparator, with each operand resolved by the registered {@link OperandResolver}
- * matching its source; condition groups recurse into their nested conditions and combine them with AND or OR.
+ * {@link ConditionComparator} matching their comparator, with each operand resolved by the {@link OperandResolver}
+ * matching its source, both found in the {@link ConditionTypes}; condition groups recurse into their nested
+ * conditions and combine them with AND or OR.
  * There is no declared comparison type: the two sides are unified from what is known about them — the type a
  * resolver declares (e.g. the referenced question's data type), or failing that the intrinsic type of the stored
  * values — then both are coerced to the unified type, aggregated if requested, and compared.
@@ -58,8 +57,8 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionEvaluatorImpl.class);
 
-    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policyOption = ReferencePolicyOption.GREEDY)
-    private volatile List<OperandResolver> resolvers;
+    @Reference
+    private ConditionTypes types;
 
     @Override
     public boolean isSatisfied(final Condition condition, final Content context)
@@ -94,16 +93,16 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
 
     private boolean isSatisfied(final SingleCondition condition, final Content context)
     {
-        final Operator operator;
-        final Aggregator leftAggregator;
-        final Aggregator rightAggregator;
+        final ConditionComparator operator;
+        final ConditionAggregator leftAggregator;
+        final ConditionAggregator rightAggregator;
         // Resolved into locals since each call repeats the child lookup, and getOperandA enforces its presence
         final ConditionOperand operandA = condition.getOperandA();
         final ConditionOperand operandB = condition.getOperandB();
         try {
-            operator = Operator.parse(condition.getComparator());
-            leftAggregator = aggregatorOf(operandA);
-            rightAggregator = aggregatorOf(operandB);
+            operator = this.comparatorOf(condition.getComparator());
+            leftAggregator = this.aggregatorOf(operandA);
+            rightAggregator = this.aggregatorOf(operandB);
         } catch (final IllegalArgumentException ex) {
             LOGGER.warn("Cannot evaluate condition at {}: {}", condition.getPath(), ex.getMessage());
             // A problem rather than a failure: nothing here is broken, a definition is mis-authored
@@ -138,9 +137,7 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
         if (operand == null) {
             return Optional.of(Operand.EMPTY);
         }
-        final Optional<Operand> resolved = this.resolvers.stream()
-            .filter(resolver -> operand.getSource().equals(resolver.getSource()))
-            .findFirst()
+        final Optional<Operand> resolved = Optional.ofNullable(this.types.getSource(operand.getSource()))
             .map(resolver -> resolver.resolve(operand, context));
         if (resolved.isEmpty()) {
             LOGGER.warn("No resolver for operand source {} at {}", operand.getSource(), operand.getPath());
@@ -148,17 +145,33 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
         return resolved;
     }
 
-    private static Aggregator aggregatorOf(final ConditionOperand operand)
+    private ConditionComparator comparatorOf(final String name)
+    {
+        final ConditionComparator comparator = this.types.getComparator(name);
+        if (comparator == null) {
+            throw new IllegalArgumentException("Unknown comparator: " + name);
+        }
+        return comparator;
+    }
+
+    private ConditionAggregator aggregatorOf(final ConditionOperand operand)
     {
         final String aggregate = operand == null ? null : operand.getAggregate();
-        return aggregate == null ? null : Aggregator.parse(aggregate);
+        if (aggregate == null) {
+            return null;
+        }
+        final ConditionAggregator aggregator = this.types.getAggregator(aggregate);
+        if (aggregator == null) {
+            throw new IllegalArgumentException("Unknown aggregator: " + aggregate);
+        }
+        return aggregator;
     }
 
     /**
      * The type one side of the comparison brings to unification: what its aggregator will produce, or the best
      * known type of its values.
      */
-    private static OperandType outputType(final Operand operand, final Aggregator aggregator)
+    private static OperandType outputType(final Operand operand, final ConditionAggregator aggregator)
     {
         if (aggregator != null && aggregator.getOutputType() != null) {
             return aggregator.getOutputType();
@@ -185,7 +198,8 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
         return null;
     }
 
-    private static Operand process(final Operand operand, final Aggregator aggregator, final OperandType type)
+    private static Operand process(final Operand operand, final ConditionAggregator aggregator,
+        final OperandType type)
     {
         return aggregator == null ? operand.coerce(type) : aggregator.apply(operand, type);
     }

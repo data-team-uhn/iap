@@ -18,18 +18,18 @@
 package io.uhndata.iap.schemas.editing.internal.checks;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.conditions.api.Aggregator;
-import io.uhndata.iap.conditions.api.Operator;
+import io.uhndata.iap.conditions.api.ConditionTypes;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that every condition uses known comparators and aggregators.
+ * Check that every condition uses comparators and aggregators this instance knows, by asking the same registry the
+ * evaluator does.
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,39 +37,33 @@ import io.uhndata.iap.workflows.spi.ValidityCheck;
 @Component(service = ValidityCheck.class)
 public class ConditionOperationsCheck extends SchemaVersionCheck
 {
+    @Reference
+    private ConditionTypes types;
+
     @Override
     public List<String> check(final Resource version)
     {
         return Stream.concat(
-            DraftParts.ofType(version, "cond:SingleCondition").flatMap(condition -> comparator(condition, version)),
-            DraftParts.ofType(version, "cond:ConditionOperand").flatMap(operand -> aggregate(operand, version)))
+            DraftParts.ofType(version, "cond:SingleCondition")
+                .flatMap(condition -> this.comparator(condition, version)),
+            DraftParts.ofType(version, "cond:ConditionOperand").flatMap(operand -> this.aggregate(operand, version)))
             .toList();
     }
 
-    private static Stream<String> comparator(final Resource condition, final Resource version)
+    private Stream<String> comparator(final Resource condition, final Resource version)
     {
         final String comparator = condition.getValueMap().get("comparator", "");
-        return knows(Operator::parse, comparator) ? Stream.empty()
+        return this.types.getComparator(comparator) != null ? Stream.empty()
             : Stream.of(where(condition, version) + " has a condition comparing with \"" + comparator
                 + "\", which is not a known comparison");
     }
 
-    private static Stream<String> aggregate(final Resource operand, final Resource version)
+    private Stream<String> aggregate(final Resource operand, final Resource version)
     {
         final String aggregate = operand.getValueMap().get("aggregate", String.class);
-        return aggregate == null || knows(Aggregator::parse, aggregate) ? Stream.empty()
+        return aggregate == null || this.types.getAggregator(aggregate) != null ? Stream.empty()
             : Stream.of(where(operand, version) + " has a condition aggregating with \"" + aggregate
                 + "\", which is not a known aggregate");
-    }
-
-    private static boolean knows(final Consumer<String> parser, final String name)
-    {
-        try {
-            parser.accept(name);
-            return true;
-        } catch (final IllegalArgumentException e) {
-            return false;
-        }
     }
 
     private static String where(final Resource conditionPart, final Resource version)

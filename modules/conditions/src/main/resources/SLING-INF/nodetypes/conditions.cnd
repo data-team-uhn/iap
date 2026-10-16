@@ -15,6 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<doc = 'https://iap.uhndata.io/doc/'>
 <data = 'https://iap.uhndata.io/data/'>
 <cond = 'https://iap.uhndata.io/cond/'>
 
@@ -125,3 +126,21 @@
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The catalogue at /ConditionTypes: every comparator, aggregator and operand
+// source this instance knows, served by autodoc as /ConditionTypes.doc.json
+// and .doc.md. The entries are not stored: they come from the services that
+// evaluate them.
+[cond:TypesHomepage] > data:Content, rep:AccessControllable, doc:Documented
+  // Properties:
+
+  - sling:resourceType (STRING) = "cond/TypesHomepage" mandatory autocreated protected
+
+  // The heading of the served documentation, editable by a deployment
+  - title (STRING) = "Conditions" autocreated
+  - description (STRING) = "What a condition can compare, and how." autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple

@@ -170,7 +170,7 @@ describe("SchemaVersionView", () => {
     expect(within(consent).getByText("Template provided")).toBeInTheDocument();
     await expand("Consent form");
     expect(await screen.findByText("Accepts application/pdf.")).toBeInTheDocument();
-    expect(within(consent).getByText(/^Only when the submission's tag list is/)).toBeInTheDocument();
+    expect(within(consent).getByText(/^Only when the tag list is/)).toBeInTheDocument();
     expect(within(await card("Protocol")).getByText("Required")).toBeInTheDocument();
     await expand("Ethics approval");
     expect(await screen.findByText("Approved by reb-members.")).toBeInTheDocument();
@@ -536,7 +536,7 @@ describe("SchemaVersionView", () => {
     const followUp = await card("Follow-up");
     // The line saying when it applies is what changes it
     const line = await within(followUp).findByRole("button", { name: "Change when it applies" });
-    expect(line).toHaveAccessibleDescription("Only when the submission's tag list includes “Draft”");
+    expect(line).toHaveAccessibleDescription("Only when the tag list includes “Draft”");
     fireEvent.click(line);
     const dialog = await screen.findByRole("dialog", { name: /When this .* applies/ });
     expect(within(dialog).getByText("Draft")).toBeInTheDocument();

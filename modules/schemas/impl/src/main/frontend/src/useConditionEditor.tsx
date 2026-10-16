@@ -22,12 +22,10 @@ import ConditionDialog from "@iap/conditions/ConditionDialog";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { questionsFor } from "./conditionModel";
-import QuestionPicker from "./QuestionPicker";
+import { pathOf } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { useTreeEvent } from "./schemaTree";
 import { conditionOf } from "./schemaVersionTreeModel";
-import { useVersionConditions } from "./versionConditions";
 
 export interface ConditionEditor {
   // Opens the dialog that sets the condition. Absent when the part's condition cannot be set. Also absent while a
@@ -37,26 +35,23 @@ export interface ConditionEditor {
   dialog: ReactNode;
 }
 
-// Sets when a part applies. Its condition is built from the answers to the version's other questions, how a
-// submission is tagged, and its properties, and is written whole in one event. A card opens the dialog from its
-// actions, and from the line saying when the part applies.
+// Sets when a part applies. What its condition can compare is the server's to say, for this part, and the condition
+// is written whole in one event. A card opens the dialog from its actions, and from the line saying when the part
+// applies.
 export function useConditionEditor(node: SerializedNode, what: string): ConditionEditor {
   const [ editing, setEditing ] = useState(false);
-  const { index, offered } = useVersionConditions();
   const { moving } = useMoveMode();
   const send = useTreeEvent();
   if (!offers(node, "condition")) {
     return { dialog: null };
   }
-  const questions = questionsFor(node, index);
   return {
     edit: moving ? undefined : () => setEditing(true),
     dialog: editing && (
       <ConditionDialog
         title={`When this ${what} applies`}
         condition={conditionOf(node)}
-        sources={offered}
-        editors={{ answer: editor => <QuestionPicker {...editor} questions={questions} /> }}
+        path={pathOf(node)}
         onClose={() => setEditing(false)}
         onSave={content => send(node, "condition", { content: JSON.stringify(content) })}
       />

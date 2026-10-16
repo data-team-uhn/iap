@@ -1,8 +1,10 @@
 # Conditions
 
 **Module:** `modules/conditions` · **Bundle:** `iap-conditions` ·
-**Packages:** `…conditions.api` (evaluator, `Operand`, `OperandType`, `Operator`,
-`Aggregator`), `…conditions.spi` (`OperandResolver`), `…conditions.models`
+**Packages:** `…conditions.api` (evaluator, `ConditionTypes`, `Operand`,
+`OperandType`, `Operator`, `Aggregator`), `…conditions.spi` (`ConditionComparator`,
+`ConditionAggregator`, `OperandResolver`, `CandidateProvider`, `Candidate`),
+`…conditions.models`
 
 Content that only applies *sometimes* — a question shown when a previous answer calls
 for it, a requirement imposed on certain submissions, a review step needed when a
@@ -42,7 +44,9 @@ content always applies. The submissions module's `QuestionCompletenessEvaluator`
 caller to look at for reference: requirements, sections and questions whose condition
 doesn't hold are not asked of the submitter.
 
-Evaluation **fails closed**. An unknown comparator, unknown operand source,
+Every comparator, aggregator and operand source is looked up in the `ConditionTypes`
+registry: the built-in ones, and those other modules register as services. Evaluation
+**fails closed**. An unknown comparator, unknown operand source,
 unrecognized condition type, or incompatible operand types all yield *not satisfied*,
 so content behind a broken condition stays hidden rather than leaking. A
 mis-authored definition (bad comparator or aggregate name) is additionally recorded
@@ -131,10 +135,20 @@ Aggregating an empty operand yields an empty operand, so absence stays detectabl
 with `is empty` instead of silently becoming a number. `sum` against a non-numeric
 comparison type returns null, which the evaluator reports as unevaluable.
 
-## Adding an operand source
+## Adding a comparator, an aggregator or a source
 
-Implement `OperandResolver` and register it as an OSGi component. The evaluator
-matches `getSource()` against the operand's `source` property.
+Each is a service, and registering one is all it takes: the evaluator uses it, the
+schema checks accept its name, the catalogue lists it, and the condition builder offers
+it. A registered comparator or aggregator with a built-in name is ignored.
+
+| Implement | Stored in | Says, for the catalogue |
+|---|---|---|
+| `ConditionComparator` | `comparator` | `getPhrase()`, `getSingleValuePhrase()`, `isUnary()`, `isOrdering()`, `isSets()` |
+| `ConditionAggregator` | `aggregate` | `getDocumentationLabel()`, `getPhrase()`, `getAcceptedTypes()`, `getOutputType()` |
+| `OperandResolver` | `source` | `getDocumentationLabel()`, `getValueLabel()`, `getPhrase()`, `getValueType()`, `isMultiple()`, `getChoices()`, `isOffered()`, `getOrder()` |
+
+All three extend autodoc's `DocumentedItem`, so a name and a description are always
+there. Everything else has a default, so a minimal source is still two methods:
 
 ```java
 @Component
@@ -151,15 +165,61 @@ public class WeekdayOperandResolver implements OperandResolver
 }
 ```
 
-Contract: return values in their natural stored types — coercion is the evaluator's
-job — declaring the type you are authoritative about via `Operand.of(value, type)`,
-or `Operand.of(value)` to leave it open. Return `Operand.EMPTY`, never null, when
-nothing matches, so `is empty` can test for absence.
-
+A resolver's contract: return values in their natural stored types, since coercion is
+the evaluator's job. Declare the type you are authoritative about via
+`Operand.of(value, type)`, or `Operand.of(value)` to leave it open. Return
+`Operand.EMPTY`, never null, when nothing matches, so `is empty` can test for absence.
 The `Content` model is all you need to walk the repository (`get`, `getParent`,
 `getChild`, `getChildren`, `getReference`, `isOfType`).
 `OperandResolver.findEnclosingEntity(content)` is the shared helper for the "which
 record is this about?" walk, used by both `tags` and `property`.
+
+A source whose value names something picked from a list, such as a question, also needs
+a `CandidateProvider` for its name. The module that knows those things provides it,
+which need not be the one evaluating the source: the schemas module lists a version's
+questions for `answer`.
+
+## The catalogue
+
+`/ConditionTypes` is a `cond:TypesHomepage` with the autodoc mixin, readable by
+everyone. `/ConditionTypes.doc.json` and `.doc.md` list what the registry holds, under
+`Comparators`, `Aggregators` and `Sources`; nothing is stored under the node. The
+condition builder reads the JSON, so it never lists anything itself:
+
+```json
+{ "name": "includes", "label": "includes all of", "phrase": "includes all of",
+  "singleValuePhrase": "includes", "unary": false, "ordering": false, "sets": true }
+
+{ "name": "count", "label": "The number of values", "phrase": "the number of values in",
+  "accepts": "any", "output": "long" }
+
+{ "name": "answer", "label": "The answer to a question", "valueLabel": "Question",
+  "phrase": "the answer to “{label}”", "offered": true, "order": 10,
+  "candidates": "{+path}.conditionCandidates.json?source=answer" }
+
+{ "name": "tags", "label": "The tags", "phrase": "the tag list", "type": "text",
+  "multiple": true, "choices": "/Tags.doc.json", "offered": true, "order": 20 }
+```
+
+A source's `phrase` is how an operand reads in a sentence, `{label}` standing for what
+its value names. A source naming nothing gives its operands' `type` and `multiple`, and
+`choices`, the path of an autodoc catalogue whose items are the values to compare with.
+A source naming something gives `candidates`, an RFC 6570 template whose one variable,
+`path`, is the content the condition is on. Expanded, it answers a JSON list:
+
+```json
+[ { "value": "4f3c…", "label": "What do you need?", "type": "text", "multiple": false,
+    "choices": [ { "value": "laptop", "label": "Laptop" } ],
+    "aliases": [ "form/what" ], "detail": "what" } ]
+```
+
+Each candidate says what the operand then holds, from the same code that evaluates it.
+`aliases` are other names an operand may give it, such as a question's path in its
+version, and `detail` tells it apart from another called the same, such as a question's
+identifier; the builder shows it beside the label.
+`ConditionCandidatesServlet` answers the `conditionCandidates` selector on any content
+by asking the `CandidateProvider` for the source, and answers an empty list when none
+lists it.
 
 ## Example
 
@@ -194,50 +254,46 @@ comparison type, and the unquoted `10` is stored as a number regardless.
 ## Editing in the browser
 
 The module's frontend (`@iap/conditions`) reads and builds conditions for any module
-that stores them.
+that stores them. It knows no comparator, aggregator or source by name: it reads them
+all from the catalogue, so one registered on the server reaches the builder unchanged.
 
-- `conditionModel.ts` is the pure half. It holds the `COMPARATORS` and `AGGREGATES`
-  catalogs, and what an operand holds: an `OperandShape` gives its type, whether it
-  holds several values, and the choices it can be compared with. It makes the draft a
-  builder edits (`draftOf` a stored condition, always a group at the top), says whether
-  a draft can be written (`isComplete`), and makes the content a `replaceContent` event
-  writes from it (`contentOf`, `null` for no condition). It also gives the words a
-  condition reads as (`describeCondition`, `whenApplies`).
-- `ConditionBuilder` edits a draft: groups whose conditions must all hold, or any of
-  them. Each condition compares what a source reads with values of the type it holds,
-  or with what another source reads. An aggregate may fold what the source reads
-  first. The comparators offered depend on what the first operand holds: ordering ones
-  for one value of a type with an order, set ones for several values. A new condition
-  starts from the first source, "is" and a value. What a condition still needs is
-  marked required. Groups nest as deep as needed, each shaded a step deeper than the
-  one holding it. A group's conditions are joined along a line by "And" or "Or", and a
-  group can be collapsed to what it says.
-- `ConditionDialog` edits a stored condition whole. Once the condition is complete, the
-  dialog says when what it guards will apply, in an `AppliesWhenLine`. A module shows
-  the same line where it lists what the condition guards. Given an `onEdit`, that line
-  is also what is pressed to change the condition.
+- `conditionTypes.ts` reads the catalogue. `useConditionTypes(path)` gives the
+  `ConditionTypes` for the content at `path`, the one a condition is on or the entity
+  holding the conditions shown: the comparators, the aggregates, and each offered source
+  with what it can name there, read from its `candidates`, and what it can be compared
+  with. It is `undefined` while they load. `loadConditionTypes` is the same without
+  React.
+- `conditionModel.ts` is the pure half, and every function in it is given the
+  `ConditionTypes`. An `OperandShape` gives what an operand holds: its type, whether it
+  holds several values, and the choices it can be compared with. The model makes the
+  draft a builder edits (`draftOf` a stored condition, always a group at the top), says
+  whether a draft can be written (`isComplete`), and makes the content a
+  `replaceContent` event writes from it (`contentOf`, `null` for no condition). It also
+  gives the words a condition reads as (`describeCondition`, `whenApplies`), each
+  operand read through its source's `phrase`.
+- `ConditionBuilder` edits a draft, given the `types`: groups whose conditions must all
+  hold, or any of them. Each condition compares what a source reads with values of the
+  type it holds, or with what another source reads. A source whose operand names
+  something is picked from its candidates, each shown with its `detail`. An aggregate
+  may fold what the source reads first. The comparators offered depend on what the first
+  operand holds: ordering ones for one value of a type with an order, set ones for
+  several values. A new condition starts from the first source, "is" and a value. What a
+  condition still needs is marked required. Groups nest as deep as needed, each shaded a
+  step deeper than the one holding it. A group's conditions are joined along a line by
+  "And" or "Or", and a group can be collapsed to what it says.
+- `ConditionDialog` edits a stored condition whole, given the `path` of the content it
+  is on, and loads the types for it. Once the condition is complete, the dialog says
+  when what it guards will apply, in an `AppliesWhenLine`. A module shows the same line
+  where it lists what the condition guards. Given an `onEdit`, that line is also what is
+  pressed to change the condition.
 
-Operand sources are pluggable, as on the server. An `OperandSource` gives its `name`
-(the stored `source`) and what choosing it reads as (`label`). It says what its `value`
-names, if anything (`valueLabel`), the `shape` of what its operands hold, and how they
-read (`describe`). The module ships `tagsSource` (given the tag choices `useTagChoices`
-loads), `propertySource` and `ownPropertySource`. Each is given what the using module
-calls the thing it reads from, such as "submission". The tags source then reads "the
-submission's tag list" rather than "the tag list". The schemas module adds its `answer`
-source, whose operands hold the answers to a question of the version, typed by its
-`dataType` and offering its options. A module whose source names something picked rather
-than typed, such as a question, passes the builder a function rendering the input for it
-(`editors`, by the source's name).
+An aggregate is offered where an operand can hold several values of a type it
+`accepts`. From then on the builder treats the operand as holding its `output`: a fixed
+type, or the one it folds (`"same"`).
 
-As on the server, each aggregate says which types it `accepts` and what it outputs: a
-fixed type, or the one it folds (`"same"`). The builder offers one where an operand can
-hold several values of a type it accepts. From then on it treats the operand as holding
-the output. Only `count` is offered so far. `sum`, `avg`, `min` and `max` are one
-catalog entry each.
-
-In the builder, a comparator, source or aggregate the model does not know is shown by
-its stored name and kept. A condition of a kind it does not know is shown and can be
-removed, but a draft holding one cannot be written.
+In the builder, a comparator, source or aggregate the catalogue does not list is shown
+by its stored name and kept. A condition of a kind the model does not know is shown and
+can be removed, but a draft holding one cannot be written.
 
 ## Future work
 

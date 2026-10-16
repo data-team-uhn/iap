@@ -21,24 +21,28 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.conditions.spi.ConditionAggregator;
 
 /**
  * An optional fold collapsing an operand's value set into a single value before the comparison, as indicated in
  * the {@code aggregate} property of a {@code cond:ConditionOperand} node — e.g. summing the answers given across
  * repeated blocks, or counting the options picked in a multi-select answer. Aggregating an empty operand always
  * yields an empty operand, so absence stays detectable (and fails ordering comparisons) instead of silently
- * becoming a number.
+ * becoming a number. These are the ones every instance has; a module adds others as {@link ConditionAggregator}
+ * services.
  *
  * @version $Id$
  * @since 0.1.0
  */
-public enum Aggregator
+public enum Aggregator implements ConditionAggregator
 {
     /** The number of values. Compared as a number regardless of the values' own type. */
-    COUNT("count")
+    COUNT("count", "The number of values", "the number of values in", "How many values the operand holds.", Set.of())
     {
         @Override
         public OperandType getOutputType()
@@ -55,7 +59,8 @@ public enum Aggregator
     },
 
     /** The sum of the values. Only applicable when the values are compared as numbers. */
-    SUM("sum")
+    SUM("sum", "The sum of the values", "the sum of", "The values added up.", Set.of(OperandType.LONG,
+        OperandType.DOUBLE, OperandType.DECIMAL))
     {
         @Override
         public Operand apply(final Operand input, final OperandType comparisonType)
@@ -76,7 +81,8 @@ public enum Aggregator
     },
 
     /** The arithmetic mean of the values, computed and compared as a floating point number. */
-    AVG("avg")
+    AVG("avg", "The average of the values", "the average of", "The arithmetic mean of the values.",
+        Set.of(OperandType.LONG, OperandType.DOUBLE, OperandType.DECIMAL))
     {
         @Override
         public OperandType getOutputType()
@@ -101,7 +107,8 @@ public enum Aggregator
     },
 
     /** The smallest value, by the natural order of the compared type — usable for dates too. */
-    MIN("min")
+    MIN("min", "The smallest value", "the smallest of", "The value that comes first in order.", Set.of(
+        OperandType.LONG, OperandType.DOUBLE, OperandType.DECIMAL, OperandType.DATE))
     {
         @Override
         public Operand apply(final Operand input, final OperandType comparisonType)
@@ -114,7 +121,8 @@ public enum Aggregator
     },
 
     /** The largest value, by the natural order of the compared type — usable for dates too. */
-    MAX("max")
+    MAX("max", "The largest value", "the largest of", "The value that comes last in order.", Set.of(
+        OperandType.LONG, OperandType.DOUBLE, OperandType.DECIMAL, OperandType.DATE))
     {
         @Override
         public Operand apply(final Operand input, final OperandType comparisonType)
@@ -128,9 +136,22 @@ public enum Aggregator
 
     private final String name;
 
-    Aggregator(final String name)
+    private final String label;
+
+    private final String phrase;
+
+    private final String description;
+
+    private final Set<OperandType> acceptedTypes;
+
+    Aggregator(final String name, final String label, final String phrase, final String description,
+        final Set<OperandType> acceptedTypes)
     {
         this.name = name;
+        this.label = label;
+        this.phrase = phrase;
+        this.description = description;
+        this.acceptedTypes = acceptedTypes;
     }
 
     /**
@@ -138,10 +159,39 @@ public enum Aggregator
      *
      * @return an aggregator name, e.g. {@code sum}
      */
+    @Override
     @NotNull
     public String getName()
     {
         return this.name;
+    }
+
+    @Override
+    @NotNull
+    public String getDocumentationLabel()
+    {
+        return this.label;
+    }
+
+    @Override
+    @NotNull
+    public String getDescription()
+    {
+        return this.description;
+    }
+
+    @Override
+    @NotNull
+    public String getPhrase()
+    {
+        return this.phrase;
+    }
+
+    @Override
+    @NotNull
+    public Set<OperandType> getAcceptedTypes()
+    {
+        return Set.copyOf(this.acceptedTypes);
     }
 
     /**
@@ -151,6 +201,7 @@ public enum Aggregator
      *
      * @return an operand type, or {@code null} if the result has the same type as the input values
      */
+    @Override
     @Nullable
     public OperandType getOutputType()
     {
@@ -165,6 +216,7 @@ public enum Aggregator
      * @return the folded operand, empty if the input is empty, or {@code null} if this aggregator cannot operate
      *         under the given comparison type (e.g. summing non-numbers)
      */
+    @Override
     @Nullable
     public abstract Operand apply(@NotNull Operand input, @NotNull OperandType comparisonType);
 
