@@ -30,6 +30,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sch:Topic} node: a broad area the approvers want assessed before they grant an
@@ -40,7 +41,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  */
 @Model(adaptables = Resource.class, resourceType = Topic.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Topic extends EntityPart
+public class Topic extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sch:Topic} node. */
     public static final String RESOURCE_TYPE = "sch/Topic";
@@ -106,5 +107,12 @@ public class Topic extends EntityPart
             .map(identifier -> this.getReference(identifier, EntityPart.class))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

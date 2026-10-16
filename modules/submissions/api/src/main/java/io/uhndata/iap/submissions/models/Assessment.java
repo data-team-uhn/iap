@@ -31,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Topic;
+import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:Assessment} node: one assessment of a single schema {@link Topic},
@@ -41,7 +42,7 @@ import io.uhndata.iap.schemas.models.Topic;
  */
 @Model(adaptables = Resource.class, resourceType = Assessment.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Assessment extends EntityPart
+public class Assessment extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:Assessment} node. */
     public static final String RESOURCE_TYPE = "sub/Assessment";
@@ -132,5 +133,12 @@ public class Assessment extends EntityPart
     public List<Comment> getComments()
     {
         return this.getChildren(Comment.RESOURCE_TYPE, Comment.class);
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier()
+    {
+        return this.identifier;
     }
 }

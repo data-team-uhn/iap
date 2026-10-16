@@ -73,6 +73,16 @@ class TopicTest
     }
 
     @Test
+    void exposesItsIdentifier()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/study/1.0/reb/identified", Map.of(
+            "sling:resourceType", Topic.RESOURCE_TYPE,
+            "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
+
+        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(Topic.class).getIdentifier());
+    }
+
+    @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource(TOPIC_PATH,
