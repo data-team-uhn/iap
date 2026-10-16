@@ -21,6 +21,7 @@ is only a container with a name, while its actual content lives in versions.
         │   └── cond:condition   (when this requirement applies)
         ├── consent              sch:DocumentRequirement  required, acceptedFileTypes, template
         └── reb                  sch:ApprovalRequirement  approverGroup
+            └── privacy          sch:Topic            text, description, assessmentPrompt, sources
 ```
 
 Requirements, sections and questions are `orderable`: the order they are stored in is
@@ -31,8 +32,15 @@ reads the order from `@order` (see [json-serialization.md](json-serialization.md
 schema's versions are not ordered, so they are listed by label, in numeric order (`1.0`,
 `2.0`, `10.0`). Every requirement and form item is `cond:Conditionable`, so it may carry
 one condition deciding whether it applies (see [conditions.md](conditions.md)).
-Questions and requirements are referenceable, because answers, documents and reviews point back
-at them.
+Questions and requirements are referenceable, because answers, documents, reviews and
+comments point back at them.
+
+An approval requirement lists, in order, the **topics** its approvers want assessed: a
+broad area such as privacy or consent rather than one checkbox per point, so a reviewer
+is guided without being buried. Its `description` says what to look for, `sources` names
+the requirements and questions that bear on it, and `assessmentPrompt` is what the AI is
+asked. Each review, and the AI's screening, assesses every topic on its own, so topics are
+referenceable too.
 
 ### Questions
 
