@@ -482,7 +482,7 @@
       <dependency>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-annotations</artifactId>
-        <version>4.10.4</version>
+        <version>4.10.5</version>
         <scope>provided</scope>
       </dependency>
       <!-- TEST -->
@@ -2462,13 +2462,13 @@
         <plugin>
           <groupId>com.github.spotbugs</groupId>
           <artifactId>spotbugs-maven-plugin</artifactId>
-          <version>4.10.4.1</version>
+          <version>4.10.5.0</version>
           <dependencies>
             <!-- overwrite dependency on spotbugs if you want to specify the version of spotbugs -->
             <dependency>
               <groupId>com.github.spotbugs</groupId>
               <artifactId>spotbugs</artifactId>
-              <version>4.10.4</version>
+              <version>4.10.5</version>
             </dependency>
           </dependencies>
           <executions>

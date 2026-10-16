@@ -43,13 +43,18 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (rep:Unstructured) /jcr:system/iap-jwt/JWTRSA256Key \n set ACL for everyone \n   deny jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n end",
-        "create service user iap-jwt-token-manager \n set ACL for iap-jwt-token-manager \n allow jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n     allow jcr:read on / \n end"
+        "create service user iap-jwt-token-manager \n set ACL for iap-jwt-token-manager \n allow jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n     allow jcr:read on / \n end",
+        "create service user iap-jwt-peer-registrar \n set ACL for iap-jwt-peer-registrar \n     allow jcr:read,jcr:write,jcr:nodeTypeManagement on /jcr:system/iap-jwt \n     deny jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iap-jwt-token-authentication": {
       "user.mapping": [
-        "io.uhndata.iap.jwt-token-authentication=[iap-jwt-token-manager]"
+        "io.uhndata.iap.jwt-token-authentication=[iap-jwt-token-manager]",
+        "io.uhndata.iap.jwt-token-authentication:peers=[iap-jwt-peer-registrar]"
       ]
+    },
+    "io.uhndata.iap.auth.token.jwt.impl.IapJwtTokenManagerImpl": {
+      "identity": "$[env:IAP_PUBLIC_URL;default=http://localhost:8080]"
     }
   }
 }
