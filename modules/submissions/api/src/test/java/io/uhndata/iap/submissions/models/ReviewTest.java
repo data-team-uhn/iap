@@ -145,7 +145,7 @@ class ReviewTest
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/privacy", Map.of(
-            "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Looked at"));
+            "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Addressed"));
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
             "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Not an assessment"));
         final Review review = resource.adaptTo(Review.class);
@@ -153,7 +153,7 @@ class ReviewTest
         final List<Assessment> assessments = review.getAssessments();
 
         assertEquals(1, assessments.size());
-        assertEquals("Looked at", assessments.get(0).getValue());
+        assertEquals("Addressed", assessments.get(0).getValue());
     }
 
     @Test

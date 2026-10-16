@@ -119,12 +119,12 @@ class FeedbackTest
     {
         final Feedback screening = feedback("screening", Screening.RESOURCE_TYPE);
         this.context.create().resource(PATH + "screening/privacy", Map.of(
-            "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Looked at"));
+            "sling:resourceType", Assessment.RESOURCE_TYPE, "summary", "Consent is covered"));
         this.context.create().resource(PATH + "screening/c1", Map.of(
             "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Not an assessment", "author", "a"));
 
-        assertEquals(List.of("Looked at"),
-            screening.getAssessments().stream().map(Assessment::getValue).collect(Collectors.toList()));
+        assertEquals(List.of("Consent is covered"),
+            screening.getAssessments().stream().map(Assessment::getSummary).collect(Collectors.toList()));
         assertTrue(feedback("empty", Discussion.RESOURCE_TYPE).getAssessments().isEmpty());
     }
 

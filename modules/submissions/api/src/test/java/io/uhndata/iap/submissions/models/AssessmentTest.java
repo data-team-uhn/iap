@@ -103,11 +103,11 @@ class AssessmentTest
         final Resource resource = this.context.create().resource(ASSESSMENT_PATH, Map.of(
             "sling:resourceType", Assessment.RESOURCE_TYPE,
             "topic", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
-            "value", "Looked at"));
+            "value", "Addressed"));
         final Assessment assessment = resource.adaptTo(Assessment.class);
 
         assertEquals("Participant privacy", assessment.getTopic().getText());
-        assertEquals("Looked at", assessment.getValue());
+        assertEquals("Addressed", assessment.getValue());
     }
 
     @Test

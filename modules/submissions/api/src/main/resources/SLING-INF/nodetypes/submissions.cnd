@@ -345,7 +345,9 @@
   // The sch:Topic this assesses
   - topic (REFERENCE) mandatory
 
-  // Has the reviewer looked at the topic for this assessment?
+  // The reviewer's verdict on the topic. Its shape, a few fixed choices or a
+  // yes/no, is still to be decided. The AI never sets it: its view is the
+  // summary and the comments.
   - value (STRING)
 
   // A short summary of this assessment
