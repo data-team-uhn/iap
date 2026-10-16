@@ -975,7 +975,10 @@ bootstrapping: `/SystemWorkflows/saveAnswers` targets `sub/Submission` itself ra
 than a homepage, so filling a request in, a `POST` to `<submission>.save.json`, is a
 workflow event like any other. What a save is allowed to do — whose request it is, and
 whether it is still a draft — is decided by its handler rather than by the servlet that
-received the POST.
+received the POST. The handler also refuses a value for a question the submitter is not
+shown. It judges that after writing the save's own answers, so a question the same save
+reveals is accepted with the answer that reveals it, and clearing an answer is always
+accepted.
 
 After writing the answers, the save runs two more steps. `createParts` asks every
 `PartCreator` (an SPI in `submissions-api`) to give each item that applies a part of its

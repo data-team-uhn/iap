@@ -19,17 +19,23 @@ package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.internal.ApplicableItems;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.ReferenceUtils;
@@ -51,6 +57,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>Saving is idempotent: an answer already recorded for a question is updated in place, found by the reference it
  * holds rather than by any name, so saving twice leaves one answer and not two.</p>
  *
+ * <p>A value is accepted only for a question the submitter is shown. This is judged after the save's own writes, so a
+ * question the same save reveals is accepted along with the answer that reveals it. Clearing an answer is always
+ * accepted.</p>
+ *
  * <p><strong>Both rules about who may do this are enforced here:</strong> the actor is the person the engine recorded
  * as having raised the submission, and that the submission is still a draft. The first rule is checked here explicitly
  * rather than declared, because {@code PerformerCheck} does not yet support the {@code @creator} role.</p>
@@ -67,6 +77,9 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     private static final String QUESTION_PROPERTY = "question";
 
     private static final String VALUE_PROPERTY = "value";
+
+    @Reference
+    private ConditionEvaluator conditions;
 
     @Override
     public String getName()
@@ -94,6 +107,34 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         VersioningUtils.checkOut(target);
         for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
             record(existing, target, answer.getKey(), answer.getValue());
+        }
+        checkShown(target, schemaVersion, answers);
+    }
+
+    /**
+     * Refuses the save if it gave a value to a question the submitter is not shown, now that its own answers are
+     * written. The engine then commits nothing.
+     *
+     * @param target the submission's own resource, read again to see the answers just written
+     * @param schemaVersion the schema version the question paths are relative to
+     * @param answers the questions this save answered, with the values it gave them
+     * @throws InvalidStateException when a value was given to a question that does not apply
+     */
+    private void checkShown(final Resource target, final Resource schemaVersion, final Map<Resource, String[]> answers)
+        throws InvalidStateException
+    {
+        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
+            "A submission resource always reads as a submission");
+        final Set<String> shown = ApplicableItems.getQuestions(submission, this.conditions).stream()
+            .map(Question::getPath)
+            .collect(Collectors.toSet());
+        final List<String> hidden = answers.entrySet().stream()
+            .filter(answer -> answer.getValue().length > 0 && !shown.contains(answer.getKey().getPath()))
+            .map(answer -> answer.getKey().getPath().substring(schemaVersion.getPath().length() + 1))
+            .toList();
+        if (!hidden.isEmpty()) {
+            throw new InvalidStateException("These questions do not apply to this request now: "
+                + String.join(", ", hidden));
         }
     }
 
@@ -217,7 +258,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     {
         final String existing = answers.get(question.getPath());
         if (existing == null && values.length == 0) {
-            // Clearing a question that has no answer yet. Its empty answer is markCompleteness's to create
+            // Clearing a question that has no answer yet. Its empty answer is createParts's to create
             return;
         }
         if (existing != null) {

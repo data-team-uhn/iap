@@ -18,9 +18,12 @@
 package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -42,9 +45,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
@@ -87,12 +92,22 @@ class SaveAnswersHandlerTest
 
     private static final String START_DATE = "details/startDate";
 
+    private static final String REASON = "details/reason";
+
+    private static final String SUPER_TYPE = "sling:resourceSuperType";
+
     private static final String VALUE = "value";
 
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE through the JCR API
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final SaveAnswersHandler handler = new SaveAnswersHandler();
+
+    /** The schema parts these tests hide; everything else applies. */
+    private final Set<String> hidden = new HashSet<>();
+
+    /** A part shown only once some answer in the request holds "yes", if a test sets one. */
+    private String revealed;
 
     private Resource target;
 
@@ -101,12 +116,23 @@ class SaveAnswersHandlerTest
     private Node node;
 
     @BeforeEach
-    void setUp() throws RepositoryException
+    void setUp() throws RepositoryException, ReflectiveOperationException
     {
         this.node = Mockito.mock(Node.class);
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, Question.class, Answer.class, Submission.class, Activity.class);
+            SchemaVersion.class, FormRequirement.class, Question.class, Answer.class, Submission.class,
+            Activity.class);
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(call -> {
+            final String name = ((Content) call.getArgument(0)).getName();
+            return name.equals(this.revealed) ? this.saysYes() : !this.hidden.contains(name);
+        });
+        // The submission model asks for the evaluator through @OSGiService
+        this.context.registerService(ConditionEvaluator.class, conditions);
+        final var field = SaveAnswersHandler.class.getDeclaredField("conditions");
+        field.setAccessible(true);
+        field.set(this.handler, conditions);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -115,9 +141,12 @@ class SaveAnswersHandlerTest
         this.context.create().resource(VERSION_PATH, Map.of(
             TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
-            TYPE, "sch/FormRequirement", "label", "Request details"));
+            TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Request details"));
         this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(
-            TYPE, Question.RESOURCE_TYPE, "text", "Which day does your time off start?", "dataType", "date"));
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, "sch/FormItem", "text", "Which day does your time off start?",
+            "dataType", "date"));
+        this.context.create().resource(VERSION_PATH + "/" + REASON, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, "sch/FormItem", "text", "Is it for a wedding?"));
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
@@ -141,6 +170,42 @@ class SaveAnswersHandlerTest
         // A real REFERENCE, holding the question node's own identifier
         assertEquals(identifierOf(VERSION_PATH + "/" + START_DATE),
             answer.getValueMap().get("question", String.class));
+    }
+
+    @Test
+    void refusesAValueForAQuestionThatDoesNotApply()
+    {
+        this.hidden.add("startDate");
+
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
+
+        assertEquals("These questions do not apply to this request now: " + START_DATE, refusal.getMessage());
+    }
+
+    @Test
+    void acceptsClearingAQuestionThatDoesNotApply()
+    {
+        this.hidden.add("startDate");
+
+        assertDoesNotThrow(() -> this.handler.execute(context(Map.of(START_DATE, ""))));
+    }
+
+    @Test
+    void acceptsAQuestionTheSameSaveReveals()
+    {
+        this.revealed = "startDate";
+
+        assertDoesNotThrow(() -> this.handler.execute(context(Map.of(REASON, "yes", START_DATE, "2026-10-06"))));
+    }
+
+    @Test
+    void refusesAQuestionTheSameSaveKeepsHidden()
+    {
+        this.revealed = "startDate";
+
+        assertThrows(InvalidStateException.class,
+            () -> this.handler.execute(context(Map.of(REASON, "no", START_DATE, "2026-10-07"))));
     }
 
     @Test
@@ -529,5 +594,17 @@ class SaveAnswersHandlerTest
                 throw new IllegalStateException("No workflow was expected to be started here");
             }
         };
+    }
+
+    /**
+     * Whether some answer in the request holds "yes", read off the nodes, since an answer the handler just created
+     * carries no resource type in the mock repository.
+     *
+     * @return {@code true} if one does
+     */
+    private boolean saysYes()
+    {
+        return StreamSupport.stream(this.target.getChildren().spliterator(), false)
+            .anyMatch(child -> List.of(child.getValueMap().get(VALUE, new String[0])).contains("yes"));
     }
 }
