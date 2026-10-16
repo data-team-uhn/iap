@@ -229,15 +229,13 @@ export function findMark(frame: HTMLElement, id: string, { point = false } = {})
 // How wide and high a point is to the pointer, however thin it is drawn: a fingertip on a touch screen.
 const POINT_HIT_SIZE = { touch: 40, mouse: 16 };
 
-function getHitBox(mark: HTMLElement): DOMRect {
+function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
   const box = mark.getBoundingClientRect();
   if (!mark.classList.contains(POINT_CLASS)) {
     return box;
   }
-  const touch = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
-  const size = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
-  const width = Math.max(box.width, size);
-  const height = Math.max(box.height, size);
+  const width = Math.max(box.width, pointSize);
+  const height = Math.max(box.height, pointSize);
   return new DOMRect(box.left + (box.width - width) / 2, box.top + (box.height - height) / 2, width, height);
 }
 
@@ -245,8 +243,10 @@ function getHitBox(mark: HTMLElement): DOMRect {
 // can be selected across them, and a click is matched to them by where it falls. Where marks overlap,
 // one not selected comes first, so clicking again reaches the other.
 export function markAt(frame: HTMLElement, x: number, y: number): string | undefined {
+  const touch = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  const pointSize = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).filter(mark => {
-    const { left, right, top, bottom } = getHitBox(mark);
+    const { left, right, top, bottom } = getHitBox(mark, pointSize);
     return x >= left && x <= right && y >= top && y <= bottom;
   });
   return (hits.find(mark => !mark.classList.contains("selected")) ?? hits.at(0))?.dataset.markId;
