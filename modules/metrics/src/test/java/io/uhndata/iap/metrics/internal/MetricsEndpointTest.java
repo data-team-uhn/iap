@@ -40,6 +40,7 @@ import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Unit tests for {@link MetricsEndpoint}.
@@ -119,7 +120,8 @@ class MetricsEndpointTest
         assertEquals(500, response.getStatus());
         final JsonObject result = Json.createReader(new StringReader(response.getOutputAsString())).readObject();
         assertEquals("error", result.getString("status"));
-        assertEquals("repository unavailable", result.getString("error"));
+        // The cause goes to the log, never to the caller
+        assertFalse(result.getString("error").contains("repository unavailable"));
     }
 
     private Metric metric(final String name, final Metric.AccessLevel accessLevel)
