@@ -95,8 +95,7 @@
             "long": { "jcr:primaryType": "nt:unstructured", "label": "Whole number" },
             "double": { "jcr:primaryType": "nt:unstructured", "label": "Decimal number" },
             "boolean": { "jcr:primaryType": "nt:unstructured", "label": "Yes or no" },
-            "date": { "jcr:primaryType": "nt:unstructured", "label": "Date" },
-            "file": { "jcr:primaryType": "nt:unstructured", "label": "File" }
+            "date": { "jcr:primaryType": "nt:unstructured", "label": "Date" }
           }
         },
         "minAnswers": {

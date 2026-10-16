@@ -169,7 +169,7 @@
   // Optional longer explanation displayed to the submitter
   - description (STRING)
 
-  // Expected answer type: text, long, double, boolean, date, file
+  // Expected answer type: text, long, double, boolean, date
   - dataType (STRING) = "text" mandatory autocreated
 
   // How many values an answer takes: a positive minimum is what "required"

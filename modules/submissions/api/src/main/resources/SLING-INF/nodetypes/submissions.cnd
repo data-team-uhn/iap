@@ -110,8 +110,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Allow any other children for extensibility;
-  // file-type answers store their upload as nt:file children
+  // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------

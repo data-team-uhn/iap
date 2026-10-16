@@ -23,7 +23,7 @@ import { adminAuth } from '../../support/auth';
 const POINT = '/apps/iap/ExtensionPoints/AnswerComponent';
 
 // The basic components the submissions module ships
-const SHIPPED = [ 'Boolean', 'Choice', 'Date', 'File', 'Number', 'Text' ];
+const SHIPPED = [ 'Boolean', 'Choice', 'Date', 'Number', 'Text' ];
 
 interface AnswerComponentExtension {
   'ext:name': string;

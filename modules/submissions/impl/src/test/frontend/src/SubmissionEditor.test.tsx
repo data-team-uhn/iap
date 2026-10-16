@@ -25,7 +25,6 @@ import { loadAnswerComponents } from "@iap/submissions/answers";
 import "@iap/submissions/answers/BooleanAnswer";
 import "@iap/submissions/answers/ChoiceAnswer";
 import "@iap/submissions/answers/DateAnswer";
-import "@iap/submissions/answers/FileAnswer";
 import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";

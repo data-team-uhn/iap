@@ -39,7 +39,7 @@ at them.
 | Property | Notes |
 |---|---|
 | `text`, `description` | What the submitter reads. |
-| `dataType` | `text`, `long`, `double`, `boolean`, `date`, `file`. |
+| `dataType` | `text`, `long`, `double`, `boolean`, `date`. A file is asked for by a document requirement. |
 | `minAnswers`, `maxAnswers` | How many values an answer takes. A positive minimum is what "required" means, a maximum other than 1 is what "multiple" means; zero or negative leaves that end open. |
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match, and what to say when one does not. |

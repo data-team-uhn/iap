@@ -24,7 +24,6 @@ import { ANSWER_COMPONENT_POINT, loadAnswerComponents } from "@iap/submissions/a
 import BooleanAnswer from "@iap/submissions/answers/BooleanAnswer";
 import ChoiceAnswer from "@iap/submissions/answers/ChoiceAnswer";
 import DateAnswer from "@iap/submissions/answers/DateAnswer";
-import FileAnswer from "@iap/submissions/answers/FileAnswer";
 import NumberAnswer from "@iap/submissions/answers/NumberAnswer";
 import TextAnswer from "@iap/submissions/answers/TextAnswer";
 import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
@@ -77,7 +76,6 @@ describe("the answer components that ship with this module", () => {
     expect(getAnswerComponent(question({ dataType: "date" }))).toBe(DateAnswer);
     expect(getAnswerComponent(question({ dataType: "long" }))).toBe(NumberAnswer);
     expect(getAnswerComponent(question({ dataType: "double" }))).toBe(NumberAnswer);
-    expect(getAnswerComponent(question({ dataType: "file" }))).toBe(FileAnswer);
   });
 
   // The one candidate that reads something other than the data type, and it has to win against the
