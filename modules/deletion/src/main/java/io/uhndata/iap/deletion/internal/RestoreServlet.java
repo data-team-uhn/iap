@@ -64,25 +64,25 @@ public class RestoreServlet extends SlingJakartaAllMethodsServlet
         try {
             final RestoreResult result = this.deletionService.restore(request.getResource());
             if (result.getStatus() == RestoreResult.Status.RESTORED) {
-                final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_OK, "restored");
-                body.add("restored", JsonResponses.paths(result.getRestoredPaths()));
-                JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+                final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_OK, "restored");
+                body.add("restored", DeletionResponses.paths(result.getRestoredPaths()));
+                DeletionResponses.send(response, HttpServletResponse.SC_OK, body);
                 return;
             }
             this.sendConflicts(response, result);
         } catch (final IllegalArgumentException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
         } catch (final DeletionException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
         }
     }
 
     private void sendConflicts(final SlingJakartaHttpServletResponse response, final RestoreResult result)
         throws IOException
     {
-        final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_CONFLICT, "conflict");
+        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_CONFLICT, "conflict");
         body.add("status.message", "Some archived items cannot be restored; nothing was changed");
-        body.add("conflicts", JsonResponses.conflicts(result.getConflicts()));
-        JsonResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
+        body.add("conflicts", DeletionResponses.conflicts(result.getConflicts()));
+        DeletionResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
     }
 }

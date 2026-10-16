@@ -69,7 +69,7 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         if (request.getResource().adaptTo(Node.class) == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_NOT_FOUND, "missing",
+            DeletionResponses.send(response, HttpServletResponse.SC_NOT_FOUND, "missing",
                 "Not a repository resource");
             return;
         }
@@ -84,19 +84,19 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
             this.sendOutcome(request, response,
                 this.deletionService.delete(request.getResource(), options));
         } catch (final IllegalArgumentException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
         } catch (final DeletionException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
         }
     }
 
     private void sendDryRun(final SlingJakartaHttpServletResponse response, final DeletionImpact impact)
         throws IOException
     {
-        final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_OK, "dryRun");
+        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_OK, "dryRun");
         body.add("executable", impact.isExecutable());
-        JsonResponses.describeImpact(body, impact);
-        JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+        DeletionResponses.describeImpact(body, impact);
+        DeletionResponses.send(response, HttpServletResponse.SC_OK, body);
     }
 
     private void sendOutcome(final SlingJakartaHttpServletRequest request,
@@ -108,7 +108,7 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
             case VETOED -> this.sendVetoed(response, result);
             case REQUIRES_CONFIRMATION -> this.sendReferenced(response, result);
             // DENIED
-            default -> JsonResponses.send(response,
+            default -> DeletionResponses.send(response,
                 request.getRemoteUser() == null ? HttpServletResponse.SC_UNAUTHORIZED
                     : HttpServletResponse.SC_FORBIDDEN,
                 "denied", "You are not allowed to delete everything this deletion would impact");
@@ -118,32 +118,32 @@ public class DeleteServlet extends SlingJakartaAllMethodsServlet
     private void sendSuccess(final SlingJakartaHttpServletResponse response, final DeletionResult result,
         final String status) throws IOException
     {
-        final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_OK, status);
+        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_OK, status);
         if (result.getArchiveEntryPath() != null) {
             body.add("archiveEntry", result.getArchiveEntryPath());
         }
-        body.add("items", JsonResponses.paths(result.getImpact().getItemPaths()));
-        body.add("removedLinks", JsonResponses.paths(result.getImpact().getRemovedLinkPaths()));
-        JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+        body.add("items", DeletionResponses.paths(result.getImpact().getItemPaths()));
+        body.add("removedLinks", DeletionResponses.paths(result.getImpact().getRemovedLinkPaths()));
+        DeletionResponses.send(response, HttpServletResponse.SC_OK, body);
     }
 
     private void sendVetoed(final SlingJakartaHttpServletResponse response, final DeletionResult result)
         throws IOException
     {
-        final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_CONFLICT, "vetoed");
+        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_CONFLICT, "vetoed");
         body.add("status.message", result.getImpact().getVetoes().stream()
             .map(Veto::getReason)
             .distinct()
             .collect(Collectors.joining("; ")));
-        body.add("vetoes", JsonResponses.vetoes(result.getImpact().getVetoes()));
-        JsonResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
+        body.add("vetoes", DeletionResponses.vetoes(result.getImpact().getVetoes()));
+        DeletionResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
     }
 
     private void sendReferenced(final SlingJakartaHttpServletResponse response, final DeletionResult result)
         throws IOException
     {
-        final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_CONFLICT, "referenced");
-        JsonResponses.describeImpact(body, result.getImpact());
-        JsonResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
+        final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_CONFLICT, "referenced");
+        DeletionResponses.describeImpact(body, result.getImpact());
+        DeletionResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
     }
 }

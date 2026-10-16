@@ -91,7 +91,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
         final ResourceResolver resolver = request.getResourceResolver();
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
                 UNQUERYABLE_MESSAGE);
             return;
         }
@@ -106,7 +106,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
             send(response, resolver, page, offset, limit, sortBy, descending);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to list the archive entries: {}", e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED_OUTCOME,
                 UNQUERYABLE_MESSAGE);
         }
     }
@@ -135,7 +135,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
             .add("totalIsApproximate", page.total().approximate())
             .add("sortBy", ArchiveQuery.SORTABLE_PROPERTIES.contains(sortBy) ? sortBy : ArchiveQuery.DEFAULT_SORT)
             .add("descending", descending);
-        JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+        DeletionResponses.sendContent(response, HttpServletResponse.SC_OK, body);
     }
 
     private static long parseLong(final String value, final long fallback)
