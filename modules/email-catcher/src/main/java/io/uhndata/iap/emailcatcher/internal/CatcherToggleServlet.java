@@ -100,8 +100,6 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setContentType("application/json;charset=UTF-8");
-
         if (!isAdministrator(request)) {
             JsonResponses.writeError(response, 403,
                 "Only an administrator may switch mail catching on or off");
@@ -126,11 +124,10 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
 
         LOGGER.info("Mail catching was switched {} by {}", enabled ? "on" : "off",
             UserIds.canonical(request.getResourceResolver()));
-        response.getWriter().write(Json.createObjectBuilder()
+        JsonResponses.write(response, 200, "ok", Json.createObjectBuilder()
             // What was asked for. The component takes a moment to restart, and
             // /libs/iap/mail-catcher.catching.json says what is in force.
-            .add("requested", enabled)
-            .build().toString());
+            .add("requested", enabled));
     }
 
     /**

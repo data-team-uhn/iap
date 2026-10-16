@@ -29,6 +29,8 @@ import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.JsonResponses;
+
 /**
  * Answers {@code adminSummary.json} for a tool's dashboard widget. The format is described in
  * {@code docs/administration.md}, under "Summary figures".
@@ -53,39 +55,43 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     private static final Logger LOGGER = LoggerFactory.getLogger(AdminSummaryServlet.class);
 
     @Override
+    // The summary is content, figures rather than a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     public final void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        JsonObjectBuilder body;
+        final JsonObjectBuilder body;
         try {
             body = this.summarize(request);
-            response.setStatus(HttpServletResponse.SC_OK);
         } catch (final SummaryUnavailableException e) {
-            body = failed(request, e.getMessage(), e.getCause());
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            fail(request, response, e.getMessage(), e.getCause());
+            return;
         } catch (final RuntimeException e) {
             // A failure the subclass did not foresee still answers in the format the widget reads
-            body = failed(request, UNREADABLE_MESSAGE, e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            fail(request, response, UNREADABLE_MESSAGE, e);
+            return;
         }
+        response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(body.build().toString());
     }
 
     /**
-     * Logs a failure and builds the answer reporting it.
+     * Logs a failure and answers with it.
      *
      * @param request the request that failed
+     * @param response the response to answer on
      * @param message what could not be read, as the client is told
      * @param cause the underlying failure, or {@code null} if there is none
-     * @return a JSON object builder holding the error
+     * @throws IOException if the answer cannot be written
      */
-    private static JsonObjectBuilder failed(final SlingJakartaHttpServletRequest request, final String message,
-        final Throwable cause)
+    private static void fail(final SlingJakartaHttpServletRequest request,
+        final SlingJakartaHttpServletResponse response, final String message, final Throwable cause)
+        throws IOException
     {
         LOGGER.warn("{}: {}", request.getResource().getPath(), message, cause);
-        return Json.createObjectBuilder().add("error", message);
+        JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, message);
     }
 
     /**

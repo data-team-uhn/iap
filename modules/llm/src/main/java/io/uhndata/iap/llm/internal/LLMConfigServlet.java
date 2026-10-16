@@ -86,6 +86,8 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     private static final String MODEL_RESOURCE_TYPE = "llm/Model";
 
     @Override
+    // The catalog is content, served after a change as on a read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
@@ -97,6 +99,8 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     }
 
     @Override
+    // The catalog is content, served after a change as on a read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {

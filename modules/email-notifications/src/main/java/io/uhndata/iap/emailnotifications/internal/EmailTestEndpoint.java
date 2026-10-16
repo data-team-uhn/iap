@@ -101,6 +101,8 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
     private long sendTimeoutMillis = TimeUnit.SECONDS.toMillis(15);
 
     @Override
+    // This test endpoint answers in plain text
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
