@@ -48,6 +48,14 @@
     // conversion, with room for the queue in front of it; raise it if parses legitimately take longer.
     "io.uhndata.iap.documents.internal.StaleParseJobSweeper":{
       "maxAgeMinutes":30
+    },
+    // The largest document a person may upload, read from the environment so a deployment can
+    // change them without a rebuild. Uploads are checked against them, the browser reads them, and
+    // the daemon is sent them with each parse, applying them under its own IAP_MAX_INPUT_* ceilings.
+    "io.uhndata.iap.documents.internal.ConfiguredDocumentLimits":{
+      "maxFileSize":"$[env:IAP_UPLOAD_MAX_BYTES;default=52428800]",
+      "maxPdfPages":"$[env:IAP_UPLOAD_MAX_PDF_PAGES;default=500]",
+      "maxUnzippedSize":"$[env:IAP_UPLOAD_MAX_UNZIPPED_BYTES;default=536870912]"
     }
   },
   "repoinit:TEXT|true": "@file"

@@ -23,8 +23,9 @@ import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 
 import {
   type DocumentRequirement,
@@ -49,10 +50,14 @@ const OFFSCREEN = {
 // the server checks again.
 const CHECK_TIMEOUT_MS = 30_000;
 
-// What is wrong with the file, or undefined when nothing is or the check ran out of time
-async function checkFile(file: File, accepted: string[]): Promise<string | undefined> {
+// What is wrong with the file, or undefined when nothing is or the check ran out of time. Checked
+// against the server's own limits, read within the same time.
+async function checkFile(
+  file: File, accepted: string[], doFetch: AuthenticatedFetch): Promise<string | undefined> {
+  const signal = AbortSignal.timeout(CHECK_TIMEOUT_MS);
   try {
-    return await validateUpload(file, accepted, {}, AbortSignal.timeout(CHECK_TIMEOUT_MS));
+    const limits = await fetchUploadLimits(doFetch, signal);
+    return await validateUpload(file, accepted, limits, signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
       return undefined;
@@ -108,7 +113,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
   // Checked here first, so a file the server would refuse, or the parser could not read, is refused
   // in a moment rather than after the upload
   const upload = (file: File) => run(async () => {
-    const problem = await checkFile(file, accepted);
+    const problem = await checkFile(file, accepted, doFetch);
     if (problem !== undefined) {
       throw new Error(problem);
     }
