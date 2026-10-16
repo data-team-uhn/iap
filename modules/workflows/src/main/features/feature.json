@@ -29,6 +29,8 @@
         "create path (wf:WorkflowsHomepage) /Workflows",
         "create path (wf:SystemWorkflowsHomepage) /SystemWorkflows",
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end",
+        // For writing history
+        "create group iap-history-writers \n add workflows to group iap-history-writers",
         // The group the shipped system workflows name as the performer of administrative acts. It exists so that
         // the definitions have something real to point at; who belongs to it is a deployment's business.
         "create group iap-administrators",

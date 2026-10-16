@@ -315,6 +315,9 @@ homepage, `save` on an entity, `complete` on a user task — unless a selector n
 `POST /Schemas/x/1.0.activate.json` sends `activate`. A POST carrying a Sling `:operation` is refused with
 a 400, since it would otherwise arrive as an empty event; remove such a resource with an HTTP `DELETE`.
 
+A `:onBehalfOf=<user id>` parameter sends the event for someone else; see
+[Acting on behalf of someone else](#acting-on-behalf-of-someone-else). Left blank, it is ignored.
+
 The types under workflow control are the ones the definitions say: the `targetResourceType` of every system
 workflow version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to exactly those, with
 any extension, and `WorkflowEventServletRegistrar` binds it again whenever `/SystemWorkflows` changes. So a
@@ -805,9 +808,11 @@ Everything goes through the engine's single entry point — HTTP is just one *tr
 and inbound email or firing timers will feed the same door:
 
 ```java
-@NotNull WorkflowResult receiveEvent(Resource target, WorkflowEvent event)
-    throws WorkflowException;
+@NotNull WorkflowResult receiveEvent(Resource target, WorkflowEvent event,
+    @Nullable String onBehalfOf) throws WorkflowException;
 ```
+
+The two-argument `receiveEvent(target, event)` is the same call with nobody else named.
 
 Receiving an event answers four questions in order, and each failure is its own
 exception, which the servlet maps to a status:
@@ -865,6 +870,61 @@ rights, which is a deployment fault and a **500**.
 Because the engine does the writing, `jcr:createdBy` on everything it creates names the
 service user. The human is recorded separately, in `createdBy`, which is what an audit
 trail and any "things I raised" listing have to read.
+
+### What the engine records in history
+
+Every event the engine carries out is written to [history](history.md) as one
+`hist:Action`, in the same commit as the change itself. A refused or failed event records
+nothing, because nothing happened. The action names:
+
+- **who sent the event** (`actor`), and whom they sent it for (`onBehalfOf`), if anyone;
+- **the event** (`event`, and `operation`, which is the same name);
+- **the workflow** that carried it out: the version in force, and for a task the instance;
+- **for a task**, the activity, the task itself and the outcome chosen;
+- **what it affected**: the resource the event was aimed at (`target`), anything it created
+  (`created`), and a task it completed (`completed`).
+
+An event that one workflow sends to another during the run gets an action of its own,
+naming the system workflow that ran it, with `parentAction` pointing at the action of the
+event that caused it.
+
+Handlers can see both people too: `WorkflowTaskContext.getActor()` is whom the event counts
+as, and `getSender()` is who actually sent it.
+
+### Acting on behalf of someone else
+
+A delegate can send an event for another user, for example to approve a request for someone
+who cannot get to it, by adding `:onBehalfOf=<user id>` to the `POST`:
+
+```
+POST /Submissions/proposal-42/wf:instances/review/approve_1
+  outcome=approved
+  :onBehalfOf=alice
+```
+
+The event then counts as Alice's. She is what the node's `performers` are checked against,
+and she is the one recorded: `createdBy` on anything created, `assignee` on a completed
+task, and the reader granted on a started instance. A handler's `getActor()` answers
+`alice` too.
+
+Who may do this is a single group, the **delegates**, set by the `Delegates` property of the
+`io.uhndata.iap.workflows.internal.Delegation` configuration. It defaults to
+`iap-administrators`. Membership is read from the session's principals, so a Keycloak role
+works as well as a local group. The `admin` user may always act for others.
+
+The rules, each of which refuses with the same **403** so that a refusal does not reveal
+which one failed, or whether the user exists:
+
+- **The sender must be a delegate.** Anyone else sending `:onBehalfOf` is refused rather
+  than having the parameter ignored.
+- **The person named must be an ordinary, enabled user.** Not a group, a service user, a
+  disabled account or an administrator. The administrator passes every check, so acting
+  for them would turn any delegate into one.
+- **The person named must themselves be admitted.** Acting for someone never reaches a
+  node they could not reach on their own, even when the delegate could.
+
+The person named is recorded by their canonical id, so `:onBehalfOf=ALICE` records `alice`.
+Naming yourself is the same as naming nobody.
 
 The one grant ordinary users do get is `jcr:read` on the homepage nodes themselves —
 `/Workflows` and `/Submissions`, restricted by node type so that nothing below them is
@@ -1107,3 +1167,24 @@ disagree.
   from elsewhere using `bpmn2:` or a default namespace would not be recognized.
 - **No `oak:index` definitions.** The console's listings and the homepage discovery both
   query without one.
+- **History records what the engine knows, not everything a handler did.** The target, what
+  was created and the task completed are recorded; what a handler changed elsewhere is not,
+  and no action names the properties that changed. Handlers reporting their own effects
+  through the task context is what is missing.
+- **A homepage never appears in history.** The store names an entry after the resource's
+  identifier, and only a referenceable node has one without slashes. Homepages are not
+  referenceable, so a create aimed at `/Submissions` records what it created, not the
+  homepage.
+- **Every action the engine records stays incomplete.** No snapshot is taken after the
+  commit, so `complete` is never set; see the status note in [history](history.md).
+- **A refused attempt to act for someone is only a log line.** A refusal changes nothing, so
+  it is not history; the servlet logs it at WARN instead, naming the sender, the event, the
+  target and the person named, but not which rule refused it.
+- **Acting for someone cannot be previewed.** `getAvailableEvents` and
+  `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
+  what a delegate could do for Alice.
+- **Delegation is all or nothing.** Delegates may act for any ordinary user, and there is
+  one delegates group. Narrower delegation, such as an assistant acting only for the people
+  they support, is not expressible yet.
+- **A Keycloak user must have signed in once** before anyone can act for them, since Oak
+  only learns of them at their first login.
