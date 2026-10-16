@@ -95,7 +95,7 @@ public class StaleParseJobSweeper implements Runnable
     private static final Logger LOGGER = LoggerFactory.getLogger(StaleParseJobSweeper.class);
 
     /** What is recorded on a job the daemon never answered for. */
-    private static final String LOST = "No outcome arrived within %d minutes; the parse was given up on";
+    private static final String LOST_MESSAGE = "No outcome arrived within %d minutes; the parse was given up on";
 
     private static final long MILLISECONDS_PER_MINUTE = 60_000L;
 
@@ -263,7 +263,7 @@ public class StaleParseJobSweeper implements Runnable
         }
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
         properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
-        properties.put(ParseJob.PN_ERROR, String.format(LOST, this.maxAgeMinutes));
+        properties.put(ParseJob.PN_ERROR, String.format(LOST_MESSAGE, this.maxAgeMinutes));
         properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
         properties.remove(ParseJob.PN_OUTPUTS);
         try {

@@ -46,7 +46,7 @@ public class VariableOperandResolver implements OperandResolver
     private static final Logger LOGGER = LoggerFactory.getLogger(VariableOperandResolver.class);
 
     /** The operation a problem is recorded under. */
-    private static final String RESOLVE = "resolve";
+    private static final String RESOLVE_OPERATION = "resolve";
 
     @Override
     public String getSource()
@@ -61,8 +61,8 @@ public class VariableOperandResolver implements OperandResolver
         if (value == null || value.length == 0) {
             LOGGER.warn("Variable operand at {} does not name a variable", operand.getPath());
             ErrorLogger.logProblem("variable operand names no variable",
-                ErrorContext.of(VariableOperandResolver.class, RESOLVE).about(operand.getPath()));
-            return Operand.EMPTY;
+                ErrorContext.of(VariableOperandResolver.class, RESOLVE_OPERATION).about(operand.getPath()));
+            return Operand.NO_VALUES;
         }
         // Check the resource type, not just the adaptation. Adapting does not filter by type: a model registered for
         // one type is handed back for any resource when nothing else claims the class. An unrelated node with a child
@@ -74,12 +74,12 @@ public class VariableOperandResolver implements OperandResolver
             LOGGER.warn("Variable operand at {} was evaluated against {}, which is not a workflow instance",
                 operand.getPath(), context.getPath());
             ErrorLogger.logProblem("variable operand evaluated against something other than a workflow instance",
-                ErrorContext.of(VariableOperandResolver.class, RESOLVE).about(operand.getPath())
+                ErrorContext.of(VariableOperandResolver.class, RESOLVE_OPERATION).about(operand.getPath())
                     .with("context", context.getPath()));
-            return Operand.EMPTY;
+            return Operand.NO_VALUES;
         }
         final Variable variable = instance.getVariable(value[0]);
         // No declared type: the stored value already has the type the variable's dataType chose
-        return variable == null ? Operand.EMPTY : Operand.of(variable.getValue());
+        return variable == null ? Operand.NO_VALUES : Operand.of(variable.getValue());
     }
 }

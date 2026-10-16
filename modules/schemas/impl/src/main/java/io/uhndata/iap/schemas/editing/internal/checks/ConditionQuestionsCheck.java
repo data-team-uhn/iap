@@ -63,13 +63,14 @@ public class ConditionQuestionsCheck extends SchemaVersionCheck
         if (!UUID_FORMAT.matcher(reference).matches()) {
             final Resource question = version.getChild(reference);
             return question != null
-                && DraftParts.QUESTION.equals(question.getValueMap().get(DraftParts.PRIMARY_TYPE, ""));
+                && DraftParts.QUESTION_TYPE.equals(question.getValueMap().get(DraftParts.PRIMARY_TYPE, ""));
         }
         final Session session = Objects.requireNonNull(version.getResourceResolver().adaptTo(Session.class),
             "Schemas are stored in a JCR repository");
         try {
             final Node question = session.getNodeByIdentifier(reference);
-            return question.getPath().startsWith(version.getPath() + "/") && question.isNodeType(DraftParts.QUESTION);
+            return question.getPath().startsWith(version.getPath() + "/")
+                && question.isNodeType(DraftParts.QUESTION_TYPE);
         } catch (final RepositoryException e) {
             // Not found, which is exactly the problem being looked for
             return false;

@@ -222,7 +222,7 @@ class LoggedErrorsTest
     @Test
     void anErrorMarkedAsNeedingAttentionNeedsAttention()
     {
-        markers(thrown("abc", 1, 1000), LoggedError.UNACKNOWLEDGED);
+        markers(thrown("abc", 1, 1000), LoggedError.UNACKNOWLEDGED_TAG);
 
         assertFalse(this.home.getError("abc").isAcknowledged());
         assertEquals(1, this.home.getUnacknowledgedErrors().size());
@@ -259,7 +259,7 @@ class LoggedErrorsTest
 
         this.context.resourceResolver().getResource("/LoggedErrors")
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
-            .put("aggregatedTags", new String[] {LoggedError.UNACKNOWLEDGED});
+            .put("aggregatedTags", new String[] {LoggedError.UNACKNOWLEDGED_TAG});
 
         assertTrue(this.home.hasUnacknowledgedErrors());
     }

@@ -52,8 +52,8 @@ class PendingErrorTest
     {
         final PendingError tally = failure();
 
-        tally.record("boom", ErrorContext.EMPTY, 3000);
-        tally.record("boom", ErrorContext.EMPTY, 1000);
+        tally.record("boom", ErrorContext.NO_CONTEXT, 3000);
+        tally.record("boom", ErrorContext.NO_CONTEXT, 1000);
 
         assertEquals(2, tally.getOccurrences());
         // Out-of-order moments must not move "last seen" backwards
@@ -65,7 +65,7 @@ class PendingErrorTest
     {
         final PendingError tally = failure();
         for (int i = 0; i < 25; i++) {
-            tally.record("message " + i, ErrorContext.EMPTY.about("/path/" + i).actingFor("user" + i), i);
+            tally.record("message " + i, ErrorContext.NO_CONTEXT.about("/path/" + i).actingFor("user" + i), i);
         }
 
         assertEquals(PendingError.MAX_SUBJECTS, tally.getSubjects().size());
@@ -81,9 +81,9 @@ class PendingErrorTest
     {
         final PendingError tally = failure();
 
-        tally.record(null, ErrorContext.EMPTY.about("/first"), 1);
-        tally.record(null, ErrorContext.EMPTY.about("/second"), 2);
-        tally.record(null, ErrorContext.EMPTY.about("/first"), 3);
+        tally.record(null, ErrorContext.NO_CONTEXT.about("/first"), 1);
+        tally.record(null, ErrorContext.NO_CONTEXT.about("/second"), 2);
+        tally.record(null, ErrorContext.NO_CONTEXT.about("/first"), 3);
 
         assertEquals(List.of("/first", "/second"), tally.getSubjects());
     }
@@ -93,8 +93,8 @@ class PendingErrorTest
     {
         final PendingError tally = failure();
 
-        tally.record(null, ErrorContext.EMPTY.with("attempt", 1), 1);
-        tally.record(null, ErrorContext.EMPTY.with("attempt", 2).with("phase", "computedTags"), 2);
+        tally.record(null, ErrorContext.NO_CONTEXT.with("attempt", 1), 1);
+        tally.record(null, ErrorContext.NO_CONTEXT.with("attempt", 2).with("phase", "computedTags"), 2);
 
         assertEquals("attempt: 2\nphase: computedTags", tally.getLastContext());
     }
@@ -104,7 +104,7 @@ class PendingErrorTest
     {
         final PendingError tally = failure();
 
-        tally.record(null, ErrorContext.EMPTY, 1);
+        tally.record(null, ErrorContext.NO_CONTEXT, 1);
 
         assertNull(tally.getLastContext());
     }
@@ -115,10 +115,10 @@ class PendingErrorTest
         // A batch that fails to write is folded back under whatever has been recorded since, so a failure to write
         // loses nothing but the moment it would have been written at
         final PendingError older = failure();
-        older.record("older message", ErrorContext.EMPTY.about("/older").actingFor("bob"), 1000);
-        older.record("older message", ErrorContext.EMPTY.about("/older"), 1500);
+        older.record("older message", ErrorContext.NO_CONTEXT.about("/older").actingFor("bob"), 1000);
+        older.record("older message", ErrorContext.NO_CONTEXT.about("/older"), 1500);
         final PendingError newer = failure();
-        newer.record("newer message", ErrorContext.EMPTY.about("/newer").actingFor("alice"), 2000);
+        newer.record("newer message", ErrorContext.NO_CONTEXT.about("/newer").actingFor("alice"), 2000);
 
         newer.absorb(older);
 
@@ -133,9 +133,9 @@ class PendingErrorTest
     void takingOverKeepsTheNewerCircumstances()
     {
         final PendingError older = failure();
-        older.record(null, ErrorContext.EMPTY.with("attempt", 1), 1000);
+        older.record(null, ErrorContext.NO_CONTEXT.with("attempt", 1), 1000);
         final PendingError newer = failure();
-        newer.record(null, ErrorContext.EMPTY.with("attempt", 2), 2000);
+        newer.record(null, ErrorContext.NO_CONTEXT.with("attempt", 2), 2000);
 
         newer.absorb(older);
 
@@ -146,9 +146,9 @@ class PendingErrorTest
     void takingOverFallsBackToTheOlderCircumstances()
     {
         final PendingError older = failure();
-        older.record(null, ErrorContext.EMPTY.with("attempt", 1), 1000);
+        older.record(null, ErrorContext.NO_CONTEXT.with("attempt", 1), 1000);
         final PendingError newer = failure();
-        newer.record(null, ErrorContext.EMPTY, 2000);
+        newer.record(null, ErrorContext.NO_CONTEXT, 2000);
 
         newer.absorb(older);
 
@@ -161,8 +161,8 @@ class PendingErrorTest
         final PendingError older = failure();
         final PendingError newer = failure();
         for (int i = 0; i < 15; i++) {
-            older.record(null, ErrorContext.EMPTY.about("/older/" + i), i);
-            newer.record(null, ErrorContext.EMPTY.about("/newer/" + i), 100 + i);
+            older.record(null, ErrorContext.NO_CONTEXT.about("/older/" + i), i);
+            newer.record(null, ErrorContext.NO_CONTEXT.about("/newer/" + i), 100 + i);
         }
 
         newer.absorb(older);
@@ -177,7 +177,7 @@ class PendingErrorTest
         final PendingError tally = new PendingError("err:LoggedProblem", "some.Thing", "evaluate", null,
             "unknown comparator", null);
 
-        tally.record(null, ErrorContext.EMPTY, 1000);
+        tally.record(null, ErrorContext.NO_CONTEXT, 1000);
 
         assertEquals("unknown comparator", tally.getProblem());
         assertNull(tally.getStackTrace());

@@ -64,7 +64,7 @@ public class MetricImpl implements Metric
     static final String NODE_TYPE = "metric:Metric";
 
     /** The name of the subservice performing all repository access. */
-    static final String SUBSERVICE = "metrics";
+    static final String SUBSERVICE_NAME = "metrics";
 
     /** The name of the property holding the human-readable name. */
     static final String PN_LABEL = "label";
@@ -165,7 +165,8 @@ public class MetricImpl implements Metric
     static ResourceResolver openServiceResolver(final ResourceResolverFactory resolverFactory)
     {
         try {
-            return resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE));
+            return resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE,
+                SUBSERVICE_NAME));
         } catch (final LoginException e) {
             throw new MetricsException("Failed to access the repository: " + e.getMessage(), e);
         }

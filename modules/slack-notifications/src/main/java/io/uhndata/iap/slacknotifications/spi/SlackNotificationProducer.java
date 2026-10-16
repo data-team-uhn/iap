@@ -34,25 +34,25 @@ import org.jetbrains.annotations.NotNull;
 public interface SlackNotificationProducer
 {
     /** The name of the JSON property holding the title of the message. */
-    String TITLE = "title";
+    String TITLE_KEY = "title";
 
     /** The name of the JSON property holding the text part of a message. */
-    String TEXT = "text";
+    String TEXT_KEY = "text";
 
     /** The name of the JSON property defining the side color of an attachment. */
-    String COLOR = "color";
+    String COLOR_KEY = "color";
 
     /** The color used for neutral/informational messages. */
-    String INFO = "999";
+    String INFO_COLOR = "999";
 
     /** The color used for success messages. */
-    String SUCCESS = "393";
+    String SUCCESS_COLOR = "393";
 
     /** The color used for warning messages. */
-    String WARNING = "BA0";
+    String WARNING_COLOR = "BA0";
 
     /** The color used for error messages. */
-    String ERROR = "900";
+    String ERROR_COLOR = "900";
 
     /**
      * The name of this producer, used to identify it, and to enable/disable it for specific jobs.

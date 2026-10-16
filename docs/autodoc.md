@@ -140,7 +140,7 @@ knowing before you design your category names:
 - Items keep their display order within a category.
 - An item in several categories is **repeated** under each.
 - An empty category list puts the item under `uncategorized`
-  (`AutoDocumentable.UNCATEGORIZED`).
+  (`AutoDocumentable.DEFAULT_CATEGORY`).
 - If the only category present is `uncategorized`, `toMarkdown()` goes flat and omits
   the `##` headings entirely.
 

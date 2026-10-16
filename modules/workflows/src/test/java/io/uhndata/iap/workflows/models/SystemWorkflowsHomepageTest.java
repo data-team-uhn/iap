@@ -52,7 +52,7 @@ class SystemWorkflowsHomepageTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.PATH,
+        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH,
             TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(SystemWorkflowsHomepage.class));
     }
@@ -60,12 +60,12 @@ class SystemWorkflowsHomepageTest
     @Test
     void listsTheSystemWorkflows()
     {
-        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.PATH,
+        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH,
             TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
-        this.context.create().resource(SystemWorkflowsHomepage.PATH + "/createWorkflow", Map.of(
+        this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH + "/createWorkflow", Map.of(
             TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow"));
         // Something that is not a workflow must not be listed as one
-        this.context.create().resource(SystemWorkflowsHomepage.PATH + "/stray", TYPE, "nt:unstructured");
+        this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH + "/stray", TYPE, "nt:unstructured");
 
         final List<WorkflowDefinition> workflows =
             resource.adaptTo(SystemWorkflowsHomepage.class).getWorkflows();
@@ -77,7 +77,7 @@ class SystemWorkflowsHomepageTest
     @Test
     void listsNoWorkflowsWhenNoneExist()
     {
-        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.PATH,
+        final Resource resource = this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH,
             TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
 
         assertTrue(resource.adaptTo(SystemWorkflowsHomepage.class).getWorkflows().isEmpty());

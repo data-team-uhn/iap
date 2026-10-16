@@ -172,7 +172,7 @@ class LoggedErrorsSummaryServletTest
             "occurrences", 1L,
             "lastOccurrence", Calendar.getInstance()));
         properties.put("computedTags",
-            new String[] { acknowledged ? LoggedError.ACKNOWLEDGED : LoggedError.UNACKNOWLEDGED });
+            new String[] { acknowledged ? LoggedError.ACKNOWLEDGED_TAG : LoggedError.UNACKNOWLEDGED_TAG });
         return this.context.create().resource(HOME + "/" + name, properties);
     }
 }

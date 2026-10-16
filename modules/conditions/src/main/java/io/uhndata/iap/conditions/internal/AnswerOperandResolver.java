@@ -53,7 +53,7 @@ import io.uhndata.iap.entities.models.Entity;
 public class AnswerOperandResolver implements OperandResolver
 {
     /** The operand source this resolver serves. */
-    static final String SOURCE = "answer";
+    static final String SOURCE_NAME = "answer";
 
     /** The property through which an answer node references its question. */
     private static final String QUESTION_PROPERTY = "question";
@@ -95,7 +95,7 @@ public class AnswerOperandResolver implements OperandResolver
     @Override
     public String getSource()
     {
-        return SOURCE;
+        return SOURCE_NAME;
     }
 
     @Override
@@ -104,11 +104,11 @@ public class AnswerOperandResolver implements OperandResolver
         final String[] value = operand.getValue();
         if (value == null || value.length == 0) {
             LOGGER.warn("Answer operand at {} does not identify a question", operand.getPath());
-            return Operand.EMPTY;
+            return Operand.NO_VALUES;
         }
         final Question question = this.resolveQuestion(value[0], operand, context);
         if (question == null) {
-            return Operand.EMPTY;
+            return Operand.NO_VALUES;
         }
         Content scope = context;
         Content searched = null;

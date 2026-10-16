@@ -114,11 +114,11 @@ class AutoDocumentableTest
             new Item("loose")).getDocumentedItemsByCategory();
 
         // The uncategorized group always comes last, even though "zebra" sorts after "uncategorized"
-        assertEquals(List.of("one", "two", "zebra", AutoDocumentable.UNCATEGORIZED), List.copyOf(groups.keySet()));
+        assertEquals(List.of("one", "two", "zebra", AutoDocumentable.DEFAULT_CATEGORY), List.copyOf(groups.keySet()));
         assertEquals(2, groups.get("one").size());
         // An item belonging to several categories is repeated under each
         assertEquals("second", groups.get("two").get(0).getName());
-        assertEquals("loose", groups.get(AutoDocumentable.UNCATEGORIZED).get(0).getName());
+        assertEquals("loose", groups.get(AutoDocumentable.DEFAULT_CATEGORY).get(0).getName());
     }
 
     @Test
@@ -167,7 +167,7 @@ class AutoDocumentableTest
     {
         final JsonObject json = new Catalogue(null, new Item("first")).toDocumentationJson();
         assertFalse(json.containsKey("description"));
-        assertTrue(json.getJsonObject("items").containsKey(AutoDocumentable.UNCATEGORIZED));
+        assertTrue(json.getJsonObject("items").containsKey(AutoDocumentable.DEFAULT_CATEGORY));
     }
 
     @Test

@@ -61,7 +61,7 @@ import io.uhndata.iap.links.api.LinkManager;
 public class DeletionServiceImpl implements DeletionService
 {
     /** The subservice name mapped to the {@code iap-deletion} service user. */
-    public static final String SUBSERVICE = "deletion";
+    public static final String SUBSERVICE_NAME = "deletion";
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -206,7 +206,7 @@ public class DeletionServiceImpl implements DeletionService
     {
         try {
             return this.resolverFactory
-                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE));
+                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
         } catch (final LoginException e) {
             throw new DeletionException("The deletion service user is not available", e);
         }

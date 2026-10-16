@@ -67,7 +67,7 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
     /** The JCR path of the node holding the catalog of providers and models the selection is made from. */
     public static final String CATALOG_PATH = "/libs/iap/config/LLM";
 
-    private static final String SUBSERVICE = "llmConfig";
+    private static final String SUBSERVICE_NAME = "llmConfig";
 
     private static final String ACTIVE_PROVIDER = "activeProvider";
 
@@ -88,7 +88,7 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
     public LLMSettings getActiveSettings() throws IOException
     {
         try (ResourceResolver resolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
             final Resource selection = resolver.getResource(SELECTION_PATH);
             if (selection == null) {
                 throw new IOException("LLM configuration not found at " + SELECTION_PATH);

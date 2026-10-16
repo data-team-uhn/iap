@@ -59,7 +59,7 @@ import org.apache.sling.commons.messaging.mail.MessageBuilder;
 public class CaughtMessageBuilder implements MessageBuilder
 {
     /** No transport is ever opened from this session; it exists because a MimeMessage requires one. */
-    private static final Session SESSION = Session.getInstance(new Properties());
+    private static final Session MAIL_SESSION = Session.getInstance(new Properties());
 
     private final List<Header> headers = new ArrayList<>();
 
@@ -313,7 +313,7 @@ public class CaughtMessageBuilder implements MessageBuilder
     @Override
     public MimeMessage build() throws MessagingException
     {
-        final MimeMessage message = new MimeMessage(SESSION);
+        final MimeMessage message = new MimeMessage(MAIL_SESSION);
         if (this.sender != null) {
             message.setFrom(new InternetAddress(this.sender));
         }

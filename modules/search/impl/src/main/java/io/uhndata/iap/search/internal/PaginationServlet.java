@@ -95,7 +95,7 @@ import io.uhndata.iap.utils.UserIds;
  *
  * <p>
  * A filter value starting with {@code @} is a special name, resolved here into whoever it stands for in this
- * request rather than compared as written. {@link PrincipalService#ME} is the person asking, under the id the
+ * request rather than compared as written. {@link PrincipalService#ME_SPECIAL_NAME} is the person asking, under the id the
  * repository records. {@link PrincipalService#MY_PRINCIPALS} is everything they act as, which is how a property
  * naming who may act gets matched against a person. Whatever else a module taught the
  * {@link PrincipalService principals service} works here too, without this servlet learning it.

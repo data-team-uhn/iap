@@ -75,7 +75,7 @@ public class DeleteTaskHandler implements ServiceTaskHandler
         final DeletionResult result;
         try {
             result = this.deletionService.delete(target,
-                DeletionOptions.of(DeletionOptions.NOT_RECURSIVE, permanent).onBehalfOf(context.getActor()));
+                DeletionOptions.of(DeletionOptions.REFUSE_IF_REFERENCED, permanent).onBehalfOf(context.getActor()));
         } catch (final DeletionException e) {
             throw new WorkflowFailedException("Could not delete " + target.getPath(), e);
         }

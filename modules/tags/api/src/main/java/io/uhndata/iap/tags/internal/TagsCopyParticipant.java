@@ -41,13 +41,14 @@ import io.uhndata.iap.utils.copy.CopyParticipant;
 @Component(service = CopyParticipant.class)
 public class TagsCopyParticipant implements CopyParticipant
 {
-    private static final Set<String> COMPUTED = Stream.concat(Stream.of(TagManager.COMPUTATION_STATE_PROPERTY),
+    private static final Set<String> COMPUTED_PROPERTIES = Stream.concat(
+        Stream.of(TagManager.COMPUTATION_STATE_PROPERTY),
         Arrays.stream(TagProcessor.Phase.values()).map(TagProcessor.Phase::getPropertyName))
         .collect(Collectors.toUnmodifiableSet());
 
     @Override
     public boolean skips(final Property property) throws RepositoryException
     {
-        return COMPUTED.contains(property.getName());
+        return COMPUTED_PROPERTIES.contains(property.getName());
     }
 }

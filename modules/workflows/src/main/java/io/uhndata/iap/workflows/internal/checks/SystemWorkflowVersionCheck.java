@@ -38,7 +38,7 @@ abstract class SystemWorkflowVersionCheck implements ValidityCheck
     public boolean appliesTo(final Resource target)
     {
         return target.isResourceType(WorkflowVersion.RESOURCE_TYPE)
-            && target.getPath().startsWith(SystemWorkflowsHomepage.PATH + "/");
+            && target.getPath().startsWith(SystemWorkflowsHomepage.HOMEPAGE_PATH + "/");
     }
 
     /**

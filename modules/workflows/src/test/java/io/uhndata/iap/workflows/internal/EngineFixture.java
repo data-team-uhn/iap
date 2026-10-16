@@ -86,7 +86,7 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 public final class EngineFixture
 {
     /** The path of the bootstrap system workflow the tests build. */
-    public static final String WORKFLOW = SystemWorkflowsHomepage.PATH + "/createWorkflow";
+    public static final String WORKFLOW = SystemWorkflowsHomepage.HOMEPAGE_PATH + "/createWorkflow";
 
     /** The path of the version node of the bootstrap system workflow. */
     public static final String VERSION = WORKFLOW + "/v1";
@@ -621,7 +621,7 @@ public final class EngineFixture
     public static void createSystemWorkflow(final SlingContext context, final String lifecycle,
         final String targetResourceType)
     {
-        context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
+        context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
         context.create().resource(WORKFLOW, Map.of(
             TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow"));
         if (targetResourceType == null) {

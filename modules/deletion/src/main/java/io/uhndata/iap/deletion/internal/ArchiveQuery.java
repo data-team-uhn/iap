@@ -42,7 +42,7 @@ import io.uhndata.iap.utils.DateUtils;
 final class ArchiveQuery
 {
     /** The columns an entry may be ordered by, as JCR property names. */
-    static final Set<String> SORTABLE = Set.of("jcr:created", "deletedBy", "requestedPath");
+    static final Set<String> SORTABLE_PROPERTIES = Set.of("jcr:created", "deletedBy", "requestedPath");
 
     /** The column used when none is asked for: most recently archived first. */
     static final String DEFAULT_SORT = "jcr:created";
@@ -58,7 +58,7 @@ final class ArchiveQuery
      * @param root the absolute path to look under, usually {@code /Archive}
      * @param filter a case-insensitive substring the requested path or the requesting user must contain; ignored
      *            when blank
-     * @param sortBy the property to order by; anything outside {@link #SORTABLE} falls back to {@link #DEFAULT_SORT}
+     * @param sortBy the property to order by; anything outside {@link #SORTABLE_PROPERTIES} falls back to {@link #DEFAULT_SORT}
      * @param descending whether to reverse the order
      * @return a JCR-SQL2 statement
      */
@@ -117,7 +117,7 @@ final class ArchiveQuery
 
     private static String sortColumn(final String sortBy)
     {
-        return SORTABLE.contains(sortBy) ? sortBy : DEFAULT_SORT;
+        return SORTABLE_PROPERTIES.contains(sortBy) ? sortBy : DEFAULT_SORT;
     }
 
     /**

@@ -118,7 +118,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private static final Logger LOGGER = LoggerFactory.getLogger(SearchServlet.class);
 
     /** The selector the generated queries use for the node being matched. */
-    private static final String SELECTOR = "n";
+    private static final String NODE_SELECTOR = "n";
 
     /**
      * The tree Oak keeps its own bookkeeping in, left out of a generated search.
@@ -351,7 +351,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         // which is what makes doNotEscapeQuery safe to offer rather than safe only while one escape stays correct.
         final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
         return new BoundStatement(
-            String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, $%2$s)%3$s", SELECTOR,
+            String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, $%2$s)%3$s", NODE_SELECTOR,
                 FULL_TEXT_VARIABLE, OUTSIDE_MACHINERY),
             Map.of(FULL_TEXT_VARIABLE, expression));
     }
@@ -364,8 +364,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      */
     private static String outside(final String tree)
     {
-        return " and not issamenode(" + SELECTOR + ", '" + tree + "')"
-            + " and not isdescendantnode(" + SELECTOR + ", '" + tree + "')";
+        return " and not issamenode(" + NODE_SELECTOR + ", '" + tree + "')"
+            + " and not isdescendantnode(" + NODE_SELECTOR + ", '" + tree + "')";
     }
 
     /**

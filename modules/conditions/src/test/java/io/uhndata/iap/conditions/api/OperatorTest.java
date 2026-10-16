@@ -46,7 +46,7 @@ class OperatorTest
     void equalsComparesAsSets()
     {
         assertTrue(Operator.EQUALS.evaluate(text(A, B), text(B, A)));
-        assertTrue(Operator.EQUALS.evaluate(Operand.EMPTY, Operand.EMPTY));
+        assertTrue(Operator.EQUALS.evaluate(Operand.NO_VALUES, Operand.NO_VALUES));
         // Each side must be covered by the other, in both directions
         assertFalse(Operator.EQUALS.evaluate(text(A), text(A, B)));
         assertFalse(Operator.EQUALS.evaluate(text(A, B), text(A)));
@@ -82,18 +82,18 @@ class OperatorTest
     {
         assertFalse(Operator.LESS_THAN.evaluate(longs("1", "2"), longs("3")));
         assertFalse(Operator.GREATER_THAN.evaluate(longs("3"), longs("1", "2")));
-        assertFalse(Operator.LESS_OR_EQUAL.evaluate(Operand.EMPTY, longs("1")));
-        assertFalse(Operator.GREATER_OR_EQUAL.evaluate(longs("1"), Operand.EMPTY));
+        assertFalse(Operator.LESS_OR_EQUAL.evaluate(Operand.NO_VALUES, longs("1")));
+        assertFalse(Operator.GREATER_OR_EQUAL.evaluate(longs("1"), Operand.NO_VALUES));
     }
 
     @Test
     void emptinessOperatorsOnlyConsiderTheFirstOperand()
     {
-        assertTrue(Operator.IS_EMPTY.evaluate(Operand.EMPTY, text(IGNORED)));
-        assertFalse(Operator.IS_EMPTY.evaluate(text(A), Operand.EMPTY));
+        assertTrue(Operator.IS_EMPTY.evaluate(Operand.NO_VALUES, text(IGNORED)));
+        assertFalse(Operator.IS_EMPTY.evaluate(text(A), Operand.NO_VALUES));
 
-        assertTrue(Operator.IS_NOT_EMPTY.evaluate(text(A), Operand.EMPTY));
-        assertFalse(Operator.IS_NOT_EMPTY.evaluate(Operand.EMPTY, text(IGNORED)));
+        assertTrue(Operator.IS_NOT_EMPTY.evaluate(text(A), Operand.NO_VALUES));
+        assertFalse(Operator.IS_NOT_EMPTY.evaluate(Operand.NO_VALUES, text(IGNORED)));
     }
 
     @Test
@@ -101,7 +101,7 @@ class OperatorTest
     {
         assertTrue(Operator.INCLUDES.evaluate(text(A, B, C), text(A, C)));
         // Vacuously true on an empty second operand
-        assertTrue(Operator.INCLUDES.evaluate(text(A), Operand.EMPTY));
+        assertTrue(Operator.INCLUDES.evaluate(text(A), Operand.NO_VALUES));
         assertFalse(Operator.INCLUDES.evaluate(text(A, B), text(A, D)));
     }
 

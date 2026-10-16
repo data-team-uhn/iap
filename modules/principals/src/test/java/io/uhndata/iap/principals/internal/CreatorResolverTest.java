@@ -59,7 +59,7 @@ class CreatorResolverTest
     @Test
     void answersForItsName()
     {
-        assertEquals(PrincipalService.CREATOR, this.resolver.getName());
+        assertEquals(PrincipalService.CREATOR_SPECIAL_NAME, this.resolver.getName());
     }
 
     // The engine writes everything as its own service user, so jcr:createdBy names the machinery; the human the

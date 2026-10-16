@@ -136,7 +136,7 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
     private Optional<Operand> resolve(final ConditionOperand operand, final Content context)
     {
         if (operand == null) {
-            return Optional.of(Operand.EMPTY);
+            return Optional.of(Operand.NO_VALUES);
         }
         final Optional<Operand> resolved = this.resolvers.stream()
             .filter(resolver -> operand.getSource().equals(resolver.getSource()))

@@ -57,7 +57,7 @@ import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
     resourceTypes = "mail/CaughtMailHomepage",
-    selectors = AdminSummaryServlet.SELECTOR,
+    selectors = AdminSummaryServlet.SUMMARY_SELECTOR,
     extensions = "json",
     methods = { HttpConstants.METHOD_GET })
 public class CaughtMailSummaryServlet extends AdminSummaryServlet

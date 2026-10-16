@@ -116,9 +116,9 @@ class WorkflowEventServletRegistrarTest
     {
         EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         this.context.resourceResolver().commit();
-        final Resource home = this.context.resourceResolver().getResource(SystemWorkflowsHomepage.PATH);
+        final Resource home = this.context.resourceResolver().getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
-        Mockito.when(resolver.getResource(SystemWorkflowsHomepage.PATH)).thenReturn(new WithoutModels(home));
+        Mockito.when(resolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH)).thenReturn(new WithoutModels(home));
         final ResourceResolverFactory restarting = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(restarting.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
         inject("resolverFactory", restarting);

@@ -156,7 +156,7 @@ public class WeekdayOperandResolver implements OperandResolver
 
 Contract: return values in their natural stored types — coercion is the evaluator's
 job — declaring the type you are authoritative about via `Operand.of(value, type)`,
-or `Operand.of(value)` to leave it open. Return `Operand.EMPTY`, never null, when
+or `Operand.of(value)` to leave it open. Return `Operand.NO_VALUES`, never null, when
 nothing matches, so `is empty` can test for absence.
 
 The `Content` model is all you need to walk the repository (`get`, `getParent`,

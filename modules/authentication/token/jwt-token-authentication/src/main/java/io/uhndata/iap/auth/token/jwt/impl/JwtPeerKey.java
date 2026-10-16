@@ -39,7 +39,7 @@ import io.jsonwebtoken.io.Encoders;
 record JwtPeerKey(String encoded, String fingerprint)
 {
     /** PEM armour and every kind of whitespace, all of which a pasted key file carries and BASE64 does not. */
-    private static final Pattern ARMOUR = Pattern.compile("-----[A-Z ]+-----|\\s");
+    private static final Pattern PEM_ARMOUR_PATTERN = Pattern.compile("-----[A-Z ]+-----|\\s");
 
     /** JJWT refuses shorter RSA keys for RS256. */
     private static final int MIN_KEY_BITS = 2048;
@@ -55,7 +55,7 @@ record JwtPeerKey(String encoded, String fingerprint)
     {
         final byte[] der;
         try {
-            der = Decoders.BASE64.decode(ARMOUR.matcher(submitted).replaceAll(""));
+            der = Decoders.BASE64.decode(PEM_ARMOUR_PATTERN.matcher(submitted).replaceAll(""));
         } catch (final DecodingException e) {
             throw new InvalidKeySpecException("The key is not valid BASE64", e);
         }

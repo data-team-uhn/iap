@@ -39,7 +39,7 @@ import org.jetbrains.annotations.NotNull;
 public final class VersionNumbers
 {
     /** A leading whole number, after an optional {@code v}: {@code v3}, {@code 3.0}, {@code 3}. */
-    private static final Pattern NUMBERED = Pattern.compile("^[vV]?(\\d{1,9})");
+    private static final Pattern LEADING_NUMBER_PATTERN = Pattern.compile("^[vV]?(\\d{1,9})");
 
     private VersionNumbers()
     {
@@ -95,7 +95,7 @@ public final class VersionNumbers
      */
     private static int numberIn(final String name)
     {
-        final Matcher number = NUMBERED.matcher(name);
+        final Matcher number = LEADING_NUMBER_PATTERN.matcher(name);
         return number.find() ? Integer.parseInt(number.group(1)) : 0;
     }
 }

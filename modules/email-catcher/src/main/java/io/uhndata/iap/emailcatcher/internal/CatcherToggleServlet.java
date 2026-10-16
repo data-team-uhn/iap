@@ -78,13 +78,13 @@ import io.uhndata.iap.utils.UserIds;
 public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
 {
     /** The group that may switch mail catching on and off. */
-    static final String ADMINISTRATORS = "iap-administrators";
+    static final String ADMINISTRATORS_GROUP = "iap-administrators";
 
     /** The setting written, on the catcher's own component. */
-    static final String PID = "io.uhndata.iap.emailcatcher.internal.CaughtMailService";
+    static final String CATCHER_PID = "io.uhndata.iap.emailcatcher.internal.CaughtMailService";
 
     /** The property within it. */
-    static final String ENABLED = "enabled";
+    static final String ENABLED_PROPERTY = "enabled";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CatcherToggleServlet.class);
 
@@ -108,7 +108,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
             return;
         }
 
-        final String requested = request.getParameter(ENABLED);
+        final String requested = request.getParameter(ENABLED_PROPERTY);
         if (!"true".equals(requested) && !"false".equals(requested)) {
             PaginatedJsonResponse.writeError(response, 400, "'enabled' must be true or false");
             return;
@@ -141,10 +141,10 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
      */
     private void apply(final boolean enabled) throws IOException
     {
-        final Configuration configuration = this.configurationAdmin.getConfiguration(PID, null);
+        final Configuration configuration = this.configurationAdmin.getConfiguration(CATCHER_PID, null);
         final Dictionary<String, Object> properties = configuration.getProperties() == null
             ? new Hashtable<>() : configuration.getProperties();
-        properties.put(ENABLED, enabled);
+        properties.put(ENABLED_PROPERTY, enabled);
         configuration.update(properties);
     }
 
@@ -152,7 +152,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
      * Whether the caller may do this.
      *
      * @param request the request being served
-     * @return {@code true} when the caller belongs to {@link #ADMINISTRATORS}
+     * @return {@code true} when the caller belongs to {@link #ADMINISTRATORS_GROUP}
      */
     private boolean isAdministrator(final SlingJakartaHttpServletRequest request)
     {
@@ -162,7 +162,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
             return false;
         }
         return isSuperuser(resolver, caller)
-            || this.principals.isOneOf(caller, List.of(ADMINISTRATORS), resolver);
+            || this.principals.isOneOf(caller, List.of(ADMINISTRATORS_GROUP), resolver);
     }
 
     /**

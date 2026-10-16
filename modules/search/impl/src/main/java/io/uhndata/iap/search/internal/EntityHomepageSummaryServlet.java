@@ -78,7 +78,7 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(resourceTypes = { "data/EntityHomepage" }, methods = { "GET" },
-    selectors = { AdminSummaryServlet.SELECTOR }, extensions = { "json" })
+    selectors = { AdminSummaryServlet.SUMMARY_SELECTOR }, extensions = { "json" })
 public class EntityHomepageSummaryServlet extends AdminSummaryServlet
 {
     private static final long serialVersionUID = 1L;
@@ -89,7 +89,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
      */
     private static final String HOMEPAGE_QUERY = "select * from [data:EntityHomepage]";
 
-    private static final String UNCOUNTABLE = "Failed to count the entities";
+    private static final String UNCOUNTABLE_MESSAGE = "Failed to count the entities";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EntityHomepageSummaryServlet.class);
 
@@ -101,7 +101,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
         final ResourceResolver resolver = request.getResourceResolver();
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            throw new SummaryUnavailableException(UNCOUNTABLE);
+            throw new SummaryUnavailableException(UNCOUNTABLE_MESSAGE);
         }
         final String childType;
         final List<Resource> peers;
@@ -110,7 +110,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
             peers = peers(resolver, homepage.getPath(), childType);
         } catch (final RuntimeException e) {
             // A homepage naming an invalid child type, or Oak hitting a read limit while the homepages are walked
-            throw new SummaryUnavailableException(UNCOUNTABLE, e);
+            throw new SummaryUnavailableException(UNCOUNTABLE_MESSAGE, e);
         }
         final JsonObjectBuilder summary = Json.createObjectBuilder();
         boolean anyCounted = false;
@@ -128,7 +128,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
             summary.add(peer.getPath(), figure.add("path", peer.getPath()));
         }
         if (!anyCounted) {
-            throw new SummaryUnavailableException(UNCOUNTABLE);
+            throw new SummaryUnavailableException(UNCOUNTABLE_MESSAGE);
         }
         return summary;
     }

@@ -43,7 +43,7 @@ import org.osgi.service.component.annotations.Reference;
  * @since 0.1.0
  */
 @Component(service = HealthCheck.class, property = {
-    HealthCheck.NAME + "=" + LoginPageReadyCheck.NAME,
+    HealthCheck.NAME + "=" + LoginPageReadyCheck.CHECK_NAME,
     HealthCheck.TAGS + "=systemalive"
 })
 public class LoginPageReadyCheck implements HealthCheck
@@ -52,7 +52,7 @@ public class LoginPageReadyCheck implements HealthCheck
      * The check name. The startup gate ({@code StartupGateFilter} in the startup-customization module) requires a
      * check with exactly this name to be present and passing, so it must not be renamed without updating the filter.
      */
-    public static final String NAME = "Login Page Ready Check";
+    public static final String CHECK_NAME = "Login Page Ready Check";
 
     /**
      * The path of the login page, the one page that must work before the platform presents itself as up. Deliberately

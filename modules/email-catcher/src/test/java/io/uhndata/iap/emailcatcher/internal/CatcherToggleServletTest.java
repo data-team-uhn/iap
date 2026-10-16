@@ -83,7 +83,7 @@ class CatcherToggleServletTest
         this.configuration = Mockito.mock(Configuration.class);
         Mockito.when(this.configuration.getProperties()).thenReturn(null);
         final ConfigurationAdmin admin = Mockito.mock(ConfigurationAdmin.class);
-        Mockito.when(admin.getConfiguration(CatcherToggleServlet.PID, null))
+        Mockito.when(admin.getConfiguration(CatcherToggleServlet.CATCHER_PID, null))
             .thenReturn(this.configuration);
         inject("configurationAdmin", admin);
 
@@ -182,7 +182,7 @@ class CatcherToggleServletTest
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "true"));
 
         assertEquals(200, response.getStatus());
-        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED));
+        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED_PROPERTY));
         assertTrue(bodyOf(response).getBoolean("requested"));
     }
 
@@ -192,7 +192,7 @@ class CatcherToggleServletTest
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "false"));
 
         assertEquals(200, response.getStatus());
-        assertEquals(Boolean.FALSE, written().get(CatcherToggleServlet.ENABLED));
+        assertEquals(Boolean.FALSE, written().get(CatcherToggleServlet.ENABLED_PROPERTY));
         assertFalse(bodyOf(response).getBoolean("requested"));
     }
 
@@ -200,13 +200,13 @@ class CatcherToggleServletTest
     void keepsEveryOtherPropertyOfTheConfiguration() throws IOException
     {
         final Dictionary<String, Object> existing = new Hashtable<>();
-        existing.put("service.pid", CatcherToggleServlet.PID);
+        existing.put("service.pid", CatcherToggleServlet.CATCHER_PID);
         Mockito.when(this.configuration.getProperties()).thenReturn(existing);
 
         post(Map.of("enabled", "true"));
 
-        assertEquals(CatcherToggleServlet.PID, written().get("service.pid"));
-        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED));
+        assertEquals(CatcherToggleServlet.CATCHER_PID, written().get("service.pid"));
+        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED_PROPERTY));
     }
 
     @Test
@@ -245,7 +245,7 @@ class CatcherToggleServletTest
         post(Map.of("enabled", "true"));
 
         Mockito.verify(this.principals).isOneOf(Mockito.anyString(),
-            Mockito.eq(java.util.List.of(CatcherToggleServlet.ADMINISTRATORS)), Mockito.any());
+            Mockito.eq(java.util.List.of(CatcherToggleServlet.ADMINISTRATORS_GROUP)), Mockito.any());
     }
 
     @Test
@@ -291,7 +291,7 @@ class CatcherToggleServletTest
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "true"));
 
         assertEquals(200, response.getStatus());
-        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED));
+        assertEquals(Boolean.TRUE, written().get(CatcherToggleServlet.ENABLED_PROPERTY));
     }
 
     @Test

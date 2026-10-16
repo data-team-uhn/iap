@@ -100,11 +100,11 @@ class AggregatorTest
     void aggregatingNothingYieldsNothing()
     {
         // Absence stays detectable instead of silently becoming a number
-        assertTrue(Aggregator.COUNT.apply(Operand.EMPTY, OperandType.LONG).isEmpty());
-        assertTrue(Aggregator.SUM.apply(Operand.EMPTY, OperandType.LONG).isEmpty());
-        assertTrue(Aggregator.AVG.apply(Operand.EMPTY, OperandType.DOUBLE).isEmpty());
-        assertTrue(Aggregator.MIN.apply(Operand.EMPTY, OperandType.TEXT).isEmpty());
-        assertTrue(Aggregator.MAX.apply(Operand.EMPTY, OperandType.TEXT).isEmpty());
+        assertTrue(Aggregator.COUNT.apply(Operand.NO_VALUES, OperandType.LONG).isEmpty());
+        assertTrue(Aggregator.SUM.apply(Operand.NO_VALUES, OperandType.LONG).isEmpty());
+        assertTrue(Aggregator.AVG.apply(Operand.NO_VALUES, OperandType.DOUBLE).isEmpty());
+        assertTrue(Aggregator.MIN.apply(Operand.NO_VALUES, OperandType.TEXT).isEmpty());
+        assertTrue(Aggregator.MAX.apply(Operand.NO_VALUES, OperandType.TEXT).isEmpty());
     }
 
     @Test

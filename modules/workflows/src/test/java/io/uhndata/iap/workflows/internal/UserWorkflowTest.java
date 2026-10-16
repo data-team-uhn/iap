@@ -489,9 +489,10 @@ class UserWorkflowTest
     private void createStartingWorkflow(final String name, final String targetType, final String message,
         final String... handlers)
     {
-        final String version = SystemWorkflowsHomepage.PATH + "/" + name + "/v1";
-        this.context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
-        this.context.create().resource(SystemWorkflowsHomepage.PATH + "/" + name, TYPE,
+        final String version = SystemWorkflowsHomepage.HOMEPAGE_PATH + "/" + name + "/v1";
+        this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH, TYPE,
+            SystemWorkflowsHomepage.RESOURCE_TYPE);
+        this.context.create().resource(SystemWorkflowsHomepage.HOMEPAGE_PATH + "/" + name, TYPE,
             WorkflowDefinition.RESOURCE_TYPE);
         this.context.create().resource(version, Map.of(
             TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE),
@@ -694,7 +695,7 @@ class UserWorkflowTest
     @Test
     void answersCreatorAgainstTheHostWhenItRecordsWhoMayCompleteATask() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
 
         started();
 
@@ -705,7 +706,7 @@ class UserWorkflowTest
     @Test
     void answersCreatorAgainstAHostRaisedEarlierInTheSameWalk() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
         // Aimed at the submissions homepage: one activity raises a submission, and the next starts its process
         createStartingWorkflow("raise", "sub/SubmissionsHomepage", RAISE.getName(), RaisingHandler.NAME);
         final WorkflowEngine engine = engine(new RaisingHandler());
@@ -719,7 +720,7 @@ class UserWorkflowTest
     @Test
     void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
@@ -730,7 +731,7 @@ class UserWorkflowTest
     @Test
     void admitsThemEvenWhenTheyTypedTheirNameDifferentlyAtLogin() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
@@ -742,7 +743,7 @@ class UserWorkflowTest
     @Test
     void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
         final WorkflowEngine engine = started();
 
         assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(as(TASK, "somebody-else"), APPROVED));
@@ -752,7 +753,7 @@ class UserWorkflowTest
     @Test
     void offersCompletionToWhoeverRaisedTheHostOfATaskThatComesBackToThem() throws Exception
     {
-        createProcess(PrincipalService.CREATOR);
+        createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
         final WorkflowEngine engine = started();
 
         assertEquals(Set.of(TaskCompletion.COMPLETE_EVENT),

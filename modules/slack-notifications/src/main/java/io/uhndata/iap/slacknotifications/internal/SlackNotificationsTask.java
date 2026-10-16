@@ -119,7 +119,7 @@ public class SlackNotificationsTask implements Runnable
         }
         final JsonObjectBuilder message = Json.createObjectBuilder();
         if (StringUtils.isNotBlank(this.title)) {
-            message.add(SlackNotificationProducer.TEXT, this.title);
+            message.add(SlackNotificationProducer.TEXT_KEY, this.title);
         }
         message.add("attachments", attachments.isEmpty() ? nothingToReport() : toArray(attachments));
         try {
@@ -154,8 +154,8 @@ public class SlackNotificationsTask implements Runnable
     private JsonArrayBuilder nothingToReport()
     {
         return Json.createArrayBuilder().add(Json.createObjectBuilder()
-            .add(SlackNotificationProducer.TEXT, "Nothing to report")
-            .add(SlackNotificationProducer.TITLE, "All is good")
-            .add(SlackNotificationProducer.COLOR, SlackNotificationProducer.INFO));
+            .add(SlackNotificationProducer.TEXT_KEY, "Nothing to report")
+            .add(SlackNotificationProducer.TITLE_KEY, "All is good")
+            .add(SlackNotificationProducer.COLOR_KEY, SlackNotificationProducer.INFO_COLOR));
     }
 }

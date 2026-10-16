@@ -62,13 +62,13 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(resourceTypes = { ArchiveEntriesServlet.ARCHIVE_RESOURCE_TYPE }, methods = { "GET" },
-    selectors = { AdminSummaryServlet.SELECTOR }, extensions = { "json" })
+    selectors = { AdminSummaryServlet.SUMMARY_SELECTOR }, extensions = { "json" })
 public class ArchiveSummaryServlet extends AdminSummaryServlet
 {
     private static final long serialVersionUID = 1L;
 
     /** The wording used whichever way the query fails to run. */
-    private static final String UNQUERYABLE = "The archive cannot be queried";
+    private static final String UNQUERYABLE_MESSAGE = "The archive cannot be queried";
 
     /** Reads the current instant. A field so that tests can pin the windows down instead of racing them. */
     private final transient LongSupplier clock;
@@ -113,7 +113,7 @@ public class ArchiveSummaryServlet extends AdminSummaryServlet
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
-            throw new SummaryUnavailableException(UNQUERYABLE);
+            throw new SummaryUnavailableException(UNQUERYABLE_MESSAGE);
         }
         final String root = request.getResource().getPath();
         final long now = this.clock.getAsLong();
@@ -126,7 +126,7 @@ public class ArchiveSummaryServlet extends AdminSummaryServlet
                 .add("lastWeek", count("Archived in the last 7 days", week.value(), week.approximate()))
                 .add("total", count("Archived in total", total.value(), total.approximate()));
         } catch (final RepositoryException e) {
-            throw new SummaryUnavailableException(UNQUERYABLE, e);
+            throw new SummaryUnavailableException(UNQUERYABLE_MESSAGE, e);
         }
     }
 
