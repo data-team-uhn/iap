@@ -17,18 +17,14 @@
  */
 package io.uhndata.iap.utils;
 
-import java.io.IOException;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
-import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -200,37 +196,6 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Writes an error response as a small JSON object, replacing the whole response body. Use it for a request that
-     * failed before any result was written. Once rows are going out, the failure belongs in the summary instead, via
-     * {@link #writeSummary(String, String)}.
-     *
-     * <p>
-     * A committed response cannot be turned into an error. Its status is on the wire and its body is partly sent, and
-     * a second JSON object appended to a body that already holds one is not something a client can parse. Such a call
-     * is ignored.
-     * </p>
-     *
-     * @param response the HTTP response
-     * @param status the HTTP status code to send
-     * @param message the error message to include in the response
-     * @throws IOException if writing the response fails
-     */
-    public static void writeError(@NotNull final SlingJakartaHttpServletResponse response, final int status,
-        @Nullable final String message) throws IOException
-    {
-        if (response.isCommitted()) {
-            return;
-        }
-        response.resetBuffer();
-        response.setStatus(status);
-        try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
-            json.writeStartObject();
-            json.write("error", Objects.requireNonNullElse(message, "Invalid request"));
-            json.writeEnd().flush();
-        }
-    }
-
-    /**
      * Converts a request parameter, which may be missing or invalid, into a {@code long}, falling back to a default
      * value.
      *
@@ -345,7 +310,7 @@ public final class PaginatedJsonResponse
      *
      * <p>
      * This is how a failure part-way through the results is reported. By then the response may already be on the
-     * wire. A failure before any result is written is an ordinary {@link #writeError} response.
+     * wire. A failure before any result is written is an ordinary {@link JsonResponses#writeError} response.
      * </p>
      *
      * @param requestId the opaque {@code req} request parameter, echoed back for the client to match the response to

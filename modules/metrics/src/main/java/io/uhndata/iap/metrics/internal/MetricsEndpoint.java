@@ -30,10 +30,15 @@ import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -51,10 +56,14 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = -2434169854854968565L;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(MetricsEndpoint.class);
+
     @Reference
     private transient MetricsManager metricsManager;
 
     @Override
+    // The metrics are content, served as they are rather than as a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
@@ -69,11 +78,10 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
                 .forEach(metrics::add);
             response.getWriter().print(Json.createObjectBuilder().add("metrics", metrics).build().toString());
         } catch (final MetricsException e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().print(Json.createObjectBuilder()
-                .add("status", "error")
-                .add("error", e.getMessage())
-                .build().toString());
+            LOGGER.error("The metrics could not be read: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(MetricsEndpoint.class, "doGet"));
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "The metrics could not be read; the reason is in the instance log");
         }
     }
 }

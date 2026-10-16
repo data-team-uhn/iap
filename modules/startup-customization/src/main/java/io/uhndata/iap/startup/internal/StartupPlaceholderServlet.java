@@ -70,6 +70,8 @@ public final class StartupPlaceholderServlet extends HttpServlet
     }
 
     @Override
+    // The startup page is HTML
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void service(final HttpServletRequest request, final HttpServletResponse response) throws IOException
     {
         response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);

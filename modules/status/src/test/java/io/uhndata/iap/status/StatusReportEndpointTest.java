@@ -42,6 +42,7 @@ import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -122,7 +123,9 @@ class StatusReportEndpointTest
         final MockSlingJakartaHttpServletResponse response = get(null, Map.of("targetStatus", "LOUDER"));
 
         assertEquals(400, response.getStatus());
-        assertTrue(response.getOutputAsString().contains("Invalid targetStatus: LOUDER"));
+        // The accepted values, not the rejected one handed back
+        assertTrue(response.getOutputAsString().contains("targetStatus must be one of DEBUG, INFO"));
+        assertFalse(response.getOutputAsString().contains("LOUDER"));
         Mockito.verifyNoInteractions(this.manager);
     }
 

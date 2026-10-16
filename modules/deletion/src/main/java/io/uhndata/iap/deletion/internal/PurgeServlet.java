@@ -61,20 +61,20 @@ public class PurgeServlet extends SlingJakartaAllMethodsServlet
         try {
             final DeletionResult result = this.deletionService.purge(request.getResource());
             if (result.getStatus() == DeletionResult.Status.DELETED) {
-                JsonResponses.send(response, HttpServletResponse.SC_OK, "deleted", "");
+                DeletionResponses.send(response, HttpServletResponse.SC_OK, "deleted", "");
                 return;
             }
-            final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_CONFLICT, "vetoed");
+            final JsonObjectBuilder body = DeletionResponses.body(HttpServletResponse.SC_CONFLICT, "vetoed");
             body.add("status.message", result.getImpact().getVetoes().stream()
                 .map(Veto::getReason)
                 .distinct()
                 .collect(Collectors.joining("; ")));
-            body.add("vetoes", JsonResponses.vetoes(result.getImpact().getVetoes()));
-            JsonResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
+            body.add("vetoes", DeletionResponses.vetoes(result.getImpact().getVetoes()));
+            DeletionResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
         } catch (final IllegalArgumentException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
         } catch (final DeletionException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed", e.getMessage());
         }
     }
 }

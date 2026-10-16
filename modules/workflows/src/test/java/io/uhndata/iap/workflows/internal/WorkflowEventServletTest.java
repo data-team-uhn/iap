@@ -361,7 +361,9 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request(Map.of("title", "irrelevant")), response);
 
-        assertTrue(response.getOutputAsString().contains(failure.getMessage()));
+        // A refusal tells the caller why; a failure of the machinery is in the log, not in the answer
+        assertEquals(response.getStatus() != 500,
+            response.getOutputAsString().contains(failure.getMessage()));
         return response.getStatus();
     }
 

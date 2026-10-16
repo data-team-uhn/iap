@@ -109,6 +109,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private transient MimeTypeService mimeTypes;
 
     @Override
+    // The form is content, not a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {

@@ -80,16 +80,16 @@ public class ArchiveEntryServlet extends SlingJakartaSafeMethodsServlet
             final List<Veto> vetoes = this.deletionService.checkPurge(request.getResource());
             final JsonObjectBuilder body = ArchiveEntryRow.of(request.getResource())
                 .add("restorable", conflicts.isEmpty())
-                .add("restoreConflicts", JsonResponses.conflicts(conflicts))
+                .add("restoreConflicts", DeletionResponses.conflicts(conflicts))
                 .add("purgeable", vetoes.isEmpty())
-                .add("purgeVetoes", JsonResponses.vetoes(vetoes));
-            JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+                .add("purgeVetoes", DeletionResponses.vetoes(vetoes));
+            DeletionResponses.sendContent(response, HttpServletResponse.SC_OK, body);
         } catch (final IllegalArgumentException e) {
-            JsonResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
+            DeletionResponses.send(response, HttpServletResponse.SC_BAD_REQUEST, "invalid", e.getMessage());
         } catch (final DeletionException e) {
             LOGGER.warn("Failed to describe the archive entry {}: {}", request.getResource().getPath(),
                 e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed",
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "failed",
                 "The archive entry cannot be examined");
         }
     }

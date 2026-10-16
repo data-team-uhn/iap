@@ -22,6 +22,7 @@ import java.util.Collection;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
@@ -30,6 +31,7 @@ import io.uhndata.iap.deletion.api.DeletionImpact;
 import io.uhndata.iap.deletion.api.ReferrerGroup;
 import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.Veto;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * The JSON vocabulary shared by the deletion endpoints. Every response carries {@code status.code} and, when there
@@ -39,9 +41,9 @@ import io.uhndata.iap.deletion.api.Veto;
  * @version $Id$
  * @since 0.1.0
  */
-final class JsonResponses
+final class DeletionResponses
 {
-    private JsonResponses()
+    private DeletionResponses()
     {
         // Utility class
     }
@@ -55,7 +57,7 @@ final class JsonResponses
      */
     static JsonObjectBuilder body(final int code, final String status)
     {
-        return Json.createObjectBuilder().add("status.code", code).add("status", status);
+        return Json.createObjectBuilder().add("status.code", code).add(JsonResponses.STATUS_KEY, status);
     }
 
     /**
@@ -68,6 +70,23 @@ final class JsonResponses
      */
     static void send(final SlingJakartaHttpServletResponse response, final int code, final JsonObjectBuilder body)
         throws IOException
+    {
+        final JsonObject built = body.build();
+        JsonResponses.write(response, code, built.getString(JsonResponses.STATUS_KEY),
+            Json.createObjectBuilder(built).remove(JsonResponses.STATUS_KEY));
+    }
+
+    /**
+     * Send content, such as a listing of the archive, which is not a command's answer and so has no status word.
+     *
+     * @param response the response to write to
+     * @param code the HTTP status code
+     * @param body the complete body
+     * @throws IOException if the response cannot be written
+     */
+    @SuppressWarnings("checkstyle:directResponseWriter")
+    static void sendContent(final SlingJakartaHttpServletResponse response, final int code,
+        final JsonObjectBuilder body) throws IOException
     {
         response.setStatus(code);
         response.setContentType("application/json");

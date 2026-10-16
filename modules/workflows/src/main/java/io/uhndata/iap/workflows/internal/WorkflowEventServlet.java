@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -89,9 +90,6 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The request parameter naming a Sling POST servlet operation. */
     private static final String OPERATION_PARAMETER = ":operation";
 
-    /** The key a refusal is reported under in the JSON answer. */
-    private static final String ERROR_KEY = "error";
-
     /**
      * The supertype every entity homepage carries, which is how a POST that means "make me one of these" is told
      * from one that means "change this one" without naming a single homepage type.
@@ -130,7 +128,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         }
         // Read as an event, a Sling operation arrives empty and answers 200 having done nothing
         if (request.getRequestParameter(OPERATION_PARAMETER) != null) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "Sling operations are not accepted here: send a workflow event, or an HTTP DELETE to remove it");
             return;
         }
@@ -142,16 +140,16 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             if (createdPath instanceof String) {
                 redirect(response, (String) createdPath);
             } else {
-                reply(response, HttpServletResponse.SC_OK, "status", "completed");
+                JsonResponses.write(response, HttpServletResponse.SC_OK, "completed");
             }
         } catch (final NoApplicableWorkflowException | InvalidStateException e) {
             // Both are "not here, not now" rather than "not you" or "not like that": nothing was waiting for this
             // event, or something was and the target is not in a state that admits it
-            reply(response, HttpServletResponse.SC_CONFLICT, ERROR_KEY, e.getMessage());
+            JsonResponses.writeError(response, HttpServletResponse.SC_CONFLICT, reasonOf(e));
         } catch (final NotAuthorizedException e) {
-            reply(response, HttpServletResponse.SC_FORBIDDEN, ERROR_KEY, e.getMessage());
+            JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN, reasonOf(e));
         } catch (final InvalidPayloadException e) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY, e.getMessage());
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, reasonOf(e));
         } catch (final WorkflowException e) {
             // A broken definition or failed machinery: not the client's fault, and the one refusal here that
             // nobody outside can act on. Recorded as well as logged, because whoever has to fix it is the
@@ -162,7 +160,8 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
                 .about(request.getResource())
                 .actingFor(request.getResourceResolver().getUserID())
                 .with("event", eventName(request)));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR_KEY, e.getMessage());
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "The event could not be carried out; the reason is in the instance log");
         }
     }
 
@@ -286,24 +285,18 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     private void redirect(final SlingJakartaHttpServletResponse response, final String path) throws IOException
     {
         response.setHeader("Location", path);
-        reply(response, HttpServletResponse.SC_MOVED_TEMPORARILY, "path", path);
+        JsonResponses.write(response, HttpServletResponse.SC_MOVED_TEMPORARILY, "created",
+            Json.createObjectBuilder().add("path", path));
     }
 
     /**
-     * Writes a one-entry JSON body with the given status.
+     * What a refusal tells the caller: the engine's own explanation, written for the person who sent the event.
      *
-     * @param response the response to write
-     * @param status the HTTP status code
-     * @param key the single JSON key
-     * @param value its value
-     * @throws IOException when the response cannot be written
+     * @param refusal what the engine refused the event with
+     * @return its message, or a generic one if it has none
      */
-    private void reply(final SlingJakartaHttpServletResponse response, final int status, final String key,
-        final String value) throws IOException
+    private static String reasonOf(final WorkflowException refusal)
     {
-        response.setStatus(status);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(Json.createObjectBuilder().add(key, value).build().toString());
+        return Objects.requireNonNullElse(refusal.getMessage(), "The event was refused");
     }
 }

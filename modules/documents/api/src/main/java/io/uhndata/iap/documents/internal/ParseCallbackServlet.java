@@ -47,6 +47,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.JsonResponses;
+
 /**
  * Receives parse outcomes from the Docling daemon, at {@code /system/documents/parseCallback}. The daemon POSTs the
  * body it promised when {@link ParseJobConsumer} dispatched the job — {@code {"job_id", "ok": true,
@@ -112,12 +114,12 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         throws IOException
     {
         if (this.expectedAuthorization == null) {
-            JsonResponse.error(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+            JsonResponses.writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                 "Authorization is not configured");
             return;
         }
         if (!isAuthorized(request.getHeader("Authorization"))) {
-            JsonResponse.error(response, HttpServletResponse.SC_UNAUTHORIZED,
+            JsonResponses.writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                 "Missing or invalid authorization token");
             return;
         }
@@ -125,17 +127,18 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         try (JsonReader reader = Json.createReader(request.getReader())) {
             outcome = reader.readObject();
         } catch (final JsonException | ClassCastException e) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "The request body is not a JSON object");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
+                "The request body is not a JSON object");
             return;
         }
         final String jobId = outcome.getString(ParseJob.JSON_JOB_ID, null);
         if (jobId == null || !ParseJob.isJobId(jobId)) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
             return;
         }
         final String markdown = outcome.getString("markdown_path", null);
         if (outcome.getBoolean("ok", false) && markdown == null) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "Missing required parameter markdown_path in request body");
             return;
         }
@@ -158,7 +161,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             final ModifiableValueMap properties = jobNode == null ? null : jobNode.adaptTo(ModifiableValueMap.class);
             if (properties == null || !jobId.equals(properties.get(ParseJob.PN_JOB_ID, String.class))) {
-                JsonResponse.error(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+                JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
             // An outcome replaces whatever the node said before, so the properties belonging to the other outcome
@@ -192,17 +195,17 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             // Recorded first, then handed over: whoever queued the parse for a node takes it from here, and the
             // record goes with it
             settle(resolver, jobNode, jobId);
-            JsonResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
+            JobStateResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
                 .add(ParseJob.JSON_JOB_ID, jobId)
                 .add(ParseJob.PN_STATUS, status)
                 .build());
         } catch (final LoginException e) {
             LOGGER.error("Cannot access the parse jobs storage: {}", e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The outcome could not be recorded");
         }
     }

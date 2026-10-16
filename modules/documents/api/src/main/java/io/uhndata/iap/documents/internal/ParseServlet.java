@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * Stub endpoint for parsing a document through the Docling daemon, at {@code /system/documents/parse}. Each request
@@ -107,7 +108,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     {
         final String path = request.getParameter(ParseJob.PN_PATH);
         if (path == null || path.isBlank()) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
             return;
         }
         final String jobId;
@@ -116,13 +117,13 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
         } catch (final IOException e) {
             // The service's own words: which step refused, without what the repository said about it
             LOGGER.error("Cannot queue a parse: {}", e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
             return;
         }
         // Built from the constant servlet path, never from the request, so nothing
         // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
         response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
-        JsonResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
+        JobStateResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
             .add(JOB_ID_KEY, jobId)
             .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
             .build());
@@ -134,24 +135,24 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     {
         final String jobId = request.getParameter(JOB_ID_KEY);
         if (jobId == null || jobId.isBlank()) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id parameter is required");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id parameter is required");
             return;
         }
         if (!ParseJob.isJobId(jobId)) {
-            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
             return;
         }
         try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             final ValueMap properties = jobNode == null ? null : jobNode.getValueMap();
             if (properties == null || !jobId.equals(properties.get(ParseJob.PN_JOB_ID, String.class))) {
-                JsonResponse.error(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+                JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
-            JsonResponse.write(response, HttpServletResponse.SC_OK, toJson(jobId, properties));
+            JobStateResponse.write(response, HttpServletResponse.SC_OK, toJson(jobId, properties));
         } catch (final LoginException e) {
             LOGGER.error(LOG_INACCESSIBLE, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
         }
     }
 

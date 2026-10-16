@@ -46,6 +46,7 @@ import io.uhndata.iap.auth.token.IapToken;
 import io.uhndata.iap.auth.token.TokenManager;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * The first thing a trusted remote instance can actually ask this one to do, and for now the only way to exercise
@@ -76,8 +77,6 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     /** The subservice whose user holds the write rights on {@link #ROOT}. */
     private static final String SUBSERVICE = "remote";
 
-    /** The JSON key a refusal is reported under. */
-    private static final String ERROR = "error";
 
     /**
      * What the body's {@code path} may be: one segment, ASCII letters and digits only.
@@ -111,7 +110,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     {
         final IapToken token = authenticate(request);
         if (token == null) {
-            reply(response, HttpServletResponse.SC_UNAUTHORIZED, ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                 "A valid token is required in the Authorization header");
             return;
         }
@@ -120,12 +119,12 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
         try {
             name = requestedName(request);
         } catch (final JsonException e) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "The request body must be a JSON object");
             return;
         }
         if (name == null || !SAFE_NAME.matcher(name).matches()) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "`path` must be a single alphanumeric node name");
             return;
         }
@@ -186,7 +185,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
                 throw new PersistenceException(ROOT + " does not exist");
             }
             if (resolver.getResource(path) != null) {
-                reply(response, HttpServletResponse.SC_CONFLICT, ERROR, path + " already exists");
+                JsonResponses.writeError(response, HttpServletResponse.SC_CONFLICT, path + " already exists");
                 return;
             }
 
@@ -194,7 +193,8 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
             resolver.create(parent, name, Map.of("jcr:primaryType", "nt:unstructured"));
             resolver.commit();
             response.setHeader("Location", path);
-            reply(response, HttpServletResponse.SC_CREATED, "path", path);
+            JsonResponses.write(response, HttpServletResponse.SC_CREATED, "created",
+                Json.createObjectBuilder().add("path", path));
         } catch (final LoginException | PersistenceException e) {
             // A missing service user or an unwritable /remote: the deployer's to fix, and nobody would otherwise
             // find out, since all the peer sees is a 500 it will retry
@@ -202,25 +202,8 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
             ErrorLogger.logError(e, ErrorContext.of(RemoteNodeServlet.class, "create")
                 .about(path)
                 .actingFor(token.getUserId()));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR, "The node could not be created");
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "The node could not be created");
         }
-    }
-
-    /**
-     * Write a one-entry JSON body with the given status.
-     *
-     * @param response the response to write
-     * @param status the HTTP status code
-     * @param key the single JSON key
-     * @param value its value
-     * @throws IOException when the response cannot be written
-     */
-    private void reply(final SlingJakartaHttpServletResponse response, final int status, final String key,
-        final String value) throws IOException
-    {
-        response.setStatus(status);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(Json.createObjectBuilder().add(key, value).build().toString());
     }
 }

@@ -72,6 +72,8 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
     private static final List<String> ADDRESS_LISTS = List.of("from", "replyTo", "to", "cc", "bcc", "headers");
 
     @Override
+    // The caught mail is content, a listing rather than a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {

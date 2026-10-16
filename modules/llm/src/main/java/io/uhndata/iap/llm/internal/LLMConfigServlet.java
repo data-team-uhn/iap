@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
-import io.uhndata.iap.utils.PaginatedJsonResponse;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * Servlet that exposes the LLM configuration catalog (providers and their models, with all parameters)
@@ -86,6 +86,8 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     private static final String MODEL_RESOURCE_TYPE = "llm/Model";
 
     @Override
+    // The catalog is content, served after a change as on a read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
@@ -97,6 +99,8 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     }
 
     @Override
+    // The catalog is content, served after a change as on a read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
@@ -107,7 +111,7 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
         // validate, write, commit and answer 200 with a catalog echoing the new values -- while the service
         // reads only the selection, and /libs is re-seeded with overwrite:=true on the next deploy.
         if (!LLMConfigurationServiceImpl.SELECTION_PATH.equals(selection.getPath())) {
-            PaginatedJsonResponse.writeError(response, 400,
+            JsonResponses.writeError(response, 400,
                 "The active selection can only be changed at " + LLMConfigurationServiceImpl.SELECTION_PATH);
             return;
         }
@@ -117,13 +121,13 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
 
         final String refusal = selectionRefusal(catalog, provider, model);
         if (refusal != null) {
-            PaginatedJsonResponse.writeError(response, 400, refusal);
+            JsonResponses.writeError(response, 400, refusal);
             return;
         }
 
         final ModifiableValueMap properties = selection.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
-            PaginatedJsonResponse.writeError(response, 403, "Not allowed to modify the LLM configuration");
+            JsonResponses.writeError(response, 403, "Not allowed to modify the LLM configuration");
             return;
         }
         properties.put(ACTIVE_PROVIDER, provider);
@@ -136,7 +140,7 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
             // propagate it replaced the documented JSON contract with Sling's error page and a stack trace.
             LOGGER.warn("The LLM selection could not be saved", e);
             ErrorLogger.logError(e, ErrorContext.of(LLMConfigServlet.class, "doPost"));
-            PaginatedJsonResponse.writeError(response, 409, "The LLM configuration could not be saved");
+            JsonResponses.writeError(response, 409, "The LLM configuration could not be saved");
             return;
         }
 
