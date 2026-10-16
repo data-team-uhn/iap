@@ -112,7 +112,7 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
             return;
         }
         final String root = request.getResource().getPath();
@@ -126,10 +126,10 @@ public class ArchiveSummaryServlet extends SlingJakartaSafeMethodsServlet
                 .add("lastWeek", week.value())
                 .add("total", total.value())
                 .add("approximate", day.approximate() || week.approximate() || total.approximate());
-            JsonResponses.send(response, HttpServletResponse.SC_OK, body);
+            DeletionResponses.sendContent(response, HttpServletResponse.SC_OK, body);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to count the archive entries: {}", e.getMessage(), e);
-            JsonResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
+            DeletionResponses.send(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, FAILED, UNQUERYABLE);
         }
     }
 
