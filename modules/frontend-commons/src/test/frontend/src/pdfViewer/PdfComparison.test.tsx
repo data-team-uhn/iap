@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 import { ThemeProvider } from "@mui/material/styles";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { diffArrays } from "diff";
 
@@ -121,6 +121,8 @@ describe("PdfComparison", () => {
 
       await waitFor(() => expect(fakePdf.finds.filter(find => find.query === "fee")).toHaveLength(2));
       await waitForStatus("Match 1 of 1.");
+      await userEvent.keyboard("{Enter}");
+      expect(fakePdf.finds.filter(find => find.type === "again")).toHaveLength(1);
     });
 
     it("steps through the changes in order, bringing each into view in both versions", async () => {
@@ -170,6 +172,72 @@ describe("PdfComparison", () => {
       await userEvent.click(screen.getByRole("button", { name: "Fit to width" }));
 
       expect(fakePdf.scales.filter(scale => scale === "page-width")).toHaveLength(fitted + 2);
+    });
+
+    describe("scrolling", () => {
+      // A frame of the stand-in, scrolled by hand once both versions are shown, and the next frame drawn after.
+      async function scrollByHand(frame: HTMLElement) {
+        await waitFor(() => expect(getFrames().map(each => Object.keys(getDrawnMarks(each)))).not.toContainEqual([]));
+        fireEvent.wheel(frame);
+        fireEvent.scroll(frame);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+
+      it("scrolls the other version with the one scrolled by hand, matched by their text", async () => {
+        show([ "The fee is due." ], [ "The fee is now due." ]);
+        await waitForStatus("1 change found.");
+        const [ older, newer ] = getFrames();
+
+        await scrollByHand(older);
+
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+        expect(older.scrollTop).toBe(0);
+      });
+
+      it("keeps a version moved with the other from moving it back", async () => {
+        show([ "The fee is due." ], [ "The fee is now due." ]);
+        await waitForStatus("1 change found.");
+        const [ older, newer ] = getFrames();
+        await scrollByHand(older);
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+
+        fireEvent.scroll(newer);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        expect(older.scrollTop).toBe(0);
+      });
+
+      it("leaves the other version where it is for scrolling not done by hand", async () => {
+        show([ "The fee is due." ], [ "The fee is now due." ]);
+        await waitForStatus("1 change found.");
+        const [ older, newer ] = getFrames();
+
+        fireEvent.scroll(older);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        expect(newer.scrollTop).toBe(0);
+      });
+
+      it("moves the older version with the newer after zooming", async () => {
+        show([ "The fee is due." ], [ "The fee is now due." ]);
+        await waitForStatus("1 change found.");
+
+        await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+
+        await waitFor(() => expect(getFrames()[0].scrollTop).toBe(MATCH_TOP));
+      });
+
+      it("takes the other version to a page not drawn yet, then to the place once it is", async () => {
+        fakePdf.drawShownPageOnly = true;
+        show([ "Shared words here." ], [ "A page added first.", "Shared words here." ]);
+        await waitForStatus("1 change found.");
+        const [ older, newer ] = getFrames();
+
+        await scrollByHand(older);
+
+        expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument();
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+      });
     });
 
     it("shows the newer version alone when asked, and remembers it", async () => {

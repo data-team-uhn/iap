@@ -24,6 +24,7 @@ import {
   getChangeType,
   getWordKey,
   getWords,
+  mapPoint,
   type Comparison,
 } from "@iap/frontend-commons/pdfViewer/revisionDiffModel";
 
@@ -104,7 +105,7 @@ describe("compareRevisions", () => {
     const older = pages("The fee is due within thirty days of the start of the study.");
     const newer = pages("The fee is\ndue with-\nin thirty days", "of the  start of the study.");
 
-    expect(await compare(older, newer)).toEqual({ status: "compared", changes: [], hidden: 0 });
+    expect(await compare(older, newer)).toMatchObject({ status: "compared", changes: [], hidden: 0 });
   });
 
   it("marks added words in the newer version, and the point they would go in the older", async () => {
@@ -139,7 +140,7 @@ describe("compareRevisions", () => {
   });
 
   it("takes a lone soft hyphen as nothing", async () => {
-    expect(await compare(pages("a \u00ad b"), pages("a b"))).toEqual({ status: "compared", changes: [], hidden: 0 });
+    expect(await compare(pages("a \u00ad b"), pages("a b"))).toMatchObject({ status: "compared", changes: [], hidden: 0 });
   });
 
   it("puts the point of words removed at the start before the first word", async () => {
@@ -183,7 +184,7 @@ describe("compareRevisions", () => {
     const older = pages("Hello, world. The Fee is due — today.");
     const newer = pages("hello world The fee is due today.");
 
-    expect(await compare(older, newer)).toEqual({ status: "compared", changes: [], hidden: 3 });
+    expect(await compare(older, newer)).toMatchObject({ status: "compared", changes: [], hidden: 3 });
     expect((await compare(older, newer, true)).changes.map(({ removed, added }) => [ removed, added ])).toEqual([
       [ "Hello, world.", "hello world" ],
       [ "Fee", "fee" ],
@@ -280,5 +281,45 @@ describe("describeHidden", () => {
   it("counts the changes left out", () => {
     expect(describeHidden(1)).toBe("1 change to punctuation or case hidden");
     expect(describeHidden(4)).toBe("4 changes to punctuation or case hidden");
+  });
+});
+
+describe("mapPoint", () => {
+  async function align(older: PageText[], newer: PageText[]) {
+    return (await compare(older, newer)).alignment;
+  }
+
+  it("matches a word the versions share to the same word, on whichever page it is", async () => {
+    const alignment = await align(pages("One two three four", "five six seven"), pages("One two six seven"));
+
+    expect(mapPoint(alignment, "older", { page: 2, char: 6 })).toEqual({ page: 1, char: 8 });
+    expect(mapPoint(alignment, "newer", { page: 1, char: 8 })).toEqual({ page: 2, char: 5 });
+    expect(mapPoint(alignment, "newer", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
+  });
+
+  it("matches a word only one version has to where its change sits in the other", async () => {
+    const alignment = await align(pages("One two three four", "five six seven"), pages("One two six seven"));
+
+    expect(mapPoint(alignment, "older", { page: 1, char: 9 })).toEqual({ page: 1, char: 8 });
+    expect(mapPoint(alignment, "older", { page: 2, char: 0 })).toEqual({ page: 1, char: 8 });
+  });
+
+  it("matches the start of a version, before any word the versions share, to the start of the other", async () => {
+    const alignment = await align(pages("  Draft. The fee is due."), pages("The fee is due."));
+
+    expect(mapPoint(alignment, "older", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 4 })).toEqual({ page: 1, char: 0 });
+  });
+
+  it("matches the end of a version to the last word of the other", async () => {
+    const alignment = await align(pages("The fee is due today."), pages("The fee is due."));
+
+    expect(mapPoint(alignment, "older", { page: 1, char: 16 })).toEqual({ page: 1, char: 11 });
+  });
+
+  it("matches anything to the start of a version without words", () => {
+    const alignment = { older: getWords(pages("Fee")), newer: [], pairs: [] };
+
+    expect(mapPoint(alignment, "older", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
   });
 });

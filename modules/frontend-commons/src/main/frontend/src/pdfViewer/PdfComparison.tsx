@@ -45,6 +45,7 @@ import { useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
 import { useRevisionDiff, type ComparisonState } from "./useRevisionDiff";
+import { useScrollSync } from "./useScrollSync";
 import ViewerPlacement, { ViewerTitle } from "./ViewerPlacement";
 import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
 import LoadError from "../components/LoadError";
@@ -173,16 +174,24 @@ function ComparisonSession(props: PdfComparisonProps) {
       toolbarRef.current?.openSearch();
     }
   };
-  // One search and one zoom for both versions. The search counts and steps through the newer version's
-  // matches, so it means the same shown alone.
+  const lead = useScrollSync(
+    { older: olderView, newer: newerView },
+    split && comparison.status === "compared" ? comparison.alignment : undefined,
+  );
+  // One search and one zoom for both versions, after which the older version follows the newer. The search
+  // counts and steps through the newer version's matches, so it means the same shown alone.
   const find = (query: string) => {
     newerView.find(query);
     olderView.find(query);
+    lead("newer");
   };
-  const zoom = {
-    onZoomIn: () => [ newerView, olderView ].forEach(view => view.zoomIn()),
-    onZoomOut: () => [ newerView, olderView ].forEach(view => view.zoomOut()),
-    onFitWidth: () => [ newerView, olderView ].forEach(view => view.fitWidth()),
+  const findAgain = (previous: boolean) => {
+    newerView.findAgain(previous);
+    lead("newer");
+  };
+  const zoomBoth = (zoom: (view: typeof newerView) => void) => () => {
+    [ newerView, olderView ].forEach(zoom);
+    lead("newer");
   };
   const { line, said } = describeComparison(comparison);
   const among = { index: position + 1, count: changes.length };
@@ -313,8 +322,10 @@ function ComparisonSession(props: PdfComparisonProps) {
             opened={opened}
             search={newerView.search}
             onFind={find}
-            onFindAgain={newerView.findAgain}
-            {...zoom}
+            onFindAgain={findAgain}
+            onZoomIn={zoomBoth(view => view.zoomIn())}
+            onZoomOut={zoomBoth(view => view.zoomOut())}
+            onFitWidth={zoomBoth(view => view.fitWidth())}
           />
           <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
             {split ? pane("older", false) : null}

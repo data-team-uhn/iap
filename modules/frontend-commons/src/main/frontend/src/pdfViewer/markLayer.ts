@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { MarkKind, MarkSpan } from "./marksModel";
+import type { MarkKind, MarkSpan, TextPoint } from "./marksModel";
 
 export const MARK_CLASS = "iap-mark";
 
@@ -190,6 +190,32 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
   }
   const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${last.page}"] .textLayer`);
   return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
+}
+
+// The point of the text drawn in the frame at a height in the window, or the nearest below it: the start
+// of the first piece of text reaching down to it, on the first page reaching down to it. None where no
+// such page has its text drawn.
+export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undefined {
+  const pageView = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"))
+    .find(view => view.getBoundingClientRect().bottom >= y);
+  const textLayer = pageView?.querySelector<HTMLElement>(".textLayer") ?? null;
+  if (pageView === undefined || textLayer === null) {
+    return undefined;
+  }
+  const nodes = getTextNodes(textLayer);
+  const at = nodes.find(({ node }) => (node.parentElement?.getBoundingClientRect().bottom ?? y) >= y) ?? nodes.at(-1);
+  return at === undefined ? undefined : { page: Number(pageView.dataset.pageNumber), char: at.start };
+}
+
+// Where a point of a page's text is drawn in the frame: the box of the character at it, or of the point
+// itself at the end of the text. None while its page's text is not drawn.
+export function getTextPointRect(frame: HTMLElement, { page, char }: TextPoint): DOMRect | undefined {
+  const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${page}"] .textLayer`);
+  if (textLayer === null) {
+    return undefined;
+  }
+  const nodes = getTextNodes(textLayer);
+  return getTextRects(nodes, char, char + 1).at(0) ?? getPointRect(nodes, char);
 }
 
 // The first piece of a mark drawn in the frame, if its page has been drawn, or its first point.
