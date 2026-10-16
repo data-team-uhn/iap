@@ -17,7 +17,7 @@
  */
 import { diffArrays } from "diff";
 
-import { getPassageText, type MarkSpan, type PageText, type PlacedMark } from "./marksModel";
+import { getPassageText, type MarkSpan, type PageText, type PlacedMark, type TextPoint } from "./marksModel";
 
 // What changed between two versions of a document, word by word, as places in each version's text as PDF.js
 // reads it for its text layer, so the viewer can mark them. No React.
@@ -44,10 +44,18 @@ export interface RevisionChange {
 
 export type ChangeType = "added" | "removed" | "replaced";
 
+// The words of each version the comparison looked at, and, by their indexes, the pairs of them it took as
+// the same, in order. They match a place in one version to the same place in the other.
+export interface Alignment {
+  older: Word[];
+  newer: Word[];
+  pairs: [ number, number ][];
+}
+
 // How a comparison went: the changes found, with how many more the default comparison leaves out, as
-// changes of case or punctuation alone; or why there are none to show.
+// changes of case or punctuation alone, and how the versions line up; or why there are none to show.
 export type Comparison =
-  | { status: "compared"; changes: RevisionChange[]; hidden: number }
+  | { status: "compared"; changes: RevisionChange[]; hidden: number; alignment: Alignment }
   | { status: "noText"; without: "older" | "newer" | "both" }
   | { status: "tooDifferent" };
 
@@ -285,6 +293,7 @@ export function compareRevisions(
   }
   const changes: RevisionChange[] = [];
   const pairs: WordPair[] = [];
+  const aligned: [ number, number ][] = [];
   let at = { older: 0, newer: 0 };
   let open: OpenChange | undefined;
   const close = () => {
@@ -318,6 +327,7 @@ export function compareRevisions(
       for (let index = 0; index < count; index++) {
         const pair = { older: before.compared[at.older + index], newer: after.compared[at.newer + index] };
         pairs.push({ ...pair, afterChange: afterChange && index === 0 });
+        aligned.push([ at.older + index, at.newer + index ]);
       }
       at = { older: at.older + count, newer: at.newer + count };
     }
@@ -325,5 +335,35 @@ export function compareRevisions(
   const endsWithChange = open !== undefined;
   close();
   const hidden = strict ? 0 : countHidden(before.all, after.all, pairs, endsWithChange);
-  return Promise.resolve({ status: "compared", changes, hidden });
+  const alignment = { older: before.compared, newer: after.compared, pairs: aligned };
+  return Promise.resolve({ status: "compared", changes, hidden, alignment });
+}
+
+// How many of the items, in order, come before a place, given which do: all of those that do come first.
+function countBefore<T>(items: T[], isBefore: (item: T) => boolean): number {
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (isBefore(items[middle])) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
+
+// The place in the other version matching a place in one: the start of the same word, where the comparison
+// took the word there as the same in both, or else where the change holding it sits in the other version.
+export function mapPoint(alignment: Alignment, from: "older" | "newer", { page, char }: TextPoint): TextPoint {
+  const [ side, otherSide ] = from === "older" ? [ 0, 1 ] as const : [ 1, 0 ] as const;
+  const others = alignment[from === "older" ? "newer" : "older"];
+  const isAtOrBefore = (word: Word) => word.page < page || (word.page === page && word.start <= char);
+  const index = countBefore(alignment[from], isAtOrBefore) - 1;
+  const pairs = countBefore(alignment.pairs, each => each[side] <= index);
+  const pair = pairs > 0 ? alignment.pairs[pairs - 1] : undefined;
+  const matching = pair === undefined ? 0 : pair[otherSide] + (pair[side] === index ? 0 : 1);
+  const word = others.at(Math.min(matching, others.length - 1));
+  return word === undefined ? { page: 1, char: 0 } : { page: word.page, char: word.start };
 }
