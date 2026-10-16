@@ -33,9 +33,14 @@
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
     <bpmn:serviceTask id="save" iap:handler="saveAnswers" name="Record the answers">
       <bpmn:incoming>toSave</bpmn:incoming>
+      <bpmn:outgoing>toParts</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toParts" sourceRef="save" targetRef="parts" />
+    <bpmn:serviceTask id="parts" iap:handler="createParts" name="Give each item asked for a part of its own">
+      <bpmn:incoming>toParts</bpmn:incoming>
       <bpmn:outgoing>toMark</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toMark" sourceRef="save" targetRef="mark" />
+    <bpmn:sequenceFlow id="toMark" sourceRef="parts" targetRef="mark" />
     <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
       <bpmn:incoming>toMark</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
@@ -56,26 +61,33 @@
       <bpmndi:BPMNShape id="saveShape" bpmnElement="save">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+      <bpmndi:BPMNShape id="partsShape" bpmnElement="parts">
         <dc:Bounds x="410" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+        <dc:Bounds x="570" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="730" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="558" y="223" width="61" height="14" />
+          <dc:Bounds x="718" y="223" width="61" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toSaveEdge" bpmnElement="toSave">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
+      <bpmndi:BPMNEdge id="toPartsEdge" bpmnElement="toParts">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
         <di:waypoint x="510" y="198" />
         <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="670" y="198" />
+        <di:waypoint x="730" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

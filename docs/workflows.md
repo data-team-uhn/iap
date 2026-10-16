@@ -977,18 +977,22 @@ workflow event like any other. What a save is allowed to do — whose request it
 whether it is still a draft — is decided by its handler rather than by the servlet that
 received the POST.
 
-After writing the answers, the save runs `markCompleteness`. It asks every
-`CompletenessEvaluator` (the SPI in `submissions-api`) to judge its own kind of part,
-and places the `incomplete` system tag on the parts they report, removing it from the
-rest. The tag is aggregated, so the submission carries it while any part does. Every
-question the submitter is shown has an answer, empty until filled in and incomplete
-while it holds fewer than `minAnswers` non-blank values; every document requirement that
-applies has a document, empty until something is uploaded, and incomplete while a
-required one holds nothing. An evaluator creates the empty part for an item that starts
-to apply. An approval never counts,
-because somebody else gives it. The create, attach and detach workflows run the same
-step, so a new submission is marked from the start, and removing a document it needs
-marks it again.
+After writing the answers, the save runs two more steps. `createParts` asks every
+`PartCreator` (an SPI in `submissions-api`) to give each item that applies a part of its
+own: every question the submitter is shown gets an answer, empty until filled in, and
+every document requirement that applies gets a document, empty until something is
+uploaded. A creator only adds what is missing and never removes a part, so an answer
+whose question stops applying keeps what it holds. Then `markCompleteness` asks every
+`CompletenessEvaluator` to judge its own kind of part, and places the `incomplete`
+system tag on the parts they report, removing it from the rest. The tag is aggregated,
+so the submission carries it while any part does. An answer is incomplete while it holds
+fewer than `minAnswers` non-blank values, and a required document while nothing is
+uploaded into it. An item that applies but has no part is a fault: the evaluator records
+it and reports the submission itself, which then reads as incomplete. An approval never
+counts, because somebody else gives it. The create and attach workflows run both steps,
+so a new submission has its parts and its marks from the start. Detaching removes every
+version of a document and leaves the document, empty, as its requirement's part; the
+detach workflow then marks the submission again.
 
 ## Content workflows: the part that persists
 
