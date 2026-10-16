@@ -17,7 +17,7 @@
  */
 import { diffArrays } from "diff";
 
-import { getPassageText, type MarkSpan, type PageText } from "./marksModel";
+import { getPassageText, type MarkSpan, type PageText, type PlacedMark } from "./marksModel";
 
 // What changed between two versions of a document, word by word, as places in each version's text as PDF.js
 // reads it for its text layer, so the viewer can mark them. No React.
@@ -122,6 +122,51 @@ export function getChangeType({ removed, added }: RevisionChange): ChangeType {
     return "added";
   }
   return added === "" ? "removed" : "replaced";
+}
+
+// The marks a version shows the changes with: removed text in the older, added text in the newer, and in
+// each, the point where text only the other has went or would go. Shown alone, the newer version also
+// marks the point removed text went from beside the text added in its place.
+export function getChangeMarks(changes: RevisionChange[], version: "older" | "newer", alone: boolean): PlacedMark[] {
+  return changes.map(change => {
+    const { id, removed, added } = change;
+    if (version === "older") {
+      return { id, kind: removed === "" ? "added" : "removed", spans: change.older };
+    }
+    if (added === "") {
+      return { id, kind: "removed", spans: change.newer };
+    }
+    const { page, start } = change.newer[0];
+    const point = { page, start, end: start, kind: "removed" as const };
+    return { id, kind: "added", spans: alone && removed !== "" ? [ point, ...change.newer ] : change.newer };
+  });
+}
+
+// Past this, the text a change removed or added is cut short where a screen reader says it.
+const SAID_LENGTH = 120;
+
+function quote(text: string): string {
+  return `“${text.length > SAID_LENGTH ? `${text.slice(0, SAID_LENGTH).trimEnd()}…` : text}”`;
+}
+
+// A change as a sentence of its own for a screen reader: which it is of how many, what it did on which
+// page of the newer version, and the text it removed or added.
+export function describeChange(change: RevisionChange, { index, count }: { index: number; count: number }): string {
+  const { page } = change.newer[0];
+  const which = `Change ${index} of ${count}.`;
+  switch (getChangeType(change)) {
+    case "added":
+      return `${which} Added on page ${page}: ${quote(change.added)}.`;
+    case "removed":
+      return `${which} Removed on page ${page}: ${quote(change.removed)}.`;
+    case "replaced":
+      return `${which} Replaced on page ${page}: ${quote(change.removed)} with ${quote(change.added)}.`;
+  }
+}
+
+// How many changes the default comparison leaves out, as a line under the changes found.
+export function describeHidden(hidden: number): string {
+  return `${hidden} ${hidden === 1 ? "change" : "changes"} to punctuation or case hidden`;
 }
 
 interface KeyedWord extends Word {

@@ -18,6 +18,9 @@
 import type { PageText } from "@iap/frontend-commons/pdfViewer/marksModel";
 import {
   compareRevisions,
+  describeChange,
+  describeHidden,
+  getChangeMarks,
   getChangeType,
   getWordKey,
   getWords,
@@ -216,5 +219,66 @@ describe("compareRevisions", () => {
     });
 
     expect(comparison).toEqual({ status: "tooDifferent" });
+  });
+});
+
+describe("getChangeMarks", () => {
+  const changes = [
+    { id: "a", removed: "", added: "now", older: [ { page: 1, start: 4, end: 4 } ], newer: [ { page: 1, start: 4, end: 7 } ] },
+    { id: "r", removed: "old", added: "", older: [ { page: 2, start: 0, end: 3 } ], newer: [ { page: 2, start: 0, end: 0 } ] },
+    { id: "x", removed: "100", added: "120", older: [ { page: 3, start: 5, end: 8 } ], newer: [ { page: 3, start: 6, end: 9 } ] },
+  ];
+
+  it("marks removed text in the older version, and where added text would go", () => {
+    expect(getChangeMarks(changes, "older", false)).toEqual([
+      { id: "a", kind: "added", spans: [ { page: 1, start: 4, end: 4 } ] },
+      { id: "r", kind: "removed", spans: [ { page: 2, start: 0, end: 3 } ] },
+      { id: "x", kind: "removed", spans: [ { page: 3, start: 5, end: 8 } ] },
+    ]);
+  });
+
+  it("marks added text in the newer version, and where removed text went from", () => {
+    expect(getChangeMarks(changes, "newer", false)).toEqual([
+      { id: "a", kind: "added", spans: [ { page: 1, start: 4, end: 7 } ] },
+      { id: "r", kind: "removed", spans: [ { page: 2, start: 0, end: 0 } ] },
+      { id: "x", kind: "added", spans: [ { page: 3, start: 6, end: 9 } ] },
+    ]);
+  });
+
+  it("marks where replaced text went from in the newer version shown alone", () => {
+    expect(getChangeMarks(changes, "newer", true).at(-1)).toEqual({
+      id: "x",
+      kind: "added",
+      spans: [ { page: 3, start: 6, end: 6, kind: "removed" }, { page: 3, start: 6, end: 9 } ],
+    });
+  });
+});
+
+describe("describeChange", () => {
+  const change = (removed: string, added: string) => ({
+    id: "c",
+    removed,
+    added,
+    older: [ { page: 2, start: 0, end: 1 } ],
+    newer: [ { page: 4, start: 0, end: 1 } ],
+  });
+  const among = { index: 3, count: 17 };
+
+  it("says which change it is, what it did on which page of the newer version, and its text", () => {
+    expect(describeChange(change("", "now"), among)).toBe("Change 3 of 17. Added on page 4: “now”.");
+    expect(describeChange(change("old", ""), among)).toBe("Change 3 of 17. Removed on page 4: “old”.");
+    expect(describeChange(change("100", "120"), among)).toBe("Change 3 of 17. Replaced on page 4: “100” with “120”.");
+  });
+
+  it("cuts long text short", () => {
+    expect(describeChange(change("", `${"word ".repeat(30)}end`), among))
+      .toBe(`Change 3 of 17. Added on page 4: “${"word ".repeat(24).trimEnd()}…”.`);
+  });
+});
+
+describe("describeHidden", () => {
+  it("counts the changes left out", () => {
+    expect(describeHidden(1)).toBe("1 change to punctuation or case hidden");
+    expect(describeHidden(4)).toBe("4 changes to punctuation or case hidden");
   });
 });
