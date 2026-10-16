@@ -46,8 +46,9 @@ import { ensureUser } from '../../../support/users';
  * parent that has to hold it.
  */
 test.describe('stories: what becomes of something after it is deleted', () => {
-  // One archive, one taxonomy, one instance: these run in order, and each leaves the archive empty
-  // for the next. Run alongside each other they would be counting each other's deletions.
+  // One taxonomy, one instance: these run in order, and each puts back or destroys what it deleted. Other
+  // stories share the archive and delete things of their own meanwhile, so these read only the entries
+  // deleted from under /Categories, and count the console's figures from where they stood before.
   //
   // The default 30s budget is sized for a spec that checks one thing; a story is a dozen steps with a
   // page load and a server round trip in most of them, so it needs a budget of its own. Long enough
@@ -66,16 +67,21 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
   const SPECIALTIES = [ 'Cardiology', 'Neurology', 'Oncology' ];
 
+  /** Where every category is deleted from, and so the only part of the archive these stories read. */
+  const CATEGORIES = '/Categories/';
+
   /** A colleague of Miriam's, with an account and nothing else. */
   const NADIA: Credentials = { username: 'nadia', password: 'nadia' };
 
   test('Miriam deletes the wrong category, and puts it back', async ({ page }) => {
     const shell = new AppShell(page);
     const manager = new CategoryManagerPage(page);
-    const archive = new ArchivePage(page);
+    const archive = new ArchivePage(page, CATEGORIES);
     const entry = new ArchiveEntryPage(page);
 
-    await test.step('she signs in, and nothing has ever been deleted here', async () => {
+    let before = { total: 0, day: 0 };
+
+    await test.step('she signs in, and notes what the archive holds already', async () => {
       await signInAs(page, ADMIN);
       expect(await shell.signedInAs()).toBe('admin');
 
@@ -84,8 +90,11 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await page.getByRole('button', { name: 'Administration' }).click();
       await expect(page).toHaveURL(/\/admin$/);
 
-      expect(await archive.count('Archived in total')).toBe(0);
-      expect(await archive.count('Archived in the last 24 hours')).toBe(0);
+      before = {
+        total: await archive.count('Archived in total'),
+        day: await archive.count('Archived in the last 24 hours'),
+      };
+      await expect(archive.rows()).toHaveCount(0);
     });
 
     await test.step('she creates a category', async () => {
@@ -103,8 +112,9 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('the console counts the deletion', async () => {
       await page.goto('/admin');
-      expect(await archive.count('Archived in the last 24 hours')).toBe(1);
-      expect(await archive.count('Archived in total')).toBe(1);
+      // At least hers: another story may have deleted something of its own meanwhile
+      expect(await archive.count('Archived in the last 24 hours')).toBeGreaterThanOrEqual(before.day + 1);
+      expect(await archive.count('Archived in total')).toBeGreaterThanOrEqual(before.total + 1);
     });
 
     let deleted = '';
@@ -130,15 +140,12 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await expect(entry.restoreEverything()).toBeEnabled();
     });
 
-    await test.step('she restores it, and the archive is empty again', async () => {
+    await test.step('she restores it, and its entry leaves the archive', async () => {
       await entry.restoreEverything().click();
 
       // The entry stops existing, so the page that was showing it goes back to the listing
       await expect(page).toHaveURL(/\/admin\/archive$/);
-      await expect(archive.empty()).toBeVisible();
-
-      await page.goto('/admin');
-      expect(await archive.count('Archived in total')).toBe(0);
+      await expect(archive.rows()).toHaveCount(0);
     });
 
     await test.step('and the category is back where it was', async () => {
@@ -154,7 +161,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
   test('Miriam clears out a branch, and has to put it back in order', async ({ page }) => {
     const shell = new AppShell(page);
     const manager = new CategoryManagerPage(page);
-    const archive = new ArchivePage(page);
+    const archive = new ArchivePage(page, CATEGORIES);
     const entry = new ArchiveEntryPage(page);
 
     await test.step('she gives the category a subcategory', async () => {
@@ -214,7 +221,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
       await archive.restore(child);
       await expect(archive.rowFor(child)).toHaveCount(0);
-      await expect(archive.empty()).toBeVisible();
+      await expect(archive.rows()).toHaveCount(0);
     });
 
     await test.step('and the branch is whole again', async () => {
@@ -231,7 +238,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
   test('Miriam finds the way back blocked, and destroys the entry instead', async ({ page }) => {
     const shell = new AppShell(page);
     const manager = new CategoryManagerPage(page);
-    const archive = new ArchivePage(page);
+    const archive = new ArchivePage(page, CATEGORIES);
     const entry = new ArchiveEntryPage(page);
 
     await test.step('a category is deleted', async () => {
@@ -286,11 +293,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await entry.purge();
 
       await expect(page).toHaveURL(/\/admin\/archive$/);
-      await expect(archive.empty()).toBeVisible();
-
-      // Destroyed rather than hidden: the console counts what is in the archive, and it is not there
-      await page.goto('/admin');
-      expect(await archive.count('Archived in total')).toBe(0);
+      await expect(archive.rows()).toHaveCount(0);
     });
 
     await test.step('she signs out', async () => {
@@ -301,10 +304,17 @@ test.describe('stories: what becomes of something after it is deleted', () => {
   test('Miriam clears out three categories, and is asked for one of them back', async ({ page }) => {
     const shell = new AppShell(page);
     const manager = new CategoryManagerPage(page);
-    const archive = new ArchivePage(page);
+    const archive = new ArchivePage(page, CATEGORIES);
+
+    let before = { total: 0, day: 0 };
 
     await test.step('three categories are created in error, and cleared out in one sitting', async () => {
       await signInAs(page, ADMIN);
+      await page.goto('/admin');
+      before = {
+        total: await archive.count('Archived in total'),
+        day: await archive.count('Archived in the last 24 hours'),
+      };
       await manager.openFromConsole();
       for (const specialty of SPECIALTIES) {
         await manager.create(specialty);
@@ -316,8 +326,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('the console counts all three', async () => {
       await page.goto('/admin');
-      expect(await archive.count('Archived in the last 24 hours')).toBe(3);
-      expect(await archive.count('Archived in total')).toBe(3);
+      expect(await archive.count('Archived in the last 24 hours')).toBeGreaterThanOrEqual(before.day + 3);
+      expect(await archive.count('Archived in total')).toBeGreaterThanOrEqual(before.total + 3);
     });
 
     await test.step('and the archive lists them, the last one deleted first', async () => {
@@ -372,9 +382,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
           .toContainText('The entry and everything archived in it were permanently removed.');
       }
 
-      await expect(archive.empty()).toBeVisible();
-      await page.goto('/admin');
-      expect(await archive.count('Archived in total')).toBe(0);
+      await expect(archive.rows()).toHaveCount(0);
     });
 
     await test.step('the taxonomy has that one back, and neither of the others', async () => {
@@ -392,7 +400,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
   test('a link outlives what it pointed at, and says so to each of them differently', async ({ page, request }) => {
     const shell = new AppShell(page);
     const manager = new CategoryManagerPage(page);
-    const archive = new ArchivePage(page);
+    const archive = new ArchivePage(page, CATEGORIES);
 
     let stale = '';
 
@@ -449,7 +457,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await signInAs(page, ADMIN);
       await archive.openFromConsole();
       await archive.purge(stale);
-      await expect(archive.empty()).toBeVisible();
+      await expect(archive.rows()).toHaveCount(0);
 
       await page.goto(stale);
       await expect(page.getByRole('heading', { name: 'Not found' })).toBeVisible();

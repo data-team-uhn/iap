@@ -26,9 +26,12 @@ export type ArchivePeriod = 'Archived in the last 24 hours' | 'Archived in the l
  *
  * Entries are addressed by the path they were deleted from, which is the only thing about an entry a
  * reader is ever shown — the entry's own name is a UUID the server chose.
+ *
+ * Given a path prefix, the listing is read as holding only the entries deleted from under it. Other stories share
+ * the instance and delete things of their own at the same time, so a story counts and orders only what it deleted.
  */
 export class ArchivePage {
-  constructor(private readonly page: Page) {}
+  constructor(private readonly page: Page, private readonly under = '') {}
 
   /**
    * One of the three counts the console widget shows.
@@ -53,9 +56,12 @@ export class ArchivePage {
     await expect(this.page.getByRole('heading', { name: 'Archive' })).toBeVisible();
   }
 
-  /** Everything currently listed, one row per entry, without the header row. */
+  /** Everything currently listed under the prefix, one row per entry, without the header row. */
   rows(): Locator {
-    return this.page.getByRole('table', { name: 'Archive entries' }).locator('tbody tr');
+    const rows = this.page.getByRole('table', { name: 'Archive entries' }).locator('tbody tr');
+    return this.under === '' ? rows : rows.filter({
+      has: this.page.getByRole('link', { name: new RegExp(`^${this.under.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }),
+    });
   }
 
   /** The row for one deleted path, found by the link the listing offers through to its entry. */

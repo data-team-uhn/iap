@@ -34,9 +34,6 @@ import { fitsTheScreen, PHONE } from '../../../support/phone';
  *
  * Each step has its own spec. This one alone checks that a version's copy and its comparison work together at a
  * phone's width. The copy remembers where it came from, and the comparison is reachable from the copy's own actions.
- *
- * It runs on the demo instance, not beside the platform's archive story. Dropping a question puts it in the archive,
- * and that story expects the archive to hold only what it deleted itself.
  */
 test.describe('stories: a new version checked from a phone', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
@@ -66,7 +63,9 @@ test.describe('stories: a new version checked from a phone', () => {
       const dialog = page.getByRole('dialog', { name: 'New schema' });
       await dialog.getByLabel('Title').fill(SCHEMA);
       await dialog.getByRole('button', { name: 'Create' }).click();
-      await page.getByText('Version 1.0').click();
+      // The schema list shows other schemas' versions until the new schema's page replaces it
+      await expect(page.getByRole('heading', { name: SCHEMA, level: 1 })).toBeVisible();
+      await page.getByRole('main').getByText('Version 1.0').click();
       await expect(page.getByRole('heading', { name: /Version 1\.0/ })).toBeVisible();
     });
 
