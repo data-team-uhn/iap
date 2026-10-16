@@ -53,6 +53,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.search.api.SearchContext;
 import io.uhndata.iap.search.api.SearchContextFactory;
 import io.uhndata.iap.search.spi.QuickSearchEngine;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
@@ -197,16 +198,16 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         try {
             writeResponse(request, response);
         } catch (final InvalidQueryException e) {
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final IllegalArgumentException e) {
             // What Oak raises for a query it parsed but cannot make sense of, notably a malformed full-text
             // expression. The client sent it, so the client hears about it.
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute search query: {}", e.getMessage(), e);
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "Failed to execute query");
         }
     }

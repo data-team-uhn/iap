@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.utils;
 
-import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -28,7 +27,6 @@ import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
-import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -311,18 +309,6 @@ public class PaginatedJsonResponseTest
     }
 
     @Test
-    public void aCommittedResponseIsLeftAloneRatherThanAppendedTo()
-    {
-        // The status is on the wire once the response is committed
-        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
-        Mockito.when(response.isCommitted()).thenReturn(true);
-        Assertions.assertDoesNotThrow(() -> PaginatedJsonResponse.writeError(response,
-            SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Too late"));
-        Mockito.verify(response, Mockito.never()).setStatus(Mockito.anyInt());
-        Assertions.assertEquals("", this.output.toString());
-    }
-
-    @Test
     public void aSourceThatMustBeToldToAdvanceIsSkippedInsteadOfRead()
     {
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 1, 1));
@@ -382,25 +368,6 @@ public class PaginatedJsonResponseTest
         // Path separators and whitespace would let a caller reach a different resource altogether
         Mockito.when(this.request.getParameter("resourceSelectors")).thenReturn("../..\t/other..deep");
         Assertions.assertEquals(".other.deep", PaginatedJsonResponse.getResourceSelectors(this.request));
-    }
-
-    @Test
-    public void errorsAreWrittenAsJson() throws Exception
-    {
-        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
-        Mockito.when(response.getWriter()).thenReturn(new PrintWriter(this.output));
-        PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST, "Bad query");
-        Mockito.verify(response).setStatus(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
-        Assertions.assertEquals("Bad query", parse().getString("error"));
-    }
-
-    @Test
-    public void errorsWithoutAMessageGetADefaultOne() throws Exception
-    {
-        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
-        Mockito.when(response.getWriter()).thenReturn(new PrintWriter(this.output));
-        PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST, null);
-        Assertions.assertEquals("Invalid request", parse().getString("error"));
     }
 
     @Test
