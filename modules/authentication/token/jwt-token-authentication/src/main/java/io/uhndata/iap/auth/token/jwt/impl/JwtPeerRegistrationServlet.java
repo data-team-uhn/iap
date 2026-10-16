@@ -43,6 +43,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -66,7 +67,6 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
     /** The subservice whose user may add a peer, but not read or rewrite our own signing key. */
     private static final String SUBSERVICE = "peers";
 
-    private static final String ERROR = "error";
 
     /** The request field naming the {@code iss} claim the peer's tokens will carry. */
     private static final String ISSUER = "issuer";
@@ -89,7 +89,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         if (!"admin".equals(UserIds.canonical(request.getResourceResolver()))) {
-            reply(response, HttpServletResponse.SC_FORBIDDEN, ERROR, "Only admin can register a peer");
+            JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN, "Only admin can register a peer");
             return;
         }
 
@@ -97,14 +97,15 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
         try (JsonReader reader = Json.createReader(request.getReader())) {
             body = reader.readObject();
         } catch (final JsonException e) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR, "The request body must be a JSON object");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
+                "The request body must be a JSON object");
             return;
         }
 
         final String issuer = body.getString(ISSUER, null);
         final String submitted = body.getString("key", null);
         if (submitted == null || !JwtIssuers.isUsable(issuer)) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "`key` and a valid `issuer` are both required");
             return;
         }
@@ -115,7 +116,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
         } catch (final GeneralSecurityException e) {
             // The administrator is watching, and the key they pasted is theirs to see, so say what was wrong
             // with it rather than making them read the log
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "`key` is not an X.509-encoded RSA public key: " + e.getMessage());
             return;
         }
@@ -142,7 +143,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
                 throw new PersistenceException(IapJwtTokenManagerImpl.KEY_ROOT + " does not exist");
             }
             if (resolver.getResource(path) != null) {
-                reply(response, HttpServletResponse.SC_CONFLICT, ERROR,
+                JsonResponses.writeError(response, HttpServletResponse.SC_CONFLICT,
                     "This key is already registered, as " + path);
                 return;
             }
@@ -154,30 +155,14 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
                 IapJwtTokenManagerImpl.ISSUER_PROP, issuer));
             resolver.commit();
             LOGGER.info("Registered JWT peer {} as {}", issuer, key.fingerprint());
-            reply(response, HttpServletResponse.SC_CREATED, "kid", key.fingerprint());
+            JsonResponses.write(response, HttpServletResponse.SC_CREATED, "registered",
+                Json.createObjectBuilder().add("kid", key.fingerprint()));
         } catch (final LoginException | PersistenceException e) {
             // Not recorded through error tracking: an administrator triggered this by hand and is reading the
             // answer, so there is nobody who would only find out hours later
             LOGGER.error("Could not register JWT peer {}: {}", issuer, e.getMessage(), e);
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR, "The peer could not be stored");
+            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "The peer could not be stored");
         }
-    }
-
-    /**
-     * Write a one-entry JSON body with the given status.
-     *
-     * @param response the response to write
-     * @param status the HTTP status code
-     * @param key the single JSON key
-     * @param value its value
-     * @throws IOException when the response cannot be written
-     */
-    private void reply(final SlingJakartaHttpServletResponse response, final int status, final String key,
-        final String value) throws IOException
-    {
-        response.setStatus(status);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(Json.createObjectBuilder().add(key, value).build().toString());
     }
 }
