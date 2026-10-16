@@ -66,8 +66,8 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
         for (final DocumentRequirement requirement : ApplicableItems.getDocumentRequirements(model, this.conditions)) {
             final List<Document> existing = documents.get(requirement.getPath());
             if (existing == null) {
-                LOGGER.warn("{} has no document for {}, it should have been automatically created", submission.getPath(),
-                    requirement.getPath());
+                LOGGER.warn("{} has no document for {}, it should have been automatically created",
+                    submission.getPath(), requirement.getPath());
                 // A problem rather than a failure: a part creator left an item without its part
                 ErrorLogger.logProblem("A submission has no document for a requirement",
                     ErrorContext.of(DocumentCompletenessEvaluator.class, "evaluate")
