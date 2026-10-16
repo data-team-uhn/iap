@@ -26,28 +26,48 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Evidence} node: one passage backing the extracted answer of an
- * {@link Answer}, kept as a node rather than a plain string so the quote stays linked to the page and section it
- * was taken from.
+ * A Sling Model wrapping a {@code sub:Context} node: the context a quote comes from, backing an {@link Extraction}
+ * or a {@link Comment}: a passage of a document, or an answer. Kept as a node rather than a plain string, so the quote
+ * stays linked to the page and section it was taken from.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Evidence.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = Context.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Evidence extends EntityPart
+public class Context extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sub:Evidence} node. */
-    public static final String RESOURCE_TYPE = "sub/Evidence";
+    /** The {@code sling:resourceType} of a {@code sub:Context} node. */
+    public static final String RESOURCE_TYPE = "sub/Context";
+
+    @ValueMapValue
+    private String source;
 
     @ValueMapValue
     private String quote;
+
+    @ValueMapValue
+    private String prefix;
+
+    @ValueMapValue
+    private String suffix;
 
     @ValueMapValue
     private String header;
 
     @ValueMapValue
     private Long page;
+
+    /**
+     * The document revision or the answer the quote comes from. The link is weak, so one removed since is skipped.
+     *
+     * @return the source, or {@code null} if not recorded or no longer there
+     */
+    @Nullable
+    public EntityPart getSource()
+    {
+        return this.getReference(this.source, EntityPart.class);
+    }
 
     /**
      * The quoted text.
@@ -58,6 +78,30 @@ public class Evidence extends EntityPart
     public String getQuote()
     {
         return this.quote;
+    }
+
+    /**
+     * A little of the text just before the quote, so the passage can still be found when the same words occur more
+     * than once.
+     *
+     * @return the text before the quote, or {@code null} if not recorded
+     */
+    @Nullable
+    public String getPrefix()
+    {
+        return this.prefix;
+    }
+
+    /**
+     * A little of the text just after the quote, so the passage can still be found when the same words occur more
+     * than once.
+     *
+     * @return the text after the quote, or {@code null} if not recorded
+     */
+    @Nullable
+    public String getSuffix()
+    {
+        return this.suffix;
     }
 
     /**

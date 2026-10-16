@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -32,6 +33,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ApprovalRequirement}, including the properties it inherits from {@link Requirement}.
@@ -47,7 +49,8 @@ class ApprovalRequirementTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class,
+            Topic.class);
     }
 
     @Test
@@ -80,5 +83,26 @@ class ApprovalRequirementTest
 
         assertNotNull(requirement);
         assertNull(requirement.getApproverGroup());
+        assertTrue(requirement.getTopics().isEmpty());
+    }
+
+    @Test
+    void listsOnlyItsTopicsInOrder()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/approval",
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/approval/privacy", Map.of(
+            "sling:resourceType", Topic.RESOURCE_TYPE, "text", "Participant privacy"));
+        this.context.create().resource("/Schemas/schema/1.0/approval/harm", Map.of(
+            "sling:resourceType", Topic.RESOURCE_TYPE, "text", "Physical harm"));
+        this.context.create().resource("/Schemas/schema/1.0/approval/other",
+            "sling:resourceType", "nt:unstructured");
+        final ApprovalRequirement requirement = resource.adaptTo(ApprovalRequirement.class);
+
+        final List<Topic> topics = requirement.getTopics();
+
+        assertEquals(2, topics.size());
+        assertEquals("Participant privacy", topics.get(0).getText());
+        assertEquals("Physical harm", topics.get(1).getText());
     }
 }

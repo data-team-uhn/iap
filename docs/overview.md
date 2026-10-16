@@ -115,7 +115,7 @@ rest of the platform relies on:
 data:Content            anything IAP stores — taggable, serializable, addressable
 ├── data:Entity         a thing stored as a whole: referenceable, versionable, linkable
 ├── data:EntityPart     a piece that only exists inside an entity — an answer,
-│                       a review comment
+│                       a comment
 └── data:EntityHomepage the container listing entities of one type:
                         access-controllable, queryable
 ```
