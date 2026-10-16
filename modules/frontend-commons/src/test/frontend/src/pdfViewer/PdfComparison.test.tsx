@@ -227,6 +227,27 @@ describe("PdfComparison", () => {
         await waitFor(() => expect(getFrames()[0].scrollTop).toBe(MATCH_TOP));
       });
 
+      it("leaves a version where a change was stepped to, though it was still on its way to a place", async () => {
+        fakePdf.drawShownPageOnly = true;
+        show([ "Shared words here." ], [ "A page added first.", "Shared words here, and more." ]);
+        await waitForStatus("2 changes found.");
+        const newer = getNewerFrame();
+        await waitFor(() => expect(getDrawnMarks(newer)).not.toEqual({}));
+        fakePdf.holdDrawing = true;
+        // The newer version's second page, where the place is, waits to be drawn
+        await scrollByHand(getFrames()[0]);
+        await userEvent.click(screen.getByRole("button", { name: "Next change" }));
+        await waitForStatus("Change 1 of 2. Added on page 1: “A page added first.”.");
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+
+        // Every page drawn now, the place's page too
+        fakePdf.drawShownPageOnly = false;
+        act(() => fakePdf.releaseDrawing());
+
+        await waitFor(() => expect(newer.querySelector("[data-page-number=\"2\"] .textLayer")).not.toBeNull());
+        expect(newer.scrollTop).toBe(MATCH_TOP);
+      });
+
       it("takes the other version to a page not drawn yet, then to the place once it is", async () => {
         fakePdf.drawShownPageOnly = true;
         show([ "Shared words here." ], [ "A page added first.", "Shared words here." ]);
@@ -263,6 +284,17 @@ describe("PdfComparison", () => {
       await userEvent.keyboard("{Control>}f{/Control}");
 
       expect(screen.getByRole("textbox", { name: "Search the document" })).toHaveFocus();
+    });
+
+    it("zooms the older version as the newer was zoomed while shown alone", async () => {
+      window.localStorage.setItem(VIEW_KEY, "\"unified\"");
+      show([ "The fee is due." ], [ "The fee is now due." ]);
+      await waitForStatus("1 change found.");
+      await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Side by side" }));
+
+      await waitFor(() => expect(fakePdf.viewers.at(-1)?.currentScaleValue).toBe("2"));
     });
 
     it("searches the older version too once it is shown", async () => {
@@ -317,6 +349,18 @@ describe("PdfComparison", () => {
       const removed = await screen.findByRole("region", { name: "Removed text" });
       expect(within(removed).getByText("now")).toBeInTheDocument();
       expect(getDrawnMarks(getNewerFrame())).toEqual({ 1: [ "iap-mark iap-mark-removed iap-mark-point selected" ] });
+    });
+
+    it("opens what the next change removed on stepping to it from another removal", async () => {
+      show([ "The fee is now due. Pay it soon please." ], [ "The fee is due. Pay it please." ]);
+      await waitForStatus("2 changes found.");
+      await userEvent.click(screen.getByRole("button", { name: "Next change" }));
+      expect(within(await screen.findByRole("region", { name: "Removed text" })).getByText("now")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Next change" }));
+
+      await waitForStatus("Change 2 of 2. Removed on page 1: “soon”.");
+      expect(within(screen.getByRole("region", { name: "Removed text" })).getByText("soon")).toBeInTheDocument();
     });
 
     it("keeps what was removed out of sight while its marker is out of view", async () => {
@@ -467,6 +511,11 @@ describe("PdfComparison", () => {
 
       expect(await screen.findByText("The older version could not be opened")).toBeInTheDocument();
       expect(screen.queryByText("The newer version could not be opened")).not.toBeInTheDocument();
+      // Nothing is compared, and nothing says it is
+      await screen.findByText("Page 1 of 1");
+      expect(getStatus()).toHaveTextContent(/^$/);
+      expect(screen.queryByText("Comparing…")).not.toBeInTheDocument();
+      expect(screen.queryByRole("progressbar", { name: "Looking for the changes" })).not.toBeInTheDocument();
     });
 
     it("says when the newer version could not be opened", async () => {

@@ -359,9 +359,10 @@ export function usePdfView(
     }
   }, []);
 
-  // Going to a page by hand stops finding a mark from moving the reader.
+  // Going to a page by hand stops finding a mark, or a place in the text, from moving the reader.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
+    pointRef.current = undefined;
     followSelectedRef.current = false;
     withViewer(viewer => {
       viewer.currentPageNumber = pageNumber;
@@ -372,6 +373,7 @@ export function usePdfView(
   const find = useCallback((query: string) => {
     queryRef.current = query;
     goToRef.current = undefined;
+    pointRef.current = undefined;
     followSelectedRef.current = false;
     const searching = query.trim() !== "";
     setSearch(previous => (searching ? { ...previous, query } : { ...IDLE_SEARCH, query }));
@@ -393,6 +395,7 @@ export function usePdfView(
 
   const showMark = useCallback((id: string) => {
     goToRef.current = id;
+    pointRef.current = undefined;
     goToMarkRef.current?.();
   }, []);
 
@@ -411,6 +414,13 @@ export function usePdfView(
     viewer.currentScaleValue = "page-width";
   }), [withViewer]);
 
+  // The zoom, as PDF.js gives and takes it: a scale, or "page-width" while the page fits the frame's width.
+  const getScaleValue = useCallback(() => viewerRef.current?.currentScaleValue, []);
+
+  const zoomTo = useCallback((scale: string) => withViewer(viewer => {
+    viewer.currentScaleValue = scale;
+  }), [withViewer]);
+
   return {
     shown,
     pageCount: pages.count,
@@ -422,6 +432,8 @@ export function usePdfView(
     zoomIn,
     zoomOut,
     fitWidth,
+    getScaleValue,
+    zoomTo,
     search,
     find,
     findAgain,
