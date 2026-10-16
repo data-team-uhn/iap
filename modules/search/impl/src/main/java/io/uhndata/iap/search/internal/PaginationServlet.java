@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -50,6 +51,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.principals.api.PrincipalContext;
 import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 import io.uhndata.iap.utils.UserIds;
 
@@ -139,10 +141,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             final RowIterator rows = prepareQuery(request).execute().getRows();
             writeResponse(request, response, rows);
         } catch (final IllegalArgumentException e) {
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+                Objects.requireNonNullElse(e.getMessage(), "Invalid request"));
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute pagination query: {}", e.getMessage(), e);
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "Failed to execute query");
         }
     }

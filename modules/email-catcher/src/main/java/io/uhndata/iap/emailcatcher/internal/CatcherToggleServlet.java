@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.principals.api.PrincipalService;
-import io.uhndata.iap.utils.PaginatedJsonResponse;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -103,14 +103,14 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
         response.setContentType("application/json;charset=UTF-8");
 
         if (!isAdministrator(request)) {
-            PaginatedJsonResponse.writeError(response, 403,
+            JsonResponses.writeError(response, 403,
                 "Only an administrator may switch mail catching on or off");
             return;
         }
 
         final String requested = request.getParameter(ENABLED_PROPERTY);
         if (!"true".equals(requested) && !"false".equals(requested)) {
-            PaginatedJsonResponse.writeError(response, 400, "'enabled' must be true or false");
+            JsonResponses.writeError(response, 400, "'enabled' must be true or false");
             return;
         }
 
@@ -120,7 +120,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
         } catch (final IOException e) {
             LOGGER.warn("The email catcher setting could not be written", e);
             ErrorLogger.logError(e, ErrorContext.of(CatcherToggleServlet.class, "doPost"));
-            PaginatedJsonResponse.writeError(response, 500, "The setting could not be written");
+            JsonResponses.writeError(response, 500, "The setting could not be written");
             return;
         }
 
