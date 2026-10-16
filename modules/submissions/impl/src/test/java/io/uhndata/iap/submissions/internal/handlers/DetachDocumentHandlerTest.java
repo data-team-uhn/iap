@@ -63,6 +63,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -139,7 +140,7 @@ class DetachDocumentHandlerTest
     }
 
     @Test
-    void removesTheDocumentWithAllItsVersions() throws Exception
+    void removesEveryVersionAndKeepsTheDocumentEmpty() throws Exception
     {
         attach(NOTE, "wrong.pdf");
         attach(NOTE, "also-wrong.pdf");
@@ -147,8 +148,10 @@ class DetachDocumentHandlerTest
 
         this.handler.execute(context(payload(NOTE), REQUESTER));
 
-        assertTrue(documents().isEmpty());
-        assertNull(this.context.resourceResolver().getResource(documentPath));
+        final List<Document> left = documents();
+        assertEquals(List.of(documentPath), left.stream().map(Document::getPath).toList());
+        assertFalse(left.get(0).isAttached());
+        assertNull(left.get(0).getTitle());
     }
 
     @Test
@@ -159,13 +162,13 @@ class DetachDocumentHandlerTest
 
         this.handler.execute(context(payload(NOTE), REQUESTER));
 
-        final List<Document> left = documents();
+        final List<Document> left = documents().stream().filter(Document::isAttached).toList();
         assertEquals(1, left.size());
         assertEquals("other.pdf", left.get(0).getTitle());
     }
 
     @Test
-    void removesADocumentWhoseRequirementNoLongerApplies() throws Exception
+    void emptiesADocumentWhoseRequirementNoLongerApplies() throws Exception
     {
         // Registered before anything adapts the submission, since the adapted model keeps the evaluator it got
         final AtomicBoolean applies = new AtomicBoolean(true);
@@ -177,7 +180,7 @@ class DetachDocumentHandlerTest
 
         this.handler.execute(context(payload(NOTE), REQUESTER));
 
-        assertTrue(documents().isEmpty());
+        assertTrue(documents().stream().noneMatch(Document::isAttached));
     }
 
     @Test
