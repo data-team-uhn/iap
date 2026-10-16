@@ -69,6 +69,8 @@ public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements Ja
     }
 
     @Override
+    // Documentation is content, served as Markdown, JSON or plain text
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {

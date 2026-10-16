@@ -347,6 +347,8 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * @param rows the query results to paginate over
      * @throws IOException if writing the response fails
      */
+    // A page of results is content, streamed as it is read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response, final RowIterator rows)
         throws IOException

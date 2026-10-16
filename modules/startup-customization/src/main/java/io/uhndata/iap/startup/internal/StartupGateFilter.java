@@ -310,6 +310,8 @@ public final class StartupGateFilter implements Filter
     }
 
     @Override
+    // The startup page is HTML
+    @SuppressWarnings("checkstyle:directResponseWriter")
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
     {

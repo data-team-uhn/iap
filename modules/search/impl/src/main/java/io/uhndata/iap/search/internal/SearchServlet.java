@@ -227,6 +227,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * @throws IOException if writing the response fails
      * @throws RepositoryException if the query is invalid or cannot be executed
      */
+    // A page of results is content, streamed as it is read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException, RepositoryException
     {

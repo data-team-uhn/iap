@@ -1692,6 +1692,17 @@
                         <property name="ignoreComments" value="true" />
                       </module>
 
+                      <!-- A JSON response goes through JsonResponses, which gives every endpoint the same shape.
+                           A servlet writing something else, such as HTML or a content listing, says so with
+                           @SuppressWarnings("checkstyle:directResponseWriter") and a comment saying why. -->
+                      <module name="RegexpSinglelineJava">
+                        <property name="id" value="directResponseWriter" />
+                        <property name="format" value="\.getWriter\(\)" />
+                        <property name="ignoreComments" value="true" />
+                        <property name="message"
+                          value="Write JSON responses through io.uhndata.iap.utils.JsonResponses" />
+                      </module>
+
                       <!-- The WriteTag check below silently skips types whose javadoc is separated
                            from the type keyword by annotations (it fails to find the javadoc at
                            all), so as a safety net also require every file to contain at least one
