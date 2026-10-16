@@ -88,6 +88,14 @@ describe("getWordKey", () => {
     expect(isSame("1,000,", "1,000")).toBe(true);
   });
 
+  it("keys a number holding a very long run of punctuation quickly, as a hostile document can", () => {
+    const word = `1${"!".repeat(100_000)}a`;
+    const started = performance.now();
+
+    expect(getWordKey(`(${word}).`, false)).toBe(word);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it("leaves punctuation alone out of the default comparison", () => {
     expect(getWordKey("—", false)).toBeUndefined();
     expect(getWordKey("—", true)).toBe("—");
