@@ -30,7 +30,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -182,7 +181,7 @@ final class InstanceRunner
         for (int step = 0; step < MAX_STEPS; step++) {
             modifiable(token).put(CURRENT_NODE_ID_PROPERTY, node.getElementId());
             if (node instanceof EndEvent) {
-                finish(instance, token, (EndEvent) node);
+                finish(instance, token);
                 return;
             }
             if (node instanceof Activity && ((Activity) node).getHandler() == null) {
@@ -271,27 +270,18 @@ final class InstanceRunner
     }
 
     /**
-     * Ends the instance. The token is spent. An end event that says what finishing this way means also tells the
-     * host.
+     * Ends the instance. The token is spent.
      *
      * @param instance the running instance
      * @param token the token that arrived
-     * @param end the end event reached
      * @throws PersistenceException when the instance cannot be written
      */
-    private void finish(final Resource instance, final Resource token, final EndEvent end)
-        throws PersistenceException
+    private void finish(final Resource instance, final Resource token) throws PersistenceException
     {
         this.resolver.delete(token);
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
         properties.put(END_TIME_PROPERTY, Calendar.getInstance());
-        final String hostTag = end.getHostTag();
-        if (hostTag != null) {
-            // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
-                "A workflow's host is taggable").tag(hostTag, true);
-        }
     }
 
     /**
@@ -394,18 +384,6 @@ final class InstanceRunner
         } else {
             modifiable(existing).put("stringValue", outcome);
         }
-    }
-
-    /**
-     * The resource a workflow instance drives, two levels up past its container.
-     *
-     * @param instance the running instance
-     * @return the host resource
-     */
-    private Resource host(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**

@@ -5,6 +5,5 @@
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:eventBasedGateway",
-  "jcrNodeType": "wf:EventBasedGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:EventBasedGateway"
 }

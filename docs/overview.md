@@ -159,9 +159,10 @@ just a content node, so a deployment can add one without a code change and witho
 a release. And, because a definition is content, every mechanism above applies to
 it: definitions are serialized by the same adapters, secured by the same ACLs,
 deleted and restored through the same service, and documented at runtime by the
-same autodoc endpoints. That last is what allows `/WorkflowTypes.doc.json` to fill
-the workflow editor's toolbars with exactly the phases and actions the parser knows
-how to read, without having to write new code, recompile, and redeploy it.
+same autodoc endpoints. That last is what allows `/WorkflowTypes.doc.json` to tell
+the workflow editor's properties panel exactly which kinds of node the parser knows
+how to read, and what each takes, without having to write new code, recompile, and
+redeploy it.
 
 Definition-style node types extend `data:Content` directly rather than
 `data:Entity`; they are platform vocabulary, referred to by name, so

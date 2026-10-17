@@ -27,9 +27,12 @@ import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
+import panelEditsModule from "./panelEdits";
 import PropertiesPanel from "./PropertiesPanel";
 import { BPMN_FILE, EMPTY_BPMN } from "./workflowModel";
+import { loadWorkflowTypes } from "./workflowTypes";
 
+import type { FlowNodeType } from "./workflowTypes";
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 
 interface BpmnEditorProps {
@@ -54,6 +57,30 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
   // loading until the diagram for the current versionPath has been fetched — no separate flag to keep in sync.
   const [ loadedPath, setLoadedPath ] = useState<string>();
   const loading = loadedPath !== versionPath;
+  // What each element in the diagram means, and what may be edited on it. A diagram is worth showing
+  // without it, so an unavailable vocabulary leaves the panel offering names only.
+  const [ types, setTypes ] = useState<readonly FlowNodeType[]>([]);
+  const [ vocabularyLost, setVocabularyLost ] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkflowTypes(fetchUtil)
+      .then(documented => {
+        if (!cancelled) {
+          setTypes(documented);
+          setVocabularyLost(false);
+        }
+      })
+      .catch((failure: unknown) => {
+        console.error("Failed to load the workflow vocabulary; showing element names only", failure);
+        if (!cancelled) {
+          setVocabularyLost(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchUtil]);
 
   // useLayoutEffect so the container is measured before paint.
   useLayoutEffect(() => {
@@ -63,7 +90,9 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     }
     const top = Math.round(container.getBoundingClientRect().top);
     const options = { container, height: `calc(100vh - ${top}px - 100px)` };
-    const instance: BaseViewer = editable ? new Modeler(options) : new NavigatedViewer(options);
+    const instance: BaseViewer = editable
+      ? new Modeler({ ...options, additionalModules: [ panelEditsModule ] })
+      : new NavigatedViewer(options);
     setViewer(instance);
 
     return () => instance.destroy();
@@ -144,12 +173,22 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     return () => viewer.off("commandStack.changed", changed);
   }, [viewer, editable, onDirtyChange]);
 
+  // A value typed into the panel reaches the command stack only once its field is left. Until then it is
+  // a change all the same, and leaving the page without it would lose it.
+  const drafted = useCallback(() => onDirtyChange?.(true), [onDirtyChange]);
+
   // A failure recorded against another version says nothing about this one, and is already on its way out.
   const error = failure?.path === versionPath ? failure.message : undefined;
   const showDiagram = !loading && error === undefined;
 
   return (
     <Stack>
+      {
+        vocabularyLost && <Alert severity="warning" sx={{ mb: 1 }}>
+          The kinds of workflow node this instance supports could not be loaded, so only element names
+          are available.
+        </Alert>
+      }
       <Grid container spacing={4}>
         {/* The canvas keeps its place even while covered: bpmn-js sizes itself against the element it is
             given, so taking that element out of the layout would leave it measured against nothing */}
@@ -176,7 +215,7 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
           )}
         </Grid>
         <Grid size={{ xs: 12, xl: 2 }}>
-          <PropertiesPanel viewer={viewer} readOnly={!editable} />
+          <PropertiesPanel viewer={viewer} types={types} readOnly={!editable} onDraft={drafted} />
         </Grid>
       </Grid>
     </Stack>

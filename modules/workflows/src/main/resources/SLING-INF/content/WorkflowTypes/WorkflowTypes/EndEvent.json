@@ -5,6 +5,5 @@
   "category": ["End Events"],
   "priority": 0,
   "xmlElement": "bpmn:endEvent",
-  "jcrNodeType": "wf:EndEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:EndEvent"
 }

@@ -39,6 +39,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -47,63 +48,29 @@
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createContent" iap:nameFrom="label" iap:nameHint="Letters, digits, - and _, starting with a letter or a digit." iap:namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" name="Add the requirement">
+    <bpmn:serviceTask id="create" name="Add the requirement">
       <bpmn:extensionElements>
-        <sv:node sv:name="types">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-          <sv:node sv:name="form">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="nodeType"><sv:value>sch:FormRequirement</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Form</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="document">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="nodeType"><sv:value>sch:DocumentRequirement</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Document</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="approval">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="nodeType"><sv:value>sch:ApprovalRequirement</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Approval</sv:value></sv:property>
-          </sv:node>
-        </sv:node>
+        <iap:createContent namePattern="^[A-Za-z0-9][A-Za-z0-9_-]*$" nameHint="Letters, digits, - and _, starting with a letter or a digit.">
+          <iap:nameFrom>label</iap:nameFrom>
+          <iap:types name="form" nodeType="sch:FormRequirement" label="Form" />
+          <iap:types name="document" nodeType="sch:DocumentRequirement" label="Document" />
+          <iap:types name="approval" nodeType="sch:ApprovalRequirement" label="Approval" />
+        </iap:createContent>
       </bpmn:extensionElements>
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toUpdate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="create" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Fill it in">
+    <bpmn:serviceTask id="update" name="Fill it in">
       <bpmn:extensionElements>
-        <sv:node sv:name="fields">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-          <sv:node sv:name="label">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="description">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="required">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Required</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="acceptedFileTypes">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Accepted file types</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>Media types, such as application/pdf. None means any.</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="aiCheckPrompt">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>AI check prompt</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="approverGroup">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Approver group</sv:value></sv:property>
-          </sv:node>
-        </sv:node>
+        <iap:updateContent>
+          <iap:fields name="label" label="Label" />
+          <iap:fields name="description" label="Description" multiline="true" />
+          <iap:fields name="required" label="Required" />
+          <iap:fields name="acceptedFileTypes" label="Accepted file types" help="Media types, such as application/pdf. None means any." />
+          <iap:fields name="aiCheckPrompt" label="AI check prompt" multiline="true" />
+          <iap:fields name="approverGroup" label="Approver group" />
+        </iap:updateContent>
       </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>

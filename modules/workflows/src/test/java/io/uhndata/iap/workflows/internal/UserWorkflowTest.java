@@ -43,6 +43,7 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.handlers.AddTagHandler;
 import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -115,8 +116,8 @@ class UserWorkflowTest
     }
 
     /**
-     * Builds the demo's shape of process: start, a user task only the named group may complete, a gateway, and an
-     * end event for each way out.
+     * Builds the demo's shape of process: start, a user task only the named group may complete, and a gateway. Each
+     * way out tags the host with what finishing that way means, then ends.
      *
      * @param performers who may complete the user task
      */
@@ -143,10 +144,25 @@ class UserWorkflowTest
         this.context.create().resource(PROCESS + "/decision/toRejected", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRejected", TARGET_REF, "requestRejected",
             "isDefault", true));
-        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
-        this.context.create().resource(PROCESS + "/requestRejected", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+        createOutcome("requestApproved", "approved");
+        createOutcome("requestRejected", "rejected");
+    }
+
+    /**
+     * Builds one way out of the process: a task that tags the host, then an end event.
+     *
+     * @param elementId the identifier of the tagging task, which the gateway's arc targets
+     * @param tag the tag placed on the host
+     */
+    private void createOutcome(final String elementId, final String tag)
+    {
+        final String end = elementId + "End";
+        this.context.create().resource(PROCESS + "/" + elementId, Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, elementId, HANDLER, AddTagHandler.HANDLER_NAME, "tag", tag));
+        this.context.create().resource(PROCESS + "/" + elementId + "/toEnd", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, elementId + "ToEnd", TARGET_REF, end));
+        this.context.create().resource(PROCESS + "/" + end, Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, end));
     }
 
     /**
@@ -192,8 +208,8 @@ class UserWorkflowTest
     }
 
     /**
-     * Builds an engine wired as the DS runtime would wire it, with the {@code startWorkflow} handler the bootstrap
-     * uses, and a service session that can answer who the repository's users are.
+     * Builds an engine wired as the DS runtime would wire it. It has the {@code startWorkflow} handler the bootstrap
+     * uses, the {@code addTag} handler the process uses, and a service session that knows the repository's users.
      *
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
@@ -203,7 +219,7 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", List.of(new StartWorkflowHandler()));
+        inject(impl, "handlers", List.of(new StartWorkflowHandler(), new AddTagHandler()));
         return impl;
     }
 
@@ -322,9 +338,8 @@ class UserWorkflowTest
         final Map<String, Object> instance = read(HOST + "/wf:instances/timeOffRequest");
         assertEquals("completed", instance.get("status"));
         assertNotNull(instance.get("endTime"));
-        // The token is spent, and the end event said what finishing that way means to the host
+        // The token is spent, and the task before the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -462,7 +477,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
             new PersistenceException("the disk is on fire")));
-        inject(engine, "handlers", List.of(new StartWorkflowHandler()));
+        inject(engine, "handlers", List.of(new StartWorkflowHandler(), new AddTagHandler()));
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -513,7 +528,6 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -629,13 +643,12 @@ class UserWorkflowTest
         final RecordingHandler handler = new RecordingHandler();
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
+        inject(engine, "handlers", List.of(handler, new StartWorkflowHandler(), new AddTagHandler()));
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 

@@ -38,6 +38,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -46,12 +47,18 @@
       <bpmn:messageEventDefinition id="startTrialRequested" messageRef="startTrialMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCheck" sourceRef="requested" targetRef="check" />
-    <bpmn:serviceTask id="check" iap:handler="checkValid" name="Check it can run">
+    <bpmn:serviceTask id="check" name="Check it can run">
+      <bpmn:extensionElements>
+        <iap:checkValid />
+      </bpmn:extensionElements>
       <bpmn:incoming>toCheck</bpmn:incoming>
       <bpmn:outgoing>toMove</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMove" sourceRef="check" targetRef="move" />
-    <bpmn:serviceTask id="move" iap:handler="addTag" iap:replaceExisting="true" iap:tag="trial" name="Put the version on trial">
+    <bpmn:serviceTask id="move" name="Put the version on trial">
+      <bpmn:extensionElements>
+        <iap:addTag replaceExisting="true" tag="trial" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMove</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

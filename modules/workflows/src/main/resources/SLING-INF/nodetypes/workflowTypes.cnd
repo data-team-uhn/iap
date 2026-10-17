@@ -30,8 +30,8 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /WorkflowTypes root path.
-// Documented: the catalogue served at /WorkflowTypes.doc.json is what populates
-// the toolbars of the visual BPMN editor, so it is a UI contract, not just prose.
+// Documented: the catalogue served at /WorkflowTypes.doc.json is what the visual
+// BPMN editor's properties panel reads, so it is a UI contract, not just prose.
 [wf:WorkflowTypesHomepage] > data:EntityHomepage, doc:Documented
   - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
@@ -68,6 +68,7 @@
 [wf:FlowNodeType] > data:Entity, mix:referenceable
   query
   abstract
+  orderable
 
   // Hardcode the supertype to the parent wf/FlowNodeType type.
   - sling:resourceSuperType (STRING) = "wf/FlowNodeType" mandatory autocreated protected
@@ -95,6 +96,10 @@
   // A child XML element that (if specified) is required to match
   - xmlChildElement (STRING)
 
+  // The IAP element under bpmn:extensionElements that identifies this type and
+  // holds its parameters, e.g. "createContent" for <iap:createContent>
+  - xmlExtensionElement (STRING)
+
 
   // JCR properties that are relevant to storing this type
   // The sub-type of wf:FlowNode that this type should be translated to
@@ -104,13 +109,12 @@
   - jcrProperties (STRING)
 
 
-  //
-  // Properties that should be copied from the XML element to the JCR node
-  - properties (STRING) multiple
-
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
+
+  // The values a node of this type carries beyond the standard flow node values
+  + * (wf:Parameter)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -135,3 +139,115 @@
 // A particular type of routing node.
 [wf:GatewayType] > wf:FlowNodeType
   - sling:resourceType (STRING) = "wf/GatewayType" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A particular type of arc between two workflow nodes. Its jcrNodeType is
+// wf:SequenceFlow, which is not a wf:FlowNode: an arc is stored inside the node
+// it leaves, whatever the entry says.
+[wf:SequenceFlowType] > wf:FlowNodeType
+  - sling:resourceType (STRING) = "wf/SequenceFlowType" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// One value a kind of node takes: what it is called, what may be put in it, and
+// where it is written in the diagram.
+//
+// The parameter's own name is the node name, which is both the JCR property it
+// is stored in and the XML attribute or element it is written as
+[wf:Parameter] > data:EntityPart
+  orderable
+
+  - sling:resourceType (STRING) = "wf/Parameter" mandatory autocreated protected
+
+  // What the properties panel calls this field
+  - label (STRING) mandatory
+
+  // What the field means, shown to whoever is filling it in
+  - description (STRING)
+
+  // What may be put in it:
+  // - Reference is the path of another node
+  // - Principal is the name of a user or group
+  // - Structure is a record of named fields, each a parameter of its own, e.g.
+  //   one of the node types Create Content offers
+  - dataType (STRING) = 'text' mandatory autocreated
+    < 'text', 'boolean', 'long', 'reference', 'principal', 'structure'
+
+  // How many values it takes.
+  // A maximum of 0 is unbounded.
+  - minValues (LONG) = '0' autocreated
+  - maxValues (LONG) = '1' autocreated
+
+  // For a reference, the node type every value must be of. A parameter that names
+  // none accepts any node that exists.
+  - referenceType (STRING)
+
+  // Where in the node's BPMN the value is written:
+  // - extensionElement: inside the type's xmlExtensionElement
+  // - attribute: an IAP attribute on the node's own element
+  // - bpmnAttribute: one of BPMN's own attributes
+  // - bpmnElement: the text of one of BPMN's own child elements
+  - xmlLocation (STRING) = 'extensionElement' mandatory autocreated
+    < 'extensionElement', 'attribute', 'bpmnAttribute', 'bpmnElement'
+
+  // For a value within BPMN, the BPMN child elements leading from the flow
+  // node's element to the one holding it, separated by slashes, e.g.
+  // multiInstanceLoopCharacteristics/complexBehaviorDefinition for the condition
+  // of a multi-instance activity. Absent when the flow node's element holds it.
+  - xmlPath (STRING)
+
+  // For a repeated structure, the field whose value names the node each element
+  // is stored as, instead of being stored as a property.
+  - keyParameter (STRING)
+
+  // For a structure, the node type each element is stored as; nt:unstructured
+  // when absent.
+  - jcrNodeType (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The values this parameter offers. A parameter declaring none takes whatever
+  // its dataType accepts; one declaring options takes only their values. The
+  // panel offers them as a choice, and the parser reports any other.
+  + * (wf:ParameterOption)
+
+  // For a structure, its fields, read from inside each of its elements.
+  + parameters (wf:Parameters) = wf:Parameters
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The fields of a structure, in the order they are declared.
+[wf:Parameters]
+  orderable
+
+  + * (wf:Parameter)
+
+  // Allow any other properties and children for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One of the values a parameter offers.
+//
+// The value is the durable half: it is what a diagram stores and what a handler
+// reads, so renaming one changes the meaning of every diagram already written
+// with it. The label is only what the author reads, and can be reworded freely.
+[wf:ParameterOption] > data:EntityPart
+  - sling:resourceType (STRING) = "wf/ParameterOption" mandatory autocreated protected
+
+  // What a diagram picking this option stores
+  - value (STRING) mandatory
+
+  // What the author reads; the value itself when left out
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

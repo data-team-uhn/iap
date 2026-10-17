@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Rename Content",
+  "description": "Renames the event's target to the name the event gives, keeping its place among its siblings. The new path is what later steps act on.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "renameContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"renameContent\"}",
+  "namePattern": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name pattern",
+    "description": "A regular expression the new name must match. Left blank, any name a node can have."
+  }
+}

@@ -63,12 +63,12 @@ class IntermediateCatchingEventTest
     {
         // catching is autocreated to true in the real CND; sling-mock knows no node types, so it is set here
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
-            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout", "interrupting", true,
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout", "cancelActivity", true,
             "catching", true));
         final IntermediateCatchingEvent event = (IntermediateCatchingEvent) resource.adaptTo(FlowNode.class);
 
         assertNotNull(event);
-        assertTrue(event.isInterrupting());
+        assertTrue(event.cancelsActivity());
         assertTrue(event.isCatching());
     }
 
@@ -77,21 +77,20 @@ class IntermediateCatchingEventTest
     {
         // "Escalate after five days but keep waiting" — the same shape as a deadline, a different process
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/reminder", Map.of(
-            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "reminder", "interrupting", false));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "reminder", "cancelActivity", false));
 
-        assertFalse(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).isInterrupting());
+        assertFalse(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).cancelsActivity());
     }
 
     @Test
     void interruptsByDefaultWhenTheAttributeWasNeverWritten()
     {
-        // BPMN's cancelActivity defaults to true, and nothing in the vocabulary maps that attribute yet, so every
-        // attached event created today relies on this default. Read as false, a deadline would silently stop
-        // cancelling the work it exists to abort.
+        // A diagram leaving out cancelActivity leaves the property unwritten, and BPMN's own default is true. Read as
+        // false, a deadline would silently stop cancelling the work it exists to abort.
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout"));
 
-        assertTrue(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).isInterrupting());
+        assertTrue(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).cancelsActivity());
     }
 
     @Test

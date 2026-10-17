@@ -1,0 +1,69 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Content",
+  "description": "Creates a node of the type the event names inside the event's target, which becomes the resource later steps act on. The type must be one listed here that the target can hold.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createContent\"}",
+  "nameFrom": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name from",
+    "description": "The fields of the event's patch the new node is named after, the first one holding text winning. None, or none with text, names it after its type.",
+    "maxValues": 0
+  },
+  "namePattern": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name pattern",
+    "description": "A regular expression a name the event asks for must match. Left blank, any name a node can have."
+  },
+  "nameHint": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name hint",
+    "description": "What names the pattern allows, in words, for a form to show."
+  },
+  "types": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Type",
+    "description": "The node types an event may ask for, in the order they are offered.",
+    "dataType": "structure",
+    "maxValues": 0,
+    "keyParameter": "name",
+    "parameters": {
+      "jcr:primaryType": "wf:Parameters",
+      "name": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name",
+        "minValues": 1
+      },
+      "nodeType": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Node type",
+        "description": "The JCR node type created, e.g. \"sch:Section\".",
+        "minValues": 1
+      },
+      "label": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Label",
+        "description": "What the type is offered as. Left blank, the node type."
+      },
+      "named": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Named",
+        "description": "Whether an event may ask for a name for content of this type. Left blank, it may.",
+        "dataType": "boolean"
+      },
+      "namePattern": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name pattern",
+        "description": "The pattern a name asked for content of this type must match, in place of the activity's."
+      },
+      "nameHint": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name hint",
+        "description": "What names this type's pattern allows, in words, in place of the activity's."
+      }
+    }
+  }
+}

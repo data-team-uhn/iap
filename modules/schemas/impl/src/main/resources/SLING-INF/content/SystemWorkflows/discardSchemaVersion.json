@@ -25,7 +25,7 @@
       "elementId": "delete",
       "label": "Delete the version",
       "handler": "delete",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/Delete",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

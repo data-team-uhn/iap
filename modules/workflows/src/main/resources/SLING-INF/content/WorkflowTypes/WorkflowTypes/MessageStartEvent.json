@@ -7,7 +7,12 @@
   "xmlElement": "bpmn:startEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:StartEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]",
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag"
-  ]
+  "performers": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Performers",
+    "description": "The principals - users or groups - allowed to start a new instance by firing this event. Absent or empty means nobody; the built-in \"everyone\" group means any authenticated user.",
+    "dataType": "principal",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  }
 }

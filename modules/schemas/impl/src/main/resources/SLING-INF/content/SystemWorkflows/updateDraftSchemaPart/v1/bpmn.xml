@@ -39,6 +39,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -47,141 +48,58 @@
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Apply the changes">
+    <bpmn:serviceTask id="update" name="Apply the changes">
       <bpmn:extensionElements>
-        <sv:node sv:name="fields">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-          <sv:node sv:name="label">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="title">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Title</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="text">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Question</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="description">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="dataType">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Answer type</sv:value></sv:property>
-            <sv:node sv:name="choices">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:node sv:name="text">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-                <sv:property sv:name="label"><sv:value>Text</sv:value></sv:property>
-              </sv:node>
-              <sv:node sv:name="long">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-                <sv:property sv:name="label"><sv:value>Whole number</sv:value></sv:property>
-              </sv:node>
-              <sv:node sv:name="double">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-                <sv:property sv:name="label"><sv:value>Decimal number</sv:value></sv:property>
-              </sv:node>
-              <sv:node sv:name="boolean">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-                <sv:property sv:name="label"><sv:value>Yes or no</sv:value></sv:property>
-              </sv:node>
-              <sv:node sv:name="date">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-                <sv:property sv:name="label"><sv:value>Date</sv:value></sv:property>
-              </sv:node>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="minAnswers">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Minimum answers</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>0 means optional. 1 or more means required.</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="maxAnswers">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Maximum answers</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>0 means unlimited. 1 means a single answer.</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="minValue">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Lowest value</sv:value></sv:property>
-            <sv:node sv:name="appliesWhen">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
-              <sv:property sv:name="values" sv:multiple="true"><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="maxValue">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Highest value</sv:value></sv:property>
-            <sv:node sv:name="appliesWhen">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
-              <sv:property sv:name="values" sv:multiple="true"><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="pattern">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Pattern</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>A regular expression every answer must match.</sv:value></sv:property>
-            <sv:node sv:name="appliesWhen">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
-              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value></sv:property>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="patternMessage">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Message when an answer does not match</sv:value></sv:property>
-            <sv:node sv:name="appliesWhen">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
-              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value></sv:property>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="optionsFrom">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Options from</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>A path whose items are the options, instead of options listed here.</sv:value></sv:property>
-            <sv:node sv:name="appliesWhen">
-              <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-              <sv:property sv:name="property"><sv:value>dataType</sv:value></sv:property>
-              <sv:property sv:name="values" sv:multiple="true"><sv:value>text</sv:value><sv:value>long</sv:value><sv:value>double</sv:value></sv:property>
-            </sv:node>
-          </sv:node>
-          <sv:node sv:name="purpose">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Purpose</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="extractionPrompt">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Extraction prompt</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="required">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Required</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="acceptedFileTypes">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Accepted file types</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>Media types, such as application/pdf. None means any.</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="aiCheckPrompt">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>AI check prompt</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="approverGroup">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Approver group</sv:value></sv:property>
-          </sv:node>
-        </sv:node>
+        <iap:updateContent>
+          <iap:fields name="label" label="Label" />
+          <iap:fields name="title" label="Title" />
+          <iap:fields name="text" label="Question" multiline="true" />
+          <iap:fields name="description" label="Description" multiline="true" />
+          <iap:fields name="dataType" label="Answer type">
+            <iap:choices value="text" label="Text" />
+            <iap:choices value="long" label="Whole number" />
+            <iap:choices value="double" label="Decimal number" />
+            <iap:choices value="boolean" label="Yes or no" />
+            <iap:choices value="date" label="Date" />
+          </iap:fields>
+          <iap:fields name="minAnswers" label="Minimum answers" help="0 means optional. 1 or more means required." />
+          <iap:fields name="maxAnswers" label="Maximum answers" help="0 means unlimited. 1 means a single answer." />
+          <iap:fields name="minValue" label="Lowest value">
+            <iap:appliesWhen property="dataType">
+              <iap:values>long</iap:values>
+              <iap:values>double</iap:values>
+            </iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="maxValue" label="Highest value">
+            <iap:appliesWhen property="dataType">
+              <iap:values>long</iap:values>
+              <iap:values>double</iap:values>
+            </iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="pattern" label="Pattern" help="A regular expression every answer must match.">
+            <iap:appliesWhen property="dataType">
+              <iap:values>text</iap:values>
+            </iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="patternMessage" label="Message when an answer does not match">
+            <iap:appliesWhen property="dataType">
+              <iap:values>text</iap:values>
+            </iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="optionsFrom" label="Options from" help="A path whose items are the options, instead of options listed here.">
+            <iap:appliesWhen property="dataType">
+              <iap:values>text</iap:values>
+              <iap:values>long</iap:values>
+              <iap:values>double</iap:values>
+            </iap:appliesWhen>
+          </iap:fields>
+          <iap:fields name="purpose" label="Purpose" multiline="true" />
+          <iap:fields name="extractionPrompt" label="Extraction prompt" multiline="true" />
+          <iap:fields name="required" label="Required" />
+          <iap:fields name="acceptedFileTypes" label="Accepted file types" help="Media types, such as application/pdf. None means any." />
+          <iap:fields name="aiCheckPrompt" label="AI check prompt" multiline="true" />
+          <iap:fields name="approverGroup" label="Approver group" />
+        </iap:updateContent>
       </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>

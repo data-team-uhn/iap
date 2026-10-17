@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Save Workflow Diagram",
+  "description": "Stores the diagram a version was just authored as, replacing whatever it held. Which versions may be given one is the running workflow's guard to say, not this step's.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "saveWorkflowDiagram",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"saveWorkflowDiagram\"}"
+}

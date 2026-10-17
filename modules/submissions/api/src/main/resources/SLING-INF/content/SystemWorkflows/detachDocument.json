@@ -25,7 +25,7 @@
       "elementId": "detach",
       "label": "Remove the document",
       "handler": "detachDocument",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/DetachDocument",
       "toMark": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMark",
@@ -37,7 +37,7 @@
       "elementId": "mark",
       "label": "Record whether anything is still missing",
       "handler": "markCompleteness",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MarkCompleteness",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

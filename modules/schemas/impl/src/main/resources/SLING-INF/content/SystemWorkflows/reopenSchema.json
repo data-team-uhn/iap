@@ -23,6 +23,7 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
+          "source": "literal",
           "value": ["retired"]
         }
       },
@@ -38,7 +39,7 @@
       "label": "Remove the retired mark",
       "handler": "removeTag",
       "tag": "retired",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/RemoveTag",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

@@ -7,5 +7,18 @@
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:timerEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "timeDuration": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Duration",
+    "description": "How long the task may stay open before the event fires, as an ISO 8601 duration such as P5D.",
+    "xmlLocation": "bpmnElement",
+    "xmlPath": "timerEventDefinition"
+  },
+  "cancelActivity": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Cancel the task",
+    "description": "Whether the event cancels the task it is attached to when it fires, or leaves the task open and starts a parallel branch. Left out, it cancels the task.",
+    "dataType": "boolean",
+    "xmlLocation": "bpmnAttribute"
+  }
 }

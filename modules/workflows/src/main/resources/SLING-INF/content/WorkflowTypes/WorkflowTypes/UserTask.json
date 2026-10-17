@@ -6,9 +6,19 @@
   "priority": 0,
   "xmlElement": "bpmn:userTask",
   "jcrNodeType": "wf:Activity",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
-    "{https://iap.uhndata.io/bpmn}performers=performers[]",
-    "{https://iap.uhndata.io/bpmn}outcomes=outcomes[]"
-  ]
+  "performers": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Performers",
+    "description": "The principals - users or groups - allowed to complete this task. Absent or empty means nobody; the built-in \"everyone\" group means any authenticated user.",
+    "dataType": "principal",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  },
+  "outcomes": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Outcomes",
+    "description": "The outcomes a person may record when completing this task, e.g. \"approved\", \"rejected\". A routing gateway decides on whichever one they choose.",
+    "maxValues": 0,
+    "xmlLocation": "attribute"
+  }
 }

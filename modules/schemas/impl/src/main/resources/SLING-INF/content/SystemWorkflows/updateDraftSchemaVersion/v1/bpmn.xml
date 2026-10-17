@@ -38,6 +38,7 @@
           </sv:node>
           <sv:node sv:name="operandB">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
             <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
           </sv:node>
         </sv:node>
@@ -46,26 +47,13 @@
       <bpmn:messageEventDefinition id="updateRequested" messageRef="updateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toUpdate" sourceRef="requested" targetRef="update" />
-    <bpmn:serviceTask id="update" iap:handler="updateContent" name="Apply the changes">
+    <bpmn:serviceTask id="update" name="Apply the changes">
       <bpmn:extensionElements>
-        <sv:node sv:name="fields">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-          <sv:node sv:name="version">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Label</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="description">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Description</sv:value></sv:property>
-            <sv:property sv:name="multiline" sv:type="Boolean"><sv:value>true</sv:value></sv:property>
-          </sv:node>
-          <sv:node sv:name="workflow">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
-            <sv:property sv:name="label"><sv:value>Workflow</sv:value></sv:property>
-            <sv:property sv:name="referenceType"><sv:value>wf/WorkflowVersion</sv:value></sv:property>
-            <sv:property sv:name="referenceRoot"><sv:value>/Workflows</sv:value></sv:property>
-          </sv:node>
-        </sv:node>
+        <iap:updateContent>
+          <iap:fields name="version" label="Label" />
+          <iap:fields name="description" label="Description" multiline="true" />
+          <iap:fields name="workflow" label="Workflow" referenceType="wf/WorkflowVersion" referenceRoot="/Workflows" />
+        </iap:updateContent>
       </bpmn:extensionElements>
       <bpmn:incoming>toUpdate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>

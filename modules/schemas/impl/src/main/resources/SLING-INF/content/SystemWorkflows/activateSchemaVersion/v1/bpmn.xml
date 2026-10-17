@@ -41,6 +41,7 @@
             </sv:node>
             <sv:node sv:name="operandB">
               <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
               <sv:property sv:name="value" sv:multiple="true"><sv:value>draft</sv:value></sv:property>
             </sv:node>
           </sv:node>
@@ -54,6 +55,7 @@
             </sv:node>
             <sv:node sv:name="operandB">
               <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+              <sv:property sv:name="source"><sv:value>literal</sv:value></sv:property>
               <sv:property sv:name="value" sv:multiple="true"><sv:value>retired</sv:value></sv:property>
             </sv:node>
           </sv:node>
@@ -63,17 +65,26 @@
       <bpmn:messageEventDefinition id="activateRequested" messageRef="activateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCheck" sourceRef="requested" targetRef="check" />
-    <bpmn:serviceTask id="check" iap:handler="checkValid" name="Check it can be published">
+    <bpmn:serviceTask id="check" name="Check it can be published">
+      <bpmn:extensionElements>
+        <iap:checkValid />
+      </bpmn:extensionElements>
       <bpmn:incoming>toCheck</bpmn:incoming>
       <bpmn:outgoing>toRetire</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toRetire" sourceRef="check" targetRef="retire" />
-    <bpmn:serviceTask id="retire" iap:handler="retireActiveVersions" name="Retire the version this one replaces">
+    <bpmn:serviceTask id="retire" name="Retire the version this one replaces">
+      <bpmn:extensionElements>
+        <iap:retireActiveVersions />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRetire</bpmn:incoming>
       <bpmn:outgoing>toMarkActive</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMarkActive" sourceRef="retire" targetRef="markActive" />
-    <bpmn:serviceTask id="markActive" iap:handler="addTag" iap:replaceExisting="true" iap:tag="active" name="Mark it as active">
+    <bpmn:serviceTask id="markActive" name="Mark it as active">
+      <bpmn:extensionElements>
+        <iap:addTag replaceExisting="true" tag="active" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMarkActive</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
