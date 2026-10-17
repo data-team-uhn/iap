@@ -102,8 +102,29 @@ class CaughtMailSummaryServletTest
     {
         final JsonObject answer = this.read();
 
-        assertFalse(answer.getBoolean("enabled"));
-        assertEquals(0, answer.getInt("total"));
+        assertFalse(catching(answer));
+        assertEquals(0, caughtSoFar(answer));
+    }
+
+    @Test
+    void namesBothFiguresForTheWidgetListingThem() throws IOException
+    {
+        final JsonObject answer = this.read();
+
+        assertEquals("Catching mail", answer.getJsonObject("enabled").getString("label"));
+        assertEquals("Caught so far", answer.getJsonObject("total").getString("label"));
+    }
+
+    /** Whether the answer says mail is being caught. */
+    private static boolean catching(final JsonObject answer)
+    {
+        return answer.getJsonObject("enabled").getBoolean("value");
+    }
+
+    /** How many messages the answer counted. */
+    private static int caughtSoFar(final JsonObject answer)
+    {
+        return answer.getJsonObject("total").getInt("value");
     }
 
     @Test
@@ -111,7 +132,7 @@ class CaughtMailSummaryServletTest
     {
         this.catcherIsRegistered();
 
-        assertTrue(this.read().getBoolean("enabled"));
+        assertTrue(catching(this.read()));
     }
 
     @Test
@@ -121,7 +142,7 @@ class CaughtMailSummaryServletTest
         this.caught("one");
         this.caught("two");
 
-        assertEquals(2, this.read().getInt("total"));
+        assertEquals(2, caughtSoFar(this.read()));
     }
 
     /**
@@ -134,6 +155,6 @@ class CaughtMailSummaryServletTest
         this.context.create().resource(HOME + "/rep:policy", "jcr:primaryType", "rep:ACL");
         this.caught("one");
 
-        assertEquals(1, this.read().getInt("total"));
+        assertEquals(1, caughtSoFar(this.read()));
     }
 }

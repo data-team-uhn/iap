@@ -62,11 +62,11 @@ test.describe('the caught mail console', () => {
     const response = await request.get('/CaughtMail.adminSummary.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
-    const status = (await response.json()) as { enabled: boolean; total: number };
+    const status = (await response.json()) as { enabled: { value: boolean }; total: { value: number } };
     // This aggregate ships dev/email-catcher-enabled.json, so the switch is on. The count is only
     // ever a lower bound here, because the rest of the suite is filling the same mailbox.
-    expect(status.enabled).toBe(true);
-    expect(status.total).toBeGreaterThanOrEqual(0);
+    expect(status.enabled.value).toBe(true);
+    expect(status.total.value).toBeGreaterThanOrEqual(0);
   });
 
   test('offers caught mail as one of the console tools', async ({ page }) => {
@@ -76,9 +76,10 @@ test.describe('the caught mail console', () => {
     await expect(page.getByRole('heading', { name: 'Caught mail' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Manage: Caught mail' })).toBeVisible();
     // The summary really loaded, rather than the frame rendering around nothing
-    await expect(page.getByText('Caught so far')).toBeVisible();
+    await expect(page.getByText('Caught so far', { exact: true })).toBeVisible();
     // And it is not claiming the opposite of what this instance is doing
-    await expect(page.getByText(/Mail is being delivered normally/)).toHaveCount(0);
+    await expect(page.getByText('Catching mail', { exact: true })
+      .locator('xpath=ancestor-or-self::dt/following-sibling::dd[1]')).toHaveText('On');
   });
 
   test('lists what has been caught, and opens a message from the list', async ({ page, request }) => {

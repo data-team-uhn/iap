@@ -89,22 +89,6 @@ export const schemasOf = (homepage: SerializedNode): SerializedNode[] =>
 // What the update that would run says it allows, in words
 export const noticeOf = (node: SerializedNode): string | undefined => text(node, "@notice");
 
-export interface SchemaCounts {
-  active: number;
-  drafts: number;
-  retired: number;
-}
-
-// What the dashboard widget reports: how many versions and schemas carry each lifecycle tag.
-export function countSchemas(schemas: SerializedNode[]): SchemaCounts {
-  const versions = schemas.flatMap(versionsOf);
-  return {
-    active: versions.filter(version => tagsOf(version).includes("active")).length,
-    drafts: versions.filter(version => tagsOf(version).includes("draft")).length,
-    retired: schemas.filter(schema => tagsOf(schema).includes("retired")).length,
-  };
-}
-
 // The names a path holds: a schema's, then its version's if there is one. A page's path and the
 // repository's have the same shape, /admin/schemas/clinicalStudy/v2 and /Schemas/clinicalStudy/v2.
 function namesIn(path: string): string[] {

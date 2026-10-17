@@ -16,77 +16,15 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
-import { Box, Skeleton, Typography } from "@mui/material";
-
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { type TriageCounts, fetchTriageCounts } from "./errorTrackingApi";
+import { LOGGED_ERRORS_PATH } from "./errorTrackingApi";
 
-/**
- * An administration console widget summarizing the recorded errors: how many still need attention,
- * and how many there are altogether. The way through to the full list is the frame's own header
- * action, from the extension's `ext:actionLabel` and `ext:targetURL`, so this renders only the
- * summary.
- *
- * The console is reached only by administrators, but reaching it is not the same as holding the
- * rights to read `/LoggedErrors`, so the summary can still be refused. It says so plainly rather
- * than showing zeros, which would be the opposite claim — that nothing has ever gone wrong.
- */
+// The administration console widget summarizing what has been recorded: how much is asking for
+// attention, and how much there is altogether. The way into the triage view is the dashboard frame's
+// own header action, so this renders only the figures.
 function LoggedErrorsWidget() {
-  const doFetch = useAuthenticatedFetch();
-  const [ counts, setCounts ] = useState<TriageCounts | null>(null);
-  const [ unavailable, setUnavailable ] = useState(false);
-  const [ settled, setSettled ] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchTriageCounts(doFetch)
-      .then(result => { if (!cancelled) { setCounts(result); } })
-      .catch(() => { if (!cancelled) { setUnavailable(true); } })
-      .finally(() => { if (!cancelled) { setSettled(true); } });
-    return () => { cancelled = true; };
-  }, [ doFetch ]);
-
-  if (!settled) {
-    return <Skeleton variant="rounded" height={96} aria-label="Loading the error summary" />;
-  }
-
-  if (unavailable || counts === null) {
-    return (
-      <Typography variant="placeholder">
-        The recorded errors are not available to you.
-      </Typography>
-    );
-  }
-
-  return (
-    <Box>
-      <WidgetStatList
-        stats={[
-          {
-            label: "Needing attention",
-            value: counts.needingAttention,
-            approximate: counts.approximate,
-            emphasis: "nonzero",
-          },
-          { label: "Recorded in total", value: counts.total, approximate: counts.approximate },
-        ]}
-      />
-      {counts.total === 0 && (
-        <Typography variant="placeholder" sx={{ mt: 1 }}>
-          Nothing has been recorded yet.
-        </Typography>
-      )}
-      {counts.total > 0 && counts.needingAttention === 0 && (
-        <Typography variant="placeholder" sx={{ mt: 1 }}>
-          Everything recorded has been dealt with.
-        </Typography>
-      )}
-    </Box>
-  );
+  return <WidgetStatList url={LOGGED_ERRORS_PATH} name="recorded errors" />;
 }
 
 export default LoggedErrorsWidget;

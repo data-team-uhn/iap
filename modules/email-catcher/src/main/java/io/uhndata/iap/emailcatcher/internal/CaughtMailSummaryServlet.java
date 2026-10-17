@@ -17,16 +17,13 @@
  */
 package io.uhndata.iap.emailcatcher.internal;
 
-import java.io.IOException;
-
 import jakarta.json.Json;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.Servlet;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
-import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
-import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
@@ -34,6 +31,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
+
+import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 
 /**
  * Answers whether mail is being caught, and how much of it, as {@code /CaughtMail.adminSummary.json}.
@@ -45,13 +44,12 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
  * carrying {@link CaughtMailService#CATCHER_PROPERTY}, not a reading of the configuration.
  * </p>
  *
- * <p>
- * <strong>The count is here rather than left to {@code .paginate.json} deliberately</strong>, against the usual
- * preference for not answering a question the pagination servlet already answers. A dashboard widget wants one
- * request, and the two halves it needs are useless apart: a count with no idea whether catching is on reads as
- * "no mail has been sent", which is the opposite of what an empty mailbox means on an instance that is not
- * catching. The listing itself still goes through {@code .paginate.json}.
- * </p>
+ * {@snippet lang=json :
+ * {
+ *   "enabled": {"label": "Catching mail", "value": true},
+ *   "total": {"label": "Caught so far", "value": 12}
+ * }
+ * }
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,10 +57,10 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
     resourceTypes = "mail/CaughtMailHomepage",
-    selectors = "adminSummary",
+    selectors = AdminSummaryServlet.SELECTOR,
     extensions = "json",
     methods = { HttpConstants.METHOD_GET })
-public class CaughtMailSummaryServlet extends SlingJakartaSafeMethodsServlet
+public class CaughtMailSummaryServlet extends AdminSummaryServlet
 {
     private static final long serialVersionUID = 8195516947118220627L;
 
@@ -78,15 +76,11 @@ public class CaughtMailSummaryServlet extends SlingJakartaSafeMethodsServlet
     private transient volatile MailService catcher;
 
     @Override
-    protected void doGet(final SlingJakartaHttpServletRequest request,
-        final SlingJakartaHttpServletResponse response) throws IOException
+    protected JsonObjectBuilder summarize(final SlingJakartaHttpServletRequest request)
     {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(Json.createObjectBuilder()
-            .add("enabled", this.catcher != null)
-            .add("total", count(request.getResource()))
-            .build().toString());
+        return Json.createObjectBuilder()
+            .add("enabled", state("Catching mail", this.catcher != null))
+            .add("total", count("Caught so far", countMessages(request.getResource())));
     }
 
     /**
@@ -96,7 +90,7 @@ public class CaughtMailSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @return the number of messages, counting only those and not the access control policy that shares the
      *         folder with them
      */
-    private static int count(final Resource home)
+    private static int countMessages(final Resource home)
     {
         int messages = 0;
         for (final Resource child : home.getChildren()) {

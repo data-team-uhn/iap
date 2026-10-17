@@ -34,11 +34,11 @@ test.describe('the caught mail console on a bare distribution', () => {
     const response = await request.get('/CaughtMail.adminSummary.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
-    const status = (await response.json()) as { enabled: boolean; total: number };
+    const status = (await response.json()) as { enabled: { value: boolean }; total: { value: number } };
     // The bundle is in every aggregate; only test_tar and demo_tar add the configuration that
     // switches it on. Nothing here should ever have caught anything.
-    expect(status.enabled).toBe(false);
-    expect(status.total).toBe(0);
+    expect(status.enabled.value).toBe(false);
+    expect(status.total.value).toBe(0);
   });
 
   test('offers the tool, and its summary says nothing is being caught', async ({ page }) => {
@@ -48,8 +48,9 @@ test.describe('the caught mail console on a bare distribution', () => {
     // That the tool is here at all is the assertion: these extension nodes ship in the core
     // aggregate, so a production distribution carries the console page too
     await expect(page.getByRole('heading', { name: 'Caught mail' })).toBeVisible();
-    await expect(page.getByText('Mail is being delivered normally, so nothing new will appear here.'))
-      .toBeVisible();
+    // The catcher's state is what makes an empty mailbox readable
+    await expect(page.getByText('Catching mail', { exact: true })
+      .locator('xpath=ancestor-or-self::dt/following-sibling::dd[1]')).toHaveText('Off');
   });
 
   test('opens the list, which explains itself rather than looking broken', async ({ page }) => {

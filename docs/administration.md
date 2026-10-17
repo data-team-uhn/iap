@@ -59,6 +59,8 @@ or deployment can also add a group of its own: another group node on
 `iap/adminDashboard/entry`, conventionally under `/Extensions/Admin/`, so that
 non-administrators cannot read it.
 
+### Summary figures
+
 A widget should show a live summary of the tool's area — the archive tool counts what
 was archived in the last 24 hours, the last 7 days, and in total — rather than only a
 link into it.
@@ -67,11 +69,37 @@ Figures go through
 [`WidgetStatList`](../modules/frontend-commons/src/main/frontend/src/components/WidgetStatList.tsx),
 so every tool's summary reads the same way: the value first, then what it is a figure
 for, with the values sharing one column so the labels line up however many digits their
-neighbours ran to. A figure is a count by default — with `approximate` for a lower
-bound, `emphasis` to colour a count as a problem while it is non-zero or while it
-is zero, and no `value` at all for something that could not be counted — or
-`mode: "boolean"` for a state that is on or off. A label with an `href` leads into
-the view at that figure; without one it is plain text.
+neighbours ran to. The widget names the resource to summarize and what to call it —
+`<WidgetStatList url="/Archive" name="archive" />` — and the list fetches
+`<url>.adminSummary.json` itself, waits behind a placeholder, and says the summary is
+not available to this reader when the request is refused. Nothing about a tool's figures
+is written in the widget.
+
+The summary answers with a dictionary of figures, in the order they are displayed:
+
+```json
+{
+  "needingAttention": { "label": "Needing attention", "value": 3, "important": "nonzero" },
+  "total": { "label": "Recorded in total", "value": 41 }
+}
+```
+
+A numeric `value` is a count, a boolean one a state that is on or off, and `null` a
+count that could not be taken, shown as "?". `approximate`
+marks a count that stopped at a bound, `important` colours a count as a problem while it
+is `"nonzero"` or while it is `"zero"`, and `path` names the repository path the figure
+is about — which the widget turns into a link by passing a `hrefFor` that maps a path to
+a console route.
+
+Most tools need no servlet of their own: a `data:EntityHomepage` already answers
+`adminSummary.json` with one figure per homepage of its kind the reader can see, counted
+on their own session. A homepage that cannot be counted keeps its figure with a `null`
+value, and the summary fails only when none can be. A tool whose summary is more than a count of its entities
+registers its own servlet for the same selector on its own resource
+type, which Sling prefers over the generic one. It extends
+[`AdminSummaryServlet`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/summary/AdminSummaryServlet.java),
+which writes the answer, or an error status when the summary cannot be read, and builds
+each figure with `count`, `unknown` or `state`.
 
 ## Contributing a tool
 
