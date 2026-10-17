@@ -279,11 +279,10 @@ GET /libs/iap/mail-catcher.catching.json
 ```
 
 It answers on a `mail:CatcherStatus` node that the module's repoinit creates at
-`/libs/iap/mail-catcher`, with an `everyone` read grant of its own rather than the
-blanket one `frontend-commons` gives `/libs/iap`, so narrowing that cannot take this
-away. `/libs` is exempt from `sling.auth.requirements`, so it answers before sign-in,
-where somebody waiting for a password reset is standing. Like the administrators'
-summary below, it reads the service registry rather than the configuration.
+`/libs/iap/mail-catcher`, with an `everyone` read grant of its own. `/libs` is exempt
+from `sling.auth.requirements`, so it answers before sign-in, where somebody waiting
+for a password reset is standing. It reads the service registry, so it says what is in
+force rather than what the configuration asks for.
 
 **It ships everywhere and is off everywhere until somebody turns it on.** The setting is
 a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service

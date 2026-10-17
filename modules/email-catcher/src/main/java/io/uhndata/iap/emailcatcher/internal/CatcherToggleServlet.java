@@ -55,30 +55,15 @@ import io.uhndata.iap.utils.UserIds;
  * {@code enabled=true|false}.
  *
  * <p>
- * <strong>It writes the same setting the Felix console offers</strong>, through
- * {@link ConfigurationAdmin}, rather than keeping a second switch of its own. The component has no
- * {@code @Modified} method, so updating the configuration deactivates and reactivates it, the mail
- * service registration follows, and dynamic consumers rebind with no restart. One switch, whichever
- * way it is reached.
+ * It writes the setting the Felix console offers, through {@link ConfigurationAdmin}. The component has
+ * no {@code @Modified} method, so an update restarts it, and its mail service registration follows.
  * </p>
  *
  * <p>
- * <strong>A restart returns whatever the deployment ships, where it ships one.</strong> Feature
- * configuration is applied at every startup, so the test and demo aggregates — which carry
- * {@code enabled: true} — come back catching however they were left. The core aggregates carry no
- * configuration for this PID at all, so there a change made here survives the restart instead. That
- * asymmetry is the right way round: the environments that declare a state get it back, and an
- * administrator who switched a production instance over keeps it switched until they say otherwise.
- * </p>
- *
- * <p>
- * <strong>Gated twice, deliberately.</strong> {@code /CaughtMail} is readable by administrators
- * alone, so resolving this resource is already a check — but a resource binding has twice been
- * relied on here and turned out to protect nothing, so who is asking is also checked outright. The
- * repository superuser passes that second check without belonging to the group, on the same
- * reasoning as a workflow's performer check: they bypass access control anyway and can write this
- * very setting from the Felix console, so refusing them here would guard nothing while locking out
- * the only account a fresh instance has.
+ * Only administrators can resolve {@code /CaughtMail}, and the caller is checked again here, so the
+ * guard does not rest on how the servlet is bound. The repository superuser passes without the group.
+ * They bypass access control and can write this setting from the Felix console anyway. On a fresh
+ * instance theirs is the only account.
  * </p>
  *
  * @version $Id$
@@ -142,9 +127,8 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
         LOGGER.info("Mail catching was switched {} by {}", enabled ? "on" : "off",
             UserIds.canonical(request.getResourceResolver()));
         response.getWriter().write(Json.createObjectBuilder()
-            // What was asked for, not what is in force: the component takes a moment to settle, and
-            // reading the registry here would report the state this request has just replaced.
-            // /libs/iap/mail-catcher.catching.json answers the other question.
+            // What was asked for. The component takes a moment to restart, and
+            // /libs/iap/mail-catcher.catching.json says what is in force.
             .add("requested", enabled)
             .build().toString());
     }
@@ -198,8 +182,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
             final Authorizable authorizable = jackrabbit.getUserManager().getAuthorizable(caller);
             return authorizable instanceof User user && user.isAdmin();
         } catch (final RepositoryException e) {
-            // Not recorded as an error: the group check below answers the same question, and a user
-            // store that cannot be read will say so there in its own terms.
+            // Not recorded as an error: the group check below asks the same question.
             LOGGER.debug("Could not ask the user store about {}", caller, e);
             return false;
         }

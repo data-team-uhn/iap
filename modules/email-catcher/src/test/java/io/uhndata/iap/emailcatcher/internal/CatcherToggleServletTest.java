@@ -104,10 +104,7 @@ class CatcherToggleServletTest
      * A resolver that knows who is asking.
      *
      * <p>
-     * The mock resource resolver answers {@code null} for its user id, and the servlet reads the
-     * caller through {@link io.uhndata.iap.utils.UserIds#canonical} -- which falls back on exactly
-     * that when there is no JCR session. With no name the guard refuses, correctly, and every test
-     * here would be asserting that refusal rather than what it says it asserts.
+     * The mock resource resolver has no user id, and the guard refuses a caller with no name.
      * </p>
      *
      * @return the context's resolver, answering for somebody
@@ -143,9 +140,7 @@ class CatcherToggleServletTest
     private static JackrabbitSession sessionFor(final UserManager users) throws RepositoryException
     {
         final JackrabbitSession jackrabbit = Mockito.mock(JackrabbitSession.class);
-        // UserIds.canonical prefers the session's id over the resolver's, so a session that does not
-        // answer for one leaves the servlet with no caller and it refuses before reaching anything
-        // this test is about.
+        // UserIds.canonical prefers the session's id over the resolver's.
         Mockito.when(jackrabbit.getUserID()).thenReturn("an-administrator");
         if (users != null) {
             Mockito.when(jackrabbit.getUserManager()).thenReturn(users);
@@ -204,8 +199,6 @@ class CatcherToggleServletTest
     @Test
     void keepsEveryOtherPropertyOfTheConfiguration() throws IOException
     {
-        // Whatever else the configuration carries belongs to whoever put it there, and a toggle that
-        // replaced the dictionary would quietly drop it.
         final Dictionary<String, Object> existing = new Hashtable<>();
         existing.put("service.pid", CatcherToggleServlet.PID);
         Mockito.when(this.configuration.getProperties()).thenReturn(existing);
@@ -231,8 +224,7 @@ class CatcherToggleServletTest
     @Test
     void refusesARequestThatCarriesNoIdentityAtAll() throws IOException
     {
-        // Fail closed without asking: a principal service answering for a nameless caller would be
-        // answering about nobody, and "is nobody an administrator" is not a question worth a lookup.
+        // Refused without asking the principal service.
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(),
                 this.context.bundleContext());
@@ -259,8 +251,7 @@ class CatcherToggleServletTest
     @Test
     void refusesAValueThatIsNeitherTrueNorFalse() throws IOException
     {
-        // Boolean.parseBoolean answers false for anything it does not recognise, so "yes" would
-        // otherwise switch catching off while reading as a request to switch it on.
+        // Boolean.parseBoolean reads "yes" as false, which would switch catching off.
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "yes"));
 
         assertEquals(400, response.getStatus());
@@ -290,9 +281,7 @@ class CatcherToggleServletTest
     @Test
     void admitsTheRepositorySuperuserWhoBelongsToNoGroup() throws Exception
     {
-        // `iap-administrators` ships empty, so on a fresh instance the superuser is the only account
-        // there is. They bypass access control anyway and can write this setting from the Felix
-        // console, so refusing them here would guard nothing and lock out the one available operator.
+        // `iap-administrators` ships empty, so on a fresh instance the superuser is the only account.
         final User superuser = Mockito.mock(User.class);
         Mockito.when(superuser.isAdmin()).thenReturn(true);
         userStoreReturns(superuser);
@@ -339,8 +328,7 @@ class CatcherToggleServletTest
         Mockito.when(jackrabbit.getUserManager()).thenThrow(new RepositoryException("no store"));
         this.session = jackrabbit;
 
-        // Still allowed, because the group check is stubbed to admit them: the superuser test failing
-        // to run is not itself a refusal.
+        // Still allowed: the group check is stubbed to admit them.
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "true"));
 
         assertEquals(200, response.getStatus());

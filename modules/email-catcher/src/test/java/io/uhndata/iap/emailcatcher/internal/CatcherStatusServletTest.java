@@ -42,9 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The public half of the catcher's status: one boolean, readable by anyone.
  *
  * <p>
- * What it must <em>not</em> answer is as much the point as what it does. This is the one endpoint an
- * unauthenticated visitor reaches, so a count, a path or a subject leaking through it would undo the
- * narrowing that made {@code /CaughtMail} administrators-only.
+ * Anyone can reach it, so it must not answer anything about what was caught.
  * </p>
  *
  * @version $Id$
@@ -103,8 +101,6 @@ class CatcherStatusServletTest
     @Test
     void answersTheBooleanAndNothingElse() throws Exception
     {
-        // Anyone at all can read this, signed in or not. A count would say how much traffic an
-        // instance has had; a path or a subject would say what was in it.
         catcherIsRegistered();
 
         assertEquals(1, answer().size());

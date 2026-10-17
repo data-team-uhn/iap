@@ -87,8 +87,7 @@ export function useCatcherStatus(): {
   const doFetch = useAuthenticatedFetch();
   const [ status, setStatus ] = useState<CatcherStatus | null>(null);
   const [ settled, setSettled ] = useState(false);
-  // Bumped to ask again. The switch writes a setting the component restarts to pick up, so the
-  // caller needs a way to read the state back rather than assume the write took.
+  // Bumped to read the status again, once the switch has written the setting.
   const [ asked, setAsked ] = useState(0);
 
   const reload = useCallback(() => setAsked(previous => previous + 1), []);
@@ -176,9 +175,8 @@ export function useCaughtMessage(name: string | null): CaughtMessageRead {
 /**
  * Switches mail catching on and off.
  *
- * The write goes to the same OSGi setting the Felix console offers, so there is one switch however
- * it is reached. What comes back is what was *asked for*: the component takes a moment to restart
- * and re-register, so the caller re-reads the status rather than trusting the answer.
+ * It resolves once the setting is written, before the catcher has restarted, so the caller reads the
+ * status again rather than trusting the write.
  *
  * @returns the writer, and the last failure worded for a reader
  */
@@ -195,8 +193,7 @@ export function useCatcherToggle(): {
       const body = new URLSearchParams();
       body.set("enabled", String(enabled));
       checkOk(await doFetch(CATCHER_TOGGLE_PATH, { method: "POST", body }));
-      // The banner reads the endpoint once on mount, and the person who just switched catching on is
-      // looking at the page that is supposed to warn them about it.
+      // Tells this page's banner, which otherwise reads the status only when it mounts.
       window.dispatchEvent(new Event(CATCHING_CHANGED_EVENT));
     } catch (error: unknown) {
       setFailure(describeRequestFailure(error));

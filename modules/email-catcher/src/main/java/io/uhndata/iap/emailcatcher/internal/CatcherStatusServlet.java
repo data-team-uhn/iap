@@ -39,19 +39,14 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
  * {@code /libs/iap/mail-catcher.catching.json}.
  *
  * <p>
- * <strong>This is the only thing about the catcher that is not administrators-only, and it is
- * deliberately one boolean.</strong> An instance that catches mail delivers none, and the person who
- * most needs telling is whoever is waiting for a message — a password reset above all, which means
- * somebody on the sign-in page with no session at all. {@code /libs} is exempt from
- * {@code sling.auth.requirements}, so this answers before sign-in; what was actually caught stays
+ * This is the only part of the catcher open to everybody, and it is one boolean. Somebody waiting for a
+ * password-reset mail has no session, and {@code /libs} answers before sign-in. What was caught stays
  * behind {@code /CaughtMail}, which administrators alone can read.
  * </p>
  *
  * <p>
- * <strong>Read from the service registry, not the configuration</strong>, for the same reason
- * {@link CaughtMailSummaryServlet} does: the configuration says what was asked for and this says what
- * is in force. A banner that showed the asked-for state would be wrong for as long as a component
- * took to settle, and wrong permanently if anything ever outranked the catcher in turn.
+ * The answer comes from the service registry, not the configuration. It says what is in force, not what
+ * was asked for.
  * </p>
  *
  * @version $Id$
@@ -68,9 +63,8 @@ public class CatcherStatusServlet extends SlingJakartaSafeMethodsServlet
     private static final long serialVersionUID = 5471821096339250312L;
 
     /**
-     * The catcher's own mail service, present only while it is switched on. Dynamic and greedy so that
-     * toggling the setting is reflected without this component being restarted; optional because its
-     * absence is the answer rather than a reason not to run.
+     * The catcher's own mail service, present only while it is switched on. Dynamic, so a switch is seen
+     * without restarting this component.
      */
     @Reference(target = "(" + CaughtMailService.CATCHER_PROPERTY + "=true)",
         cardinality = ReferenceCardinality.OPTIONAL,

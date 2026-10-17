@@ -56,9 +56,6 @@ describe("CatchingBanner", () => {
   });
 
   it("asks without credentials, because it runs before there is a session", async () => {
-    // useAuthenticatedFetch reads a failure as an expired session and offers to sign in again,
-    // which is the wrong answer to a question anybody may ask — including somebody waiting for the
-    // password-reset mail this banner exists to warn them about.
     const fetchMock = answering({ catching: true });
     vi.stubGlobal("fetch", fetchMock);
     banner();
@@ -68,8 +65,6 @@ describe("CatchingBanner", () => {
   });
 
   it("stays silent when the endpoint cannot be reached", async () => {
-    // A warning nobody could fetch is the same as no warning; an error across every page because
-    // one endpoint was down would be worse than the thing it reports.
     vi.stubGlobal("fetch",
       vi.fn((_url: string) => Promise.reject(new TypeError("Failed to fetch"))));
     const { container } = banner();
@@ -92,8 +87,6 @@ describe("CatchingBanner", () => {
   });
 
   it("asks again when catching is switched in this tab", async () => {
-    // Without this the administrator who just turned catching on watches nothing happen on the very
-    // page that is supposed to warn them, until they navigate.
     let catching = false;
     const fetchMock = vi.fn((_url: string) =>
       Promise.resolve(new Response(JSON.stringify({ catching }),
