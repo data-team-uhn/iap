@@ -38,7 +38,7 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
  * Counts the schemas for the console widget: {@code GET /Schemas.adminSummary.json} answers with how many versions
- * are active, how many drafts are in progress, and how many schemas are retired.
+ * of schemas still open are active, how many drafts are in progress, and how many schemas are retired.
  *
  * <p>
  * Each figure counts the schemas or versions carrying that lifecycle tag themselves. The children are read
@@ -80,8 +80,13 @@ public class SchemasSummaryServlet extends AdminSummaryServlet
         final List<Schema> schemas = homepage.getSchemas();
         final List<SchemaVersion> versions = schemas.stream().flatMap(schema -> schema.getVersions().stream())
             .toList();
+        // A retired schema takes no new submissions, whatever its versions say
+        final List<SchemaVersion> open = schemas.stream()
+            .filter(schema -> !carries(schema, "retired"))
+            .flatMap(schema -> schema.getVersions().stream())
+            .toList();
         return Json.createObjectBuilder()
-            .add("active", count("Active versions", tagged(versions, "active")))
+            .add("active", count("Active versions", tagged(open, "active")))
             .add("drafts", count("Draft versions in progress", tagged(versions, "draft")))
             .add("retired", count("Retired schemas", tagged(schemas, "retired")));
     }
@@ -96,9 +101,19 @@ public class SchemasSummaryServlet extends AdminSummaryServlet
      */
     private static long tagged(final List<? extends Content> nodes, final String tag)
     {
-        return nodes.stream()
-            .map(node -> node.get(TAGS_PROPERTY, String[].class))
-            .filter(tags -> tags != null && Arrays.asList(tags).contains(tag))
-            .count();
+        return nodes.stream().filter(node -> carries(node, tag)).count();
+    }
+
+    /**
+     * Whether a schema or version carries a tag itself.
+     *
+     * @param node the schema or version
+     * @param tag the tag name
+     * @return {@code true} if its own {@code tags} property holds the tag
+     */
+    private static boolean carries(final Content node, final String tag)
+    {
+        final String[] tags = node.get(TAGS_PROPERTY, String[].class);
+        return tags != null && Arrays.asList(tags).contains(tag);
     }
 }

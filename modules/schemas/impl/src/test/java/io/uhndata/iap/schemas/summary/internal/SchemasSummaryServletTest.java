@@ -93,9 +93,20 @@ class SchemasSummaryServletTest
 
         final JsonObject summary = this.summary();
 
-        assertEquals(2, value(summary, "active"));
+        assertEquals(1, value(summary, "active"));
         assertEquals(1, value(summary, "drafts"));
         assertEquals(2, value(summary, "retired"));
+    }
+
+    @Test
+    void leavesOutTheActiveVersionsOfARetiredSchema() throws IOException
+    {
+        final String old = this.schema("old", "retired");
+        this.version(old, "v1", "active");
+        final String open = this.schema("open");
+        this.version(open, "v1", "active");
+
+        assertEquals(1, value(this.summary(), "active"));
     }
 
     @Test
