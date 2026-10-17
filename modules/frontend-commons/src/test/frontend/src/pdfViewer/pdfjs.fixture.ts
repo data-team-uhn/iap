@@ -17,26 +17,21 @@
  */
 
 // A stand-in for pdfjs-dist and its viewer, keeping to the protocol the real ones follow with each
-// other and with PdfViewer: events on the bus, the link service moving the viewer, and the find
-// controller calling match() on each page's text, setting the link service's page to the match,
-// and asking for the match to be scrolled into view once its page's text is drawn. Loaded through
-// vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...).
+// other and with PdfViewer: the document giving each page's text, events on the bus, the link
+// service moving the viewer, and the viewer drawing each page's text layer as it is shown. Loaded
+// through vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...).
 
 export const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
 
 const DEFAULT_PAGES = [ "Cover page of the document.", QUOTE, "The schedule continues for one year." ];
 
-// How far down the frame a match sits, so a test can tell whether it was scrolled into view.
+// How far down its page every passage sits, so a test can tell whether it was scrolled into view.
 export const MATCH_TOP = 500;
 
-// As PDF.js's viewer exports it
-const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
+const PAGE_WIDTH = 600;
+const PAGE_HEIGHT = 800;
 
 type Listener = (event: never) => void;
-
-interface FakeDocument {
-  numPages: number;
-}
 
 function createDefaults() {
   return {
@@ -45,18 +40,22 @@ function createDefaults() {
     openFailure: undefined as Error | undefined,
     // Package folders the build did not publish, as asset names.
     unpublished: [] as string[],
-    // Set to hold every search back until releaseSearch() is called.
-    holdSearch: false,
-    releaseSearch: undefined as (() => void) | undefined,
+    // Set to hold back reading the pages' text until releaseText() is called.
+    holdText: false,
+    releaseText: undefined as (() => void) | undefined,
     // Set to hold back the first page being shown until releasePages() is called.
     holdPages: false,
     releasePages: undefined as (() => void) | undefined,
-    // Every document opened, every worker handed to an open, every search, and every place the
-    // reader was put back at.
+    // Pages whose text PDF.js fails to read, by number.
+    unreadable: [] as number[],
+    // Set to draw only the page shown, as PDF.js does with a long document, rather than every page.
+    drawShownPageOnly: false,
+    // Every document opened, every worker handed to an open, every page whose text was read, and
+    // every place the reader was put back at.
     opened: 0,
     openOptions: [] as object[],
     workers: [] as unknown[],
-    searches: [] as string[],
+    textReads: [] as number[],
     hashes: [] as string[],
     viewers: [] as FakePDFViewer[],
     // Every zoom the viewer was set to, in order.
@@ -69,8 +68,39 @@ export const fakePdf = {
   ...createDefaults(),
   reset(): void {
     Object.assign(fakePdf, createDefaults());
+    delete (Range.prototype as Partial<Range>).getClientRects;
   },
 };
+
+// jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page, and a mark sits where
+// its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
+// as given, which decides whether the viewer has room beside the document. Undone by reset().
+export function stubLayout({ elementWidth = 0 } = {}): void {
+  Range.prototype.getClientRects = () => [ new DOMRect(0, MATCH_TOP, 100, 20) ] as unknown as DOMRectList;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    if (this.dataset.markId === undefined) {
+      return new DOMRect(0, 0, elementWidth, 0);
+    }
+    const share = (value: string) => Number.parseFloat(value) / 100;
+    const { left, top, width, height } = this.style;
+    return new DOMRect(
+      share(left) * PAGE_WIDTH,
+      share(top) * PAGE_HEIGHT,
+      share(width) * PAGE_WIDTH,
+      share(height) * PAGE_HEIGHT,
+    );
+  });
+}
+
+// The marks drawn over the pages' text, which are only seen, by page number.
+export function getDrawnMarks(frame: HTMLElement): Record<number, string[]> {
+  const drawn: Record<number, string[]> = {};
+  for (const mark of frame.querySelectorAll<HTMLElement>("[data-mark-id]")) {
+    const page = Number(mark.closest<HTMLElement>("[data-page-number]")?.dataset.pageNumber);
+    drawn[page] = [ ...drawn[page] ?? [], mark.className ];
+  }
+  return drawn;
+}
 
 // A failure as PDF.js reports it: an Error named after the kind of failure.
 export function createPdfjsError(name: string, message: string): Error {
@@ -100,11 +130,46 @@ export function stubFetch(status = 200): void {
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new ArrayBuffer(8), { status }))));
 }
 
+// A document whose pages' text is fakePdf.pages, a line per item ending one, inside marked content.
+class FakeDocument {
+  readonly numPages = fakePdf.pages.length;
+  #held: Promise<void> | undefined;
+
+  getPage(pageNumber: number) {
+    return Promise.resolve({
+      getTextContent: async () => {
+        await this.#hold();
+        fakePdf.textReads.push(pageNumber);
+        if (fakePdf.unreadable.includes(pageNumber)) {
+          throw createPdfjsError("UnknownErrorException", "Bad text content");
+        }
+        const lines = (fakePdf.pages[pageNumber - 1] ?? "").split("\n");
+        // Marked content, which says how the text is structured, holds none of it.
+        const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1 }));
+        return { items: [ { type: "beginMarkedContent" }, ...items, { type: "endMarkedContent" } ] };
+      },
+    });
+  }
+
+  #hold(): Promise<void> {
+    if (!fakePdf.holdText) {
+      return Promise.resolve();
+    }
+    this.#held ??= new Promise(resolve => {
+      fakePdf.releaseText = resolve;
+    });
+    return this.#held;
+  }
+}
+
 class FakeEventBus {
   readonly #listeners = new Map<string, Listener[]>();
 
-  on(name: string, listener: Listener): void {
+  on(name: string, listener: Listener, options?: { signal?: AbortSignal }): void {
     this.#listeners.set(name, [ ...this.#listeners.get(name) ?? [], listener ]);
+    options?.signal?.addEventListener("abort", () => {
+      this.#listeners.set(name, (this.#listeners.get(name) ?? []).filter(other => other !== listener));
+    });
   }
 
   dispatch(name: string, event: object = {}): void {
@@ -114,13 +179,19 @@ class FakeEventBus {
   }
 }
 
+// A page as the viewer holds it: its text layer, once drawn.
+interface FakePageView {
+  div: HTMLDivElement;
+  textLayer: { div: HTMLDivElement } | null;
+}
+
 class FakePDFViewer {
   readonly eventBus: FakeEventBus;
   readonly container: HTMLElement;
   readonly removePageBorders: boolean;
   readonly abortSignal: AbortSignal | undefined;
-  findController: FakePDFFindController | null = null;
   doc: FakeDocument | null = null;
+  #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
 
@@ -139,16 +210,35 @@ class FakePDFViewer {
 
   setDocument(doc: FakeDocument | null): void {
     this.doc = doc;
-    this.findController?.setDocument(doc);
+    this.#pageViews.forEach(pageView => pageView.div.remove());
+    this.#pageViews = [];
     if (doc === null) {
       return;
     }
-    const init = () => this.eventBus.dispatch("pagesinit");
+    const holder = this.container.firstElementChild ?? this.container;
+    this.#pageViews = Array.from({ length: doc.numPages }, (_, index) => {
+      const div = document.createElement("div");
+      div.dataset.pageNumber = String(index + 1);
+      holder.append(div);
+      return { div, textLayer: null };
+    });
+    const init = () => {
+      this.eventBus.dispatch("pagesinit");
+      this.#drawShown();
+    };
     if (fakePdf.holdPages) {
       fakePdf.releasePages = init;
     } else {
       queueMicrotask(init);
     }
+  }
+
+  get pagesCount(): number {
+    return this.#pageViews.length;
+  }
+
+  getPageView(index: number): FakePageView | undefined {
+    return this.#pageViews[index];
   }
 
   get currentPageNumber(): number {
@@ -162,6 +252,7 @@ class FakePDFViewer {
     this.#page = page;
     this.eventBus.dispatch("pagechanging", { pageNumber: page });
     this.#updateViewArea();
+    this.#drawShown();
   }
 
   get currentScaleValue(): string {
@@ -172,8 +263,12 @@ class FakePDFViewer {
     fakePdf.scales.push(scale);
     this.#scale = scale;
     this.#updateViewArea();
-    // The pages' text is drawn again at the new size, marks included.
-    this.findController?.redrawMatch();
+    // PDF.js keeps a page's text layer when zooming, and says it is drawn again.
+    this.#pageViews.forEach((pageView, index) => {
+      if (pageView.textLayer !== null) {
+        this.eventBus.dispatch("textlayerrendered", { source: pageView, pageNumber: index + 1 });
+      }
+    });
   }
 
   increaseScale(): void {
@@ -186,6 +281,31 @@ class FakePDFViewer {
 
   #numericScale(): number {
     return typeof this.#scale === "number" ? this.#scale : 1;
+  }
+
+  // Every page not yet drawn, or only the one shown, after the change that shows it, as PDF.js does.
+  #drawShown(): void {
+    queueMicrotask(() => {
+      this.#pageViews.forEach((pageView, index) => {
+        if (pageView.textLayer === null && (!fakePdf.drawShownPageOnly || index + 1 === this.#page)) {
+          this.#drawText(pageView, index + 1);
+        }
+      });
+    });
+  }
+
+  #drawText(pageView: FakePageView, pageNumber: number): void {
+    const div = document.createElement("div");
+    div.className = "textLayer";
+    for (const line of (fakePdf.pages[pageNumber - 1] ?? "").split("\n")) {
+      const span = document.createElement("span");
+      span.textContent = line;
+      div.append(span, document.createElement("br"));
+    }
+    div.getBoundingClientRect = () => new DOMRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+    pageView.div.append(div);
+    pageView.textLayer = { div };
+    this.eventBus.dispatch("textlayerrendered", { source: pageView, pageNumber });
   }
 
   #updateViewArea(): void {
@@ -207,16 +327,6 @@ class FakePDFLinkService {
     this.pdfDocument = doc;
   }
 
-  get page(): number {
-    return this.pdfDocument !== null && this.pdfViewer !== null ? this.pdfViewer.currentPageNumber : 1;
-  }
-
-  set page(page: number) {
-    if (this.pdfDocument !== null && this.pdfViewer !== null) {
-      this.pdfViewer.currentPageNumber = page;
-    }
-  }
-
   setHash(hash: string): void {
     fakePdf.hashes.push(hash);
     const params = new URLSearchParams(hash);
@@ -225,81 +335,6 @@ class FakePDFLinkService {
       this.pdfViewer.currentScaleValue = Number.isNaN(Number(zoom)) ? zoom : Number(zoom);
       this.pdfViewer.currentPageNumber = Number(params.get("page"));
     }
-  }
-}
-
-class FakePDFFindController {
-  _linkService: FakePDFLinkService;
-  _eventBus: FakeEventBus;
-  _selected = { pageIdx: -1, matchIdx: -1 };
-  _scrollMatches = false;
-  #doc: FakeDocument | null = null;
-
-  constructor({ linkService, eventBus }: { linkService: FakePDFLinkService; eventBus: FakeEventBus }) {
-    this._linkService = linkService;
-    this._eventBus = eventBus;
-    eventBus.on("find", ({ query }: { query: string }) => {
-      void this.#find(query);
-    });
-    eventBus.on("updatetextlayermatches", () => {
-      this.redrawMatch();
-    });
-  }
-
-  get selected() {
-    return this._selected;
-  }
-
-  setDocument(doc: FakeDocument | null): void {
-    this.#doc = doc;
-  }
-
-  // Overridden by PdfViewer's search.
-  match(_query: string, _pageContent: string, _pageIndex: number): { index: number; length: number }[] {
-    return [];
-  }
-
-  // Overridden by PdfViewer's search.
-  scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
-    // Nothing to scroll in the stand-in
-  }
-
-  // Drawing the text of the match's page asks for the match to be scrolled into view, each time.
-  redrawMatch(): void {
-    const { pageIdx, matchIdx } = this._selected;
-    if (pageIdx < 0) {
-      return;
-    }
-    const element = document.createElement("span");
-    element.getBoundingClientRect = () => new DOMRect(0, MATCH_TOP, 100, 20);
-    this.scrollMatchIntoView({ element, pageIndex: pageIdx, matchIndex: matchIdx });
-  }
-
-  // From the page shown onwards, wrapping round, as PDF.js does.
-  async #find(query: string): Promise<void> {
-    fakePdf.searches.push(query);
-    this._eventBus.dispatch("updatefindcontrolstate", { state: FindState.PENDING });
-    if (fakePdf.holdSearch) {
-      await new Promise<void>(resolve => {
-        fakePdf.releaseSearch = resolve;
-      });
-    }
-    await Promise.resolve();
-    const pageCount = this.#doc?.numPages ?? 0;
-    const start = this._linkService.page - 1;
-    for (let step = 0; step < pageCount; step++) {
-      const pageIdx = (start + step) % pageCount;
-      if (this.match(query, fakePdf.pages[pageIdx] ?? "", pageIdx).length > 0) {
-        this._selected = { pageIdx, matchIdx: 0 };
-        const state = pageIdx < start ? FindState.WRAPPED : FindState.FOUND;
-        this._eventBus.dispatch("updatefindcontrolstate", { state });
-        this._scrollMatches = true;
-        this._linkService.page = pageIdx + 1;
-        this.redrawMatch();
-        return;
-      }
-    }
-    this._eventBus.dispatch("updatefindcontrolstate", { state: FindState.NOT_FOUND });
   }
 }
 
@@ -326,9 +361,9 @@ export function createPdfjsModule() {
       return {
         promise: fakePdf.openFailure !== undefined
           ? Promise.reject(fakePdf.openFailure)
-          : Promise.resolve().then((): FakeDocument => {
+          : Promise.resolve().then(() => {
             fakePdf.opened++;
-            return { numPages: fakePdf.pages.length };
+            return new FakeDocument();
           }),
         destroy: () => {
           fakePdf.destroyedTasks++;
@@ -343,9 +378,7 @@ export function createPdfjsModule() {
 export function createViewerModule() {
   return {
     EventBus: FakeEventBus,
-    FindState,
     PDFLinkService: FakePDFLinkService,
     PDFViewer: FakePDFViewer,
-    PDFFindController: FakePDFFindController,
   };
 }
