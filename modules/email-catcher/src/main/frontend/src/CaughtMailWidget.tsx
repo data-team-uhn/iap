@@ -20,6 +20,7 @@ import { Box, Skeleton, Typography } from "@mui/material";
 
 import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
+import CatcherSwitch from "./CatcherSwitch";
 import { useCatcherStatus } from "./useCaughtMail";
 
 /**
@@ -30,7 +31,7 @@ import { useCatcherStatus } from "./useCaughtMail";
  * from somebody who came to the dashboard to check whether a notification worked.
  */
 function CaughtMailWidget() {
-  const { status, settled } = useCatcherStatus();
+  const { status, settled, reload } = useCatcherStatus();
 
   if (!settled) {
     return <Skeleton variant="rounded" height={96} aria-label="Loading the caught mail summary" />;
@@ -66,6 +67,9 @@ function CaughtMailWidget() {
           Nothing has been sent yet.
         </Typography>
       )}
+      <Box sx={{ mt: 1 }}>
+        <CatcherSwitch enabled={status.enabled} onChanged={reload} />
+      </Box>
     </Box>
   );
 }

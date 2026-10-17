@@ -31,6 +31,21 @@ export const CAUGHT_MESSAGE_TYPE = "mail/CaughtMessage";
 /** Where the catcher reports whether it is on, and how much it holds. */
 export const CATCHER_STATUS_PATH = `${CAUGHT_MAIL_PATH}.adminSummary.json`;
 
+/**
+ * Where anyone may ask whether mail is being caught, signed in or not. It is outside `/CaughtMail`,
+ * which administrators alone can read.
+ */
+export const CATCHING_PATH = "/libs/iap/mail-catcher.catching.json";
+
+/**
+ * Fired on `window` when catching has just been switched, so this page's banner updates at once.
+ * Other tabs see the change on their next page load.
+ */
+export const CATCHING_CHANGED_EVENT = "iap:mail-catching-changed";
+
+/** Where an administrator switches catching on and off. */
+export const CATCHER_TOGGLE_PATH = `${CAUGHT_MAIL_PATH}.catching.json`;
+
 /** Where one message is stored. */
 export const messagePath = (name: string): string => `${CAUGHT_MAIL_PATH}/${name}`;
 

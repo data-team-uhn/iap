@@ -18,9 +18,8 @@
 // enabled, so this file — included only by the test and demo aggregates — is the whole of the
 // difference between an instance that sends mail and one that catches it.
 //
-// This is the same setting the Felix console offers under "IAP Email Catcher", so an instance that did
-// not start with it can be switched over by hand and back again, without a rebuild and without a
-// restart. Shipping it here as well means the test and demo instances need nobody to do that.
+// The setting the dashboard switch and the Felix console write. Here, it makes the test and demo
+// instances catch from the start, and again after every restart.
 {
     "configurations":{
         "io.uhndata.iap.emailcatcher.internal.CaughtMailService":{

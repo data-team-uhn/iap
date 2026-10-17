@@ -34,6 +34,13 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// The one node anyone may read, signed in or not. It carries only the servlet
+// saying whether mail is being caught. It sits under /libs/iap because
+// /CaughtMail, where the messages are, is readable by administrators alone.
+[mail:CatcherStatus] > sling:Folder
+  - sling:resourceType (STRING) = "mail/CatcherStatus" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
 // Homepage node for the /CaughtMail root path.
 [mail:CaughtMailHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "mail/CaughtMailHomepage" mandatory autocreated protected
