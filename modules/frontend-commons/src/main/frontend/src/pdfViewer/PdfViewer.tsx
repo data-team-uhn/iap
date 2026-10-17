@@ -31,7 +31,7 @@ import { cannotMark, getMarkPage, getMarksKey, getMarkText, isLooking, orderMark
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import PdfToolbar from "./PdfToolbar";
-import { getFileName, getPassageNote, getPassageStatus } from "./pdfViewerModel";
+import { getFileName, getPassageNote, getPassageStatus, PASSAGES, type MarkName } from "./pdfViewerModel";
 import SearchField from "./SearchField";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
@@ -42,6 +42,7 @@ import { usePdfView } from "./usePdfView";
 import { useSelectedText } from "./useSelectedText";
 import LoadError from "../components/LoadError";
 import ResponsiveDialog from "../components/ResponsiveDialog";
+import { useSwipe } from "../useSwipe";
 
 import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
 
@@ -67,6 +68,10 @@ export interface PdfViewerProps {
   // selected. The same function from one render to the next, as from useCallback, spares drawing the
   // passages again while the document is searched.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
+  // What the marks are called where the viewer counts them and steps through them, as in "Passage 3 of 12"
+  // or "Next passage", such as annotations on a review screen; passages when absent. The text a mark
+  // covers is a passage still.
+  markName?: MarkName;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
   // An element to show the viewer in, filling it, with a button to pop it out into a dialog. The
@@ -87,6 +92,7 @@ export default function PdfViewer(props: PdfViewerProps) {
 // The document stays open here while the viewer moves between the container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
   const { url, page, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, title, container, onClose } = props;
+  const markName = props.markName ?? PASSAGES;
   const marksKey = getMarksKey(props.marks);
   const marks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
@@ -169,6 +175,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       titleId={titleId}
       title={title ?? getFileName(url)}
       marks={marks}
+      markName={markName}
       places={places}
       pagesRead={read}
       selectedId={selectedId}
@@ -195,7 +202,7 @@ function PdfViewerSession(props: PdfViewerProps) {
         onClose={container !== undefined && poppedOut ? popIn : onClose}
         slotProps={{ paper: { sx: { height: "100%" } } }}
       >
-        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, px: { xs: 2, sm: 3 } }}>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, ...DIALOG_PADDING }}>
           {body}
         </DialogContent>
       </ResponsiveDialog>
@@ -211,10 +218,16 @@ function PdfViewerSession(props: PdfViewerProps) {
 // zoom controls, and offers a button opening it in their place instead.
 const SEARCH_FIELD_ROOM = 600;
 
+// The space between the viewer's rows, and around it in the dialog, kept small on a phone, where the
+// document has the least room. There, the document runs to the bottom of the screen, as to its sides.
+const ROW_GAP = { xs: 0.5, sm: 1 };
+const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
+
 interface ViewerBodyProps {
   titleId: string;
   title: string;
   marks: Mark[];
+  markName: MarkName;
   places: MarkPlaces;
   // How many pages have been read looking for the passages.
   pagesRead: number;
@@ -234,7 +247,7 @@ interface ViewerBodyProps {
 }
 
 function ViewerBody(props: ViewerBodyProps) {
-  const { titleId, title, marks, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
+  const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
@@ -289,12 +302,20 @@ function ViewerBody(props: ViewerBodyProps) {
     onSelect(id);
     showMark(id);
   }, [onSelect, showMark]);
+  const stepTo = (index: number) => showSelected(ordered[index].id);
+  // Swiping the card above the document steps through the passages as its controls do, as far as the ends.
+  const swipeRef = useSwipe(
+    position > 0 ? () => stepTo(position - 1) : undefined,
+    position < ordered.length - 1 ? () => stepTo(position + 1) : undefined,
+  );
 
   const card = selected === undefined || (several && !narrow)
     ? null
     : (
       <PassageCard
         key={selected.id}
+        ref={several ? swipeRef : undefined}
+        name={markName}
         quote={getMarkText(selected, places[selected.id])}
         note={getPassageNote(status, places[selected.id])}
         markedBy={selected.kind}
@@ -303,8 +324,8 @@ function ViewerBody(props: ViewerBodyProps) {
             <StepControls
               position={among.index}
               count={among.count}
-              itemName="passage"
-              onStep={next => showSelected(ordered[next - 1].id)}
+              itemName={markName.one}
+              onStep={next => stepTo(next - 1)}
             />
           )
           : undefined}
@@ -317,9 +338,9 @@ function ViewerBody(props: ViewerBodyProps) {
     <Box
       ref={setBody}
       onKeyDown={onKeyDown}
-      sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}
+      sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center" }}>
         <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {title}
         </Typography>
@@ -332,14 +353,17 @@ function ViewerBody(props: ViewerBodyProps) {
       {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
       <Box role="status" sx={visuallyHidden}>
         {search.outcome === "none" && selected !== undefined
-          ? getPassageStatus(status, places[selected.id], several ? among : undefined)
+          ? getPassageStatus(status, places[selected.id], several ? among : undefined, markName)
           : search.announcement}
       </Box>
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-        <Box ref={setColumn} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+        <Box
+          ref={setColumn}
+          sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}
+        >
           {searchInPlace
             ? (
-              <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
                 <SearchField
                   search={search}
                   inputRef={searchInputRef}
@@ -386,7 +410,6 @@ function ViewerBody(props: ViewerBodyProps) {
                 title="The document could not be opened"
                 message={openError}
                 onRetry={onRetry}
-                sx={{ mb: 1 }}
               />
             )}
           <PdfDocumentView
@@ -395,7 +418,7 @@ function ViewerBody(props: ViewerBodyProps) {
             outlineSelected={several}
             opening={pageCount === undefined && openError === undefined}
             looking={pageCount !== undefined && isLooking(places)
-              ? { share: pagesRead / pageCount, several }
+              ? { share: pagesRead / pageCount, what: `the ${several ? markName.many : markName.one}` }
               : undefined}
           >
             {selectedText.selected === undefined || onAnnotate === undefined
@@ -413,6 +436,7 @@ function ViewerBody(props: ViewerBodyProps) {
           ? (
             <MarkList
               marks={ordered}
+              name={markName}
               places={places}
               status={status}
               selectedId={selected?.id}

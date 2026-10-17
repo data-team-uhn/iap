@@ -58,6 +58,8 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         position: "absolute",
         inset: 0,
         overflow: "auto",
+        // Scrolling the document stops at its ends, rather than going on to scroll what holds it.
+        overscrollBehavior: "contain",
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
         // Sheets on the canvas, apart from each other
@@ -89,9 +91,9 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
   // Whether the selected mark stands out from others by an outline too.
   outlineSelected: boolean;
   opening: boolean;
-  // How much of the document has been read looking for passages, from 0 to 1, while some are, and whether
-  // there are several.
-  looking?: { share: number; several: boolean };
+  // How much of the document has been read looking for the marks, from 0 to 1, while some are, and what
+  // is looked for, as in "the passages".
+  looking?: { share: number; what: string };
   children?: ReactNode;
 }) {
   return (
@@ -118,7 +120,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
           <LinearProgress
             variant="determinate"
             value={Math.min(100, looking.share * 100)}
-            aria-label={looking.several ? "Looking for the passages" : "Looking for the passage"}
+            aria-label={`Looking for ${looking.what}`}
             sx={{ position: "absolute", top: 0, insetInline: 0, zIndex: 1 }}
           />
         )}
