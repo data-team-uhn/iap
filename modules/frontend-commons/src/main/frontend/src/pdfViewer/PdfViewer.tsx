@@ -27,7 +27,7 @@ import { createPortal } from "react-dom";
 
 import CommentButton from "./CommentButton";
 import MarkList from "./MarkList";
-import { cannotMark, getMarkPage, getMarksKey, getMarkText, orderMarks } from "./marksModel";
+import { cannotMark, getMarkPage, getMarksKey, getMarkText, isLooking, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import PdfToolbar from "./PdfToolbar";
@@ -64,7 +64,8 @@ export interface PdfViewerProps {
   // the text they selected in the document. Without it, the viewer offers none.
   onAnnotate?: (anchor: TextAnchor) => void;
   // What to show with a passage, under it, such as the comments on it, given whether it is the one
-  // selected.
+  // selected. The same function from one render to the next, as from useCallback, spares drawing the
+  // passages again while the document is searched.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
@@ -94,7 +95,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   const reportedId = useRef<string | undefined>(undefined);
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
-  const places = useMarkPlaces(pdf, marks);
+  const { places, read } = useMarkPlaces(pdf, marks);
   const firstMarkable = marks.find(mark => !cannotMark(places[mark.id]));
   const selectedId = [ selectedMarkId, chosenId ].find(id => marks.some(mark => mark.id === id))
     ?? (firstMarkable ?? marks.at(0))?.id;
@@ -169,6 +170,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       title={title ?? getFileName(url)}
       marks={marks}
       places={places}
+      pagesRead={read}
       selectedId={selectedId}
       onSelect={select}
       openError={openError}
@@ -214,6 +216,8 @@ interface ViewerBodyProps {
   title: string;
   marks: Mark[];
   places: MarkPlaces;
+  // How many pages have been read looking for the passages.
+  pagesRead: number;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   openError: string | undefined;
@@ -230,7 +234,7 @@ interface ViewerBodyProps {
 }
 
 function ViewerBody(props: ViewerBodyProps) {
-  const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
+  const { titleId, title, marks, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
@@ -279,11 +283,12 @@ function ViewerBody(props: ViewerBodyProps) {
   const selected = position < 0 ? undefined : ordered[position];
   const several = ordered.length > 1;
   const among = { index: position + 1, count: ordered.length };
-  const status = { openError, page };
-  const showSelected = (id: string) => {
+  // Kept the same while they are, so the document and the passages are not drawn again as a search counts.
+  const status = useMemo(() => ({ openError, page }), [openError, page]);
+  const showSelected = useCallback((id: string) => {
     onSelect(id);
     showMark(id);
-  };
+  }, [onSelect, showMark]);
 
   const card = selected === undefined || (several && !narrow)
     ? null
@@ -384,7 +389,15 @@ function ViewerBody(props: ViewerBodyProps) {
                 sx={{ mb: 1 }}
               />
             )}
-          <PdfDocumentView setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={several}>
+          <PdfDocumentView
+            setFrame={setFrame}
+            edgeToEdge={edgeToEdge}
+            outlineSelected={several}
+            opening={pageCount === undefined && openError === undefined}
+            looking={pageCount !== undefined && isLooking(places)
+              ? { share: pagesRead / pageCount, several }
+              : undefined}
+          >
             {selectedText.selected === undefined || onAnnotate === undefined
               ? null
               : (

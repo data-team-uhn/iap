@@ -21,14 +21,15 @@ import CloseIcon from "@mui/icons-material/Close";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import SearchIcon from "@mui/icons-material/Search";
-import { Box, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
+import { Box, CircularProgress, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
 
 import { failedColour } from "./passageStyles";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// Searching the document: the field, holding at its end which match is shown of how many, or that there
-// are none, then the previous and next match, wrapping round. Enter in the field goes to the next match
+// Searching the document: the field, holding at its end a spinner while pages are still being searched,
+// and which match is shown of how many, or that there are none, then the previous and next match, wrapping
+// round. Enter in the field goes to the next match
 // and Shift+Enter to the previous one. Escape anywhere in it clears the search, or closes it where it can
 // be closed, rather than closing the viewer around it.
 export default function SearchField({ search, inputRef, disabled, onFind, onFindAgain, onClose }: {
@@ -59,11 +60,12 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
 
   const searching = search.query.trim() !== "";
   let result = null;
-  if (searching && search.outcome === "found") {
+  if (searching && search.outcome === "found" && search.current > 0) {
     result = `${search.current} of ${search.total}`;
   } else if (searching && (search.outcome === "notFound" || search.outcome === "noText")) {
     result = search.outcome === "noText" ? "No text to search" : "No matches";
   }
+  const counting = searching && search.counting;
   const cannotStep = disabled === true || !searching || search.outcome !== "found" || search.total < 2;
 
   return (
@@ -87,20 +89,25 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
                 <SearchIcon fontSize="small" />
               </InputAdornment>
             ),
-            endAdornment: result === null
+            endAdornment: result === null && !counting
               ? null
               : (
-                <InputAdornment position="end">
-                  <Typography
-                    variant="caption"
-                    noWrap
-                    sx={theme => ({
-                      fontVariantNumeric: "tabular-nums",
-                      ...search.outcome === "found" ? { color: "text.secondary" } : failedColour(theme),
-                    })}
-                  >
-                    {result}
-                  </Typography>
+                <InputAdornment position="end" sx={{ gap: 1 }}>
+                  {counting ? <CircularProgress size={14} aria-label="Searching the pages" /> : null}
+                  {result === null
+                    ? null
+                    : (
+                      <Typography
+                        variant="caption"
+                        noWrap
+                        sx={theme => ({
+                          fontVariantNumeric: "tabular-nums",
+                          ...search.outcome === "found" ? { color: "text.secondary" } : failedColour(theme),
+                        })}
+                      >
+                        {result}
+                      </Typography>
+                    )}
                 </InputAdornment>
               ),
           },
