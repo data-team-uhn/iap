@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "File check",
+  "ext:subtitle": "Pick a file to see what an upload would be refused for. Lower the limits to reach the size and page refusals.",
+  "ext:widgetWidth": "wide",
+  "ext:renderURL": "asset:iap-test-data.FileValidationWidget.js",
+  "defaultOrder": 7
+}
