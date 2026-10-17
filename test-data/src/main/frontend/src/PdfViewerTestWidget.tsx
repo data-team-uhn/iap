@@ -19,13 +19,13 @@ import { useState } from "react";
 
 import { Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, TextField } from "@mui/material";
 
-import { MARK_KINDS, type MarkKind } from "@iap/frontend-commons/pdfViewer/marksModel";
+import { PASSAGE_KINDS, type PassageKind } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 
 type Shown = Omit<PdfViewerProps, "container" | "onClose"> & { inPlace: boolean };
 
 // Whose marks the passages are: one kind for all, or both in turn.
-type MarkedBy = MarkKind | "both";
+type MarkedBy = PassageKind | "both";
 
 // A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for
 // passages in it, one per line, without a real caller. The titled frame comes from the dashboard.
@@ -52,7 +52,7 @@ function PdfViewerTestWidget() {
         id: `passage-${index + 1}`,
         quote,
         page: firstPage,
-        kind: markedBy === "both" ? MARK_KINDS[index % MARK_KINDS.length] : markedBy,
+        kind: markedBy === "both" ? PASSAGE_KINDS[index % PASSAGE_KINDS.length] : markedBy,
       })),
       title: title.trim().length > 0 ? title.trim() : undefined,
       inPlace,

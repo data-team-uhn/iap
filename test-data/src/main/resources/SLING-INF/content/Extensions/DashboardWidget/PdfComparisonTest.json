@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "PDF comparison",
+  "ext:subtitle": "See what changed between two versions of a PDF",
+  "ext:renderURL": "asset:iap-test-data.PdfComparisonTestWidget.js",
+  "defaultOrder": 7
+}
