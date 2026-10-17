@@ -18,13 +18,14 @@
 import { useState, type ReactElement } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { OVER_MARK_CLASS } from "@iap/frontend-commons/pdfViewer/markLayer";
 import type { Mark, MarkKind, MarkSpan } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
+import { SETTLE_TIME } from "@iap/frontend-commons/pdfViewer/useSelectedText";
 
 import {
   createPdfjsError,
@@ -871,6 +872,56 @@ describe("PdfViewer", () => {
       });
     });
 
+    describe("with what the caller shows with each passage", () => {
+      // A field to type in, as a comment box is, which cannot go inside the button selecting a passage.
+      const renderMarkDetails = (mark: Mark, selected: boolean) => (
+        <input aria-label={`About ${mark.id}${selected ? ", selected" : ""}`} />
+      );
+
+      it("shows it under each passage listed, saying which is selected", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
+        expect(within(passages[0]).getByRole("textbox", { name: "About volunteers, selected" })).toBeInTheDocument();
+        expect(within(passages[1]).getByRole("textbox", { name: "About schedule" })).toBeInTheDocument();
+        expect(within(passages[0]).getByRole("button", { name: "Show passage 1 on page 2" }))
+          .not.toContainElement(within(passages[0]).getByRole("textbox"));
+      });
+
+      it("keeps each passage listed whole, the list scrolling rather than squeezing them", async () => {
+        stubLayout({ elementWidth: 1000 });
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        for (const passage of within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem")) {
+          expect(passage).toHaveStyle({ flexShrink: "0" });
+        }
+      });
+
+      it("shows it under the passage on the card above the document in a narrow viewer", async () => {
+        showMarks({ renderMarkDetails });
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        expect(screen.getByRole("textbox", { name: "About volunteers, selected" })).toBeInTheDocument();
+        expect(screen.queryByRole("textbox", { name: /About schedule/ })).not.toBeInTheDocument();
+      });
+
+      it("lets what it shows be typed in without taking the reader anywhere", async () => {
+        stubLayout({ elementWidth: 1000 });
+        const onSelectMark = showMarks({ renderMarkDetails, selectedMarkId: "volunteers" });
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        getFrame().scrollTop = 0;
+
+        await userEvent.type(screen.getByRole("textbox", { name: "About schedule" }), "Why?");
+
+        expect(screen.getByRole("textbox", { name: "About schedule" })).toHaveValue("Why?");
+        expect(onSelectMark).not.toHaveBeenCalled();
+        expect(getFrame().scrollTop).toBe(0);
+      });
+    });
+
     describe("as the passages and the selection change", () => {
       it("keeps the view of the document as the selection moves to passages on other pages", async () => {
         showMarks({ marks: MARKS.map(mark => ({ ...mark, page: mark.id === "schedule" ? 3 : 2 })) });
@@ -1034,6 +1085,208 @@ describe("PdfViewer", () => {
 
       await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is not in this document."));
       expect(getDrawnMarks(getFrame())).toEqual({});
+    });
+  });
+
+  describe("commenting on text selected", () => {
+    const LINES = "The memo covers new volunteers.\nVolunteers who, on a casual basis, assist from time to time.";
+
+    beforeEach(() => {
+      fakePdf.pages = [ "Cover page of the document.", LINES, "The schedule continues for one year." ];
+    });
+
+    function showAnnotating(props: Partial<PdfViewerProps> = {}) {
+      const onAnnotate = vi.fn();
+      const onClose = vi.fn();
+      render(withTheme(<PdfViewer url={URL} marks={[]} onAnnotate={onAnnotate} onClose={onClose} {...props} />));
+      return { onAnnotate, onClose };
+    }
+
+    // Selects text of a line of a page drawn, as a person does, the browser saying the selection changed.
+    function selectText(page: number, line: number, from: number, to: number) {
+      const text = getFrame().querySelectorAll(`[data-page-number="${page}"] .textLayer span`)[line].firstChild as Text;
+      const range = document.createRange();
+      range.setStart(text, from);
+      range.setEnd(text, to);
+      const selection = document.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    // Every page drawn, and the viewer following the selection, which it starts to once they are shown.
+    async function waitForPages() {
+      await waitFor(() => expect(getFrame().querySelectorAll(".textLayer")).toHaveLength(3));
+      await act(() => Promise.resolve());
+    }
+
+    it("offers to comment on text selected once the selection settles", async () => {
+      showAnnotating();
+      await waitForPages();
+
+      selectText(2, 1, 16, 33);
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Comment" })).toBeInTheDocument();
+    });
+
+    it("gives the passage selected as an anchor, and lets go of the selection", async () => {
+      const { onAnnotate } = showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+
+      await userEvent.click(await screen.findByRole("button", { name: "Comment" }));
+
+      const lineStart = "The memo covers new volunteers.".length;
+      await waitFor(() => expect(onAnnotate).toHaveBeenCalledWith({
+        start: { page: 2, char: lineStart + 16 },
+        end: { page: 2, char: lineStart + 33 },
+        quote: "on a casual basis",
+        before: "new volunteers. Volunteers who,",
+        after: ", assist from time to time.",
+      }));
+      expect(document.getSelection()?.isCollapsed).toBe(true);
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+    });
+
+    it("offers it further under the selection when it was made by touch, past the phone's handles", async () => {
+      showAnnotating();
+      await waitForPages();
+      getFrame().getBoundingClientRect = () => new DOMRect(0, 0, 600, 800);
+      selectText(2, 1, 16, 33);
+      const byMouse = Number.parseFloat((await screen.findByRole("button", { name: "Comment" })).style.top);
+
+      await userEvent.pointer({ keys: "[TouchA]", target: getFrame() });
+      selectText(2, 1, 16, 33);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument());
+
+      const byTouch = Number.parseFloat((await screen.findByRole("button", { name: "Comment" })).style.top);
+      expect(byTouch).toBeGreaterThan(byMouse);
+    });
+
+    it("waits for the pointer to be let go of when selecting with it", async () => {
+      showAnnotating();
+      await waitForPages();
+
+      // Pressed and let go of as they are, since user-event moves the selection itself.
+      fireEvent.pointerDown(getFrame());
+      selectText(2, 1, 16, 33);
+      await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+
+      fireEvent.pointerUp(getFrame());
+      expect(await screen.findByRole("button", { name: "Comment" })).toBeInTheDocument();
+    });
+
+    it("makes no offer once the selection is let go of", async () => {
+      showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      act(() => {
+        document.getSelection()?.removeAllRanges();
+      });
+      await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+    });
+
+    it("puts the offer away while the document scrolls, and makes it again once it stops", async () => {
+      showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      await screen.findByRole("button", { name: "Comment" });
+
+      act(() => {
+        getFrame().dispatchEvent(new Event("scroll"));
+      });
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Comment" })).toBeInTheDocument();
+    });
+
+    it("puts the offer away while the document zooms, and makes it again if the selection outlasts it", async () => {
+      showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      await screen.findByRole("button", { name: "Comment" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Comment" })).toBeInTheDocument();
+    });
+
+    it("keeps what was selected once the button is pressed, even if pressing clears the selection", async () => {
+      const { onAnnotate } = showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      const button = await screen.findByRole("button", { name: "Comment" });
+
+      fireEvent.pointerDown(button);
+      act(() => {
+        document.getSelection()?.removeAllRanges();
+      });
+      await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
+      fireEvent.click(button);
+
+      await waitFor(() => expect(onAnnotate).toHaveBeenCalledWith(expect.objectContaining({ quote: "on a casual basis" })));
+    });
+
+    it("lets go of what it held once the pointer is pressed anywhere else", async () => {
+      const { onAnnotate } = showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      fireEvent.pointerDown(await screen.findByRole("button", { name: "Comment" }));
+
+      fireEvent.pointerDown(document.body);
+      selectText(2, 1, 0, 10);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument());
+      fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
+
+      await waitFor(() => expect(onAnnotate).toHaveBeenCalledWith(expect.objectContaining({ quote: "Volunteers" })));
+    });
+
+    it("puts the offer away on Escape, without closing the viewer, until the selection changes", async () => {
+      const { onClose } = showAnnotating();
+      await waitForPages();
+      selectText(2, 1, 16, 33);
+      await screen.findByRole("button", { name: "Comment" });
+
+      // Pressed as it is, since user-event moves the selection itself.
+      fireEvent.keyDown(getFrame(), { key: "Escape" });
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      selectText(2, 1, 0, 10);
+      expect(await screen.findByRole("button", { name: "Comment" })).toBeInTheDocument();
+      fireEvent.keyDown(getFrame(), { key: "Escape" });
+      fireEvent.keyDown(getFrame(), { key: "Escape" });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers nothing for text selected outside the document, or for spaces alone", async () => {
+      showAnnotating({ title: "The protocol" });
+      await waitForPages();
+
+      const title = screen.getByRole("heading", { name: "The protocol" }).firstChild as Text;
+      act(() => {
+        document.getSelection()?.selectAllChildren(title.parentElement!);
+      });
+      selectText(2, 1, 15, 16);
+      await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
+    });
+
+    it("offers nothing without a caller to tell", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={[]} onClose={vi.fn()} />));
+      await waitForPages();
+
+      selectText(2, 1, 16, 33);
+      await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
+
+      expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();
     });
   });
 

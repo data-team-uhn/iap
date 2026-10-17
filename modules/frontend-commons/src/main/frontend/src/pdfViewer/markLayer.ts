@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { MarkKind } from "./marksModel";
+import type { MarkKind, MarkSpan } from "./marksModel";
 
 export const MARK_CLASS = "iap-mark";
 
@@ -34,6 +34,32 @@ export interface PageMark {
 interface TextNodeAt {
   node: Text;
   start: number;
+}
+
+// The text nodes of a text layer, each with where it starts in the layer's text, which is theirs joined:
+// the page's text as PDF.js reads it.
+function getTextNodes(textLayer: HTMLElement): TextNodeAt[] {
+  const nodes: TextNodeAt[] = [];
+  let offset = 0;
+  const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const textNode = node as Text;
+    nodes.push({ node: textNode, start: offset });
+    offset += textNode.length;
+  }
+  return nodes;
+}
+
+// Where a point of a text layer falls in its text: in a text node, that far into it, or, between
+// elements, where the next text node starts.
+function getTextOffset(nodes: TextNodeAt[], length: number, container: Node, offset: number): number {
+  const inNode = nodes.find(({ node }) => node === container);
+  if (inNode !== undefined) {
+    return inNode.start + offset;
+  }
+  const point = document.createRange();
+  point.setStart(container, offset);
+  return nodes.find(({ node }) => point.comparePoint(node, 0) > 0)?.start ?? length;
 }
 
 // The boxes of the text between two offsets, without those of the elements holding it, which a range
@@ -80,14 +106,7 @@ const percent = (part: number, whole: number) => `${(100 * part / whole).toFixed
 // percentages of it, so they scale with the page. Drawing again replaces what was drawn.
 export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId: string | undefined): void {
   textLayer.querySelector(`:scope > .${LAYER_CLASS}`)?.remove();
-  const nodes: TextNodeAt[] = [];
-  let offset = 0;
-  const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-    const textNode = node as Text;
-    nodes.push({ node: textNode, start: offset });
-    offset += textNode.length;
-  }
+  const nodes = getTextNodes(textLayer);
   if (nodes.length === 0 || marks.length === 0) {
     return;
   }
@@ -110,6 +129,50 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
     }
   }
   textLayer.append(layer);
+}
+
+// What a range selects of the text of the pages drawn in the frame, as one span on each page whose text
+// it selects some of, in order, without the spaces at either end. None when it selects no text. Pages not
+// drawn yet have no text to select.
+export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
+  const selected = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]")).flatMap(pageView => {
+    const textLayer = pageView.querySelector<HTMLElement>(".textLayer");
+    if (textLayer === null || !range.intersectsNode(textLayer)) {
+      return [];
+    }
+    const page = Number(pageView.dataset.pageNumber);
+    const nodes = getTextNodes(textLayer);
+    const layerText = nodes.map(({ node }) => node.data).join("");
+    const whole = document.createRange();
+    whole.selectNodeContents(textLayer);
+    const start = range.compareBoundaryPoints(Range.START_TO_START, whole) > 0
+      ? getTextOffset(nodes, layerText.length, range.startContainer, range.startOffset)
+      : 0;
+    const end = range.compareBoundaryPoints(Range.END_TO_END, whole) < 0
+      ? getTextOffset(nodes, layerText.length, range.endContainer, range.endOffset)
+      : layerText.length;
+    const text = layerText.slice(start, end);
+    return text.trim() === "" ? [] : [ { page, start, end, text } ];
+  });
+  const first = selected.at(0);
+  const last = selected.at(-1);
+  if (first !== undefined && last !== undefined) {
+    first.start += first.text.length - first.text.trimStart().length;
+    last.end -= last.text.length - last.text.trimEnd().length;
+  }
+  return selected.map(({ page, start, end }) => ({ page, start, end }));
+}
+
+// The box of the end of the text spans cover in the frame, from the text alone, as marks are drawn, rather
+// than from the boxes a range gives of the elements it holds whole: none when they cover no text, or not
+// on a page drawn.
+export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | undefined {
+  const last = spans.at(-1);
+  if (last === undefined) {
+    return undefined;
+  }
+  const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${last.page}"] .textLayer`);
+  return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
 }
 
 // The first piece of a mark drawn in the frame, if its page has been drawn.
