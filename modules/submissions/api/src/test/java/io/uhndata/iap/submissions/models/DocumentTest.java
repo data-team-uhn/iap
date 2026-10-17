@@ -36,6 +36,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,20 +53,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class DocumentTest
 {
+    private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class, DocumentRequirement.class,
-            DocumentVersion.class);
+            DocumentVersion.class, Section.class, SectionRequirement.class);
     }
 
     @Test
     void exposesItsIdentifier()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/identified", Map.of(
-            "sling:resourceType", Document.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE,
             "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
 
         assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", resource.adaptTo(Document.class).getIdentifier());
@@ -75,7 +78,7 @@ class DocumentTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/consent",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(Document.class));
     }
 
@@ -84,7 +87,7 @@ class DocumentTest
         throws RepositoryException
     {
         this.context.create().resource("/Schemas/schema/1.0/consent",
-            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE, "label", "Signed consent form");
+            SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE, "label", "Signed consent form");
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/consent");
         final Session session = Mockito.mock(Session.class);
@@ -92,7 +95,7 @@ class DocumentTest
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
         final Resource resource = this.context.create().resource("/Submissions/submission/consent", Map.of(
-            "sling:resourceType", Document.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE,
             "title", "Signed consent",
             "description", "Patient consent form",
             "fulfills", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
@@ -109,9 +112,9 @@ class DocumentTest
         throws RepositoryException
     {
         final Resource consent = this.context.create().resource("/Schemas/schema/1.0/consent",
-            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE);
         final Resource protocol = this.context.create().resource("/Schemas/schema/1.0/protocol",
-            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE);
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(targetNode.getPath()).thenReturn(consent.getPath());
         final Session session = Mockito.mock(Session.class);
@@ -119,7 +122,7 @@ class DocumentTest
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
         final Document document = this.context.create().resource("/Submissions/submission/consent",
-            "sling:resourceType", Document.RESOURCE_TYPE, "fulfills", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")
             .adaptTo(Document.class);
 
         assertTrue(document.isFulfilling(consent.adaptTo(DocumentRequirement.class)));
@@ -130,9 +133,9 @@ class DocumentTest
     void fulfilsNothingWhenItPointsNowhere()
     {
         final Resource consent = this.context.create().resource("/Schemas/schema/1.0/consent",
-            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE);
         final Document document = this.context.create().resource("/Submissions/submission/stray",
-            "sling:resourceType", Document.RESOURCE_TYPE).adaptTo(Document.class);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE).adaptTo(Document.class);
 
         assertFalse(document.isFulfilling(consent.adaptTo(DocumentRequirement.class)));
     }
@@ -141,14 +144,14 @@ class DocumentTest
     void listsVersionsOldestFirst()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/consent",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v0",
-            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v1",
-            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
         // The uploads live under a version now, so a stray file child is not one of them
         this.context.create().resource("/Submissions/submission/consent/stray",
-            "sling:resourceType", "nt:file");
+            SLING_RESOURCE_TYPE, "nt:file");
         final Document document = resource.adaptTo(Document.class);
 
         final List<DocumentVersion> versions = document.getVersions();
@@ -162,11 +165,11 @@ class DocumentTest
     void namesTheNewestVersionAsTheCurrentOne()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/consent",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v0",
-            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v1",
-            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
         final Document document = resource.adaptTo(Document.class);
 
         assertEquals("v1", document.getCurrentVersion().getName());
@@ -176,7 +179,7 @@ class DocumentTest
     void hasNoVersionsBeforeAnythingIsUploaded()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/empty",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
         final Document document = resource.adaptTo(Document.class);
 
         assertTrue(document.getVersions().isEmpty());
@@ -187,7 +190,7 @@ class DocumentTest
     void isNotAttachedWhileEmpty()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/empty",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
 
         assertFalse(resource.adaptTo(Document.class).isAttached());
     }
@@ -196,10 +199,51 @@ class DocumentTest
     void isAttachedOnceAVersionHoldsTheUpload()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/consent",
-            "sling:resourceType", Document.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v0",
-            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
 
         assertTrue(resource.adaptTo(Document.class).isAttached());
+    }
+
+    @Test
+    void readsASectionFromTheCurrentRevisionOnly() throws RepositoryException
+    {
+        final String funding = "/Schemas/study/1.0/protocol/funding";
+        final String fundingId = "0b2c4a1e-5f6d-4e7a-9b8c-1d2e3f405162";
+        final SectionRequirement requirement = this.context.create().resource(funding,
+            SLING_RESOURCE_TYPE, SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        final Session session = Mockito.mock(Session.class);
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getPath()).thenReturn(funding);
+        Mockito.when(session.getNodeByIdentifier(fundingId)).thenReturn(node);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        final String protocol = "/Submissions/submission/protocol";
+        final Resource resource = this.context.create().resource(protocol,
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE);
+        this.context.create().resource(protocol + "/v1", SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
+        this.context.create().resource(protocol + "/v1/funding",
+            SLING_RESOURCE_TYPE, Section.RESOURCE_TYPE, "fulfills", fundingId);
+        this.context.create().resource(protocol + "/v2", SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
+        final Document document = resource.adaptTo(Document.class);
+
+        // The replacement has not been searched yet, so the old revision's answer does not count
+        assertNull(document.getSection(requirement));
+
+        this.context.create().resource(protocol + "/v2/funding",
+            SLING_RESOURCE_TYPE, Section.RESOURCE_TYPE, "fulfills", fundingId);
+
+        assertEquals(protocol + "/v2/funding", document.getSection(requirement).getPath());
+    }
+
+    @Test
+    void hasNoSectionsBeforeAnythingIsUploaded()
+    {
+        final SectionRequirement requirement = this.context.create().resource("/Schemas/study/1.0/protocol/funding",
+            SLING_RESOURCE_TYPE, SectionRequirement.RESOURCE_TYPE).adaptTo(SectionRequirement.class);
+        final Document document = this.context.create().resource("/Submissions/submission/empty",
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE).adaptTo(Document.class);
+
+        assertNull(document.getSection(requirement));
     }
 }

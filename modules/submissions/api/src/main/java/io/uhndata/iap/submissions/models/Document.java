@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.SectionRequirement;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
@@ -138,5 +139,19 @@ public class Document extends EntityPart implements Referenceable
     public String getIdentifier()
     {
         return this.identifier;
+    }
+
+    /**
+     * Where one section is found in this document. Only the current revision is read: it replaces the earlier
+     * ones.
+     *
+     * @param requirement the section requirement to look up
+     * @return the section fulfilling it, or {@code null} if nothing was uploaded or the section was never looked for
+     */
+    @Nullable
+    public Section getSection(@NotNull final SectionRequirement requirement)
+    {
+        final DocumentVersion current = this.getCurrentVersion();
+        return current == null ? null : current.getSection(requirement);
     }
 }
