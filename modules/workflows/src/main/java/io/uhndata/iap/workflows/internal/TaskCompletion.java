@@ -17,29 +17,38 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.Calendar;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
- * Completes a user task: records what the person decided, and carries their instance on from there.
+ * Ends a user task and carries its instance on from there. A person completes it with a decision, or its deadline
+ * runs out.
  *
- * <p>Authorization is the same mechanism as everywhere else, asked one step later. The task's defining activity
- * names the principals who may complete it, and {@link PerformerCheck} asks that node exactly as it asks a start
- * event who may fire it. Seeing a task and being allowed to decide it are separate questions. This asks the
+ * <p>Completing is authorized by the same mechanism as everything else, asked one step later. The task's defining
+ * activity names the principals who may complete it, and {@link PerformerCheck} asks that node exactly as it asks a
+ * start event who may fire it. Seeing a task and being allowed to decide it are separate questions. This asks the
  * second.</p>
  *
  * @version $Id$
@@ -53,8 +62,13 @@ final class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
-    /** The status a task carries until somebody completes it. */
-    private static final String OPEN_STATUS = "created";
+    /** The event a passed deadline delivers. */
+    static final String TIMEOUT_EVENT = "timeout";
+
+    /** The service user that delivers passed deadlines, and who a boundary timer admits when it names nobody. */
+    static final String TIMER_USER = "iap-timer";
+
+    private static final String WALK_ID_PROPERTY = "walkId";
 
     private TaskCompletion()
     {
@@ -75,40 +89,46 @@ final class TaskCompletion
         final TaskInstance task = Objects.requireNonNull(taskResource.adaptTo(TaskInstance.class),
             "A wf:TaskInstance resource always adapts to its model");
         final Activity definition = task.getDefinition();
-        return OPEN_STATUS.equals(task.getStatus()) && definition != null && performers.admits(definition)
-            ? Set.of(COMPLETE_EVENT) : Set.of();
+        return TaskInstance.OPEN_STATUS.equals(task.getStatus()) && definition != null
+            && performers.admits(definition) ? Set.of(COMPLETE_EVENT) : Set.of();
     }
 
     /**
-     * Completes the task the event was aimed at.
+     * Completes the task the event was aimed at, or times it out.
      *
      * @param resolver the engine's own session
-     * @param taskResource the task being completed
+     * @param taskResource the task the event is aimed at
      * @param event the incoming event
-     * @param actor the user completing it
+     * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
+     * @param conditions the evaluator for the resumed instance's gateway guards
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
-        throws WorkflowException, PersistenceException
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer,
+        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
     {
-        if (!COMPLETE_EVENT.equals(event.getName())) {
+        if (!COMPLETE_EVENT.equals(event.getName()) && !TIMEOUT_EVENT.equals(event.getName())) {
             throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
-                + " event; the only thing that can happen to one is being completed");
+                + " event; the only things that can happen to one are being completed and running out of time");
         }
         final TaskInstance task = Objects.requireNonNull(taskResource.adaptTo(TaskInstance.class),
             "A wf:TaskInstance resource always adapts to its model");
-        if (!OPEN_STATUS.equals(task.getStatus())) {
+        if (!TaskInstance.OPEN_STATUS.equals(task.getStatus())) {
             throw new NoApplicableWorkflowException("The task " + task.getPath() + " is already " + task.getStatus()
                 + ", so there is nothing left to decide");
         }
         final Activity definition = task.getDefinition();
         if (definition == null) {
             throw new WorkflowDefinitionException("The task " + task.getPath()
-                + " no longer has a definition, so who may complete it cannot be established");
+                + " no longer has a definition, so the instance cannot be carried on from it");
+        }
+        stamp(resolver, task);
+        if (TIMEOUT_EVENT.equals(event.getName())) {
+            expire(resolver, task, definition, actor, performer, conditions);
+            return;
         }
         PerformerCheck.verify(resolver, definition, actor);
 
@@ -118,6 +138,61 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).complete(task, outcome);
+    }
+
+    /**
+     * Stamps the task's instance with a new identifier. Two events carrying one instance on at once then both change
+     * the same property, and the second to commit is refused rather than merged. Otherwise two branches arriving at a
+     * join in two requests would each see only themselves arrive, and both would wait for good.
+     *
+     * @param resolver the engine's own session
+     * @param task the task the event is aimed at
+     */
+    private static void stamp(final ResourceResolver resolver, final TaskInstance task)
+    {
+        final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
+            "A task always lives inside its instance");
+        final ModifiableValueMap properties = Objects.requireNonNull(Objects.requireNonNull(
+            resolver.getResource(instance.getPath()), "The engine's own session can always see an instance")
+            .adaptTo(ModifiableValueMap.class), "The engine's own session can always write an instance");
+        properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
+    }
+
+    /**
+     * Times out this task by firing the boundary timer its deadline belongs to.
+     *
+     * <p>The timer is asked who may fire it, as any other node is. The task's own performers do not count: they
+     * may decide the work, which is not the same as declaring it late. A timer that names nobody admits the
+     * {@value #TIMER_USER} service user, which is who the deadline sweep delivers as.</p>
+     *
+     * <p>The deadline is checked as well, so even an admitted actor cannot fire a timer early.</p>
+     *
+     * @param resolver the engine's own session
+     * @param task the task whose deadline has passed
+     * @param definition the activity the task was raised from
+     * @param actor the user who sent the event
+     * @param performer how the resumed instance performs any service task it meets
+     * @param conditions the evaluator for the resumed instance's gateway guards
+     * @throws WorkflowException when nothing is counting down to this task, the timer does not admit the actor, its
+     *     deadline has not passed yet, or the run cannot continue
+     * @throws PersistenceException when the instance cannot be written
+     */
+    private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
+        throws WorkflowException, PersistenceException
+    {
+        final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
+            .filter(event -> event.getElementId().equals(task.getDueEventId()))
+            .findFirst()
+            .orElseThrow(() -> new NoApplicableWorkflowException("The task " + task.getPath()
+                + " has no deadline to run out: nothing is counting down to it"));
+        final List<String> performers = timer.getPerformers();
+        PerformerCheck.verify(resolver, performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
+        final Calendar due = task.getDueDate();
+        if (due == null || due.after(Calendar.getInstance())) {
+            throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
+        }
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).expire(task, timer);
     }
 }

@@ -83,6 +83,11 @@
   // When this instance finished
   - endTime (DATE)
 
+  // Changed by every event that carries the instance on from a task, so two
+  // such events at once conflict when the second commits, instead of each
+  // seeing only its own branch arrive at a join.
+  - walkId (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -107,6 +112,10 @@
 
   // elementId of the flow node currently occupied by this token
   - currentNodeId (STRING) mandatory
+
+  // elementId of the sequence flow this token last arrived by. A parallel join
+  // counts the arcs its tokens came by, not the tokens.
+  - arrivedBy (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -138,8 +147,14 @@
   // When this task was completed or cancelled
   - endTime (DATE)
 
-  // Optional deadline for completing this task
+  // When the boundary timer named by dueEventId fires next. A reminder fires
+  // before the task's real deadline, so this is not always the last moment to
+  // complete the task.
   - dueDate (DATE)
+
+  // The elementId of the boundary event whose timer set that deadline. An
+  // activity may be watched by several timers, and this says which one fires.
+  - dueEventId (STRING)
 
   // Value recorded at completion; used for downstream gateway routing
   - outcome (STRING)
@@ -160,6 +175,14 @@
   // nothing: the definition remains the authority every completion is checked
   // against, exactly as offeredOutcomes describes rather than enforces.
   - performers (STRING) multiple
+
+  // The elementIds of the boundary events of this task that have already fired.
+  // No deadline is armed for them again.
+  - firedEvents (STRING) multiple
+
+  // How many times delivering the passed deadline has failed. The sweep gives
+  // up on the task after a few.
+  - deliveryFailures (LONG)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

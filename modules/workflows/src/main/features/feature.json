@@ -29,6 +29,10 @@
         "create path (wf:WorkflowsHomepage) /Workflows",
         "create path (wf:SystemWorkflowsHomepage) /SystemWorkflows",
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end",
+        // The user a passed deadline acts as, so that what a timer did is recorded as the clock's doing and a
+        // boundary timer can name who else may fire it. It writes nothing itself: it only has to see the overdue
+        // task to aim the event at it, and the engine does the rest through its own session.
+        "create service user iap-timer \n set ACL for iap-timer \n allow jcr:read on / restriction(rep:ntNames,wf:TaskInstance) \n end",
         // The group the shipped system workflows name as the performer of administrative acts. It exists so that
         // the definitions have something real to point at; who belongs to it is a deployment's business.
         "create group iap-administrators",
@@ -47,7 +51,10 @@
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~workflows": {
-      "user.mapping": ["io.uhndata.iap.workflows:workflows=[workflows]"]
+      "user.mapping": [
+        "io.uhndata.iap.workflows:workflows=[workflows]",
+        "io.uhndata.iap.workflows:timer=[iap-timer]"
+      ]
     }
   }
 }
