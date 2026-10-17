@@ -29,6 +29,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -39,7 +40,6 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
@@ -90,7 +90,7 @@ final class TaskCompletion
             "A wf:TaskInstance resource always adapts to its model");
         final Activity definition = task.getDefinition();
         return TaskInstance.OPEN_STATUS.equals(task.getStatus()) && definition != null
-            && performers.admits(definition) ? Set.of(COMPLETE_EVENT) : Set.of();
+            && performers.admits(definition, hostOf(taskResource)) ? Set.of(COMPLETE_EVENT) : Set.of();
     }
 
     /**
@@ -102,13 +102,14 @@ final class TaskCompletion
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator for the resumed instance's gateway guards
+     * @param principals the vocabulary the task's definition names who may complete it in
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer,
-        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions,
+        final PrincipalService principals) throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName()) && !TIMEOUT_EVENT.equals(event.getName())) {
             throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
@@ -125,20 +126,21 @@ final class TaskCompletion
             throw new WorkflowDefinitionException("The task " + task.getPath()
                 + " no longer has a definition, so the instance cannot be carried on from it");
         }
-        stamp(resolver, task);
+        stamp(taskResource);
         if (TIMEOUT_EVENT.equals(event.getName())) {
-            expire(resolver, task, definition, actor, performer, conditions);
+            expire(resolver, task, definition, actor, performer, conditions, principals);
             return;
         }
-        PerformerCheck.verify(resolver, definition, actor);
+        PerformerCheck.verify(principals, resolver, hostOf(taskResource), definition, actor);
 
         final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
         // A decision left blank would let the next gateway route on whatever an earlier task decided
-        if (outcome == null && !definition.getOutcomes().isEmpty()) {
+        if (outcome == null && !definition.getOutcomeOptions().isEmpty()) {
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
-                + String.join(", ", definition.getOutcomes()));
+                + String.join(", ", definition.getOutcomeOptions()));
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
+            .complete(task, outcome);
     }
 
     /**
@@ -146,15 +148,12 @@ final class TaskCompletion
      * the same property, and the second to commit is refused rather than merged. Otherwise two branches arriving at a
      * join in two requests would each see only themselves arrive, and both would wait for good.
      *
-     * @param resolver the engine's own session
-     * @param task the task the event is aimed at
+     * @param taskResource the task the event is aimed at, resolved through the engine's own session
      */
-    private static void stamp(final ResourceResolver resolver, final TaskInstance task)
+    private static void stamp(final Resource taskResource)
     {
-        final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
-            "A task always lives inside its instance");
         final ModifiableValueMap properties = Objects.requireNonNull(Objects.requireNonNull(
-            resolver.getResource(instance.getPath()), "The engine's own session can always see an instance")
+            taskResource.getParent(), "A task always lives inside its instance")
             .adaptTo(ModifiableValueMap.class), "The engine's own session can always write an instance");
         properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
@@ -174,13 +173,14 @@ final class TaskCompletion
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator for the resumed instance's gateway guards
+     * @param principals the vocabulary the timer, and any task raised from here, name people in
      * @throws WorkflowException when nothing is counting down to this task, the timer does not admit the actor, its
      *     deadline has not passed yet, or the run cannot continue
      * @throws PersistenceException when the instance cannot be written
      */
     private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
-        throws WorkflowException, PersistenceException
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions,
+        final PrincipalService principals) throws WorkflowException, PersistenceException
     {
         final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
             .filter(event -> event.getElementId().equals(task.getDueEventId()))
@@ -188,11 +188,28 @@ final class TaskCompletion
             .orElseThrow(() -> new NoApplicableWorkflowException("The task " + task.getPath()
                 + " has no deadline to run out: nothing is counting down to it"));
         final List<String> performers = timer.getPerformers();
-        PerformerCheck.verify(resolver, performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
+        final Resource taskResource = Objects.requireNonNull(resolver.getResource(task.getPath()),
+            "The engine's own session can always see a task");
+        PerformerCheck.verify(principals, resolver, hostOf(taskResource),
+            performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
         final Calendar due = task.getDueDate();
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).expire(task, timer);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
+            .expire(task, timer);
+    }
+
+    /**
+     * The resource a task's instance drives, which is what a name such as {@code @creator} in its definition is a
+     * question about.
+     *
+     * @param taskResource a task
+     * @return the host resource
+     */
+    private static Resource hostOf(final Resource taskResource)
+    {
+        return InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
+            "A task always lives inside its instance"));
     }
 }
