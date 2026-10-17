@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from "react";
 
-import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { isNotAuthenticated, SIGNED_OUT_MESSAGE, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
@@ -75,9 +75,7 @@ export function useSchemas(): SchemasOnOffer {
         }
         // The session went and they chose not to sign in again. Describing that as a request
         // failure would send them to check their network instead.
-        setError(isNotAuthenticated(failure)
-          ? "You are no longer signed in. Sign in and try again."
-          : describeRequestFailure(failure));
+        setError(isNotAuthenticated(failure) ? SIGNED_OUT_MESSAGE : describeRequestFailure(failure));
       })
       .finally(() => {
         if (!cancelled) {
