@@ -1,0 +1,38 @@
+#  Copyright 2026 DATA @ UHN. See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+create path (hist:Log) /History
+
+# Nobody is granted read on this store, neither `everyone` nor the people whose work it describes. This service user
+# reads it, and serves the person asking what they may see.
+create service user iap-history
+
+# No jcr:removeNode or jcr:removeChildNodes anywhere below: the record is append-only, and nobody holding these grants
+# can delete from it.
+#
+# This user only maintains the prefix-tree buckets. An action is written in the session of whoever makes the change it
+# describes, so that the two commit together.
+set ACL for iap-history
+    allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /History
+end
+
+# Whoever records an action writes it in their own session, so the privilege has to be theirs. A module that records
+# joins this group in its own repoinit.
+create group iap-history-writers
+
+set ACL for iap-history-writers
+    allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /History
+end
