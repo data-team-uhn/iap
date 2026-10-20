@@ -1,15 +1,14 @@
-# What the docker-maven-plugin must not send when modules/documents is the context. Only the
-# generation worker builds from here (generation/worker/Dockerfile); the Docling image's context
-# is processing/, with its own ignore files.
+# What the docker-maven-plugin must not send when modules/documents is the context. Both the
+# Docling image (processing/Dockerfile) and the generation worker (generation/worker/Dockerfile)
+# build from here, so they can take the shared helpers in utils/.
 #
-# Keep this and .dockerignore identical, for the reason processing/.dockerignore gives.
-# The Dockerfile names every file it copies, so this only keeps the context small: processing's
-# .venv alone is ~100 MB.
+# Keep this and .dockerignore identical, for the reason given there.
 api/
 **/target/
 **/.venv/
 **/.pytest_cache/
 **/.ruff_cache/
+**/.coverage
 **/src/test/
 **/__pycache__
 **/*.pyc
