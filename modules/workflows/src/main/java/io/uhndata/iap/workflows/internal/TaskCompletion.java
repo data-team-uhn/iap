@@ -87,12 +87,13 @@ final class TaskCompletion
      * @param event the incoming event
      * @param actor the user completing it
      * @param performer how the resumed instance performs any service task it meets
+     * @param record where the decision is gathered for history
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer, final ActionRecord record)
         throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName())) {
@@ -110,7 +111,7 @@ final class TaskCompletion
             throw new WorkflowDefinitionException("The task " + task.getPath()
                 + " no longer has a definition, so who may complete it cannot be established");
         }
-        PerformerCheck.verify(resolver, definition, actor);
+        PerformerCheck.verify(resolver, definition, actor.effectiveUser());
 
         final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
         // A decision left blank would let the next gateway route on whatever an earlier task decided
@@ -118,6 +119,8 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
+        record.task(task, definition, outcome);
+        record.affecting(taskResource, "completed");
         new InstanceRunner(resolver, performer, actor).complete(task, outcome);
     }
 }

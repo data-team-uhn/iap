@@ -26,7 +26,10 @@ import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 import javax.jcr.nodetype.ConstraintViolationException;
+import javax.jcr.nodetype.NodeType;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -50,6 +53,8 @@ import io.uhndata.iap.conditions.internal.TagsOperandResolver;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.history.api.HistoryRecorder;
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -108,10 +113,15 @@ class WorkflowEngineImplTest
     /** The second system workflow's start event. */
     private static final String OTHER_START = OTHER_VERSION + "/requested";
 
+    /** What the target is identified by, in the tests where it has a node. */
+    private static final String TARGET_IDENTIFIER = "1f0e8c2a-7d3b-4c51-9a8e-2b6d4f0c9e17";
+
     private static final WorkflowEvent CREATE =
         new WorkflowEvent("create", Map.of("title", "My cool workflow"));
 
     private final SlingContext context = new SlingContext();
+
+    private final EngineFixture.History history = new EngineFixture.History();
 
     @BeforeEach
     void setUp()
@@ -165,6 +175,8 @@ class WorkflowEngineImplTest
         resolvers.setAccessible(true);
         resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
         inject(impl, "conditionEvaluator", evaluator);
+        inject(impl, "delegation", EngineFixture.delegation("iap-administrators"));
+        inject(impl, "recorder", this.history);
         return impl;
     }
 
@@ -189,6 +201,60 @@ class WorkflowEngineImplTest
         });
         inject(engine, "resolverFactory", factory);
         return engine;
+    }
+
+    /**
+     * Service sessions in which {@code /Workflows} is backed by the given node, since the mock repository has none.
+     *
+     * @param node the node the homepage adapts to
+     * @return a factory to inject into the engine
+     * @throws Exception when the mock factory cannot be stubbed, which would be a bug in this test
+     */
+    private ResourceResolverFactory withTargetNode(final Node node) throws Exception
+    {
+        final ResourceResolverFactory serviceUsers = EngineFixture.serviceUsers(this.context, null);
+        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation ->
+            new ResourceResolverWrapper(serviceUsers.getServiceResourceResolver(invocation.getArgument(0)))
+            {
+                @Override
+                public Resource getResource(final String path)
+                {
+                    final Resource found = super.getResource(path);
+                    return found == null || !"/Workflows".equals(path) ? found : new ResourceWrapper(found)
+                    {
+                        @Override
+                        public <T> T adaptTo(final Class<T> type)
+                        {
+                            return type == Node.class ? type.cast(node) : super.adaptTo(type);
+                        }
+                    };
+                }
+            });
+        return factory;
+    }
+
+    /**
+     * A referenceable node that, like a node another session deleted, can no longer be read once deleted.
+     *
+     * @param deleted whether it has been deleted yet
+     * @return a stub node
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static Node staleAfter(final boolean[] deleted) throws RepositoryException
+    {
+        final NodeType type = Mockito.mock(NodeType.class);
+        Mockito.when(type.getName()).thenReturn("wf:WorkflowsHomepage");
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getIdentifier()).thenAnswer(invocation -> {
+            if (deleted[0]) {
+                throw new InvalidItemStateException("The node was removed by another session");
+            }
+            return TARGET_IDENTIFIER;
+        });
+        Mockito.when(node.getPath()).thenReturn("/Workflows");
+        Mockito.when(node.getPrimaryNodeType()).thenReturn(type);
+        return node;
     }
 
     private static void inject(final Object target, final String field, final Object value) throws Exception
@@ -233,6 +299,59 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void recordsWhomADelegateActedFor() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final Resource created = this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow");
+        assertNotNull(created);
+        assertEquals(EngineFixture.REQUESTER, created.getValueMap().get("createdBy"));
+    }
+
+    @Test
+    void refusesADelegateActingForSomeoneTheStartEventDoesNotName() throws Exception
+    {
+        // The administrator would pass any start event, but the event counts as the requester's, and they do not
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void refusesASenderOutsideTheDelegatesGroup() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+    }
+
+    @Test
+    void asksItsDelegationPolicyWhoMayActForOthers() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = engine();
+        inject(engine, "delegation", EngineFixture.delegation(EngineFixture.REQUESTERS));
+
+        assertEquals("/Workflows/myCoolWorkflow", engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER)
+            .getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
     void tellsTheHandlerWhoItIsActingFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
@@ -246,6 +365,116 @@ class WorkflowEngineImplTest
         assertEquals(EngineFixture.REQUESTER, handler.seen);
         // A workflow that creates nothing completes all the same: there is simply nowhere to send the caller
         assertNull(result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final ActorRecordingHandler handler = new ActorRecordingHandler();
+
+        engine(handler).receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        assertEquals(EngineFixture.REQUESTER, handler.seen);
+        assertEquals(EngineFixture.ADMIN, handler.sender);
+    }
+
+    @Test
+    void recordsTheEventInHistory() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+
+        engine().receiveEvent(target, CREATE);
+
+        assertEquals(1, this.history.actions().size());
+        final RecordedAction action = this.history.actions().get(0);
+        assertEquals(EngineFixture.ADMIN, action.getActor());
+        assertNull(action.getOnBehalfOf());
+        assertEquals(CREATE.getName(), action.getEvent());
+        assertEquals(CREATE.getName(), action.getOperation());
+        assertNull(action.getWorkflowInstance(), "A system workflow leaves no instance to name");
+        assertEquals(this.context.resourceResolver().getResource(EngineFixture.VERSION).getValueMap()
+            .get("jcr:uuid", String.class), action.getWorkflowVersion());
+        assertNull(action.getParentAction());
+    }
+
+    @Test
+    void recordsWhoReallySentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final RecordedAction action = this.history.actions().get(0);
+        assertEquals(EngineFixture.ADMIN, action.getActor());
+        assertEquals(EngineFixture.REQUESTER, action.getOnBehalfOf());
+    }
+
+    @Test
+    void recordsNothingForARefusedEvent() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(this.history.actions().isEmpty());
+    }
+
+    @Test
+    void recordsATargetThatAServiceTaskDeletes() throws Exception
+    {
+        // Deletion commits in a session of its own, so by the end event the engine's view of the target is stale.
+        // Reading it then failed the event even though the deletion had already happened
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final boolean[] deleted = { false };
+        final Node node = staleAfter(deleted);
+        final WorkflowEngine engine = engine(new ServiceTaskHandler()
+        {
+            @Override
+            public String getName()
+            {
+                return "noop";
+            }
+
+            @Override
+            public void execute(final WorkflowTaskContext taskContext)
+            {
+                deleted[0] = true;
+            }
+        });
+        inject(engine, "resolverFactory", withTargetNode(node));
+
+        engine.receiveEvent(target, CREATE);
+
+        assertTrue(deleted[0]);
+        assertEquals("target", this.history.actions().get(0).getEffects().get(0).role());
+        assertEquals(TARGET_IDENTIFIER, this.history.actions().get(0).getEffects().get(0).subject());
+    }
+
+    @Test
+    void failsTheEventWhenItCannotBeRecorded() throws Exception
+    {
+        // A change with no record of it is exactly what history exists to rule out
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        final HistoryRecorder broken = Mockito.mock(HistoryRecorder.class);
+        Mockito.when(broken.record(Mockito.any(), Mockito.any()))
+            .thenThrow(new RepositoryException("the history store is full"));
+        final WorkflowEngine engine = engine();
+        inject(engine, "recorder", broken);
+
+        assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
     }
 
     @Test
@@ -928,6 +1157,11 @@ class WorkflowEngineImplTest
         assertNotNull(chained);
         assertEquals("My cool workflow", chained.getValueMap().get("title"));
         assertEquals(EngineFixture.ADMIN, chained.getValueMap().get("createdBy"));
+        // One action for the event that came in, and one for the event it sent, recorded as part of it
+        assertEquals(2, this.history.actions().size());
+        assertEquals(CREATE.getName(), this.history.actions().get(0).getEvent());
+        assertEquals("initialize", this.history.actions().get(1).getEvent());
+        assertEquals("action1", this.history.actions().get(1).getParentAction());
     }
 
     @Test
@@ -1128,6 +1362,8 @@ class WorkflowEngineImplTest
     {
         private String seen;
 
+        private String sender;
+
         @Override
         public String getName()
         {
@@ -1138,6 +1374,7 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             this.seen = taskContext.getActor();
+            this.sender = taskContext.getSender();
         }
     }
 

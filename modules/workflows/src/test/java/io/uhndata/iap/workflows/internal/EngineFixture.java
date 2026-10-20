@@ -31,9 +31,12 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalIterator;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.commons.iterator.RangeIteratorAdapter;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -45,6 +48,8 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.history.api.HistoryRecorder;
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.models.Activity;
@@ -166,7 +171,54 @@ public final class EngineFixture
     public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
         final Activity activity, final Map<String, Object> variables, final String actor)
     {
-        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+        return new WorkflowTaskContextImpl(target, event, activity, variables, Actor.of(actor), noFurtherTasks(), 0);
+    }
+
+    /**
+     * A history store that keeps what it is told, so that a test can see what an event recorded. Each action is
+     * named after its position and filed in a bucket, as the real store does, so the first is
+     * {@code /History/ab/cd/ef/action1}.
+     */
+    static final class History implements HistoryRecorder
+    {
+        private final List<RecordedAction> actions = new ArrayList<>();
+
+        /**
+         * What has been recorded so far.
+         *
+         * @return the actions, in the order they were recorded
+         */
+        List<RecordedAction> actions()
+        {
+            return this.actions;
+        }
+
+        @Override
+        public String record(final Session session, final RecordedAction action)
+        {
+            this.actions.add(action);
+            return "/History/ab/cd/ef/action" + this.actions.size();
+        }
+
+        @Override
+        public void completeSnapshots(final Session session, final String actionPath,
+            final Map<String, String> snapshots)
+        {
+            throw new UnsupportedOperationException("The engine takes no snapshots");
+        }
+    }
+
+    /**
+     * Who may act for others, as the engine is wired with it.
+     *
+     * @param delegates the principal name of the group whose members may
+     * @return a delegation policy
+     */
+    static Delegation delegation(final String delegates)
+    {
+        final DelegationConfiguration config = Mockito.mock(DelegationConfiguration.class);
+        Mockito.when(config.delegates()).thenReturn(delegates);
+        return new Delegation(config);
     }
 
     /**
@@ -320,13 +372,21 @@ public final class EngineFixture
             final User requester = user(REQUESTER, false);
             final Group requesters = group();
             final AccessControlManager accessControl = accessControlManager();
+            final Principal requestersPrincipal = requesters.getPrincipal();
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
+            // The ordinary user belongs to REQUESTERS; the administrator belongs to nothing, since being an
+            // administrator is what gets them through
+            final PrincipalManager principals = Mockito.mock(PrincipalManager.class);
+            Mockito.when(principals.getGroupMembership(Mockito.any())).thenAnswer(invocation ->
+                principalIterator(REQUESTER.equals(((Principal) invocation.getArgument(0)).getName())
+                    ? List.of(requestersPrincipal) : List.of()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
+            Mockito.doReturn(principals).when(session).getPrincipalManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
             return session;
         } catch (final RepositoryException e) {
@@ -371,8 +431,18 @@ public final class EngineFixture
     }
 
     /**
-     * One of the repository's users. The ordinary one belongs to {@link #REQUESTERS}; the administrator belongs
-     * to nothing, since being an administrator is what gets them through.
+     * Group principals, as a principal manager reports them.
+     *
+     * @param principals the principals to iterate over
+     * @return an iterator over them
+     */
+    static PrincipalIterator principalIterator(final List<Principal> principals)
+    {
+        return new Principals(principals);
+    }
+
+    /**
+     * One of the repository's users. Which groups each belongs to is the session's principal manager's business.
      *
      * @param id the user id
      * @param admin whether this user is an administrator
@@ -381,16 +451,12 @@ public final class EngineFixture
      */
     private static User user(final String id, final boolean admin) throws RepositoryException
     {
-        final Group requesters = group();
         final Principal principal = Mockito.mock(Principal.class);
         Mockito.when(principal.getName()).thenReturn(id);
         final User user = Mockito.mock(User.class);
         Mockito.when(user.getPrincipal()).thenReturn(principal);
         Mockito.when(user.getID()).thenReturn(id);
         Mockito.when(user.isAdmin()).thenReturn(admin);
-        Mockito.when(user.memberOf()).thenAnswer(invocation -> admin
-            ? List.<Group>of().iterator()
-            : List.of(requesters).iterator());
         return user;
     }
 
@@ -454,5 +520,25 @@ public final class EngineFixture
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
         context.create().resource(VERSION + "/done", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, "elementId", "done"));
+    }
+
+    /**
+     * The iterator a principal manager answers with: a range iterator that hands out principals.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class Principals extends RangeIteratorAdapter implements PrincipalIterator
+    {
+        Principals(final List<Principal> principals)
+        {
+            super(principals);
+        }
+
+        @Override
+        public Principal nextPrincipal()
+        {
+            return (Principal) next();
+        }
     }
 }
