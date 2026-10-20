@@ -1,15 +1,17 @@
-# What a `docker build` with modules/documents as its context must not send. Only the generation
-# worker builds from here (generation/worker/Dockerfile); the Docling image's context is
-# processing/, with its own ignore files.
+# What a `docker build` with modules/documents as its context must not send. Both the Docling
+# image (processing/Dockerfile) and the generation worker (generation/worker/Dockerfile) build
+# from here, so they can take the shared helpers in utils/.
 #
-# Keep this and .maven-dockerignore identical, for the reason processing/.dockerignore gives.
-# The Dockerfile names every file it copies, so this only keeps the context small: processing's
-# .venv alone is ~100 MB.
+# Keep this and .maven-dockerignore identical: the Maven one is read only by the fabric8
+# docker-maven-plugin, this one only by plain `docker build`, and nothing checks that they agree.
+# Both Dockerfiles COPY named directories, so this keeps the context small (processing's .venv
+# alone is ~100 MB) and keeps stale bytecode out of the images.
 api/
 **/target/
 **/.venv/
 **/.pytest_cache/
 **/.ruff_cache/
+**/.coverage
 **/src/test/
 **/__pycache__
 **/*.pyc

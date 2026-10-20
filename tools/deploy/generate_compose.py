@@ -645,9 +645,10 @@ def keycloak_service():
 def docling_service():
     service = {}
     comment(service, "The docling document parser service.")
+    # The context is modules/documents so the image can take the helpers in utils/ too
     service['build'] = {
-        'context': '../modules/documents/processing',
-        'dockerfile': 'Dockerfile'
+        'context': '../modules/documents',
+        'dockerfile': 'processing/Dockerfile'
     }
     # Built from this repository rather than pulled, so it is not in images/docker-compose.yml.
     service['image'] = 'iap/docling'

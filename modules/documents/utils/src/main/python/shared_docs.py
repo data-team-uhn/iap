@@ -34,9 +34,10 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from markdown_markers import INPUT_SUFFIXES
-
 DEFAULT_SHARED_DOCS = "/shared-docs"
+
+# Staged upload types the daemon / CLI accept; ``.doc`` is converted to ``.docx`` first.
+INPUT_SUFFIXES = (".pdf", ".docx", ".doc")
 
 # Largest PDF the daemon accepts, in pages, plus its override variable. One conversion holds
 # the only parse slot, so an enormous document makes every other caller wait on a 503. The
