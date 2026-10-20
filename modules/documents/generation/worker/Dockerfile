@@ -22,8 +22,8 @@
 # here touches /shared-docs, so no volume is mounted.
 #
 # The build context is modules/documents, not this directory: the worker reuses the HTTP guards
-# and the LibreOffice conversion from processing/src/main/python, and the COPY below names each
-# file it takes from there. modules/documents/.dockerignore keeps the rest of the tree out.
+# and the LibreOffice conversion from utils/src/main/python, which the Docling image shares too.
+# modules/documents/.dockerignore keeps the rest of the tree out.
 #
 # Build, from the repo root:
 #   mvn install -Pdocker -pl modules/documents/generation/worker
@@ -68,21 +68,10 @@ RUN useradd --create-home --uid 10001 generation \
     && chown generation:generation /app
 USER generation
 
-# The shared helpers from the processing module, and only those, so none of the Docling modules
-# end up in this image
-COPY --chown=generation:generation \
-    processing/src/main/python/libreoffice_convert.py \
-    processing/src/main/python/daemon_utils.py \
-    processing/src/main/python/shared_docs.py \
-    processing/src/main/python/markdown_markers.py \
-    /app/
-COPY --chown=generation:generation \
-    generation/worker/src/main/python/generation_server.py \
-    generation/worker/src/main/python/render_template.py \
-    /app/
+COPY --chown=generation:generation utils/src/main/python/ /app/
+COPY --chown=generation:generation generation/worker/src/main/python/ /app/
 
-# The tests run against both source trees whole, so they cannot tell when the list above misses a
-# module the worker imports. Importing it here fails the build instead of the first deploy.
+# Fails the build, rather than the first deploy, if the worker imports something neither tree has
 RUN python -c "import generation_server"
 
 EXPOSE 18766

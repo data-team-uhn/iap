@@ -49,8 +49,8 @@
         </configuration>
       </plugin>
 
-      <!-- Ruff, then pytest, through run_check.py as in the processing module. The tests import
-           the shared helpers from processing/src/main/python too; see src/test/python/conftest.py. -->
+      <!-- Ruff, then pytest, through the utils module's run_check.py. The tests import the shared
+           helpers from utils/src/main/python too; see src/test/python/conftest.py. -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -67,7 +67,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>run_check.py</argument>
+                <argument>../../utils/run_check.py</argument>
                 <argument>ruff</argument>
                 <argument>check</argument>
                 <argument>src</argument>
@@ -86,7 +86,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>run_check.py</argument>
+                <argument>../../utils/run_check.py</argument>
                 <argument>pytest</argument>
                 <argument>src/test/python</argument>
               </arguments>
@@ -113,8 +113,8 @@
                 <image>
                   <name>iap/generation</name>
                   <build>
-                    <!-- modules/documents, so the image can take the shared helpers from
-                         processing/ as well as its own code; the Dockerfile says which files -->
+                    <!-- modules/documents, so the image can take the shared helpers from utils/
+                         as well as its own code; the Dockerfile says which files -->
                     <contextDir>${project.basedir}/../..</contextDir>
                     <dockerFile>generation/worker/Dockerfile</dockerFile>
                   </build>
