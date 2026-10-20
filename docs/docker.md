@@ -141,6 +141,10 @@ both images, as in `mvn clean install -Pdocker`. To build only this one:
 mvn install -Pdocker -pl modules/documents/processing
 ```
 
+The build context is `modules/documents`, not the module itself, because the daemon shares
+helpers with the generation worker in `modules/documents/utils`. Without Maven:
+`docker build -t iap/docling -f modules/documents/processing/Dockerfile modules/documents`.
+
 **Note**: the image is roughly 8.7 GB and takes a while to build. This is because it bakes the Docling
 model weights into the image at build time, as without them the first conversion would reach out to
 huggingface.co and fail, and the container would report healthy until the first request. The
