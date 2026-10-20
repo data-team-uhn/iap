@@ -37,7 +37,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import shared_docs
-from markdown_markers import INPUT_SUFFIXES
+from shared_docs import INPUT_SUFFIXES
 
 # Name the Writer PDF filter explicitly rather than passing a bare "pdf", so the export
 # does not depend on which filter LibreOffice picks for the input it was handed.

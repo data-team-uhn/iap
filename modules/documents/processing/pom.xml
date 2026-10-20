@@ -47,17 +47,16 @@
             <exclude>**/__pycache__/**</exclude>
             <exclude>pytest.ini</exclude>
             <exclude>ruff.toml</exclude>
-            <exclude>.dockerignore</exclude>
-            <exclude>.maven-dockerignore</exclude>
           </inputExcludes>
         </configuration>
       </plugin>
 
       <!-- Run ruff and the pytest suite during the test phase, honouring the shared skipTests flag.
-           Both go through run_check.py, which provisions .venv from requirements-test.txt the first
-           time and runs them out of it, so a fresh checkout needs nothing installed by hand. Where
-           the virtualenv cannot be built at all the checks are skipped rather than failing a build
-           that has nothing to do with this module, though not under CI, where they stay mandatory. -->
+           Both go through the utils module's run_check.py, which provisions .venv from this module's
+           requirements-test.txt the first time and runs them out of it, so a fresh checkout needs
+           nothing installed by hand. Where the virtualenv cannot be built at all the checks are
+           skipped rather than failing a build that has nothing to do with this module, though not
+           under CI, where they stay mandatory. -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -76,7 +75,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>run_check.py</argument>
+                <argument>../utils/run_check.py</argument>
                 <argument>ruff</argument>
                 <argument>check</argument>
                 <argument>src</argument>
@@ -95,7 +94,7 @@
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
                 <argument>-B</argument>
-                <argument>run_check.py</argument>
+                <argument>../utils/run_check.py</argument>
                 <argument>pytest</argument>
                 <argument>src/test/python</argument>
               </arguments>
@@ -122,8 +121,10 @@
                 <image>
                   <name>iap/docling</name>
                   <build>
-                    <contextDir>${project.basedir}</contextDir>
-                    <dockerFile>Dockerfile</dockerFile>
+                    <!-- modules/documents, so the image can take the shared helpers from utils/
+                         as well as this module's code; the Dockerfile says which directories -->
+                    <contextDir>${project.basedir}/..</contextDir>
+                    <dockerFile>processing/Dockerfile</dockerFile>
                   </build>
                 </image>
               </images>

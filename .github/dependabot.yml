@@ -55,6 +55,16 @@ updates:
     directory: "/modules/documents/processing"
     schedule:
       interval: "weekly"
+  # The base image of the document generation worker.
+  - package-ecosystem: "docker"
+    directory: "/modules/documents/generation/worker"
+    schedule:
+      interval: "weekly"
+  # The generation worker's Python dependencies, pinned in its requirements.txt.
+  - package-ecosystem: "pip"
+    directory: "/modules/documents/generation/worker"
+    schedule:
+      interval: "weekly"
   # The companion images tools/deploy/generate_compose.py deploys alongside IAP. They are pinned
   # in a Compose file that is never run, purely so that they are somewhere Dependabot can see and
   # edit them -- the generator reads its versions back out of it. See tools/deploy/images/.
