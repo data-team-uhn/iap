@@ -24,7 +24,8 @@ checks -- the only thing between an unauthenticated caller and the worker pool -
 
 What is here: the bearer-token secret, the guard refusing browser-originated and
 unauthenticated requests to the mutating endpoints, the request-body drain with its size cap,
-the JSON reply helper, and the ``/parse`` query parsing.
+the capped body reader for endpoints that do take one, the JSON reply helper, and the
+``/parse`` query parsing. The generation worker shares all of it, under its own token variable.
 """
 
 from __future__ import annotations
@@ -54,20 +55,36 @@ MAX_DRAINED_BODY_BYTES = 1024 * 1024
 CONTENT_LENGTH = re.compile(r"[0-9]+")
 
 
-def get_daemon_token() -> str | None:
-    """The shared secret guarding the mutating endpoints, or ``None`` when unset."""
-    token = (os.environ.get(TOKEN_ENVIRONMENT_VARIABLE) or "").strip()
+class RequestBodyRefused(ValueError):
+    """A request body that was refused rather than read; the connection is being closed.
+
+    @ivar status: the reply to send, 413 for a body over the limit and 400 for anything else
+    """
+
+    def __init__(self, status: HTTPStatus, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def get_daemon_token(variable: str = TOKEN_ENVIRONMENT_VARIABLE) -> str | None:
+    """The shared secret guarding the mutating endpoints, or ``None`` when unset.
+
+    @param variable: the environment variable holding it, so each service can have its own
+    """
+    token = (os.environ.get(variable) or "").strip()
     return token or None
 
 
-def is_token_ascii() -> bool:
+def is_token_ascii(variable: str = TOKEN_ENVIRONMENT_VARIABLE) -> bool:
     """Whether the configured token is ASCII, and so unambiguous on the wire.
 
     ``http.server`` hands headers over latin-1 decoded, while the configured token arrives from
     the environment decoded as UTF-8. Those agree for ASCII. For anything else authentication
     depends on how the client encoded it, so a correct client can quietly fail. Unset is fine.
+
+    @param variable: the environment variable holding the token
     """
-    token = get_daemon_token()
+    token = get_daemon_token(variable)
     if token is None:
         return True
     return token.isascii()
@@ -114,7 +131,45 @@ def drain_request_body(handler) -> bool:
     return True
 
 
-def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
+def read_request_body(handler, limit: int) -> bytes:
+    """Read the whole request body, which must be declared with a Content-Length.
+
+    The same strictness as :func:`drain_request_body`, for an endpoint that needs the bytes:
+    a chunked body or one past ``limit`` is refused before anything is read, so nobody can hold
+    a worker thread open by feeding it.
+
+    @param handler: the request handler being served
+    @param limit: the largest body accepted, in bytes
+    @return: the body, empty when none was sent
+    @raise RequestBodyRefused: when the body was not read, with the connection set to close
+    """
+    if handler.headers.get("Transfer-Encoding"):
+        handler.close_connection = True
+        raise RequestBodyRefused(HTTPStatus.BAD_REQUEST, "the body must have a Content-Length")
+    declared = handler.headers.get("Content-Length")
+    if not declared:
+        return b""
+    if not CONTENT_LENGTH.fullmatch(declared):
+        handler.close_connection = True
+        raise RequestBodyRefused(HTTPStatus.BAD_REQUEST, "malformed Content-Length")
+    length = int(declared)
+    if length > limit:
+        handler.close_connection = True
+        raise RequestBodyRefused(
+            HTTPStatus.REQUEST_ENTITY_TOO_LARGE, f"the body is over the {limit:,}-byte limit"
+        )
+
+    # Read it all; a short read means the client hung up partway
+    body = handler.rfile.read(length)
+    if len(body) < length:
+        handler.close_connection = True
+        raise RequestBodyRefused(HTTPStatus.BAD_REQUEST, "the body ended early")
+    return body
+
+
+def refuse_unauthorized(
+    handler, endpoint: str, *, log, variable: str = TOKEN_ENVIRONMENT_VARIABLE
+) -> bool:
     """Reject a mutating request that came from a browser, or that lacks the secret.
 
     Two checks, covering different callers:
@@ -129,6 +184,7 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
     @param handler: the request handler being served
     @param endpoint: the endpoint name, for the log line
     @param log: line logger for the refusal
+    @param variable: the environment variable holding this service's token
     @return: whether the request was refused, with a response already written
     """
     if handler.headers.get("Origin") is not None:
@@ -139,7 +195,7 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
             {"error": "requests carrying an Origin header are not accepted"},
         )
         return True
-    token = get_daemon_token()
+    token = get_daemon_token(variable)
     if token is None:
         return False
     # Compare bytes, not str. compare_digest raises TypeError on a non-ASCII string, and this
@@ -151,7 +207,7 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
         send_json_response(
             handler,
             HTTPStatus.UNAUTHORIZED,
-            {"error": f"missing or invalid {TOKEN_ENVIRONMENT_VARIABLE} bearer token"},
+            {"error": f"missing or invalid {variable} bearer token"},
         )
         return True
     return False

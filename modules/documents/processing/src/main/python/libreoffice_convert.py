@@ -275,28 +275,33 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
         _discard_staging(staging_root)
 
 
-def _convert_sibling_pdf_via_odt(source: Path) -> None:
-    """Fallback: Render the sibling PDF through LibreOffice's own format ODT instead of directly.
+def _convert_pdf_via_odt(source: Path, output_dir: Path) -> Path:
+    """Fallback: Render the PDF through LibreOffice's own format ODT instead of directly.
 
     @param source: the document to render, the same one the direct attempt used
+    @param output_dir: where the PDF goes
+    @return: the PDF's path
     @raise RuntimeError: when the ODT conversion fails, as :func:`convert` reports it
     """
     staging = Path(tempfile.mkdtemp(prefix="iap-lo-odt-"))
     try:
         intermediate = convert(source, _ODT_CONVERT_TO, staging)
-        convert(intermediate, _PDF_CONVERT_TO, source.parent)
+        return convert(intermediate, _PDF_CONVERT_TO, output_dir)
     finally:
         _discard_staging(staging)
 
 
-def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
-    """Convert DOCX to PDF
+def docx_to_pdf(source: Path, output_dir: Path, log: LogFn | None = None) -> Path:
+    """Convert a DOCX to PDF, directly or, if that fails, through ODT.
 
-    Two attempts: direct PDF, if failed, try through ODT (see :func:`_convert_sibling_pdf_via_odt`).
+    @param source: the document to render
+    @param output_dir: where the PDF goes, named after ``source``
+    @param log: optional line logger for a failed direct attempt
+    @return: the PDF's path
+    @raise RuntimeError: when both attempts fail, naming both reasons
     """
     try:
-        convert(source, _PDF_CONVERT_TO, source.parent)
-        return
+        return convert(source, _PDF_CONVERT_TO, output_dir)
     except (RuntimeError, FileNotFoundError, OSError) as direct_failure:
         if log is not None:
             log(
@@ -306,13 +311,23 @@ def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
         first = direct_failure
 
     try:
-        _convert_sibling_pdf_via_odt(source)
+        return _convert_pdf_via_odt(source, output_dir)
     except (RuntimeError, FileNotFoundError, OSError) as odt_failure:
+        raise RuntimeError(f"direct: {first}; via ODT: {odt_failure}") from odt_failure
+
+
+def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
+    """Convert DOCX to a PDF beside it, carrying on without one if that fails.
+
+    The PDF only supplies bookmarks, and Docling still parses the Word document without them.
+    """
+    try:
+        docx_to_pdf(source, source.parent, log)
+    except RuntimeError as failure:
         if log is not None:
             log(
                 f"LibreOffice PDF conversion failed for '{source.name}' both directly and "
-                f"through ODT; continuing without sibling PDF (bookmarks unavailable): "
-                f"direct: {first}; via ODT: {odt_failure}"
+                f"through ODT; continuing without sibling PDF (bookmarks unavailable): {failure}"
             )
 
 
