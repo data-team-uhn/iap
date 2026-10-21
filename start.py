@@ -412,9 +412,10 @@ def main(argv):
     if options['demo']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
                           % platform_version]
-    # The document daemon runs beside a local instance, not as the compose service the aggregated
-    # feature names by default
-    launcher_args += ['-V', 'docling.url=http://localhost:18765']
+    # The document daemon and the generation worker run beside a local instance, not as the compose
+    # services the aggregated feature names by default
+    launcher_args += ['-V', 'docling.url=http://localhost:18765',
+                      '-V', 'generation.url=http://localhost:18766']
     if options['keycloak']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-oidc-support/%s/slingosgifeature' % platform_version,
                           '-f', 'mvn:io.uhndata.iap/iap-keycloak/%s/slingosgifeature' % platform_version]

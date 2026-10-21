@@ -48,6 +48,7 @@ needs to reach it.
 | `--keycloak` | a Keycloak container | the two realm URLs, `KEYCLOAK_CLIENT_ID`/`SECRET`, `IAP_PUBLIC_URL` |
 | `--mail` | an SMTPS server that files messages away | `SMTPS_LOCAL_TEST_CONTAINER`, and the certificate to trust |
 | `--docling` | the Docling document parser | a shared document volume, and `IAP_DOCLING_TOKEN` in `.env` |
+| `--generation` | the document generation worker | `IAP_GENERATION_TOKEN` in `.env` |
 
 The rest only describe the IAP container itself: `--image` (default `iap/iap`), `--port` (default
 8080), `--dev` to mount `~/.m2` read-only, as the developer flavour of the image needs in order to
@@ -203,6 +204,23 @@ curl -X POST -H "Authorization: Bearer $(grep '^IAP_DOCLING_TOKEN=' .env | cut -
 itself reaches the daemon as `http://docling:18765`, over the `iap` network both containers join.
 `modules/documents/processing/docling_readme.md` documents the endpoints and the rest of the
 environment: the input size ceilings, the timeouts, and how to run the daemon by hand.
+
+## Document generation
+
+`--generation` adds the generation worker (`modules/documents/generation/worker`), which fills a
+`.docx` template with a submission's values and converts it to PDF with LibreOffice. IAP waits for
+each answer, about a second for a one-page letter, so there is no shared volume: the template and
+both results travel in the request and the reply.
+
+```bash
+python3 generate_compose.py --generation
+docker compose up -d --build
+```
+
+It is published on `127.0.0.1:18766` only, and `POST /generate` wants the `IAP_GENERATION_TOKEN`
+the generator wrote into `.env`, which IAP is given too. IAP reaches it as `http://generation:18766`
+over the `iap` network. `IAP_GENERATION_MAX_CONCURRENT` (2 by default) is how many conversions run
+at once; a request past that is answered 503 and IAP reports the worker as unavailable.
 
 ## Credentials
 
