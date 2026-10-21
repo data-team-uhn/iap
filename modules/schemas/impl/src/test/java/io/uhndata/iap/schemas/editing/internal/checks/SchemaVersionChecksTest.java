@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.editing.internal.checks;
 
+import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +52,8 @@ class SchemaVersionChecksTest
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
-        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
+        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck(),
+        new GeneratedDocumentCheck());
 
     private SchemaFixture fixture;
 
@@ -172,6 +174,56 @@ class SchemaVersionChecksTest
         final String message = problems(draft);
         assertTrue(message.contains("form/nameless has a condition on a question"), message);
         assertFalse(message.contains("comparing"));
+    }
+
+    @Test
+    void aGeneratedDocumentNeedsATemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+
+        assertEquals("\"Decision letter\" is generated, but has no template", problems(draft));
+    }
+
+    @Test
+    void aGeneratedDocumentNeedsADocxTemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+        template(letter, "application/pdf");
+
+        assertEquals("\"Decision letter\" is generated, but its template is not a .docx file", problems(draft));
+    }
+
+    @Test
+    void aGeneratedDocumentWithADocxTemplateGoesOn() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+        template(letter, GeneratedDocumentCheck.DOCX_MIME_TYPE);
+
+        assertEquals("", problems(draft));
+    }
+
+    @Test
+    void anUploadedDocumentNeedsNoTemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        this.fixture.create(draft.getPath(), "consent", "sch:DocumentRequirement", Map.of("label", "Consent"));
+
+        assertEquals("", problems(draft));
+    }
+
+    private void template(final Resource requirement, final String mimeType) throws PersistenceException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final Resource template = resolver.create(requirement, "template", Map.of("jcr:primaryType", "nt:file"));
+        resolver.create(template, "jcr:content", Map.of("jcr:primaryType", "nt:resource",
+            "jcr:mimeType", mimeType, "jcr:data", new ByteArrayInputStream(new byte[] { 1 })));
+        resolver.commit();
     }
 
     private String problems(final Resource version)
