@@ -52,6 +52,9 @@ public class DocumentRequirement extends Requirement
     @ValueMapValue
     private String aiCheckPrompt;
 
+    @ValueMapValue
+    private boolean generated;
+
     /**
      * Whether the document must be attached before the submission is complete. An optional one is still asked,
      * but leaving it out blocks nothing.
@@ -87,7 +90,19 @@ public class DocumentRequirement extends Requirement
     }
 
     /**
-     * An optional blank template document offered to submitters.
+     * Whether the platform fills the document in from the submission, using {@link #getTemplate() the template},
+     * rather than the submitter providing it. A generated document cannot be uploaded.
+     *
+     * @return {@code true} if the document is generated
+     */
+    public boolean isGenerated()
+    {
+        return this.generated;
+    }
+
+    /**
+     * The template document: a blank one offered to submitters, or the {@code .docx} filled in when the document
+     * is {@link #isGenerated() generated}.
      *
      * @return the template file resource, or {@code null} if none was provided
      */
