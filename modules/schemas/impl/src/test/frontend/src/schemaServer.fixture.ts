@@ -204,7 +204,7 @@ export const CONTENT: Record<string, Record<string, unknown>> = {
         },
       },
     }),
-    "protocol": requirement("DocumentRequirement", { label: "Protocol" }),
+    "protocol": requirement("DocumentRequirement", { label: "Protocol", generated: true }),
     "reb": requirement("ApprovalRequirement", {
       "label": "Ethics approval", "approverGroup": "reb-members",
       "cond:condition": { "jcr:primaryType": "cond:ConditionGroup", "requireAll": false },

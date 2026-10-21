@@ -54,7 +54,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # A caller waits on each request, so one soffice run gets 10s rather than the Docling image's
-# 300s. A conversion is three runs at worst (direct, then ODT and back), inside the caller's 30s.
+# 300s. A conversion is three runs at worst (direct, then ODT and back), inside IAP's 40s timeout.
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     IAP_LIBREOFFICE_TIMEOUT_SECONDS=10
