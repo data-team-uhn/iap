@@ -76,6 +76,11 @@
         "label": { "jcr:primaryType": "nt:unstructured", "label": "Label" },
         "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true },
         "required": { "jcr:primaryType": "nt:unstructured", "label": "Required" },
+        "generated": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Generated from a template",
+          "help": "Filled in from the submission instead of uploaded by the submitter. Needs a .docx template."
+        },
         "acceptedFileTypes": {
           "jcr:primaryType": "nt:unstructured",
           "label": "Accepted file types",
