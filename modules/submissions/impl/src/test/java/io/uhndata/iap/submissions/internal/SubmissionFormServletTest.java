@@ -428,6 +428,25 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void saysADocumentIsGeneratedAndOffersNoBlankForIt() throws IOException
+    {
+        // Its template is what the platform fills in, not something for the submitter to start from
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
+        this.context.create().resource(VERSION_PATH + "/decisionLetter/template", Map.of(
+            "jcr:primaryType", "nt:file"));
+
+        final JsonObject form = form(REQUESTER);
+        final JsonObject letter = requirement(form, "decisionLetter");
+
+        assertTrue(letter.getBoolean("generated"));
+        assertFalse(letter.containsKey("template"), "the template must not be offered to the submitter");
+        assertFalse(letter.containsKey("templateName"));
+        assertFalse(requirement(form, "signedForm").getBoolean("generated"), "an uploaded document says so too");
+    }
+
+    @Test
     void namesATemplateOfNoKnownTypeAfterTheRequirementAlone() throws IOException
     {
         // No label and no declared type: the requirement's name, with nothing guessed after it
