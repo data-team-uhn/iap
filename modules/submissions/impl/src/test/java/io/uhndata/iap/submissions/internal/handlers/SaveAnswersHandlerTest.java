@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -251,6 +252,21 @@ class SaveAnswersHandlerTest
         this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
 
         assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    @Test
+    void stampsWhenAnAnswerAlreadyThereChanged() throws Exception
+    {
+        // The repository only stamps an answer when it is created, and a generated document has to tell whether
+        // the answers moved on since it was filled in
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        stampAnswers();
+        final Calendar before = Calendar.getInstance();
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        final Calendar stamped = onlyAnswer().getValueMap().get("jcr:lastModified", Calendar.class);
+        assertNotNull(stamped);
+        assertFalse(stamped.before(before));
     }
 
     @Test
