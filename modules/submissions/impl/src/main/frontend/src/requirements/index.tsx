@@ -19,6 +19,7 @@ import { createExtensionLoader } from "@iap/ui-extension/extensionLoader";
 
 import ApprovalState from "../ApprovalState";
 import DocumentUpload from "../DocumentUpload";
+import GeneratedDocument from "../GeneratedDocument";
 import {
   registerRequirementComponent,
   type RequirementComponent,
@@ -46,6 +47,11 @@ export const DocumentSection: RequirementComponent = ({ path, requirement, disab
     onAttached={onChanged} />
 );
 
+export const GeneratedDocumentSection: RequirementComponent = ({ path, requirement, disabled, onChanged }) => (
+  <GeneratedDocument path={path} requirement={requirement as DocumentRequirement} disabled={disabled}
+    onGenerated={onChanged} />
+);
+
 export const ApprovalSection: RequirementComponent = ({ requirement }) => (
   <ApprovalState requirement={requirement as ApprovalRequirement} />
 );
@@ -56,6 +62,10 @@ export const questionSetCandidate: RequirementComponentCandidate = requirement =
 export const documentSectionCandidate: RequirementComponentCandidate = requirement =>
   isDocumentRequirement(requirement) ? [ DocumentSection, 50 ] : null;
 
+// Above the upload, since the platform fills a generated document in and there is nothing to upload
+export const generatedDocumentCandidate: RequirementComponentCandidate = requirement =>
+  isDocumentRequirement(requirement) && requirement.generated ? [ GeneratedDocumentSection, 60 ] : null;
+
 export const approvalSectionCandidate: RequirementComponentCandidate = requirement =>
   isApprovalRequirement(requirement) ? [ ApprovalSection, 50 ] : null;
 
@@ -63,6 +73,7 @@ export function registerBuiltinRequirementComponents(): void {
   [
     questionSetCandidate,
     documentSectionCandidate,
+    generatedDocumentCandidate,
     approvalSectionCandidate,
   ].forEach(registerRequirementComponent);
 }

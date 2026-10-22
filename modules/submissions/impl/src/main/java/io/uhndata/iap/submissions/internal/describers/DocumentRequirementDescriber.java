@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.submissions.internal.describers;
 
+import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -60,6 +62,11 @@ public class DocumentRequirementDescriber implements RequirementDescriber
 
     private static final String GENERATED_KEY = "generated";
 
+    private static final String OUTDATED_KEY = "outdated";
+
+    /** Stamped by the save workflow when it changes an answer, see SaveAnswersHandler. */
+    private static final String LAST_MODIFIED = "jcr:lastModified";
+
     private final MimeTypeService mimeTypes;
 
     /**
@@ -87,6 +94,11 @@ public class DocumentRequirementDescriber implements RequirementDescriber
         json.add(REQUIRED_KEY, asked.isRequired());
         // Stated always, for the same reason: the form draws no upload control for a generated document
         json.add(GENERATED_KEY, asked.isGenerated());
+        // Until submitting is a workflow step (IAP-88): generated while the request is still being answered, a
+        // document can fall behind the answers it was filled in from
+        if (asked.isGenerated()) {
+            json.add(OUTDATED_KEY, isOutdated(asked, submission));
+        }
         json.add(ACCEPTED_FILE_TYPES_KEY, acceptedFileTypes(asked));
         addTemplate(json, asked);
         json.add(ATTACHED_KEY, attachments(asked, submission));
@@ -138,6 +150,29 @@ public class DocumentRequirementDescriber implements RequirementDescriber
             .map(DocumentRequirementDescriber::describeAttachment)
             .forEach(attached::add);
         return attached;
+    }
+
+    /**
+     * Whether an answer changed after the newest generation of a generated document. Until submitting is a workflow
+     * step (IAP-88).
+     *
+     * @param asked the generated requirement
+     * @param submission the submission whose answers it was filled in from
+     * @return {@code false} when nothing was generated yet, which is missing rather than outdated
+     */
+    private static boolean isOutdated(final DocumentRequirement asked, final Submission submission)
+    {
+        final Optional<Calendar> generated = submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(asked))
+            .map(Document::getCurrentVersion)
+            .filter(Objects::nonNull)
+            .map(DocumentVersion::getCreated)
+            .filter(Objects::nonNull)
+            .max(Comparator.naturalOrder());
+        return generated.isPresent() && submission.getAnswers().stream()
+            .map(answer -> Optional.ofNullable(answer.get(LAST_MODIFIED, Calendar.class)).orElse(answer.getCreated()))
+            .filter(Objects::nonNull)
+            .anyMatch(changed -> changed.after(generated.get()));
     }
 
     /**
