@@ -15,7 +15,7 @@ mvn clean install
 
 | Path                        | What                                                                     |
 |-----------------------------|--------------------------------------------------------------------------|
-| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave |
+| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave — and a request form generated from it |
 | `/Workflows/timeOffRequest` | The process, as BPMN: raised → budget looked up → filled in and sent → flagged if it starts soon → approved or refused, and the requester told |
 | `TimeOffBudgetHandler`      | Looks up the days left, through the engine's service-task extension point |
 | `TimeOffBudgetValidator`    | Refuses an answer asking for more days than are left                      |
@@ -70,6 +70,23 @@ request a `reassessTimeOffUrgency` event, and the system workflow of that name r
 makes the change either way.
 
 The schema version points at its workflow version, so the two halves are joined.
+
+## The generated request form
+
+`requestForm` is a generated document: the platform fills its `.docx` template in from the answers and
+attaches the PDF, which the requester asks for from the request's page. It needs the generation worker
+running (`generate_compose.py --generation`, or the worker on `localhost:18766` beside `start.py`).
+
+The template is `SLING-INF/content/Schemas/timeOffRequest/v1/requestForm/template`, a plain `.docx` with no
+extension, because the node it becomes has to be called `template`. Replace it with any `.docx` of your own,
+a letterhead with a logo say, edited in Word. It is a Jinja template (docxtpl), and may use:
+
+- `{{ submission.title }}`, and `{{ submission.created }}`, an ISO date-time (`[:10]` keeps the date)
+- `{{ submission.answers.details.day }}`: each answer, nested as the schema nests its questions
+- `{{ submitter.name }}`, `{{ submitter.email }}`, `{{ submitter.id }}`
+
+A name the template uses that the request does not have fails the generation with that name, rather than
+printing nothing.
 
 ## Editing the process
 
