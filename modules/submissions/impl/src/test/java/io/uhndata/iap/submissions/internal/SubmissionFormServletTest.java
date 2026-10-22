@@ -446,6 +446,37 @@ class SubmissionFormServletTest
         assertFalse(requirement(form, "signedForm").getBoolean("generated"), "an uploaded document says so too");
     }
 
+    // Until submitting is a workflow step (IAP-88): the submitter generates the document while still answering
+    @Test
+    void saysAGeneratedDocumentIsOutdatedOnceAnAnswerChangedAfterIt() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
+        answer(START_DATE, "2026-10-06");
+        final String answer = SUBMISSION_PATH + "/" + "2026-10-06".hashCode();
+        modify(answer, "jcr:lastModified", new GregorianCalendar(2026, Calendar.OCTOBER, 1));
+
+        assertFalse(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"),
+            "nothing generated yet is missing, not outdated");
+
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/letter", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "Decision letter.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/decisionLetter", "fulfills");
+        uploaded(document);
+        created(document.getPath() + "/v1", new GregorianCalendar(2026, Calendar.OCTOBER, 2));
+        // Neither stamped nor created as far as the mock repository knows, so it says nothing either way
+        answer(END_DATE, "2026-10-09");
+
+        assertFalse(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"));
+
+        modify(answer, "jcr:lastModified", new GregorianCalendar(2026, Calendar.OCTOBER, 3));
+
+        assertTrue(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"));
+        assertFalse(requirement(form(REQUESTER), "doctorsNote").containsKey("outdated"),
+            "an uploaded document is the submitter's own, and never outdated");
+    }
+
     @Test
     void namesATemplateOfNoKnownTypeAfterTheRequirementAlone() throws IOException
     {
@@ -787,6 +818,18 @@ class SubmissionFormServletTest
                 .adaptTo(ModifiableValueMap.class).put(property, value);
             this.context.resourceResolver().commit();
         } catch (final PersistenceException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // By hand, through the node, since a real repository sets it itself and the mock one does not
+    private void created(final String path, final Calendar when)
+    {
+        try {
+            Objects.requireNonNull(this.context.resourceResolver().getResource(path)).adaptTo(Node.class)
+                .setProperty("jcr:created", when);
+            this.context.resourceResolver().commit();
+        } catch (final RepositoryException | PersistenceException e) {
             throw new IllegalStateException(e);
         }
     }
