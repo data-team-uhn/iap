@@ -115,6 +115,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String DECIDED_AT_KEY = "at";
 
+    private static final String GENERATED_KEY = "generated";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -238,8 +240,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
-     * has already been attached for it.
+     * What a document requirement adds: whether the platform generates it, which types it takes, the blank to start
+     * from if it offers one, and what has already been attached for it.
      *
      * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
      * only place that says which requirements currently apply — reading them off the schema instead would mean a
@@ -255,13 +257,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // Stated always, not only when false: the upload control marks the optional case, and should do so
         // because the form said so rather than because a key was missing
         json.add(REQUIRED_KEY, requirement.isRequired());
+        // Stated always, for the same reason: the form draws no upload control for a generated document
+        json.add(GENERATED_KEY, requirement.isGenerated());
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
         // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
         // empty — so the key is always there and it is the emptiness that carries the meaning
         requirement.getAcceptedFileTypes().forEach(accepted::add);
         json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
         final Resource template = requirement.getTemplate();
-        if (template != null) {
+        // A generated document's template is what the platform fills in, not a blank for the submitter
+        if (template != null && !requirement.isGenerated()) {
             json.add(TEMPLATE_KEY, template.getPath());
             json.add(TEMPLATE_NAME_KEY, getTemplateFileName(requirement, template));
         }

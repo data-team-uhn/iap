@@ -24,12 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -37,7 +32,6 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -61,6 +55,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * against what the caller claims. It is not a guarantee about the bytes: whoever needs to know that a document
  * really is what it says it is has to look, which is what {@code aiCheckPrompt} is eventually for.</p>
  *
+ * <p>A {@link DocumentRequirement#isGenerated() generated} document is refused: {@link GenerateDocumentHandler}
+ * fills it in, and the file sent on has to be the one it produced.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -81,13 +78,6 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
     private static final long BYTES_PER_MEGABYTE = 1024L * 1024;
 
-    /** Where the document records what it fulfills. */
-    private static final String FULFILLS_PROPERTY = "fulfills";
-
-    private static final String PRIMARY_TYPE = "jcr:primaryType";
-
-    private static final String TITLE_PROPERTY = "title";
-
     private static final String GENERIC_TYPE = "application/octet-stream";
 
     /** Types a browser may not know and send untyped, by the extension that names them. */
@@ -95,12 +85,6 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         "pdf", "application/pdf",
         "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "doc", "application/msword");
-
-    /** The name the node type gives a version's file. */
-    private static final String FILE_NODE = "file";
-
-    /** The name the node type gives the upload inside a file. */
-    private static final String UPLOADED_FILE_NODE = "uploadedFile";
 
     @Override
     public String getName()
@@ -126,13 +110,20 @@ public class AttachDocumentHandler implements ServiceTaskHandler
 
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
-        final Resource document = findOrCreateDocument(target, submission, requirement, file, resolver);
-        // Not named by its number, which is its position among the document's versions
-        final Resource version = resolver.create(document, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
-        final Resource stored = resolver.create(version, FILE_NODE, Map.of(PRIMARY_TYPE, "sub:File"));
-        write(Objects.requireNonNull(stored.adaptTo(Node.class),
-            "A freshly created file is always backed by a JCR node"), file, mimeType);
+        final Resource document = StoredDocuments.findOrCreateDocument(target, submission, requirement,
+            Objects.requireNonNullElse(file.getFileName(), "Attachment"), resolver);
+        // The type is recorded because it is the only statement about what this is that anybody has made
+        StoredDocuments.write(StoredDocuments.addVersion(document, resolver), StoredDocuments.UPLOADED_FILE_NODE,
+            openStream(file), Objects.requireNonNullElse(mimeType, GENERIC_TYPE));
+    }
+
+    private static InputStream openStream(final EventAttachment file) throws PersistenceException
+    {
+        try {
+            return file.openStream();
+        } catch (final IOException e) {
+            throw new PersistenceException("Could not store the uploaded file", e);
+        }
     }
 
     /**
@@ -151,11 +142,17 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     {
         final String named = Payloads.requireText(context.getEvent(), REQUIREMENT_PARAMETER,
             "The upload does not say which requirement it answers");
-        return findRequirement(submission, named)
+        final DocumentRequirement requirement = findRequirement(submission, named)
             // One whose condition does not hold is not asked, and the form does not offer it
             .filter(submission::isApplicable)
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));
+        // The platform fills it in from the answers, and the one it filled in is the one sent on
+        if (requirement.isGenerated()) {
+            throw new InvalidPayloadException(requirement.getLabel()
+                + " is generated from the answers, and cannot be uploaded");
+        }
+        return requirement;
     }
 
     /**
@@ -174,41 +171,6 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             .map(DocumentRequirement.class::cast)
             .filter(candidate -> candidate.getPath().equals(named) || candidate.getName().equals(named))
             .findFirst();
-    }
-
-    /**
-     * The document answering the requirement, created by the first upload for it. A later upload is a new version
-     * of the same document, so the document's title follows the newest file.
-     *
-     * @param target the submission's resource
-     * @param submission the submission being attached to
-     * @param requirement the requirement the file answers
-     * @param file the uploaded file
-     * @param resolver the resolver to write with
-     * @return the document resource
-     * @throws PersistenceException when the document cannot be written
-     */
-    private Resource findOrCreateDocument(final Resource target, final Submission submission,
-        final DocumentRequirement requirement, final EventAttachment file, final ResourceResolver resolver)
-        throws PersistenceException
-    {
-        final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
-        final Resource existing = submission.getDocuments().stream()
-            .filter(document -> document.isFulfilling(requirement))
-            .findFirst()
-            .map(document -> resolver.getResource(document.getPath()))
-            .orElse(null);
-        if (existing != null) {
-            Objects.requireNonNull(existing.adaptTo(ModifiableValueMap.class),
-                "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
-            return existing;
-        }
-        // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
-        // taken from what somebody uploaded is a name chosen by them for a node in our tree
-        final Resource document = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Document", TITLE_PROPERTY, title));
-        ReferenceUtils.setReference(document, FULFILLS_PROPERTY, requirement);
-        return document;
     }
 
     /**
@@ -268,30 +230,4 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         }
     }
 
-    /**
-     * Stores the uploaded bytes as the {@code uploadedFile} of a {@code sub:File}.
-     *
-     * <p>Written through the JCR API rather than the resolver, because a binary is a {@code jcr:data} property on an
-     * {@code nt:resource} child and streaming into it is what keeps the file out of the heap.</p>
-     *
-     * @param stored the {@code sub:File} node to store the upload under
-     * @param file the uploaded file
-     * @param mimeType the upload's type, as {@link #getMimeType} reads it
-     * @throws PersistenceException when the file cannot be stored
-     */
-    private void write(final Node stored, final EventAttachment file, final String mimeType)
-        throws PersistenceException
-    {
-        try (InputStream content = file.openStream()) {
-            final Node fileNode = stored.addNode(UPLOADED_FILE_NODE, "nt:file");
-            final Node resource = fileNode.addNode("jcr:content", "nt:resource");
-            resource.setProperty("jcr:data",
-                fileNode.getSession().getValueFactory().createBinary(content));
-            // Recorded because the repository has to serve the file back with a type, and it is the only statement
-            // about what this is that anybody has made
-            resource.setProperty("jcr:mimeType", Objects.requireNonNullElse(mimeType, GENERIC_TYPE));
-        } catch (final RepositoryException | IOException e) {
-            throw new PersistenceException("Could not store the uploaded file", e);
-        }
-    }
 }
