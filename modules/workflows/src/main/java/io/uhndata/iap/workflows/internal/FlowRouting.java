@@ -39,11 +39,11 @@ import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowToken;
 
 /**
- * Answers the questions the walk asks of a workflow graph: which nodes execution may pass through, which arcs leave
+ * Answers the questions the engine asks of a workflow graph: which nodes execution may pass through, which arcs leave
  * a node, and when a join lets a token through.
  *
- * <p>These answers read the definition and the conditions on its arcs, and write nothing. Moving and spending tokens
- * is the walk's business.</p>
+ * <p>This helper only read the definition and the conditions on its arcs. Moving and spending tokens is done in the
+ * engine.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,7 +70,7 @@ final class FlowRouting
      * <p>A free-standing catching event is not passable: it is reached by an arc and has to wait, and nothing can wake
      * it yet. Any other node, such as a throwing event, has no meaning for the engine and is refused.</p>
      *
-     * @param node the node execution is standing on
+     * @param node the node to check
      * @return {@code true} if the walk may carry on through it
      */
     boolean passable(final FlowNode node)
@@ -84,7 +84,7 @@ final class FlowRouting
      * <p>Parallel and inclusive gateways are joins, released by different rules: see {@link #releases}. An exclusive
      * merge is not: each token that arrives there passes straight through.</p>
      *
-     * @param node the node execution is standing on
+     * @param node the node to check
      * @return {@code true} if arriving there may mean waiting for the others
      */
     boolean synchronises(final FlowNode node)
@@ -104,8 +104,8 @@ final class FlowRouting
      * <p>The answer comes from the graph and the tokens on it, not from a record of the fork. It stays right when a
      * boundary event cuts a branch short, and when the instance resumes days later.</p>
      *
-     * @param gateway the join a token is standing on
-     * @param arrivedBy the arcs the tokens standing on it arrived by
+     * @param gateway the join node to check
+     * @param arrivedBy the incoming arcs from which tokens already arrived and are waiting on the gateway
      * @param elsewhere where every other token in the instance has got to
      * @return {@code true} if the join may release
      */
@@ -118,15 +118,15 @@ final class FlowRouting
     }
 
     /**
-     * The tokens a releasing join merges into the one that leaves it.
+     * Which tokens a releasing join consumes, merging into the one token that leaves it.
      *
-     * <p>An inclusive join takes every token standing on it. A parallel join takes one from each of its other arcs,
-     * and leaves any extra token from an arc to wait for the next round.</p>
+     * <p>An inclusive join takes every token standing on it. A parallel join takes one from each of its incoming arcs,
+     * and leaves any extra tokens from an arc to wait for the next round.</p>
      *
-     * @param join the join being released
+     * @param join the join being executed
      * @param leavingPath the path of the token that carries on
      * @param leavingArc the arc that token arrived by
-     * @param arrived every token standing on the join, the leaving one included
+     * @param arrived every token standing on the join
      * @return the tokens to remove
      */
     List<WorkflowToken> absorbed(final FlowNode join, final String leavingPath, final String leavingArc,
@@ -320,7 +320,7 @@ final class FlowRouting
      * something it must wait for.
      *
      * <p>No arc points at an event attached to an activity, so execution stands on one only after the event has
-     * happened. What remains is to leave down its own arc.</p>
+     * fired. What remains is to leave down its own arc.</p>
      *
      * @param node the node the walk is standing on
      * @return {@code true} if this is a boundary event that has fired
