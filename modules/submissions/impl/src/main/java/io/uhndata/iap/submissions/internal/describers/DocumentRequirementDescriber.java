@@ -58,6 +58,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
 
     private static final String REQUIRED_KEY = "required";
 
+    private static final String GENERATED_KEY = "generated";
+
     private final MimeTypeService mimeTypes;
 
     /**
@@ -83,6 +85,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
         final DocumentRequirement asked = (DocumentRequirement) requirement;
         // Stated always, not only when false
         json.add(REQUIRED_KEY, asked.isRequired());
+        // Stated always, for the same reason: the form draws no upload control for a generated document
+        json.add(GENERATED_KEY, asked.isGenerated());
         json.add(ACCEPTED_FILE_TYPES_KEY, acceptedFileTypes(asked));
         addTemplate(json, asked);
         json.add(ATTACHED_KEY, attachments(asked, submission));
@@ -111,7 +115,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     private void addTemplate(final JsonObjectBuilder json, final DocumentRequirement asked)
     {
         final Resource template = asked.getTemplate();
-        if (template != null) {
+        // A generated document's template is what the platform fills in, not a blank for the submitter
+        if (template != null && !asked.isGenerated()) {
             json.add(TEMPLATE_KEY, template.getPath());
             json.add(TEMPLATE_NAME_KEY, getTemplateFileName(asked, template));
         }

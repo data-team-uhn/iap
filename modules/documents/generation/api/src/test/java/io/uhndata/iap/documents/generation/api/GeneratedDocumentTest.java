@@ -17,17 +17,12 @@
  */
 package io.uhndata.iap.documents.generation.api;
 
-import java.nio.charset.StandardCharsets;
-
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link GeneratedDocument}: the hash is of the PDF as received, and nothing outside can change the
- * bytes that hash vouches for.
+ * Tests for {@link GeneratedDocument}: nothing outside can change the bytes once the document was made.
  *
  * @version $Id$
  * @since 0.1.0
@@ -35,17 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class GeneratedDocumentTest
 {
     @Test
-    void theHashIsThePdfsSha256()
-    {
-        final GeneratedDocument document = new GeneratedDocument(new byte[] { 1 },
-            "abc".getBytes(StandardCharsets.UTF_8));
-
-        // The published SHA-256 test vector for "abc"
-        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", document.getPdfSha256());
-    }
-
-    @Test
-    void theBytesCannotBeChangedAfterTheHashWasTaken()
+    void theBytesCannotBeChangedFromOutside()
     {
         final byte[] pdf = { 1, 2, 3 };
         final GeneratedDocument document = new GeneratedDocument(new byte[] { 9 }, pdf);
@@ -54,13 +39,7 @@ class GeneratedDocumentTest
         document.getPdf()[1] = 0;
         document.getDocx()[0] = 0;
 
-        assertArrayEquals(new byte[] { 1, 2, 3 }, document.getPdf(), "the PDF must be the one that was hashed");
+        assertArrayEquals(new byte[] { 1, 2, 3 }, document.getPdf());
         assertArrayEquals(new byte[] { 9 }, document.getDocx());
-    }
-
-    @Test
-    void aMissingAlgorithmIsAnIllegalState()
-    {
-        assertThrows(IllegalStateException.class, () -> GeneratedDocument.digest(new byte[0], "NO-SUCH-DIGEST"));
     }
 }

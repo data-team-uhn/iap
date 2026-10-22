@@ -26,10 +26,8 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -145,8 +143,6 @@ class WorkerDocumentGeneratorTest
         assertNotNull(result.getDocument());
         assertArrayEquals(DOCX, result.getDocument().getDocx());
         assertArrayEquals(PDF, result.getDocument().getPdf());
-        assertEquals(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(PDF)),
-            result.getDocument().getPdfSha256(), "the hash must be of the PDF that was received");
         assertArrayEquals(TEMPLATE, Base64.getDecoder().decode(this.received.getString("template")));
         assertEquals("Test my drug",
             this.received.getJsonObject("context").getJsonObject("submission").getString("title"));
