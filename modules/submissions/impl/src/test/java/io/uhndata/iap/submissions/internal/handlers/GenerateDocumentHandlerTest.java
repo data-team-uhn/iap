@@ -57,6 +57,9 @@ import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
+import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -94,6 +97,8 @@ class GenerateDocumentHandlerTest
     private static final String LETTER_PATH = VERSION_PATH + "/" + LETTER;
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aStudy";
+
+    private static final String REQUESTER = "demo-researcher";
 
     private static final byte[] DOCX = { 0x50, 0x4B, 1 };
 
@@ -139,7 +144,7 @@ class GenerateDocumentHandlerTest
             "generated", true));
         Referenceables.identify(this.context, LETTER_PATH, VERSION_PATH + "/consent", VERSION_PATH + "/untemplated");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            TYPE, Submission.RESOURCE_TYPE, "title", "A study", "createdBy", "demo-researcher",
+            TYPE, Submission.RESOURCE_TYPE, "title", "A study", "createdBy", REQUESTER,
             "tags", new String[] { "draft" }));
         reference(this.target, VERSION_PATH, "schemaVersion");
         generatorAnswers(GenerationResult.generated(new GeneratedDocument(DOCX, PDF)));
@@ -238,10 +243,46 @@ class GenerateDocumentHandlerTest
     }
 
     @Test
-    void anActivityThatNamesNoRequirementIsADefinitionError()
+    void anActivityWhoseRequirementIsNotANameIsADefinitionError()
     {
-        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(null)));
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(" ")));
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(Boolean.TRUE)));
+    }
+
+    // Until submitting is a workflow step (IAP-88): the submitter asks for the document from the form
+
+    @Test
+    void generatesTheDocumentTheSubmitterAsksFor() throws Exception
+    {
+        this.handler.execute(asked(LETTER, REQUESTER));
+
+        assertArrayEquals(PDF, bytes(currentFile().getChild("uploadedFile")));
+    }
+
+    @Test
+    void refusesToGenerateForSomebodyElsesRequest()
+    {
+        assertThrows(NotAuthorizedException.class, () -> this.handler.execute(asked(LETTER, "somebody-else")));
+        Mockito.verifyNoInteractions(this.generator);
+    }
+
+    @Test
+    void refusesToGenerateForARequestThatHasAlreadyBeenSent() throws PersistenceException
+    {
+        this.target.adaptTo(ModifiableValueMap.class).put("tags", new String[] { "submitted" });
+        this.context.resourceResolver().commit();
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(asked(LETTER, REQUESTER)));
+        Mockito.verifyNoInteractions(this.generator);
+    }
+
+    @Test
+    void refusesToGenerateAnythingButAGeneratedDocumentOfThisRequest()
+    {
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context(null)));
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(asked("consent", REQUESTER)));
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(asked("noSuchLetter", REQUESTER)));
+        Mockito.verifyNoInteractions(this.generator);
     }
 
     @Test
@@ -264,10 +305,23 @@ class GenerateDocumentHandlerTest
         Mockito.when(this.generator.generate(Mockito.any(), Mockito.any())).thenReturn(result);
     }
 
-    private WorkflowTaskContext context(final String requirement)
+    // An activity naming the requirement, as a schema's own workflow does
+    private WorkflowTaskContext context(final Object requirement)
+    {
+        return context(requirement, Map.of(), REQUESTER);
+    }
+
+    // An activity naming none, and an event from the form that does
+    private WorkflowTaskContext asked(final String requirement, final String actor)
+    {
+        return context(null, Map.of(GenerateDocumentHandler.REQUIREMENT_PARAMETER, requirement), actor);
+    }
+
+    private WorkflowTaskContext context(final Object requirement, final Map<String, Object> payload,
+        final String actor)
     {
         final ResourceResolver resolver = this.context.resourceResolver();
-        final WorkflowEvent event = new WorkflowEvent("generate", Map.of());
+        final WorkflowEvent event = new WorkflowEvent("generateDocument", payload);
         final Activity activity = Mockito.mock(Activity.class);
         Mockito.when(activity.getPath()).thenReturn("/Workflows/ethics/v1/generate");
         Mockito.when(activity.get(GenerateDocumentHandler.REQUIREMENT_PARAMETER)).thenReturn(requirement);
@@ -292,7 +346,7 @@ class GenerateDocumentHandlerTest
             @Override
             public String getActor()
             {
-                return "demo-researcher";
+                return actor;
             }
 
             @Override

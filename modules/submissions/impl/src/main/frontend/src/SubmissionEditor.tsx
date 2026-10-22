@@ -26,6 +26,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import AnswerField, { type SaveState } from "./AnswerField";
 import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
+import GeneratedDocument from "./GeneratedDocument";
 import {
   type FormItem,
   type FormQuestion,
@@ -84,8 +85,8 @@ function Items({ items, disabled, states, onAnswered }: {
 }
 
 // What a requirement asks for, answered here where it can be: questions are filled in and a document
-// is uploaded. An approval says where it stands, and any other kind says it cannot be completed here
-// yet.
+// is uploaded, or generated where the platform fills it in. An approval says where it stands, and any
+// other kind says it cannot be completed here yet.
 function RequirementBody({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
@@ -96,6 +97,9 @@ function RequirementBody({ path, requirement, disabled, states, onAnswered, onAt
 }) {
   if (isFormRequirement(requirement)) {
     return <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />;
+  }
+  if (isDocumentRequirement(requirement) && requirement.generated) {
+    return <GeneratedDocument path={path} requirement={requirement} disabled={disabled} onGenerated={onAttached} />;
   }
   if (isDocumentRequirement(requirement)) {
     return <DocumentUpload path={path} requirement={requirement} disabled={disabled} onAttached={onAttached} />;
