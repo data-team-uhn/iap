@@ -1,0 +1,66 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Generate a document for a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Fills in a document the schema generates from the submitter's answers, at the submitter's request, and attaches it for the requirement it fulfills.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Document requested",
+      "messageName": "generateDocument",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toParts": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParts",
+        "targetRef": "parts"
+      }
+    },
+    "parts": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parts",
+      "label": "Give each item asked for a part of its own",
+      "handler": "createParts",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toGenerate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toGenerate",
+        "targetRef": "generate"
+      }
+    },
+    "generate": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "generate",
+      "label": "Generate the document",
+      "handler": "generateDocument",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Document generated",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
