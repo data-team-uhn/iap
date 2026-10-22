@@ -138,10 +138,13 @@ class AttachDocumentHandlerTest
             "acceptedFileTypes", new String[] {PDF}));
         this.context.create().resource(VERSION_PATH + "/anything", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Anything at all"));
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
         // A requirement of a kind nobody uploads a file for, so a name alone does not find a document requirement
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
-        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
+        Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything", VERSION_PATH + "/decisionLetter");
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
@@ -443,6 +446,16 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void refusesADocumentThePlatformGenerates()
+    {
+        final InvalidPayloadException refused = assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(payload("decisionLetter", upload("letter.pdf", PDF)))));
+
+        assertTrue(refused.getMessage().contains("Decision letter is generated"), refused.getMessage());
+        assertTrue(documents().isEmpty(), "nothing may be stored where the generated document goes");
+    }
+
+    @Test
     void refusesARequirementThatIsNotAskingForAFile()
     {
         // The form requirement is a child of the same schema version
@@ -479,6 +492,49 @@ class AttachDocumentHandlerTest
         final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
             context(payload(NOTE, upload("note.pdf", PDF)), REQUESTER, sabotaged)));
         assertTrue(failure.getMessage().contains("Cannot point fulfills"));
+    }
+
+    @Test
+    void translatesAnUploadThatDiesWhileStoredIntoAPersistenceFailure()
+    {
+        // Opened fine, then gone partway through being written
+        final EventAttachment dying = new EventAttachment()
+        {
+            @Override
+            public String getFileName()
+            {
+                return "note.pdf";
+            }
+
+            @Override
+            public String getMimeType()
+            {
+                return PDF;
+            }
+
+            @Override
+            public long getSize()
+            {
+                return CONTENT.length;
+            }
+
+            @Override
+            public InputStream openStream()
+            {
+                return new InputStream()
+                {
+                    @Override
+                    public int read() throws IOException
+                    {
+                        throw new IOException("the connection went away");
+                    }
+                };
+            }
+        };
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> this.handler.execute(context(payload(NOTE, dying))));
+        assertTrue(failure.getMessage().contains("Could not store"));
     }
 
     @Test
