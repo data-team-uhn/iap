@@ -15,7 +15,7 @@ mvn clean install
 
 | Path                        | What                                                                     |
 |-----------------------------|--------------------------------------------------------------------------|
-| `/Schemas/timeOffRequest`   | What a requester fills in — currently one required date question         |
+| `/Schemas/timeOffRequest`   | What a requester fills in — currently one required date question, and a request form generated from it |
 | `/Workflows/timeOffRequest` | The process, as BPMN: submitted → approve → approved or refused          |
 | `demo-requester`            | Asks for the day off. Member of `time-off-requesters`                    |
 | `demo-approver`             | Decides. Member of `time-off-approvers`, which the schema routes approval to |
@@ -31,6 +31,23 @@ schema, the workflow and the accounts are installed and correct. As the engine l
 a request and approve it belong in that same suite, and this file should stop making this excuse.
 
 The schema version does point at its workflow version, so the two halves are already joined.
+
+## The generated request form
+
+`requestForm` is a generated document: the platform fills its `.docx` template in from the answers and
+attaches the PDF, which the requester asks for from the request's page. It needs the generation worker
+running (`generate_compose.py --generation`, or the worker on `localhost:18766` beside `start.py`).
+
+The template is `SLING-INF/content/Schemas/timeOffRequest/v1/requestForm/template`, a plain `.docx` with no
+extension, because the node it becomes has to be called `template`. Replace it with any `.docx` of your own,
+a letterhead with a logo say, edited in Word. It is a Jinja template (docxtpl), and may use:
+
+- `{{ submission.title }}`, and `{{ submission.created }}`, an ISO date-time (`[:10]` keeps the date)
+- `{{ submission.answers.details.day }}`: each answer, nested as the schema nests its questions
+- `{{ submitter.name }}`, `{{ submitter.email }}`, `{{ submitter.id }}`
+
+A name the template uses that the request does not have fails the generation with that name, rather than
+printing nothing.
 
 ## Editing the process
 
