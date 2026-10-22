@@ -17,8 +17,13 @@
  */
 package io.uhndata.iap.schemas.editing.internal.checks;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
@@ -39,6 +44,11 @@ public class GeneratedDocumentCheck extends SchemaVersionCheck
     /** The media type of a {@code .docx} file. */
     static final String DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+    private static final String GENERIC_TYPE = "application/octet-stream";
+
+    /** The part of a {@code .docx} that holds the document's body. */
+    private static final String WORD_DOCUMENT_PART = "word/document.xml";
+
     @Override
     public List<String> check(final Resource version)
     {
@@ -55,10 +65,42 @@ public class GeneratedDocumentCheck extends SchemaVersionCheck
         if (template == null) {
             return Optional.of(DraftParts.describe(part, version) + " is generated, but has no template");
         }
-        if (!DOCX_MIME_TYPE.equals(template.getValueMap().get("jcr:content/jcr:mimeType", String.class))) {
+        if (!isDocx(template)) {
             return Optional.of(DraftParts.describe(part, version)
                 + " is generated, but its template is not a .docx file");
         }
         return Optional.empty();
+    }
+
+    private static boolean isDocx(final Resource template)
+    {
+        final String type = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
+        if (DOCX_MIME_TYPE.equals(type)) {
+            return true;
+        }
+        // A file loaded with the bundle's content, or put in by hand, is named "template" with no extension to tell
+        // its type by, and is recorded as generic: then what it holds decides
+        return (type == null || GENERIC_TYPE.equals(type)) && holdsAWordDocument(template);
+    }
+
+    /**
+     * Whether a file is a zip holding the main part every {@code .docx} has.
+     *
+     * @param template the template file
+     * @return {@code false} when it cannot be read, or holds anything else
+     */
+    private static boolean holdsAWordDocument(final Resource template)
+    {
+        try (ZipInputStream zip = new ZipInputStream(Objects.requireNonNull(template.adaptTo(InputStream.class),
+            "The node type makes a template a file, and a file always has content"))) {
+            for (ZipEntry entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+                if (WORD_DOCUMENT_PART.equals(entry.getName())) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (final IOException e) {
+            return false;
+        }
     }
 }
