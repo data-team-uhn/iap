@@ -17,17 +17,10 @@
  */
 package io.uhndata.iap.documents.generation.api;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A filled template, as the editable {@code .docx} and the PDF made from it.
- *
- * <p>The PDF's hash is taken here, from the bytes this platform received, so that whoever stores the PDF can later
- * show that the one sent on is the one the submitter was shown.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,8 +38,6 @@ public final class GeneratedDocument
 
     private final byte[] pdf;
 
-    private final String pdfSha256;
-
     /**
      * Record a generated document.
      *
@@ -57,7 +48,6 @@ public final class GeneratedDocument
     {
         this.docx = docx.clone();
         this.pdf = pdf.clone();
-        this.pdfSha256 = digest(pdf, "SHA-256");
     }
 
     /**
@@ -80,33 +70,5 @@ public final class GeneratedDocument
     public byte[] getPdf()
     {
         return this.pdf.clone();
-    }
-
-    /**
-     * The SHA-256 of the PDF.
-     *
-     * @return 64 lowercase hexadecimal characters
-     */
-    @NotNull
-    public String getPdfSha256()
-    {
-        return this.pdfSha256;
-    }
-
-    /**
-     * The hex digest of some content. The algorithm is a parameter so a test can name one that does not exist.
-     *
-     * @param content what to hash
-     * @param algorithm the digest algorithm
-     * @return lowercase hexadecimal
-     * @throws IllegalStateException when the platform lacks the algorithm, which no Java platform does for SHA-256
-     */
-    static String digest(final byte[] content, final String algorithm)
-    {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(content));
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }
