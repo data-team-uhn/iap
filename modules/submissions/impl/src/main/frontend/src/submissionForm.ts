@@ -95,6 +95,12 @@ export interface FormRequirement extends Requirement {
 export interface DocumentRequirement extends Requirement {
   // Whether the submission is incomplete without a file for it
   required: boolean;
+  // Whether the platform fills it in from the answers. A generated document is never uploaded, and has
+  // no template offered: its template is what the platform fills in.
+  generated: boolean;
+  // Until submitting is a workflow step (IAP-88): whether an answer changed after the newest document
+  // was generated. Only stated for a generated requirement.
+  outdated?: boolean;
   // The MIME types a file may have, such as `application/pdf`; empty when any type is accepted
   acceptedFileTypes: string[];
   // The path of a document to start from, when the requirement offers one
@@ -228,5 +234,17 @@ export async function attachDocument(
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
+  }
+}
+
+// Until submitting is a workflow step (IAP-88): asks the platform to fill a generated document in from
+// the answers so far, as a `generateDocument` event on the submission. Generating again adds a version.
+export async function generateDocument(
+  doFetch: AuthenticatedFetch, path: string, requirement: string): Promise<void> {
+  const body = new URLSearchParams({ requirement });
+  const response = await doFetch(`${path}.generateDocument.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This document could not be generated (${response.status})`);
   }
 }

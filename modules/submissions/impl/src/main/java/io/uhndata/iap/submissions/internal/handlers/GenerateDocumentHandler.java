@@ -33,9 +33,11 @@ import io.uhndata.iap.documents.generation.api.GenerationResult;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -43,6 +45,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that fills in a {@link DocumentRequirement#isGenerated() generated} document from the submission,
  * and attaches it as the requirement's document. The activity names the requirement in its {@code requirement}
  * property, by name or by path.
+ *
+ * <p>Until submitting is a workflow step (IAP-88), the submitter asks for the document from the form instead: an
+ * activity naming no requirement takes it from the event, and only from somebody who may still change the request.
+ * </p>
  *
  * <p>The result is stored as an upload is, so every reader of a submission's documents treats it alike: the PDF is
  * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link #DOCX_NODE}. Generating
@@ -131,13 +137,19 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
      * @param submission the submission being generated for
      * @param context the executing task's context
      * @return the requirement
-     * @throws WorkflowDefinitionException when the activity names no requirement, one this submission's schema does
-     *             not have, or one that is not generated; the definition is wrong, not the request
+     * @throws WorkflowDefinitionException when the activity's {@code requirement} is not a name, or names one this
+     *             submission's schema does not have, or one that is not generated; the definition is wrong, not the
+     *             request
+     * @throws WorkflowException when the activity names none and the event's request is refused, see
+     *             {@link #requested}
      */
     private static DocumentRequirement requirement(final Submission submission, final WorkflowTaskContext context)
-        throws WorkflowDefinitionException
+        throws WorkflowException
     {
         final Object named = context.getActivity().get(REQUIREMENT_PARAMETER);
+        if (named == null) {
+            return requested(submission, context);
+        }
         if (!(named instanceof String name) || name.isBlank()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not say which requirement to generate");
@@ -150,5 +162,27 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
                 + " names " + requirement.getLabel() + ", which is not generated");
         }
         return requirement;
+    }
+
+    /**
+     * The generated requirement the submitter asked for. Until submitting is a workflow step (IAP-88).
+     *
+     * @param submission the submission being generated for
+     * @param context the executing task's context
+     * @return the requirement
+     * @throws WorkflowException when the actor may not change the request, or the event names no generated
+     *             requirement that this request is asked
+     */
+    private static DocumentRequirement requested(final Submission submission, final WorkflowTaskContext context)
+        throws WorkflowException
+    {
+        SaveAnswersHandler.checkMayEdit(submission, context.getActor());
+        final String named = Payloads.requireText(context.getEvent(), REQUIREMENT_PARAMETER,
+            "The request does not say which document to generate");
+        return AttachDocumentHandler.findRequirement(submission, named)
+            .filter(submission::isApplicable)
+            .filter(DocumentRequirement::isGenerated)
+            .orElseThrow(() -> new InvalidPayloadException(
+                "There is no generated document " + named + " in this request"));
     }
 }
