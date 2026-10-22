@@ -18,6 +18,12 @@
         "minAnswers": 1
       }
     },
+    "requestForm": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Time off request form",
+      "description": "Filled in from your answers. Generate it once you have picked the day.",
+      "generated": true
+    },
     "approval": {
       "jcr:primaryType": "sch:ApprovalRequirement",
       "label": "Approval",

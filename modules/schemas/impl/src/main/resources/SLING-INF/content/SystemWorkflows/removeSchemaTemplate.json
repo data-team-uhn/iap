@@ -1,0 +1,57 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Remove the template of a document requirement",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sch/DocumentRequirement",
+    "description": "Removes the template of a document requirement of a draft version.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "removeTemplate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toRemove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRemove",
+        "targetRef": "remove"
+      }
+    },
+    "remove": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "remove",
+      "label": "Remove the template",
+      "handler": "replaceContent",
+      "child": "template",
+      "nodeTypes": ["nt:file"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Template removed",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
