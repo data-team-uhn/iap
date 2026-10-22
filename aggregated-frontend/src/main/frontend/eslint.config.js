@@ -68,6 +68,7 @@ export default defineConfig([
       "webpack.config-template.js",
       "vitest.config.ts",
       "vitest.setup.ts",
+      "vitest.shared.setup.ts",
     ],
   },
 

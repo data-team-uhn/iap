@@ -16,9 +16,18 @@
  * limitations under the License.
  */
 
+import { globSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { defineConfig } from "vitest/config";
+
+const TESTS = "src/**/*.{test,spec}.{ts,tsx}";
+
+// A file that replaces a module with vi.mock gets a process of its own. In a process shared with other files,
+// whether a file sees the mock or the real module depends on which files ran before it.
+const MOCKS_A_MODULE = /\bvi\.(mock|doMock)\(/;
+const mockingFiles = globSync(TESTS, { cwd: import.meta.dirname })
+  .filter(file => MOCKS_A_MODULE.test(readFileSync(path.join(import.meta.dirname, file), "utf8")));
 
 // Tests are authored co-located with the components in each module's
 // src/main/frontend/src/ tree, and run here in the aggregated frontend after the
@@ -40,7 +49,23 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Every file that can shares a process to minimize third party library loads
+    projects: [
+      {
+        extends: true,
+        test: { name: "isolated", include: mockingFiles },
+      },
+      {
+        extends: true,
+        test: {
+          name: "shared",
+          include: [TESTS],
+          exclude: mockingFiles,
+          isolate: false,
+          setupFiles: ["./vitest.shared.setup.ts"],
+        },
+      },
+    ],
     // Sized for the Maven build rather than for a quiet laptop: the heaviest suites here mount MUI
     // dialogs or pull in bpmn-js under jsdom, and several already take seconds unloaded.
     testTimeout: 30000,
