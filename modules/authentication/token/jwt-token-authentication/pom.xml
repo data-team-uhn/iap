@@ -36,6 +36,8 @@
          and Sling authentication integration classes are not ported yet); this floor sits just under
          the measured coverage of that slice. -->
     <coverage.instructionRatio>0.75</coverage.instructionRatio>
+    <!-- RSA signing and key generation run 4x slower without C2 -->
+    <tests.jitArgs></tests.jitArgs>
   </properties>
 
   <build>

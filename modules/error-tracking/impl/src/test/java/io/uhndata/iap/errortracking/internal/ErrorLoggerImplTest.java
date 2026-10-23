@@ -522,12 +522,15 @@ class ErrorLoggerImplTest
                 // The test context owns this resolver
             }
         });
-        // The real writer is a single thread, so a write the other thread asks for waits its turn. Run here, it would
+        // The real writer is a single thread, so a write the other thread asks for waits its turn. Run there, it would
         // block in the commit above until the latches time out
         final Thread testThread = Thread.currentThread();
+        final List<Runnable> waiting = new ArrayList<>();
         TestResolvers.set(racing, "writer", (Executor) task -> {
             if (Thread.currentThread() == testThread) {
                 task.run();
+            } else {
+                waiting.add(task);
             }
         });
         final Throwable error = new IllegalStateException(BOOM);
@@ -545,6 +548,7 @@ class ErrorLoggerImplTest
         other.start();
         racing.logError(error, ErrorContext.of("some.Thing", "doIt").about("/first"));
         other.join(5_000);
+        waiting.forEach(Runnable::run);
 
         // Both occurrences survive the failed write, and go out together once the repository can be written to
         TestResolvers.set(racing, "records",

@@ -598,7 +598,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws IOException
+    void pollsRepeatedlyOnItsOwnScheduleWhenActivatedByOsgi() throws IOException
     {
         everythingPasses();
         // The real scheduler is in charge here: nothing below calls poll(), so the checks can only run repeatedly if

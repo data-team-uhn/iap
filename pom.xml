@@ -178,6 +178,11 @@
     <maven.test.skip>true</maven.test.skip>
     <dependencyCheck.skip>false</dependencyCheck.skip>
     <coverage.instructionRatio>1.00</coverage.instructionRatio>
+    <!-- JaCoCo's prepare-agent prepends its agent here; empty when JaCoCo is skipped -->
+    <argLine></argLine>
+    <!-- Test JVMs run C1 only: short forks finish before C2 pays off -->
+    <tests.jitArgs>-XX:TieredStopAtLevel=1</tests.jitArgs>
+    <spotbugs.jvmArgs>-XX:TieredStopAtLevel=1</spotbugs.jvmArgs>
     <webpackArguments>--mode=development</webpackArguments>
     <!-- Frontend typecheck (tsc). Webpack compiles the TypeScript through babel-loader, which
          strips types per file without checking them, so this is the only thing that actually
@@ -1024,6 +1029,27 @@
               <skip>${dependencyCheck.skip}</skip>
             </configuration>
           </execution>
+          <!-- Mockito loads as a -javaagent instead of self-attaching in every fork. A fixed path works in
+               modules that do not depend on Mockito, where ${org.mockito:mockito-core:jar} stays unset -->
+          <execution>
+            <id>mockito-agent</id>
+            <phase>process-test-classes</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.mockito</groupId>
+                  <artifactId>mockito-core</artifactId>
+                  <version>${mockito.version}</version>
+                  <destFileName>mockito-core.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/mockito-agent</outputDirectory>
+              <skip>${skipTests}</skip>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
 
@@ -1064,6 +1090,12 @@
             <goals>
               <goal>prepare-agent</goal>
             </goals>
+            <configuration>
+              <!-- The check reads only our classes to speed up builds -->
+              <includes>
+                <include>io.uhndata.*</include>
+              </includes>
+            </configuration>
           </execution>
           <execution>
             <id>jacoco-check</id>
@@ -2714,6 +2746,7 @@
             <includes>
               <include>**/*Test.java</include>
             </includes>
+            <argLine>@{argLine} -javaagent:${project.build.directory}/mockito-agent/mockito-core.jar ${tests.jitArgs}</argLine>
             <!-- No parallelism here on purpose. The JUnit Platform provider ignores surefire's own
                  <parallel>, so the setting that used to sit here never had any effect: two tests given a
                  sleep both ran on `main`, one after the other. Switching it on for real takes
