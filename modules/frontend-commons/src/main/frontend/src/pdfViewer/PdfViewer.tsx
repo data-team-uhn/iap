@@ -49,9 +49,9 @@ export interface PdfViewerProps {
   markedBy: "assistant" | "annotation";
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
-  // An element to show the viewer in, filling it, with a button to pop it out into a dialog. The
-  // element needs a height of its own. Without one, the viewer opens in a dialog. Null, as a ref is
-  // before React attaches it, shows nothing until the element is there.
+  // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
+  // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
+  // React attaches it, shows nothing until the element is there.
   container?: HTMLElement | null;
   onClose: () => void;
 }
@@ -275,8 +275,7 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edge
 
 // The passage and how the search for it went, on a card in its mark's colour. Once it is found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
-// with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
-// line, it shares its row with the note.
+// with a button beside it showing all of it, since a button cannot hold another.
 function PassageLine({ quote, note, status, markedBy, onShowPassage }: {
   quote: string;
   note?: PassageNote;
@@ -410,8 +409,8 @@ function PassageLine({ quote, note, status, markedBy, onShowPassage }: {
   );
 }
 
-// The page a passage was found on is styled as a link when it is not the page shown, as the passage
-// and its note take the reader there.
+// When the passage was found on a page other than the one shown, the page number is styled as a link.
+// The passage and its note take the reader there.
 function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
   if ("text" in note) {
     const text = short ? note.short : note.text;

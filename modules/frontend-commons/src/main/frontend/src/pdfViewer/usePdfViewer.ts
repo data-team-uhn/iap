@@ -63,8 +63,8 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
         }
         const data = await response.arrayBuffer();
         stop.signal.throwIfAborted();
-        // PDF.js's own fonts rather than the system's, for the fonts a PDF names without embedding them:
-        // a phone without Times New Roman would otherwise set the text in a font of other widths.
+        // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
+        // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
         const doc = await task.promise;
         stop.signal.throwIfAborted();
@@ -116,8 +116,8 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
     };
     linkService.setViewer(viewer);
 
-    // PDF.js searches again for a changed option; the quote's matching ignores this one, so changing it
-    // has the parts of a quote broken across two pages marked.
+    // PDF.js searches again when an option changes. The quote finder ignores matchDiacritics, so changing
+    // it runs the second search, which marks the parts of a quote broken across two pages.
     const find = (matchDiacritics: boolean) => {
       eventBus.dispatch("find", {
         source: null,
@@ -165,9 +165,9 @@ export function usePdfViewer(url: string, page: number | undefined, quote: strin
       }
     });
 
-    // PDF.js fits the page to the frame's width only when told to, so a frame whose width changes, with
-    // the window or the layout around it, has it fitted again, unless the reader chose a zoom of their own.
-    // The width is the frame's outer one, which a scrollbar coming and going with the fit does not change.
+    // PDF.js fits the page to the frame's width only when told to. When the frame's width changes, the
+    // page is fitted again, unless the reader chose a zoom of their own. The width is the frame's outer
+    // one, which a scrollbar coming and going with the fit does not change.
     let width = frame.offsetWidth;
     let fitting = 0;
     const resizes = new ResizeObserver(() => {
