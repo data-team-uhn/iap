@@ -230,7 +230,7 @@ class StartWorkflowHandlerTest
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> this.handler.execute(context("workflow", HOST, null, sabotaged)));
-        assertTrue(failure.getMessage().contains("point the instance at its workflow version"));
+        assertTrue(failure.getMessage().contains("Cannot point workflowVersion of"));
     }
 
     @Test

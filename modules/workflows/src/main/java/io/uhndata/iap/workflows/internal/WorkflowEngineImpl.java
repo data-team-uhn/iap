@@ -33,6 +33,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -99,6 +100,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private TaskCompletion taskCompletion;
 
+    /** Resolves the people a definition names: special names, users, and groups however they are stored. */
+    @Reference
+    private PrincipalService principals;
+
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
 
@@ -120,7 +125,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             }
             final StartEvent start =
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            PerformerCheck.verify(serviceResolver, start, actor);
+            PerformerCheck.verify(this.principals, serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         }
     }
@@ -128,13 +133,15 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        return WorkflowQueries.availableEvents(target, this::serviceResolver, this.conditionEvaluator);
+        return WorkflowQueries.availableEvents(target, this::serviceResolver, this.conditionEvaluator,
+            this.principals);
     }
 
     @Override
     public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
-        return WorkflowQueries.applicableWorkflow(target, event, this::serviceResolver, this.conditionEvaluator);
+        return WorkflowQueries.applicableWorkflow(target, event, this::serviceResolver, this.conditionEvaluator,
+            this.principals);
     }
 
     /**
@@ -236,7 +243,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         }
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
-        PerformerCheck.verify(resolver, start, actor);
+        PerformerCheck.verify(this.principals, resolver, target, start, actor);
         dispatcher().runSystemWorkflow(target, event, start, actor, depth);
     }
 
@@ -248,7 +255,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ServiceTaskDispatcher dispatcher()
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain, this.routing);
+        return new ServiceTaskDispatcher(this.handlers, this::chain, this.routing, this.principals);
     }
 
     /**

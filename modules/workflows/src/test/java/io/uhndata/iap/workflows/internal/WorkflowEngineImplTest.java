@@ -160,6 +160,7 @@ class WorkflowEngineImplTest
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
         inject(impl, "routing", EngineFixture.routing());
         inject(impl, "taskCompletion", EngineFixture.taskCompletion());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 

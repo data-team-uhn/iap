@@ -27,6 +27,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -61,18 +62,24 @@ final class ServiceTaskDispatcher
     /** What decides where the tokens of any instance a task starts go. */
     private final FlowRouting routing;
 
+    /** Resolves the people named in the definition of any instance a task starts. */
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
      * @param routing what decides where the tokens of any instance a task starts go
+     * @param principals resolves the people named in the definition of any instance a task starts
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
+        final PrincipalService principals)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -97,12 +104,14 @@ final class ServiceTaskDispatcher
         FlowNode node = start;
         for (int step = 0; step < WorkflowEngineImpl.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
                 return variables;
             }
             if (node instanceof Activity) {
                 perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor,
                     this, depth));
+                // After every activity, not at the end event: a later activity in this walk may start a workflow on
+                // what this one created, and @creator there reads this property
+                recordActor(resolver, variables, actor);
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -118,7 +127,7 @@ final class ServiceTaskDispatcher
     /**
      * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
      * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
+     * trail and every "things I raised" listing need it, and so does {@code @creator}.
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
@@ -177,7 +186,7 @@ final class ServiceTaskDispatcher
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+            new WorkflowTaskContextImpl(InstanceRecords.hostOf(instance), event, activity, variables, actor, this, 0));
     }
 
     /**
@@ -188,6 +197,16 @@ final class ServiceTaskDispatcher
     FlowRouting getRouting()
     {
         return this.routing;
+    }
+
+    /**
+     * Resolves the people named in the definition of any instance a task starts.
+     *
+     * @return the engine's principal service
+     */
+    PrincipalService getPrincipals()
+    {
+        return this.principals;
     }
 
     /**
@@ -204,18 +223,6 @@ final class ServiceTaskDispatcher
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**
