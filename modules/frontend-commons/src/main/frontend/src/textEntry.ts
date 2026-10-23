@@ -20,8 +20,8 @@ const NOTHING_TO_TYPE = [
   "button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit",
 ];
 
-// Where text is typed: a text box, or an element made editable, rather than a checkbox, a button or another
-// input with nothing to type in, or one hidden from people, such as the input behind a select menu.
+// Where text is typed: a text box, or an element made editable. Not a checkbox, a button or another input
+// with nothing to type in, nor one hidden from people, such as the input behind a select menu.
 export const TEXT_ENTRY = [
   "textarea:not([aria-hidden=\"true\"])",
   "[contenteditable]:not([contenteditable=\"false\"])",

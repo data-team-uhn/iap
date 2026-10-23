@@ -58,7 +58,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         position: "absolute",
         inset: 0,
         overflow: "auto",
-        // Scrolling the document stops at its ends, rather than going on to scroll what holds it.
+        // Scrolling the document stops at its ends instead of scrolling what holds it.
         overscrollBehavior: "contain",
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
@@ -91,8 +91,8 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // How much of the document has been read looking for the marks, from 0 to 1, while some are, and what
-  // is looked for, as in "the passages".
+  // While marks are being looked for, the share of the document read so far, from 0 to 1, and what is
+  // looked for, as in "the passages".
   looking?: { share: number; what: string };
   children?: ReactNode;
 }) {

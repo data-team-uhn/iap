@@ -41,15 +41,15 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
   };
 }
 
-// A passage's own text, a layer deeper in its mark's colour than its card, setting it apart from what the
-// caller shows under it, such as comments.
+// The background of a passage's own text, a shade deeper in its mark's colour than its card, setting it
+// apart from what the caller shows under it.
 export function passageLayer(theme: Theme, kind: MarkKind) {
   return { bgcolor: passageTint(theme, kind, 0.25) };
 }
 
-// What the caller shows under a passage, such as comments: cut short past a number of lines of its text
-// when given one, fading out where it is cut, with room above for what reaches up out of it, such as a
-// field's label, which its edges would cut. Nothing at all when it is empty.
+// What the caller shows under a passage, such as comments, cut short past `lines` lines when given, and
+// faded out where it is cut. The room above keeps a field's label, which reaches up out of the field, from
+// being cut off. Hidden when empty.
 export function passageDetails(edges: ScrollEdges, lines?: number) {
   return {
     pt: 1,

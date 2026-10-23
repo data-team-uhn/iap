@@ -269,14 +269,14 @@ the order given, with those that cannot be found last. In a viewer narrower than
 `NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
 them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
 panel is narrow on any screen.
-Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), in the
-text's full colour, with buttons stepping through them as the controls on the card do.
-The list scrolls when there are more passages than fit, and fades out at its top or bottom where
-there are more that way (`useScrollEdges` says where, and `fadeEdges` makes the fade).
-The card above the document can also be swiped by touch, as the content moves: left to the next
-passage, right to the previous, as far as the ends. It follows the finger, springs back when let go of
-too soon, and the next card slides in from where the finger went, unless the person prefers reduced
-motion (`useSwipe`, for any element stepping through something by touch).
+Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), with
+buttons stepping through them.
+The list scrolls when the passages do not fit, and fades out at its top or bottom where there are
+more (`useScrollEdges` says where, and `fadeEdges` draws the fade).
+The card above the document can also be swiped by touch: left to the next passage, right to the
+previous, as far as the ends. It follows the finger, springs back when let go of too soon, and the
+next card slides in from where the finger went, unless the person prefers reduced motion. `useSwipe`
+does this for any element that steps through items by touch.
 
 Selecting a passage from the list scrolls the document to it. Clicking a mark in the document selects
 its card in the list and brings the card into view, or, in a narrow viewer, shows it above the
@@ -292,33 +292,31 @@ the viewer just reported doesn't move the reader. `marks` can be a new array on 
 viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `spans`, or `anchor`),
 and only looks for passages again when one of those changes.
 
-A caller whose marks are something more than passages, such as review comments, passes `markName`, the
-word for one and for several (`{ one: "comment", many: "comments" }`), and the viewer counts and steps
-through them by it: the heading over the list, the buttons, the list's and its entries' names, and what
-a screen reader is told ("Comment 3 of 12 is marked on page 4."). What the controls of a passage's own
-text say, such as "Show the whole passage", is still about the passage.
+A caller whose marks are more than passages, such as review comments, passes `markName`, the word for
+one and for several (`{ one: "comment", many: "comments" }`). The viewer uses it wherever it counts or
+steps through the marks: the heading over the list, the buttons, the list's labels, and what a screen
+reader is told ("Comment 3 of 12 is marked on page 4."). A control about the passage's own place in the
+document, such as "Show the passage on page 4", still names the passage.
 
 A caller that shows something with each passage, such as the comments on it, passes
 `renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
 the passage on its card in the list beside the document. A narrow viewer shows only the selected
 passage, and puts it on the card above the document. It goes outside the button selecting the
 passage, so it can hold fields and buttons of its own, such as a box for a new comment.
-The passage's own text sits on a layer deeper in its mark's colour than the card, setting it apart from
+The passage's own text sits on a deeper shade of its mark's colour than the card, setting it apart from
 what the caller shows under it.
 On the card above the document, what it gives is cut short past a few lines (fewer on a phone) and fades
-out where it is cut. The card's one button shows all of the passage and of what is under it ("Show the
-whole comment", named by `markName`), as does moving the focus into what is cut, such as onto a reply
-button. While what is under the passage holds a field to type in (`TEXT_ENTRY`: a text box or an editable
-element, not a checkbox), such as a comment being written, the card is open whatever the person chose, so
-the field and its buttons are in reach; once the field goes, as when the comment is saved, it is as they
-chose again.
-However much it holds, the card takes at most three fifths of the viewer's height and scrolls past it, so
-all of it stays in reach, and so do the document's controls below it. A caller's field that grows with
-what is typed should stop growing after a few rows, as the PDF annotations test widget's does, so that its
-buttons stay beside it.
+out where it is cut. One button shows all of the passage and of what is under it ("Show the whole
+comment", named by `markName`). Moving the focus into what is cut, such as onto a reply button, shows all
+of it too. While what is under the passage holds a field to type in (`TEXT_ENTRY`), such as a comment
+being written, the card stays open whatever the person chose. Once the field goes, as when the comment is
+saved, the card is again as they chose.
+The card takes at most three fifths of the viewer's height and scrolls past that, so the document's
+controls below it stay in reach. A caller's field that grows with what is typed should stop growing after
+a few rows, so that its buttons stay beside it.
 In the list, every entry but the selected one is cut short to a couple of lines, the passage and what is
-under it alike, so that many fit; the selected one is shown whole. The focus inside what is cut, such as a
-reply box in another entry, shows all of it while it is there, without selecting the entry.
+under it alike, and the selected one is shown whole. Moving the focus into what is cut, such as onto a
+reply box in another entry, shows all of it while the focus is there, without selecting the entry.
 
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
@@ -344,8 +342,8 @@ searches while the focus is in the viewer.
 A spinner shows in the frame until PDF.js has laid out the document's pages.
 
 On a phone, the space between the viewer's rows and around it is kept small, and the document runs to
-the bottom of the screen, as it does to its sides. Scrolling the document stops at its ends, rather than
-going on to scroll the dialog holding it.
+the bottom of the screen. Scrolling the document stops at its ends instead of scrolling the dialog
+holding it.
 
 It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is

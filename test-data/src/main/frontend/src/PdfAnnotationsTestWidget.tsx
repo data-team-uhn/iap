@@ -31,7 +31,7 @@ interface PassageComment {
   draft: boolean;
 }
 
-// Each passage marked is one comment's, so the viewer counts and steps through them as comments.
+// Each mark is one comment, so the viewer names the marks as comments.
 const COMMENTS = { one: "comment", many: "comments" };
 
 // A dashboard widget for trying out comments on passages of a PDF by hand. Select text in the document,

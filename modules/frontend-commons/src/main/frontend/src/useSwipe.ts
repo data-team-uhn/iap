@@ -21,9 +21,9 @@ import { useTheme } from "@mui/material/styles";
 
 import { TEXT_ENTRY } from "./textEntry";
 
-// How far a touch has to move sideways, more than twice as far as up or down, to count as a swipe rather
-// than a tap or a scroll; and how far it moves before the element starts following it.
+// How far a touch has to move sideways, and more than twice as far as up or down, to count as a swipe.
 const SWIPE_DISTANCE = 48;
+// How far it moves before the element starts following it.
 const DRAG_START = 8;
 
 // How far the element showing what was swiped to slides in from.
@@ -34,24 +34,24 @@ const AT_THE_END = 1 / 3;
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// A ref to give an element that can be swiped by touch to go to the previous or the next of something,
-// as the content it shows moves: right to the previous, left to the next, the other way round in a
-// right-to-left layout. The element follows the finger, springs back when it is let go of too soon, or
-// where there is nothing that way, and the element showing what it went to slides in from where the finger
-// went, so the element must be a new one for each item. Up and down are left to the browser, to scroll the
-// page, as is pinching, to zoom it. A swipe starting in a field is left to the field, to select its text, and
-// the tap a browser may take a swipe to end with is not passed on.
+// A ref for an element that people swipe by touch to go to the previous or the next item. A swipe right
+// goes to the previous one and left to the next, the other way round in a right-to-left layout. The element
+// follows the finger, and springs back when let go of too soon or where there is nothing that way. The
+// element showing the item swiped to slides in from where the finger went, so give each item a new element.
+// Up and down are left to the browser to scroll the page, and pinching to zoom it. A swipe starting in a
+// field is left to the field, to select its text. A click the browser may fire at the end of a swipe is
+// stopped.
 export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => void) | undefined) {
   const handlers = useRef({ onPrevious, onNext });
   useEffect(() => {
     handlers.current = { onPrevious, onNext };
   }, [onPrevious, onNext]);
-  // Which way the element showing what was swiped to slides in from, for the render the swipe caused.
+  // Which side the next element slides in from, kept only for the render the swipe causes.
   const slideIn = useRef<1 | -1 | undefined>(undefined);
   useEffect(() => {
     slideIn.current = undefined;
   });
-  // Whether the last touch was a swipe, whose click is not passed on to whichever element is there by then.
+  // Whether the last touch was a swipe, so that the click ending it is stopped.
   const swiped = useRef(false);
   const { duration, easing } = useTheme().transitions;
 
@@ -65,7 +65,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
     let dragging = false;
     let rtl = false;
     element.style.touchAction = "pan-y pinch-zoom";
-    // Where the finger went, as the element follows it: the handler that way, if any.
+    // The handler for the way the finger went, if there is one.
     const towards = (across: number) => (across < 0 !== rtl ? handlers.current.onNext : handlers.current.onPrevious);
     const springBack = () => {
       const from = element.style.transform;
