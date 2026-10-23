@@ -49,7 +49,6 @@ export function unquote(quote: string): string {
 }
 
 // A text in the form quotes are compared in, each character keeping the offset in the source it came from.
-// Preparing a page once serves every quote looked for in it.
 export interface PreparedText {
   text: string;
   offsets: number[];
@@ -76,8 +75,8 @@ export function findQuote(page: PreparedText, searchText: string): QuoteMatch[] 
 }
 
 // Where a quote broken across two pages sits: its start near the end of the first page, and its rest
-// near the start of the next. Undefined when no break fits. Only the ends of the pages where the parts can
-// be are searched, so a long page costs no more than a short one.
+// near the start of the next. Undefined when no break fits. Only the pages' ends are searched, so a long
+// page costs no more than a short one.
 export function findQuoteAcrossPages(
   first: PreparedText,
   next: PreparedText,

@@ -92,8 +92,8 @@ export type MarkPlace =
   | { status: "searching" | "tooShort" | "notFound" | "noText" }
   | { status: "found"; page: number; toPage?: number; spans: MarkSpan[]; text: string };
 
-// Each page's text in the form quotes are compared in, prepared once, however many quotes are looked for in
-// it, and however often the marks change.
+// Each page's text in the form quotes are compared in. A page is prepared once, however many quotes are
+// looked for in it and however often the marks change.
 const preparedTexts = new WeakMap<PageText, PreparedText>();
 
 function getPrepared(page: PageText): PreparedText {
