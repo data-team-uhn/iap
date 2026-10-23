@@ -21,7 +21,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-// A list 100px high of entries 50px high, saying where it goes on.
+// A list that says where it has more to show.
 function List({ entries }: { entries: number }) {
   const ref = useRef<HTMLUListElement>(null);
   const { above, below } = useScrollEdges(ref);

@@ -67,9 +67,8 @@ export interface PdfViewerProps {
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
-  // What the marks are called where the viewer counts them and steps through them, as in "Passage 3 of 12"
-  // or "Next passage", such as annotations on a review screen; passages when absent. The text a mark
-  // covers is a passage still.
+  // What the marks are called where the viewer counts and steps through them, such as comments on a review
+  // screen ("Comment 3 of 12"). Passages when absent. The text a mark covers is still called a passage.
   markName?: MarkName;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
@@ -218,7 +217,7 @@ function PdfViewerSession(props: PdfViewerProps) {
 const SEARCH_FIELD_ROOM = 600;
 
 // The space between the viewer's rows, and around it in the dialog, kept small on a phone, where the
-// document has the least room. There, the document runs to the bottom of the screen, as to its sides.
+// document has the least room. There, the document runs to the bottom of the screen.
 const ROW_GAP = { xs: 0.5, sm: 1 };
 const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
 
@@ -302,7 +301,7 @@ function ViewerBody(props: ViewerBodyProps) {
     showMark(id);
   }, [onSelect, showMark]);
   const stepTo = (index: number) => showSelected(ordered[index].id);
-  // Swiping the card above the document steps through the passages as its controls do, as far as the ends.
+  // Swiping the card above the document steps through the passages, as far as the ends.
   const swipeRef = useSwipe(
     position > 0 ? () => stepTo(position - 1) : undefined,
     position < ordered.length - 1 ? () => stepTo(position + 1) : undefined,
