@@ -30,6 +30,7 @@ import SchemaNodeDiscardAction from "./SchemaNodeDiscardAction";
 import SchemaNodeEditAction from "./SchemaNodeEditAction";
 import SchemaNodeMoveAction from "./SchemaNodeMoveAction";
 import SchemaOptionStepActions from "./SchemaOptionStepActions";
+import SchemaTemplateActions from "./SchemaTemplateActions";
 import { headingOf, isPart, shownNameOf } from "./schemaVersionTreeModel";
 
 interface SchemaNodeActionsProps {
@@ -44,8 +45,8 @@ interface SchemaNodeActionsProps {
   editCondition?: () => void;
 }
 
-// What may be done to a part or an answer option where it stands: correct it, set when a part applies, add a part
-// after it, move it, remove it. An option is added at the end of its question's options, and moved up or down from
+// What may be done to a part or an answer option where it stands: correct it, give a document its template, set when
+// a part applies, add a part after it, move it, remove it. An option is added at the end of its question's options, and moved up or down from
 // there. While a part is moving, only Move is offered. On a phone, every action but an option's steps is in a menu.
 function SchemaNodeActions({ node, parent, siblings, what, editCondition }: SchemaNodeActionsProps) {
   const { moving } = useMoveMode();
@@ -63,6 +64,7 @@ function SchemaNodeActions({ node, parent, siblings, what, editCondition }: Sche
   return (
     <ActionsMenu label={label} inline={moving !== undefined}>
       {edit}
+      { !moving && <SchemaTemplateActions node={node} /> }
       { editCondition && (
         <ActionIcon label="When it applies" onClick={editCondition}
           icon={<AltRouteOutlinedIcon fontSize="small" sx={{ color: "condition.main" }} />} />

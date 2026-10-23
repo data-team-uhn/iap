@@ -25,6 +25,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
 import DocumentUpload from "./DocumentUpload";
+import GeneratedDocument from "./GeneratedDocument";
 import {
   type FormItem,
   type FormQuestion,
@@ -82,7 +83,8 @@ function Items({ items, disabled, states, onAnswered }: {
 }
 
 // One requirement. One that holds no questions is still shown, and answered here where it can be: a
-// document is uploaded, and any other kind says it cannot be completed here yet.
+// document is uploaded, or generated where the platform fills it in, and any other kind says it cannot
+// be completed here yet.
 function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
@@ -96,14 +98,23 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
       { isFormRequirement(requirement)
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
         : isDocumentRequirement(requirement)
-          ? (
-            <DocumentUpload
-              path={path}
-              requirement={requirement}
-              disabled={disabled}
-              onAttached={onAttached}
-            />
-          )
+          ? requirement.generated
+            ? (
+              <GeneratedDocument
+                path={path}
+                requirement={requirement}
+                disabled={disabled}
+                onGenerated={onAttached}
+              />
+            )
+            : (
+              <DocumentUpload
+                path={path}
+                requirement={requirement}
+                disabled={disabled}
+                onAttached={onAttached}
+              />
+            )
           : (
             <Typography variant="placeholder">
               This part of the request cannot be completed here yet.

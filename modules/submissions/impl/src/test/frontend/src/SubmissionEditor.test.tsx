@@ -184,6 +184,7 @@ describe("SubmissionEditor", () => {
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
       required: true,
+      generated: false,
       acceptedFileTypes: [ "application/pdf", "image/png" ],
       template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
       templateName: "Doctor's note.docx",
@@ -409,6 +410,123 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} />);
 
       expect(await screen.findByLabelText(/Attach a file/)).toBeDisabled();
+    });
+  });
+
+  describe("a document the platform generates", () => {
+    const LETTER: DocumentRequirement = {
+      name: "decisionLetter",
+      path: "/Schemas/timeOffRequest/v1/decisionLetter",
+      type: DOCUMENT_REQUIREMENT,
+      label: "Decision letter",
+      required: true,
+      generated: true,
+      outdated: false,
+      acceptedFileTypes: [],
+      attached: [],
+    };
+
+    const LETTER_FILE = { title: "Decision letter.pdf", path: "/Submissions/x/d1/v1/file/uploadedFile" };
+
+    function asked(letter: Partial<DocumentRequirement> = {}, overrides: Partial<SubmissionForm> = {}) {
+      return form({ requirements: [ { ...LETTER, ...letter } ], ...overrides });
+    }
+
+    it("offers no upload, only to generate it from the answers", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByRole("button", { name: /Generate "Decision letter"/ })).toBeEnabled();
+      expect(screen.getByText(/once you ask for it/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+    });
+
+    it("opens what was generated to be read, rather than downloading it", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      const link = await screen.findByRole("link", { name: "Decision letter.pdf" });
+      expect(link).toHaveAttribute("href", LETTER_FILE.path);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).not.toHaveAttribute("download");
+      expect(screen.getByRole("button", { name: /Generate again/ })).toBeInTheDocument();
+      expect(screen.queryByText(/answers changed/)).toBeNull();
+    });
+
+    it("names a document with no file yet without linking it, and an unlabelled one by its name", async () => {
+      vi.stubGlobal("fetch", serving(asked({ label: "", attached: [ LETTER_FILE, { title: "Draft.pdf" } ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText(/, Draft\.pdf/)).toBeInTheDocument();
+      expect(screen.getAllByRole("link")).toHaveLength(1);
+      expect(screen.getByRole("button", { name: /Generate again "decisionLetter"/ })).toBeInTheDocument();
+    });
+
+    it("says when the answers changed after it was generated", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ], outdated: true })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Your answers changed after this was generated.")).toBeInTheDocument();
+    });
+
+    it("asks for it as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked(), asked({ attached: [ LETTER_FILE ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+
+      const request = fetchMock.mock.calls.find(call => call[0] === `${PATH}.generateDocument.json`);
+      expect(request).toBeDefined();
+      const init = request![1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect((init.body as URLSearchParams).get("requirement")).toBe("decisionLetter");
+      // What the server now says was generated, rather than what this page hoped
+      expect(await screen.findByRole("link", { name: "Decision letter.pdf" })).toBeInTheDocument();
+    });
+
+    it("says why it could not be generated, in the engine's own words, and lets that be dismissed", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+        if (options?.method === "POST") {
+          // A failed step is a 500, which only passes through once the session is known to be live
+          return json({ error: "Decision letter could not be generated: 'decision' is undefined" },
+            { ok: false, status: 500 });
+        }
+        return url.includes("sessionInfo") ? json({ userID: "demo-requester" }) : json(asked());
+      }));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+
+      expect(await screen.findByText(/'decision' is undefined/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /Close/ }));
+      expect(screen.queryByText(/'decision' is undefined/)).toBeNull();
+    });
+
+    it("falls back to the status when a refusal carries no reason", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.resolve({
+            ok: false, status: 502, url: "", json: () => Promise.reject(new Error("no body")),
+          } as unknown as Response)
+          : json(asked())));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+
+      expect(await screen.findByText(/This document could not be generated \(502\)/)).toBeInTheDocument();
+    });
+
+    it("cannot be generated once the request is no longer the submitter's to change", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] }, { editable: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByRole("button", { name: /Generate again/ })).toBeDisabled();
     });
   });
 

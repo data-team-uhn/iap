@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -77,6 +78,8 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     private static final String QUESTION_PROPERTY = "question";
 
     private static final String VALUE_PROPERTY = "value";
+
+    private static final String LAST_MODIFIED_PROPERTY = "jcr:lastModified";
 
     @Reference
     private ConditionEvaluator conditions;
@@ -262,8 +265,12 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             return;
         }
         if (existing != null) {
-            modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
+            final ModifiableValueMap answer = modifiable(Objects.requireNonNull(
+                target.getResourceResolver().getResource(existing),
+                "An answer the submission just reported is still where it said"));
+            answer.put(VALUE_PROPERTY, values);
+            // The repository stamps a new answer, but not a change to one; a generated document compares against it
+            answer.put(LAST_MODIFIED_PROPERTY, Calendar.getInstance());
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),

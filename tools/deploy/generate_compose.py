@@ -57,6 +57,9 @@ MONGO_DATABASE = "sling"
 # The host port the Docling parser is published on, matching its ENTRYPOINT default.
 DOCLING_PORT = 18765
 
+# The host port the document generation worker is published on, matching its ENTRYPOINT.
+GENERATION_PORT = 18766
+
 # The host port Keycloak is published on, matching tools/dev/keycloak/ and docs/keycloak-oidc.md.
 KEYCLOAK_PORT = 8084
 KEYCLOAK_REALM = "iap"
@@ -115,6 +118,10 @@ def parse_args(argv):
                         help="Add the Docling document parser, published on 127.0.0.1:{}, "
                              "which is used to extract the text out of uploaded documents"
                              .format(DOCLING_PORT))
+    parser.add_argument('--generation', action='store_true',
+                        help="Add the document generation worker, published on 127.0.0.1:{}, "
+                             "which fills .docx templates and converts them to PDF"
+                             .format(GENERATION_PORT))
 
     parser.add_argument('--image', default='iap/iap',
                         help="The IAP Docker image to run [default: iap/iap]")
@@ -380,6 +387,10 @@ def env_entries(args, env_file):
             "containers, and compared as an opaque secret, so any value will do for",
             "development. Empty on either side means asynchronous parsing is refused.",
         ]))
+    if args.generation:
+        entries.append(('IAP_GENERATION_TOKEN', secrets.token_urlsafe(32), [
+            "Protects the connection between IAP and the generation worker.",
+        ]))
     return entries
 
 
@@ -446,6 +457,8 @@ def iap_service(args, compose_directory):
         depends_on[MAIL_SERVICE] = {'condition': 'service_started'}
     if args.docling:
         depends_on['docling'] = {'condition': 'service_started'}
+    if args.generation:
+        depends_on['generation'] = {'condition': 'service_started'}
     if depends_on:
         service['depends_on'] = depends_on
 
@@ -543,6 +556,11 @@ def iap_environment(args):
         comment(environment, "Where the document volume shared with the daemon is mounted; the")
         comment(environment, "same path on both sides, so a staged path can be handed over as is.")
         environment['IAP_SHARED_DOCS'] = '/shared-docs'
+
+    if args.generation:
+        comment(environment, "Sent as the Authorization header of every generation request; the")
+        comment(environment, "worker below is given the same value. In .env.")
+        environment['IAP_GENERATION_TOKEN'] = '${IAP_GENERATION_TOKEN}'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
@@ -645,9 +663,10 @@ def keycloak_service():
 def docling_service():
     service = {}
     comment(service, "The docling document parser service.")
+    # The context is modules/documents so the image can take the helpers in utils/ too
     service['build'] = {
-        'context': '../modules/documents/processing',
-        'dockerfile': 'Dockerfile'
+        'context': '../modules/documents',
+        'dockerfile': 'processing/Dockerfile'
     }
     # Built from this repository rather than pulled, so it is not in images/docker-compose.yml.
     service['image'] = 'iap/docling'
@@ -699,6 +718,46 @@ def docling_service():
     return service
 
 
+def generation_service():
+    service = {}
+    comment(service, "The document generation worker: .docx template in, .docx and PDF out.")
+    # The context is modules/documents so the image can take the helpers in utils/ too
+    service['build'] = {
+        'context': '../modules/documents',
+        'dockerfile': 'generation/worker/Dockerfile'
+    }
+    # Built from this repository rather than pulled, so it is not in images/docker-compose.yml.
+    service['image'] = 'iap/generation'
+    service['networks'] = ['iap']
+    service['environment'] = {
+        'IAP_GENERATION_TOKEN': '${IAP_GENERATION_TOKEN}',
+        # 0, for the reason given on the docling service.
+        'IAP_GENERATION_TRUSTED_NETWORK': '${IAP_GENERATION_TRUSTED_NETWORK:-0}',
+        # Each running conversion is a soffice process of a few hundred MB.
+        'IAP_GENERATION_MAX_CONCURRENT': '${IAP_GENERATION_MAX_CONCURRENT:-2}',
+    }
+    service['deploy'] = {
+        'resources': {
+            'limits': {
+                'cpus': '2',
+                'memory': '1G'
+            }
+        }
+    }
+    service['healthcheck'] = {
+        'test': ['CMD', 'curl', '-fsS', "http://127.0.0.1:{}/health".format(GENERATION_PORT)],
+        'interval': '30s',
+        'timeout': '5s',
+        'retries': 3,
+        'start_period': '20s'
+    }
+    # Long enough for a conversion already running to finish and answer IAP
+    service['stop_grace_period'] = '45s'
+    service['restart'] = 'unless-stopped'
+    service['ports'] = ['127.0.0.1:{0}:{0}'.format(GENERATION_PORT)]
+    return service
+
+
 def mail_service(compose_directory):
     service = {}
     comment(service, "Accepts SMTPS on 465 and writes each message to ./mail as an .eml file")
@@ -746,6 +805,8 @@ def build_document(args, compose_directory):
         services['keycloak'] = keycloak_service()
     if args.docling:
         services['docling'] = docling_service()
+    if args.generation:
+        services['generation'] = generation_service()
     if args.mail:
         services[MAIL_SERVICE] = mail_service(compose_directory)
 
@@ -775,7 +836,7 @@ def next_steps(args, compose_directory):
         ]))
     # --build only matters for the services built from this repository, and only after their
     # sources change: Compose builds a missing image either way, then never looks again.
-    builds_locally = args.mail or args.docling
+    builds_locally = args.mail or args.docling or args.generation
     actions.append(("Bring everything up", [
         "docker compose up -d --build" if builds_locally else "docker compose up -d",
     ]))

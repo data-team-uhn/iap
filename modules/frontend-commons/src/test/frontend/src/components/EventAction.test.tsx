@@ -83,6 +83,23 @@ describe("EventAction", () => {
     await waitFor(() => { expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); });
   });
 
+  it("sends what the event carries along with it", async () => {
+    const fetch = serve();
+    render(
+      <EventAction path="/Schemas/s/v1/consent" reload={vi.fn()} icon={<span />} label="Remove template"
+        event="removeTemplate" params={{ content: "null" }} title="Remove the template" explanation="Gone." />,
+      { wrapper: NoticeProvider },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove template" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove template" }));
+
+    await waitFor(() => { expect(fetch).toHaveBeenCalled(); });
+    const [ url, init ] = fetch.mock.calls[0] as unknown as [ string, RequestInit ];
+    expect(url).toBe("/Schemas/s/v1/consent.removeTemplate.json");
+    expect((init.body as URLSearchParams).get("content")).toBe("null");
+  });
+
   it("shows the engine's refusal and leaves the page as it was", async () => {
     serve("Not while reviews are open");
     const reload = renderAction();

@@ -17,9 +17,16 @@
  */
 package io.uhndata.iap.schemas.editing.internal.checks;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -48,10 +55,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class SchemaVersionChecksTest
 {
+    private static final String GENERIC = "application/octet-stream";
+
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
-        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
+        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck(),
+        new GeneratedDocumentCheck());
 
     private SchemaFixture fixture;
 
@@ -172,6 +182,100 @@ class SchemaVersionChecksTest
         final String message = problems(draft);
         assertTrue(message.contains("form/nameless has a condition on a question"), message);
         assertFalse(message.contains("comparing"));
+    }
+
+    @Test
+    void aGeneratedDocumentNeedsATemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+
+        assertEquals("\"Decision letter\" is generated, but has no template", problems(draft));
+    }
+
+    @Test
+    void aGeneratedDocumentNeedsADocxTemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+        template(letter, "application/pdf");
+
+        assertEquals("\"Decision letter\" is generated, but its template is not a .docx file", problems(draft));
+    }
+
+    @Test
+    void aGeneratedDocumentWithADocxTemplateGoesOn() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+        template(letter, GeneratedDocumentCheck.DOCX_MIME_TYPE);
+
+        assertEquals("", problems(draft));
+    }
+
+    @Test
+    void aTemplateOfNoKnownTypeIsTakenForWhatItHolds() throws PersistenceException, IOException
+    {
+        // As the bundle's content loader records a file named "template", having no extension to go by
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
+            Map.of("label", "Decision letter", "generated", true));
+        final Resource memo = this.fixture.create(draft.getPath(), "memo", "sch:DocumentRequirement",
+            Map.of("label", "Memo", "generated", true));
+        final Resource note = this.fixture.create(draft.getPath(), "note", "sch:DocumentRequirement",
+            Map.of("label", "Note", "generated", true));
+        final Resource cut = this.fixture.create(draft.getPath(), "cut", "sch:DocumentRequirement",
+            Map.of("label", "Cut", "generated", true));
+        template(letter, GENERIC, zip("[Content_Types].xml", "word/document.xml"));
+        template(memo, GENERIC, zip("[Content_Types].xml", "xl/workbook.xml"));
+        template(note, GENERIC, new byte[] { 1 });
+        // A zip cut off part way through its first entry
+        template(cut, GENERIC, Arrays.copyOf(zip("word/document.xml"), 40));
+
+        assertEquals("\"Memo\" is generated, but its template is not a .docx file; "
+            + "\"Note\" is generated, but its template is not a .docx file; "
+            + "\"Cut\" is generated, but its template is not a .docx file", problems(draft));
+    }
+
+    @Test
+    void anUploadedDocumentNeedsNoTemplate() throws PersistenceException
+    {
+        final Resource draft = this.fixture.version(this.schema, "v1", "draft");
+        this.fixture.create(draft.getPath(), "consent", "sch:DocumentRequirement", Map.of("label", "Consent"));
+
+        assertEquals("", problems(draft));
+    }
+
+    private void template(final Resource requirement, final String mimeType) throws PersistenceException
+    {
+        template(requirement, mimeType, new byte[] { 1 });
+    }
+
+    private void template(final Resource requirement, final String mimeType, final byte[] content)
+        throws PersistenceException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final Resource template = resolver.create(requirement, "template", Map.of("jcr:primaryType", "nt:file"));
+        resolver.create(template, "jcr:content", Map.of("jcr:primaryType", "nt:resource",
+            "jcr:mimeType", mimeType, "jcr:data", new ByteArrayInputStream(content)));
+        resolver.commit();
+    }
+
+    // A zip holding the named entries, each with a little content
+    private static byte[] zip(final String... entries) throws IOException
+    {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            for (final String entry : entries) {
+                zip.putNextEntry(new ZipEntry(entry));
+                zip.write("<xml/>".repeat(20).getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        return bytes.toByteArray();
     }
 
     private String problems(final Resource version)

@@ -59,6 +59,16 @@ test.describe('the time off request demo', () => {
     expect(approval.approverGroup).toBe('time-off-approvers');
   });
 
+  test('fills a request form in from the answers, with the template it ships', async ({ request }) => {
+    const response = await request.get('/Schemas/timeOffRequest/v1/requestForm.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    expect(((await response.json()) as { generated?: boolean }).generated).toBe(true);
+    const template = await request.get('/Schemas/timeOffRequest/v1/requestForm/template.json', { headers: asAdmin });
+    expect(template.ok()).toBeTruthy();
+    expect(((await template.json()) as { 'jcr:primaryType'?: string })['jcr:primaryType']).toBe('nt:file');
+  });
+
   test('points the schema version at the workflow that drives it', async ({ request }) => {
     // The join between the two halves of the demo: what a submission must contain, and what it is then put
     // through. Written into the content as `jcr:reference:workflow` with the target's *path*, which the
