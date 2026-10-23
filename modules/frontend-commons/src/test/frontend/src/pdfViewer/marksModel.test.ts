@@ -37,8 +37,8 @@ function placed(...spans: MarkSpan[]): Mark {
   return { id: "m", spans, kind: "annotation" };
 }
 
-// The place of the one mark, after reading the pages given, by page number, each line of a page ending
-// where PDF.js says it does rather than with a character.
+// The place of the one mark, after reading the pages given, by page number. Each line of a page ends
+// where PDF.js says it does, not with a character.
 function placeAfter(pages: Record<number, string>, pageCount: number, given = mark()) {
   const locator = new MarkLocator([ given ], pageCount);
   for (const [ page, text ] of Object.entries(pages)) {
