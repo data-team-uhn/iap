@@ -217,25 +217,26 @@ card per schema, so the card describes its versions.
 ```
 
 Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
-(`annotation`), so it is coloured accordingly. Where it is comes in one of two ways:
+(`annotation`), so it is coloured accordingly. Its place is given in one of two ways:
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
-- `spans`, when its place is known exactly, such as a change between two versions. Each span is a `page` and the `start` and `end` offsets the passage covers in that
-  page's text, one span per page it runs over. A span whose `start` equals its `end` is a point
-  between two characters. The viewer reads the pages a mark's spans are on first, and places the mark
-  without searching. Spans that run backwards or past their page's text are not in the document.
+- `spans`, when its place is known exactly, such as a change between two versions. Each span is a
+  `page` and the `start` and `end` offsets the passage covers in that page's text, one span per page
+  it runs over. A span whose `start` equals its `end` is a point between two characters. The viewer
+  reads the pages a mark's spans are on first, and places the mark without searching. Spans that run
+  backwards or past their page's text are not in the document.
 
-Offsets are into a page's text as PDF.js reads it for its text layer (`getTextContent` with
-`disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
-`usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
-them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
-passage as shown (`getPassageText`) puts a space there.
+Offsets are into a page's text as PDF.js reads it for its text layer: the strings `getTextContent`
+gives with `disableNormalization`, joined. That is the text of the layer's own text nodes, and
+`usePdfDocument`'s `getPageText` gives it. The text layer ends a line with an element rather than a
+character, so lines run on in this text without a space. `getPageTextWithLines` says where they end,
+and `getPassageText` puts a space there when it shows a passage.
 
 Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
-itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
-the quote itself for a quote. Marks let the pointer through, so text can still be selected across them,
-and a click is matched to a mark by where it falls.
+itself, leaving PDF.js's own search untouched. A quoted mark is shown with its quote, and a placed
+one with the text its spans cover. Marks let the pointer through, so text can still be selected
+across them, and a click is matched to a mark by where it falls.
 
 A single passage is shown on a card above the document. Several passages are listed beside it, in
 the order given, with those that cannot be found last. In a viewer narrower than
