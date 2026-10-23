@@ -60,8 +60,8 @@ export interface TextPoint {
   char: number;
 }
 
-// A passage kept so that it can be found again, as the W3C's position and quote selectors keep one: where
-// it starts and ends, what it says, and some of the text before and after it on its pages.
+// A passage kept so that it can be found again: where it starts and ends, what it says, and some of the
+// text around it. It follows the W3C's text position and quote selectors.
 export interface TextAnchor {
   start: TextPoint;
   end: TextPoint;
@@ -70,9 +70,7 @@ export interface TextAnchor {
   after: string;
 }
 
-// A passage kept as an anchor, such as one a person selected to comment on. It is placed where the anchor
-// says while the text there still says its quote, and otherwise where its quote is found with the text
-// most like what was around it.
+// A passage kept as an anchor, such as one a person selected to comment on.
 export interface AnchoredMark extends MarkBase {
   anchor: TextAnchor;
 }
@@ -301,10 +299,10 @@ export class MarkLocator {
     return fits ? this.#found(read) : { status: "notFound" };
   }
 
-  // Where the anchor says, as soon as its pages are read, if the text there still says its quote, or
-  // else, once every page is read, the occurrence of its quote with the text around it most like what was
-  // around it, whole on a page rather than across a break, and nearest its page. A quote too short to
-  // trust needs some of that text to be the same.
+  // Where the anchor says, as soon as its pages are read, if the text there still says its quote.
+  // Otherwise, once every page is read, the occurrence of its quote whose surrounding text is most like
+  // the anchor's. Ties go to one whole on a page over one across a break, then to the one nearest the
+  // anchor's page. A quote too short to trust needs some of its surrounding text to be the same.
   #getAnchoredPlace(anchor: TextAnchor): MarkPlace {
     const { start, end, quote } = anchor;
     const searchText = getComparedText(quote);
@@ -411,8 +409,7 @@ export function getMarksKey(marks: Mark[]): string {
   }));
 }
 
-// The pages of the document to read first, as the only ones marks placed by their spans or kept as
-// anchors need, in order.
+// The pages that marks placed by their spans or kept as anchors are on, in order. These are read first.
 export function getPlacedPages(marks: Mark[], pageCount: number): number[] {
   const pages = new Set(marks.flatMap(mark => {
     if ("anchor" in mark) {

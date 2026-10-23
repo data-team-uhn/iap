@@ -23,8 +23,8 @@ import { COMMENT_BUTTON_HEIGHT } from "./pdfViewerModel";
 import type { MarkSpan } from "./marksModel";
 import type { SelectedText } from "./useSelectedText";
 
-// A button offering to comment on the text selected, where its place says. Pressing it neither moves the
-// focus nor clears the selection, and holds what is selected, which tapping elsewhere would clear on a phone.
+// The button offering to comment on the text selected, at the place given. Pressing it keeps the focus
+// and the selection, and holds what is selected, since a tap clears the selection on some phones.
 export default function CommentButton({ at, onPress, onComment }: {
   at: SelectedText;
   onPress: () => void;
@@ -40,7 +40,6 @@ export default function CommentButton({ at, onPress, onComment }: {
         onPress();
       }}
       onClick={() => onComment(at.spans)}
-      // The place changes with every selection, so it is set on the element rather than in a class.
       style={{ top, left, right }}
       sx={{ position: "absolute", zIndex: 1, height: COMMENT_BUTTON_HEIGHT, boxShadow: 4, whiteSpace: "nowrap" }}
     >
