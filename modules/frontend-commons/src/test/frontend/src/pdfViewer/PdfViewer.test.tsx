@@ -840,7 +840,7 @@ describe("PdfViewer", () => {
 
       describe("swiped by touch", () => {
         beforeEach(() => {
-          // Motion as the browser shows it, which jsdom does not
+          // jsdom has neither `matchMedia` nor `animate`
           vi.stubGlobal("matchMedia", (media: string) => ({
             media,
             matches: false,
@@ -852,7 +852,7 @@ describe("PdfViewer", () => {
           Element.prototype.animate = vi.fn();
         });
 
-        // A finger moving across the card, from where it says which passage it shows, right for a positive distance
+        // A finger moving across the card from its count, right for a positive distance
         function swipe(across: number) {
           const card = screen.getByText(/^\d of 3$/);
           const at = (clientX: number) => ({ pointerType: "touch", pointerId: 1, clientX, clientY: 10 });
@@ -1029,7 +1029,7 @@ describe("PdfViewer", () => {
         const field = screen.getByRole("textbox", { name: "About schedule" });
 
         act(() => field.focus());
-        // As the browser scrolls it to show what is focused in what was cut
+        // As the browser scrolls it to show the focus
         field.parentElement!.scrollTop = 40;
         act(() => field.blur());
 
@@ -1037,7 +1037,7 @@ describe("PdfViewer", () => {
       });
 
       describe("on the card above the document", () => {
-        // A comment to read, with a button replying to it, which runs past the room it is given
+        // A comment with a reply button
         const renderComment = (mark: Mark) => (
           <div>
             <p>{`A long comment on ${mark.id}`}</p>
@@ -1073,7 +1073,7 @@ describe("PdfViewer", () => {
           await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
           const shown = screen.getByText("A long comment on volunteers").parentElement!.parentElement!;
           runLong(shown);
-          // As the browser scrolls it to show something focused in what is cut
+          // As the browser scrolls it to show the focus
           shown.scrollTop = 40;
 
           await userEvent.click(screen.getByRole("button", { name: "Show the whole passage" }));

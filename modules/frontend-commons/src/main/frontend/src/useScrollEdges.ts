@@ -22,12 +22,12 @@ export interface ScrollEdges {
   below: boolean;
 }
 
-// How far a list fades out where it goes on beyond what it shows.
+// How far an element fades out where it goes on beyond what it shows.
 const FADE = 32;
 
-// Whether an element scrolling up and down goes on beyond what it shows, above or below: measured as it
-// scrolls, as it or any of its children changes size, and as children come and go. Told again only when
-// that changes, rather than at each step of a scroll.
+// Whether an element scrolling up and down goes on beyond what it shows, above or below. It is measured
+// again as it scrolls, as it or its children change size, and as children come and go. It changes only
+// when one of the two does, not at each step of a scroll.
 export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges {
   const [ edges, setEdges ] = useState({ above: false, below: false });
 
