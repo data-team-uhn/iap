@@ -23,7 +23,7 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import FileValidationWidget from "@iap/test-data/FileValidationWidget";
 
-// The rules have their own tests; this one checks what the widget asks and shows
+// The rules have their own tests. These check what the widget asks and shows.
 vi.mock("@iap/frontend-commons/fileValidation", async importOriginal => ({
   ...await importOriginal<typeof import("@iap/frontend-commons/fileValidation")>(),
   validateUpload: vi.fn(),
@@ -108,7 +108,6 @@ describe("FileValidationWidget", () => {
     }, expect.any(AbortSignal));
   });
 
-  // An empty or nonsense limit is not a limit of zero
   it("falls back to the default for a limit left empty", async () => {
     validate.mockResolvedValue(undefined);
     renderWidget();
@@ -126,7 +125,6 @@ describe("FileValidationWidget", () => {
     }, expect.any(AbortSignal));
   });
 
-  // Each check reads the whole file, so typing "400" runs one check, not three
   it("checks once typing stops, not on every keystroke", async () => {
     validate.mockResolvedValue(undefined);
     renderWidget();
@@ -145,7 +143,6 @@ describe("FileValidationWidget", () => {
       expect.anything(), [], expect.objectContaining({ maxPdfPages: 400 }), expect.any(AbortSignal));
   });
 
-  // Each check reads the whole file, so one the settings have moved on from is stopped
   it("stops the check it has moved on from", async () => {
     validate.mockReturnValueOnce(new Promise(() => undefined)).mockResolvedValueOnce(undefined);
     renderWidget();
@@ -168,7 +165,6 @@ describe("FileValidationWidget", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("worker gone");
   });
 
-  // An answer for a file no longer picked must not overwrite the one for the file that is
   it("ignores the answer to a check it has moved on from", async () => {
     let finishFirst: (problem: string | undefined) => void = () => undefined;
     validate

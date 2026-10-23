@@ -124,9 +124,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     return () => window.removeEventListener("beforeunload", warn);
   }, [busy]);
 
-  // Checked here first, so a file the server would refuse, or the parser could not read, is refused
-  // in a moment rather than after the upload. Reloads the form on success, since what it asks and what
-  // is attached may have changed.
+  // Reloads the form on success, since what it asks and what is attached may have changed
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
