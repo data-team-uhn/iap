@@ -154,7 +154,7 @@ public final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, conditions());
+            }, routing());
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }
@@ -287,6 +287,28 @@ public final class EngineFixture
         resolvers.set(evaluator,
             List.of(new LiteralOperandResolver(), new TagsOperandResolver(), new VariableOperandResolver()));
         return evaluator;
+    }
+
+    /**
+     * The engine's flow routing, asking the fixture's {@link #conditions() evaluator} about a gateway's guards.
+     *
+     * @return a routing for the engine and its task completion
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static FlowRouting routing() throws ReflectiveOperationException
+    {
+        return new FlowRouting(conditions());
+    }
+
+    /**
+     * How the engine ends a user task, routing the resumed instance through the fixture's {@link #routing()}.
+     *
+     * @return a task completion for the engine
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static TaskCompletion taskCompletion() throws ReflectiveOperationException
+    {
+        return new TaskCompletion(routing());
     }
 
     /**

@@ -44,6 +44,12 @@ public class WorkflowToken extends EntityPart
     /** The {@code sling:resourceType} of a {@code wf:WorkflowToken} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowToken";
 
+    /** The property naming the node the token {@link #getCurrentNodeId() rests on}. */
+    public static final String CURRENT_NODE_ID_PROPERTY = "currentNodeId";
+
+    /** The property naming the arc the token {@link #getArrivedBy() last arrived by}. */
+    public static final String ARRIVED_BY_PROPERTY = "arrivedBy";
+
     @ValueMapValue
     private String currentNodeId;
 
@@ -72,6 +78,26 @@ public class WorkflowToken extends EntityPart
     public String getArrivedBy()
     {
         return this.arrivedBy;
+    }
+
+    /**
+     * The arc this token last arrived by, resolved among the incoming arcs of the {@link #getCurrentNode() node it
+     * rests on}.
+     *
+     * @return the sequence flow, or {@code null} for a token that has not travelled along an arc yet, or whose arc
+     *         cannot be resolved
+     */
+    @Nullable
+    public SequenceFlow getArrivedByFlow()
+    {
+        final FlowNode node = this.getCurrentNode();
+        if (this.arrivedBy == null || node == null) {
+            return null;
+        }
+        return node.getIncomingFlows().stream()
+            .filter(flow -> this.arrivedBy.equals(flow.getElementId()))
+            .findFirst()
+            .orElse(null);
     }
 
     /**

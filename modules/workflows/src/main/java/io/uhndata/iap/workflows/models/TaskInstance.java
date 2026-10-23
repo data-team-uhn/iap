@@ -45,8 +45,23 @@ public class TaskInstance extends Entity
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";
 
+    /** The property holding the task's {@link #getStatus() status}. */
+    public static final String STATUS_PROPERTY = "status";
+
     /** The {@link #getStatus() status} a task carries until it is completed or cancelled. */
     public static final String OPEN_STATUS = "created";
+
+    /** The status of a task a person completed. */
+    public static final String COMPLETED_STATUS = "completed";
+
+    /** The status of a task nobody completed: its deadline ran out, or its instance was terminated. */
+    public static final String CANCELLED_STATUS = "cancelled";
+
+    /** The property holding when the task {@link #getStartTime() started} waiting. */
+    public static final String START_TIME_PROPERTY = "startTime";
+
+    /** The property holding when the task {@link #getEndTime() ended}. */
+    public static final String END_TIME_PROPERTY = "endTime";
 
     @ValueMapValue
     private String taskDefinitionId;

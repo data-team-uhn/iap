@@ -27,8 +27,10 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -54,7 +56,8 @@ import io.uhndata.iap.workflows.spi.Payloads;
  * @version $Id$
  * @since 0.1.0
  */
-final class TaskCompletion
+@Component(service = TaskCompletion.class)
+public class TaskCompletion
 {
     /** The domain event that completes a user task. */
     static final String COMPLETE_EVENT = "complete";
@@ -70,8 +73,17 @@ final class TaskCompletion
 
     private static final String WALK_ID_PROPERTY = "walkId";
 
-    private TaskCompletion()
+    private final FlowRouting routing;
+
+    /**
+     * Constructor.
+     *
+     * @param routing what decides where the resumed instance's tokens go
+     */
+    @Activate
+    public TaskCompletion(@Reference final FlowRouting routing)
     {
+        this.routing = routing;
     }
 
     /**
@@ -101,14 +113,13 @@ final class TaskCompletion
      * @param event the incoming event
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
-     * @param conditions the evaluator for the resumed instance's gateway guards
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
-    static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer,
-        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
+    void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName()) && !TIMEOUT_EVENT.equals(event.getName())) {
             throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
@@ -127,7 +138,7 @@ final class TaskCompletion
         }
         stamp(resolver, task);
         if (TIMEOUT_EVENT.equals(event.getName())) {
-            expire(resolver, task, definition, actor, performer, conditions);
+            fireDeadline(resolver, task, definition, actor, performer);
             return;
         }
         PerformerCheck.verify(resolver, definition, actor);
@@ -138,7 +149,7 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, this.routing).completeTask(task, outcome);
     }
 
     /**
@@ -173,13 +184,12 @@ final class TaskCompletion
      * @param definition the activity the task was raised from
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
-     * @param conditions the evaluator for the resumed instance's gateway guards
      * @throws WorkflowException when nothing is counting down to this task, the timer does not admit the actor, its
      *     deadline has not passed yet, or the run cannot continue
      * @throws PersistenceException when the instance cannot be written
      */
-    private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
+    private void fireDeadline(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
         throws WorkflowException, PersistenceException
     {
         final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
@@ -193,6 +203,6 @@ final class TaskCompletion
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).expire(task, timer);
+        new InstanceRunner(resolver, performer, actor, this.routing).fireDeadline(task, timer);
     }
 }

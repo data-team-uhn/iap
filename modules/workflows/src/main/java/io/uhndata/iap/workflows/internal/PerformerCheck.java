@@ -98,8 +98,8 @@ final class PerformerCheck
     }
 
     /**
-     * Refuses the actor unless the list admits them. For a node whose performers default to someone when it names
-     * nobody.
+     * Refuses the actor unless the list admits them. A caller passes the list itself when a node's performers default
+     * to someone if it names nobody.
      *
      * @param serviceResolver the engine's own session, used to look the actor up
      * @param performers the principals admitted

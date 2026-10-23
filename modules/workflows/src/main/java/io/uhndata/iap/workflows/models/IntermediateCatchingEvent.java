@@ -87,12 +87,13 @@ public class IntermediateCatchingEvent extends IntermediateEvent
             return;
         }
         this.durationRead = true;
-        final int clock = this.timerDuration.indexOf('T');
+        final int durationMarkerPosition = this.timerDuration.indexOf('T');
         try {
-            final Period date = clock == 1 ? Period.ZERO
-                : Period.parse(clock < 0 ? this.timerDuration : this.timerDuration.substring(0, clock));
-            final Duration time = clock < 0 ? Duration.ZERO
-                : Duration.parse("PT" + this.timerDuration.substring(clock + 1));
+            final Period date = durationMarkerPosition == 1 ? Period.ZERO
+                : Period.parse(durationMarkerPosition < 0 ? this.timerDuration
+                    : this.timerDuration.substring(0, durationMarkerPosition));
+            final Duration time = durationMarkerPosition < 0 ? Duration.ZERO
+                : Duration.parse("PT" + this.timerDuration.substring(durationMarkerPosition + 1));
             if (!date.isNegative() && !time.isNegative()) {
                 this.datePart = date;
                 this.timePart = time;

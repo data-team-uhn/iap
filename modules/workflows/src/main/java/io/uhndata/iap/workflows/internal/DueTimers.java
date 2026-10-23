@@ -90,13 +90,12 @@ public class DueTimers implements Runnable
     /** The operation a failure is recorded under, when the sweep as a whole fails. */
     private static final String SWEEP = "sweep";
 
-    private static final String STATUS_PROPERTY = "status";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(DueTimers.class);
 
     /** The open tasks whose deadline has passed and not been given up on, oldest deadline first. */
     private static final String DUE_TASKS = "SELECT * FROM [wf:TaskInstance] AS task"
-        + " WHERE task.[status] = '" + TaskInstance.OPEN_STATUS + "' AND task.[dueDate] <= $now"
+        + " WHERE task.[" + TaskInstance.STATUS_PROPERTY + "] = '" + TaskInstance.OPEN_STATUS + "'"
+        + " AND task.[dueDate] <= $now"
         + " AND (task.[" + DELIVERY_FAILURES_PROPERTY + "] IS NULL"
         + " OR task.[" + DELIVERY_FAILURES_PROPERTY + "] < " + MAX_DELIVERY_FAILURES + ")"
         + " ORDER BY task.[dueDate] ASC";
@@ -226,7 +225,7 @@ public class DueTimers implements Runnable
         resolver.refresh();
         final Resource task = resolver.getResource(path);
         return task != null
-            && TaskInstance.OPEN_STATUS.equals(task.getValueMap().get(STATUS_PROPERTY, String.class));
+            && TaskInstance.OPEN_STATUS.equals(task.getValueMap().get(TaskInstance.STATUS_PROPERTY, String.class));
     }
 
     /**

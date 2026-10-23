@@ -49,6 +49,21 @@ public class WorkflowInstance extends Entity
     /** The {@code sling:resourceType} of a {@code wf:WorkflowInstance} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowInstance";
 
+    /** The property holding the instance's {@link #getStatus() status}. */
+    public static final String STATUS_PROPERTY = "status";
+
+    /** The status of an instance whose run has not ended. */
+    public static final String ACTIVE_STATUS = "active";
+
+    /** The status of an instance whose last token is spent, or that was terminated. */
+    public static final String COMPLETED_STATUS = "completed";
+
+    /** The property holding when the instance {@link #getStartTime() started}. */
+    public static final String START_TIME_PROPERTY = "startTime";
+
+    /** The property holding when the instance {@link #getEndTime() ended}. */
+    public static final String END_TIME_PROPERTY = "endTime";
+
     @ValueMapValue
     private String workflowVersion;
 
