@@ -61,8 +61,8 @@ function createDefaults() {
     textReads: [] as number[],
     // How many pages PDF.js's search has gone through for the last query, every page when undefined.
     pagesSearched: undefined as number | undefined,
-    // Set to hold a new search pending, as PDF.js does while the typing goes on, until releaseSearch() is
-    // called, the last search's matches kept meanwhile.
+    // Set to hold a new search pending until releaseSearch() is called, keeping the last search's matches
+    // meanwhile.
     holdSearch: false,
     releaseSearch: undefined as (() => void) | undefined,
     // Every search asked of PDF.js, as its find events.
