@@ -20,7 +20,7 @@ import { useLayoutEffect, useState } from "react";
 // Below this width, a viewer shows its passages one at a time above the document rather than beside it.
 export const NARROW_VIEWER_WIDTH = 720;
 
-// Whether the element, a viewer, is narrower than NARROW_VIEWER_WIDTH. Narrow until it is measured.
+// Whether a viewer element is narrower than NARROW_VIEWER_WIDTH. It counts as narrow until measured.
 export function useNarrowViewer(viewer: HTMLElement | null): boolean {
   const [narrow, setNarrow] = useState(true);
 
