@@ -18,12 +18,13 @@
 import type { MarkKind } from "./marksModel";
 import type { Theme } from "@mui/material/styles";
 
-// Text cut short past a number of lines.
+// Styles that cut text short past the given number of lines.
 export function cutShort(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
-// The tint of a mark's colour a passage's card has, stronger for the one selected or under the pointer.
+// The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
+// selected or under the pointer.
 export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {
   return theme.alpha((theme.vars ?? theme).palette[kind].light, strength);
 }

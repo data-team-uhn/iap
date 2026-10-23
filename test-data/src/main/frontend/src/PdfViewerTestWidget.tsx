@@ -27,10 +27,9 @@ type Shown = Omit<PdfViewerProps, "container" | "onClose"> & { inPlace: boolean 
 // Whose marks the passages are: one kind for all, or both in turn.
 type MarkedBy = MarkKind | "both";
 
-// A dashboard widget for trying PdfViewer by hand: point it at any reachable PDF and look for
-// passages in it, one per line, without a real caller. The titled frame comes from the dashboard.
-// Shown in place, the viewer takes a box below the form, from which it can be popped out. Open shows
-// what the form says then, so editing it does not reopen the document.
+// A dashboard widget for trying PdfViewer by hand on any reachable PDF, with passages to look for given
+// one per line. Open shows what the form says at that moment, so editing the form afterwards does not
+// reopen the document.
 function PdfViewerTestWidget() {
   const [url, setUrl] = useState("");
   const [page, setPage] = useState("");

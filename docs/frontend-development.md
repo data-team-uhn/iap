@@ -217,21 +217,21 @@ card per schema, so the card describes its versions.
 Each mark is a quote, looked for from its own `page` onwards, and a `kind`: whose mark it is, an AI
 assistant's (`assistant`) or a person's (`annotation`), so it is coloured accordingly. A passage is
 matched by ignoring spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and
-across a page break. Once found, a mark is kept as the offsets it covers in its page's text, and the
-viewer draws it over PDF.js's text layer itself, leaving PDF.js's own search untouched. Marks let the pointer through, so text can still be
-selected across them, and a click is matched to a mark by where it falls.
+across a page break. The viewer draws the marks over PDF.js's text layer itself, and leaves PDF.js's
+own search alone. Marks let the pointer through, so text can still be selected across them, and a
+click is matched to a mark by where it falls.
 
-If only one passage is passed to the viewer, it is shown on a card above the document. When there are
-multiple passages to highlight, they are listed beside it, in the order given, with those that cannot
-be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one at a time
-above it instead, with controls stepping through them. It is the viewer's width that counts,
-not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
+A single passage is shown on a card above the document. Several passages are listed beside it, in
+the order given, with those that cannot be found last. In a viewer narrower than
+`NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
+them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
+panel is narrow on any screen.
 
-Selecting a passage from the list scrolls the document to take the reader to it; similarly, clicking
-its mark in the document selects the corresponding card in the list and brings it in view (or, in a
-narrow viewer, shows it on the card above the document). When the viewer opens, it selects the first
-passage in the order given, skipping any that are not found in the document, and takes the reader to
-it once found. The selection stays there until the person selects another.
+Selecting a passage from the list scrolls the document to it. Clicking a mark in the document selects
+its card in the list and brings the card into view, or, in a narrow viewer, shows it above the
+document. When the viewer opens, it selects the first passage in the order given that is not known
+to be missing, and takes the reader to it once found. The selection stays there until the person
+selects another.
 
 A caller that needs to follow or set the selection, such as a review screen showing comments beside
 the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports each passage the person
@@ -245,9 +245,9 @@ It opens in a dialog, or, given a `container` element, fills that element and of
 a dialog and back, keeping the page, the zoom and the marks. A `container` that is `null`, as a ref is
 before React attaches it, shows nothing until the element is there.
 
-Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
-`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document in
-a frame, with the marks drawn, and moves the reader.
+Its parts can also be used on their own: `usePdfDocument` opens the file and reads each page's text
+once, `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the
+document in a frame, with the marks drawn, and moves the reader.
 
 ## Styling
 

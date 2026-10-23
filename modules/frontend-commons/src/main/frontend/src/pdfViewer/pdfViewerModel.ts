@@ -21,8 +21,8 @@ import { describeRequestFailure } from "../requestFailure";
 
 import type { MarkPlace } from "./marksModel";
 
-// What the passage's note depends on, besides where the passage is: why the document could not be
-// opened, if it could not, and the page shown once it is.
+// What a passage's note depends on besides the passage's place: why the document could not be opened,
+// and the page shown once it is open.
 export interface ViewerStatus {
   openError?: string;
   page?: number;
@@ -64,6 +64,7 @@ export type PassageNote =
   | { text: string; short: string; failed?: boolean }
   | { foundOnPage: number; toPage?: number; shown: boolean };
 
+// Nothing when the open failed, since the error box says it.
 export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPlace): PassageNote | undefined {
   if (openError !== undefined) {
     return undefined;
@@ -85,9 +86,9 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
   }
 }
 
-// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage,
-// naming the passage by its place among several when there are. Nothing when the open failed, since the
-// error box says it.
+// The passage's note as a sentence for a screen reader, which announces it apart from the passage.
+// Among several passages, it names the passage by its position. Empty when the document could not be
+// opened, since the error box says so.
 export function getPassageStatus(
   { openError, page }: ViewerStatus,
   place: MarkPlace,

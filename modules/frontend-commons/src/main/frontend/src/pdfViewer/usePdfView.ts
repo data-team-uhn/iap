@@ -30,8 +30,8 @@ interface ShownDocument {
   frame: HTMLDivElement;
 }
 
-// How far the pointer may move between pressing and releasing for it to be a click on a mark, rather
-// than a drag selecting text that happened to select nothing.
+// How far the pointer may move between press and release and still count as a click on a mark. Any
+// further is a drag selecting text, even one that selected nothing.
 const DRAG_DISTANCE = 4;
 
 // The marks to draw on a page, from where their passages were found.
@@ -45,8 +45,8 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
 }
 
 // Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
-// where they were found, taking the reader to the selected one once it is. Clicking a mark selects it.
-// Moving to another frame keeps the page, the zoom and the marks.
+// where they were found. It takes the reader to the selected mark once that is found. Clicking a mark
+// selects it. Moving to another frame keeps the page, the zoom and the marks.
 export function usePdfView(
   pdf: OpenedDocument | undefined,
   { page, marks, places, selectedId, onSelectMark }: {
@@ -58,15 +58,16 @@ export function usePdfView(
   },
 ) {
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
-  // The page given when the view starts, which a later one, as the selection changes, does not move to.
+  // The page given when the view starts. A later page, given as the selection changes, does not move
+  // the reader.
   const [openAt] = useState(page);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
   const [pages, setPages] = useState<{ count?: number; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, once the document has been shown.
   const locationRef = useRef<string | undefined>(undefined);
-  // The mark to take the reader to once it is found and its page drawn, until they go elsewhere: the
-  // selected one at first, even as which one that is changes.
+  // The mark to take the reader to once it is found and its page drawn. Until the reader goes
+  // elsewhere, it is the selected mark, even as the selection changes.
   const goToRef = useRef<string | undefined>(undefined);
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
@@ -204,7 +205,7 @@ export function usePdfView(
     }
   }, []);
 
-  // Going to a page by hand stops finding a mark from moving the reader.
+  // After the reader goes to a page by hand, finding a mark no longer moves them.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
     followSelectedRef.current = false;
