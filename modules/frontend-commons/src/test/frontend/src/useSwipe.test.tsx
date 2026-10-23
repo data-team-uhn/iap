@@ -25,8 +25,8 @@ import { useSwipe } from "@iap/frontend-commons/useSwipe";
 const ITEMS = [ "First", "Second", "Third" ];
 const { duration } = createTheme().transitions;
 
-// A card showing one of the items at a time, swiped through, with a field and a button on it: a new card
-// for each item, unless kept the same.
+// A card showing one item at a time, with a button and a field on it. It is a new element for each item
+// unless `kept`.
 function Cards({ start = 1, kept = false, style, onClick }: {
   start?: number;
   kept?: boolean;

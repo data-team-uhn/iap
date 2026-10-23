@@ -34,23 +34,21 @@ import type { MarkKind } from "./marksModel";
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
-// The same for what the caller shows under the passage, such as a long comment, in lines of the card's
-// text, faded out where it is cut.
+// The same for what the caller shows under the passage, such as a long comment.
 const MAX_DETAILS_LINES = 6;
 const MAX_DETAILS_LINES_ON_PHONE = 3;
 
-// The most of the viewer's height the card takes, scrolling past it, so that however much it holds, such
-// as a long comment being written, it all stays in reach, and so do the document's controls below it.
+// The most of the viewer's height the card takes, scrolling past it, so the document's controls below it
+// stay in reach.
 const MAX_CARD_HEIGHT = "60%";
 
 // The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
-// with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
-// line, it shares its row with the note. One of several passages has controls for stepping through
-// them above it, and whatever the caller shows with a passage goes under it, cut short too, the one button
-// showing all of both. Moving the focus into what is cut short, as onto a reply button, shows all of it.
-// While what is under the passage holds a field to type in, such as a comment being written, the card is
-// open whatever the person chose, so the field and its buttons are in reach, and as they chose once it goes.
+// with a button beside it showing all of it, since a button cannot hold another. One of several passages
+// has controls for stepping through them above it, and the caller's details for the passage go under it,
+// cut short too. The one button shows all of both, and so does moving the focus into what is cut. While
+// what is under the passage holds a field to type in, such as a comment being written, the card stays open
+// so the field is in reach.
 export default function PassageCard({ ref, name, quote, note, markedBy, stepper, details, onShowPassage }: {
   ref?: Ref<HTMLDivElement>;
   // What the mark is called, naming the button showing all of it.
@@ -89,7 +87,7 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
     return () => changes.disconnect();
   }, [hasDetails]);
 
-  // Cut again, what is under the passage starts from its top, wherever the focus scrolled it to while it was cut.
+  // Once cut again, what is under the passage starts from its top, wherever it was scrolled to.
   useLayoutEffect(() => {
     if (!open && detailsBox.current !== null) {
       detailsBox.current.scrollTop = 0;

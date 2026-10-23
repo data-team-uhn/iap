@@ -57,8 +57,7 @@ export function getFileName(url: string): string {
   }
 }
 
-// What the marks are called where the viewer counts them and steps through them, as one and as several, in
-// lower case, as they go in the middle of a sentence too.
+// The word for one mark and for several, in lower case, as it also goes in the middle of a sentence.
 export interface MarkName {
   one: string;
   many: string;
@@ -115,9 +114,9 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
   }
 }
 
-// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage,
-// naming the passage by its place among several when there are, by what the marks are called. Nothing when
-// the open failed, since the error box says it.
+// The passage's note as a sentence for a screen reader, which announces it apart from the passage.
+// Among several passages, it names the passage by its position and by what the marks are called. Empty
+// when the document could not be opened, since the error box says so.
 export function getPassageStatus(
   { openError, page }: ViewerStatus,
   place: MarkPlace,
