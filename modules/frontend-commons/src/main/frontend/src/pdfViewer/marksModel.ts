@@ -36,7 +36,7 @@ interface MarkBase {
   kind: MarkKind;
 }
 
-// A passage to find and highlight, looked for from its page onwards: the first when absent.
+// A passage to find and highlight, looked for from `page` onwards, or from the first page.
 export interface QuotedMark extends MarkBase {
   quote: string;
   page?: number;
@@ -49,8 +49,8 @@ export interface PlacedMark extends MarkBase {
 
 export type Mark = QuotedMark | PlacedMark;
 
-// A page's text as PDF.js reads it for its text layer, and the offsets where its lines end, which the
-// text layer breaks with elements of its own rather than with characters.
+// A page's text as PDF.js reads it for its text layer, and the offsets where its lines end. The text
+// layer ends a line with an element, not a character.
 export interface PageText {
   text: string;
   lineEnds: number[];
@@ -72,8 +72,8 @@ function toSpan(page: number, { index, length }: QuoteMatch): MarkSpan {
   return { page, start: index, end: index + length };
 }
 
-// The text between two offsets of a page as it reads: with a space where a line ends, unless a hyphen
-// breaks a word there, and runs of spaces as one.
+// The text between two offsets of a page as it reads. A line end reads as a space, unless a hyphen
+// breaks a word there. Runs of spaces read as one.
 export function getPassageText({ text, lineEnds }: PageText, start: number, end: number): string {
   let passage = "";
   let from = start;
@@ -184,8 +184,8 @@ export class MarkLocator {
     return { status: this.#hasText ? "notFound" : "noText" };
   }
 
-  // Spans are taken as they are, once their pages are read, unless they are not in the document, or run
-  // backwards or past the end of their page's text.
+  // A mark's spans are taken as they are once their pages are read. They are not found if one is on a
+  // page the document lacks, or runs backwards or past its page's text.
   #getPlaceOf(spans: MarkSpan[]): MarkPlace {
     const outside = this.#pageCount > 0 && spans.some(({ page }) => page < 1 || page > this.#pageCount);
     if (spans.length === 0 || outside) {
@@ -243,7 +243,7 @@ export function getMarksKey(marks: Mark[]): string {
     : { id: mark.id, quote: mark.quote, page: mark.page, kind: mark.kind })));
 }
 
-// The pages to read first, as the only ones marks placed by their spans need, in order.
+// The pages that marks placed by their spans are on, in order. These are read first.
 export function getPlacedPages(marks: Mark[]): number[] {
   const pages = new Set(marks.flatMap(mark => ("spans" in mark ? mark.spans.map(({ page }) => page) : [])));
   return [ ...pages ].sort((one, other) => one - other);
