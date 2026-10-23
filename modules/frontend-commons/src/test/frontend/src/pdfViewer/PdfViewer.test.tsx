@@ -873,7 +873,7 @@ describe("PdfViewer", () => {
     });
 
     describe("with what the caller shows with each passage", () => {
-      // A field to type in, as a comment box is, which cannot go inside the button selecting a passage.
+      // A text field, such as a comment box, which must not go inside the button selecting a passage.
       const renderMarkDetails = (mark: Mark, selected: boolean) => (
         <input aria-label={`About ${mark.id}${selected ? ", selected" : ""}`} />
       );
@@ -1102,7 +1102,7 @@ describe("PdfViewer", () => {
       return { onAnnotate, onClose };
     }
 
-    // Selects text of a line of a page drawn, as a person does, the browser saying the selection changed.
+    // Selects part of a line on a page drawn, as a person would.
     function selectText(page: number, line: number, from: number, to: number) {
       const text = getFrame().querySelectorAll(`[data-page-number="${page}"] .textLayer span`)[line].firstChild as Text;
       const range = document.createRange();
@@ -1113,7 +1113,8 @@ describe("PdfViewer", () => {
       selection.addRange(range);
     }
 
-    // Every page drawn, and the viewer following the selection, which it starts to once they are shown.
+    // Waits until every page is drawn and the viewer follows the selection, which it starts to once they
+    // are shown.
     async function waitForPages() {
       await waitFor(() => expect(getFrame().querySelectorAll(".textLayer")).toHaveLength(3));
       await act(() => Promise.resolve());
@@ -1167,7 +1168,7 @@ describe("PdfViewer", () => {
       showAnnotating();
       await waitForPages();
 
-      // Pressed and let go of as they are, since user-event moves the selection itself.
+      // With fireEvent, since user-event would move the selection itself.
       fireEvent.pointerDown(getFrame());
       selectText(2, 1, 16, 33);
       await act(() => new Promise(resolve => setTimeout(resolve, 2 * SETTLE_TIME)));
@@ -1252,7 +1253,6 @@ describe("PdfViewer", () => {
       selectText(2, 1, 16, 33);
       await screen.findByRole("button", { name: "Comment" });
 
-      // Pressed as it is, since user-event moves the selection itself.
       fireEvent.keyDown(getFrame(), { key: "Escape" });
 
       expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument();

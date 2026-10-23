@@ -59,11 +59,10 @@ export interface PdfViewerProps {
   selectedMarkId?: string;
   // Called with the mark the person selects, in the document or in the list of passages.
   onSelectMark?: (id: string) => void;
-  // Told which passage the person selected to comment on, with the button the viewer then offers beside
-  // the text they selected in the document. Without it, the viewer offers none.
+  // Told the passage the person selected in the document, when they press the Comment button the viewer
+  // offers under it. Without it, there is no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
-  // What to show with a passage, under it, such as the comments on it, given whether it is the one
-  // selected.
+  // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
@@ -113,7 +112,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   const { showMark } = view;
   const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
   const { dismiss } = selectedText;
-  // The selection is let go of once kept, so the mark the caller makes of it shows.
+  // Clears the selection once the passage is passed on, so the mark the caller makes of it shows.
   const annotate = pdf === undefined || onAnnotate === undefined
     ? undefined
     : async (spans: MarkSpan[]) => {
@@ -259,7 +258,7 @@ function ViewerBody(props: ViewerBodyProps) {
     setSearchOpen(false);
   };
   // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page. Escape
-  // puts away the offer to comment on the text selected before it closes anything.
+  // hides the Comment button before it closes anything.
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape" && selectedText.selected !== undefined) {
       event.stopPropagation();

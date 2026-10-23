@@ -221,43 +221,43 @@ Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a p
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
-- `spans`, when its place is known exactly, such as a change between two versions. Each span is a `page` and the `start` and `end` offsets the passage covers in that
-  page's text, one span per page it runs over. A span whose `start` equals its `end` is a point
-  between two characters. The viewer reads the pages a mark's spans are on first, and places the mark
-  without searching. Spans that run backwards or past their page's text are not in the document;
+- `spans`, when its place is known exactly, such as a change between two versions. Each span is a
+  `page` and the `start` and `end` offsets the passage covers in that page's text, one span per page
+  it runs over. A span whose `start` equals its `end` is a point between two characters. The viewer
+  reads the pages a mark's spans are on first, and places the mark without searching. Spans that run
+  backwards or past their page's text are not in the document;
 - an `anchor`, for a passage kept to be shown again, such as one a person selected to comment on. It is
   placed where it says as soon as its pages are read, while the text there still says its quote, and
   otherwise found again, as described below.
 
-Offsets are into a page's text as PDF.js reads it for its text layer (`getTextContent` with
-`disableNormalization`, the items' strings joined), which is the text of the layer's own text nodes:
-`usePdfDocument`'s `getPageText` gives it. Lines run on in it without a space, since the text layer ends
-them with elements rather than characters; `getPageTextWithLines` says where they end, and the text of a
-passage as shown (`getPassageText`) puts a space there. Text selected in the text layers maps back to
-the same offsets: `getSelectedSpans` gives what a range selects as a span on each page it selects text
-of, without the spaces at either end.
+Offsets are into a page's text as PDF.js reads it for its text layer: the strings `getTextContent`
+gives with `disableNormalization`, joined. That is the text of the layer's own text nodes, and
+`usePdfDocument`'s `getPageText` gives it. The text layer ends a line with an element rather than a
+character, so lines run on in this text without a space. `getPageTextWithLines` says where they end,
+and `getPassageText` puts a space there when it shows a passage. Text selected in the text layers maps
+back to the same offsets: `getSelectedSpans` gives what a range selects as a span on each page it
+selects text of, without the spaces at either end.
 
 A `TextAnchor` keeps a passage the way the W3C's position and quote selectors do: where it starts and
 where it ends, each a `page` and a `char` offset into that page's text; what it says (`quote`); and up to
 32 characters of the text `before` and `after` it on its pages, as the text reads. `getTextAnchor` makes
-one from the spans of a passage. The offsets are quick to place, but they are only right for the text
-PDF.js reads today: a later PDF.js may read the same file differently. So the quote is what is trusted.
-When the text at the offsets no longer says it, the viewer looks for the quote everywhere, and takes the
-occurrence with the text around it most like what was around it, whole on a page rather than across a
-break, and nearest the anchor's page. A quote too short to trust, such as a single word, is only taken
-where some of that text is still the same.
+one from the spans of a passage. The offsets hold only for the text PDF.js reads today, and a later
+PDF.js may read the same file differently, so the quote is what is trusted. When the text at the offsets
+no longer says it, the viewer looks for the quote everywhere. It takes the occurrence whose surrounding
+text is most like the anchor's `before` and `after`. Ties go to an occurrence whole on a page over one
+across a break, then to the one nearest the anchor's page. A quote too short to trust, such as a single
+word, is only taken where some of its surrounding text is still the same.
 
 An anchor is kept as text with what it anchors, such as a review comment. `encodeAnchor` gives it as an
-`EncodedAnchor`, and `decodeAnchor` reads it back. Its `start` and `end` points are each written as
-PDF.js's open parameters and RFC 5147's text fragments write one, `page=3&char=120`, and its `text`, what
-the passage says, as a text fragment directive writes it, without its `text=`: `before-,quote,-after`, each
-part percent-encoded, dashes included. `decodeAnchor` gives nothing for an anchor not kept, or one it
-cannot read.
+`EncodedAnchor`, and `decodeAnchor` reads it back. Its `start` and `end` are each written
+`page=3&char=120`, as in PDF.js's open parameters and RFC 5147's text fragments. Its `text` is written as
+a text fragment directive without its `text=`: `before-,quote,-after`, each part percent-encoded, dashes
+included. `decodeAnchor` gives nothing for an anchor not kept, or one it cannot read.
 
-Once found, a quote is kept as spans too, and the viewer draws every mark over PDF.js's text layer
-itself, leaving PDF.js's own search untouched. A mark found or placed is shown with the text it covers,
-the quote itself for a quote or an anchor. Marks let the pointer through, so text can still be selected
-across them, and a click is matched to a mark by where it falls.
+Once found, a quote is kept as spans too. The viewer draws every mark over PDF.js's text layer itself,
+and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown with its quote, and one
+placed by its spans with the text they cover. Marks let the pointer through, so text can still be
+selected across them, and a click is matched to a mark by where it falls.
 
 A single passage is shown on a card above the document. Several passages are listed beside it, in
 the order given, with those that cannot be found last. In a viewer narrower than
@@ -281,24 +281,22 @@ and only looks for passages again when one of those changes.
 
 A caller that shows something with each passage, such as the comments on it, passes
 `renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
-the passage, on its card in the list beside the document, or on the card above the document in a
-narrow viewer, which shows only the selected passage. It goes outside the button selecting the passage,
-so it can hold fields and buttons of its own, such as a box for a new comment on the passage selected.
+the passage on its card in the list beside the document. A narrow viewer shows only the selected
+passage, and puts it on the card above the document. It goes outside the button selecting the
+passage, so it can hold fields and buttons of its own, such as a box for a new comment.
 
 A caller that lets people comment on passages, such as a review screen, passes `onAnnotate`. Once
 someone has selected text in the document and the selection has settled (the pointer let go of, and
-nothing changing for `SETTLE_TIME`), the viewer offers a Comment button under the end of the selection,
-running towards the side of the document with more room, and kept inside it. When the text was selected
-by touch, the button sits further down, past the phone's handles, and out of the way of its own menu
-above the selection. The button is the same height on every screen, so that it can be tapped anywhere.
-Scrolling puts it away until the document is still again; zooming in PDF.js lets go of the selection
-altogether, so the button goes with it. Escape puts the button away until the selection changes, without
-closing the viewer. Pressing it gives `onAnnotate` the passage selected, as a `TextAnchor`, and lets go
-of the selection, so the mark the caller makes of it shows. Pressing it holds what was selected first,
-as tapping a button clears the selection on some phones, until the pointer is pressed anywhere else.
-What happens next is the caller's to decide, such as adding the passage as a mark and opening a comment
-box for it. Text in a PDF can only be selected with a pointer, so commenting on a passage needs one too.
-`useSelectedText` follows the selection, for a view combining the parts apart.
+nothing changing for `SETTLE_TIME`), the viewer offers a Comment button under the end of the selection.
+It runs towards the side of the document with more room, and stays inside it. When the text was selected
+by touch, the button sits lower, clear of the phone's handles and of the menu the phone shows above the
+selection. Scrolling hides it until the document is still again. Zooming in PDF.js clears the selection,
+and the button with it. Escape hides the button until the selection changes, without closing the
+viewer. Pressing it gives `onAnnotate` the passage selected, as a `TextAnchor`, and clears the
+selection, so the mark the caller makes of it shows. What happens next is the caller's to decide, such
+as adding the passage as a mark and opening a comment box for it. Text in a PDF can only be selected
+with a pointer, so commenting on a passage needs one too. A view built from the viewer's parts can
+follow the selection with `useSelectedText`.
 
 The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
 and accents. Every match is highlighted, and the one shown more deeply. The field says which match

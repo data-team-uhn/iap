@@ -33,8 +33,8 @@ const LIST_WIDTH = 320;
 const MAX_LINES = 4;
 
 // The passages beside the document, in the order given, each on a card in its mark's colour, selecting
-// it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
-// one selected is shown whole and kept in view.
+// it, with the caller's details for it underneath. A passage found takes the reader to it, and the one
+// selected is shown whole and kept in view.
 export default function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
   places: MarkPlaces;
@@ -84,7 +84,7 @@ export default function MarkList({ marks, places, status, selectedId, renderDeta
             }}
             sx={theme => ({
               ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
-              // Whole, however many there are, the list scrolling rather than squeezing them.
+              // Each card keeps its full height, and the list scrolls instead.
               flexShrink: 0,
               overflow: "hidden",
               outline: selected ? "2px solid" : "none",
