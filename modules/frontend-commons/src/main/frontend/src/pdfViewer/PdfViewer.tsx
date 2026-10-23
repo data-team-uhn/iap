@@ -47,9 +47,8 @@ export interface PdfViewerProps {
   url: string;
   // The page to open it at: the selected mark's own page when absent, or else the first.
   page?: number;
-  // The passages to mark, in the order to list them: quotes, each found from its own page onwards, or
-  // spans, placed where they say. Marks equal to the last ones are not looked for again, even as other
-  // objects.
+  // The passages to mark, in the order to list them. A quote is looked for from its own page onwards,
+  // and spans are placed where they say. New marks equal to the last ones are not looked for again.
   marks: Mark[];
   // The selected mark. The viewer takes the reader to it once it is found, and again each time the
   // caller selects another. When absent or not among the marks, the viewer selects the first mark not

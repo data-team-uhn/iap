@@ -985,7 +985,7 @@ describe("PdfViewer", () => {
   });
 
   describe("with passages placed by their spans", () => {
-    // The memo's second page, read as two lines, its text "Volunteers who, on a casual basis,assist from…"
+    // The memo's second page, two lines that run on in its text without a space.
     const LINES = "Volunteers who, on a casual basis,\nassist from time to time.";
     const AFTER_BREAK = LINES.indexOf("\n");
 
