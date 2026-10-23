@@ -32,7 +32,7 @@ export interface Mark {
 }
 
 // What a mark covers on one page, as offsets into the page's text as PDF.js reads it for its text
-// layer: the whole passage, or the start or the rest of one broken across two pages.
+// layer. A passage broken across two pages has one span on each.
 export interface MarkSpan {
   page: number;
   start: number;
@@ -53,13 +53,14 @@ export class MarkLocator {
   readonly #pageCount: number;
   readonly #texts = new Map<number, string>();
   readonly #searchTexts = new Map<string, string>();
-  // Where each passage is whole on a page, by page: the first time it occurs there.
+  // Each passage's first whole occurrence on each page, by page.
   readonly #whole = new Map<string, Map<number, MarkSpan>>();
   // The page breaks each passage fits across, by the page before the break.
   readonly #across = new Map<string, Map<number, [ MarkSpan, MarkSpan ]>>();
   #hasText = false;
 
-  // Before the document is open, its page count is not known, and every passage is still looked for.
+  // Without a page count, as before the document opens, every passage long enough to look for is
+  // still searching.
   constructor(marks: Mark[], pageCount = 0) {
     this.#marks = marks;
     this.#pageCount = pageCount;
@@ -144,8 +145,8 @@ export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Ma
   return [ ...marks.filter(mark => !unmarked(mark)), ...marks.filter(unmarked) ];
 }
 
-// What the marks are, the same for marks that are equal but other objects, as a caller passing them
-// written in place gives on every render.
+// A key that changes only when the marks' contents do. A caller writing the marks inline passes new
+// but equal objects on every render.
 export function getMarksKey(marks: Mark[]): string {
   return JSON.stringify(marks.map(({ id, quote, page, kind }) => ({ id, quote, page, kind })));
 }

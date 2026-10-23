@@ -45,14 +45,14 @@ export interface PdfViewerProps {
   url: string;
   // The page to open it at: the selected mark's own page when absent, or else the first.
   page?: number;
-  // The passages to find and mark, in the order to list them. Each is found from its own page onwards.
-  // Marks equal to the last ones are not looked for again, even as other objects.
+  // The passages to find and mark, in the order to list them. Each is looked for from its own page
+  // onwards. New marks equal to the last ones are not looked for again.
   marks: Mark[];
-  // The mark selected, which the viewer takes the reader to once it is found, as it does each time the
-  // caller selects another. When absent, or not among the marks, it is the first, in the order given,
-  // not known to be missing from the document, until the person selects another.
+  // The selected mark. The viewer takes the reader to it once it is found, and again each time the
+  // caller selects another. When absent or not among the marks, the viewer selects the first mark not
+  // known to be missing from the document.
   selectedMarkId?: string;
-  // Told which mark the person selects, in the document or among the passages.
+  // Called with the mark the person selects, in the document or in the list of passages.
   onSelectMark?: (id: string) => void;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
@@ -77,9 +77,9 @@ function PdfViewerSession(props: PdfViewerProps) {
   const marksKey = getMarksKey(props.marks);
   const marks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
-  // The mark last reported to the caller, whose selecting it in turn does not move the reader, and the
-  // last the caller selected, which marks changing do not move the reader to again.
+  // The mark last reported to the caller. The caller selecting it in turn does not move the reader.
   const reportedId = useRef<string | undefined>(undefined);
+  // The mark the caller last selected. A change to the marks does not move the reader to it again.
   const followedId = useRef<string | undefined>(undefined);
   const { pdf, openError, retry } = usePdfDocument(url);
   const places = useMarkPlaces(pdf, marks);

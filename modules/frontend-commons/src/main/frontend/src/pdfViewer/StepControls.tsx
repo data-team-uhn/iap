@@ -19,12 +19,12 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// Steps through a list one item at a time: back, which of how many, and on, each button disabled at its
-// end of the list. Positions count from 1.
+// Steps through a list one item at a time, with Previous and Next buttons around the position, as in
+// "2 of 5". Each button is disabled at its end of the list. Positions count from 1.
 export default function StepControls({ position, count, itemName, onStep }: {
   position: number;
   count: number;
-  // What an item is, naming the buttons, as in "Next passage".
+  // The item's name in the button labels, as "passage" in "Next passage".
   itemName: string;
   onStep: (position: number) => void;
 }) {

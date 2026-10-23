@@ -28,7 +28,7 @@ export interface OpenedDocument {
   components: ViewerComponents;
   doc: PDFDocumentProxy;
   // The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
-  // layer's text, or none for a page it cannot read. Each page is read once.
+  // layer's text. A page PDF.js cannot read has no text. Each page is read once.
   getPageText: (pageNumber: number) => Promise<string>;
 }
 
@@ -51,7 +51,7 @@ function openedDocument(components: ViewerComponents, doc: PDFDocumentProxy): Op
   return { components, doc, getPageText };
 }
 
-// Opens the PDF, or says why it could not be opened until it is tried again.
+// Opens the PDF, or says why it could not be opened. `retry` tries again.
 export function usePdfDocument(url: string) {
   const authFetch = useAuthenticatedFetch();
   const [attempt, setAttempt] = useState(0);
@@ -73,8 +73,8 @@ export function usePdfDocument(url: string) {
         }
         const data = await response.arrayBuffer();
         stop.signal.throwIfAborted();
-        // PDF.js's own fonts rather than the system's, for the fonts a PDF names without embedding them:
-        // a phone without Times New Roman would otherwise set the text in a font of other widths.
+        // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
+        // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
         const doc = await task.promise;
         stop.signal.throwIfAborted();
