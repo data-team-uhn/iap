@@ -36,7 +36,7 @@ const MAX_PASSAGE_LINES_ON_PHONE = 1;
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
 // with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
 // line, it shares its row with the note. One of several passages has controls for stepping through
-// them above it, and whatever the caller shows with a passage goes under it.
+// them above it, and the caller's details for the passage go under it.
 export default function PassageCard({ quote, note, markedBy, stepper, details, onShowPassage }: {
   quote: string | undefined;
   note?: PassageNote;

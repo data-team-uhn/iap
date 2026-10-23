@@ -161,9 +161,9 @@ describe("drawMarks", () => {
 });
 
 describe("getSelectedSpans", () => {
-  // Pages as PDF.js draws them in its viewer: each its own element, numbered, holding its text layer,
-  // which holds a span per piece of text, a break at each line end, and, while text is selected, an
-  // element of its own with no text.
+  // Pages as PDF.js draws them in its viewer. Each is a numbered element holding its text layer, which
+  // holds a span per piece of text and a break at each line end. While text is selected, the layer also
+  // holds an element with no text.
   function createPages(...pages: string[][]): HTMLDivElement {
     const frame = document.createElement("div");
     pages.forEach((lines, index) => {
@@ -187,7 +187,7 @@ describe("getSelectedSpans", () => {
     return frame;
   }
 
-  // The text of the nth span of the frame, at an offset.
+  // The text node of the nth span in the frame.
   function textAt(frame: HTMLElement, index: number) {
     return frame.querySelectorAll("span")[index].firstChild as Text;
   }

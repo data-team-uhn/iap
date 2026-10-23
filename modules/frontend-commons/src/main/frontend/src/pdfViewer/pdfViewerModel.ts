@@ -153,17 +153,15 @@ export function getSearchStatus({ outcome, current, total }: Omit<DocumentSearch
   }
 }
 
-// The Comment button's height, the same on every screen so that it is a touch target anywhere; the room it
-// keeps from the frame's edges; and how far under the selection it sits, past a phone's handles when the
-// text was selected by touch.
+// The Comment button's height, the same on every screen, and its distances from the frame's edges and
+// from the selection. It sits further below a selection made by touch, clear of the phone's handles.
 export const COMMENT_BUTTON_HEIGHT = 40;
 const EDGE = 8;
 const GAP = 4;
 const UNDER_HANDLES = 28;
 
-// Where the Comment button goes, in the frame's coordinates: under the end of the selection, from it
-// towards the side of the frame with more room, so neither its width nor its label needs knowing, and
-// inside the frame.
+// Where the Comment button goes, in the frame's coordinates: under the end of the selection, inside the
+// frame. It runs towards the side with more room, so its width need not be known.
 export interface CommentButtonPlace {
   top: number;
   left?: number;

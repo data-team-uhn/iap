@@ -41,10 +41,10 @@ export function getTextAnchor(spans: MarkSpan[], getPage: (page: number) => Page
   };
 }
 
-// An anchor as text, to be kept with what it anchors, such as a comment: where it starts and ends, each as a
-// page and an offset into the page's text, as PDF.js's open parameters and RFC 5147's text fragments write
-// them ("page=3&char=120"), and what it says with the text around it, as a text fragment directive writes
-// them ("before-,quote,-after", without its "text=").
+// An anchor as text, to be kept with what it anchors, such as a comment. Its start and end are each
+// written as in PDF.js's open parameters and RFC 5147's text fragments ("page=3&char=120"). Its text is
+// what it says with the text around it, written as a text fragment directive without its "text="
+// ("before-,quote,-after").
 export interface EncodedAnchor {
   start: string;
   end: string;
@@ -83,7 +83,7 @@ function decodeText(stored: string): Pick<TextAnchor, "quote" | "before" | "afte
   const hasBefore = parts.length > 1 && parts[0].endsWith("-");
   const hasAfter = parts.length > (hasBefore ? 2 : 1) && last.startsWith("-");
   const quote = parts.slice(hasBefore ? 1 : 0, hasAfter ? -1 : undefined);
-  // A dash left as it is only ever marks the text before or after.
+  // A dash not percent-encoded only ever marks the text before or after.
   if (quote.length !== 1 || quote[0] === "" || quote[0].includes("-")) {
     return undefined;
   }

@@ -23,8 +23,7 @@ import { type Mark, type TextAnchor } from "@iap/frontend-commons/pdfViewer/mark
 import PdfViewer from "@iap/frontend-commons/pdfViewer/PdfViewer";
 import { decodeAnchor, encodeAnchor, type EncodedAnchor } from "@iap/frontend-commons/pdfViewer/textAnchor";
 
-// A comment on a passage, its anchor kept as text, as a review comment will keep it. A draft has not been
-// saved yet.
+// A comment on a passage, with its anchor kept as text. A draft has not been saved yet.
 interface PassageComment {
   id: string;
   anchor: EncodedAnchor;
@@ -32,10 +31,9 @@ interface PassageComment {
   draft: boolean;
 }
 
-// A dashboard widget for trying comments on passages of a PDF by hand, as a review screen will make them:
-// select text in the document, press Comment, and write a comment in the box under the passage. The
-// comments are kept by the widget only, until the page is reloaded, each anchored as a review comment
-// will keep it, and read back from that to be marked.
+// A dashboard widget for trying out comments on passages of a PDF by hand. Select text in the document,
+// press Comment, and write a comment in the box under the passage. The comments last until the page is
+// reloaded. Each keeps its anchor encoded as text, and its mark is decoded from that text.
 function PdfAnnotationsTestWidget() {
   const [url, setUrl] = useState("");
   const [opened, setOpened] = useState<string | undefined>(undefined);
@@ -47,12 +45,10 @@ function PdfAnnotationsTestWidget() {
   const draftInput = useRef<HTMLTextAreaElement>(null);
   const draftId = comments.find(comment => comment.draft)?.id;
 
-  // A new comment's box takes the focus, to be written in straight away.
   useEffect(() => {
     draftInput.current?.focus();
   }, [draftId]);
 
-  // Read back as review mode will read stored comments, leaving out any whose anchor cannot be read.
   const marks = comments.flatMap(({ id, anchor: encoded }): Mark[] => {
     const anchor = decodeAnchor(encoded);
     return anchor === undefined ? [] : [ { id, anchor, kind: "annotation" } ];
