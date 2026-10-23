@@ -28,14 +28,13 @@ import { unquote } from "./quoteMatch";
 import type { Mark, MarkPlace } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
 
-// How wide the list is beside the document.
 const LIST_WIDTH = 320;
 
 // Past this many lines, a passage is cut short unless it is the one selected.
 const MAX_LINES = 4;
 
-// The passages beside the document, in the order given, each on a card in its mark's colour, selecting
-// it. A passage found takes the reader to it, and the one selected is shown whole and kept in view.
+// The passages beside the document, each on a card in its mark's colour. Clicking a card selects its
+// passage. The selected passage is shown whole and kept in view.
 export default function MarkList({ marks, places, status, selectedId, onSelect }: {
   marks: Mark[];
   places: MarkPlaces;

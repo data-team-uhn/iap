@@ -22,7 +22,7 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// Going from page to page, and zooming. One line even on a narrow phone: only the page label gives way.
+// The page and zoom controls. One line even on a narrow phone: only the page label gives way.
 // Every control is disabled until the document has opened.
 export default function PdfToolbar({ page, pageCount, onShowPage, onZoomIn, onZoomOut, onFitWidth }: {
   page?: number;
