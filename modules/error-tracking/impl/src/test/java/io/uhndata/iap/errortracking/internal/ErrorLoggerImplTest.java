@@ -522,6 +522,14 @@ class ErrorLoggerImplTest
                 // The test context owns this resolver
             }
         });
+        // The real writer is a single thread, so a write the other thread asks for waits its turn. Run here, it would
+        // block in the commit above until the latches time out
+        final Thread testThread = Thread.currentThread();
+        TestResolvers.set(racing, "writer", (Executor) task -> {
+            if (Thread.currentThread() == testThread) {
+                task.run();
+            }
+        });
         final Throwable error = new IllegalStateException(BOOM);
 
         final Thread other = new Thread(() -> {

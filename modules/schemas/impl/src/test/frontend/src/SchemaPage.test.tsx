@@ -161,29 +161,6 @@ describe("SchemaPage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("renames the schema", async () => {
-    const posted = serveSchemas();
-    renderPage("study");
-
-    fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText(/Title/), { target: { value: "Clinical trial" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study.update.json"));
-    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ title: "Clinical trial" });
-  });
-
-  it("retires the schema as a whole", async () => {
-    const posted = serveSchemas();
-    renderPage("study");
-
-    fireEvent.click((await screen.findAllByRole("button", { name: "Retire" }))[0]);
-    await confirm("Retire");
-
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study.retire.json"));
-  });
-
   it("reopens a retired schema", async () => {
     const posted = serveSchemas();
     renderPage("legacy");

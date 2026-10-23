@@ -142,23 +142,6 @@ describe("ReLoginProvider", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("prompts for a sign-in, then re-sends the request that was interrupted", async () => {
-    const user = userEvent.setup();
-    const onResult = vi.fn();
-    fetchMock.mockResolvedValueOnce(expired());
-    renderWithProvider(["A"], onResult);
-
-    await user.click(screen.getByRole("button", { name: "A" }));
-
-    expect(await screen.findByRole("heading", { name: "Your session has expired" })).toBeInTheDocument();
-    expect(onResult).not.toHaveBeenCalled();
-
-    await signIn(user, { then: [ok("recovered")] });
-
-    await waitFor(() => { expect(onResult).toHaveBeenCalledWith("A:recovered"); });
-    await waitFor(() => { expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); });
-  });
-
   it("re-sends every request that was waiting, not just the first", async () => {
     const user = userEvent.setup();
     const onResult = vi.fn();
@@ -208,14 +191,20 @@ describe("ReLoginProvider", () => {
     await waitFor(() => { expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); });
   });
 
-  it("prompts again the next time the session expires", async () => {
+  it("prompts for a sign-in, re-sends the interrupted request, and prompts again the next time", async () => {
     const user = userEvent.setup();
     const onResult = vi.fn();
     fetchMock.mockResolvedValueOnce(expired());
     renderWithProvider(["A"], onResult);
+
     await user.click(screen.getByRole("button", { name: "A" }));
-    await screen.findByRole("heading", { name: "Your session has expired" });
+
+    expect(await screen.findByRole("heading", { name: "Your session has expired" })).toBeInTheDocument();
+    expect(onResult).not.toHaveBeenCalled();
+
     await signIn(user, { then: [ok("recovered")] });
+
+    await waitFor(() => { expect(onResult).toHaveBeenCalledWith("A:recovered"); });
     await waitFor(() => { expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); });
 
     fetchMock.mockResolvedValueOnce(expired());

@@ -36,14 +36,14 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
 const GATE_TAG = 'systemalive';
 
 /**
- * How long the gate's checks must have been passing before an instance counts as ready.
+ * The startup gate's component, as the web console names it.
  *
  * An open gate is not a safe one. It opens as soon as its checks have held briefly, and only stops being
- * able to refuse anything once they have held for its settle period. In between, one blip closes it again
- * and answers whatever is in flight with a bare 503. So wait for the rule the gate applies to itself. 40s
- * sits above its own 30s settle period, and the two poll independently.
+ * able to refuse anything once it has retired, after they have held for its settle period. Until then, one
+ * blip closes it again and answers whatever is in flight with a bare 503. A retired gate disables its own
+ * component, and stays retired until the instance restarts.
  */
-const GATE_SETTLED_MS = 40_000;
+const GATE_COMPONENT = 'io.uhndata.iap.startup.internal.StartupGateFilter';
 
 /**
  * Whether an instance is ready to be tested.
@@ -100,21 +100,32 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   }
 };
 
+/** Whether the startup gate has retired, which is final for the life of the instance. */
+const gateRetired = async (instance: ActiveInstance): Promise<boolean> => {
+  try {
+    const response = await fetch(`${instance.baseURL}/system/console/components/${GATE_COMPONENT}.json`, {
+      headers: { Authorization: AUTHORIZATION },
+    });
+    if (!response.ok) {
+      return false;
+    }
+    const body = (await response.json()) as { data?: { state?: string }[] };
+    return body.data?.[0]?.state === 'disabled';
+  } catch {
+    return false;
+  }
+};
+
 const waitFor = async (instance: ActiveInstance): Promise<void> => {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = 'no response';
-  // When the current unbroken stretch of readiness began
-  let readySince: number | undefined;
   while (Date.now() < deadline) {
-    if (await isReady(instance)) {
-      readySince ??= Date.now();
-      if (Date.now() - readySince >= GATE_SETTLED_MS) {
-        return;
-      }
-      lastError = 'the startup gate had not settled';
-    } else {
-      readySince = undefined;
+    if (!(await isReady(instance))) {
       lastError = 'health checks not passing';
+    } else if (!(await gateRetired(instance))) {
+      lastError = 'the startup gate had not retired';
+    } else {
+      return;
     }
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }

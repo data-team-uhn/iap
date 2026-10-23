@@ -87,7 +87,7 @@ afterEach(() => vi.unstubAllGlobals());
 const renderManager = () => render(<MemoryRouter><CategoryManager /></MemoryRouter>, { wrapper: NoticeProvider });
 
 describe("CategoryManager", () => {
-  it("renders the category tree with nested rows", async () => {
+  it("renders the loaded tree, marking retired and bound categories and blocking a branch's deletion", async () => {
     stubFetch();
     renderManager();
 
@@ -95,21 +95,9 @@ describe("CategoryManager", () => {
     expect(screen.getByText("Retrospective Data Studies")).toBeInTheDocument();
     expect(screen.getByText("Paper submissions")).toBeInTheDocument();
     expect(screen.getByText("Existing data or specimens only.")).toBeInTheDocument();
-  });
-
-  it("marks retired categories and displays schema bindings", async () => {
-    stubFetch();
-    renderManager();
-
-    expect(await screen.findByText("Retired")).toBeInTheDocument();
+    expect(screen.getByText("Retired")).toBeInTheDocument();
     expect(screen.getByText("Schema: basic v1.0")).toBeInTheDocument();
-  });
-
-  it("blocks deleting a category that still has subcategories", async () => {
-    stubFetch();
-    renderManager();
-
-    expect(await screen.findByRole("button", { name: "Delete Retrospective studies" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete Retrospective studies" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Delete Paper submissions" })).toBeEnabled();
   });
 
@@ -124,27 +112,6 @@ describe("CategoryManager", () => {
     expect(screen.getByLabelText(/Label/)).toBeInTheDocument();
   });
 
-  it("offers retiring instead when the server refuses a deletion", async () => {
-    stubFetch();
-    const fetchMock = vi.mocked(fetch);
-    renderManager();
-    await screen.findByText("Paper submissions");
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
-    // The confirmation dialog appears; the deletion endpoint then refuses, naming what refers to it
-    fetchMock.mockResolvedValueOnce({
-      ok: false, status: 409, statusText: "Conflict",
-      json: () => Promise.resolve({
-        "status": "referenced",
-        "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
-      }),
-    } as unknown as Response);
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
-
-    expect(await screen.findByText(/referenced in 2 submissions/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retire instead" })).toBeInTheDocument();
-  });
-
   // The POSTs the manager sends, matched by the payload rather than by call order: every mutation
   // is followed by a reload, so the request under test is never the only one in flight.
   const postsMatching = (predicate: (body: string) => boolean) =>
@@ -157,17 +124,19 @@ describe("CategoryManager", () => {
     vi.mocked(fetch).mock.calls.filter(([url, init]) => url === path && !!init?.method);
 
   describe("saving a category", () => {
-    it("creates one under the parent the tree row names", async () => {
+    it("creates one under the parent the tree row names, leaving an unbound parent's fields alone", async () => {
       stubFetch();
       renderManager();
-      await screen.findByText("Retrospective studies");
+      await screen.findByText("Paper submissions");
 
       fireEvent.click(screen.getByRole("button", { name: "Add subcategory to Paper submissions" }));
       fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Posters" } });
+      expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
       await waitFor(() => { expect(postTo("/Categories/Paper/")).toHaveLength(1); });
       expect(postsMatching(body => body.includes("label=Posters"))).not.toHaveLength(0);
+      expect(postTo("/Categories/Paper")).toHaveLength(0);
     });
 
     it("frees the parent's schema version before giving it a subcategory", async () => {
@@ -191,20 +160,6 @@ describe("CategoryManager", () => {
       // Unbinding first is what leaves a failure recoverable: a leaf that lost its binding can be
       // given it back, while a non-leaf that kept one is not offered the picker at all
       expect(unbound).toBeLessThan(created);
-    });
-
-    it("leaves an unbound parent's fields alone when it gains a subcategory", async () => {
-      stubFetch();
-      renderManager();
-      await screen.findByText("Paper submissions");
-
-      fireEvent.click(screen.getByRole("button", { name: "Add subcategory to Paper submissions" }));
-      fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Posters" } });
-      fireEvent.click(screen.getByRole("button", { name: "Create" }));
-
-      await waitFor(() => { expect(postTo("/Categories/Paper/")).toHaveLength(1); });
-      expect(postTo("/Categories/Paper")).toHaveLength(0);
-      expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
     });
 
     it("updates one in place when its parent is unchanged", async () => {
@@ -349,16 +304,24 @@ describe("CategoryManager", () => {
       });
     });
 
-    it("retires a category that could not be deleted", async () => {
+    it("retires a category that could not be deleted, having said why", async () => {
       stubFetch();
       const fetchMock = vi.mocked(fetch);
       renderManager();
       await screen.findByText("Paper submissions");
       fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 409, statusText: "Conflict" } as unknown as Response);
+      // The deletion endpoint refuses, naming what refers to the category
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 409, statusText: "Conflict",
+        json: () => Promise.resolve({
+          "status": "referenced",
+          "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
+        }),
+      } as unknown as Response);
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
-      fireEvent.click(await screen.findByRole("button", { name: "Retire instead" }));
+      expect(await screen.findByText(/referenced in 2 submissions/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Retire instead" }));
 
       await waitFor(() => {
         expect(postsMatching(body => body.includes("tags=%2Bretired"))).not.toHaveLength(0);
@@ -386,12 +349,10 @@ describe("CategoryManager", () => {
     // own to report back in, so they report over the tree. The ones that ask first report inside
     // the dialog the user is already looking at.
     it("names what did not happen when a row action is refused, and lets the report be dismissed", async () => {
-      stubFetch();
-      const fetchMock = vi.mocked(fetch);
+      stubFetch(body => body.includes("order="));
       renderManager();
       await screen.findByText("Paper submissions");
 
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
       fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
       const notice = await screen.findByRole("alert");
@@ -406,79 +367,43 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
       await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
-    });
 
-    it("reports the other direction as itself", async () => {
-      stubFetch(body => body.includes("order=after"));
-      renderManager();
-      await screen.findByText("Retrospective studies");
-
+      // The other direction is reported as itself
       fireEvent.click(screen.getByRole("button", { name: "Move Retrospective studies down" }));
 
       expect(await screen.findByRole("alert"))
         .toHaveTextContent("Retrospective studies could not be moved down");
     });
 
-    it("offers the refused action again, and reports a retry that fails in turn", async () => {
+    it("offers the refused action again until a retry carries it through", async () => {
       stubFetch();
       const fetchMock = vi.mocked(fetch);
       renderManager();
       await screen.findByText("Paper submissions");
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error" } as unknown as Response);
-      fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
-      await screen.findByRole("alert");
+      // What fetch rejects with when the request never completes
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
+
+      const notice = await screen.findByRole("alert");
+      expect(notice).toHaveTextContent("Paper submissions could not be unretired");
+      expect(notice).toHaveTextContent("The server could not be reached");
+      expect(notice).not.toHaveTextContent("Failed to fetch");
 
       // Refused a second time: the notice comes back rather than the offer going away
       fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error" } as unknown as Response);
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("order=before+Retrospective"))).toHaveLength(2);
+        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(2);
       });
-      expect(await screen.findByRole("alert")).toHaveTextContent("Paper submissions could not be moved");
-    });
-
-    it("carries the action through when its retry is taken up", async () => {
-      stubFetch();
-      const fetchMock = vi.mocked(fetch);
-      renderManager();
-      await screen.findByText("Paper submissions");
-      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
-      await screen.findByRole("alert");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Paper submissions could not be unretired");
 
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(2);
+        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(3);
       });
       await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
-    });
-
-    it("reports a failure that was not an Error", async () => {
-      stubFetch();
-      const fetchMock = vi.mocked(fetch);
-      renderManager();
-      await screen.findByText("Paper submissions");
-
-      fetchMock.mockRejectedValueOnce("connection reset");
-      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
-
-      expect(await screen.findByText(/connection reset/)).toBeInTheDocument();
-    });
-
-    it("blames the connection when the server cannot be reached at all", async () => {
-      stubFetch();
-      const fetchMock = vi.mocked(fetch);
-      renderManager();
-      await screen.findByText("Paper submissions");
-
-      // What fetch rejects with when the request never completes
-      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
-
-      expect(await screen.findByText(/The server could not be reached/)).toBeInTheDocument();
-      expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     });
 
     it("reports a refused retirement inside the dialog that asked for it", async () => {

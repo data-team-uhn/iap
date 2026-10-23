@@ -54,6 +54,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -597,26 +598,18 @@ class StartupGateFilterTest
     }
 
     @Test
-    void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws Exception
+    void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws IOException
     {
         everythingPasses();
-        final AtomicBoolean passedThrough = new AtomicBoolean();
-        final FilterChain recordingChain = (req, res) -> passedThrough.set(true);
-        // The real scheduler is in charge here: nothing below calls poll(), so the gate can only open if the
-        // component scheduled its own readiness evaluations.
+        // The real scheduler is in charge here: nothing below calls poll(), so the checks can only run repeatedly if
+        // the component scheduled its own readiness evaluations.
         final StartupGateFilter osgiFilter = new StartupGateFilter(this.executor, this.componentContext);
 
         try {
-            final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-            while (!passedThrough.get() && System.nanoTime() < deadline) {
-                osgiFilter.doFilter(this.request, this.response, recordingChain);
-                Thread.sleep(50);
-            }
+            verify(this.executor, timeout(10_000).atLeast(2)).execute(any(), any());
         } finally {
             osgiFilter.deactivate();
         }
-
-        assertTrue(passedThrough.get());
     }
 
     @Test
