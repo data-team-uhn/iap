@@ -362,7 +362,7 @@ export function usePdfView(
     }
   }, []);
 
-  // Going to a page by hand stops finding a mark, or a place in the text, from moving the reader.
+  // After the reader goes to a page by hand, finding a mark or a place in the text no longer moves them.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
     pointRef.current = undefined;

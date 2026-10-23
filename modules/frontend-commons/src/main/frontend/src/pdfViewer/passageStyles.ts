@@ -25,8 +25,8 @@ export function cutShort(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
-// A kind of mark's own colour: a passage's palette colour, in the shade asked for, or a change's colour from
-// the comparison palette, which has one shade.
+// The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change's comes
+// from the comparison palette, which has one shade.
 export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
   const { palette } = theme.vars ?? theme;
   return isChangeKind(kind) ? palette.diff[kind].main : palette[kind][shade];

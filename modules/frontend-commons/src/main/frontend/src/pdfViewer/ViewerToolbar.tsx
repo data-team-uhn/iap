@@ -26,8 +26,7 @@ import { useNarrowerThan } from "./useNarrowViewer";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// Below this width, the toolbar has no room for the search field beside its page and zoom controls, and
-// offers a button opening it in their place instead.
+// The narrowest toolbar with room for the search field beside its page and zoom controls.
 const SEARCH_FIELD_ROOM = 600;
 
 export interface ViewerToolbarHandle {
@@ -35,9 +34,9 @@ export interface ViewerToolbarHandle {
   openSearch: () => void;
 }
 
-// The viewer's toolbar: the page controls given, the search, and zoom. Without room for it, the search
-// takes the toolbar's place while open or searching, taking the focus, and gives it back to the button that
-// opened it once closed.
+// The viewer's toolbar: the page controls given, the search, and zoom. Without room for the search field,
+// a button opens it in the toolbar's place. It stays there while it is open or holds a query. It takes the
+// focus, and gives it back to the button once closed.
 export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFindAgain, ...zoom }: {
   ref?: Ref<ViewerToolbarHandle>;
   pages?: ReactNode;

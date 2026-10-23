@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 import type { PdfComparisonProps } from "@iap/frontend-commons/pdfViewer/PdfComparison";
 import PdfComparisonTestWidget from "@iap/test-data/PdfComparisonTestWidget";
 
-// The comparison has tests of its own; this stand-in shows what the widget hands it.
+// A stand-in showing what the widget hands the comparison.
 vi.mock("@iap/frontend-commons/pdfViewer/PdfComparison", () => ({
   default: ({ onClose, container, ...shown }: PdfComparisonProps) => (
     <div role="dialog">

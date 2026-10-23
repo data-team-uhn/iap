@@ -19,8 +19,8 @@ import { diffArrays } from "diff";
 
 import { getPassageText, type MarkSpan, type PageText, type PlacedMark, type TextPoint } from "./marksModel";
 
-// What changed between two versions of a document, word by word, as places in each version's text as PDF.js
-// reads it for its text layer, so the viewer can mark them. No React.
+// What changed between two versions of a document, word by word. Each change is placed in each version's
+// text as PDF.js reads it for its text layer, so the viewer can mark it. No React.
 
 // A word of a version: where it is, as offsets into its page's text, and what it says, without the hyphen
 // of a word broken across two lines.
@@ -31,9 +31,9 @@ export interface Word {
   text: string;
 }
 
-// A change from the older version to the newer one: the text it removed and the text it added, either
-// empty, as they read, and where it is in each version. That is the spans of the text it removed or added
-// there, or, where it has none, the point the text went from or would go to.
+// A change from the older version to the newer one. It has the text it removed and the text it added,
+// either of which may be empty. In each version, it is at the spans of the text it removed or added there.
+// Where it has none, it is at the point the text went from or would go to.
 export interface RevisionChange {
   id: string;
   removed: string;
@@ -52,8 +52,9 @@ export interface Alignment {
   pairs: [ number, number ][];
 }
 
-// How a comparison went: the changes found, with how many more the default comparison leaves out, as
-// changes of case or punctuation alone, and how the versions line up; or why there are none to show.
+// How a comparison went. Once compared, it has the changes found and how the versions line up. It also has
+// how many changes of case or punctuation alone the default comparison hid. Otherwise it says why there are
+// none to show.
 export type Comparison =
   | { status: "compared"; changes: RevisionChange[]; hidden: number; alignment: Alignment }
   | { status: "noText"; without: "older" | "newer" | "both" }
@@ -72,8 +73,8 @@ const HYPHENS = new Set([ "-", "\u00ad", "\u2010" ]);
 
 const isLetter = (ch: string | undefined): boolean => ch !== undefined && /\p{L}/u.test(ch);
 
-// The words of each page in turn. A word ends at a space or at the end of a line, unless the line ends
-// with a hyphen inside the word, which then runs on to the next line.
+// The words of each page in turn. A word ends at a space or at the end of a line. A hyphen inside a word
+// at the end of a line runs it on to the next line.
 export function getWords(pages: PageText[]): Word[] {
   const words: Word[] = [];
   pages.forEach(({ text, lineEnds }, index) => {
@@ -100,8 +101,8 @@ export function getWords(pages: PageText[]): Word[] {
   return words;
 }
 
-// Whether a line ending with a word and the next line starting with another break one word in two, as a
-// hyphen between two letters does.
+// Whether the word ending a line and the word starting the next are one word, broken by a hyphen between
+// two letters.
 function isBrokenWord(end: string, start: string): boolean {
   return HYPHENS.has(end.at(-1) ?? "") && isLetter(end.at(-2)) && isLetter(start.charAt(0));
 }
@@ -110,8 +111,8 @@ function isBrokenWord(end: string, start: string): boolean {
 const NUMBER_START = /^[\p{L}\p{N}+\-±$€£¥]$/u;
 const NUMBER_END = /^[\p{L}\p{N}%‰]$/u;
 
-// A number without the punctuation around it. Trimmed character by character, as a pattern trimming the end
-// takes time growing with the square of a long run of punctuation, which a document can hold.
+// A number without the punctuation around it. It is trimmed character by character: a pattern trimming the
+// end takes time growing with the square of a long run of punctuation.
 function trimNumber(text: string): string {
   const chars = Array.from(text);
   let start = 0;
@@ -125,10 +126,10 @@ function trimNumber(text: string): string {
   return chars.slice(start, end).join("");
 }
 
-// When two words are the same: when this gives the same for both. Compared strictly, a word is as it
-// reads. Otherwise case and punctuation are left out, except in a number, which keeps its separators and
-// its sign: "1,000" and "1.000" differ. Nothing for a word the comparison leaves out, as punctuation alone
-// is unless strict. Either way, a ligature is the letters it joins.
+// The key deciding when two words are the same. Compared strictly, a word is as it reads. Otherwise case
+// and punctuation are left out, but a number keeps its separators and its sign: "1,000" and "1.000" differ.
+// Nothing for a word the comparison leaves out, such as punctuation alone when not strict. Either way, a
+// ligature is the letters it joins.
 export function getWordKey(text: string, strict: boolean): string | undefined {
   const plain = text.normalize("NFKC").replaceAll("\u00ad", "").replaceAll("−", "-");
   if (strict) {
@@ -147,8 +148,8 @@ export function getChangeType({ removed, added }: RevisionChange): ChangeType {
   return added === "" ? "removed" : "replaced";
 }
 
-// The marks a version shows the changes with: removed text in the older, added text in the newer, and in
-// each, the point where text only the other has went or would go. Shown alone, the newer version also
+// The marks a version shows the changes with: removed text in the older and added text in the newer. Each
+// also marks the point where text only the other has went or would go. Shown alone, the newer version also
 // marks the point removed text went from beside the text added in its place.
 export function getChangeMarks(changes: RevisionChange[], version: "older" | "newer", alone: boolean): PlacedMark[] {
   return changes.map(change => {
@@ -172,8 +173,8 @@ function quote(text: string): string {
   return `“${text.length > SAID_LENGTH ? `${text.slice(0, SAID_LENGTH).trimEnd()}…` : text}”`;
 }
 
-// A change as a sentence of its own for a screen reader: which it is of how many, what it did on which
-// page of the newer version, and the text it removed or added.
+// A change as a sentence of its own for a screen reader, such as "Change 3 of 17. Removed on page 4: …".
+// The page is the newer version's.
 export function describeChange(change: RevisionChange, { index, count }: { index: number; count: number }): string {
   const { page } = change.newer[0];
   const which = `Change ${index} of ${count}.`;
@@ -199,7 +200,8 @@ interface KeyedWord extends Word {
   strictKey: string | undefined;
 }
 
-// A document uses few words many times, so each is keyed once.
+// The words of a version with their keys: all of them, and those compared. Each distinct word is keyed
+// once.
 function getKeyedWords(pages: PageText[], strict: boolean): { all: KeyedWord[]; compared: KeyedWord[] } {
   const keys = new Map<string, { key: string; strictKey: string | undefined }>();
   const all = getWords(pages).map((word, index) => {
@@ -227,7 +229,7 @@ function getSpans(words: Word[]): MarkSpan[] {
   return spans;
 }
 
-// The point before the word at an index: after the word before it, or else before it, at the start.
+// The point before the word at an index: the end of the word before it, or the start of the first word.
 function getPointBefore(words: Word[], index: number): MarkSpan {
   const before = words.at(index - 1);
   if (index > 0 && before !== undefined) {
@@ -354,7 +356,7 @@ export function compareRevisions(
   return Promise.resolve({ status: "compared", changes, hidden, alignment });
 }
 
-// How many of the items, in order, come before a place, given which do: all of those that do come first.
+// How many of the items come before a place, given which do. Those that do must all come first.
 function countBefore<T>(items: T[], isBefore: (item: T) => boolean): number {
   let low = 0;
   let high = items.length;
@@ -369,8 +371,8 @@ function countBefore<T>(items: T[], isBefore: (item: T) => boolean): number {
   return low;
 }
 
-// The place in the other version matching a place in one: the start of the same word, where the comparison
-// took the word there as the same in both, or else where the change holding it sits in the other version.
+// The place in the other version matching a place in one. Where the comparison took the word there as the
+// same in both, it is the start of that word. Otherwise it is where the change holding it sits.
 export function mapPoint(alignment: Alignment, from: "older" | "newer", { page, char }: TextPoint): TextPoint {
   const [ side, otherSide ] = from === "older" ? [ 0, 1 ] as const : [ 1, 0 ] as const;
   const others = alignment[from === "older" ? "newer" : "older"];

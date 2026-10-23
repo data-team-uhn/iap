@@ -23,8 +23,8 @@ const isView = (value: unknown): value is ComparisonView => value === "split" ||
 
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
-// How the person chose to see two versions compared, across documents and visits: side by side, as at
-// first, or as one document.
+// How the person chose to see two versions compared: side by side, the default, or as one document.
+// Kept across documents and visits.
 export function useComparisonView() {
   return useStoredSetting<ComparisonView>("iap.pdfComparison.view", "split", isView);
 }

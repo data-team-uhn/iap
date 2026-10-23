@@ -31,22 +31,22 @@ interface SyncedView {
   showPoint: (point: TextPoint, atY: number) => void;
 }
 
-// How long after the person last touched a pane, by wheel, finger, key or pointer, or after it last
-// scrolled since, its scrolling is theirs. A fling goes on scrolling after the finger lifts.
+// How long a pane's scrolling counts as the person's after they touch it, by wheel, finger, key or
+// pointer. Each scroll since extends it, as a fling goes on scrolling after the finger lifts.
 const BY_HAND_TIME = 500;
 
-// How long a pane told to lead does, as when a search moves it to a match on a page not drawn yet.
+// How long a pane told to lead keeps leading, such as while a search moves it to a page not drawn yet.
 const LEAD_TIME = 1500;
 
 const INPUTS = [ "wheel", "touchstart", "touchmove", "pointerdown", "keydown" ];
 
 const getOther = (version: Version): Version => (version === "older" ? "newer" : "older");
 
-// Scrolls each pane with the other, matched by the text the versions share: the place in the middle of the
-// pane scrolled by hand goes to the middle of the other, which therefore moves faster or slower through
-// text only one version has. While the text in the middle of the pane is not drawn yet, as on a page just
-// scrolled to, the other pane follows once it is. A pane moved this way does not move the first one back.
-// Gives a function making a pane lead, as after zooming or searching.
+// Scrolls each pane with the other, matched by the text the versions share. The place in the middle of the
+// pane scrolled by hand goes to the middle of the other. Through text only one version has, the panes move
+// at different speeds. While the text in the middle is not drawn yet, such as on a page just scrolled to,
+// the other pane follows once it is. A pane moved this way does not move the first one back. Returns a
+// function making a pane lead, such as after zooming or searching.
 export function useScrollSync(views: Record<Version, SyncedView>, alignment: Alignment | undefined) {
   const { shown: olderShown, showPoint: showOlder } = views.older;
   const { shown: newerShown, showPoint: showNewer } = views.newer;

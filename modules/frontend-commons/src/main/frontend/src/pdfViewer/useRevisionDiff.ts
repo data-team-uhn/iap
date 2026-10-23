@@ -22,14 +22,14 @@ import { compareRevisions, type Comparison } from "./revisionDiffModel";
 import type { PageText } from "./marksModel";
 import type { OpenedDocument } from "./usePdfDocument";
 
-// How a comparison is going: still reading the versions' pages, both read up to the one given, out of the
-// longer version's; still comparing them; or done.
+// How a comparison is going: reading the versions' pages, with how many of the longer version's are read;
+// comparing them; or done.
 export type ComparisonState =
   | { status: "reading"; read: number; total: number }
   | { status: "comparing" }
   | Comparison;
 
-// How often, at most, how far the reading has got is told: each time draws the viewer again.
+// The least time between two reports of how far the reading has got. Each report draws the viewer again.
 const PROGRESS_INTERVAL = 200;
 
 // Both versions' text, once read, and how far the reading has got, for the documents it was read from.

@@ -103,8 +103,8 @@ function joinLines(rects: DOMRect[]): DOMRect[] {
   return joined;
 }
 
-// Where a point between two characters is drawn: at the end of the character before it, or at the start of
-// the text when it has none, as a box with no width, the line's height.
+// Where a point between two characters is drawn, as a box with no width and the line's height. It sits at
+// the end of the character before it, or at the start of the text when there is none.
 function getPointRect(nodes: TextNodeAt[], offset: number): DOMRect | undefined {
   const before = offset > 0 ? getTextRects(nodes, offset - 1, offset).at(-1) : undefined;
   if (before !== undefined) {
@@ -192,9 +192,9 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
   return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
 }
 
-// The point of the text drawn in the frame at a height in the window, or the nearest below it: the start
-// of the first piece of text reaching down to it, on the first page reaching down to it. None where no
-// such page has its text drawn.
+// The place in the frame's text at a height in the window. It is the start of the first piece of text
+// reaching down to that height, on the first page reaching down to it. None while that page's text is not
+// drawn.
 export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undefined {
   const pageView = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"))
     .find(view => view.getBoundingClientRect().bottom >= y);
@@ -207,8 +207,8 @@ export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undef
   return at === undefined ? undefined : { page: Number(pageView.dataset.pageNumber), char: at.start };
 }
 
-// Where a point of a page's text is drawn in the frame: the box of the character at it, or of the point
-// itself at the end of the text. None while its page's text is not drawn.
+// Where a point of a page's text is drawn in the frame. It is the box of the character at it, or of the
+// point itself at the end of the text. None while its page's text is not drawn.
 export function getTextPointRect(frame: HTMLElement, { page, char }: TextPoint): DOMRect | undefined {
   const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${page}"] .textLayer`);
   if (textLayer === null) {
@@ -218,13 +218,14 @@ export function getTextPointRect(frame: HTMLElement, { page, char }: TextPoint):
   return getTextRects(nodes, char, char + 1).at(0) ?? getPointRect(nodes, char);
 }
 
-// The first piece of a mark drawn in the frame, if its page has been drawn, or its first point.
+// The first piece of a mark drawn in the frame, or with `point`, its marker. None until its page is drawn.
 export function findMark(frame: HTMLElement, id: string, { point = false } = {}): HTMLElement | undefined {
   return Array.from(frame.querySelectorAll<HTMLElement>(`.${point ? POINT_CLASS : MARK_CLASS}`))
     .find(mark => mark.dataset.markId === id);
 }
 
-// How wide and high a point is to the pointer, however thin it is drawn: a fingertip on a touch screen.
+// The size of a point's target for the pointer, however thin it is drawn. On a touch screen it is a
+// fingertip.
 const POINT_HIT_SIZE = { touch: 40, mouse: 16 };
 
 function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {

@@ -39,7 +39,7 @@ type Listener = (event: never) => void;
 function createDefaults() {
   return {
     pages: [ ...DEFAULT_PAGES ],
-    // The pages of other documents, by the URL the viewer fetches them from: fakePdf.pages for any other.
+    // The pages of each document, by the URL the viewer fetches it from. Any other URL opens fakePdf.pages.
     documents: {} as Record<string, string[]>,
     // What opening the document fails with, if anything.
     openFailure: undefined as Error | undefined,
@@ -97,8 +97,8 @@ export const fakePdf = {
 
 // jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page. A mark sits where
 // its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
-// as wide and as high as given, which decides whether the viewer has room beside the document, and
-// whether a mark is in view. Undone by reset().
+// and as high as given, which decides whether the viewer has room beside the document, and whether a
+// mark is in view. Undone by reset().
 export function stubLayout({ elementWidth = 0, elementHeight = 0 } = {}): void {
   Range.prototype.getClientRects = () => [ new DOMRect(0, MATCH_TOP, 100, 20) ] as unknown as DOMRectList;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
@@ -156,7 +156,7 @@ export function stubFetch(status = 200): void {
   )));
 }
 
-// A document whose pages' text is as given, a line per item ending one, inside marked content.
+// A document whose pages' text is as given, one text item per line, inside marked content.
 class FakeDocument {
   readonly pages: string[];
   readonly numPages: number;

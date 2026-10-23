@@ -60,20 +60,20 @@ export interface PdfComparisonProps {
   newerLabel?: string;
   // What the viewer is called; the newer version's file name when absent.
   title?: string;
-  // An element to show the viewer in, as PdfViewer's.
+  // An element to show the viewer in, rather than a dialog.
   container?: HTMLElement | null;
   onClose: () => void;
 }
 
-// Compares two versions of a PDF by their text, side by side or as the newer one alone with its changes
-// marked, as the person chooses, and alone in a viewer too narrow for two. The changes are stepped through
-// in order, each taking the reader to it.
+// Compares two versions of a PDF by their text. It shows them side by side, or the newer one alone with
+// its changes marked, as the person chooses. The changes are stepped through in order, each taking the
+// reader to it.
 export default function PdfComparison(props: PdfComparisonProps) {
   // Keyed so other versions start over with nothing left from the last.
   return <ComparisonSession key={`${props.olderUrl}\n${props.newerUrl}`} {...props} />;
 }
 
-// The space between the viewer's rows, kept small on a phone, where the document has the least room.
+// The space between the viewer's rows.
 const ROW_GAP = { xs: 0.5, sm: 1 };
 
 // What a comparison has to say for itself, before a change is selected: in a line under the changes'
@@ -124,7 +124,7 @@ function ComparisonSession(props: PdfComparisonProps) {
   const comparison = useRevisionDiff(older.pdf, newer.pdf, strict);
   const [chosenView, setView] = useComparisonView();
   const [body, setBody] = useState<HTMLElement | null>(null);
-  // A narrow viewer shows the newer version alone, whatever was chosen, which it keeps for a wider one.
+  // A narrow viewer shows the newer version alone, but keeps what was chosen for a wider one.
   const narrow = useNarrowViewer(body);
   const split = !narrow && chosenView === "split";
   const changes = useMemo(() => getChanges(comparison), [comparison]);
@@ -132,8 +132,8 @@ function ComparisonSession(props: PdfComparisonProps) {
   const newerMarks = useMemo(() => getChangeMarks(changes, "newer", !split), [changes, split]);
   const { places: olderPlaces } = useMarkPlaces(older.pdf, olderMarks);
   const { places: newerPlaces } = useMarkPlaces(newer.pdf, newerMarks);
-  // The change selected, of the changes found then, and whether what it removed is shown over the newer
-  // version, until the person closes it.
+  // The change selected, with the changes it was selected from, and whether its removed text is shown over
+  // the newer version. A new comparison drops the selection.
   const [selection, setSelection] = useState<{ of: RevisionChange[]; id: string; showRemoved: boolean }>();
   const selectedId = selection?.of === changes ? selection.id : undefined;
   const position = changes.findIndex(change => change.id === selectedId);
@@ -153,7 +153,7 @@ function ComparisonSession(props: PdfComparisonProps) {
     selectedId,
     onSelectMark: id => show(id, "newer"),
   });
-  // Selecting a change brings it into view in each version shown, but the one it was selected in.
+  // Selecting a change brings it into view in each version shown, except the one it was selected in.
   const show = (id: string, from?: "older" | "newer") => {
     setSelection({ of: changes, id, showRemoved: true });
     if (from !== "newer") {
@@ -163,7 +163,8 @@ function ComparisonSession(props: PdfComparisonProps) {
       olderView.showMark(id);
     }
   };
-  // Closes what a change removed, unless another change was selected since, as by the click closing it.
+  // Closes a change's removed text, unless another change was selected since, such as by the click
+  // closing it.
   const closeRemoved = useCallback((id: string) => setSelection(previous => (
     previous?.id === id ? { ...previous, showRemoved: false } : previous
   )), []);
@@ -182,7 +183,7 @@ function ComparisonSession(props: PdfComparisonProps) {
     split && comparison.status === "compared" ? comparison.alignment : undefined,
   );
   // One search and one zoom for both versions, after which the older version follows the newer. The search
-  // counts and steps through the newer version's matches, so it means the same shown alone.
+  // counts and steps through the newer version's matches, as it does with the newer version alone.
   const find = (query: string) => {
     newerView.find(query);
     olderView.find(query);
@@ -390,9 +391,9 @@ function ComparisonNote({ line, failed, hidden, onShowHidden }: {
   );
 }
 
-// The text a change removed, over the newer version, at the marker where it went from, kept within the
-// screen. It goes with its marker as the document scrolls or is drawn again, and hides while the marker is
-// out of view. A tap outside it closes it, but on its marker.
+// The text a change removed, shown over the newer version at its marker and kept within the screen. It
+// goes with its marker as the document scrolls or is drawn again, and hides while the marker is out of
+// view. A tap outside it closes it, except a tap on its marker.
 function RemovedText({ frame, id, text, onClose }: {
   frame: HTMLElement;
   id: string;
@@ -417,7 +418,8 @@ function RemovedText({ frame, id, text, onClose }: {
       frame.removeEventListener("scroll", update);
     };
   }, [frame, id]);
-  // Escape closes it wherever the focus is, as on a stepper button just disabled, and closes nothing else.
+  // Escape closes it wherever the focus is, such as on a stepper button just disabled, and closes
+  // nothing else.
   const shown = marker !== undefined;
   useEffect(() => {
     if (!shown) {

@@ -35,8 +35,8 @@ const paragraph = (number: number): string => `Paragraph ${number} reads the sam
 const OLDER_TEXT = Array.from({ length: 150 }, (_, index) => paragraph(index + 1));
 
 /**
- * The newer version: 30 paragraphs added after the 10th, in words the older version does not have, so they
- * are one change, and the 60th to the 80th removed.
+ * The newer version: 30 paragraphs added after the 10th, and the 60th to the 80th removed. The added
+ * paragraphs use words the older version does not have, so they are one change.
  */
 const NEWER_TEXT = [
   ...OLDER_TEXT.slice(0, 10),

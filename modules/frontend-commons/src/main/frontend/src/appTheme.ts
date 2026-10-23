@@ -85,9 +85,9 @@ declare module "@mui/material/styles" {
     line: string;
     word: string;
   }
-  // `assistant` marks whatever an AI assistant contributed, and `annotation` what a person marked;
-  // `highlight` holds the marks both make over a document's content (see HIGHLIGHT below), and those
-  // a comparison of two versions of a document makes.
+  // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
+  // `highlight` holds the marks both make over a document's content, and those a comparison of two
+  // versions of a document makes.
   interface TypeHighlight {
     assistant: string;
     assistantCurrent: string;

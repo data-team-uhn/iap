@@ -41,8 +41,8 @@ export function isChangeKind(kind: MarkKind): kind is ChangeKind {
 }
 
 // What a mark covers on one page, as offsets into the page's text as PDF.js reads it for its text
-// layer: the whole passage, or the part of it on that page. Equal offsets are a point between two
-// characters, drawn as a marker. A span may be drawn as a kind other than its mark's, as where a change
+// layer. A passage that runs over several pages has one span on each. Equal offsets are a point between
+// two characters, drawn as a marker. A span may be drawn as a kind other than its mark's, as where a change
 // removed text and added other text in its place.
 export interface MarkSpan {
   page: number;

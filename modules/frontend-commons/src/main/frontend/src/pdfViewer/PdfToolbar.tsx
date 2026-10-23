@@ -24,8 +24,8 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// Going from page to page: the page shown of how many, between the previous and next page buttons. Only
-// the label gives way in a narrow row. Disabled until the document has opened.
+// The previous and next page buttons, with "Page 3 of 10" between them. In a narrow row only the label
+// gives way. Disabled until the document has opened.
 export function PageControls({ page, pageCount, onShowPage }: {
   page?: number;
   pageCount?: number;
@@ -55,8 +55,8 @@ export function PageControls({ page, pageCount, onShowPage }: {
   );
 }
 
-// Going from page to page, when given the controls, searching, and zooming. One line even on a narrow
-// phone. Every control is disabled until the document has opened.
+// Searching and zooming, after the page controls when given. One line even on a narrow phone. Every
+// control is disabled until the document has opened.
 export default function PdfToolbar({ pages, opened, search, onZoomIn, onZoomOut, onFitWidth }: {
   pages?: ReactNode;
   opened: boolean;

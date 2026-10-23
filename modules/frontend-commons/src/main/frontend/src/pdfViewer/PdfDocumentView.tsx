@@ -28,7 +28,7 @@ import type { Theme } from "@mui/material/styles";
 // Enough page to read, even when a long quote takes most of the viewer.
 const MIN_FRAME_HEIGHT = 200;
 
-// The colour of the kind of a mark, as a CSS variable on it.
+// A mark's colour, as a CSS variable set on it.
 const MARK_COLOUR = "--iap-mark-colour";
 
 // Colours each kind of mark, in a deeper shade when selected. With outlineSelected, the selected mark

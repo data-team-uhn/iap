@@ -218,8 +218,8 @@ card per schema, so the card describes its versions.
 ```
 
 Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
-(`annotation`), or what a comparison found (`added`, `removed`), so it is coloured accordingly. Where it
-is comes in one of three ways:
+(`annotation`), or what a comparison found (`added`, `removed`), so it is coloured accordingly. Its
+place is given in one of three ways:
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
@@ -351,9 +351,9 @@ It opens in a dialog. Given a `container` element, it fills that element instead
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
 `null`, as a ref is before React attaches it, shows nothing until the element is there.
 
-Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
-`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
-in a frame, with the marks drawn, moves the reader, and searches it. `ViewerPlacement` and
+Its parts can also be used on their own: `usePdfDocument` opens the file and reads each page's text
+once, `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the
+document in a frame, with the marks drawn, moves the reader, and searches it. `ViewerPlacement` and
 `ViewerTitle` put a viewer in place or in a dialog, and `ViewerToolbar` is its toolbar.
 
 ### Comparing two versions
@@ -371,16 +371,16 @@ in a frame, with the marks drawn, moves the reader, and searches it. `ViewerPlac
 ```
 
 It compares the text only, word by word, as PDF.js reads it for the text layer. Each version's pages
-are read into words, each with its page and offsets, so a change is marked straight from them, even
-across a page break, and versions that break into pages differently still compare. The pure part is in
-`revisionDiffModel.ts`: `compareRevisions` diffs the words with jsdiff, behind a promise, so it can move
-to a worker without its callers changing.
+are read into words, each with its page and offsets. A change is marked straight from those, even
+across a page break, and versions that break into pages differently still compare. The part without
+React is in `revisionDiffModel.ts`, where `compareRevisions` diffs the words with jsdiff. It returns a
+promise, so it can move to a worker without its callers changing.
 
 One function, `getWordKey`, decides when two words are the same. By default it leaves out spacing,
 line ends, hyphens breaking a word across lines, case, and punctuation. A number keeps its separators
 and its sign, so "1,000" and "1.000" differ. A line under the stepper says how many changes that leaves
-out ("4 changes to punctuation or case hidden"), with a button showing them. The choice is kept in
-local storage, through `useStrictComparison`.
+out ("4 changes to punctuation or case hidden"), with a button showing them. Whether they are shown is
+kept in local storage, through `useStrictComparison`.
 
 There are two views:
 

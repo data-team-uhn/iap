@@ -26,13 +26,14 @@ import { createPortal } from "react-dom";
 import ResponsiveDialog from "../components/ResponsiveDialog";
 
 // The space around the viewer in the dialog, kept small on a phone, where the document has the least room.
-// There, the document runs to the bottom of the screen, as to its sides.
+// There, the document runs to the bottom of the screen.
 const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
 
-// Shows a viewer in the element given, filling it, with a button to pop it out into a dialog and back; or,
-// without one, in a dialog. The element needs a height of its own. Null, as a ref is before React attaches
-// it, shows nothing until the element is there. The viewer is given the button, and whether it is in the
-// dialog. What it keeps open stays open above this, as the viewer moves.
+// Shows a viewer in the element given, filling it, with a button popping it out into a dialog and back.
+// Without an element, it shows the viewer in a dialog. The element needs a height of its own. While it
+// is null, as a ref is before React attaches it, nothing is shown. The viewer is given the button, and
+// whether it is in the dialog. Moving the viewer draws it anew, so what must survive the move belongs
+// above this.
 export default function ViewerPlacement({ container, titleId, onClose, children }: {
   container?: HTMLElement | null;
   // The id of the viewer's title, which names the dialog.
