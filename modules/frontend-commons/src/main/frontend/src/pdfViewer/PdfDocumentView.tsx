@@ -41,9 +41,8 @@ function markColours(theme: Theme, outlineSelected: boolean) {
 }
 
 // The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so the
-// box around it gives it the room. Drawn again only when what it is given changes, as its styles are the
-// costliest part of the viewer to draw, and the viewer is drawn often while it reads or searches the
-// document.
+// box around it gives it the room. Drawn again only when its props change. Its styles are the costliest
+// part of the viewer to draw, and the viewer is drawn often while it reads or searches the document.
 const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlineSelected }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
@@ -67,12 +66,12 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         "& .textLayer": { mixBlendMode: "multiply" },
         [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
         ...markColours(theme, outlineSelected),
-        // PDF.js's own highlights, of a search's matches
+        // PDF.js's own highlights of a search's matches
         "& .textLayer .highlight": {
           "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
           "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight.searchCurrent,
         },
-        // A mark is clicked through the text over it, which the pointer shows.
+        // A click on the text over a mark selects the mark, so the cursor becomes a pointer there.
         [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
       })}
     >
@@ -82,16 +81,16 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
 });
 
 // The document, filling the room left to it, with a spinner while it opens, and a bar along its top while
-// passages are looked for in it. Anything shown over the frame is placed in the frame's coordinates. In the
-// dialog on a phone, the document spans the full screen width, past the dialog's padding.
+// passages are looked for in it. Anything shown over the frame is placed in the frame's coordinates. With
+// edgeToEdge, the document spans the full width of a phone screen.
 export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // How much of the document has been read looking for passages, from 0 to 1, while some are, and whether
-  // there are several.
+  // While passages are being looked for, the share of the document read so far, from 0 to 1, and whether
+  // there are several passages.
   looking?: { share: number; several: boolean };
   children?: ReactNode;
 }) {

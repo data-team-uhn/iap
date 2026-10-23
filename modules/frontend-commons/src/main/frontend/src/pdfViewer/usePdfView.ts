@@ -41,8 +41,8 @@ interface MatchesCount {
   total: number;
 }
 
-// How often, while a search is still counting its matches, the count is shown, and whether PDF.js has
-// searched every page checked: each time draws the viewer again.
+// How often, in milliseconds, a search still counting its matches shows its count and checks whether
+// PDF.js has searched every page. Each time draws the viewer again.
 const COUNT_INTERVAL = 250;
 
 // Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
@@ -139,13 +139,14 @@ export function usePdfView(
         setSearch(previous => ({ ...previous, ...noText, announcement: getSearchStatus(noText) }));
       }
     };
-    // PDF.js counts a new search's matches as it searches the pages, telling each page's, which is shown
-    // now and then rather than each time, until every page has been searched. It counts them as 0 of 0
-    // until it has picked the one to show.
+    // PDF.js counts a new search's matches as it searches the pages. The latest count is shown every
+    // COUNT_INTERVAL until every page has been searched. It counts them as 0 of 0 until it has picked the
+    // one to show.
     let latestCount: MatchesCount | undefined;
     let counting = 0;
     const showCount = () => {
-      // A new search is pending while PDF.js waits for the typing to stop, the last one's matches still kept.
+      // While PDF.js waits for the typing to stop, a new search is pending and the last one's matches
+      // are kept.
       const searched = (findController.pageMatches ?? []).reduce((pages: number) => pages + 1, 0);
       const done = findController._dirtyMatch !== true && searched >= doc.numPages;
       if (done) {
