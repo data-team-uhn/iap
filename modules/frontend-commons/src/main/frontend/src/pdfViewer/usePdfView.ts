@@ -72,8 +72,9 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
 }
 
 // Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
-// where they were found, taking the reader to the selected one once it is. Clicking a mark selects it.
-// Searches the document too. Moving to another frame keeps the page, the zoom, the marks and the search.
+// where they were found. It takes the reader to the selected mark once that is found. Clicking a mark
+// selects it. It searches the document too. Moving to another frame keeps the page, the zoom, the marks
+// and the search.
 export function usePdfView(
   pdf: OpenedDocument | undefined,
   { page, marks, places, selectedId, onSelectMark }: {
@@ -99,7 +100,7 @@ export function usePdfView(
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
   const [search, setSearch] = useState<DocumentSearch>(IDLE_SEARCH);
-  // What is searched for, which a viewer built again, in another frame, searches for too.
+  // The query, searched for anew when the viewer is rebuilt in another frame.
   const queryRef = useRef("");
   const eventBusRef = useRef<EventBus | undefined>(undefined);
   const onSelectMarkRef = useRef(onSelectMark);
@@ -124,7 +125,7 @@ export function usePdfView(
     viewer.findController = createFindController(components, { container: frame, linkService, eventBus });
 
     const { FOUND, NOT_FOUND, PENDING, WRAPPED } = components.FindState;
-    // Nothing is found in a document without text either, which is worth saying apart.
+    // A document without text has no matches either. The search says it has no text instead.
     const sayIfNoText = async (query: string) => {
       if (!await hasText(pdf) && queryRef.current === query) {
         const noText = { outcome: "noText", current: 0, total: 0 } as const;
@@ -283,7 +284,7 @@ export function usePdfView(
     });
   }, [withViewer]);
 
-  // Searching takes the reader from the mark they were being taken to, to the matches.
+  // Searching stops taking the reader to a mark. The matches take them instead.
   const find = useCallback((query: string) => {
     queryRef.current = query;
     goToRef.current = undefined;
