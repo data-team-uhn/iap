@@ -19,10 +19,10 @@
 // Shorter than this, a quote matches too easily to be worth a mark.
 const MIN_QUOTE_LENGTH = 6;
 
-// A quote broken across two pages: how far from the end of the first page its start may end, and from
-// the start of the next its rest may begin, in compared characters, leaving room for a footer, a page
-// number and a header; and how short either part may be before it matches too easily to trust.
+// How far each part of a quote broken across two pages may lie from the page break, in compared
+// characters. The room is for a footer, a page number and a header.
 const PAGE_EDGE = 300;
+// Shorter than this, either part matches too easily to trust.
 const MIN_PART_LENGTH = 12;
 
 // PDFs use typographic quotes and dashes; a quote typed by a person or a model rarely does.

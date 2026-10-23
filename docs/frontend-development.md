@@ -73,9 +73,9 @@ names the package folders they come from in its `package-folders.config`, beside
 'pdfjs-dist/wasm'
 ```
 
-The build publishes each folder as it is, in a folder named after its contents' hash, which the
-server has browsers keep for good, and keys it in `assets.json` by the package folder, with a dot
-for the slash: `getAssetURL("asset:pdfjs-dist.standard_fonts")` gives the folder's URL.
+The build publishes each folder as it is, in a folder named after its contents' hash, which
+browsers keep for good. `assets.json` keys it by the package folder, with a dot for the slash:
+`getAssetURL("asset:pdfjs-dist.standard_fonts")` gives the folder's URL.
 
 ## Talking to the server
 
@@ -216,12 +216,12 @@ given:
 />
 ```
 
-It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
-a dialog and back, keeping the page, the zoom and the mark. A `container` that is `null`, as a ref is
-before React attaches it, shows nothing until the element is there. The passage is matched the way
-a quote copied from a document's text needs to be: ignoring spacing, case, accents, typographic
-quotes and dashes, and line-end hyphens. `markedBy` says whose mark it is, an AI assistant's or a
-person's, so it is coloured accordingly.
+It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
+into a dialog and back, keeping the page, the zoom and the mark. A `container` that is `null`, as a
+ref is before React attaches it, shows nothing until the element is there. The match ignores
+spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and finds a passage
+that runs across a page break. `markedBy` says whose mark it is, an AI assistant's or a person's,
+and sets its colour.
 
 ## Styling
 
@@ -244,10 +244,9 @@ using those extensions is what keeps a deployment's rebranding effective:
   for the stronger shade of the words that changed within it. `palette.diff.moved` has
   only `main` and `line`, for what moved. So has `palette.diff.hunk`, for the band
   that stands in for unchanged content left out.
-- `assistant` for anything an AI assistant contributed, wherever it appears, and `annotation`
-  for what a person marked: full palette colours (`color="assistant"` on a `Chip`, `Button`,
-  `IconButton` or icon, `"assistant.main"` in `sx`), built on a lilac accent and a soft
-  highlighter yellow.
+- `assistant` for anything an AI assistant contributed, and `annotation` for what a person
+  marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
+  `IconButton` or icon, `"assistant.main"` in `sx`.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
   with a `…Current` variant for the mark in focus. They stay the same in both colour schemes,
   since the content under them stays light.
