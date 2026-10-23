@@ -169,8 +169,8 @@ export default function PassageCard({ quote, note, markedBy, stepper, onShowPass
   );
 }
 
-// The page a passage was found on is styled as a link when it is not the page shown, as the passage
-// and its note take the reader there.
+// When the passage was found on a page other than the one shown, the page number is styled as a link.
+// The passage and its note take the reader there.
 export function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
   if ("text" in note) {
     const text = short ? note.short : note.text;

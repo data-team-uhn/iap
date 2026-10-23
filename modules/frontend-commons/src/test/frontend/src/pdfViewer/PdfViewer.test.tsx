@@ -52,8 +52,8 @@ function withTheme(element: ReactElement): ReactElement {
   return <ThemeProvider theme={appTheme} defaultMode="light">{element}</ThemeProvider>;
 }
 
-// One passage, as evidence shows it: a quote marked by whoever found it, looked for from the page
-// the viewer opens at, unless marks are given.
+// `quote` and `markedBy` make the one mark the viewer gets, looked for from the page it opens at,
+// unless `marks` are given.
 type ShowProps = Partial<PdfViewerProps> & { quote?: string; markedBy?: MarkKind };
 
 function createViewer({ quote = QUOTE, markedBy = "assistant", ...props }: ShowProps, onClose: () => void) {
@@ -902,7 +902,7 @@ describe("PdfViewer", () => {
         expect(getDrawnMarks(getFrame())[2]).toHaveLength(1);
       });
 
-      // A caller holding the selection, as a review screen will, selecting what the viewer reports.
+      // A caller that holds the selection and selects what the viewer reports.
       function Held({ initial, onReport }: { initial: string; onReport: (id: string) => void }) {
         const [selected, setSelected] = useState(initial);
         const report = (id: string) => {

@@ -17,8 +17,8 @@
  */
 
 // A stand-in for pdfjs-dist and its viewer, keeping to the protocol the real ones follow with each
-// other and with PdfViewer: the document giving each page's text, events on the bus, the link
-// service moving the viewer, and the viewer drawing each page's text layer as it is shown. Loaded
+// other and with PdfViewer. The document gives each page's text, events go on the bus, the link
+// service moves the viewer, and the viewer draws each page's text layer as it is shown. Loaded
 // through vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...).
 
 export const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
@@ -72,7 +72,7 @@ export const fakePdf = {
   },
 };
 
-// jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page, and a mark sits where
+// jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page. A mark sits where
 // its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
 // as given, which decides whether the viewer has room beside the document. Undone by reset().
 export function stubLayout({ elementWidth = 0 } = {}): void {
@@ -92,7 +92,7 @@ export function stubLayout({ elementWidth = 0 } = {}): void {
   });
 }
 
-// The marks drawn over the pages' text, which are only seen, by page number.
+// The class names of the marks drawn in the frame, by page number.
 export function getDrawnMarks(frame: HTMLElement): Record<number, string[]> {
   const drawn: Record<number, string[]> = {};
   for (const mark of frame.querySelectorAll<HTMLElement>("[data-mark-id]")) {
@@ -130,7 +130,7 @@ export function stubFetch(status = 200): void {
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new ArrayBuffer(8), { status }))));
 }
 
-// A document whose pages' text is fakePdf.pages, a line per item ending one, inside marked content.
+// A document whose pages' text is fakePdf.pages, one text item per line, inside marked content.
 class FakeDocument {
   readonly numPages = fakePdf.pages.length;
   #held: Promise<void> | undefined;

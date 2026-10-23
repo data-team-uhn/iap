@@ -21,10 +21,10 @@ import { MarkLocator, type Mark, type MarkPlace } from "./marksModel";
 
 import type { OpenedDocument } from "./usePdfDocument";
 
-// Where each of the marks given is, by id.
+// Each mark's place in the document, by mark id.
 export type MarkPlaces = Record<string, MarkPlace>;
 
-// Where each mark's passage is in the document, as its pages are read, in order.
+// Finds each mark's passage in the document, updating the places as the pages are read in order.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): MarkPlaces {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces } | undefined>(undefined);
 

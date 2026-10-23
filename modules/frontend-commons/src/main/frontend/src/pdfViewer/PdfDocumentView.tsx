@@ -25,7 +25,8 @@ import type { Theme } from "@mui/material/styles";
 // Enough page to read, even when a long quote takes most of the viewer.
 const MIN_FRAME_HEIGHT = 200;
 
-// Each kind of mark in its highlight colour, and in a deeper one when selected, outlined among others.
+// Colours each kind of mark, in a deeper shade when selected. With outlineSelected, the selected mark
+// is also outlined.
 function markColours(theme: Theme, outlineSelected: boolean) {
   const { palette } = theme.vars ?? theme;
   return Object.fromEntries(MARK_KINDS.flatMap(kind => [
@@ -38,12 +39,12 @@ function markColours(theme: Theme, outlineSelected: boolean) {
 }
 
 // The frame PDF.js shows the document in, filling the room left to it. PDF.js needs its scrolling
-// container absolutely positioned, so the outer box gives it the room. In the dialog on a phone, the
-// document spans the full screen width, past the dialog's padding.
+// container absolutely positioned, so the outer box gives it the room. With edgeToEdge, the document
+// spans the full width of a phone screen.
 export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected }: {
   setFrame: (frame: HTMLDivElement | null) => void;
   edgeToEdge: boolean;
-  // Whether the selected mark stands out from others by an outline too.
+  // Whether the selected mark is also outlined.
   outlineSelected: boolean;
 }) {
   return (
@@ -72,7 +73,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected 
           "& .textLayer": { mixBlendMode: "multiply" },
           [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
           ...markColours(theme, outlineSelected),
-          // A mark is clicked through the text over it, which the pointer shows.
+          // A click on the text over a mark selects the mark, so the cursor becomes a pointer there.
           [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
         })}
       >
