@@ -151,9 +151,10 @@ Two consequences worth knowing:
   content is installed renders permanently without it, and no amount of assertion retrying recovers.
   Name what a suite depends on in `Instance.readyPaths` (probed anonymously, exactly as the browser reads
   it) rather than hoping.
-- A failing run leaves a trace, a screenshot and a video in `target/e2e-report`. Open it with
-  `pnpm report` — for anything that only fails on CI, that is the difference between a diagnosis and a
-  guess.
+- A failing test leaves a screenshot in `target/e2e-report`, and on CI, where it is retried once, a
+  trace and a video of the retry. Open it with `pnpm report` — for anything that only fails on CI, that
+  is the difference between a diagnosis and a guess. Recording every run would roughly double the test
+  time, so locally rerun the failing test with `-Dplaywright.args="--trace on"` to get a trace.
 
 ## Typechecking and linting
 

@@ -100,11 +100,12 @@ export default defineConfig({
   // mark themselves slow.
   timeout: 60_000,
   use: {
-    // Kept on retry and on failure: a trace is the difference between diagnosing a CI-only failure in
-    // minutes and not at all
-    trace: 'retain-on-failure',
+    // Recorded on the retry only, because recording every run roughly doubled the suites' test time. A
+    // CI failure is retried once, so it still yields a trace: the difference between diagnosing a
+    // CI-only failure in minutes and not at all. Locally, rerun the failing test with `--trace on`.
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'on-first-retry',
     ignoreHTTPSErrors: true,
   },
   projects: activeInstances().flatMap(instance =>
