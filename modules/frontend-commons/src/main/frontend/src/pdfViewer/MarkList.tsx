@@ -38,16 +38,14 @@ import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
 
-// Past this many lines, a passage and what the caller shows under it are each cut short unless it is the
-// one selected, what is under it fading out where it is cut. The focus inside what is cut shows all of it,
-// so nothing is typed out of sight.
+// How many lines of a passage, and of what the caller shows under it, an entry shows unless it is the one
+// selected. The focus inside what is cut shows all of it, so nothing is typed out of sight.
 const MAX_LINES = 2;
 const MAX_DETAILS_LINES = 2;
 
-// The passages beside the document, in the order given, each on a card in its mark's colour, selecting
-// it, with whatever the caller shows with it under it. A passage found takes the reader to it, and the
-// one selected is shown whole and kept in view. Above them, which is selected of how many, with buttons
-// stepping through them, each named as the marks are called.
+// The passages beside the document, each on a card in its mark's colour, with the caller's details for
+// it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
+// view. Above them, a heading says which is selected of how many, with buttons stepping through them.
 function MarkList({ marks, name, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
   name: MarkName;
@@ -144,7 +142,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   return (
     <Box
       ref={box}
-      // Cut again as the focus leaves, it starts from its top, wherever the focus scrolled it to while it was cut
+      // Back to its top once the focus leaves, wherever the focus scrolled it while it was cut
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
           event.currentTarget.scrollTop = 0;
