@@ -23,7 +23,7 @@ export const MARK_CLASS = "iap-mark";
 export const OVER_MARK_CLASS = "iap-over-mark";
 const LAYER_CLASS = "iap-marks";
 
-// A mark to draw on one page, over the offsets it covers in the text of the page's text layer.
+// A mark to draw on one page, as the offsets it covers in the text of the page's text layer.
 export interface PageMark {
   id: string;
   kind: MarkKind;
@@ -36,8 +36,8 @@ interface TextNodeAt {
   start: number;
 }
 
-// The boxes of the text between two offsets, without those of the elements holding it, which a range
-// across whole elements would add.
+// The boxes of the text between two offsets. Each text node gets a range of its own, since a range
+// across whole elements adds the elements' boxes too.
 function getTextRects(nodes: TextNodeAt[], start: number, end: number): DOMRect[] {
   const range = document.createRange();
   return nodes.flatMap(({ node, start: at }) => {
@@ -52,8 +52,8 @@ function getTextRects(nodes: TextNodeAt[], start: number, end: number): DOMRect[
   });
 }
 
-// Boxes running on along a line, less than its height apart, as one, so a mark carries on across the gaps
-// PDF.js leaves between the pieces of text it lays out separately.
+// Joins boxes on the same line that are less than a line's height apart. A mark then runs on across
+// the gaps PDF.js leaves between the pieces of text it lays out separately.
 function joinLines(rects: DOMRect[]): DOMRect[] {
   const joined: DOMRect[] = [];
   for (const rect of rects) {
@@ -76,8 +76,8 @@ function joinLines(rects: DOMRect[]): DOMRect[] {
 
 const percent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
 
-// Draws the marks over a page's text layer, inside it, since PDF.js keeps it when zooming, and in
-// percentages of it, so they scale with the page. Drawing again replaces what was drawn.
+// Draws the marks over a page's text layer, replacing any drawn before. They go inside the text
+// layer, which PDF.js keeps when zooming, and are sized in percentages of it to scale with the page.
 export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId: string | undefined): void {
   textLayer.querySelector(`:scope > .${LAYER_CLASS}`)?.remove();
   const nodes: TextNodeAt[] = [];
@@ -117,8 +117,8 @@ export function findMark(frame: HTMLElement, id: string): HTMLElement | undefine
   return Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).find(mark => mark.dataset.markId === id);
 }
 
-// The mark drawn at a point in the frame, if any. Marks let the pointer through to the text, so text
-// can be selected across them, and a click is matched to them by where it falls. Where marks overlap,
+// The mark drawn at a point in the frame, if any. Marks let the pointer through, so text can be
+// selected across them, and a click is matched to a mark here by where it falls. Where marks overlap,
 // one not selected comes first, so clicking again reaches the other.
 export function markAt(frame: HTMLElement, x: number, y: number): string | undefined {
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).filter(mark => {
