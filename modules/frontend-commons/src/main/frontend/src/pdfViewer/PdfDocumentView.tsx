@@ -73,7 +73,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected 
           "& .textLayer": { mixBlendMode: "multiply" },
           [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
           ...markColours(theme, outlineSelected),
-          // PDF.js's own highlights, of a search's matches
+          // PDF.js's own highlights of a search's matches
           "& .textLayer .highlight": {
             "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
             "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight.searchCurrent,
