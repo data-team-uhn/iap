@@ -131,9 +131,8 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
   textLayer.append(layer);
 }
 
-// What a range selects of the text of the pages drawn in the frame, as one span on each page whose text
-// it selects some of, in order, without the spaces at either end. None when it selects no text. Pages not
-// drawn yet have no text to select.
+// The text a range selects on the pages drawn in the frame, as one span per page, in order, without the
+// spaces at either end. None when it selects no text.
 export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
   const selected = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]")).flatMap(pageView => {
     const textLayer = pageView.querySelector<HTMLElement>(".textLayer");
@@ -163,9 +162,8 @@ export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
   return selected.map(({ page, start, end }) => ({ page, start, end }));
 }
 
-// The box of the end of the text spans cover in the frame, from the text alone, as marks are drawn, rather
-// than from the boxes a range gives of the elements it holds whole: none when they cover no text, or not
-// on a page drawn.
+// The box of the last piece of text the spans cover in the frame. None when they cover no text, or their
+// last page is not drawn.
 export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | undefined {
   const last = spans.at(-1);
   if (last === undefined) {

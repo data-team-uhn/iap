@@ -30,8 +30,8 @@ const ANCHOR: TextAnchor = {
   after: ", assist",
 };
 
-// The viewer has tests of its own; this stand-in lists the marks it is given, with what the widget
-// shows under each, and selects text to comment on as a person would.
+// A stand-in for the viewer, listing the marks it is given with what the widget shows under each. Its
+// Comment button gives a fixed anchor.
 vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
   default: ({ marks, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, onClose }: PdfViewerProps) => (
     <div role="region" aria-label="Viewer">
