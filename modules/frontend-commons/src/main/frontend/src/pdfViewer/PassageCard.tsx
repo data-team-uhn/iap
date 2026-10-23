@@ -32,7 +32,7 @@ import type { MarkKind } from "./marksModel";
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
-// The passage, once known, and how the search for it went, on a card in its mark's colour. Once it is found, the
+// The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
 // with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
 // line, it shares its row with the note. One of several passages has controls for stepping through
