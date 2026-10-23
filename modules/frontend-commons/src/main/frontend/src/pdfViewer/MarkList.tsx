@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 
@@ -32,13 +32,15 @@ const LIST_WIDTH = 320;
 // Past this many lines, a passage is cut short unless it is the one selected.
 const MAX_LINES = 4;
 
-// The passages beside the document, each on a card in its mark's colour. Clicking a card selects its
-// passage. The selected passage is shown whole and kept in view.
-export default function MarkList({ marks, places, status, selectedId, onSelect }: {
+// The passages beside the document, in the order given, each on a card in its mark's colour, selecting
+// it, with the caller's details for it underneath. A passage found takes the reader to it, and the one
+// selected is shown whole and kept in view.
+export default function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
+  renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
   const list = useRef<HTMLUListElement>(null);
@@ -68,27 +70,40 @@ export default function MarkList({ marks, places, status, selectedId, onSelect }
         gap: 1,
       }}
     >
-      {marks.map((mark, index) => (
-        <Box
-          component="li"
-          key={mark.id}
-          ref={(element: HTMLLIElement) => {
-            entries.current.set(mark.id, element);
-            return () => {
-              entries.current.delete(mark.id);
-            };
-          }}
-        >
-          <MarkEntry
-            mark={mark}
-            position={index + 1}
-            place={places[mark.id]}
-            status={status}
-            selected={mark.id === selectedId}
-            onSelect={() => onSelect(mark.id)}
-          />
-        </Box>
-      ))}
+      {marks.map((mark, index) => {
+        const selected = mark.id === selectedId;
+        return (
+          <Box
+            component="li"
+            key={mark.id}
+            ref={(element: HTMLLIElement) => {
+              entries.current.set(mark.id, element);
+              return () => {
+                entries.current.delete(mark.id);
+              };
+            }}
+            sx={theme => ({
+              ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
+              // Each card keeps its full height, and the list scrolls instead.
+              flexShrink: 0,
+              overflow: "hidden",
+              outline: selected ? "2px solid" : "none",
+              outlineColor: `${mark.kind}.main`,
+              outlineOffset: "-2px",
+            })}
+          >
+            <MarkEntry
+              mark={mark}
+              position={index + 1}
+              place={places[mark.id]}
+              status={status}
+              selected={selected}
+              onSelect={() => onSelect(mark.id)}
+            />
+            {renderDetails?.(mark, selected)}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
@@ -136,15 +151,11 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       sx={theme => ({
-        ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
         display: "block",
         width: "100%",
         px: 1.5,
         py: 1,
         textAlign: "start",
-        outline: selected ? "2px solid" : "none",
-        outlineColor: `${mark.kind}.main`,
-        outlineOffset: "-2px",
         "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark.kind, 0.5) } },
         "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark.kind, 0.5) },
       })}
