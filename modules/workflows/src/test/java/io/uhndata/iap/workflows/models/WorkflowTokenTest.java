@@ -142,6 +142,55 @@ class WorkflowTokenTest
         assertNull(resource.adaptTo(WorkflowToken.class).getCurrentNode());
     }
 
+    @Test
+    void resolvesTheFlowItArrivedBy()
+        throws RepositoryException
+    {
+        this.createDefinition();
+        this.context.create().resource("/Workflows/timeOff/1.0/start", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, "elementId", "start"));
+        this.context.create().resource("/Workflows/timeOff/1.0/start/toTask", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toTask", "targetRef", "task_1"));
+        final Resource resource = this.context.create().resource(INSTANCE_PATH + "/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE, "currentNodeId", "task_1", "arrivedBy", "toTask"));
+
+        final SequenceFlow flow = resource.adaptTo(WorkflowToken.class).getArrivedByFlow();
+
+        assertNotNull(flow);
+        assertEquals("toTask", flow.getElementId());
+    }
+
+    @Test
+    void hasNoArrivalFlowWhenItArrivedByNone()
+        throws RepositoryException
+    {
+        this.createDefinition();
+        final Resource resource = this.context.create().resource(INSTANCE_PATH + "/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE, "currentNodeId", "task_1"));
+
+        assertNull(resource.adaptTo(WorkflowToken.class).getArrivedByFlow());
+    }
+
+    @Test
+    void hasNoArrivalFlowWhenItsNodeCannotBeResolved()
+    {
+        final Resource resource = this.context.create().resource("/loose/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE, "currentNodeId", "task_1", "arrivedBy", "toTask"));
+
+        assertNull(resource.adaptTo(WorkflowToken.class).getArrivedByFlow());
+    }
+
+    @Test
+    void hasNoArrivalFlowWhenItNamesAnUnknownOne()
+        throws RepositoryException
+    {
+        this.createDefinition();
+        final Resource resource = this.context.create().resource(INSTANCE_PATH + "/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE, "currentNodeId", "task_1", "arrivedBy", "no_such_flow"));
+
+        assertNull(resource.adaptTo(WorkflowToken.class).getArrivedByFlow());
+    }
+
     /**
      * Creates a one-activity workflow version and an instance executing it.
      *
