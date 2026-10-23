@@ -64,9 +64,10 @@ function getByteLimit(value: string): number | undefined {
   return megabytes === undefined ? undefined : megabytes * MEGABYTE;
 }
 
-// A dashboard toy for the upload check. Pick any file and see what it would be refused for, under the
-// types and limits set here, without attaching it to anything. Smaller limits make the size, page and
-// unzipped-size refusals easy to reach. Shown on the homepage when the app is started with --test.
+// A dashboard widget for trying the upload check. Pick any file to see what it would be refused
+// for under the types and limits set here, without attaching it to anything. Smaller limits make
+// the size, page and unzipped-size refusals easy to reach. Shown on the homepage when the app is
+// started with --test.
 function FileValidationWidget() {
   const [file, setFile] = useState<File | undefined>(undefined);
   const [accepts, setAccepts] = useState("anything");
@@ -75,8 +76,8 @@ function FileValidationWidget() {
   const [maxUnzipped, setMaxUnzipped] = useState(String(MAX_UNZIPPED_SIZE / MEGABYTE));
   const [answer, setAnswer] = useState<Check | undefined>(undefined);
 
-  // Checked again whenever a setting changes, so the same file can be tried against each one. The
-  // check waits for typing to stop: each one reads the whole file, and a PDF is parsed whole.
+  // Checks the file again whenever a setting changes, once typing stops. Each check reads the whole
+  // file.
   useEffect(() => {
     if (!file) {
       return undefined;

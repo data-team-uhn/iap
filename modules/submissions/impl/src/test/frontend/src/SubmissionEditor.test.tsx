@@ -316,7 +316,6 @@ describe("SubmissionEditor", () => {
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
     });
 
-    // The check only advises, so one that runs out of time leaves the decision to the server
     it("sends the file anyway when checking it takes too long", async () => {
       vi.mocked(validateUpload).mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"));
       const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));

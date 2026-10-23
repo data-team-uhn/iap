@@ -21,22 +21,22 @@ import { loadPdfjs } from "./pdfViewer/pdfjsClient";
 import type { PDFWorker } from "pdfjs-dist";
 
 // Checks an upload in the browser so a bad file is refused in a moment, not after a slow upload. It
-// only advises: the server checks again, where nobody can skip it.
+// only advises: the server checks again.
 
 export const MEGABYTE = 1024 * 1024;
 
-// 50 MB, the server's limit (AttachDocumentHandler.MAX_FILE_BYTES): change both together.
+// The server's limit (AttachDocumentHandler.MAX_FILE_BYTES): change both together.
 export const MAX_FILE_SIZE = 50 * MEGABYTE;
 
-// 500 pages. Past this the parse is long enough that a person would think it had failed.
+// Past this, the parse takes long enough that a person would think it had failed.
 export const MAX_PDF_PAGES = 500;
 
-// 512 MB, the parser's own limit (IAP_MAX_EXPANDED_BYTES). A .docx is a zip, and a small one can
-// unzip to gigabytes.
+// The parser's own limit (IAP_MAX_EXPANDED_BYTES). A .docx is a zip, and a small one can unzip to
+// gigabytes.
 export const MAX_UNZIPPED_SIZE = 512 * MEGABYTE;
 
-// The types the pipeline reads, by the extension that names them; the server keeps the same map
-// (AttachDocumentHandler.TYPE_BY_EXTENSION), so change both together.
+// The types the pipeline reads, by the extension that names them. The server keeps the same map
+// (AttachDocumentHandler.TYPE_BY_EXTENSION): change both together.
 export const MIME_TYPE_BY_EXTENSION = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -64,7 +64,6 @@ export interface UploadLimits {
   maxUnzippedSize?: number;
 }
 
-// A failed check always says why
 type ContentCheck = { valid: true } | { valid: false; error: string };
 
 // The lowercase extension including the dot, or undefined when the name carries none.
@@ -83,14 +82,13 @@ function formatSize(bytes: number, rounding: (value: number) => number): string 
   return `${rounding(bytes / unit * 100) / 100} ${name}`;
 }
 
-// PDF.js names this exception when a file will not open without a password. An empty password
-// opens without throwing, so this is only a file that genuinely needs one.
+// PDF.js names this exception when a file will not open without a password
 function isPasswordException(error: unknown): boolean {
   return error instanceof Error && error.name === "PasswordException";
 }
 
-// When the library that checks a file cannot load, the file is let through: the server checks again,
-// and refusing every good file would block uploads over a fault in this page.
+// When the library that checks a file cannot load, the file is let through. Refusing would block every
+// good upload over a fault in this page, and the server checks again.
 function reportUncheckedFile(file: File, error: unknown): void {
   console.error("Could not load what checks %s, so it was not checked", file.name, error);
 }
@@ -124,8 +122,7 @@ function watchWorker(worker: PDFWorker): { failed: Promise<never>; stop: () => v
   return { failed, stop };
 }
 
-// Opens the PDF. A file PDF.js refuses is one the parser would refuse too, and counting its pages is
-// the only way to know the length before the upload.
+// Refuses a PDF that will not open, needs a password, has no pages or has too many
 async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Promise<ContentCheck> {
   const loaded = await loadLibrary(loadPdfjs, file);
   if (loaded === undefined) {
@@ -143,7 +140,6 @@ async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Pro
     const watch = watchWorker(worker);
     try {
       const pdf = await Promise.race([ task.promise, watch.failed ]);
-      // The parser refuses these too, and there is nothing in one to read
       if (pdf.numPages === 0) {
         return { valid: false, error: "It has no pages." };
       }
@@ -379,8 +375,8 @@ async function readZipEntry(
   return entry.method === DEFLATED ? inflate(stored, maxBytes, signal) : undefined;
 }
 
-// Everything is checked from the directory before anything is unzipped, and only the content types
-// are unzipped: a small file can unzip to gigabytes, which would hang the tab.
+// Checks the sizes the directory states before unzipping anything, then unzips only the content
+// types. Unzipping a whole document could hang the tab.
 async function checkDocx(file: File, maxUnzippedSize: number, signal?: AbortSignal): Promise<ContentCheck> {
   try {
     const data = await file.arrayBuffer();
@@ -443,8 +439,8 @@ async function checkContent(
   return { valid: true };
 }
 
-// The file's type read as the server reads it (AttachDocumentHandler#getMimeType): lower case, without
-// parameters, and from the extension when the browser sent no type or only the generic one.
+// The file's type as the server reads it (AttachDocumentHandler#getMimeType): lower case and without
+// parameters. The extension names it when the browser sent no type or only the generic one.
 function getMimeType(file: File, extension: string | undefined): string | undefined {
   const declared = file.type.split(";", 1)[0].trim().toLowerCase();
   if (declared !== "" && declared !== GENERIC_TYPE) {

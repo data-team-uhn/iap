@@ -324,7 +324,6 @@ class AttachDocumentHandlerTest
     @Test
     void doesNotReadANameWithoutADotAsAnExtension()
     {
-        // As the browser reads it: a file called "pdf" has no extension, so nothing says it is a PDF
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
             .execute(context(payload(NOTE, upload("pdf", "application/octet-stream")))));
 

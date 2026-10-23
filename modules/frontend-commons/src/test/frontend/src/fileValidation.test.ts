@@ -26,11 +26,9 @@ import {
   validateUpload,
 } from "@iap/frontend-commons/fileValidation";
 
-// PDF.js is loaded on demand, so the tests stand in for it rather than shipping real PDFs.
-// A stand-in PDF starts with 0x25 and carries its page count in the next two bytes, low byte first,
-// because one byte cannot say 501. One that starts with 0x26 is encrypted and needs a password, one
-// that starts with 0x27 meets a worker that did not load, and one that starts with 0x28 never finishes
-// until it is destroyed.
+// The tests stand in for PDF.js. A stand-in PDF opens when its first byte is 0x25, and its next two
+// bytes carry the page count, low byte first. A first byte of 0x26 needs a password, 0x27 meets a
+// worker that did not load, and 0x28 never finishes until it is destroyed.
 // A .docx is a real zip, written below byte by byte so a test can shape it exactly.
 const destroyed = vi.hoisted(() => ({ count: 0 }));
 
@@ -315,7 +313,6 @@ describe("what an upload is refused for", () => {
     await expect(validateUpload(edge)).resolves.toBeUndefined();
   });
 
-  // As on the server, a requirement that names no type takes any
   it("takes any type when none is asked for", async () => {
     await expect(validateUpload(createUpload("notes.txt"))).resolves.toBeUndefined();
     await expect(validateUpload(createUpload("README"))).resolves.toBeUndefined();
@@ -327,12 +324,10 @@ describe("what an upload is refused for", () => {
     await expect(validateUpload(createUpload("proposal"), PIPELINE_TYPES)).resolves.toMatch(/accepted type/);
   });
 
-  // The server compares MIME types only, so an entry written as an extension matches nothing there
   it("does not read an entry written as an extension as a type", async () => {
     await expect(validateUpload(createUpload("proposal.pdf"), [ ".pdf" ])).resolves.toMatch(/accepted type: .pdf\.$/);
   });
 
-  // MIME types are what a server checks and what a browser reports for a file it knows
   it("honours the MIME types the requirement asks for", async () => {
     await expect(validateUpload(createTypedUpload("note.png", "image/png"), [ "image/png" ])).resolves.toBeUndefined();
     await expect(validateUpload(createTypedUpload("note.png", "image/png"), [ "application/pdf" ]))
@@ -344,7 +339,6 @@ describe("what an upload is refused for", () => {
       .resolves.toBe("notes.txt is not a file of an accepted type: .pdf, image/png.");
   });
 
-  // A browser that does not know the format reports no type, or the generic one; the name then says
   it("reads the type from the name when the browser could not tell", async () => {
     await expect(validateUpload(createUpload("proposal.pdf"), [ "application/pdf" ])).resolves.toBeUndefined();
     await expect(validateUpload(createTypedUpload("proposal.pdf", "application/octet-stream"), [ "application/pdf" ]))
@@ -371,7 +365,6 @@ describe("what is inside the file", () => {
       .resolves.toMatch(/damaged, or it is not a PDF/);
   });
 
-  // An empty password opens without throwing, so this is only a file that genuinely needs one
   it("refuses a PDF encrypted with a password", async () => {
     await expect(validateUpload(createUpload("proposal.pdf", [ 0x26 ])))
       .resolves.toMatch(/encrypted with a password/);
@@ -399,7 +392,6 @@ describe("what is inside the file", () => {
     await expect(validateUpload(await createDocx())).resolves.toBeUndefined();
   });
 
-  // A zip without these parts is some other zip that was renamed
   it("refuses a .docx missing the parts that make it one", async () => {
     await expect(validateUpload(await createDocx(null))).resolves.toMatch(/not a Word document/);
   });
@@ -408,7 +400,6 @@ describe("what is inside the file", () => {
     await expect(validateUpload(createUpload("proposal.docx", [ 0x25, 1, 0 ]))).resolves.toMatch(/damaged/);
   });
 
-  // The end record is found by searching back from the end, past whatever comment the zip carries
   it("reads a .docx that ends with a comment", async () => {
     await expect(validateUpload(await createDocx(undefined, undefined, "c".repeat(300)))).resolves.toBeUndefined();
   });
@@ -445,7 +436,6 @@ describe("the limits themselves", () => {
     ]);
   });
 
-  // The shared worker holds the whole file until the check lets go of it
   it("lets go of the PDF it opened", async () => {
     const before = destroyed.count;
     await validateUpload(createPdf(3));
@@ -453,12 +443,10 @@ describe("the limits themselves", () => {
     expect(destroyed.count).toBe(before + 2);
   });
 
-  // The main document's name is not fixed, so the content types are what say it is a Word document
   it("refuses a zip whose content types name no Word document", async () => {
     expect(await validateUpload(await createDocx("spreadsheetml.sheet"))).toMatch(/not a Word document/);
   });
 
-  // A small .docx can unzip to gigabytes, so the size it unzips to is checked before anything is unzipped
   it("refuses a .docx that unzips to more than the limit", async () => {
     const file = await createDocx(undefined, "x".repeat(4000));
 
@@ -467,7 +455,6 @@ describe("the limits themselves", () => {
     expect(await validateUpload(file, [], { maxUnzippedSize: 8000 })).toBeUndefined();
   });
 
-  // The marker says the real size is in a ZIP64 record, so without one the size is unknown
   it("refuses a .docx that marks a size as ZIP64 but has no ZIP64 record", async () => {
     const bytes = await createZipBytes();
     new DataView(bytes.buffer).setUint32(findDirectoryEntry(bytes) + 24, 0xFFFFFFFF, true);
@@ -475,7 +462,6 @@ describe("the limits themselves", () => {
     expect(await validateUpload(new File([ bytes ], "proposal.docx"))).toMatch(/damaged/);
   });
 
-  // With no type from the browser, the name says what it is meant to be, and only an accepted kind passes
   it("refuses an untyped file whose name is not an accepted kind", async () => {
     expect(await validateUpload(createUpload("notes.xyz"), [ "application/pdf" ])).toMatch(/accepted type/);
     expect(await validateUpload(createUpload("proposal.pdf"), [ "application/pdf" ])).toBeUndefined();
@@ -483,7 +469,6 @@ describe("the limits themselves", () => {
 });
 
 describe("how sizes read", () => {
-  // Rounding both the same way could show the limit as the file's own size
   it("never shows a file just over the limit at the limit's size", async () => {
     const file = createPdf(1, 10_000_001);
 
@@ -525,7 +510,7 @@ describe("an untyped file with no extension", () => {
 });
 
 describe("reading the zip directory", () => {
-  // Some writers use ZIP64 for every archive, however small, and the parser reads them
+  // Some writers use ZIP64 for every archive, however small
   it("reads a small ZIP64 archive", async () => {
     expect(await validateUpload(await createZip64(WORD_PARTS))).toBeUndefined();
   });
@@ -537,7 +522,6 @@ describe("reading the zip directory", () => {
     expect(await validateUpload(file)).toMatch(/unzips to more than 512 MB/);
   });
 
-  // The stated sizes can lie, so reading stops at a limit whatever the zip says
   it("refuses content types that unzip past what a real one could hold", async () => {
     const types = {
       name: "[Content_Types].xml",
@@ -548,7 +532,6 @@ describe("reading the zip directory", () => {
     expect(await validateUpload(new File([ await createZip([ types ]) ], "proposal.docx"))).toMatch(/damaged/);
   });
 
-  // With two entries of one name, the check and the parser could read different ones
   it("refuses a zip that names an entry twice", async () => {
     const [ types ] = WORD_PARTS;
     const file = new File([ await createZip([ ...WORD_PARTS, types ]) ], "proposal.docx");
@@ -579,7 +562,6 @@ describe("stopping a check", () => {
     await expect(validateUpload(createPdf(3), [], {}, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  // A PDF can keep PDF.js busy for good, so giving up has to end the parse, not only stop waiting
   it("ends a PDF check that would never finish, and lets go of the PDF", async () => {
     const controller = new AbortController();
     const before = destroyed.count;
@@ -611,7 +593,6 @@ describe("when what checks a file cannot load", () => {
     return vi.spyOn(console, "error").mockImplementation(() => undefined);
   }
 
-  // The server checks again, so a fault in this page must not block good files
   it("lets a PDF through when PDF.js does not load, and says so in the console", async () => {
     const logged = spyOnErrors();
     missing.pdfjs = true;

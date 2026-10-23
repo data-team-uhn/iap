@@ -8,9 +8,9 @@ Checks a file in the browser before it is uploaded. It answers one question: is 
 wrong with this file? It looks at the size and the type, and it opens the file to make
 sure the content really is what the name says.
 
-The point is speed. A person picking a broken or oversized file finds out in a moment,
-not after a slow upload and a failed parse. It is **not** a security check. Anyone can
-skip the browser, so whatever receives the upload has to check again.
+A person picking a broken or oversized file finds out in a moment, not after a slow
+upload and a failed parse. It is **not** a security check. Anyone can skip the browser,
+so whatever receives the upload has to check again.
 
 ## Using it
 
@@ -105,8 +105,8 @@ loading it.
 The rules are the server's, so the browser refuses what the server would refuse and
 nothing more (`AttachDocumentHandler#getMimeType` and `#checkAcceptedType`).
 
-**When `accepted` is empty**, any type passes, as a requirement that names no type takes
-any. A caller that wants only what the document pipeline reads passes `PIPELINE_TYPES`.
+**When `accepted` is empty**, any type passes. A caller that wants only what the
+document pipeline reads passes `PIPELINE_TYPES`.
 
 **When `accepted` is given**, the file's type has to be one of its entries, compared
 without case. The file's type is read like this:
@@ -121,9 +121,8 @@ without case. The file's type is read like this:
 | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
 | `.doc` | `application/msword` |
 
-Rule 2 exists because a browser that does not know a format sends no type, or the
-generic one. The name then says what the file is meant to be, and step 4 checks the
-content against that.
+A browser that does not know a format sends no type, or the generic one. The name then
+says what the file is meant to be, and step 4 checks the content against that.
 
 Examples, with `accepted = ["application/pdf"]`:
 
@@ -135,8 +134,8 @@ Examples, with `accepted = ["application/pdf"]`:
 | `README` | `""` | refused: no extension, so nothing says what it is |
 | `note.png` | `image/png` | refused |
 
-An entry written as an extension (`.pdf`) matches nothing, as on the server, which only
-compares MIME types.
+An entry written as an extension (`.pdf`) matches nothing: the server compares MIME
+types only.
 
 The refusal names the accepted types the way a person knows them. A MIME type the module
 knows is shown as its extension, so `application/msword` reads `.doc`, and a type listed
@@ -152,8 +151,6 @@ type whose name has no known extension gets no content check at all.
 
 1. PDF.js is loaded (see [Loading PDF.js](#loading-pdfjs)).
 2. The whole file is read into memory and handed to PDF.js. No password is passed.
-   PDF.js 6 never runs code it builds from a file's fonts, so no option is needed for
-   that.
 3. PDF.js opens it and counts the pages.
 4. The PDF.js task is destroyed in a `finally`, pass or fail. The shared worker holds the
    whole file until then, and without this it would live as long as the tab.
@@ -170,17 +167,13 @@ type whose name has no known extension gets no content check at all.
 A PDF encrypted with an **empty** password opens without a password, so it passes. Only
 a file that really needs a password is refused.
 
-**A file is let through when what checks it cannot load.** A chunk that 404s after a
-deploy, or a worker script that will not start, is a fault in the page, not in the file.
-Refusing would block every good upload, and the server checks again anyway. The cause
-goes to the browser console as `Could not load what checks <name>, so it was not
-checked`. PDF.js does not watch a worker it was handed, so the check listens for the
-worker's own `error` event and stops there, which is how that case is told apart from a
-broken file. Any other failure to open a file is still "damaged", logged as `Could not
-open <name>`.
-
-Counting pages is the only way to know how long a PDF is before it is uploaded. 500
-pages is where the parse gets long enough that a person would think it had failed.
+**A file is let through when what checks it cannot load**, such as a chunk that 404s
+after a deploy, or a worker script that will not start. Refusing would block every good
+upload over a fault in the page. The cause goes to the browser console as `Could not
+load what checks <name>, so it was not checked`. PDF.js does not watch a worker it was
+handed, so the check listens for the worker's own `error` event and stops there, which
+is how that case is told apart from a broken file. Any other failure to open a file is
+still "damaged", logged as `Could not open <name>`.
 
 ### DOCX
 
@@ -204,8 +197,8 @@ because some programs name the main part differently (`word/document2.xml`).
 | Not a zip, its directory does not add up, it names an entry twice, or `[Content_Types].xml` cannot be read or unzips past 256 KB | `The document is damaged, or it is not a .docx file.` |
 
 **Everything is checked from the list before anything is unzipped.** A small zip can
-unzip to gigabytes: 50 MB of the same byte repeated squeezes down to almost nothing.
-Unzipping such a file, even just to read the content types, could hang the tab.
+unzip to gigabytes. Unzipping such a file, even just to read the content types, could
+hang the tab.
 
 The list is the zip's **central directory**, the index at the end of every zip. It names
 each entry with its size before and after zipping. `readZipDirectory`:
@@ -270,10 +263,10 @@ are converted.
 PDF.js (`pdfjs-dist` 6.4.299) is imported with `import()`, not at the top of the file.
 Webpack puts it in its own chunk, so a page only downloads it the first time a PDF is
 checked. The chunk's URL is built from `output.publicPath`, which has to be
-`/libs/iap/resources/`, where Sling serves the files; anything else and the chunk 404s, and
-every PDF is let through unchecked. That holds because the shared `vendor` chunk takes only libraries pages need up
-front (`chunks: 'initial'` in `webpack.config-template.js`). Without that, it would join
-that chunk and every page would download it.
+`/libs/iap/resources/`, where Sling serves the files. Anything else and the chunk 404s,
+and every PDF is let through unchecked. PDF.js stays out of the shared `vendor` chunk,
+which takes only the libraries pages need up front (`chunks: 'initial'` in
+`webpack.config-template.js`). Without that, every page would download it.
 
 A `.docx` needs no library: the zip is read with the browser's own `DataView` and
 `DecompressionStream`.
@@ -368,11 +361,11 @@ that are no longer selected.
 | `test-data/src/test/frontend/src/FileValidationWidget.test.tsx` | 10 | What the widget asks `validateUpload` for, what it shows, the fall-back limits, that typing runs one check, and that a stale check is stopped and its answer ignored |
 
 The validation test does not load real PDF.js. It uses a small fake: a file starting
-with byte `0x25` is a PDF whose page count is in the next two bytes, low byte first, so
-501 pages fits. A file starting with `0x26` needs a password, one starting with `0x27`
-meets a worker that would not start, and one starting with `0x28` never finishes until
-it is destroyed. Anything else is not a PDF. A switch makes PDF.js fail to load, the way
-a missing chunk would.
+with byte `0x25` is a PDF whose page count is in the next two bytes, low byte first. A
+file starting with `0x26` needs a password, one starting with `0x27` meets a worker that
+would not start, and one starting with `0x28` never finishes until it is destroyed.
+Anything else is not a PDF. A switch makes PDF.js fail to load, the way a missing chunk
+would.
 
 A `.docx` is a real zip, written byte by byte by `createZip`, so a test can shape it
 exactly: lying sizes, ZIP64 records, a comment, an entry stored or named twice. Bad zips
