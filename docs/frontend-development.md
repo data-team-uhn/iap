@@ -224,11 +224,11 @@ viewer draws it over PDF.js's text layer itself, leaving PDF.js's own search unt
 the pointer through, so text can still be selected across them, and a click is matched to a mark by
 where it falls.
 
-If only one passage is passed to the viewer, it is shown on a card above the document. When there
-are multiple passages to highlight, they are listed beside it, in the order given, with those that
-cannot be found appearing last; in a viewer narrower than `NARROW_VIEWER_WIDTH` they are shown one
-at a time above it instead, with controls stepping through them. It is the viewer's width that
-counts, not the screen's (`useNarrowViewer`): a viewer in a side panel is narrow on any screen.
+A single passage is shown on a card above the document. Several passages are listed beside it, in
+the order given, with those that cannot be found last. In a viewer narrower than
+`NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
+them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
+panel is narrow on any screen.
 
 Selecting a passage from the list scrolls the document to it. Clicking a mark in the document selects
 its card in the list and brings the card into view, or, in a narrow viewer, shows it above the
@@ -245,14 +245,14 @@ viewer compares marks by `id`, `quote`, `page` and `kind`, and only looks for pa
 one of those changes.
 
 The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
-and accents. Every match is highlighted, the one shown more deeply; the field says which match is
-shown of how many, and the up and down buttons beside it step through them, wrapping round at the
+and accents. Every match is highlighted, and the one shown more deeply. The field says which match
+is shown of how many, and the up and down buttons beside it step through them, wrapping round at the
 ends. In the field, Enter and Shift+Enter do the same, and Escape clears the search. Where the
 toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
 Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
 
-It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
-a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
+It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
+into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
 `null`, as a ref is before React attaches it, shows nothing until the element is there.
 
 Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,

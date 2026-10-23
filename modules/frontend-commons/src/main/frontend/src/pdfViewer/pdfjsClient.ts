@@ -63,8 +63,8 @@ export async function loadPdfjs() {
 
 export type ViewerComponents = Awaited<ReturnType<typeof loadPdfjs>>["components"];
 
-// PDF.js's search as it comes, except for bringing a match into view by scrolling the frame alone: PDF.js
-// would call scrollIntoView, which on a phone also pans the page, dialog and all.
+// PDF.js's search, except that a match is brought into view by scrolling the frame alone. PDF.js calls
+// scrollIntoView, which on a phone also pans the page, dialog and all.
 export function createFindController(
   components: ViewerComponents,
   { container, linkService, eventBus }: { container: HTMLElement; linkService: PDFLinkService; eventBus: EventBus },
