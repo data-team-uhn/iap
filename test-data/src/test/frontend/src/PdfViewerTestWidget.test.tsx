@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 import type { PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
 import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
-// The viewer has tests of its own; this stand-in shows what the widget hands it.
+// A stand-in viewer that shows what the widget hands it.
 vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
   default: ({ onClose, container, ...shown }: PdfViewerProps) => (
     <div role="dialog">
