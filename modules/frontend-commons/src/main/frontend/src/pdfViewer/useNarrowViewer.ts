@@ -38,7 +38,7 @@ export function useNarrowerThan(element: HTMLElement | null, width: number): boo
   return narrow;
 }
 
-// Whether the element, a viewer, is narrower than NARROW_VIEWER_WIDTH.
+// Whether a viewer element is narrower than NARROW_VIEWER_WIDTH.
 export function useNarrowViewer(viewer: HTMLElement | null): boolean {
   return useNarrowerThan(viewer, NARROW_VIEWER_WIDTH);
 }

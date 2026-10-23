@@ -39,8 +39,8 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
   };
 }
 
-// The error colour, in the shade that stays readable as small text on a passage's card, or beside a
-// search, in each scheme
+// The error colour, in the shade that stays readable as small text in each scheme, on a passage's card or
+// beside a search
 export function failedColour(theme: Theme) {
   const { error } = (theme.vars ?? theme).palette;
   return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
