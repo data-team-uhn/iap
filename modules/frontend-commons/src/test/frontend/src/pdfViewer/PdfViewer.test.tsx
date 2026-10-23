@@ -1512,7 +1512,7 @@ describe("PdfViewer", () => {
         expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
 
         fakePdf.pagesSearched = 2;
-        // A count of none, as PDF.js gives before it has picked a match to show, changes nothing.
+        // A count of none changes nothing.
         act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 0, total: 3 } }));
         act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 5 } }));
         expect(await screen.findByText("2 of 5")).toBeInTheDocument();
@@ -1539,7 +1539,6 @@ describe("PdfViewer", () => {
         await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
         await userEvent.type(getSearchField(), QUERY);
 
-        // PDF.js says a match is found while still counting it as 0 of 0, then gives its count.
         act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
           state: 0,
           matchesCount: { current: 0, total: 0 },

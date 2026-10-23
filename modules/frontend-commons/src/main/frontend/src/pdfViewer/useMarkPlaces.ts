@@ -24,14 +24,14 @@ import type { OpenedDocument } from "./usePdfDocument";
 // Each mark's place in the document, by mark id.
 export type MarkPlaces = Record<string, MarkPlace>;
 
-// How often, at most, how far the reading has got is told, when no passage was found meanwhile: each time
-// draws the viewer again.
+// The least time, in milliseconds, between reports of how many pages have been read, unless a passage's
+// place changes sooner. Each report draws the viewer again.
 const PROGRESS_INTERVAL = 200;
 
-// Where each mark's passage is in the document, as its pages are read: first those marks placed by their
-// spans or kept as anchors are on, then the others, in order, until no passage is still looked for. Pages
-// nothing needs are not read, as reading them takes PDF.js from drawing the pages being looked at. Also how
-// many pages have been read so far.
+// Where each mark's passage is in the document, as its pages are read. Pages with marks placed by their
+// spans or kept as anchors are read first, then the rest in order. Reading stops once no passage is still
+// being looked for, as reading takes PDF.js from drawing the pages in view. Also how many pages have been
+// read so far.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): { places: MarkPlaces; read: number } {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces; read: number } | undefined>(undefined);
 
@@ -61,8 +61,7 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): {
         read++;
         const latest = locator.getPlaces();
         const serialized = JSON.stringify(latest);
-        // Most pages change nothing, and each change draws the marks again, so the places are kept as they
-        // were until one does.
+        // Most pages change nothing, and each change draws the marks again.
         const changed = serialized !== last;
         if (changed) {
           last = serialized;

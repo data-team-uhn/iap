@@ -125,10 +125,7 @@ export function getPassageStatus(
   }
 }
 
-// A search of the document for a word or phrase: what is looked for; how the last search to finish
-// went, which stays shown while the next one runs; which match is shown of how many found so far, a count
-// that grows as PDF.js reads the pages, until it has read them all; and the sentence a screen reader was
-// last given about it.
+// A search of the document for a word or phrase, and how it went.
 export interface DocumentSearch {
   query: string;
   // How the last search to finish went. It stays shown while the next one runs.
@@ -136,7 +133,9 @@ export interface DocumentSearch {
   // Which match is shown, of how many found so far. The count grows as PDF.js reads the pages.
   current: number;
   total: number;
+  // Whether PDF.js is still reading the pages.
   counting: boolean;
+  // The sentence a screen reader was last given about the search.
   announcement: string;
 }
 
@@ -149,7 +148,7 @@ export const IDLE_SEARCH: DocumentSearch = {
   announcement: "",
 };
 
-// How a search went, as a sentence of its own for a screen reader. Nothing before it has gone anywhere, or
+// How a search went, as a sentence for a screen reader to announce. Empty when there is no search, or
 // before the match found has been counted.
 export function getSearchStatus({ outcome, current, total }: Pick<DocumentSearch, "outcome" | "current" | "total">): string {
   switch (outcome) {
