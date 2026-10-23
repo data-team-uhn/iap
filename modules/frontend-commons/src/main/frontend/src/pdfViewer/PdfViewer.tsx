@@ -62,9 +62,9 @@ export interface PdfViewerProps {
   // Told the passage the person selected in the document, when they press the Comment button the viewer
   // offers under it. Without it, there is no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
-  // What to show with a passage, under it, such as the comments on it, given whether it is the one
-  // selected. The same function from one render to the next, as from useCallback, spares drawing the
-  // passages again while the document is searched.
+  // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
+  // Give the same function on every render, such as one from useCallback, or the passages are drawn again
+  // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
@@ -282,7 +282,7 @@ function ViewerBody(props: ViewerBodyProps) {
   const selected = position < 0 ? undefined : ordered[position];
   const several = ordered.length > 1;
   const among = { index: position + 1, count: ordered.length };
-  // Kept the same while they are, so the document and the passages are not drawn again as a search counts.
+  // The same object while the error and the page stay the same.
   const status = useMemo(() => ({ openError, page }), [openError, page]);
   const showSelected = useCallback((id: string) => {
     onSelect(id);
