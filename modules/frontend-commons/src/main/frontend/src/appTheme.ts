@@ -197,7 +197,7 @@ const STRONGLY_TINTED_SURFACE =
 // with a darker shade and keeps the accent itself for fills.
 const LILAC = "#C58BBD";
 const SOFT_YELLOW = "#F6D96B";
-// The matches of a search, which are no one's mark, wash the text with the brand's cobalt instead.
+// The matches of a search are no one's mark, and take the brand's cobalt instead.
 const COBALT = "#255CAA";
 
 const ASSISTANT_LIGHT: PaletteColorOptions = { main: "#8A6184", light: LILAC, dark: "#6C4C68", contrastText: "#fff" };

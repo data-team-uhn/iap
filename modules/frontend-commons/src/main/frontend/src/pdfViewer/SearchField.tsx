@@ -27,17 +27,18 @@ import { failedColour } from "./passageStyles";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// Searching the document: the field, holding at its end which match is shown of how many, or that there
-// are none, then the previous and next match, wrapping round. Enter in the field goes to the next match
-// and Shift+Enter to the previous one. Escape anywhere in it clears the search, or closes it where it can
-// be closed, rather than closing the viewer around it.
+// The field searching the document, then buttons going to the previous and next match, wrapping round.
+// The end of the field says which match is shown of how many, or that there are none. Enter in the field
+// goes to the next match and Shift+Enter to the previous one. Escape anywhere in it clears the search, or
+// closes it where it can be closed, rather than closing the viewer around it.
 export default function SearchField({ search, inputRef, disabled, onFind, onFindAgain, onClose }: {
   search: DocumentSearch;
   inputRef?: Ref<HTMLInputElement>;
   disabled?: boolean;
   onFind: (query: string) => void;
   onFindAgain: (previous: boolean) => void;
-  // Given where the search takes the place of the toolbar, which it then fills.
+  // Given only where the search takes the toolbar's place. The search then fills the toolbar's width, with
+  // a button closing it.
   onClose?: () => void;
 }) {
   const onEnter = (event: KeyboardEvent) => {

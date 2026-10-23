@@ -180,8 +180,8 @@ function PdfViewerSession(props: PdfViewerProps) {
   );
 }
 
-// Below this width, the document's column has no room for the search field beside the toolbar's page and
-// zoom controls, and offers a button opening it in their place instead.
+// Below this width, the document's column has no room for the search field beside the page and zoom
+// controls. A button in the toolbar opens it in their place instead.
 const SEARCH_FIELD_ROOM = 600;
 
 interface ViewerBodyProps {
@@ -210,8 +210,8 @@ function ViewerBody(props: ViewerBodyProps) {
   const narrow = useNarrowViewer(body);
   const [column, setColumn] = useState<HTMLElement | null>(null);
   const compact = useNarrowerThan(column, SEARCH_FIELD_ROOM);
-  // Without room for it, the search takes the toolbar's place while open or searching, taking the focus,
-  // and gives it back to the button that opened it once closed.
+  // Without room for it, the search takes the toolbar's place while it is open or holds a query. It takes
+  // the focus, and gives it back to the button that opened it once closed.
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInPlace = compact && (searchOpen || search.query !== "");
   const searchButtonRef = useRef<HTMLButtonElement>(null);
