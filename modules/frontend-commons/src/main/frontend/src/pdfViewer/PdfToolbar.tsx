@@ -24,25 +24,19 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// Going from page to page, searching, and zooming. One line even on a narrow phone: only the page label
-// gives way. Every control is disabled until the document has opened.
-export default function PdfToolbar({ page, pageCount, search, onShowPage, onZoomIn, onZoomOut, onFitWidth }: {
+// The previous and next page buttons, with "Page 3 of 10" between them. In a narrow row only the label
+// gives way. Disabled until the document has opened.
+export function PageControls({ page, pageCount, onShowPage }: {
   page?: number;
   pageCount?: number;
-  // The search field, or a button opening it.
-  search: ReactNode;
   onShowPage: (page: number) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFitWidth: () => void;
 }) {
-  const opened = pageCount !== undefined;
   // 0 until the document opens, which keeps both page buttons disabled.
   const shownPage = page ?? 0;
   const lastPage = pageCount ?? 0;
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center" }}>
+    <>
       <IconButton
         aria-label="Previous page"
         edge="start"
@@ -52,11 +46,29 @@ export default function PdfToolbar({ page, pageCount, search, onShowPage, onZoom
         <ChevronLeftIcon />
       </IconButton>
       <Typography variant="caption" noWrap sx={{ minWidth: 0, mx: 0.5 }}>
-        {opened ? `Page ${shownPage} of ${lastPage}` : "Page"}
+        {pageCount === undefined ? "Page" : `Page ${shownPage} of ${lastPage}`}
       </Typography>
       <IconButton aria-label="Next page" disabled={shownPage >= lastPage} onClick={() => onShowPage(shownPage + 1)}>
         <ChevronRightIcon />
       </IconButton>
+    </>
+  );
+}
+
+// Searching and zooming, after the page controls when given. One line even on a narrow phone. Every
+// control is disabled until the document has opened.
+export default function PdfToolbar({ pages, opened, search, onZoomIn, onZoomOut, onFitWidth }: {
+  pages?: ReactNode;
+  opened: boolean;
+  // The search field, or a button opening it.
+  search: ReactNode;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFitWidth: () => void;
+}) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center" }}>
+      {pages}
       <Box sx={{ flexGrow: 1 }} />
       {search}
       <IconButton aria-label="Zoom out" disabled={!opened} onClick={onZoomOut}>

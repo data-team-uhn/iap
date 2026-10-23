@@ -169,6 +169,12 @@ describe("MarkLocator, for a mark placed by its spans", () => {
     });
   });
 
+  it("keeps the kind each span is drawn as, and takes a point as a span", () => {
+    const spans: MarkSpan[] = [ { page: 2, start: 4, end: 4, kind: "removed" }, { page: 2, start: 4, end: 9 } ];
+
+    expect(placeAfter(PAGES, 2, placed(...spans))).toMatchObject({ status: "found", spans });
+  });
+
   it("waits for the pages its spans are on, and those alone", () => {
     expect(new MarkLocator([ placed({ page: 2, start: 0, end: 3 }) ]).getPlaces().m).toEqual({ status: "searching" });
     expect(placeAfter({ 1: PAGES[1], 3: PAGES[3] }, 3, placed({ page: 2, start: 0, end: 3 })))
@@ -390,6 +396,12 @@ describe("getMarksKey", () => {
 
     expect(getMarksKey([ carrying ])).toBe(getMarksKey([ at(5) ]));
     expect(getMarksKey([ at(6) ])).not.toBe(getMarksKey([ at(5) ]));
+  });
+
+  it("changes with the kind a span is drawn as", () => {
+    const span = { page: 1, start: 0, end: 0 };
+
+    expect(getMarksKey([ placed({ ...span, kind: "removed" }) ])).not.toBe(getMarksKey([ placed(span) ]));
   });
 
   it("changes with any part of an anchor", () => {

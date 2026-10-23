@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 import { fadeEdges, type ScrollEdges } from "../useScrollEdges";
+import { isChangeKind, type MarkKind } from "./marksModel";
 
-import type { MarkKind } from "./marksModel";
 import type { Theme } from "@mui/material/styles";
 
 // Styles that cut text short past the given number of lines.
@@ -25,10 +25,17 @@ export function cutShort(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
+// The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change's comes
+// from the comparison palette, which has one shade.
+export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
+  const { palette } = theme.vars ?? theme;
+  return isChangeKind(kind) ? palette.diff[kind].main : palette[kind][shade];
+}
+
 // The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
 // selected or under the pointer.
 export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {
-  return theme.alpha((theme.vars ?? theme).palette[kind].light, strength);
+  return theme.alpha(getMarkColour(theme, kind, "light"), strength);
 }
 
 // The card a passage is on: a stripe of its mark's colour at its start, over a tint of it.
@@ -36,7 +43,7 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
   return {
     borderRadius: 1,
     borderInlineStart: `${theme.spacing(0.5)} solid`,
-    borderColor: `${kind}.main`,
+    borderColor: getMarkColour(theme, kind),
     bgcolor: passageTint(theme, kind, strength),
   };
 }
