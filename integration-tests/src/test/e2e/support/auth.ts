@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-import { expect, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+import { expect, test, type Cookie, type Page } from '@playwright/test';
 
 import { LoginPage } from '../pages/login.page';
 
@@ -45,12 +47,37 @@ export function basicAuth(user: Credentials): Record<string, string> {
 export const adminAuth = basicAuth(ADMIN);
 
 /**
+ * Where the current project keeps the administrator session its sign-in setup project saved, e.g.
+ * `target/e2e-auth/platform-chromium.json`.
+ */
+export function adminSessionFile(): string {
+  const file: unknown = test.info().project.metadata.adminSession;
+  if (typeof file !== 'string') {
+    throw new Error(`Project ${test.info().project.name} has no saved administrator session`);
+  }
+  return file;
+}
+
+/**
  * Signs the browser in, so that whatever the test is really about starts from an authenticated session.
  *
- * The browser counterpart of {@link adminAuth}: for tests that drive the interface rather than call the
- * repository, and that only pass through the sign-in page on their way somewhere else.
+ * The browser counterpart of {@link adminAuth}, for tests that drive the interface rather than call the
+ * repository. It leaves the browser on no page a test may rely on, so the test goes next to where it starts.
+ * The administrator loads no page at all: it reuses the session its project's sign-in setup saved rather than
+ * filling the form at every one of some fifty sign-ins. Signing out elsewhere does not end that session: Sling
+ * checks its cookie, it stores none.
  */
 export async function signInAs(page: Page, user: Credentials): Promise<void> {
+  if (user !== ADMIN) {
+    await signInThroughForm(page, user);
+    return;
+  }
+  const session = JSON.parse(await readFile(adminSessionFile(), 'utf8')) as { cookies: Cookie[] };
+  await page.context().addCookies(session.cookies);
+}
+
+/** Signs the browser in through the sign-in form, leaving it on the page a sign-in lands on. */
+export async function signInThroughForm(page: Page, user: Credentials): Promise<void> {
   const login = new LoginPage(page);
   await login.open();
   await login.signInAs(user.username, user.password);

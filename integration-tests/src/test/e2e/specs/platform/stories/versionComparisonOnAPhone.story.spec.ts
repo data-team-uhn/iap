@@ -57,6 +57,7 @@ test.describe('stories: a new version checked from a phone', () => {
 
     await test.step('she signs in on her phone, and starts a schema', async () => {
       await signInAs(page, ADMIN);
+      await page.goto('/');
       await page.getByRole('button', { name: 'Administration' }).click();
       await page.getByRole('link', { name: /Schemas/ }).first().click();
       await page.getByRole('button', { name: 'New schema' }).click();

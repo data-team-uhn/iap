@@ -35,8 +35,10 @@ Ports are reserved by `build-helper-maven-plugin` rather than hard-coded, so con
 anything already sitting on 8080 — do not collide. Maven passes each instance's URL to Playwright through
 the environment, and `playwright.config.ts` turns those into one project per instance.
 
-Each suite is actually **two** projects: `<suite>-<browser>` for its specs, and
-`<suite>-stories-<browser>` for the story tests below, which runs only once the first has finished.
+Each suite is actually **three** projects: `<suite>-<browser>` for its specs,
+`<suite>-stories-<browser>` for the story tests below, which runs only once the first has finished, and
+`<suite>-sign-in-<browser>`, which the specs depend on. It signs in as the administrator once and saves
+the session, so that `signInAs(page, ADMIN)` reuses it instead of filling the sign-in form each time.
 **Specs observe, stories mutate.** Much of what a spec asserts is what a *freshly launched* deployment
 looks like: an empty instance, and a story that creates content has no business being in flight while
 any of that is being checked.

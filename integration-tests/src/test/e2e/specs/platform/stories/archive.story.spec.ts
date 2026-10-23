@@ -83,6 +83,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('she signs in, and notes what the archive holds already', async () => {
       await signInAs(page, ADMIN);
+      await page.goto('/');
       expect(await shell.signedInAs()).toBe('admin');
 
       // Reached the way she reaches it. The console is offered on the application bar to whoever can
@@ -483,6 +484,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('Nadia signs in, and is not offered the administration console', async () => {
       await signInAs(page, NADIA);
+      await page.goto('/');
       // The account control is itself one of the application bar's extensions, so its arrival says
       // the bar has finished being assembled. Without that, finding no console button would only
       // mean the page had not caught up yet.
