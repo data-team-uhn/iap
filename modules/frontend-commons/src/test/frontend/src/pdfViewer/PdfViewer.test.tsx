@@ -425,6 +425,20 @@ describe("PdfViewer", () => {
       });
     });
 
+    it("shows a spinner in the frame while the document opens, until its pages are laid out", async () => {
+      fakePdf.holdPages = true;
+      show();
+
+      expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
+      // Still there once the file is opened, while PDF.js lays out its pages.
+      await waitFor(() => expect(fakePdf.releasePages).toBeDefined());
+      expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
+
+      act(() => fakePdf.releasePages?.());
+
+      await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());
+    });
+
     it("offers no page or zoom controls before the document opens", () => {
       vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
       show();
@@ -458,6 +472,14 @@ describe("PdfViewer", () => {
       show();
 
       expect(await screen.findByText("You are no longer signed in. Sign in and try again.")).toBeInTheDocument();
+    });
+
+    it("shows no spinner once the document could not be opened", async () => {
+      stubFetch(404);
+      show();
+
+      expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("says when the file is not a PDF it can read", async () => {
@@ -638,7 +660,8 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
       expect(getStatus()).toHaveTextContent(FOUND);
       expect(getFrame().scrollTop).toBe(0);
-      expect(fakePdf.textReads).toEqual([ 1, 2, 3 ]);
+      // Read once, as far as the passage, not again for the dialog.
+      expect(fakePdf.textReads).toEqual([ 1, 2 ]);
     });
 
     it("keeps the reader on the page they went to when popping out", async () => {
@@ -1035,6 +1058,38 @@ describe("PdfViewer", () => {
     });
   });
 
+  describe("while passages are looked for", () => {
+    it("shows how much of the document has been read along its top, until every passage is placed", async () => {
+      fakePdf.holdText = true;
+      show({ quote: "A sentence that is nowhere in the document." });
+
+      const bar = await screen.findByRole("progressbar", { name: "Looking for the passage" });
+      expect(bar).toHaveAttribute("aria-valuenow", "0");
+
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getStatus()).toHaveTextContent("The passage is not in this document."));
+      expect(screen.queryByRole("progressbar", { name: "Looking for the passage" })).not.toBeInTheDocument();
+    });
+
+    it("names the passages looked for together when there are several", async () => {
+      fakePdf.holdText = true;
+      const marks: Mark[] = [ "A sentence that is nowhere in the document.", QUOTE ]
+        .map((quote, index) => ({ id: `passage-${index}`, quote, kind: "assistant" }));
+      render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));
+
+      expect(await screen.findByRole("progressbar", { name: "Looking for the passages" })).toBeInTheDocument();
+    });
+
+    it("shows nothing for a document with no passages to look for", async () => {
+      render(withTheme(<PdfViewer url={URL} marks={[]} onClose={vi.fn()} />));
+
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar", { name: "Looking for the passages" })).not.toBeInTheDocument();
+      expect(fakePdf.textReads).toEqual([]);
+    });
+  });
+
   describe("with passages placed by their spans", () => {
     // The memo's second page, two lines that run on in its text without a space.
     const LINES = "Volunteers who, on a casual basis,\nassist from time to time.";
@@ -1057,11 +1112,11 @@ describe("PdfViewer", () => {
       expect(getFrame().scrollTop).toBe(MATCH_TOP);
     });
 
-    it("reads the pages its spans are on first", async () => {
+    it("reads only the pages its spans are on", async () => {
       render(withTheme(<PdfViewer url={URL} marks={placedOn({ page: 3, start: 0, end: 12 })} onClose={vi.fn()} />));
 
-      await waitFor(() => expect(fakePdf.textReads).toHaveLength(3));
-      expect(fakePdf.textReads).toEqual([ 3, 1, 2 ]);
+      await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+      expect(fakePdf.textReads).toEqual([ 3 ]);
     });
 
     it("lists it beside passages found by their quote, naming every page it runs over", async () => {
@@ -1444,6 +1499,92 @@ describe("PdfViewer", () => {
 
         await userEvent.keyboard("{Escape}");
         expect(onClose).toHaveBeenCalled();
+      });
+
+      it("shows the matches as PDF.js counts them, with a spinner until it has searched every page", async () => {
+        fakePdf.pagesSearched = 0;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        await act(() => new Promise(resolve => setTimeout(resolve, 600)));
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        fakePdf.pagesSearched = 2;
+        // A count of none changes nothing.
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 0, total: 3 } }));
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 5 } }));
+        expect(await screen.findByText("2 of 5")).toBeInTheDocument();
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        fakePdf.pagesSearched = undefined;
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+      });
+
+      it("shows a spinner while the pages are searched, before any match is found", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+
+        await userEvent.type(getSearchField(), QUERY);
+
+        expect(await screen.findByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+        expect(screen.queryByText(/^\d+ of \d+$/)).not.toBeInTheDocument();
+      });
+
+      it("shows and announces a match found before it was counted only once its count is known", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+
+        act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
+          state: 0,
+          matchesCount: { current: 0, total: 0 },
+        }));
+        expect(screen.queryByText("0 of 0")).not.toBeInTheDocument();
+        expect(getStatus()).not.toHaveTextContent("Match");
+
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 1, total: 4 } }));
+
+        expect(await screen.findByText("1 of 4")).toBeInTheDocument();
+        expect(getStatus()).toHaveTextContent("Match 1 of 4.");
+      });
+
+      it("takes the count PDF.js has given already for a match it says is found without one", async () => {
+        fakePdf.holdSearch = true;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 7 } }));
+        act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
+          state: 0,
+          matchesCount: { current: 0, total: 0 },
+        }));
+
+        expect(screen.getByText("2 of 7")).toBeInTheDocument();
+        expect(getStatus()).toHaveTextContent("Match 2 of 7.");
+      });
+
+      it("counts a new search's matches once PDF.js has begun it, not the last search's it still holds", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+
+        fakePdf.holdSearch = true;
+        await userEvent.tripleClick(getSearchField());
+        await userEvent.keyboard("year");
+        await act(() => new Promise(resolve => setTimeout(resolve, 600)));
+        expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
+
+        act(() => fakePdf.releaseSearch?.());
+
+        expect(await screen.findByText("1 of 1")).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
       });
 
       it("leaves the reader where they are when zooming, rather than taking them back to the match", async () => {
