@@ -23,8 +23,8 @@ import { getCommentButtonPlace, type CommentButtonPlace } from "./pdfViewerModel
 import type { MarkSpan } from "./marksModel";
 import type { ShownDocument } from "./usePdfView";
 
-// How long the selection stays the same, the pointer up, before it counts as what was meant: a phone's
-// handles change it in steps, and a mouse drag on and on.
+// How long the selection must stay the same, with the pointer up, before it counts as settled. A phone's
+// handles change it in steps.
 export const SETTLE_TIME = 300;
 
 // Text selected in the document, and where to offer to act on it.
@@ -33,8 +33,8 @@ export interface SelectedText {
   place: CommentButtonPlace;
 }
 
-// The whole of what is selected, from the start of its first range to the end of its last, as a browser
-// selecting across the document in pieces gives several.
+// The whole selection, from the start of its first range to the end of its last. A browser may give a
+// selection across the document as several ranges.
 function getSelectedRange(selection: Selection | null): Range | undefined {
   if (selection === null || selection.isCollapsed) {
     return undefined;
@@ -47,9 +47,9 @@ function getSelectedRange(selection: Selection | null): Range | undefined {
 
 // The text selected in the document shown, once the selection settles, while enabled. It is put aside
 // while the selection changes, the document scrolls or zooms, or the pointer is down in it, and comes
-// back once all is still. It can be dismissed until the selection changes again, and held while the
-// button acting on it is pressed, which may clear the selection, as tapping does on a phone, until the
-// pointer is pressed anywhere else.
+// back once all is still. Dismissing it puts it aside until the selection changes. Holding it keeps it
+// until the pointer is pressed anywhere else, even when pressing the button clears the selection, as a
+// tap does on some phones.
 export function useSelectedText(shown: ShownDocument | undefined, enabled: boolean) {
   const [selected, setSelected] = useState<SelectedText | undefined>(undefined);
   const heldRef = useRef(false);
