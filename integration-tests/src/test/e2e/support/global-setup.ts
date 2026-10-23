@@ -38,10 +38,10 @@ const GATE_TAG = 'systemalive';
 /**
  * The startup gate's component, as the web console names it.
  *
- * An open gate is not a safe one. It opens as soon as its checks have held briefly, and only stops being
- * able to refuse anything once it has retired, after they have held for its settle period. Until then, one
- * blip closes it again and answers whatever is in flight with a bare 503. A retired gate disables its own
- * component, and stays retired until the instance restarts.
+ * An open gate is not a safe one. It opens as soon as its checks have held briefly. It retires once they
+ * have held and no bundle or service has changed for a while, and only then stops being able to refuse
+ * anything. Until then, one blip closes it again and answers whatever is in flight with a bare 503. A
+ * retired gate disables its own component, and stays retired until the instance restarts.
  */
 const GATE_COMPONENT = 'io.uhndata.iap.startup.internal.StartupGateFilter';
 

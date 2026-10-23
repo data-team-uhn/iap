@@ -165,6 +165,7 @@
                 </vmOptions>
                 <frameworkProperties>
                   <org.osgi.service.http.port>${platform.http.port}</org.osgi.service.http.port>
+                  <iap.startup.gate.retireWhenQuiet>true</iap.startup.gate.retireWhenQuiet>
                 </frameworkProperties>
               </launcherArguments>
               <environmentVariables>
@@ -188,6 +189,7 @@
                 </vmOptions>
                 <frameworkProperties>
                   <org.osgi.service.http.port>${testdata.http.port}</org.osgi.service.http.port>
+                  <iap.startup.gate.retireWhenQuiet>true</iap.startup.gate.retireWhenQuiet>
                 </frameworkProperties>
               </launcherArguments>
               <environmentVariables>
@@ -211,6 +213,7 @@
                 </vmOptions>
                 <frameworkProperties>
                   <org.osgi.service.http.port>${demo.http.port}</org.osgi.service.http.port>
+                  <iap.startup.gate.retireWhenQuiet>true</iap.startup.gate.retireWhenQuiet>
                 </frameworkProperties>
               </launcherArguments>
               <environmentVariables>

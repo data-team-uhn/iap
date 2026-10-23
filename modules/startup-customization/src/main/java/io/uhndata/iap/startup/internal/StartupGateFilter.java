@@ -28,6 +28,7 @@ import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -41,6 +42,9 @@ import org.apache.felix.hc.api.execution.HealthCheckExecutionOptions;
 import org.apache.felix.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.felix.hc.api.execution.HealthCheckExecutor;
 import org.apache.felix.hc.api.execution.HealthCheckSelector;
+import org.osgi.framework.AllServiceListener;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleListener;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -110,6 +114,21 @@ import org.slf4j.LoggerFactory;
 })
 public final class StartupGateFilter implements Filter
 {
+    /**
+     * The framework property that, set to {@code true}, lets the gate retire after {@link #QUIET_NANOS}. The end-to-end
+     * launches in {@code integration-tests} set it, since each of them would otherwise wait out {@link #SETTLE_NANOS}.
+     */
+    static final String RETIRE_WHEN_QUIET = "iap.startup.gate.retireWhenQuiet";
+
+    /**
+     * How long the system must be ready, and the framework quiet, before a launch setting {@link #RETIRE_WHEN_QUIET}
+     * retires the gate. Quiet means no bundle event and no service event. Those are what the JCR installer's
+     * configuration re-deliveries and the late bundle activations that invalidate the scripting classloader look like
+     * from here. Retiring is final, so a gate that stepped aside while they were still arriving would be gone when the
+     * next one broke the pages.
+     */
+    static final long QUIET_NANOS = TimeUnit.SECONDS.toNanos(10);
+
     /**
      * How long the system must be continuously ready before the gate retires. Deliberately longer than the window in
      * which the JCR installer re-delivers configurations and bundles finish activating, because retiring is final: a
@@ -227,6 +246,16 @@ public final class StartupGateFilter implements Filter
 
     private final ScheduledExecutorService poller;
 
+    /** Whether {@link #RETIRE_WHEN_QUIET} is set. Without it nothing listens, and only {@link #SETTLE_NANOS} counts. */
+    private final boolean retireWhenQuiet;
+
+    /** Whether a bundle or service changed since the last poll. Set by the listeners below, cleared by the poller. */
+    private final AtomicBoolean frameworkChanged = new AtomicBoolean();
+
+    private final AllServiceListener serviceListener = event -> this.frameworkChanged.set(true);
+
+    private final BundleListener bundleListener = event -> this.frameworkChanged.set(true);
+
     /** The static "starting up" page, also served by the launcher itself before the framework is up. */
     private final String startupPage;
 
@@ -244,6 +273,9 @@ public final class StartupGateFilter implements Filter
 
     /** When the gate started evaluating readiness, which is what {@link #CEILING_NANOS} is measured from. */
     private long firstPollNanos;
+
+    /** The first poll after the latest framework change, or the first poll of all if nothing has changed since. */
+    private long quietSinceNanos;
 
     /**
      * What the log last said about readiness, so that a situation that is not changing is reported once rather than
@@ -284,6 +316,12 @@ public final class StartupGateFilter implements Filter
             "/custom_index.html"))) {
             this.startupPage = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(stub.readAllBytes())).toString();
         }
+        final BundleContext bundleContext = componentContext.getBundleContext();
+        this.retireWhenQuiet = Boolean.parseBoolean(bundleContext.getProperty(RETIRE_WHEN_QUIET));
+        if (this.retireWhenQuiet) {
+            bundleContext.addServiceListener(this.serviceListener);
+            bundleContext.addBundleListener(this.bundleListener);
+        }
         // The initial delay also keeps the poller from running against a half-constructed object
         this.poller.scheduleWithFixedDelay(this::poll, POLL_INTERVAL_MS, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
@@ -302,11 +340,16 @@ public final class StartupGateFilter implements Filter
         });
     }
 
-    /** Stops the poller when the component goes away, including when the gate retires itself. */
+    /** Stops the poller and the listeners when the component goes away, including when the gate retires itself. */
     @Deactivate
     void deactivate()
     {
         this.poller.shutdownNow();
+        if (this.retireWhenQuiet) {
+            final BundleContext bundleContext = this.componentContext.getBundleContext();
+            bundleContext.removeServiceListener(this.serviceListener);
+            bundleContext.removeBundleListener(this.bundleListener);
+        }
     }
 
     @Override
@@ -342,6 +385,10 @@ public final class StartupGateFilter implements Filter
         if (!this.polled) {
             this.polled = true;
             this.firstPollNanos = nowNanos;
+            this.quietSinceNanos = nowNanos;
+        }
+        if (this.frameworkChanged.getAndSet(false)) {
+            this.quietSinceNanos = nowNanos;
         }
         final String problem = findProblem();
         if (problem != null) {
@@ -363,7 +410,9 @@ public final class StartupGateFilter implements Filter
         // half-started instance through, for the reasons in HOLD_NANOS.
         this.open = readyForNanos >= HOLD_NANOS;
         report(null, this.open);
-        if (readyForNanos >= SETTLE_NANOS) {
+        if (readyForNanos >= SETTLE_NANOS
+            || (this.retireWhenQuiet && readyForNanos >= QUIET_NANOS
+                && nowNanos - this.quietSinceNanos >= QUIET_NANOS)) {
             retire();
         }
     }
