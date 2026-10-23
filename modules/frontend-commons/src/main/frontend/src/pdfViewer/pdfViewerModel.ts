@@ -22,7 +22,7 @@ import { describeRequestFailure } from "../requestFailure";
 export type SearchState =
   | { status: "searching" }
   | { status: "tooShort" }
-  // Broken across two pages, it ends on the next one.
+  // `toPage` is the next page, for a passage that runs across a page break.
   | { status: "found"; page: number; toPage?: number }
   | { status: "notFound" }
   | { status: "noText" };
@@ -63,7 +63,7 @@ export function reduceViewerState(state: ViewerState, action: ViewerAction): Vie
   }
 }
 
-// Why the document could not be opened, in the person's words. PDF.js names its own failures.
+// Why the document could not be opened, in the person's words.
 export function describeOpenFailure(error: unknown): string {
   if (isNotAuthenticated(error)) {
     return SIGNED_OUT_MESSAGE;
@@ -92,13 +92,14 @@ export function getFileName(url: string): string {
   }
 }
 
-// What follows the passage: how the search for it went, in full and in short for when the passage is
-// cut to one line, and whether it failed, or where it was found, with whether one of its pages is the
-// one shown. Nothing when the open failed, since the error box says it.
+// The note shown after the passage. Until the passage is found, it says how the search went, in full
+// and in short for a passage cut to one line. Once found, it gives the pages, and whether one of them
+// is the page shown.
 export type PassageNote =
   | { text: string; short: string; failed?: boolean }
   | { foundOnPage: number; toPage?: number; shown: boolean };
 
+// Nothing when the open failed, since the error box says it.
 export function getPassageNote(state: ViewerState): PassageNote | undefined {
   const { page, search } = state;
   if (state.openError !== undefined) {
@@ -121,8 +122,8 @@ export function getPassageNote(state: ViewerState): PassageNote | undefined {
   }
 }
 
-// The same, as a sentence of its own, for a screen reader, which announces it apart from the passage.
-// Nothing when the open failed, since the error box says it.
+// How the search went, as a sentence for a screen reader to announce apart from the passage. Empty
+// when the open failed.
 export function getPassageStatus(state: ViewerState): string {
   const { page, search } = state;
   if (state.openError !== undefined) {

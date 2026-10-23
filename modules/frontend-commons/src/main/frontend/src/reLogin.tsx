@@ -60,7 +60,7 @@ export function isNotAuthenticated(error: unknown): boolean {
   return error instanceof NotAuthenticatedError;
 }
 
-// What to tell someone whose request met that failure, when nothing more specific needs saying.
+// What to tell someone whose session ended, when nothing more specific needs saying.
 export const SIGNED_OUT_MESSAGE = "You are no longer signed in. Sign in and try again.";
 
 // Sling answers an unauthenticated request either with a 401, or -- when the authentication handler

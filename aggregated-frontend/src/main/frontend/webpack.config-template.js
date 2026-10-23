@@ -33,12 +33,10 @@ const isProduction = process.argv.find(arg => arg.startsWith("--mode"))?.substri
 
 const FRONTEND_RESOURCES_PATH = '/libs/iap/resources/';
 
-// Folders of packages that some library fetches files from by name at run time, such as fonts and
-// decoders, as the modules declare them in their package-folders.config. Each is published as it is,
-// in a folder named after the package folder and its contents, and keyed in assets.json by the
-// package folder with a dot for the slash, which a repository property name cannot have, so code finds
-// it with getAssetURL("asset:<package>.<folder>"). CacheHeadersFilter serves anything with ".<hash>."
-// in its path as immutable.
+// Package folders a library fetches files from by name at run time, such as fonts and decoders, as
+// the modules list them in package-folders.config. Each is published as it is, in a folder named after
+// its contents' hash. Its key in assets.json is the package folder with a dot for the slash, which a
+// repository property name cannot have. Code finds it with getAssetURL("asset:<package>.<folder>").
 const PACKAGE_FOLDERS = [
 PACKAGE_FOLDERS_CONTENT
 ];
@@ -56,8 +54,7 @@ const publishedFolders = PACKAGE_FOLDERS.map(folder => {
   return { folder, published: `${folder}.${hash.digest('hex').slice(0, 20)}.data`, files };
 });
 
-// A plugin that adds files to the output as they are. They belong to no chunk, so none can take a
-// chunk's key in assets.json.
+// A plugin that adds files to the output as they are, outside any chunk.
 function emitStaticAssets(label, assets) {
   return {
     apply: compiler => compiler.hooks.thisCompilation.tap(`Emit ${label}`, compilation =>
@@ -231,8 +228,8 @@ ENTRY_CONTENT
       splitChunks: {
         chunks: 'all',
         cacheGroups: {
-          // What pages load up front; a package only ever imported with import() keeps a chunk of
-          // its own, loaded the first time a screen asks for it
+          // Only what pages load up front. A package only ever imported with import() keeps a chunk
+          // of its own, loaded the first time a screen asks for it.
           defaultVendors: {
             chunks: 'initial',
             minChunks: 1,

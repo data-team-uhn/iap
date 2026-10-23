@@ -66,9 +66,8 @@ def merge_webpack_files(root, dir_name, namespace, aggregated_frontend_dir, webp
                 line = line.replace("'./src/", "'./src/" + namespace + "/").replace('"./src/', '"./src/' + namespace + '/')
                 webpack_config_entries.append(line)
 
-# A module's package-folders.config names, one quoted '<package>/<folder>' a line, the folders of
-# packages that a library it uses fetches files from by name at run time, for the build to publish.
-# Two modules naming the same folder publish it once.
+# Collect the package folders a module lists in its package-folders.config, one quoted
+# '<package>/<folder>' a line, for the build to publish. A folder two modules list is published once.
 def merge_package_folders(root, dir_name, package_folders):
     fl = path.join(root, dir_name, 'src', 'main', 'frontend', 'package-folders.config')
     if path.exists(fl):

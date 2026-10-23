@@ -21,8 +21,8 @@ import { findQuote, findQuoteAcrossPages, getSearchText, type QuoteMatch } from 
 import type { PDFDocumentProxy, PDFWorker } from "pdfjs-dist";
 import type { EventBus, PDFFindController, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 
-// The options naming the folders PDF.js fetches what a document needs from, and does not carry,
-// as published from package-folders.config.
+// The PDF.js options naming where to fetch what a document needs but does not carry, such as fonts,
+// and the published package folder for each.
 const DATA_FOLDERS = {
   standardFontDataUrl: "pdfjs-dist.standard_fonts",
   wasmUrl: "pdfjs-dist.wasm",
@@ -41,9 +41,8 @@ async function getDataUrls(): Promise<DataUrls> {
 
 let worker: PDFWorker | undefined;
 
-// Loads PDF.js, its viewer, and the one worker every document shares, which webpack bundles as a
-// chunk of its own. A worker that fails to start is not replaced, because PDF.js remembers the
-// failure and a new one would fail the same way.
+// Loads PDF.js, its viewer, and the one worker every document shares. A worker that fails to start
+// is not replaced, because PDF.js remembers the failure and a new one would fail the same way.
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
   // The viewer reads the library from here rather than importing it.
@@ -76,11 +75,11 @@ export interface QuoteAcrossPages {
   parts: Map<number, QuoteMatch>;
 }
 
-// PDF.js's search, matching the quote the way findQuote does instead of word by word. It moves to
-// the match and scrolls it into view only while follow() says so, so a search run again to restore
-// the marks leaves the reader where they were. PDF.js searches each page on its own, so a quote
-// broken across two pages is found from the text of both, kept as it goes, and marked by a second
-// search once the first has found it whole on no page.
+// PDF.js's search, matching the quote with findQuote instead of word by word. It moves to the match
+// and scrolls it into view only while follow() allows it. A search run again to restore the marks
+// then leaves the reader where they were. PDF.js searches each page on its own. A quote broken across
+// two pages is found from the text of both. A second search marks its parts once the first has found
+// it whole on no page.
 export function createQuoteFinder(
   components: ViewerComponents,
   { container, viewer, doc, eventBus, follow }: {

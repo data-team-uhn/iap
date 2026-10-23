@@ -85,8 +85,8 @@ declare module "@mui/material/styles" {
     line: string;
     word: string;
   }
-  // `assistant` marks whatever an AI assistant contributed, and `annotation` what a person marked;
-  // `highlight` holds the marks both make over a document's content (see HIGHLIGHT below).
+  // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
+  // `highlight` holds the marks both make over a document's content.
   interface TypeHighlight {
     assistant: string;
     assistantCurrent: string;
@@ -191,9 +191,8 @@ const TINTED_SURFACE = "color-mix(in srgb, var(--mui-palette-primary-main) 16%, 
 const STRONGLY_TINTED_SURFACE =
   "color-mix(in srgb, var(--mui-palette-primary-main) 28%, var(--mui-palette-background-paper))";
 
-// What an AI assistant contributed is told apart by a lilac accent, and what a person
-// marked by a soft highlighter yellow. Each is too pale to read as text or an icon on a light
-// surface, so the light scheme writes with a darker shade and keeps the colour itself for fills.
+// Both accents are too pale to read as text or an icon on a light surface. The light scheme writes
+// with a darker shade and keeps the accent itself for fills.
 const LILAC = "#C58BBD";
 const SOFT_YELLOW = "#F6D96B";
 
@@ -217,8 +216,8 @@ const ANNOTATION_DARK: PaletteColorOptions = {
   contrastText: "rgba(0, 0, 0, 0.87)",
 };
 
-// Marks over a document's own content, which stays light in both schemes, so they do not change
-// with the scheme. The current mark is the one in focus, such as the match a search moved to.
+// Marks over a document's own content. That content stays light in both schemes, so the marks do not
+// change with the scheme. The current mark is the one in focus, such as the match a search moved to.
 const HIGHLIGHT = {
   assistant: alpha(LILAC, 0.4),
   assistantCurrent: alpha(LILAC, 0.65),
@@ -355,8 +354,8 @@ const appTheme = createTheme({
     },
   },
   components: {
-    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does; the app's own
-    // scheme outranks it, so native controls and light-dark() colours keep following the app.
+    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does. These rules outrank
+    // it, so native controls and light-dark() colours keep following the app's scheme.
     MuiCssBaseline: {
       styleOverrides: {
         "html.light": { colorScheme: "light" },
