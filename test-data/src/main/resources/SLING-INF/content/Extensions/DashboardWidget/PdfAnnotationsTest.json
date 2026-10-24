@@ -1,8 +1,0 @@
-{
-  "jcr:primaryType": "ext:Extension",
-  "ext:pointId": "iap/dashboard/widget",
-  "ext:name": "PDF annotations",
-  "ext:subtitle": "Comment on passages of a PDF",
-  "ext:renderURL": "asset:iap-test-data.PdfAnnotationsTestWidget.js",
-  "defaultOrder": 8
-}
