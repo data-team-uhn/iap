@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { centreIn, drawMarks, findMark, markAt, OVER_MARK_CLASS, type PageMark } from "./markLayer";
 import { createFindController } from "./pdfjsClient";
 import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
+import { SCROLL_INPUTS, scrollsByHand } from "./scrollByHand";
 
 import type { Mark } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -239,6 +240,15 @@ export function usePdfView(
       });
     });
     resizes.observe(frame, { box: "border-box" });
+
+    // Once the reader scrolls by hand, the selected mark, if still to be found, no longer moves them.
+    for (const type of SCROLL_INPUTS) {
+      frame.addEventListener(type, event => {
+        if (scrollsByHand(event, frame)) {
+          followSelectedRef.current = false;
+        }
+      }, { signal: stop.signal, passive: true });
+    }
 
     let pressedAt = { x: 0, y: 0, touch: false };
     frame.addEventListener("pointerdown", event => {
