@@ -4,22 +4,35 @@
 under `modules/favicon/src/main/resources/SLING-INF/content/`:
 
 - `favicon.ico` — the raster icon, at 16, 32 and 48 pixels.
-- `favicon.svg` — the same mark as vector art, with a **dark-scheme variant**.
+- `favicon.svg` — the same mark as vector art.
 
 The script is the source of truth for both: the artwork is described by a handful of numbers in a table, not
 by an image file, and the `.svg` is emitted from that same table so the two cannot drift apart.
 
-The mark is the small-size counterpart of the QuorumPath application logo
-(`modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/logo-light.svg`):
-a navy path running from the left edge to the halo of a red token — a filled disc with a translucent
-halo ring — sitting at the end of the path. The path is drawn beneath the halo and stops on its ring, as
-in the logo (at 16px, with no halo, it ends at the token's centre).
+The mark is a QP monogram built around the logo's token: a thin navy **Q** (a ring, plus a tail running
+right along the baseline) enclosing a solid crimson **P**. The P is a filled disc, the token, with a straight
+stem running down the Q's lower left to the shared baseline. The notch between the stem and the Q's outer
+curve is filled red, a half serif that carries the P's foot along the baseline to where the Q's tail begins,
+and the foot's outer corner is rounded so it rolls with the Q. A clear gap separates the disc from the ring,
+and a translucent white **keyline** runs round the whole mark.
 
-It is deliberately **not** a scaled copy of the logo. At 16–48 pixels the logo's hairlines vanish and
-fractional strokes turn into grey smears, so the path thickness, token size, halo and margins are tuned
-per size, and the artwork is rasterized directly. Only the standard library is used: a 32bpp `.ico` is
-just bottom-up BMP data behind a small directory, and two circles plus a thick segment anti-alias cleanly
-from supersampled coverage — no Pillow or ImageMagick needed.
+It replaced the earlier path-and-haloed-token mark, whose red disc inside a red ring was routinely mistaken
+for the "recording" indicator that browsers and Teams show in a tab. The red disc is back, deliberately, but
+the ring around it is navy and the disc carries a stem and a tail. **Keep the ring a contrasting colour**: a
+red or pink ring around this disc is the recording indicator again.
+
+The keyline is what keeps the navy visible on a dark tab strip, where navy alone nearly vanishes. A
+dark-scheme variant cannot do that job: a favicon cannot tell what it is drawn on, and inside an SVG icon
+`prefers-color-scheme` follows the operating system, not the browser's theme, so a dark system with a light
+browser (or the reverse) gets the wrong variant. The keyline is white at 33% opacity, so it adapts by itself:
+on a light tab it all but disappears, and on a dark one it reads as a soft grey that sets off the navy (about
+2.6:1 on Chrome's dark tab strip) without glaring. Below roughly 30% the navy blends into it on black; full
+white is too bright there.
+
+The artwork is described in design units (the 48-unit grid it was drawn on) and fitted to each size, then
+rasterized directly with supersampled coverage. Only the standard library is used: a 32bpp `.ico` is just
+bottom-up BMP data behind a small directory, and a few circles, bars and rounded corners anti-alias cleanly —
+no Pillow or ImageMagick needed.
 
 Run from the repository root:
 
@@ -38,29 +51,34 @@ python3 tools/dev/favicon/generate_favicon.py --preview-dir /tmp/favicon --ascii
 
 ## Changing the artwork
 
-Edit the `GEOMETRY` table: per size, the path thickness, the halo's outer radius and stroke, the token
-radius, and the margin kept clear at the left and right edges. Two things to preserve when tuning:
+The shape lives in the `DESIGN` table: centre, the Q's outer radius, weight and tail length, the gap between
+disc and ring, the stem width and the foot's corner radius. The P's disc takes whatever radius is left inside
+the ring and the gap. Per-size fitting lives in `GEOMETRY`: the margin and the keyline's width, and optionally
+an explicit scale, Q weight and gap. The keyline's colour and opacity sit beside the brand colours. Things to
+preserve when tuning:
 
-- The mark is centred on `cy = size / 2`, an exact pixel boundary, so an **even** path thickness lands
-  squarely on two rows rather than straddling four at half coverage.
-- 16px drops the halo (`r_out: 0`). A sub-pixel ring at 45% opacity only muddies the token at that size,
-  so the pixel-snapped disc carries the mark on its own.
+- `layout()` shifts the whole mark by under half a pixel so the **baseline and the P stem's left edge** — the
+  long straight edges — land on pixel boundaries, and trims or extends the tail by under half a pixel so its
+  square end does too.
+- **16px is hand-hinted.** At design weights the ring would be under a pixel and the gap about 1.2, both
+  blurred, and the tab would show a red dot in a smudge: the recording look. Instead the Q's outer radius is
+  exactly 6.5 pixels about a pixel-centred point, and the ring and the gap are exactly one pixel each, so every
+  circular edge sits on a pixel boundary at the cardinal points. Keep the ring and the gap at a pixel or more.
+- **The keyline must fit in the margin**, less the half pixel `layout()` may shift the mark by, or it is cut
+  off at the icon's edge. At 16px the hinted mark leaves exactly one pixel all round, which the keyline fills.
+- Red is drawn over navy and both over the keyline, decided per coverage sample rather than by compositing
+  anti-aliased layers, so the seams, such as where the stem crosses the ring, have no blended fringe.
 
 ## About the SVG
 
-It carries the 48px geometry as presentation attributes, in the light palette, and adds two stylesheet
-overrides:
+It carries the 48px fit of the design as filled outlines (the keyline, then one path per letter, the ring as
+an opposed circle pair under the non-zero rule), with colours and the keyline's opacity as presentation
+attributes and no stylesheet.
 
-- `prefers-color-scheme: dark` repaints the path in `#A3A9BC` and lifts the halo to 60% opacity — the
-  dark-scheme palette of `logo-dark.svg`. Navy on a dark tab strip is nearly invisible, which is the whole
-  reason this file exists; the token keeps the same red in both schemes, as the logo does.
-- `max-width: 24px` switches to the tuned 16px mark. Wherever the `.svg` is supported the browser uses it
-  for the tab too, rasterizing it at 16px on a 1x display, and a faithful copy of the 48px artwork does not
-  survive that: the halo becomes a pink blob and the sub-pixel path goes grey and soft. Media queries inside
-  an SVG resolve against the viewport it is drawn into, so this swaps in `GEOMETRY[16]` (scaled into the
-  48-unit viewBox) exactly when the icon is drawn tab-sized. Support for width queries in the favicon path
-  is not universal; where it is ignored the faithful mark is used at every size, the same trade-off any
-  single-artwork SVG favicon makes.
+A tuned tab-size mark would need a `max-width` media query and CSS geometry properties (`d: path()`, `cx`,
+`r`), which browsers do not reliably honour in the favicon path, so a single artwork serves every size.
+Browsers that prefer the `.svg` (Chrome, Edge, Firefox) therefore draw a 16px tab from the 48px fit, with a
+slightly softer ring than the hand-hinted 16px rendering in the `.ico`.
 
 Browsers that ignore SVG icons altogether (Safari) use the `.ico`, which is why both are shipped and both
 are declared:

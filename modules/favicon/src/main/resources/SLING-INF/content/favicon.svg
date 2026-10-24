@@ -18,18 +18,7 @@
 -->
 <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img">
   <title>QuorumPath</title>
-  <style>
-    @media (prefers-color-scheme: dark) {
-      .path { fill: #A3A9BC; }
-      .halo { opacity: 0.6; }
-    }
-    @media (max-width: 24px) {
-      .halo { display: none; }
-      .path { d: path("M 6 21 A 3 3 0 0 0 6 27 H 33 V 21 Z"); }
-      .token { cx: 33; r: 12; }
-    }
-  </style>
-  <path class="path" d="M 4 22 A 2 2 0 0 0 4 26 H 14.65 V 22 Z" fill="#192958"/>
-  <circle class="halo" cx="30" cy="24" r="14.7" fill="none" stroke="#C0233C" stroke-width="2.6" opacity="0.45"/>
-  <circle class="token" cx="30" cy="24" r="9.4" fill="#C0233C"/>
+  <path fill="#FFFFFF" fill-opacity="0.33" d="M 0.464 23.58 A 21.42 21.42 0 1 1 43.304 23.58 A 21.42 21.42 0 1 1 0.464 23.58 Z M 10 36.029 H 44 A 3 3 0 0 1 47 39.029 V 42 A 3 3 0 0 1 44 45 H 13.565 A 6.565 6.565 0 0 1 7 38.435 V 39.029 A 3 3 0 0 1 10 36.029 Z"/>
+  <path fill="#192958" d="M 3.464 23.58 A 18.42 18.42 0 1 1 40.304 23.58 A 18.42 18.42 0 1 1 3.464 23.58 Z M 6.435 23.58 A 15.449 15.449 0 1 0 37.333 23.58 A 15.449 15.449 0 1 0 6.435 23.58 Z M 21.884 39.029 H 44 V 42 H 21.884 Z"/>
+  <path fill="#C0233C" d="M 10 23.58 A 11.884 11.884 0 1 1 33.768 23.58 A 11.884 11.884 0 1 1 10 23.58 Z M 10 23.58 H 17.13 V 41.376 A 18.42 18.42 0 0 0 21.884 42 H 13.565 A 3.565 3.565 0 0 1 10 38.435 Z"/>
 </svg>
