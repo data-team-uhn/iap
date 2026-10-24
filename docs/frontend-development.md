@@ -350,9 +350,10 @@ It opens in a dialog. Given a `container` element, it fills that element instead
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
 `null`, as a ref is before React attaches it, shows nothing until the element is there.
 
-Its parts can be combined apart: `usePdfDocument` opens the file and reads each page's text once,
-`useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the document
-in a frame, with the marks drawn, moves the reader, and searches it.
+Its parts can also be used on their own: `usePdfDocument` opens the file and reads each page's text
+once, `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the
+document in a frame, with the marks drawn, moves the reader, and searches it. `ViewerPlacement` puts a
+viewer in place or in a dialog, `ViewerTitle` is its top row, and `ViewerToolbar` its toolbar.
 
 Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
