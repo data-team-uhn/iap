@@ -21,18 +21,19 @@ import { type ReactNode } from "react";
 import { Box } from "@mui/material";
 
 // Shows a value that changed, as what it was and what it is. A value that was added has no `before`, and one that was
-// removed has no `after`. The caller decides how each value reads.
-function ValueChange({ before, after }: { before?: ReactNode; after?: ReactNode }) {
+// removed has no `after`. The caller decides how each value reads. Inline, as within a sentence, the values wrap as
+// the words around them do, a line at a time, rather than each as a block of its own.
+function ValueChange({ before, after, inline = false }: { before?: ReactNode; after?: ReactNode; inline?: boolean }) {
+  const value = { px: 0.5, borderRadius: 0.5, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" };
   return (
-    <Box component="span" sx={{ display: "inline-flex", alignItems: "baseline", flexWrap: "wrap", gap: 0.75 }}>
-      { before !== undefined && (
-        <Box component="del" sx={{ bgcolor: "diff.removed.word", px: 0.5, borderRadius: 0.5 }}>{before}</Box>
-      ) }
-      { before !== undefined && after !== undefined && <span aria-hidden>→</span> }
+    <Box
+      component="span"
+      sx={inline ? undefined : { display: "inline-flex", alignItems: "baseline", flexWrap: "wrap", gap: 0.75 }}
+    >
+      { before !== undefined && <Box component="del" sx={{ ...value, bgcolor: "diff.removed.word" }}>{before}</Box> }
+      { before !== undefined && after !== undefined && <span aria-hidden>{inline ? " → " : "→"}</span> }
       { after !== undefined && (
-        <Box component="ins" sx={{ bgcolor: "diff.added.word", px: 0.5, borderRadius: 0.5, textDecoration: "none" }}>
-          {after}
-        </Box>
+        <Box component="ins" sx={{ ...value, bgcolor: "diff.added.word", textDecoration: "none" }}>{after}</Box>
       ) }
     </Box>
   );

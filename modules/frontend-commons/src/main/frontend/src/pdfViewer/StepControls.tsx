@@ -27,19 +27,25 @@ import { Box, IconButton, Typography } from "@mui/material";
 export default function StepControls({ position, count, itemName, heading, widest, onStep }: {
   position: number;
   count: number;
-  // The item's name in the button labels, as "passage" in "Next passage".
-  itemName: string;
+  // The item's name in the button labels, as "passage" in "Next passage", or the names of the items each
+  // button goes to, where the items are of more than one sort.
+  itemName: string | { previous: string; next: string };
   heading?: string;
   // The widest texts the heading takes as the position changes.
   widest?: string[];
   onStep: (position: number) => void;
 }) {
+  const names = typeof itemName === "string" ? { previous: itemName, next: itemName } : itemName;
   const [ text, sizes, variant ] = heading === undefined
     ? [ `${position} of ${count}`, [ `${count} of ${count}` ], "caption" as const ]
     : [ heading, widest ?? [], "subtitle2" as const ];
   return (
     <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0, justifyContent: "space-between" }}>
-      <IconButton aria-label={`Previous ${itemName}`} disabled={position <= 1} onClick={() => onStep(position - 1)}>
+      <IconButton
+        aria-label={`Previous ${names.previous}`}
+        disabled={position <= 1}
+        onClick={() => onStep(position - 1)}
+      >
         <ChevronLeftIcon />
       </IconButton>
       <Box
@@ -66,7 +72,7 @@ export default function StepControls({ position, count, itemName, heading, wides
         ))}
         <Typography variant={variant} component="span" noWrap sx={{ maxWidth: "100%" }}>{text}</Typography>
       </Box>
-      <IconButton aria-label={`Next ${itemName}`} disabled={position >= count} onClick={() => onStep(position + 1)}>
+      <IconButton aria-label={`Next ${names.next}`} disabled={position >= count} onClick={() => onStep(position + 1)}>
         <ChevronRightIcon />
       </IconButton>
     </Box>

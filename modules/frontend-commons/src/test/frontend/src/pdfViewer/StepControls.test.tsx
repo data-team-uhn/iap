@@ -50,6 +50,13 @@ describe("StepControls", () => {
     expect(container.querySelectorAll("[data-size='Note 1 of 1']")).toHaveLength(1);
   });
 
+  it("names each button after the item it goes to, where they are of more than one sort", () => {
+    render(<StepControls position={2} count={3} itemName={{ previous: "note", next: "change" }} onStep={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Previous note" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next change" })).toBeEnabled();
+  });
+
   it("keeps room for the count at its last position", () => {
     const { container } = render(<StepControls position={2} count={12} itemName="passage" onStep={vi.fn()} />);
 

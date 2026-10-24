@@ -21,14 +21,25 @@ import { loadPdfjs } from "@iap/frontend-commons/pdfViewer/pdfjsClient";
 
 const created = vi.hoisted(() => ({ ports: [] as unknown[] }));
 
-vi.mock("pdfjs-dist", () => ({
-  PDFWorker: {
-    create: ({ port }: { port: unknown }) => {
-      created.ports.push(port);
-      return { port };
+// Set to make the next import of PDF.js fail, as a chunk the network dropped would
+const imports = vi.hoisted(() => ({ failing: false }));
+
+const fakePdfjs = vi.hoisted(() => () => {
+  if (imports.failing) {
+    imports.failing = false;
+    throw new Error("Failed to fetch dynamically imported module");
+  }
+  return {
+    PDFWorker: {
+      create: ({ port }: { port: unknown }) => {
+        created.ports.push(port);
+        return { port };
+      },
     },
-  },
-}));
+  };
+});
+
+vi.mock("pdfjs-dist", fakePdfjs);
 
 // The viewer, its stylesheet and the folders it fetches from are loaded alongside, and play no part here
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", () => ({}));
@@ -84,6 +95,21 @@ describe("loadPdfjs", () => {
     const later = await client.loadPdfjs();
     expect(later.failed).toBe(loaded.failed);
     expect(later.worker).toBe(loaded.worker);
+  });
+
+  it("imports PDF.js once for documents opened together, and again after failing to", async () => {
+    vi.resetModules();
+    imports.failing = true;
+    // Registered again, since Vitest keeps what a factory returned until it is
+    vi.doMock("pdfjs-dist", fakePdfjs);
+    const client = await import("@iap/frontend-commons/pdfViewer/pdfjsClient");
+
+    // Vitest wraps what a mock's factory throws in an error of its own
+    await expect(client.loadPdfjs()).rejects.toThrow();
+    const [ one, other ] = await Promise.all([ client.loadPdfjs(), client.loadPdfjs() ]);
+
+    expect(other.pdfjs).toBe(one.pdfjs);
+    expect(other.components).toBe(one.components);
   });
 
   it("keeps a worker that threw while running, since it still answers", async () => {
