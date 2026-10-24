@@ -234,7 +234,7 @@ function ViewerBody(props: ViewerBodyProps) {
         ref={several ? swipeRef : undefined}
         name={markName}
         quote={getMarkText(selected, places[selected.id])}
-        note={getPassageNote(status, places[selected.id])}
+        note={getPassageNote(status, places[selected.id], "quote" in selected)}
         markedBy={selected.kind}
         stepper={several
           ? (
