@@ -17,31 +17,26 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
-import CloseIcon from "@mui/icons-material/Close";
-import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
-import OpenInFullIcon from "@mui/icons-material/OpenInFull";
-import SearchIcon from "@mui/icons-material/Search";
-import { Box, DialogContent, IconButton, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
-import { createPortal } from "react-dom";
 
 import CommentButton from "./CommentButton";
 import MarkList from "./MarkList";
 import { cannotMark, getMarkPage, getMarksKey, getMarkText, isLooking, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
-import PdfToolbar from "./PdfToolbar";
+import { PageControls } from "./PdfToolbar";
 import { getFileName, getPassageNote, getPassageStatus, PASSAGES, type MarkName } from "./pdfViewerModel";
-import SearchField from "./SearchField";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
 import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
-import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
+import { useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
 import { useSelectedText } from "./useSelectedText";
+import ViewerPlacement, { ViewerTitle } from "./ViewerPlacement";
+import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
 import LoadError from "../components/LoadError";
-import ResponsiveDialog from "../components/ResponsiveDialog";
 import { useSwipe } from "../useSwipe";
 
 import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
@@ -137,89 +132,37 @@ function PdfViewerSession(props: PdfViewerProps) {
       showMark(selectedMarkId);
     }
   }, [selectedMarkId, marks, showMark]);
-  const [poppedOut, setPoppedOut] = useState(false);
   const titleId = useId();
-  const placeButtonRef = useRef<HTMLButtonElement>(null);
-  // Set when popping back in, so focus goes to the button that pops out again rather than to nowhere.
-  const poppingIn = useRef(false);
-  useEffect(() => {
-    if (!poppedOut && poppingIn.current) {
-      poppingIn.current = false;
-      placeButtonRef.current?.focus();
-    }
-  }, [poppedOut]);
-  const popIn = () => {
-    poppingIn.current = true;
-    setPoppedOut(false);
-  };
-  if (container === null) {
-    return null;
-  }
 
-  const inDialog = container === undefined || poppedOut;
-  const placeButton = container === undefined
-    ? null
-    : (
-      <IconButton
-        ref={placeButtonRef}
-        aria-label={poppedOut ? "Pop back in" : "Pop out"}
-        onClick={poppedOut ? popIn : () => setPoppedOut(true)}
-      >
-        {poppedOut ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
-      </IconButton>
-    );
-  const body = (
-    <ViewerBody
-      titleId={titleId}
-      title={title ?? getFileName(url)}
-      marks={marks}
-      markName={markName}
-      places={places}
-      pagesRead={read}
-      selectedId={selectedId}
-      onSelect={select}
-      openError={openError}
-      onRetry={retry}
-      view={view}
-      renderMarkDetails={renderMarkDetails}
-      selectedText={selectedText}
-      onAnnotate={annotate}
-      placeButton={placeButton}
-      edgeToEdge={inDialog}
-      onClose={onClose}
-    />
-  );
-
-  if (inDialog) {
-    return (
-      <ResponsiveDialog
-        open
-        width="lg"
-        aria-labelledby={titleId}
-        // Escape puts a popped-out viewer back rather than closing it.
-        onClose={container !== undefined && poppedOut ? popIn : onClose}
-        slotProps={{ paper: { sx: { height: "100%" } } }}
-      >
-        <DialogContent sx={{ display: "flex", flexDirection: "column", minHeight: 0, ...DIALOG_PADDING }}>
-          {body}
-        </DialogContent>
-      </ResponsiveDialog>
-    );
-  }
-  return createPortal(
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>{body}</Box>,
-    container,
+  return (
+    <ViewerPlacement container={container} titleId={titleId} onClose={onClose}>
+      {({ placeButton, inDialog }) => (
+        <ViewerBody
+          titleId={titleId}
+          title={title ?? getFileName(url)}
+          marks={marks}
+          markName={markName}
+          places={places}
+          pagesRead={read}
+          selectedId={selectedId}
+          onSelect={select}
+          openError={openError}
+          onRetry={retry}
+          view={view}
+          renderMarkDetails={renderMarkDetails}
+          selectedText={selectedText}
+          onAnnotate={annotate}
+          placeButton={placeButton}
+          edgeToEdge={inDialog}
+          onClose={onClose}
+        />
+      )}
+    </ViewerPlacement>
   );
 }
 
-// Below this width, the document's column has no room for the search field beside the page and zoom
-// controls. A button in the toolbar opens it in their place instead.
-const SEARCH_FIELD_ROOM = 600;
-
-// The space between the viewer's rows, and around it in the dialog, kept small on a phone, where the
-// document has the least room. There, the document runs to the bottom of the screen.
+// The space between the viewer's rows, kept small on a phone, where the document has the least room.
 const ROW_GAP = { xs: 0.5, sm: 1 };
-const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
 
 interface ViewerBodyProps {
   titleId: string;
@@ -251,29 +194,7 @@ function ViewerBody(props: ViewerBodyProps) {
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
   const narrow = useNarrowViewer(body);
-  const [column, setColumn] = useState<HTMLElement | null>(null);
-  const compact = useNarrowerThan(column, SEARCH_FIELD_ROOM);
-  // Without room for it, the search takes the toolbar's place while it is open or holds a query. It takes
-  // the focus, and gives it back to the button that opened it once closed.
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchInPlace = compact && (searchOpen || search.query !== "");
-  const searchButtonRef = useRef<HTMLButtonElement>(null);
-  const closingSearch = useRef(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (searchInPlace) {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    } else if (closingSearch.current) {
-      closingSearch.current = false;
-      searchButtonRef.current?.focus();
-    }
-  }, [searchInPlace]);
-  const closeSearch = () => {
-    closingSearch.current = true;
-    find("");
-    setSearchOpen(false);
-  };
+  const toolbarRef = useRef<ViewerToolbarHandle>(null);
   // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page. Escape
   // hides the Comment button before it closes anything.
   const onKeyDown = (event: KeyboardEvent) => {
@@ -284,9 +205,7 @@ function ViewerBody(props: ViewerBodyProps) {
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && pageCount !== undefined) {
       event.preventDefault();
-      setSearchOpen(compact);
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
+      toolbarRef.current?.openSearch();
     }
   };
   const ordered = useMemo(() => orderMarks(marks, places), [marks, places]);
@@ -338,15 +257,7 @@ function ViewerBody(props: ViewerBodyProps) {
       onKeyDown={onKeyDown}
       sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center" }}>
-        <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
-          {title}
-        </Typography>
-        {placeButton}
-        <IconButton aria-label="Close" edge="end" onClick={onClose}>
-          <CloseIcon />
-        </IconButton>
-      </Box>
+      <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />
       {card}
       {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
       <Box role="status" sx={visuallyHidden}>
@@ -355,52 +266,18 @@ function ViewerBody(props: ViewerBodyProps) {
           : search.announcement}
       </Box>
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
-        <Box
-          ref={setColumn}
-          sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}
-        >
-          {searchInPlace
-            ? (
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <SearchField
-                  search={search}
-                  inputRef={searchInputRef}
-                  onFind={find}
-                  onFindAgain={findAgain}
-                  onClose={closeSearch}
-                />
-              </Box>
-            )
-            : (
-              <PdfToolbar
-                page={page}
-                pageCount={pageCount}
-                search={compact
-                  ? (
-                    <IconButton
-                      ref={searchButtonRef}
-                      aria-label="Search the document"
-                      disabled={pageCount === undefined}
-                      onClick={() => setSearchOpen(true)}
-                    >
-                      <SearchIcon />
-                    </IconButton>
-                  )
-                  : (
-                    <SearchField
-                      search={search}
-                      inputRef={searchInputRef}
-                      disabled={pageCount === undefined}
-                      onFind={find}
-                      onFindAgain={findAgain}
-                    />
-                  )}
-                onShowPage={showPage}
-                onZoomIn={zoomIn}
-                onZoomOut={zoomOut}
-                onFitWidth={fitWidth}
-              />
-            )}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}>
+          <ViewerToolbar
+            ref={toolbarRef}
+            pages={<PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
+            opened={pageCount !== undefined}
+            search={search}
+            onFind={find}
+            onFindAgain={findAgain}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onFitWidth={fitWidth}
+          />
           {openError === undefined
             ? null
             : (
