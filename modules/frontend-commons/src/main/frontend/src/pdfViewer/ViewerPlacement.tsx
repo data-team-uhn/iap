@@ -25,6 +25,8 @@ import { createPortal } from "react-dom";
 
 import ResponsiveDialog from "../components/ResponsiveDialog";
 
+import type { Breakpoint } from "@mui/material/styles";
+
 // The space around the viewer in the dialog, kept small on a phone, where the document has the least room.
 // There, the document runs to the bottom of the screen.
 const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
@@ -34,8 +36,10 @@ const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs:
 // is null, as a ref is before React attaches it, nothing is shown. The viewer is given the button, and
 // whether it is in the dialog. Moving the viewer draws it anew, so what must survive the move belongs
 // above this.
-export default function ViewerPlacement({ container, titleId, onClose, children }: {
+export default function ViewerPlacement({ container, width = "lg", titleId, onClose, children }: {
   container?: HTMLElement | null;
+  // How wide the dialog may be. Below that width of screen, it fills the screen.
+  width?: Breakpoint;
   // The id of the viewer's title, which names the dialog.
   titleId: string;
   onClose: () => void;
@@ -77,7 +81,7 @@ export default function ViewerPlacement({ container, titleId, onClose, children 
     return (
       <ResponsiveDialog
         open
-        width="lg"
+        width={width}
         aria-labelledby={titleId}
         // Escape puts a popped-out viewer back rather than closing it.
         onClose={container !== undefined && poppedOut ? popIn : onClose}

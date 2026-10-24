@@ -39,19 +39,30 @@ async function getDataUrls(): Promise<DataUrls> {
   return Object.fromEntries(urls.filter(([ , url ]) => url.length > 0));
 }
 
+async function importPdfjs() {
+  const pdfjs = await import("pdfjs-dist");
+  // The viewer reads the library from here rather than importing it.
+  (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
+  const [ components ] = await Promise.all([
+    import("pdfjs-dist/web/pdf_viewer.mjs"),
+    import("pdfjs-dist/web/pdf_viewer.css"),
+  ]);
+  return { pdfjs, components };
+}
+
+// PDF.js and its viewer, imported once for all the documents opened together, and again after failing.
+let imported: ReturnType<typeof importPdfjs> | undefined;
+
 let worker: PDFWorker | undefined;
 
 // Loads PDF.js, its viewer, and the one worker every document shares. A worker that fails to start
 // is not replaced, because PDF.js remembers the failure and a new one would fail the same way.
 export async function loadPdfjs() {
-  const pdfjs = await import("pdfjs-dist");
-  // The viewer reads the library from here rather than importing it.
-  (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
-  const [ components, , dataUrls ] = await Promise.all([
-    import("pdfjs-dist/web/pdf_viewer.mjs"),
-    import("pdfjs-dist/web/pdf_viewer.css"),
-    getDataUrls(),
-  ]);
+  imported ??= importPdfjs().catch((error: unknown) => {
+    imported = undefined;
+    throw error;
+  });
+  const [ { pdfjs, components }, dataUrls ] = await Promise.all([ imported, getDataUrls() ]);
   worker ??= pdfjs.PDFWorker.create({
     // The worker is bundled as a plain module rather than as the project's modern-module library:
     // webpack 5.112 cannot render that for an entry none of whose exports are used, as a worker's are not

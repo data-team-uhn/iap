@@ -65,6 +65,8 @@ export interface MarkName {
 
 export const PASSAGES: MarkName = { one: "passage", many: "passages" };
 
+export const CHANGES: MarkName = { one: "change", many: "changes" };
+
 // A word as it starts a sentence or a label.
 export function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -73,6 +75,60 @@ export function capitalize(word: string): string {
 // A mark by its place among several, as in "Passage 3 of 12".
 export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {
   return `${capitalize(name.one)} ${index} of ${count}`;
+}
+
+// What a mark is called, and its place among the marks of its sort, counting from 1.
+export interface MarkNaming {
+  name: MarkName;
+  index: number;
+  count: number;
+}
+
+// Names marks of more than one sort, such as passages and changes, each by its own sort and numbered among
+// those of that sort, in the order given.
+export function nameMarks<T extends { id: string }>(
+  marks: T[],
+  nameOf: (mark: T) => MarkName,
+): Map<string, MarkNaming> {
+  const counts = new Map<MarkName, number>();
+  const named = marks.map(mark => {
+    const name = nameOf(mark);
+    const index = (counts.get(name) ?? 0) + 1;
+    counts.set(name, index);
+    return [ mark.id, name, index ] as const;
+  });
+  return new Map(named.map(([ id, name, index ]) => [ id, { name, index, count: counts.get(name) ?? index } ]));
+}
+
+// The sorts of marks named, as a list of them is called, as in "Passages and changes".
+export function describeSorts(namings: Iterable<MarkNaming>): string {
+  const names = [ ...new Set(Array.from(namings, naming => naming.name.many)) ];
+  return capitalize(names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
+}
+
+// The names of the marks either side of the one at a position, counting from 1, for the buttons stepping to
+// them; past either end, where stepping stops, the nearest one's.
+export function getStepNames(
+  marks: { id: string }[],
+  naming: Map<string, MarkNaming>,
+  position: number,
+  fallback: MarkName,
+): { previous: string; next: string } {
+  const nameAt = (at: number) => naming.get(marks[Math.min(Math.max(at, 0), marks.length - 1)]?.id ?? "")?.name;
+  return { previous: (nameAt(position - 2) ?? fallback).one, next: (nameAt(position) ?? fallback).one };
+}
+
+// How many marks are so named, of each sort, as in "5 comments" or "3 notes and 2 changes".
+export function countMarks(namings: Iterable<MarkNaming>): string {
+  const counts = new Map(Array.from(namings, naming => [ naming.name, naming.count ] as const));
+  const each = Array.from(counts, ([ name, count ]) => `${count} ${count === 1 ? name.one : name.many}`);
+  return each.length > 1 ? `${each.slice(0, -1).join(", ")} and ${each.at(-1)}` : each[0] ?? "";
+}
+
+// The widest headings marks so named take, one per sort: the last of each.
+export function getWidestHeadings(namings: Iterable<MarkNaming>): string[] {
+  const last = new Map(Array.from(namings, naming => [ naming.name, naming.count ] as const));
+  return Array.from(last, ([ name, count ]) => describeAmong(name, { index: count, count }));
 }
 
 // The pages a passage is on, from the one it starts on to the one it ends on, if another.

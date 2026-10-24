@@ -25,11 +25,15 @@ import { getMarkText, isChangeKind, type Mark, type MarkPlace } from "./marksMod
 import { NoteText } from "./PassageCard";
 import { cutShort, getMarkColour, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
-  capitalize,
   describeAmong,
   describePages,
+  countMarks,
+  describeSorts,
   getPassageNote,
-  type MarkName,
+  getStepNames,
+  getWidestHeadings,
+  PASSAGES,
+  type MarkNaming,
   type ViewerStatus,
 } from "./pdfViewerModel";
 import StepControls from "./StepControls";
@@ -49,7 +53,8 @@ const MAX_DETAILS_LINES = 2;
 // view. Above them, a heading says which is selected of how many, with buttons stepping through them.
 function MarkList(props: {
   marks: Mark[];
-  name: MarkName;
+  // What each mark is called and its place among those of its sort.
+  naming: Map<string, MarkNaming>;
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
@@ -60,7 +65,7 @@ function MarkList(props: {
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
-  const { marks, name, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
+  const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
@@ -73,6 +78,9 @@ function MarkList(props: {
   }, [selectedId]);
 
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
+  const selected = naming.get(selectedId ?? "");
+  // With none of them selected, as while a change is side by side, it says how many there are.
+  const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
   return (
     <Box
@@ -89,15 +97,15 @@ function MarkList(props: {
       <StepControls
         position={position}
         count={marks.length}
-        itemName={name.one}
-        heading={describeAmong(name, { index: position, count: marks.length })}
-        widest={[ describeAmong(name, { index: marks.length, count: marks.length }) ]}
+        itemName={getStepNames(marks, naming, position, PASSAGES)}
+        heading={heading}
+        widest={[ ...getWidestHeadings(naming.values()), countMarks(naming.values()) ]}
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box
         ref={list}
         component="ul"
-        aria-label={capitalize(name.many)}
+        aria-label={describeSorts(naming.values())}
         sx={{
           flex: "1 1 auto",
           minHeight: 0,
@@ -138,8 +146,7 @@ function MarkList(props: {
                 mark={mark}
                 body={renderBody?.(mark)}
                 bodySaid={describeBody?.(mark)}
-                name={name}
-                position={index + 1}
+                naming={naming.get(mark.id) ?? { name: PASSAGES, index: index + 1, count: marks.length }}
                 place={places[mark.id]}
                 status={status}
                 selected={selected}
@@ -178,12 +185,11 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
-function MarkEntry({ mark, body, bodySaid, name, position, place, status, selected, onSelect }: {
+function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
   mark: Mark;
   body: ReactNode;
   bodySaid: string | undefined;
-  name: MarkName;
-  position: number;
+  naming: MarkNaming;
   place: MarkPlace;
   status: ViewerStatus;
   selected: boolean;
@@ -197,7 +203,9 @@ function MarkEntry({ mark, body, bodySaid, name, position, place, status, select
       {body === undefined || body === null
         ? null
         : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
-      {bodySaid === undefined ? null : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
+      {bodySaid === undefined
+        ? null
+        : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
       <Typography
         id={quoteId}
         variant="body2"
@@ -215,9 +223,10 @@ function MarkEntry({ mark, body, bodySaid, name, position, place, status, select
         )}
     </>
   );
-  let label = `Select ${name.one} ${position}`;
+  const { name, index } = naming;
+  let label = `Select ${name.one} ${index}`;
   if (place.status === "found") {
-    label = `Show ${name.one} ${position} on ${describePages(place.page, place.toPage)}`;
+    label = `Show ${name.one} ${index} on ${describePages(place.page, place.toPage)}`;
   }
 
   return (

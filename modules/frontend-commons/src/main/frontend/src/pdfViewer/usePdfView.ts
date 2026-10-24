@@ -96,10 +96,11 @@ export function usePdfView(
   // the reader.
   const [openAt] = useState(page);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
-  const [pages, setPages] = useState<{ count?: number; shown?: number }>({});
+  // The pages of the document they were counted in.
+  const [pages, setPages] = useState<{ of?: object; count?: number; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, once the document has been shown.
-  const locationRef = useRef<string | undefined>(undefined);
+  const locationRef = useRef<{ of: object; params: string } | undefined>(undefined);
   // The mark to take the reader to once it is found and its page drawn. Until the reader goes
   // elsewhere, it is the selected mark, even as the selection changes.
   const goToRef = useRef<string | undefined>(undefined);
@@ -204,13 +205,14 @@ export function usePdfView(
     });
 
     eventBus.on("pagesinit", () => {
-      if (locationRef.current === undefined) {
+      if (locationRef.current?.of !== doc) {
         viewer.currentScaleValue = "page-width";
         const first = openAt !== undefined && openAt <= doc.numPages ? openAt : 1;
         viewer.currentPageNumber = first;
-        setPages({ count: doc.numPages, shown: first });
+        setPages({ of: doc, count: doc.numPages, shown: first });
       } else {
-        linkService.setHash(locationRef.current);
+        linkService.setHash(locationRef.current.params);
+        setPages({ of: doc, count: doc.numPages, shown: viewer.currentPageNumber });
       }
       if (queryRef.current.trim() !== "") {
         countRef.current?.start();
@@ -219,10 +221,10 @@ export function usePdfView(
       setShown({ eventBus, frame });
     });
     eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
-      locationRef.current = location.pdfOpenParams.replace(/^#/, "");
+      locationRef.current = { of: doc, params: location.pdfOpenParams.replace(/^#/, "") };
     });
     eventBus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
-      setPages({ count: doc.numPages, shown: pageNumber });
+      setPages({ of: doc, count: doc.numPages, shown: pageNumber });
     });
 
     // PDF.js fits the page to the frame's width only when told to. When the frame's width changes, the
@@ -379,16 +381,25 @@ export function usePdfView(
     viewer.currentScaleValue = "page-width";
   }), [withViewer]);
 
+  // The zoom, as PDF.js gives and takes it: a scale, or "page-width" while the page fits the frame's width.
+  const getScaleValue = useCallback(() => viewerRef.current?.currentScaleValue, []);
+
+  const zoomTo = useCallback((scale: string) => withViewer(viewer => {
+    viewer.currentScaleValue = scale;
+  }), [withViewer]);
+
   return {
     shown,
-    pageCount: pages.count,
-    page: pages.shown,
+    pageCount: pages.of === pdf?.doc ? pages.count : undefined,
+    page: pages.of === pdf?.doc ? pages.shown : undefined,
     setFrame,
     showPage,
     showMark,
     zoomIn,
     zoomOut,
     fitWidth,
+    getScaleValue,
+    zoomTo,
     search,
     find,
     findAgain,

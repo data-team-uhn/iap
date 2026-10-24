@@ -177,7 +177,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
-| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it |
+| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it, or compared with an older version |
 
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
@@ -299,10 +299,11 @@ viewer compares marks by `id`, `kind` and where they are (`quote` and `page`, `s
 and only looks for passages again when one of those changes.
 
 A caller whose marks are more than passages, such as review comments, passes `markName`, the word for
-one and for several (`{ one: "comment", many: "comments" }`). The viewer uses it wherever it counts or
-steps through the marks: the heading over the list, the buttons, the list's labels, and what a screen
-reader is told ("Comment 3 of 12 is marked on page 4."). A control about the passage's own place in the
-document, such as "Show the passage on page 4", still names the passage.
+one and for several (`{ one: "comment", many: "comments" }`). Changes found by a comparison keep their
+own name. The viewer uses it wherever it counts or steps through the marks: the heading over the list,
+the buttons, the list's labels, and what a screen reader is told ("Comment 3 of 12 is marked on page
+4."). A control about the passage's own place in the document, such as "Show the passage on page 4",
+still names the passage.
 
 A caller that shows something with each passage, such as the comments on it, passes
 `renderMarkDetails`, which is given the mark and whether it is the one selected. What it gives goes under
@@ -313,8 +314,8 @@ The passage's own text sits on a deeper shade of its mark's colour than the card
 what the caller shows under it.
 On the card above the document, what it gives is cut short past a few lines (fewer on a phone) and fades
 out where it is cut. One button shows all of the passage and of what is under it ("Show the whole
-comment", named by `markName`). Moving the focus into what is cut, such as onto a reply button, shows all
-of it too. While what is under the passage holds a field to type in (`TEXT_ENTRY`), such as a comment
+comment", named after the mark on the card). Moving the focus into what is cut, such as onto a reply
+button, shows all of it too. While what is under the passage holds a field to type in (`TEXT_ENTRY`), such as a comment
 being written, the card stays open whatever the person chose. Once the field goes, as when the comment is
 saved, the card is again as they chose.
 The card takes at most three fifths of the viewer's height and scrolls past that, so the document's
@@ -364,6 +365,108 @@ Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
 caller does not take, and a PDF or Word file whose content does not match its name; see
 [file validation](file-validation.md).
+
+### Comparing two versions
+
+Give `PdfViewer` an older version, and it shows what changed since:
+
+```tsx
+<PdfViewer
+  url={current.file}
+  label="Version 3"
+  compareWith={{ url: previous.file, label: "Version 2" }}
+  marks={[]}
+  onClose={close}
+/>
+```
+
+**How it compares.** Only the text is compared, as PDF.js reads it for the text layer. It works like a
+diff of lines followed by a diff of words: whole sentences are matched first, then the words inside the
+sentences that changed. That way a common word, such as a recurring term, only counts as the same in
+both versions inside a matching sentence, and a rewritten passage isn't split into several changes
+around it. Inside changed sentences, two changes with only a few shared words between them, no more than
+half the size of either, are joined into one (`joinChanges`).
+
+`getWordKey` decides when two words are the same. It ignores spacing, line ends, case, the punctuation
+around a word, and hyphens inside it, which a line break may add or remove. Apostrophes count, so
+"patient's" and "patients" differ. Numbers keep their separators, hyphens and sign, so "1,000" and
+"1.000" differ, as do "IL-6" and "IL6". Two words that match but still differ in case or punctuation are
+a minor change, and so is a change of punctuation alone. A full stop or a capital that only moved
+because of the change next to it, such as a full stop now after an added word, isn't a change at all.
+
+Each version's pages are read into words, each with its page and offsets, so a change is marked straight
+from them, even across a page break, and versions that break into pages differently still compare.
+
+**Where the code is.** The diff is in `revisionDiffModel.ts`. `compareRevisions` uses jsdiff and returns
+a promise, so it can move to a worker later without its callers changing, and it rejects rather than
+throws. Its time and word limits are shared by all the diffs it runs. What the comparison says, on
+screen and to a screen reader, is in `comparisonText.ts`. `useComparison` opens the older version,
+compares the two as they're read, and keeps the person's choices. Including or leaving out minor changes
+only shows or hides them: nothing is compared again, and every change keeps its number.
+
+Passing another `compareWith` compares in place, as a version picker will need: the newer version stays
+open where the reader is. Each comparison
+numbers its changes afresh (`change-<comparison>-<n>`), so a change selected in the last comparison,
+whether the viewer or its caller remembers it, selects nothing in the next, and the viewer picks a mark
+as it does on opening.
+
+**How changes look.** Each change is a mark of its own kind, `added` or `removed`: added text is marked
+in the newer version, and removed text in the older. Where text was removed, the newer version shows a
+translucent box around a text cursor, a little taller than the line and at least 22px high. A finger can
+tap it within 40px, but a tap on a mark next to it still goes to that mark. Text that replaced removed
+text starts with a bar in the colour of removed text, so it reads differently from text simply added.
+Selecting a change, by stepping, from the list or in either version, takes every version shown to it,
+and tells a screen reader what changed and where ("Change 3 of 17. Text removed on page 4. It said
+“…”.").
+
+With the newer version alone, the changes are listed and stepped through with the caller's marks: after
+the marks found, and before any that can't be. Each mark is named and numbered as what it is ("Change 2
+of 7", "Comment 3 of 5"), whatever the caller calls its own marks, and the step buttons are named after
+the mark they go to (`nameMarks`). A change's card shows what was removed, struck through, and what was
+added, among a few of the words around it, stopping short of the changes either side
+(`getChangeInContext`, drawn inline by `ValueChange`), and the page it's on. A screen reader doesn't
+read inside the card's button, so it hears the change as a sentence instead. A change's card has no
+colour of its own: it's a card on the paper with a grey (`divider`) stripe and outline. Above the
+document, a change's card is always two lines high, so stepping doesn't move the document: a longer
+change fades out where it's cut, and the card's button shows all of it.
+
+Side by side, where the versions already show both sides of each change, changes have no cards. They're
+stepped through with their own controls above the versions, and only the caller's marks are listed.
+
+**The menu.** One menu, the same on every screen, picks how changes are shown. It says how many there
+are once there are some ("Show 7 changes"), and "Show changes" until then:
+
+| Choice | Shows | Changes shown as |
+|---|---|---|
+| Off | The newer version alone | Nothing. The older version isn't opened, and nothing is compared |
+| On the newer version (the default) | The newer version alone | Added text, and a box with a cursor where text was removed |
+| Side by side | Both versions, each under its label and its own page bar, with one search and one zoom | Removed text in the older version, added text in the newer |
+
+Below a divider, "Include 4 minor changes" adds the changes of punctuation and case alone. Checking it
+leaves the menu open. It opens on the current choice, and the keyboard can reach a choice
+there's no room for, to hear why. Minor changes are counted among all the changes found, included or
+not, so the numbers add up.
+
+A caption after the menu says how many minor changes are left out ("3 minor changes of punctuation or
+letter case left out.") or included ("Including 3 minor changes of punctuation or letter case."), or
+that there are no changes. While the versions are read and compared, it says how far that has got
+instead. It sits on the menu's row when there's room, and goes below it when there isn't, as on a phone.
+A viewer narrower than `NARROW_VIEWER_WIDTH` leaves the minor changes to the menu once there are other
+changes, and only mentions them when they're all there is.
+
+A viewer narrower than `NARROW_VIEWER_WIDTH` has no room for side by side: the choice is greyed out in
+the menu, and the newer version is shown alone, whatever was chosen. Side by side, the caller's marks
+are listed beside the versions only in a viewer at least `SPLIT_WITH_LIST_WIDTH` wide, and shown one at
+a time above them otherwise. The choices are kept with `useStoredSetting`, and a narrow viewer doesn't
+overwrite a choice of side by side. A comparison opens in a dialog as wide as the screen, up to its `xl`
+width. A screen reader hears what the comparison found once it's done, even while the status is about
+the selected mark.
+
+**Waiting and failing.** While the versions are read and compared, a line says how far it has got, and a
+bar runs along the documents. A version without text, such as a scan, can't be compared, and two
+versions too different for the diff's limits (`DIFF_LIMITS`, a time and a number of words added and
+removed) aren't. The viewer says so in either case, and says the versions couldn't be compared if
+comparing them fails.
 
 ## Styling
 
