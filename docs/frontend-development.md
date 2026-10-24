@@ -405,7 +405,7 @@ compares the two as they're read, and keeps the person's choices. Including or l
 only shows or hides them: nothing is compared again, and every change keeps its number.
 
 Passing another `compareWith` compares in place, as a version picker will need: the newer version stays
-open where the reader is. Each comparison
+open where the reader is, and the older one opens at the matching place once compared. Each comparison
 numbers its changes afresh (`change-<comparison>-<n>`), so a change selected in the last comparison,
 whether the viewer or its caller remembers it, selects nothing in the next, and the viewer picks a mark
 as it does on opening.
@@ -461,6 +461,17 @@ a time above them otherwise. The choices are kept with `useStoredSetting`, and a
 overwrite a choice of side by side. A comparison opens in a dialog as wide as the screen, up to its `xl`
 width. A screen reader hears what the comparison found once it's done, even while the status is about
 the selected mark.
+
+**Scrolling together.** Side by side, the versions scroll together, matched by their text
+(`useScrollSync`). Whatever is in the middle of the version scrolled by hand goes to the middle of the
+other, through the words the comparison paired (`mapPoint`). A word only one version has goes to where
+its change is in the other, so the versions move at different speeds through added or removed text. The
+matching text is also put as far along its line, so the other version moves as smoothly. After a zoom,
+or a page picked from either version's page bar, the other version follows. A new search takes each
+version to its own first match, so text only the older version has can be found too, and the older
+version follows the newer one to its next matches. Going to one of the caller's marks, which only the
+newer version has, the older version follows the newer. Going to a change takes each version to its own
+side of it, and they stay apart until the next scroll by hand.
 
 **Waiting and failing.** While the versions are read and compared, a line says how far it has got, and a
 bar runs along the documents. A version without text, such as a scan, can't be compared, and two
