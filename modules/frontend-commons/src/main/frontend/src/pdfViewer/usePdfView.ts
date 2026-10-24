@@ -70,7 +70,8 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
   return marks.flatMap(({ id, kind }) => {
     const place = places[id];
     return place.status === "found"
-      ? place.spans.filter(span => span.page === page).map(({ start, end }) => ({ id, kind, start, end }))
+      ? place.spans.filter(span => span.page === page)
+        .map(({ start, end, starts }) => ({ id, kind, start, end, starts }))
       : [];
   });
 }
@@ -239,15 +240,15 @@ export function usePdfView(
     });
     resizes.observe(frame, { box: "border-box" });
 
-    let pressedAt = { x: 0, y: 0 };
+    let pressedAt = { x: 0, y: 0, touch: false };
     frame.addEventListener("pointerdown", event => {
-      pressedAt = { x: event.clientX, y: event.clientY };
+      pressedAt = { x: event.clientX, y: event.clientY, touch: event.pointerType === "touch" };
     }, { signal: stop.signal });
     frame.addEventListener("click", event => {
       const moved = Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > DRAG_DISTANCE;
       const id = moved || window.getSelection()?.isCollapsed === false
         ? undefined
-        : markAt(frame, event.clientX, event.clientY);
+        : markAt(frame, event.clientX, event.clientY, pressedAt.touch);
       if (id !== undefined) {
         onSelectMarkRef.current(id);
       }

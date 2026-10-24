@@ -217,7 +217,8 @@ card per schema, so the card describes its versions.
 ```
 
 Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a person's
-(`annotation`), so it is coloured accordingly. Where it is comes in one of three ways:
+(`annotation`), or what a comparison found (`added`, `removed`), so it is coloured accordingly. Its
+place is given in one of three ways:
 
 - a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
   case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
@@ -383,8 +384,11 @@ using those extensions is what keeps a deployment's rebranding effective:
   marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
   `IconButton` or icon, `"assistant.main"` in `sx`.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
-  and `highlight.search` for the matches of a search, each with a `…Current` variant for the one
-  in focus. They stay the same in both colour schemes, since the content under them stays light.
+  `highlight.search` for the matches of a search, and `highlight.added` and `highlight.removed` for
+  what a comparison found, each with a `…Current` variant for the one in focus, and the last two with a
+  `…Marker` variant for the lines drawn over the page: the cursor where text was removed, the
+  line striking removed text, the outline of a selected change. They stay the same in both colour
+  schemes, since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so anything hard-coded will be wrong in one of them.

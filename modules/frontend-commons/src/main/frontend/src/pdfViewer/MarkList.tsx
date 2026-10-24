@@ -22,7 +22,7 @@ import { Box, ButtonBase, Typography } from "@mui/material";
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import { cutShort, getMarkColour, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
   capitalize,
   describeAmong,
@@ -112,7 +112,7 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
                 flexShrink: 0,
                 overflow: "hidden",
                 outline: selected ? "2px solid" : "none",
-                outlineColor: `${mark.kind}.main`,
+                outlineColor: getMarkColour(theme, mark.kind),
                 outlineOffset: "-2px",
               })}
             >

@@ -19,26 +19,100 @@ import { memo, type ReactNode } from "react";
 
 import { Box, CircularProgress, LinearProgress } from "@mui/material";
 
-import { MARK_CLASS, OVER_MARK_CLASS } from "./markLayer";
-import { MARK_KINDS } from "./marksModel";
+import {
+  MARK_CLASS,
+  OVER_MARK_CLASS,
+  POINT_CLASS,
+  POINT_MIN_SIZE,
+  POINT_SIZE_RATIO,
+  POINT_WIDTH_RATIO,
+  START_CLASS,
+} from "./markLayer";
+import { isChangeKind, MARK_KINDS } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
 
 // Enough page to read, even when a long quote takes most of the viewer.
 const MIN_FRAME_HEIGHT = 200;
 
+// A mark's colour and its fill, as CSS variables set on it.
+const MARK_COLOUR = "--iap-mark-colour";
+const MARK_FILL = "--iap-mark-fill";
+
 // Colours each kind of mark, in a deeper shade when selected. With outlineSelected, the selected mark
 // is also outlined.
-function markColours(theme: Theme, outlineSelected: boolean) {
+function markColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
   const { palette } = theme.vars ?? theme;
-  return Object.fromEntries(MARK_KINDS.flatMap(kind => [
-    [ `& .${MARK_CLASS}-${kind}`, { bgcolor: palette.highlight[kind] } ],
-    [ `& .${MARK_CLASS}-${kind}.selected`, {
-      bgcolor: palette.highlight[`${kind}Current`],
-      ...outlineSelected ? { outline: `2px solid ${palette[kind].main}` } : {},
-    } ],
-  ]));
+  return Object.fromEntries(MARK_KINDS.flatMap((kind): [ string, object ][] => {
+    const colour = isChangeKind(kind) ? palette.highlight[`${kind}Marker`] : palette[kind].main;
+    return [
+      [ `& .${MARK_CLASS}-${kind}`, {
+        bgcolor: `var(${MARK_FILL})`,
+        [MARK_FILL]: palette.highlight[kind],
+        [MARK_COLOUR]: colour,
+      } ],
+      [ `& .${MARK_CLASS}-${kind}.selected`, {
+        [MARK_FILL]: palette.highlight[`${kind}Current`],
+        ...outlineSelected ? { outline: `2px solid ${colour}` } : {},
+      } ],
+    ];
+  }));
 }
+
+// Removed text is struck through, so its colour is not the only sign of it. A point is a translucent box
+// around a text cursor at the point, a little taller than the line, filled deeper when selected.
+const POINT_HEIGHT = `max(${100 * POINT_SIZE_RATIO}%, ${POINT_MIN_SIZE}px)`;
+
+// The cursor: a bar with a short stroke across each end, drawn as three backgrounds.
+const CURSOR = [ "center / 2px 100%", "top / 100% 2px", "bottom / 100% 2px" ]
+  .map(place => `linear-gradient(var(${MARK_COLOUR}), var(${MARK_COLOUR})) ${place} no-repeat`)
+  .join(", ");
+
+function changeMarks(theme: Theme) {
+  return {
+    ...CHANGE_MARKS,
+    // Where text took the place of removed text, a bar in the colour of removed text starts it, a little
+    // taller than the line, as the cursor where text was removed is.
+    [`& .${START_CLASS}, & .${START_CLASS}.selected`]: {
+      "&::before": {
+        height: `${100 * POINT_SIZE_RATIO}%`,
+        width: 4,
+        aspectRatio: "auto",
+        borderRadius: 0.5,
+        bgcolor: (theme.vars ?? theme).palette.highlight.removedMarker,
+      },
+      "&::after": { display: "none" },
+    },
+  };
+}
+
+const CHANGE_MARKS = {
+  [`& .${MARK_CLASS}-removed:not(.${POINT_CLASS})`]: {
+    backgroundImage: `linear-gradient(transparent calc(50% - 0.5px), var(${MARK_COLOUR}) calc(50% - 0.5px),
+      var(${MARK_COLOUR}) calc(50% + 0.5px), transparent calc(50% + 0.5px))`,
+  },
+  [`& .${POINT_CLASS}, & .${POINT_CLASS}.selected`]: {
+    bgcolor: "transparent",
+    outline: "none",
+    "&::before, &::after": {
+      content: "\"\"",
+      position: "absolute",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+    },
+    "&::before": {
+      height: POINT_HEIGHT,
+      aspectRatio: `${POINT_WIDTH_RATIO}`,
+      borderRadius: 0.5,
+      bgcolor: `var(${MARK_FILL})`,
+    },
+    "&::after": {
+      height: `calc(${POINT_HEIGHT} * 0.6)`,
+      aspectRatio: "0.3",
+      background: CURSOR,
+    },
+  },
+};
 
 // The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so the
 // box around it gives it the room. Drawn again only when its props change. Its styles are the costliest
@@ -68,6 +142,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         "& .textLayer": { mixBlendMode: "multiply" },
         [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
         ...markColours(theme, outlineSelected),
+        ...changeMarks(theme),
         // PDF.js's own highlights of a search's matches
         "& .textLayer .highlight": {
           "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
