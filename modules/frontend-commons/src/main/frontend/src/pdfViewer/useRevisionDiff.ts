@@ -17,20 +17,16 @@
  */
 import { useEffect, useState } from "react";
 
-import { compareRevisions, type Comparison } from "./revisionDiffModel";
+import { compareRevisions, type Comparison, type ComparisonState } from "./revisionDiffModel";
 
 import type { PageText } from "./marksModel";
 import type { OpenedDocument } from "./usePdfDocument";
 
-// How a comparison is going: reading the versions' pages, with how many of the longer version's are read;
-// comparing them; or done.
-export type ComparisonState =
-  | { status: "reading"; read: number; total: number }
-  | { status: "comparing" }
-  | Comparison;
-
 // The least time between two reports of how far the reading has got. Each report draws the viewer again.
 const PROGRESS_INTERVAL = 200;
+
+// Numbers each comparison made, so a change of one is never taken for a change of another.
+let comparisons = 0;
 
 // Both versions' text, once read, and how far the reading has got, for the documents it was read from.
 interface Reading {
@@ -45,15 +41,13 @@ function readPage({ doc, getPageTextWithLines }: OpenedDocument, page: number): 
   return page <= doc.numPages ? getPageTextWithLines(page) : Promise.resolve(undefined);
 }
 
-// Reads both versions' text, a page of each at a time, and compares them, strictly or not. Comparing
-// again the other way does not read the pages again.
+// Reads both versions' text, a page of each at a time, and compares them.
 export function useRevisionDiff(
   older: OpenedDocument | undefined,
   newer: OpenedDocument | undefined,
-  strict: boolean,
 ): ComparisonState {
   const [reading, setReading] = useState<Reading | undefined>(undefined);
-  const [compared, setCompared] = useState<{ comparison: Comparison; strict: boolean; of: object } | undefined>();
+  const [compared, setCompared] = useState<{ comparison: Comparison | { status: "failed" }; of: object }>();
 
   useEffect(() => {
     if (older === undefined || newer === undefined) {
@@ -89,18 +83,21 @@ export function useRevisionDiff(
       return undefined;
     }
     let shown = true;
-    void compareRevisions(texts.older, texts.newer, { strict }).then(comparison => {
+    comparisons += 1;
+    const show = (comparison: Comparison | { status: "failed" }) => {
       if (shown) {
-        setCompared({ comparison, strict, of: texts });
+        setCompared({ comparison, of: texts });
       }
-    });
+    };
+    compareRevisions(texts.older, texts.newer, { idPrefix: `change-${comparisons}` })
+      .then(show, () => show({ status: "failed" }));
     return () => {
       shown = false;
     };
-  }, [texts, strict]);
+  }, [texts]);
 
   if (texts === undefined) {
     return { status: "reading", read: current?.read ?? 0, total: current?.total ?? 0 };
   }
-  return compared?.of === texts && compared.strict === strict ? compared.comparison : { status: "comparing" };
+  return compared?.of === texts ? compared.comparison : { status: "comparing" };
 }
