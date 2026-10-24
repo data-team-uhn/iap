@@ -169,6 +169,12 @@ describe("MarkLocator, for a mark placed by its spans", () => {
     });
   });
 
+  it("takes a point as a span", () => {
+    const spans: MarkSpan[] = [ { page: 2, start: 4, end: 4 }, { page: 2, start: 4, end: 9 } ];
+
+    expect(placeAfter(PAGES, 2, placed(...spans))).toMatchObject({ status: "found", spans });
+  });
+
   it("waits for the pages its spans are on, and those alone", () => {
     expect(new MarkLocator([ placed({ page: 2, start: 0, end: 3 }) ]).getPlaces().m).toEqual({ status: "searching" });
     expect(placeAfter({ 1: PAGES[1], 3: PAGES[3] }, 3, placed({ page: 2, start: 0, end: 3 })))
