@@ -43,8 +43,10 @@ function createDefaults() {
     openFailure: undefined as Error | undefined,
     // Package folders the build did not publish, as asset names.
     unpublished: [] as string[],
-    // Set to hold back reading the pages' text until releaseText() is called.
+    // Set to hold back reading the pages' text, or the text of the pages from one on, until releaseText()
+    // is called.
     holdText: false,
+    holdTextFrom: undefined as number | undefined,
     releaseText: undefined as (() => void) | undefined,
     // Set to hold back the first page being shown until releasePages() is called.
     holdPages: false,
@@ -149,7 +151,7 @@ class FakeDocument {
   getPage(pageNumber: number) {
     return Promise.resolve({
       getTextContent: async () => {
-        await this.#hold();
+        await this.#hold(pageNumber);
         fakePdf.textReads.push(pageNumber);
         if (fakePdf.unreadable.includes(pageNumber)) {
           throw createPdfjsError("UnknownErrorException", "Bad text content");
@@ -162,8 +164,8 @@ class FakeDocument {
     });
   }
 
-  #hold(): Promise<void> {
-    if (!fakePdf.holdText) {
+  #hold(pageNumber: number): Promise<void> {
+    if (!fakePdf.holdText && pageNumber < (fakePdf.holdTextFrom ?? Infinity)) {
       return Promise.resolve();
     }
     this.#held ??= new Promise(resolve => {

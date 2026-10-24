@@ -237,6 +237,39 @@ describe("PdfViewer", () => {
       expect(getFrame().scrollTop).toBe(MATCH_TOP);
     });
 
+    it("leaves the reader where they scrolled by hand while the passage was looked for", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
+      fakePdf.holdTextFrom = 4;
+      show();
+      await screen.findByText("Page 1 of 4");
+      await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+
+      fireEvent.wheel(getFrame());
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 4: [ ASSISTANT_MARK ] }));
+      expect(getFrame().scrollTop).toBe(0);
+      expect(screen.getByText("Page 1 of 4")).toBeInTheDocument();
+    });
+
+    it.each([
+      [ "a key scrolling it", { key: "ArrowDown" }, 0 ],
+      [ "no key that does not scroll it, such as Tab", { key: "Tab" }, MATCH_TOP ],
+      [ "no key with Ctrl, such as Ctrl+C", { key: "c", ctrlKey: true }, MATCH_TOP ],
+    ])("leaves the reader where they were for %s while the passage was looked for", async (_, key, scrolled) => {
+      fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
+      fakePdf.holdTextFrom = 4;
+      show();
+      await screen.findByText("Page 1 of 4");
+      await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+
+      fireEvent.keyDown(getFrame(), key);
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 4: [ ASSISTANT_MARK ] }));
+      await waitFor(() => expect(getFrame().scrollTop).toBe(scrolled));
+    });
+
     it("finds a passage broken across two pages, and marks both parts", async () => {
       fakePdf.pages = [
         "Cover page of the document.",
