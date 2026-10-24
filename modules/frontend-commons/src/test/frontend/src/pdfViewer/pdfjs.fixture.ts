@@ -57,6 +57,9 @@ function createDefaults() {
     unreadable: [] as number[],
     // Set to draw only the page shown, as PDF.js does with a long document, rather than every page.
     drawShownPageOnly: false,
+    // Set to hold back drawing the pages shown until releaseDrawing() is called.
+    holdDrawing: false,
+    heldDrawing: [] as (() => void)[],
     // Every document opened, every worker handed to an open, every page whose text was read, and
     // every place the reader was put back at.
     opened: 0,
@@ -81,6 +84,11 @@ function createDefaults() {
 
 export const fakePdf = {
   ...createDefaults(),
+  // Draws what was held back, and draws as it comes from then on.
+  releaseDrawing(): void {
+    fakePdf.holdDrawing = false;
+    fakePdf.heldDrawing.splice(0).forEach(draw => draw());
+  },
   reset(): void {
     Object.assign(fakePdf, createDefaults());
     delete (Range.prototype as Partial<Range>).getClientRects;
@@ -316,13 +324,18 @@ class FakePDFViewer {
 
   // Every page not yet drawn, or only the one shown, after the change that shows it, as PDF.js does.
   #drawShown(): void {
-    queueMicrotask(() => {
+    const draw = () => {
       this.#pageViews.forEach((pageView, index) => {
         if (pageView.textLayer === null && (!fakePdf.drawShownPageOnly || index + 1 === this.#page)) {
           this.#drawText(pageView, index + 1);
         }
       });
-    });
+    };
+    if (fakePdf.holdDrawing) {
+      fakePdf.heldDrawing.push(draw);
+    } else {
+      queueMicrotask(draw);
+    }
   }
 
   #drawText(pageView: FakePageView, pageNumber: number): void {

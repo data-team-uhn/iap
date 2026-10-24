@@ -18,7 +18,7 @@
 import { useState } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { diffArrays } from "diff";
 
@@ -217,6 +217,10 @@ describe("PdfViewer compared with an older version", () => {
       await waitForStatus(/^Change 1 of 3\. Text removed on page 1\./);
       expect(vi.mocked(fetch).mock.calls.map(([ url ]) => url)).toEqual([ NEWER, OLDER, OTHER ]);
       expect(getNewerFrame().scrollTop).toBe(2 * MATCH_TOP);
+      // The older version is brought to the newer's place, which in the stand-in scrolls as far again.
+      await waitFor(() => expect(getFrames()[0].scrollTop).toBe(3 * MATCH_TOP));
+      // Opened at its own first page, not at the last version's page 3; the stand-in counts no page scrolled to.
+      expect(screen.getAllByText(/^Page \d of \d$/).map(bar => bar.textContent)).toEqual([ "Page 1 of 4", "Page 3 of 3" ]);
     });
 
     it("shows a page bar over each version, and one search and zoom for both", async () => {
@@ -274,6 +278,130 @@ describe("PdfViewer compared with an older version", () => {
       await userEvent.click(screen.getByRole("button", { name: "Fit to width" }));
 
       expect(fakePdf.scales.filter(scale => scale === "page-width")).toHaveLength(fitted + 2);
+    });
+
+    describe("scrolling", () => {
+      // Opens the versions, scrolled by hand before they are compared, so neither is taken to the first change.
+      async function showUnmoved(older: string[], newer: string[], props: Partial<PdfViewerProps> = {}) {
+        fakePdf.holdText = true;
+        show(older, newer, props);
+        await waitFor(() => expect(screen.getAllByText(/^Page 1 of/)).toHaveLength(2));
+        getFrames().forEach(frame => fireEvent.wheel(frame));
+        await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+        act(() => fakePdf.releaseText?.());
+        await waitForStatus(/^Change 1 of/);
+        await waitFor(() => expect(getFrames().map(each => Object.keys(getDrawnMarks(each)))).not.toContainEqual([]));
+        return getFrames();
+      }
+
+      async function scrollByHand(frame: HTMLElement) {
+        fireEvent.wheel(frame);
+        fireEvent.scroll(frame);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+
+      it("scrolls the other version with the one scrolled by hand, matched by their text", async () => {
+        const [ older, newer ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
+
+        await scrollByHand(older);
+
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+        expect(older.scrollTop).toBe(0);
+      });
+
+      it("keeps a version moved with the other from moving it back", async () => {
+        const [ older, newer ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
+        await scrollByHand(older);
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+
+        fireEvent.scroll(newer);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        expect(older.scrollTop).toBe(0);
+      });
+
+      it("leaves the other version where it is for scrolling not done by hand", async () => {
+        const [ older, newer ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
+
+        fireEvent.scroll(older);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        expect(newer.scrollTop).toBe(0);
+      });
+
+      it("moves the older version with the newer after zooming", async () => {
+        const [ older ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
+        getNewerFrame().scrollTop = MATCH_TOP;
+
+        await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+
+        await waitFor(() => expect(older.scrollTop).toBe(MATCH_TOP));
+      });
+
+      it("leaves a version where a change was stepped to, though it was still on its way to a place", async () => {
+        fakePdf.drawShownPageOnly = true;
+        const [ older, newer ] = await showUnmoved(
+          [ "Shared words here." ],
+          [ "A page added first.", "Shared words here, and more." ],
+        );
+        fakePdf.holdDrawing = true;
+        // The newer version's second page, where the place is, waits to be drawn
+        await scrollByHand(older);
+        await userEvent.click(screen.getByRole("button", { name: "Next change" }));
+        await userEvent.click(screen.getByRole("button", { name: "Previous change" }));
+        await waitForStatus(/^Change 1 of 2\. Text added on page 1\./);
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+
+        // Every page drawn now, the place's page too
+        fakePdf.drawShownPageOnly = false;
+        act(() => fakePdf.releaseDrawing());
+
+        await waitFor(() => expect(newer.querySelector("[data-page-number=\"2\"] .textLayer")).not.toBeNull());
+        expect(newer.scrollTop).toBe(MATCH_TOP);
+      });
+
+      it("brings the older version along to a mark only the newer has, which it follows", async () => {
+        fakePdf.holdText = true;
+        show([ "The fee is due.", "Kept." ], [ "The fee is now due.", "Kept." ], {
+          marks: [ { id: "fee", quote: "The fee", kind: "annotation" } ],
+        });
+        await waitFor(() => expect(screen.getAllByText(/^Page 1 of/)).toHaveLength(2));
+        const [ older, newer ] = getFrames();
+        [ older, newer ].forEach(frame => fireEvent.wheel(frame));
+        await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+        act(() => fakePdf.releaseText?.());
+        await screen.findByRole("button", { name: /^Show 1 change/ });
+        await waitFor(() => expect(Object.keys(getDrawnMarks(newer))).not.toEqual([]));
+        const before = older.scrollTop;
+
+        await userEvent.click(await screen.findByRole("button", { name: "Show the passage on page 1" }));
+
+        await waitFor(() => expect(newer.scrollTop).toBeGreaterThan(0));
+        await waitFor(() => expect(older.scrollTop).toBeGreaterThan(before));
+      });
+
+      it("brings the other version along to a page gone to from a version's page bar", async () => {
+        const [ , newer ] = await showUnmoved([ "The fee is due.", "Kept." ], [ "The fee is now due.", "Kept." ]);
+        const before = newer.scrollTop;
+
+        // The older version's page bar comes first
+        await userEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+
+        await waitFor(() => expect(newer.scrollTop).not.toBe(before));
+      });
+
+      it("takes the other version to a page not drawn yet, then to the place once it is", async () => {
+        fakePdf.drawShownPageOnly = true;
+        const [ older, newer ] = await showUnmoved(
+          [ "Shared words here." ],
+          [ "A page added first.", "Shared words here." ],
+        );
+
+        await scrollByHand(older);
+
+        expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument();
+        await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
+      });
     });
 
     it("shows the newer version alone when asked, and remembers it", async () => {

@@ -48,6 +48,7 @@ import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
 import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
+import { useScrollSync } from "./useScrollSync";
 import { useSelectedText } from "./useSelectedText";
 import ViewerPlacement, { ViewerTitle } from "./ViewerPlacement";
 import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
@@ -147,11 +148,15 @@ function PdfViewerSession(props: PdfViewerProps) {
     marks,
     places,
     selectedId,
-    // A change selected in one version is brought into view in the other.
+    // A change selected in one version is brought into view in the other. The older version follows this
+    // one to any other mark, which it does not have.
     onSelectMark: id => {
       select(id);
-      if (comparing !== undefined) {
+      if (comparing !== undefined && changeIds.has(id)) {
+        sync.release();
         olderView.showMark(id);
+      } else if (comparing !== undefined) {
+        sync.lead("newer");
       }
     },
   });
@@ -162,10 +167,25 @@ function PdfViewerSession(props: PdfViewerProps) {
     selectedId,
     onSelectMark: id => {
       select(id);
+      sync.release();
       view.showMark(id);
     },
   });
-  const { showMark } = view;
+  const alignment = comparing?.state.status === "compared" ? comparing.state.alignment : undefined;
+  const sync = useScrollSync({ older: olderView, newer: view }, alignment);
+  const { lead, release } = sync;
+  const { showMark: showNewerMark } = view;
+  const { showMark: showOlderMark } = olderView;
+  // Both versions go to a change. Only this one has the caller's marks, and the older one follows it there.
+  const showMark = useCallback((id: string) => {
+    showNewerMark(id);
+    if (changeIds.has(id)) {
+      release();
+      showOlderMark(id);
+    } else {
+      lead("newer");
+    }
+  }, [changeIds, showNewerMark, showOlderMark, release, lead]);
   const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
   const { dismiss } = selectedText;
   // Clears the selection once the passage is passed on, so the mark the caller makes of it shows.
@@ -193,19 +213,35 @@ function PdfViewerSession(props: PdfViewerProps) {
     const scale = getScaleValue();
     if (olderShown !== undefined && scale !== undefined) {
       zoomOlderTo(scale);
+      lead("newer");
     }
-  }, [olderShown, getScaleValue, zoomOlderTo]);
+  }, [olderShown, getScaleValue, zoomOlderTo, lead]);
+  // Once compared, the older version comes to where this one is, unless both are on their way to the
+  // selected change, as when first opened at one.
+  const comparedRef = useRef(false);
+  const selectedChangeRef = useRef(false);
+  useEffect(() => {
+    selectedChangeRef.current = selectedId !== undefined && changeIds.has(selectedId);
+  });
+  useEffect(() => {
+    if (alignment !== undefined) {
+      if (comparedRef.current || !selectedChangeRef.current) {
+        lead("newer");
+      }
+      comparedRef.current = true;
+    }
+  }, [alignment, lead]);
   // The caller's details go under its own marks, not under the changes, which it does not know of.
   const details = useMemo(() => {
-    if (changes === undefined || renderMarkDetails === undefined) {
+    if (changeIds.size === 0 || renderMarkDetails === undefined) {
       return renderMarkDetails;
     }
-    const changeIds = new Set(changes.map(change => change.id));
     return (mark: Mark, selected: boolean) => (changeIds.has(mark.id) ? undefined : renderMarkDetails(mark, selected));
-  }, [changes, renderMarkDetails]);
+  }, [changeIds, renderMarkDetails]);
   const titleId = useId();
 
-  // Both versions are searched and zoomed alike. Moving to a mark moves both.
+  // Both versions are searched and zoomed alike. After a zoom, a page from this one's page bar or a next
+  // match, the older one follows this one; a new search takes each to its own first match.
   const shownView: typeof view = comparing === undefined
     ? view
     : {
@@ -213,17 +249,32 @@ function PdfViewerSession(props: PdfViewerProps) {
       find: query => {
         view.find(query);
         olderView.find(query);
+        lead("newer");
+      },
+      findAgain: previous => {
+        view.findAgain(previous);
+        lead("newer");
       },
       zoomIn: () => zoomBoth(each => each.zoomIn()),
       zoomOut: () => zoomBoth(each => each.zoomOut()),
       fitWidth: () => zoomBoth(each => each.fitWidth()),
-      showMark: id => {
-        view.showMark(id);
-        olderView.showMark(id);
+      showPage: page => {
+        view.showPage(page);
+        lead("newer");
       },
+      showMark,
     };
+  // The older version's own page bar takes it to a page, and this one follows.
+  const olderShownView: typeof olderView = {
+    ...olderView,
+    showPage: page => {
+      olderView.showPage(page);
+      lead("older");
+    },
+  };
   function zoomBoth(zoom: (each: typeof view) => void) {
     [ view, olderView ].forEach(zoom);
+    lead("newer");
   }
 
   return (
@@ -252,7 +303,7 @@ function PdfViewerSession(props: PdfViewerProps) {
           changeIds={changeIds}
           comparison={comparing === undefined
             ? undefined
-            : { ...comparing, olderView, olderLabel: compareWith?.label, newerLabel: props.label }}
+            : { ...comparing, olderView: olderShownView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
           edgeToEdge={inDialog}
           onClose={onClose}

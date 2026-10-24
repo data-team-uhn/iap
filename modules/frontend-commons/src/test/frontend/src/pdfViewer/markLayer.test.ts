@@ -21,6 +21,8 @@ import {
   findMark,
   getSelectedSpans,
   getTextEnd,
+  getTextPointAt,
+  getTextPointRect,
   keepInView,
   markAt,
 } from "@iap/frontend-commons/pdfViewer/markLayer";
@@ -364,6 +366,67 @@ describe("getTextEnd", () => {
 
     expect(getTextEnd(frame, [])).toBeUndefined();
     expect(getTextEnd(frame, [ { page: 3, start: 0, end: 5 } ])).toBeUndefined();
+  });
+});
+
+describe("getTextPointAt and getTextPointRect", () => {
+  beforeEach(() => {
+    Range.prototype.getClientRects = function (this: Range) {
+      return rectsOf(this) as unknown as DOMRectList;
+    };
+    // Each line's span where createTextLayer lays it out
+    vi.spyOn(HTMLSpanElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return new DOMRect(0, Number(this.dataset.line) * 100, 400, 20);
+    });
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (Range.prototype as Partial<Range>).getClientRects;
+    vi.restoreAllMocks();
+  });
+
+  // A frame holding a first page, its text drawn as createTextLayer lays it out, 1000 high, and a second page
+  // under it, its text not drawn yet.
+  function createFrame(): HTMLDivElement {
+    const frame = document.createElement("div");
+    const textLayer = createTextLayer();
+    textLayer.className = "textLayer";
+    for (const [ index, top ] of [ 0, 1020 ].entries()) {
+      const page = document.createElement("div");
+      page.dataset.pageNumber = String(index + 1);
+      page.getBoundingClientRect = () => new DOMRect(0, top, 800, 1000);
+      page.append(...index === 0 ? [ textLayer ] : []);
+      frame.append(page);
+    }
+    document.body.append(frame);
+    return frame;
+  }
+
+  it("finds the start of the first piece of text reaching down to a height", () => {
+    const frame = createFrame();
+
+    expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 0 });
+    expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 34 });
+  });
+
+  it("finds the last piece of text of a page reaching down to a height below its text", () => {
+    expect(getTextPointAt(createFrame(), 500)).toEqual({ page: 1, char: 34 });
+  });
+
+  it("finds nothing on a page whose text is not drawn, or below every page", () => {
+    const frame = createFrame();
+
+    expect(getTextPointAt(frame, 1500)).toBeUndefined();
+    expect(getTextPointAt(frame, 3000)).toBeUndefined();
+  });
+
+  it("gives the box of the character at a point, or of the point at the end of the text", () => {
+    const frame = createFrame();
+
+    expect(getTextPointRect(frame, { page: 1, char: 10 })).toEqual(new DOMRect(100, 0, 10, 20));
+    expect(getTextPointRect(frame, { page: 1, char: LINES.join("").length })).toEqual(new DOMRect(250, 100, 0, 20));
+    expect(getTextPointRect(frame, { page: 2, char: 0 })).toBeUndefined();
   });
 });
 
