@@ -137,21 +137,25 @@ describe("getPassageNote", () => {
   });
 
   it("says which pages a passage broken across two was found on, and whether one is the one shown", () => {
-    expect(getPassageNote(onPage2, found(2, 3))).toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+    expect(getPassageNote(onPage2, found(2, 3)))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: true, searched: true });
     expect(getPassageNote({ page: 3 }, found(2, 3)))
-      .toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: true, searched: true });
     expect(getPassageNote({ page: 1 }, found(2, 3)))
-      .toEqual({ foundOnPage: 2, toPage: 3, shown: false });
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: false, searched: true });
+    expect(getPassageNote({ page: 1 }, found(2, 3), false))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: false, searched: false });
   });
 
   it("counts a page between the first and the last of a passage's as shown", () => {
-    expect(getPassageNote({ page: 4 }, found(3, 5))).toEqual({ foundOnPage: 3, toPage: 5, shown: true });
+    expect(getPassageNote({ page: 4 }, found(3, 5)))
+      .toEqual({ foundOnPage: 3, toPage: 5, shown: true, searched: true });
   });
 
   it("says which page the passage was found on, and whether it is the one shown", () => {
-    expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true });
+    expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true, searched: true });
     expect(getPassageNote({ page: 3 }, found(2)))
-      .toEqual({ foundOnPage: 2, shown: false });
+      .toEqual({ foundOnPage: 2, shown: false, searched: true });
   });
 });
 

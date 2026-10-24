@@ -84,14 +84,18 @@ export function describePages(page: number, toPage?: number): string {
 }
 
 // The note shown after the passage. Until the passage is found, it says how the search went, in full
-// and in short for a passage cut to one line. Once found, it gives the pages, and whether one of them
-// is the page shown.
+// and in short for a passage cut to one line. Once found, it gives the pages, whether one of them is the
+// page shown, and whether the passage was searched for, rather than placed where it was known to be.
 export type PassageNote =
   | { text: string; short: string; failed?: boolean }
-  | { foundOnPage: number; toPage?: number; shown: boolean };
+  | { foundOnPage: number; toPage?: number; shown: boolean; searched: boolean };
 
 // Nothing when the open failed, since the error box says it.
-export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPlace): PassageNote | undefined {
+export function getPassageNote(
+  { openError, page }: ViewerStatus,
+  place: MarkPlace,
+  searched = true,
+): PassageNote | undefined {
   if (openError !== undefined) {
     return undefined;
   }
@@ -109,7 +113,7 @@ export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPla
       return { text: "this document has no text to search", short: "no text" };
     case "found": {
       const { page: from, toPage } = place;
-      return { foundOnPage: from, toPage, shown: page >= from && page <= (toPage ?? from) };
+      return { foundOnPage: from, toPage, shown: page >= from && page <= (toPage ?? from), searched };
     }
   }
 }

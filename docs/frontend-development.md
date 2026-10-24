@@ -265,14 +265,17 @@ and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown 
 placed by its spans with the text they cover. Marks let the pointer through, so text can still be
 selected across them, and a click is matched to a mark by where it falls.
 
-A single passage is shown on a card above the document. Several passages are listed beside it, in
-the order given, with those that cannot be found last. In a viewer narrower than
+A single passage is shown on a card above the document, and several are listed beside the document, in
+the order given, with those that cannot be found last. A card or list entry ends with the page the
+passage was found on, or, for a mark placed where it was known to be, such as a comment or a change,
+just its page. In a viewer narrower than
 `NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
 them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
 panel is narrow on any screen.
 Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), with
 buttons stepping through them. `StepControls` keeps the text between its buttons as wide as the widest it
 can show, drawn unseen under it, so stepping from 9 to 10 does not move the buttons.
+The list lies on the grey of `background.default`, as the pages do, with each card on the paper.
 The list scrolls when the passages do not fit, and fades out at its top or bottom where there are
 more (`useScrollEdges` says where, and `fadeEdges` draws the fade).
 The card above the document can also be swiped by touch: left to the next passage, right to the

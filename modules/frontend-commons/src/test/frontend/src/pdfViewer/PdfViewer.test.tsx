@@ -1366,7 +1366,7 @@ describe("PdfViewer", () => {
       const passages = within(screen.getByRole("list", { name: "Passages" })).getAllByRole("listitem");
       expect(passages.map(passage => passage.textContent)).toEqual([
         "“The schedule continues for one year.”found on page 3",
-        "“memo Volunteers The schedule”found on pages 1–3",
+        "“memo Volunteers The schedule”pages 1–3",
       ]);
     });
 
