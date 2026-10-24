@@ -75,6 +75,7 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
         count={marks.length}
         itemName={name.one}
         heading={describeAmong(name, { index: position, count: marks.length })}
+        widest={[ describeAmong(name, { index: marks.length, count: marks.length }) ]}
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box

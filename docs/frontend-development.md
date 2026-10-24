@@ -271,7 +271,8 @@ the order given, with those that cannot be found last. In a viewer narrower than
 them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
 panel is narrow on any screen.
 Above the list, a heading says which passage is selected of how many ("Passage 3 of 12"), with
-buttons stepping through them.
+buttons stepping through them. `StepControls` keeps the text between its buttons as wide as the widest it
+can show, drawn unseen under it, so stepping from 9 to 10 does not move the buttons.
 The list scrolls when the passages do not fit, and fades out at its top or bottom where there are
 more (`useScrollEdges` says where, and `fadeEdges` draws the fade).
 The card above the document can also be swiped by touch: left to the next passage, right to the
