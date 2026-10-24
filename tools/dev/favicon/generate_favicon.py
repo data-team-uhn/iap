@@ -21,12 +21,12 @@
 
 # Regenerates the two QuorumPath favicons shipped by the `favicon` module: `favicon.ico` (16,
 # 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art. The mark is a QP
-# monogram built around the logo's token: a thin blue Q (a ring, plus a
+# monogram built around the logo's token: a thin navy Q (a ring, plus a
 # tail running right along the baseline) enclosing a solid crimson P. The P is a filled disc, the
 # token, with a stem running down the Q's lower left to the shared baseline; the notch between the
 # stem and the Q's outer curve is filled red, a half serif that carries the P's foot along the
 # baseline to where the Q's tail begins, and the foot's outer corner is rounded so it rolls with
-# the Q. A clear gap separates the disc from the ring.
+# the Q. A clear gap separates the disc from the ring, and a white keyline runs round the whole.
 #
 # Keep the ring a contrasting colour: a red or pink ring around the red disc reads as the
 # "recording" indicator that browsers and Teams show in a tab.
@@ -55,11 +55,15 @@ CONTENT_DIR = os.path.join("modules", "favicon", "src", "main", "resources", "SL
 DEFAULT_TARGET = os.path.join(CONTENT_DIR, "favicon.ico")
 DEFAULT_SVG_TARGET = os.path.join(CONTENT_DIR, "favicon.svg")
 
-# The P is the logo's token crimson. The Q is a mid blue rather than the logo's navy, because a
-# favicon cannot tell a light tab strip from a dark one (`prefers-color-scheme` follows the system,
-# not the browser's theme), so one colour has to hold up on both: navy vanishes on dark tabs.
-BLUE = (0x4A, 0x66, 0xB5)
+# Brand colours, shared with the logo: navy Q, crimson P (the logo's token red). A favicon cannot
+# tell a light tab strip from a dark one (`prefers-color-scheme` follows the system, not the
+# browser's theme), and navy vanishes on a dark one, so the mark sits on a white keyline instead.
+# The keyline is mostly transparent: on a light tab it all but disappears, and on a dark one it
+# reads as a soft grey rather than a glaring white.
+NAVY = (0x19, 0x29, 0x58)
 RED = (0xC0, 0x23, 0x3C)
+WHITE = (0xFF, 0xFF, 0xFF)
+KEYLINE_OPACITY = 0.33
 
 SIZES = (16, 32, 48)
 SVG_SIZE = 48
@@ -83,9 +87,11 @@ INK_RIGHT = DESIGN["center_x"] + DESIGN["tail"]
 INK_TOP = DESIGN["center_y"] - DESIGN["q_r_out"]
 INK_BOTTOM = DESIGN["center_y"] + DESIGN["q_r_out"]
 
-# Per-size placement and weights, all optional except margin.
-#   margin   : ink-free border kept at the left and right edges, in device pixels; the mark is
-#              scaled so its width fills the rest, and centred
+# Per-size placement and weights, all optional except margin and keyline.
+#   margin   : border kept at the left and right edges, in device pixels; the mark is scaled so
+#              its width fills the rest, and centred
+#   keyline  : width of the white keyline round the mark, in device pixels; it must fit in the
+#              margin, less the half pixel the mark may be shifted by (see below)
 #   scale    : device pixels per design unit, overriding the margin-derived scale, for sizes where
 #              the Q's radius has to land on a whole or half pixel
 #   q_stroke : the Q's weight, in design units, if it is tuned at this size
@@ -98,13 +104,15 @@ INK_BOTTOM = DESIGN["center_y"] + DESIGN["q_r_out"]
 # 16px is hand-hinted. At the design weights the ring would be under a pixel wide and the gap
 # under 1.2, so both blur and the tab shows a red dot in a smudge: the recording indicator. Instead
 # the Q's outer radius is exactly 6.5 pixels about a pixel-centred point, and the ring and the gap
-# are each exactly one pixel, so the tab shows a crisp blue ring, a clean pixel of clearance and a
-# 9-pixel disc. Keep both at a pixel or more if this is retuned.
+# are each exactly one pixel, so the tab shows a crisp navy ring, a clean pixel of clearance and a
+# 9-pixel disc. Keep both at a pixel or more if this is retuned. That leaves exactly one pixel
+# round the mark for the keyline, with no room for the half-pixel shift: the hinting puts every
+# edge on a pixel boundary already.
 HINT_16 = 6.5 / DESIGN["q_r_out"]
 GEOMETRY = {
-    16: {"margin": 1.0, "scale": HINT_16, "q_stroke": 1.0 / HINT_16, "gap": 1.0 / HINT_16},
-    32: {"margin": 2.0},
-    48: {"margin": 2.0},
+    16: {"margin": 1.0, "keyline": 1.0, "scale": HINT_16, "q_stroke": 1.0 / HINT_16, "gap": 1.0 / HINT_16},
+    32: {"margin": 2.0, "keyline": 1.5},
+    48: {"margin": 3.5, "keyline": 3.0},
 }
 
 # Samples per axis per pixel, i.e. 64 coverage samples with the default. Cheap enough at these
@@ -133,13 +141,24 @@ def layout(size):
     tail_end = (DESIGN["center_x"] + DESIGN["tail"]) * scale + offset_x
     tail = (round(tail_end) - offset_x) / scale - DESIGN["center_x"]
     return {"scale": scale, "offset_x": offset_x, "offset_y": offset_y,
-            "q_stroke": q_stroke, "p_radius": p_radius, "tail": tail}
+            "q_stroke": q_stroke, "p_radius": p_radius, "tail": tail,
+            "keyline": geometry["keyline"] / scale}
 
 
-def classify(u, v, q_stroke, p_radius, tail):
-    # Which ink covers the design-space point (u, v): "red", "blue" or None. The P is drawn over
-    # the Q, so red wins wherever the two overlap; deciding per sample, rather than compositing
-    # two anti-aliased layers, keeps the seam between them free of a blended fringe.
+def keyline_box(p_radius, tail, keyline):
+    # The keyline's outline along the baseline: a box round the P's foot and the Q's tail, grown by
+    # the keyline's width. Its bottom left corner follows the foot's rounding, the others are
+    # rounded by the keyline's width; above it, the keyline is a disc round the Q's ring.
+    cx, baseline = DESIGN["center_x"], DESIGN["center_y"] + DESIGN["q_r_out"]
+    return {"left": cx - p_radius - keyline, "right": cx + tail + keyline,
+            "top": baseline - DESIGN["q_stroke"] - keyline, "bottom": baseline + keyline,
+            "foot": DESIGN["foot_radius"] + keyline, "corner": keyline}
+
+
+def classify(u, v, q_stroke, p_radius, tail, keyline):
+    # Which ink covers the design-space point (u, v): "red", "navy", "white" or None. The P is
+    # drawn over the Q, and both over the keyline; deciding per sample, rather than compositing
+    # anti-aliased layers, keeps the seams between them free of a blended fringe.
     cx, cy = DESIGN["center_x"], DESIGN["center_y"]
     q_r_out, foot = DESIGN["q_r_out"], DESIGN["foot_radius"]
     baseline = cy + q_r_out
@@ -159,9 +178,24 @@ def classify(u, v, q_stroke, p_radius, tail):
         if (in_stem or in_serif) and not in_cut:
             return "red"
     if (q_r_out - q_stroke) ** 2 <= distance2 <= q_r_out ** 2:
-        return "blue"
+        return "navy"
     if cx <= u <= cx + tail and baseline - q_stroke <= v <= baseline:
-        return "blue"
+        return "navy"
+    if distance2 <= (q_r_out + keyline) ** 2:
+        return "white"
+    box = keyline_box(p_radius, tail, keyline)
+    if box["left"] <= u <= box["right"] and box["top"] <= v <= box["bottom"]:
+        corners = ((box["left"], box["top"], box["corner"]), (box["right"], box["top"], box["corner"]),
+                   (box["right"], box["bottom"], box["corner"]), (box["left"], box["bottom"], box["foot"]))
+        for corner_x, corner_y, radius in corners:
+            # The centre of this corner's rounding, inset from the corner by its radius.
+            round_x = corner_x + radius if corner_x == box["left"] else corner_x - radius
+            round_y = corner_y + radius if corner_y == box["top"] else corner_y - radius
+            beyond_x = u < round_x if corner_x == box["left"] else u > round_x
+            beyond_y = v < round_y if corner_y == box["top"] else v > round_y
+            if beyond_x and beyond_y and (u - round_x) ** 2 + (v - round_y) ** 2 > radius ** 2:
+                return None
+        return "white"
     return None
 
 
@@ -171,31 +205,31 @@ def render(size):
     placement = layout(size)
     scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
     q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
+    keyline = placement["keyline"]
     step = 1.0 / SUPERSAMPLING
     samples = float(SUPERSAMPLING * SUPERSAMPLING)
     image = []
     for pixel_y in range(size):
         row = []
         for pixel_x in range(size):
-            red_hits = blue_hits = 0
+            hits = {"red": 0, "navy": 0, "white": 0}
             for sub_y in range(SUPERSAMPLING):
                 v = (pixel_y + (sub_y + 0.5) * step - offset_y) / scale
                 for sub_x in range(SUPERSAMPLING):
                     u = (pixel_x + (sub_x + 0.5) * step - offset_x) / scale
-                    ink = classify(u, v, q_stroke, p_radius, tail)
-                    if ink == "red":
-                        red_hits += 1
-                    elif ink == "blue":
-                        blue_hits += 1
-            covered = red_hits + blue_hits
+                    ink = classify(u, v, q_stroke, p_radius, tail, keyline)
+                    if ink:
+                        hits[ink] += 1
+            weights = (hits["red"], hits["navy"], hits["white"] * KEYLINE_OPACITY)
+            covered = sum(weights)
             if not covered:
                 row.append((0, 0, 0, 0))
                 continue
-            # Straight alpha: the colour is the coverage-weighted mix of the inks present, the
-            # alpha is the total coverage.
+            # Straight alpha: the colour is the mix of the inks present, weighted by coverage and
+            # opacity, and the alpha is their total.
             colour = tuple(
-                int(round((red_channel * red_hits + blue_channel * blue_hits) / float(covered)))
-                for red_channel, blue_channel in zip(RED, BLUE))
+                int(round(sum(weight * channel for weight, channel in zip(weights, channels)) / covered))
+                for channels in zip(RED, NAVY, WHITE))
             row.append(colour + (int(round(covered / samples * 255)),))
         image.append(row)
     return image
@@ -271,19 +305,21 @@ SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 {license}
 <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg" role="img">
   <title>QuorumPath</title>
-  <path fill="{blue}" d="{q}"/>
+  <path fill="{white}" fill-opacity="{keyline_opacity}" d="{keyline}"/>
+  <path fill="{navy}" d="{q}"/>
   <path fill="{red}" d="{p}"/>
 </svg>
 """
 
 
 def svg_markup():
-    # The vector twin of the raster icon, drawn from the same placement: the Q (ring and tail),
-    # then the P (disc, stem, half serif and rounded foot) over it. Both are emitted as filled
-    # outlines under the non-zero rule, so each letter is a single filled path.
+    # The vector twin of the raster icon, drawn from the same placement: the keyline, the Q (ring
+    # and tail) over it, then the P (disc, stem, half serif and rounded foot). All are emitted as
+    # filled outlines under the non-zero rule, so each is a single filled path.
     placement = layout(SVG_SIZE)
     scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
     q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
+    keyline = placement["keyline"]
 
     def x(u):
         return number(u * scale + offset_x)
@@ -324,10 +360,21 @@ def svg_markup():
         cx_=x(cx), base=y(baseline), fx=x(stem_left + foot), f=length(foot), fy=y(baseline - foot))
     p_path = " ".join((circle(cx, cy, p_radius, True), stem))
 
+    # The keyline is the disc round the ring plus the rounded box along the baseline, clockwise.
+    box = keyline_box(p_radius, tail, keyline)
+    corner, foot_corner = length(box["corner"]), length(box["foot"])
+    box_path = ("M {l_} {t} H {r_} A {c} {c} 0 0 1 {r} {t_} V {b_} A {c} {c} 0 0 1 {r_} {b} H {fl} "
+                "A {f} {f} 0 0 1 {l} {fb} V {t_} A {c} {c} 0 0 1 {l_} {t} Z").format(
+        l=x(box["left"]), r=x(box["right"]), t=y(box["top"]), b=y(box["bottom"]),
+        l_=x(box["left"] + box["corner"]), r_=x(box["right"] - box["corner"]),
+        t_=y(box["top"] + box["corner"]), b_=y(box["bottom"] - box["corner"]),
+        fl=x(box["left"] + box["foot"]), fb=y(box["bottom"] - box["foot"]), c=corner, f=foot_corner)
+    keyline_path = " ".join((circle(cx, cy, q_r_out + keyline, True), box_path))
+
     return SVG_TEMPLATE.format(
         license=SVG_LICENSE, size=SVG_SIZE,
-        blue=hex_colour(BLUE), red=hex_colour(RED),
-        q=q_path, p=p_path)
+        white=hex_colour(WHITE), keyline_opacity=number(KEYLINE_OPACITY), navy=hex_colour(NAVY),
+        red=hex_colour(RED), keyline=keyline_path, q=q_path, p=p_path)
 
 
 def write_svg(path):
@@ -359,18 +406,20 @@ def write_png(path, image, scale=1):
 
 def ascii_map(image):
     # A terminal-readable rendering: uppercase for (nearly) opaque pixels, lowercase for
-    # anti-aliased edges, R for the crimson P, B for the blue Q. Handy for checking that the
-    # ring, the gap and the baseline land on whole pixels.
+    # anti-aliased edges, R for the crimson P, N for the navy Q, and w for the keyline, which is
+    # never opaque. Handy for checking that the ring, the gap and the baseline land on whole pixels.
     lines = []
     for y, row in enumerate(image):
         line = ""
-        for red, _green, _blue, alpha in row:
+        for red, green, _blue, alpha in row:
             if alpha < 10:
                 line += "."
+            elif green > 150:
+                line += "w"
             elif red > 120:
                 line += "R" if alpha > 200 else "r"
             else:
-                line += "B" if alpha > 200 else "b"
+                line += "N" if alpha > 200 else "n"
         if line.strip("."):
             lines.append("{:2d} {}".format(y, line))
     return "\n".join(lines)
