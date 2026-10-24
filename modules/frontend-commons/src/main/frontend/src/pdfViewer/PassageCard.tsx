@@ -21,6 +21,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
+import { visuallyHidden } from "@mui/utils";
 
 import { cutShort, failedColour, passageCard, passageDetails, passageLayer } from "./passageStyles";
 import { capitalize, describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
@@ -33,6 +34,10 @@ import type { MarkKind } from "./marksModel";
 // cut to one line, sharing its row with the note and the button showing all of it.
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
+
+// The lines kept for what stands in for a quote, such as a change's diff: always as many, so stepping
+// through the marks does not move what is under the card.
+const BODY_LINES = 2;
 
 // The same for what the caller shows under the passage, such as a long comment.
 const MAX_DETAILS_LINES = 6;
@@ -49,17 +54,23 @@ const MAX_CARD_HEIGHT = "60%";
 // cut short too. The one button shows all of both, and so does moving the focus into what is cut. While
 // what is under the passage holds a field to type in, such as a comment being written, the card stays open
 // so the field is in reach.
-export default function PassageCard({ ref, name, quote, note, markedBy, stepper, details, onShowPassage }: {
+export default function PassageCard(props: {
   ref?: Ref<HTMLDivElement>;
   // What the mark is called, naming the button showing all of it.
   name: MarkName;
   quote: string | undefined;
+  // What shows the mark in place of a quote, such as a change's diff, what it says to a screen reader, which
+  // does not read inside the button, and what to call it on the button taking the reader to it.
+  body?: ReactNode;
+  bodySaid?: string;
+  what?: string;
   note?: PassageNote;
   markedBy: MarkKind;
   stepper?: ReactNode;
   details?: ReactNode;
   onShowPassage: () => void;
 }) {
+  const { ref, name, quote, body, bodySaid, what = "passage", note, markedBy, stepper, details, onShowPassage } = props;
   const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
   const limit = phone ? MAX_PASSAGE_LINES_ON_PHONE : MAX_PASSAGE_LINES;
   const detailsLimit = phone ? MAX_DETAILS_LINES_ON_PHONE : MAX_DETAILS_LINES;
@@ -71,6 +82,8 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
   const detailsBox = useRef<HTMLDivElement>(null);
   const detailsEdges = useScrollEdges(detailsBox);
   const [holdsField, setHoldsField] = useState(false);
+  const bodyBox = useRef<HTMLSpanElement>(null);
+  const [bodyCut, setBodyCut] = useState(false);
   const open = expanded || holdsField;
   const detailsCut = !open && detailsEdges.below;
   const hasDetails = details !== undefined;
@@ -94,6 +107,19 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
     }
   }, [open]);
 
+  // Whether what stands in for the quote runs past its lines, measured while it is held to them.
+  useLayoutEffect(() => {
+    const box = bodyBox.current;
+    if (box === null || expanded) {
+      return undefined;
+    }
+    const measure = () => setBodyCut(box.scrollHeight > box.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [body, expanded]);
+
   // Counted on an invisible copy at the card's full width, which cutting the passage short does not change.
   useLayoutEffect(() => {
     if (copy === null) {
@@ -109,9 +135,29 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
   const long = lines > limit;
   const cut = long && !open;
   const oneRow = phone && cut;
-  const text = quote === undefined ? "" : `“${quote}”`;
+  const text = quote === undefined || quote === "" ? "" : `“${quote}”`;
   const content = (
     <>
+      {body === undefined
+        ? null
+        : (
+          <Box
+            ref={bodyBox}
+            id={`${quoteId}-body`}
+            component="span"
+            sx={{
+              display: "block",
+              typography: "body2",
+              ...expanded ? {} : { height: `${BODY_LINES}lh`, overflow: "hidden" },
+              ...bodyCut && !expanded ? { maskImage: "linear-gradient(black 60%, transparent)" } : {},
+            }}
+          >
+            <Box component="span" aria-hidden={bodySaid !== undefined}>{body}</Box>
+          </Box>
+        )}
+      {body === undefined || bodySaid === undefined
+        ? null
+        : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
       <Typography
         id={quoteId}
         variant="body2"
@@ -190,8 +236,8 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
           ? (
             <ButtonBase
               focusRipple
-              aria-label={`Show the passage on ${describePages(note.foundOnPage, note.toPage)}`}
-              aria-describedby={quoteId}
+              aria-label={`Show the ${what} on ${describePages(note.foundOnPage, note.toPage)}`}
+              aria-describedby={bodySaid === undefined ? quoteId : `${quoteId}-said`}
               onClick={onShowPassage}
               sx={{
                 ...passageSx,
@@ -203,12 +249,15 @@ export default function PassageCard({ ref, name, quote, note, markedBy, stepper,
             </ButtonBase>
           )
           : <Box sx={passageSx}>{content}</Box>}
-        {!holdsField && (long || detailsCut || expanded)
+        {!holdsField && (long || bodyCut || detailsCut || expanded)
           ? (
             <IconButton
               aria-label={expanded ? `Show less of the ${name.one}` : `Show the whole ${name.one}`}
               aria-expanded={expanded}
-              aria-controls={details === undefined ? quoteId : `${quoteId} ${detailsId}`}
+              aria-controls={[
+                body === undefined ? quoteId : `${quoteId}-body`,
+                details === undefined ? "" : detailsId,
+              ].filter(id => id !== "").join(" ")}
               onClick={() => setExpanded(!expanded)}
               sx={{ alignSelf: oneRow ? "center" : "flex-end" }}
             >
@@ -247,7 +296,7 @@ export function NoteText({ note, short = false }: { note: PassageNote; short?: b
   const pages = note.toPage === undefined ? `${note.foundOnPage}` : `${note.foundOnPage}–${note.toPage}`;
   return (
     <>
-      {short ? "p. " : `found on ${note.toPage === undefined ? "page" : "pages"} `}
+      {short ? "p. " : `${note.searched ? "found on " : ""}${note.toPage === undefined ? "page" : "pages"} `}
       <Box
         component="span"
         sx={note.shown ? undefined : { color: "primary.main", textDecoration: "underline" }}

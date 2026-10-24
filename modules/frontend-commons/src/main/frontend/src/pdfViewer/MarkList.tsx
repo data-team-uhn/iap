@@ -18,9 +18,10 @@
 import { memo, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
+import { visuallyHidden } from "@mui/utils";
 
 import { keepInView } from "./markLayer";
-import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
+import { getMarkText, isChangeKind, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { cutShort, getMarkColour, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
@@ -46,15 +47,20 @@ const MAX_DETAILS_LINES = 2;
 // The passages beside the document, each on a card in its mark's colour, with the caller's details for
 // it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
 // view. Above them, a heading says which is selected of how many, with buttons stepping through them.
-function MarkList({ marks, name, places, status, selectedId, renderDetails, onSelect }: {
+function MarkList(props: {
   marks: Mark[];
   name: MarkName;
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
+  // What shows a mark in place of its quote, such as a change's diff, if anything, and what that says to a
+  // screen reader, which does not read inside the entry's button.
+  renderBody?: (mark: Mark) => ReactNode;
+  describeBody?: (mark: Mark) => string | undefined;
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
+  const { marks, name, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
@@ -69,7 +75,17 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
 
   return (
-    <Box sx={{ width: LIST_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <Box
+      sx={{
+        width: LIST_WIDTH,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        bgcolor: "background.default",
+        borderRadius: 1,
+      }}
+    >
       <StepControls
         position={position}
         count={marks.length}
@@ -97,6 +113,7 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
       >
         {marks.map((mark, index) => {
           const selected = mark.id === selectedId;
+          const details = renderDetails?.(mark, selected);
           return (
             <Box
               component="li"
@@ -113,12 +130,14 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
                 flexShrink: 0,
                 overflow: "hidden",
                 outline: selected ? "2px solid" : "none",
-                outlineColor: getMarkColour(theme, mark.kind),
+                outlineColor: isChangeKind(mark.kind) ? "text.secondary" : getMarkColour(theme, mark.kind),
                 outlineOffset: "-2px",
               })}
             >
               <MarkEntry
                 mark={mark}
+                body={renderBody?.(mark)}
+                bodySaid={describeBody?.(mark)}
                 name={name}
                 position={index + 1}
                 place={places[mark.id]}
@@ -126,9 +145,9 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
                 selected={selected}
                 onSelect={() => onSelect(mark.id)}
               />
-              {renderDetails === undefined
+              {details === undefined || details === null
                 ? null
-                : <MarkDetails cut={!selected}>{renderDetails(mark, selected)}</MarkDetails>}
+                : <MarkDetails cut={!selected}>{details}</MarkDetails>}
             </Box>
           );
         })}
@@ -159,8 +178,10 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
-function MarkEntry({ mark, name, position, place, status, selected, onSelect }: {
+function MarkEntry({ mark, body, bodySaid, name, position, place, status, selected, onSelect }: {
   mark: Mark;
+  body: ReactNode;
+  bodySaid: string | undefined;
   name: MarkName;
   position: number;
   place: MarkPlace;
@@ -169,17 +190,21 @@ function MarkEntry({ mark, name, position, place, status, selected, onSelect }: 
   onSelect: () => void;
 }) {
   const quoteId = useId();
-  const note = getPassageNote(status, place);
-  const text = getMarkText(mark, place);
+  const note = getPassageNote(status, place, "quote" in mark);
+  const text = body === undefined || body === null ? getMarkText(mark, place) : undefined;
   const content = (
     <>
+      {body === undefined || body === null
+        ? null
+        : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
+      {bodySaid === undefined ? null : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
       <Typography
         id={quoteId}
         variant="body2"
         component="span"
         sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
       >
-        {text === undefined ? null : `“${text}”`}
+        {text === undefined || text === "" ? null : `“${text}”`}
       </Typography>
       {note === undefined
         ? null
@@ -199,7 +224,7 @@ function MarkEntry({ mark, name, position, place, status, selected, onSelect }: 
     <ButtonBase
       focusRipple
       aria-label={label}
-      aria-describedby={quoteId}
+      aria-describedby={bodySaid === undefined ? quoteId : `${quoteId}-said`}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       sx={theme => ({

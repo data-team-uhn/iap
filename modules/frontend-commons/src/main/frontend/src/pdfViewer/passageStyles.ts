@@ -41,15 +41,18 @@ export function passageTint(theme: Theme, kind: MarkKind, strength: number): str
   return theme.alpha(getMarkColour(theme, kind, "light"), strength);
 }
 
-// The card a passage is on: a stripe of its mark's colour at its start, over a tint of it. A change's card
-// is also outlined, as it has no tint to set it apart.
+// The card a passage is on: a stripe of its mark's colour at its start, over a tint of it on the paper, so
+// it reads the same on the grey of the list and on the dialog. A change's card is also outlined, as it
+// has no tint to set it apart from the dialog.
 export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
+  const tint = passageTint(theme, kind, strength);
   return {
     borderRadius: 1,
     ...isChangeKind(kind) ? { border: "1px solid" } : {},
     borderInlineStart: `${theme.spacing(0.5)} solid`,
     borderColor: getMarkColour(theme, kind),
-    bgcolor: passageTint(theme, kind, strength),
+    bgcolor: "background.paper",
+    backgroundImage: `linear-gradient(${tint}, ${tint})`,
   };
 }
 
