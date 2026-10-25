@@ -234,6 +234,22 @@ export function getShownChanges(changes: RevisionChange[], strict: boolean): Rev
   return strict ? changes : changes.filter(change => !change.minor);
 }
 
+// The change shown in place of one that is no longer shown, such as a minor change once minor changes are
+// left out: the next change shown after it, or else the last one before it.
+export function getNearestShown(
+  changes: RevisionChange[],
+  shown: RevisionChange[],
+  id: string,
+): RevisionChange | undefined {
+  const at = changes.findIndex(change => change.id === id);
+  if (at < 0) {
+    return undefined;
+  }
+  const shownIds = new Set(shown.map(change => change.id));
+  const isShown = (change: RevisionChange) => shownIds.has(change.id);
+  return changes.slice(at).find(isShown) ?? changes.slice(0, at).findLast(isShown);
+}
+
 export function countMinorChanges(changes: RevisionChange[]): number {
   return changes.filter(change => change.minor).length;
 }
