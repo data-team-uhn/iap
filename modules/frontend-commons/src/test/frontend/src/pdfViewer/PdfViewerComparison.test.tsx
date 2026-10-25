@@ -237,7 +237,7 @@ describe("PdfViewer compared with an older version", () => {
       await waitFor(() => expect(fakePdf.finds.filter(find => find.query === "fee")).toHaveLength(2));
       await waitForStatus("Match 1 of 1.");
       await userEvent.keyboard("{Enter}");
-      expect(fakePdf.finds.filter(find => find.type === "again")).toHaveLength(1);
+      expect(fakePdf.finds.filter(find => find.type === "again")).toHaveLength(2);
     });
 
     it("steps through the changes in order, bringing each into view in both versions", async () => {
@@ -327,6 +327,30 @@ describe("PdfViewer compared with an older version", () => {
         await new Promise(resolve => requestAnimationFrame(resolve));
 
         expect(newer.scrollTop).toBe(0);
+      });
+
+      it("lets a search take each version to its own match, until the next scroll by hand", async () => {
+        const [ older, newer ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
+        // Scrolled after its own search, the older version is left there by the newer's
+        const leftAlone = async () => {
+          older.scrollTop = 0;
+          fireEvent.scroll(newer);
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          expect(older.scrollTop).toBe(0);
+        };
+
+        await userEvent.type(screen.getByRole("textbox", { name: "Search the document" }), "fee");
+        await waitFor(() => expect(fakePdf.finds.filter(find => find.query === "fee")).toHaveLength(2));
+        await waitForStatus("Match 1 of 1.");
+        await leftAlone();
+        await userEvent.keyboard("{Enter}");
+        expect(fakePdf.finds.filter(find => find.type === "again")).toHaveLength(2);
+        await leftAlone();
+
+        newer.scrollTop = MATCH_TOP;
+        await scrollByHand(newer);
+
+        await waitFor(() => expect(older.scrollTop).toBe(MATCH_TOP));
       });
 
       it("moves the older version with the newer after zooming", async () => {
