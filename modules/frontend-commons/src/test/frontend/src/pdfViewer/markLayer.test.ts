@@ -91,12 +91,14 @@ describe("drawMarks", () => {
     delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
-  it("draws its marks on a layer covering the page, letting the pointer through to the text", () => {
+  it("draws its marks on a layer covering the page, under the text, letting the pointer through to it", () => {
     const textLayer = createTextLayer();
 
     drawMarks(textLayer, [ { id: "m", kind: "assistant", start: 34, end: 50 } ], undefined);
 
-    const layer = textLayer.lastElementChild as HTMLElement;
+    // First, so the text, and a search's matches on it, are drawn over the marks
+    const layer = textLayer.firstElementChild as HTMLElement;
+    expect(layer.querySelector("[data-mark-id=m]")).not.toBeNull();
     const { position, inset, pointerEvents } = layer.style;
     expect({ position, inset, pointerEvents }).toEqual({ position: "absolute", inset: "0px", pointerEvents: "none" });
     expect((layer.firstElementChild as HTMLElement).style.position).toBe("absolute");
