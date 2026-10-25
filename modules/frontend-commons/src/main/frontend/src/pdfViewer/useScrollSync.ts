@@ -33,7 +33,8 @@ interface SyncedView {
 }
 
 // How long a pane's scrolling counts as the person's after they touch it, by wheel, finger, key or
-// pointer. Each scroll since extends it, as a fling goes on scrolling after the finger lifts.
+// pointer. Each scroll since extends it, as a fling goes on scrolling after the finger lifts. While the
+// pointer is still held down on the pane, as when dragging its scrollbar, it counts for as long as that.
 const BY_HAND_TIME = 500;
 
 // How long a pane told to lead keeps leading, such as while its page bar moves it to a page not drawn yet.
@@ -84,7 +85,17 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
       leader = version;
       leadsUntil = performance.now() + time;
     };
+    // The pane the pointer is held down on, if any. A release may never be told, as when it happens outside
+    // the window, so the pointer moving with no button down ends the hold too.
+    let held: Version | undefined;
     const stop = new AbortController();
+    for (const type of [ "pointerup", "pointercancel", "pointermove" ] as const) {
+      window.addEventListener(type, event => {
+        if (type !== "pointermove" || event.buttons === 0) {
+          held = undefined;
+        }
+      }, { signal: stop.signal, passive: true });
+    }
     for (const version of [ "older", "newer" ] as const) {
       const { frame, eventBus } = shown[version];
       eventBus.on("textlayerrendered", () => {
@@ -96,11 +107,12 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
         frame.addEventListener(type, event => {
           if (event.type !== "keydown" || scrollsByHand(event, frame)) {
             lead(version, BY_HAND_TIME);
+            held = event.type === "pointerdown" ? version : held;
           }
         }, { signal: stop.signal, passive: true });
       }
       frame.addEventListener("scroll", () => {
-        if (leader !== version || performance.now() > leadsUntil) {
+        if (leader !== version || (performance.now() > leadsUntil && held !== version)) {
           return;
         }
         leadsUntil = Math.max(leadsUntil, performance.now() + BY_HAND_TIME);
