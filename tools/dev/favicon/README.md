@@ -11,10 +11,11 @@ by an image file, and the `.svg` is emitted from that same table so the two cann
 
 The mark is a QP monogram built around the logo's token: a thin navy **Q** (a ring, plus a tail running
 right along the baseline) enclosing a solid crimson **P**. The P is a filled disc, the token, with a straight
-stem running down the Q's lower left to the shared baseline. The notch between the stem and the Q's outer
-curve is filled red, a half serif that carries the P's foot along the baseline to where the Q's tail begins,
-and the foot's outer corner is rounded so it rolls with the Q. A clear gap separates the disc from the ring,
-and a translucent white **keyline** runs round the whole mark.
+stem running down the Q's lower left. The stem drops a little below the baseline, as far as the Q's tail runs
+past the ring on the right, and its bottom left corner is rounded. Above the baseline, the notch between the
+stem and the Q's outer curve is filled red too, so the P's foot reaches along the baseline to where the Q's
+tail begins. A clear gap separates the disc from the ring, and a translucent white **keyline** runs round the
+whole mark.
 
 It replaced the earlier path-and-haloed-token mark, whose red disc inside a red ring was routinely mistaken
 for the "recording" indicator that browsers and Teams show in a tab. The red disc is back, deliberately, but
@@ -52,14 +53,14 @@ python3 tools/dev/favicon/generate_favicon.py --preview-dir /tmp/favicon --ascii
 ## Changing the artwork
 
 The shape lives in the `DESIGN` table: centre, the Q's outer radius, weight and tail length, the gap between
-disc and ring, the stem width and the foot's corner radius. The P's disc takes whatever radius is left inside
-the ring and the gap. Per-size fitting lives in `GEOMETRY`: the margin and the keyline's width, and optionally
-an explicit scale, Q weight and gap. The keyline's colour and opacity sit beside the brand colours. Things to
-preserve when tuning:
+disc and ring, the stem width, how far the stem drops below the baseline, and the foot's corner radius. The
+P's disc takes whatever radius is left inside the ring and the gap. Per-size fitting lives in `GEOMETRY`: the
+margin and the keyline's width, and optionally an explicit scale, Q weight and gap. The keyline's colour and
+opacity sit beside the brand colours. Things to preserve when tuning:
 
 - `layout()` shifts the whole mark by under half a pixel so the **baseline and the P stem's left edge** — the
-  long straight edges — land on pixel boundaries, and trims or extends the tail by under half a pixel so its
-  square end does too.
+  long straight edges — land on pixel boundaries. It also trims or extends the Q's tail and the P's stem by
+  under half a pixel, so that their ends land on pixel boundaries too.
 - **16px is hand-hinted.** At design weights the ring would be under a pixel and the gap about 1.2, both
   blurred, and the tab would show a red dot in a smudge: the recording look. Instead the Q's outer radius is
   exactly 6.5 pixels about a pixel-centred point, and the ring and the gap are exactly one pixel each, so every

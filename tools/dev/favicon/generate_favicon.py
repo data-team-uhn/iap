@@ -21,12 +21,12 @@
 
 # Regenerates the two QuorumPath favicons shipped by the `favicon` module: `favicon.ico` (16,
 # 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art. The mark is a QP
-# monogram built around the logo's token: a thin navy Q (a ring, plus a
-# tail running right along the baseline) enclosing a solid crimson P. The P is a filled disc, the
-# token, with a stem running down the Q's lower left to the shared baseline; the notch between the
-# stem and the Q's outer curve is filled red, a half serif that carries the P's foot along the
-# baseline to where the Q's tail begins, and the foot's outer corner is rounded so it rolls with
-# the Q. A clear gap separates the disc from the ring, and a white keyline runs round the whole.
+# monogram built around the logo's token: a thin navy Q (a ring, plus a tail running right along
+# the baseline) enclosing a solid crimson P. The P is a filled disc, the token, with a stem running
+# down the Q's lower left and a little below the baseline. Above the baseline, the notch between
+# the stem and the Q's outer curve is filled red too, so the P's foot reaches along the baseline to
+# where the Q's tail begins. A clear gap separates the disc from the ring, and a translucent white
+# keyline runs round the whole mark. See the README next to this script for the details.
 #
 # Keep the ring a contrasting colour: a red or pink ring around the red disc reads as the
 # "recording" indicator that browsers and Teams show in a tab.
@@ -77,15 +77,17 @@ DESIGN = {
     "tail": 19.0,         # length of the Q's tail, measured from the centre line
     "gap": 3.0,           # clear space between the P's disc and the inside of the Q's ring
     "stem": 6.0,          # width of the P's stem; its left edge is tangent to the disc
-    "foot_radius": 3.0,   # rounding of the foot's outer corner, tangent to the stem and the baseline
+    "foot_radius": 3.0,   # rounding of the foot's outer corner, tangent to the stem and its end
+    "descender": 3.5,     # how far the P's stem drops below the baseline; the tail runs as far past the ring
 }
 
 # Ink extent in design units: from the Q's left edge to the end of its tail, and from the top of
-# the Q to the baseline. The mark is scaled so this box fits between the margins.
+# the Q to the end of the P's stem. The mark is scaled so this box fits between the margins.
+BASELINE = DESIGN["center_y"] + DESIGN["q_r_out"]
 INK_LEFT = DESIGN["center_x"] - DESIGN["q_r_out"]
 INK_RIGHT = DESIGN["center_x"] + DESIGN["tail"]
 INK_TOP = DESIGN["center_y"] - DESIGN["q_r_out"]
-INK_BOTTOM = DESIGN["center_y"] + DESIGN["q_r_out"]
+INK_BOTTOM = BASELINE + DESIGN["descender"]
 
 # Per-size placement and weights, all optional except margin and keyline.
 #   margin   : border kept at the left and right edges, in device pixels; the mark is scaled so
@@ -134,46 +136,69 @@ def layout(size):
     # Snap the two long straight edges: a baseline or stem edge that straddles a pixel renders as
     # a soft half-coverage row or column, which at 16px is a large share of the stroke.
     stem_left = (DESIGN["center_x"] - p_radius) * scale + offset_x
-    baseline = INK_BOTTOM * scale + offset_y
+    baseline = BASELINE * scale + offset_y
     offset_x += round(stem_left) - stem_left
     offset_y += round(baseline) - baseline
-    # The tail's square end is the mark's rightmost edge: trim or extend the tail to end it on a pixel boundary too.
+    # The end of the tail and the bottom of the P's stem are straight edges too. Trim or extend each
+    # one slightly so that it ends on a pixel boundary.
     tail_end = (DESIGN["center_x"] + DESIGN["tail"]) * scale + offset_x
     tail = (round(tail_end) - offset_x) / scale - DESIGN["center_x"]
+    stem_end = INK_BOTTOM * scale + offset_y
+    descender = (round(stem_end) - offset_y) / scale - BASELINE
     return {"scale": scale, "offset_x": offset_x, "offset_y": offset_y,
-            "q_stroke": q_stroke, "p_radius": p_radius, "tail": tail,
+            "q_stroke": q_stroke, "p_radius": p_radius, "tail": tail, "descender": descender,
             "keyline": geometry["keyline"] / scale}
 
 
-def keyline_box(p_radius, tail, keyline):
-    # The keyline's outline along the baseline: a box round the P's foot and the Q's tail, grown by
-    # the keyline's width. Its bottom left corner follows the foot's rounding, the others are
-    # rounded by the keyline's width; above it, the keyline is a disc round the Q's ring.
-    cx, baseline = DESIGN["center_x"], DESIGN["center_y"] + DESIGN["q_r_out"]
-    return {"left": cx - p_radius - keyline, "right": cx + tail + keyline,
-            "top": baseline - DESIGN["q_stroke"] - keyline, "bottom": baseline + keyline,
-            "foot": DESIGN["foot_radius"] + keyline, "corner": keyline}
+def keyline_boxes(p_radius, tail, descender, keyline):
+    # Below the Q's ring, the keyline is two rounded boxes: one round the Q's tail and one round the
+    # P's stem, each a keyline's width bigger than what it surrounds. Each box is given as
+    # (left, top, right, bottom), followed by the radii of its corners, clockwise from the top left.
+    # The bottom left corner of the stem's box is rounded like the P's foot.
+    cx, stem_left = DESIGN["center_x"], DESIGN["center_x"] - p_radius
+    tail_top = BASELINE - DESIGN["q_stroke"] - keyline
+    return (
+        ((stem_left - keyline, tail_top, cx + tail + keyline, BASELINE + keyline), (keyline,) * 4),
+        ((stem_left - keyline, tail_top, stem_left + DESIGN["stem"] + keyline, BASELINE + descender + keyline),
+         (keyline, keyline, keyline, DESIGN["foot_radius"] + keyline)),
+    )
 
 
-def classify(u, v, q_stroke, p_radius, tail, keyline):
+def in_rounded_box(u, v, box, radii):
+    left, top, right, bottom = box
+    if not (left <= u <= right and top <= v <= bottom):
+        return False
+    corners = ((left + radii[0], top + radii[0], radii[0]), (right - radii[1], top + radii[1], radii[1]),
+               (right - radii[2], bottom - radii[2], radii[2]), (left + radii[3], bottom - radii[3], radii[3]))
+    for index, (round_x, round_y, radius) in enumerate(corners):
+        # In the square around a rounded corner, the point must also be inside the corner's circle.
+        beyond_x = u < round_x if index in (0, 3) else u > round_x
+        beyond_y = v < round_y if index in (0, 1) else v > round_y
+        if beyond_x and beyond_y and (u - round_x) ** 2 + (v - round_y) ** 2 > radius ** 2:
+            return False
+    return True
+
+
+def classify(u, v, q_stroke, p_radius, tail, descender, keyline):
     # Which ink covers the design-space point (u, v): "red", "navy", "white" or None. The P is
     # drawn over the Q, and both over the keyline; deciding per sample, rather than compositing
     # anti-aliased layers, keeps the seams between them free of a blended fringe.
     cx, cy = DESIGN["center_x"], DESIGN["center_y"]
     q_r_out, foot = DESIGN["q_r_out"], DESIGN["foot_radius"]
-    baseline = cy + q_r_out
+    baseline = BASELINE
     dx, dy = u - cx, v - cy
     distance2 = dx * dx + dy * dy
     stem_left = cx - p_radius
     stem_right = stem_left + DESIGN["stem"]
+    stem_end = baseline + descender
     if distance2 <= p_radius ** 2:
         return "red"
-    if cy <= v <= baseline:
+    if cy <= v <= stem_end:
         in_stem = stem_left <= u <= stem_right
         # The half serif: the notch between the stem and the Q's outer curve, above the baseline.
-        in_serif = stem_right < u <= cx and distance2 >= q_r_out ** 2
-        # The foot's outer corner is rounded off by a circle tangent to the stem and the baseline.
-        corner_x, corner_y = stem_left + foot, baseline - foot
+        in_serif = stem_right < u <= cx and v <= baseline and distance2 >= q_r_out ** 2
+        # The foot's outer corner is rounded off by a circle tangent to the stem and its end.
+        corner_x, corner_y = stem_left + foot, stem_end - foot
         in_cut = u < corner_x and v > corner_y and (u - corner_x) ** 2 + (v - corner_y) ** 2 > foot ** 2
         if (in_stem or in_serif) and not in_cut:
             return "red"
@@ -183,18 +208,8 @@ def classify(u, v, q_stroke, p_radius, tail, keyline):
         return "navy"
     if distance2 <= (q_r_out + keyline) ** 2:
         return "white"
-    box = keyline_box(p_radius, tail, keyline)
-    if box["left"] <= u <= box["right"] and box["top"] <= v <= box["bottom"]:
-        corners = ((box["left"], box["top"], box["corner"]), (box["right"], box["top"], box["corner"]),
-                   (box["right"], box["bottom"], box["corner"]), (box["left"], box["bottom"], box["foot"]))
-        for corner_x, corner_y, radius in corners:
-            # The centre of this corner's rounding, inset from the corner by its radius.
-            round_x = corner_x + radius if corner_x == box["left"] else corner_x - radius
-            round_y = corner_y + radius if corner_y == box["top"] else corner_y - radius
-            beyond_x = u < round_x if corner_x == box["left"] else u > round_x
-            beyond_y = v < round_y if corner_y == box["top"] else v > round_y
-            if beyond_x and beyond_y and (u - round_x) ** 2 + (v - round_y) ** 2 > radius ** 2:
-                return None
+    boxes = keyline_boxes(p_radius, tail, descender, keyline)
+    if any(in_rounded_box(u, v, box, radii) for box, radii in boxes):
         return "white"
     return None
 
@@ -205,7 +220,7 @@ def render(size):
     placement = layout(size)
     scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
     q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
-    keyline = placement["keyline"]
+    descender, keyline = placement["descender"], placement["keyline"]
     step = 1.0 / SUPERSAMPLING
     samples = float(SUPERSAMPLING * SUPERSAMPLING)
     image = []
@@ -217,7 +232,7 @@ def render(size):
                 v = (pixel_y + (sub_y + 0.5) * step - offset_y) / scale
                 for sub_x in range(SUPERSAMPLING):
                     u = (pixel_x + (sub_x + 0.5) * step - offset_x) / scale
-                    ink = classify(u, v, q_stroke, p_radius, tail, keyline)
+                    ink = classify(u, v, q_stroke, p_radius, tail, descender, keyline)
                     if ink:
                         hits[ink] += 1
             weights = (hits["red"], hits["navy"], hits["white"] * KEYLINE_OPACITY)
@@ -319,7 +334,7 @@ def svg_markup():
     placement = layout(SVG_SIZE)
     scale, offset_x, offset_y = placement["scale"], placement["offset_x"], placement["offset_y"]
     q_stroke, p_radius, tail = placement["q_stroke"], placement["p_radius"], placement["tail"]
-    keyline = placement["keyline"]
+    descender, keyline = placement["descender"], placement["keyline"]
 
     def x(u):
         return number(u * scale + offset_x)
@@ -349,27 +364,33 @@ def svg_markup():
     ))
 
     # The stem, half serif and foot are one outline: down the stem's right edge to the Q's outer
-    # curve, along that curve to the Q's lowest point, back left along the baseline, round the
-    # foot's corner and up the stem's left edge.
+    # curve, along that curve to the Q's lowest point, back left along the baseline to the stem,
+    # down to its end, round the foot's corner and up the stem's left edge.
     stem_left = cx - p_radius
     stem_right = stem_left + DESIGN["stem"]
+    stem_end = baseline + descender
     curve_y = cy + math.sqrt(q_r_out ** 2 - (cx - stem_right) ** 2)
-    stem = ("M {l} {top} H {r} V {cy_} A {rad} {rad} 0 0 0 {cx_} {base} H {fx} "
+    stem = ("M {l} {top} H {r} V {cy_} A {rad} {rad} 0 0 0 {cx_} {base} H {r} V {end} H {fx} "
             "A {f} {f} 0 0 1 {l} {fy} Z").format(
         l=x(stem_left), r=x(stem_right), top=y(cy), cy_=y(curve_y), rad=length(q_r_out),
-        cx_=x(cx), base=y(baseline), fx=x(stem_left + foot), f=length(foot), fy=y(baseline - foot))
+        cx_=x(cx), base=y(baseline), end=y(stem_end), fx=x(stem_left + foot), f=length(foot),
+        fy=y(stem_end - foot))
     p_path = " ".join((circle(cx, cy, p_radius, True), stem))
 
-    # The keyline is the disc round the ring plus the rounded box along the baseline, clockwise.
-    box = keyline_box(p_radius, tail, keyline)
-    corner, foot_corner = length(box["corner"]), length(box["foot"])
-    box_path = ("M {l_} {t} H {r_} A {c} {c} 0 0 1 {r} {t_} V {b_} A {c} {c} 0 0 1 {r_} {b} H {fl} "
-                "A {f} {f} 0 0 1 {l} {fb} V {t_} A {c} {c} 0 0 1 {l_} {t} Z").format(
-        l=x(box["left"]), r=x(box["right"]), t=y(box["top"]), b=y(box["bottom"]),
-        l_=x(box["left"] + box["corner"]), r_=x(box["right"] - box["corner"]),
-        t_=y(box["top"] + box["corner"]), b_=y(box["bottom"] - box["corner"]),
-        fl=x(box["left"] + box["foot"]), fb=y(box["bottom"] - box["foot"]), c=corner, f=foot_corner)
-    keyline_path = " ".join((circle(cx, cy, q_r_out + keyline, True), box_path))
+    def rounded_box(box, radii):
+        # Drawn clockwise, starting where the top left corner's rounding ends.
+        left, top, right, bottom = box
+        top_left, top_right, bottom_right, bottom_left = radii
+        return ("M {} {} H {} A {r1} {r1} 0 0 1 {} {} V {} A {r2} {r2} 0 0 1 {} {} H {} "
+                "A {r3} {r3} 0 0 1 {} {} V {} A {r0} {r0} 0 0 1 {} {} Z").format(
+            x(left + top_left), y(top), x(right - top_right), x(right), y(top + top_right),
+            y(bottom - bottom_right), x(right - bottom_right), y(bottom), x(left + bottom_left),
+            x(left), y(bottom - bottom_left), y(top + top_left), x(left + top_left), y(top),
+            r0=length(top_left), r1=length(top_right), r2=length(bottom_right), r3=length(bottom_left))
+
+    # The keyline is the disc round the ring plus the rounded boxes below it, all clockwise.
+    keyline_path = " ".join([circle(cx, cy, q_r_out + keyline, True)] + [
+        rounded_box(box, radii) for box, radii in keyline_boxes(p_radius, tail, descender, keyline)])
 
     return SVG_TEMPLATE.format(
         license=SVG_LICENSE, size=SVG_SIZE,
