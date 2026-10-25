@@ -23,7 +23,7 @@ import {
   MARK_CLASS,
   OVER_MARK_CLASS,
   POINT_CLASS,
-  POINT_MIN_SIZE,
+  POINT_HEIGHT,
   POINT_SIZE_RATIO,
   POINT_WIDTH_RATIO,
   START_CLASS,
@@ -59,10 +59,6 @@ function markColours(theme: Theme, outlineSelected: boolean): Record<string, obj
   }));
 }
 
-// Removed text is struck through, so its colour is not the only sign of it. A point is a translucent box
-// around a text cursor at the point, a little taller than the line, filled deeper when selected.
-const POINT_HEIGHT = `max(${100 * POINT_SIZE_RATIO}%, ${POINT_MIN_SIZE}px)`;
-
 // The cursor: a bar with a short stroke across each end, drawn as three backgrounds.
 const CURSOR = [ "center / 2px 100%", "top / 100% 2px", "bottom / 100% 2px" ]
   .map(place => `linear-gradient(var(${MARK_COLOUR}), var(${MARK_COLOUR})) ${place} no-repeat`)
@@ -86,6 +82,8 @@ function changeMarks(theme: Theme) {
   };
 }
 
+// Removed text is struck through, so its colour is not the only sign of it. A point is a translucent box
+// around a text cursor at the point, a little taller than the line, filled deeper when selected.
 const CHANGE_MARKS = {
   [`& .${MARK_CLASS}-removed:not(.${POINT_CLASS})`]: {
     backgroundImage: `linear-gradient(transparent calc(50% - 0.5px), var(${MARK_COLOUR}) calc(50% - 0.5px),

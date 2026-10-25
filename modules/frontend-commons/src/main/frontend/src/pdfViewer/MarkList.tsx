@@ -21,9 +21,9 @@ import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
 import { keepInView } from "./markLayer";
-import { getMarkText, isChangeKind, type Mark, type MarkPlace } from "./marksModel";
+import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, getMarkColour, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import { cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
   describeAmong,
   describePages,
@@ -138,7 +138,7 @@ function MarkList(props: {
                 flexShrink: 0,
                 overflow: "hidden",
                 outline: selected ? "2px solid" : "none",
-                outlineColor: isChangeKind(mark.kind) ? "text.secondary" : getMarkColour(theme, mark.kind),
+                outlineColor: getSelectedOutline(theme, mark.kind),
                 outlineOffset: "-2px",
               })}
             >
