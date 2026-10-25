@@ -32,6 +32,12 @@ export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "lig
   return isChangeKind(kind) ? palette.divider : palette[kind][shade];
 }
 
+// The outline of a selected card in the list. A passage's is its mark's colour. A change's is a grey dark
+// enough to show against the paper, since its neutral colour is too light for that.
+export function getSelectedOutline(theme: Theme, kind: MarkKind): string {
+  return isChangeKind(kind) ? (theme.vars ?? theme).palette.text.secondary : getMarkColour(theme, kind);
+}
+
 // The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
 // selected or under the pointer. A change's card is untinted, and greys as a list item does.
 export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {

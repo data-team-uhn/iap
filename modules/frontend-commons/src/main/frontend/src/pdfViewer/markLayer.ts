@@ -236,6 +236,10 @@ export const POINT_SIZE_RATIO = 1.2;
 export const POINT_MIN_SIZE = 22;
 export const POINT_WIDTH_RATIO = 0.6;
 
+// The same height, as CSS, for drawing a point. The two have to agree, so that a point's target is where it
+// is drawn.
+export const POINT_HEIGHT = `max(${100 * POINT_SIZE_RATIO}%, ${POINT_MIN_SIZE}px)`;
+
 // The least size of a point's target for the pointer, however small it is drawn. On a touch screen it is
 // a fingertip.
 const POINT_HIT_SIZE = { touch: 40, mouse: 16 };
