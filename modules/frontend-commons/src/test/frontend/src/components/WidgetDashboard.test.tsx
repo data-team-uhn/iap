@@ -384,14 +384,14 @@ describe("WidgetDashboard", () => {
       expect(await screen.findByText("Categories content")).toBeInTheDocument();
     });
 
-    it("ignores remembered entries that are not group names", async () => {
+    it("starts expanded when what is remembered is not a list of group names", async () => {
       stored.set("iap.widgetDashboard.TestWidgets.collapsed", JSON.stringify([ 3, "Operations" ]));
       mockedLoadExtensions.mockResolvedValue(groupedDashboard());
 
       renderThemed(<WidgetDashboard point="TestWidgets" />);
 
-      expect(await screen.findByText("Categories content")).toBeInTheDocument();
-      expect(groupToggle("Operations (1)")).toBeInTheDocument();
+      expect(await screen.findByText("Errors content")).toBeInTheDocument();
+      expect(groupToggle("Operations")).toHaveAttribute("aria-expanded", "true");
     });
 
     it("still collapses groups when storage is unavailable", async () => {

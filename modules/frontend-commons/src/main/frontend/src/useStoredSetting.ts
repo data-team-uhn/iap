@@ -17,26 +17,33 @@
  */
 import { useCallback, useState } from "react";
 
+function readSetting<T>(key: string, fallback: T, isValid: (value: unknown) => value is T): T {
+  try {
+    const stored = window.localStorage.getItem(key);
+    const parsed: unknown = stored === null ? undefined : JSON.parse(stored);
+    return isValid(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // A setting kept in the browser's local storage, as JSON, under the key given. The fallback stands for a
 // value never stored, one stored that the check refuses, and storage the browser does not allow, as in a
-// private window.
+// private window. Given another key, it reads the setting kept under that one.
 export function useStoredSetting<T>(
   key: string,
   fallback: T,
   isValid: (value: unknown) => value is T,
 ): [ T, (value: T) => void ] {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const stored = window.localStorage.getItem(key);
-      const parsed: unknown = stored === null ? undefined : JSON.parse(stored);
-      return isValid(parsed) ? parsed : fallback;
-    } catch {
-      return fallback;
-    }
-  });
+  const [ state, setState ] = useState(() => ({ key, value: readSetting(key, fallback, isValid) }));
+  let current = state;
+  if (state.key !== key) {
+    current = { key, value: readSetting(key, fallback, isValid) };
+    setState(current);
+  }
 
   const store = useCallback((next: T) => {
-    setValue(next);
+    setState({ key, value: next });
     try {
       window.localStorage.setItem(key, JSON.stringify(next));
     } catch {
@@ -44,5 +51,5 @@ export function useStoredSetting<T>(
     }
   }, [key]);
 
-  return [ value, store ];
+  return [ current.value, store ];
 }

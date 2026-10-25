@@ -56,6 +56,26 @@ describe("useStoredSetting", () => {
     expect(renderSetting().result.current[0]).toBe("red");
   });
 
+  it("reads the setting kept under another key when given one", () => {
+    window.localStorage.setItem(KEY, "\"blue\"");
+    const { result, rerender } = renderHook(
+      ({ key }) => useStoredSetting<"red" | "blue">(key, "red", isColour),
+      { initialProps: { key: KEY } },
+    );
+    expect(result.current[0]).toBe("blue");
+
+    // Nothing is kept under the other key yet
+    rerender({ key: "iap.test.other" });
+    expect(result.current[0]).toBe("red");
+
+    act(() => result.current[1]("red"));
+    expect(window.localStorage.getItem("iap.test.other")).toBe("\"red\"");
+    expect(window.localStorage.getItem(KEY)).toBe("\"blue\"");
+
+    rerender({ key: KEY });
+    expect(result.current[0]).toBe("blue");
+  });
+
   it("works without storage, keeping a change for the visit", () => {
     vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new DOMException("Blocked", "SecurityError");

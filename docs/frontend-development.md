@@ -366,6 +366,13 @@ Before a file is uploaded, check it with `validateUpload` from
 caller does not take, and a PDF or Word file whose content does not match its name; see
 [file validation](file-validation.md).
 
+A choice someone expects to find again, such as which columns a grid shows, is kept in the browser's
+local storage with `useStoredSetting(key, fallback, isValid)`. It gives the fallback for a value never
+stored, one `isValid` refuses, and storage the browser does not allow, as in a private window, and reads
+the setting again when given another key. Keys start with `iap.` and the component's name
+(`iap.entityGrid.<type>.columns`). Storage is a convenience: nothing that must last or be shared goes
+there.
+
 ### Comparing two versions
 
 Give `PdfViewer` an older version, and it shows what changed since:
