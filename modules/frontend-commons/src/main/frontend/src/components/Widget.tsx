@@ -41,6 +41,9 @@ const WidgetSurface = styled(Paper, {
   height: "100%",
   // The fill against the page canvas is what sets a widget apart
   border: "none",
+  // When the content is wider than the widget, such as a table on a phone, it scrolls sideways inside the
+  // widget instead of making the whole dashboard wider.
+  overflowX: "auto",
   ...(emphasis && { backgroundColor: (theme.vars ?? theme).palette.background.tinted }),
   ...(borderless && { backgroundColor: "transparent" }),
 }));

@@ -87,6 +87,12 @@ describe("Widget", () => {
     });
   });
 
+  it("scrolls its content sideways when the content is wider than the widget", () => {
+    const { container } = render(<Widget title="My widget"><div>body</div></Widget>);
+
+    expect(getComputedStyle(container.firstElementChild!).overflowX).toBe("auto");
+  });
+
   it("does not render the header when hideHeader is set", () => {
     render(<Widget title="My widget" subtitle="a description" hideHeader><div>body</div></Widget>);
 

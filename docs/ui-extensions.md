@@ -170,6 +170,10 @@ Tiled on the homepage dashboard in a responsive grid, each framed with a title
 `ext:targetURL`, an in-app path — both must be set; the title then links there too).
 `ext:personas` restricts a widget, and `ext:widgetGroup` files it under a
 [widget group](#widget-groups).
+Each column gets an equal share of the dashboard's width, regardless of how wide a
+widget's content is, so the dashboard always fits on a phone's screen. When a
+widget's content is wider than the widget itself, such as a table with many columns,
+the content scrolls sideways inside the widget.
 
 The layout is the shared `WidgetDashboard`
 (`@iap/frontend-commons/components/WidgetDashboard`), parameterized by point. The
