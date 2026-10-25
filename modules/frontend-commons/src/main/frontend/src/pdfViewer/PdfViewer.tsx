@@ -240,20 +240,23 @@ function PdfViewerSession(props: PdfViewerProps) {
   }, [changeIds, renderMarkDetails]);
   const titleId = useId();
 
-  // Both versions are searched and zoomed alike. After a zoom, a page from this one's page bar or a next
-  // match, the older one follows this one; a new search takes each to its own first match.
+  // Both versions are searched and zoomed alike. A search, and each next or previous match, takes each
+  // version to its own match, and they stay apart until the next scroll by hand. That way text only the
+  // older one has can be found too. After a zoom or a page from this one's page bar, the older one follows
+  // this one.
   const shownView: typeof view = comparing === undefined
     ? view
     : {
       ...view,
       find: query => {
+        release();
         view.find(query);
         olderView.find(query);
-        lead("newer");
       },
       findAgain: previous => {
+        release();
         view.findAgain(previous);
-        lead("newer");
+        olderView.findAgain(previous);
       },
       zoomIn: () => zoomBoth(each => each.zoomIn()),
       zoomOut: () => zoomBoth(each => each.zoomOut()),

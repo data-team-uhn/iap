@@ -475,11 +475,11 @@ the selected mark.
 other, through the words the comparison paired (`mapPoint`). A word only one version has goes to where
 its change is in the other, so the versions move at different speeds through added or removed text. The
 matching text is also put as far along its line, so the other version moves as smoothly. After a zoom,
-or a page picked from either version's page bar, the other version follows. A new search takes each
-version to its own first match, so text only the older version has can be found too, and the older
-version follows the newer one to its next matches. Going to one of the caller's marks, which only the
-newer version has, the older version follows the newer. Going to a change takes each version to its own
-side of it, and they stay apart until the next scroll by hand.
+or a page picked from either version's page bar, the other version follows. A search, and each next or
+previous match, takes each version to its own match, so text only the older version has can be found
+too, and the versions part until the next scroll by hand. Going to one of the caller's marks, which only
+the newer version has, the older version follows the newer. Going to a change takes each version to its
+own side of it, and they stay apart until the next scroll by hand.
 
 **Waiting and failing.** While the versions are read and compared, a line says how far it has got, and a
 bar runs along the documents. A version without text, such as a scan, can't be compared, and two
