@@ -72,6 +72,7 @@ describe("useScrollSync", () => {
   afterEach(() => {
     document.body.replaceChildren();
     delete (Range.prototype as Partial<Range>).getClientRects;
+    vi.restoreAllMocks();
   });
 
   it("moves the other version once the text in the middle of the one scrolled is drawn", async () => {
@@ -127,6 +128,51 @@ describe("useScrollSync", () => {
     await scrollByHand(older.shown.frame);
 
     expect(showNewer).toHaveBeenCalledOnce();
+  });
+
+  it("keeps following while the pointer is held down on the version scrolled, as on its scrollbar", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    const older = createShown();
+    older.drawText();
+    const showNewer = vi.fn();
+    renderHook(() => useScrollSync({
+      older: { shown: older.shown, showPoint: vi.fn() },
+      newer: { shown: createShown().shown, showPoint: showNewer },
+    }, ALIGNMENT));
+    const scrollAt = async (time: number) => {
+      now.mockReturnValue(time);
+      fireEvent.scroll(older.shown.frame);
+      await new Promise(resolve => requestAnimationFrame(resolve));
+    };
+
+    fireEvent.pointerDown(older.shown.frame);
+    // Held still for longer than a scroll by hand otherwise counts, then dragged on
+    await scrollAt(2000);
+    expect(showNewer).toHaveBeenCalledOnce();
+    fireEvent.pointerUp(window);
+    await scrollAt(5000);
+
+    expect(showNewer).toHaveBeenCalledOnce();
+  });
+
+  it("ends the hold when the pointer moves with no button down, its release not told", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    const older = createShown();
+    older.drawText();
+    const showNewer = vi.fn();
+    renderHook(() => useScrollSync({
+      older: { shown: older.shown, showPoint: vi.fn() },
+      newer: { shown: createShown().shown, showPoint: showNewer },
+    }, ALIGNMENT));
+
+    fireEvent.pointerDown(older.shown.frame);
+    fireEvent.pointerMove(window, { buttons: 1 });
+    fireEvent.pointerMove(window, { buttons: 0 });
+    now.mockReturnValue(2000);
+    fireEvent.scroll(older.shown.frame);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    expect(showNewer).not.toHaveBeenCalled();
   });
 
   it("stops following once the versions are no longer compared", async () => {
