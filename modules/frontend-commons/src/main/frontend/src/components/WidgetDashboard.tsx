@@ -26,6 +26,7 @@ import { Link as RouterLink } from "react-router";
 import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
 import { usePersona } from "@iap/ui-extension/personas";
 
+import { useStoredSetting } from "../useStoredSetting";
 import LoadingOverlay from "./LoadingOverlay";
 import Widget from "./Widget";
 import {
@@ -62,37 +63,20 @@ function widgetKey(widget: WidgetExtension, index: number): string {
 // dashboard looks the same when they come back to it. A group is kept by its node name. The widgets
 // of no group are kept by the empty string, which cannot be a node name. Without storage, every group
 // starts expanded.
-const collapsedStorageKey = (point: string) => `iap.widgetDashboard.${point}.collapsed`;
 const slotId = (slot: WidgetGroupSlot) => slot.name ?? "";
 
-const readCollapsed = (point: string): string[] => {
-  try {
-    const stored: unknown = JSON.parse(window.localStorage.getItem(collapsedStorageKey(point)) ?? "[]");
-    return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : [];
-  } catch {
-    // No storage, or an unreadable value: every group starts expanded
-    return [];
-  }
-};
+const NONE_COLLAPSED: string[] = [];
 
-const writeCollapsed = (point: string, ids: string[]) => {
-  try {
-    window.localStorage.setItem(collapsedStorageKey(point), JSON.stringify(ids));
-  } catch {
-    // No storage: the choice lasts until the page is left
-  }
-};
+const isGroupIds = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(id => typeof id === "string");
 
 // The collapsed groups of the given dashboard, and a toggle for one of them. They are kept per point,
 // so a dashboard given another point reads that point's choices.
 function useCollapsedGroups(point: string): [ string[], (id: string) => void ] {
-  const [ state, setState ] = useState(() => ({ point, ids: readCollapsed(point) }));
-  const ids = state.point === point ? state.ids : readCollapsed(point);
+  const [ ids, store ] = useStoredSetting(`iap.widgetDashboard.${point}.collapsed`, NONE_COLLAPSED, isGroupIds);
   const toggle = useCallback((id: string) => {
-    const next = ids.includes(id) ? ids.filter(other => other !== id) : [ ...ids, id ];
-    writeCollapsed(point, next);
-    setState({ point, ids: next });
-  }, [ point, ids ]);
+    store(ids.includes(id) ? ids.filter(other => other !== id) : [ ...ids, id ]);
+  }, [ ids, store ]);
   return [ ids, toggle ];
 }
 
