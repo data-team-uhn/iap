@@ -121,8 +121,9 @@ function getPointRect(nodes: TextNodeAt[], offset: number, starts = false): DOMR
 
 const percent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
 
-// Draws the marks over a page's text layer, replacing any drawn before. They go inside the text
-// layer, which PDF.js keeps when zooming, and are sized in percentages of it to scale with the page.
+// Draws the marks on a page's text layer, replacing any drawn before. They go inside the text layer, which
+// PDF.js keeps when zooming, and are sized in percentages of it to scale with the page. They go under its
+// text, so the matches of a search, drawn on the text, show over them.
 export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId: string | undefined): void {
   textLayer.querySelector(`:scope > .${LAYER_CLASS}`)?.remove();
   const nodes = getTextNodes(textLayer);
@@ -153,7 +154,7 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
       layer.append(element);
     }
   }
-  textLayer.append(layer);
+  textLayer.prepend(layer);
 }
 
 // The text a range selects on the pages drawn in the frame, as one span per page, in order, without the
