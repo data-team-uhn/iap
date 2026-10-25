@@ -260,10 +260,11 @@ spans or kept as an anchor needs only its own pages, and a document opened with 
 at all. Meanwhile, a bar along the top of the document shows how much of it has been read.
 `useMarkPlaces` gives how many pages have been read, along with where the passages are.
 
-Once found, a quote is kept as spans too. The viewer draws every mark over PDF.js's text layer itself,
-and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown with its quote, and one
-placed by its spans with the text they cover. Marks let the pointer through, so text can still be
-selected across them, and a click is matched to a mark by where it falls.
+Once found, a quote is kept as spans too. The viewer draws every mark on PDF.js's text layer itself,
+under the text, so the matches of PDF.js's own search, which it leaves alone, show over the marks. A
+mark with a quote or an anchor is shown with its quote, and one placed by its spans with the text they
+cover. Marks let the pointer through, so text can still be selected across them, and a click is matched
+to a mark by where it falls.
 
 A single passage is shown on a card above the document, and several are listed beside the document, in
 the order given, with those that cannot be found last. A card or list entry ends with the page the
