@@ -40,7 +40,7 @@ import {
   PASSAGES,
   type MarkName,
 } from "./pdfViewerModel";
-import { countMinorChanges, getChangeInContext, type RevisionChange } from "./revisionDiffModel";
+import { countMinorChanges, getChangeInContext, getNearestShown, type RevisionChange } from "./revisionDiffModel";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
 import { useComparison, type Comparing } from "./useComparison";
@@ -135,7 +135,13 @@ function PdfViewerSession(props: PdfViewerProps) {
   const olderMarks = comparing?.olderMarks ?? NO_MARKS;
   const { places: olderPlaces } = useMarkPlaces(comparing?.older.pdf, olderMarks);
   const firstMarkable = marks.find(mark => !cannotMark(places[mark.id]));
-  const selectedId = [ selectedMarkId, chosenId ].find(id => marks.some(mark => mark.id === id))
+  // A change chosen and then left out, as a minor one, gives way to the change shown nearest to it.
+  const allChanges = comparing?.state.status === "compared" ? comparing.state.changes : undefined;
+  const chosenLeftOut = chosenId !== undefined && !marks.some(mark => mark.id === chosenId);
+  const nearestId = !chosenLeftOut || allChanges === undefined || changes === undefined
+    ? undefined
+    : getNearestShown(allChanges, changes, chosenId)?.id;
+  const selectedId = [ selectedMarkId, chosenId, nearestId ].find(id => marks.some(mark => mark.id === id))
     ?? (firstMarkable ?? marks.at(0))?.id;
   const select = useCallback((id: string) => {
     reportedId.current = id;

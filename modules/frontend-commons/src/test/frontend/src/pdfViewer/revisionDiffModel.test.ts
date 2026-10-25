@@ -22,6 +22,7 @@ import {
   getChangeInContext,
   getChangeMarks,
   getChangeType,
+  getNearestShown,
   getShownChanges,
   getWordKey,
   getWords,
@@ -474,6 +475,22 @@ describe("getChangeInContext", () => {
     const { changes } = await compare(pages("The fee is due."), pages("Now the fee is due."));
 
     expect(inContext(changes[0])).toEqual([ "", "", "Now", "the fee is…" ]);
+  });
+});
+
+describe("getNearestShown", () => {
+  const [ a, b, c, d ] = [ "a", "b", "c", "d" ].map(id => change("", id, [], [], id));
+  const changes = [ a, b, c, d ];
+
+  it("gives the next change shown after one no longer shown, or else the last one before it", () => {
+    expect(getNearestShown(changes, [ a, d ], "b")).toBe(d);
+    expect(getNearestShown(changes, [ a, b ], "d")).toBe(b);
+    expect(getNearestShown(changes, [ a, c ], "c")).toBe(c);
+  });
+
+  it("gives nothing for a change not compared, or when none is shown", () => {
+    expect(getNearestShown(changes, [ a ], "x")).toBeUndefined();
+    expect(getNearestShown(changes, [], "b")).toBeUndefined();
   });
 });
 

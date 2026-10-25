@@ -410,7 +410,8 @@ a promise, so it can move to a worker later without its callers changing, and it
 throws. Its time and word limits are shared by all the diffs it runs. What the comparison says, on
 screen and to a screen reader, is in `comparisonText.ts`. `useComparison` opens the older version,
 compares the two as they're read, and keeps the person's choices. Including or leaving out minor changes
-only shows or hides them: nothing is compared again, and every change keeps its number.
+only shows or hides them: nothing is compared again, and every change keeps its number. When a minor
+change is selected and minor changes are then left out, the next change shown is selected instead.
 
 Passing another `compareWith` compares in place, as a version picker will need: the newer version stays
 open where the reader is, and the older one opens at the matching place once compared. Each comparison

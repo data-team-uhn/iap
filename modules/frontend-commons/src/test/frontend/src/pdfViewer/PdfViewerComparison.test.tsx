@@ -489,6 +489,20 @@ describe("PdfViewer compared with an older version", () => {
       expect(await screen.findByText(summary, { ignore: "[role=status]" })).toBeInTheDocument();
     });
 
+    it("selects the next change shown when the minor change selected is left out", async () => {
+      window.localStorage.setItem(STRICT_KEY, "true");
+      show([ "One change here.", "Hello, world.", "Another here." ], [ "One edit here.", "hello world.", "Another there." ]);
+      await waitForStatus(/^Change 1 of 3\./);
+      await userEvent.click(screen.getAllByRole("button", { name: "Next change" })[0]);
+      await waitForStatus(/^Change 2 of 3\./);
+
+      await userEvent.click(getChangesMenuButton());
+      await userEvent.click(screen.getByRole("menuitemcheckbox", { name: /Include 1 minor change/ }));
+      await userEvent.keyboard("{Escape}");
+
+      await waitForStatus(/^Change 2 of 2\. Text replaced on page 3\./);
+    });
+
     it("has no minor changes to include when there are none", async () => {
       show([ "The fee is due." ], [ "The fee is now due." ]);
       expect(await screen.findByRole("button", { name: "Show 1 change Side by side" })).toBeInTheDocument();
