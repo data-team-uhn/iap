@@ -36,7 +36,7 @@ interface SyncedView {
 // pointer. Each scroll since extends it, as a fling goes on scrolling after the finger lifts.
 const BY_HAND_TIME = 500;
 
-// How long a pane told to lead keeps leading, such as while a search moves it to a page not drawn yet.
+// How long a pane told to lead keeps leading, such as while its page bar moves it to a page not drawn yet.
 const LEAD_TIME = 1500;
 
 // Pressing a finger or the pointer anywhere may start a scroll, by dragging the page or a selection.
@@ -48,8 +48,8 @@ const getOther = (version: Version): Version => (version === "older" ? "newer" :
 // pane scrolled by hand goes to the middle of the other. Through text only one version has, the panes move
 // at different speeds. While the text in the middle is not drawn yet, such as on a page just scrolled to,
 // the other pane follows once it is. A pane moved this way does not move the first one back. Gives `lead`,
-// making a pane lead, such as after zooming or searching, and `release`, letting both panes go their own way
-// until the next scroll by hand, such as when each is taken to the same change.
+// making a pane lead, such as after zooming or going to a page, and `release`, letting both panes go their
+// own way until the next scroll by hand, such as when each is taken to the same change or searched.
 export function useScrollSync(views: Record<Version, SyncedView>, alignment: Alignment | undefined) {
   const { shown: olderShown, showPoint: showOlder } = views.older;
   const { shown: newerShown, showPoint: showNewer } = views.newer;
