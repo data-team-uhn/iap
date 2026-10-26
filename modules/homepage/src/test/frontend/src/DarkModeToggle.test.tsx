@@ -25,7 +25,7 @@ import DarkModeToggle from "@iap/homepage/DarkModeToggle";
 // jsdom has no matchMedia, which MUI's color scheme system consults for the system preference;
 // stub it out as "no preference" so the toggle can run outside a real browser.
 beforeAll(() => {
-  window.matchMedia = window.matchMedia ?? ((query: string) => ({
+  vi.stubGlobal("matchMedia", window.matchMedia ?? ((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -34,7 +34,7 @@ beforeAll(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
     dispatchEvent: () => false,
-  }));
+  })));
 });
 
 // MUI persists the explicitly chosen mode; clear it so tests don't leak into each other.
