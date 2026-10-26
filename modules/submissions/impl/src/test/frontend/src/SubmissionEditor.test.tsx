@@ -53,6 +53,8 @@ beforeEach(async () => {
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
@@ -468,27 +470,32 @@ describe("SubmissionEditor", () => {
       required: true,
       generated: true,
       outdated: false,
-      acceptedFileTypes: [],
+      acceptedFileTypes: [ DOCX ],
       attached: [],
     };
 
-    const LETTER_FILE = { title: "Decision letter.pdf", path: "/Submissions/x/d1/v1/file/uploadedFile" };
+    const LETTER_FILE = {
+      title: "Decision letter.pdf",
+      path: "/Submissions/x/d1/v1/file/uploadedFile",
+      docx: "/Submissions/x/d1/v1/file/generated.docx",
+    };
 
     function asked(letter: Partial<DocumentRequirement> = {}, overrides: Partial<SubmissionForm> = {}) {
       return form({ requirements: [ { ...LETTER, ...letter } ], ...overrides });
     }
 
-    it("offers no upload, only to generate it from the answers", async () => {
+    it("offers to generate it from the answers, or to upload a version of one's own", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
       render(<SubmissionEditor path={PATH} />);
 
       expect(await screen.findByRole("button", { name: /Generate "Decision letter"/ })).toBeEnabled();
       expect(screen.getByText(/once you ask for it/)).toBeInTheDocument();
-      expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+      // Only a hint for the file dialog: the server checks the requirement's types
+      expect(screen.getByLabelText(/Upload your own version of "Decision letter"/)).toHaveAttribute("accept", DOCX);
     });
 
-    it("opens what was generated to be read, rather than downloading it", async () => {
+    it("opens what was generated to be read, and offers its .docx to be edited", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] })));
 
       render(<SubmissionEditor path={PATH} />);
@@ -497,6 +504,9 @@ describe("SubmissionEditor", () => {
       expect(link).toHaveAttribute("href", LETTER_FILE.path);
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).not.toHaveAttribute("download");
+      const editable = screen.getByRole("link", { name: "Download to edit (.docx)" });
+      expect(editable).toHaveAttribute("href", LETTER_FILE.docx);
+      expect(editable).toHaveAttribute("download", "Decision letter.docx");
       expect(screen.getByRole("button", { name: /Generate again/ })).toBeInTheDocument();
       expect(screen.queryByText(/answers changed/)).toBeNull();
     });
@@ -506,9 +516,30 @@ describe("SubmissionEditor", () => {
 
       render(<SubmissionEditor path={PATH} />);
 
-      expect(await screen.findByText(/, Draft\.pdf/)).toBeInTheDocument();
-      expect(screen.getAllByRole("link")).toHaveLength(1);
+      expect(await screen.findByText(/; Draft\.pdf/)).toBeInTheDocument();
+      expect(screen.getAllByRole("link")).toHaveLength(2);
       expect(screen.getByRole("button", { name: /Generate again "decisionLetter"/ })).toBeInTheDocument();
+    });
+
+    it("takes a version of the submitter's own in place of what was generated", async () => {
+      const own = { title: "letter-edited.docx", path: "/Submissions/x/d1/v2/file/uploadedFile" };
+      const fetchMock = serving(asked({ attached: [ LETTER_FILE ] }), asked({ attached: [ own ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Upload your own version/),
+        new File([ "PK" ], "letter-edited.docx", { type: DOCX }));
+
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
+      expect(upload).toBeDefined();
+      const body = (upload![1] as RequestInit).body as FormData;
+      expect(body.get("requirement")).toBe("decisionLetter");
+      expect((body.get("file") as File).name).toBe("letter-edited.docx");
+      // What the server now says is attached: theirs, downloaded as it came, with nothing generated beside it
+      const link = await screen.findByRole("link", { name: "letter-edited.docx" });
+      expect(link).toHaveAttribute("download", "letter-edited.docx");
+      expect(screen.getByText(/Your own version/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Download to edit/ })).toBeNull();
     });
 
     it("says when the answers changed after it was generated", async () => {
@@ -567,12 +598,13 @@ describe("SubmissionEditor", () => {
       expect(await screen.findByText(/This document could not be generated \(502\)/)).toBeInTheDocument();
     });
 
-    it("cannot be generated once the request is no longer the submitter's to change", async () => {
+    it("can be neither generated nor replaced once the request is no longer the submitter's to change", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] }, { editable: false })));
 
       render(<SubmissionEditor path={PATH} />);
 
       expect(await screen.findByRole("button", { name: /Generate again/ })).toBeDisabled();
+      expect(screen.getByLabelText(/Upload your own version/)).toBeDisabled();
     });
   });
 

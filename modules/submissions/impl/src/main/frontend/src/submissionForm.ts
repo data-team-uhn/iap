@@ -137,6 +137,7 @@ export interface ApprovalDecision {
 export interface AttachedDocument {
   title: string;
   path?: string;
+  docx?: string;
 }
 
 // A repository path as a URL. Each segment is percent-encoded, so names with #, ? or % survive.

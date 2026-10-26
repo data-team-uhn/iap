@@ -21,8 +21,9 @@
     "requestForm": {
       "jcr:primaryType": "sch:DocumentRequirement",
       "label": "Time off request form",
-      "description": "Filled in from your answers. Generate it once you have picked the day.",
-      "generated": true
+      "description": "Can be automatically generated once you have picked the day, or you can upload your own version as a .docx.",
+      "generated": true,
+      "acceptedFileTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
     },
     "approval": {
       "jcr:primaryType": "sch:ApprovalRequirement",

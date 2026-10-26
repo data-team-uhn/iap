@@ -44,6 +44,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
@@ -52,6 +53,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.internal.handlers.GenerateDocumentHandler;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -120,6 +122,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String GENERATED_KEY = "generated";
 
     private static final String OUTDATED_KEY = "outdated";
+
+    private static final String DOCX_KEY = "docx";
 
     /** Stamped by the save workflow when it changes an answer, see SaveAnswersHandler. */
     private static final String LAST_MODIFIED = "jcr:lastModified";
@@ -265,7 +269,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // Stated always, not only when false: the upload control marks the optional case, and should do so
         // because the form said so rather than because a key was missing
         json.add(REQUIRED_KEY, requirement.isRequired());
-        // Stated always, for the same reason: the form draws no upload control for a generated document
+        // Stated always, for the same reason: the form offers to generate a generated document, as well as to upload
         json.add(GENERATED_KEY, requirement.isGenerated());
         // Until submitting is a workflow step (IAP-88): generated while the request is still being answered, a
         // document can fall behind the answers it was filled in from
@@ -301,15 +305,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @param requirement the generated requirement
      * @param submission the submission whose answers it was filled in from
      * @param documents the documents attached to the submission
-     * @return {@code false} when nothing was generated yet, which is missing rather than outdated
+     * @return {@code false} when nothing was generated yet, which is missing rather than outdated, or when the newest
+     *         version is one the submitter uploaded, which is theirs whatever it says
      */
     private static boolean isOutdated(final DocumentRequirement requirement, final Submission submission,
         final List<Document> documents)
     {
         final Optional<Calendar> generated = documents.stream()
             .filter(document -> document.isFulfilling(requirement))
+            .filter(document -> editableOf(document).isPresent())
             .map(Document::getCurrentVersion)
-            .filter(Objects::nonNull)
             .map(DocumentVersion::getCreated)
             .filter(Objects::nonNull)
             .max(Comparator.naturalOrder());
@@ -320,7 +325,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     * One attached document: its title, the path of its newest file, which is where it downloads from, and, when the
+     * platform generated that file, the path of the {@code .docx} it was filled in as, for the submitter to edit.
      *
      * @param document the attached document
      * @return the document's JSON, without a path when no file has landed yet
@@ -333,7 +339,21 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .map(DocumentVersion::getFile)
             .map(File::getUploadedFile)
             .ifPresent(file -> json.add(PATH_KEY, file.getPath()));
+        editableOf(document).ifPresent(docx -> json.add(DOCX_KEY, docx.getPath()));
         return json;
+    }
+
+    /**
+     * The filled {@code .docx} beside a document's newest file, which only a generated version has.
+     *
+     * @param document the document
+     * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
+     */
+    private static Optional<Content> editableOf(final Document document)
+    {
+        return Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(file -> file.getChild(GenerateDocumentHandler.DOCX_NODE, Content.class));
     }
 
     /**

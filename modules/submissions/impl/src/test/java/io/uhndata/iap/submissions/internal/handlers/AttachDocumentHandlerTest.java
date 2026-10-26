@@ -435,13 +435,14 @@ class AttachDocumentHandlerTest
     }
 
     @Test
-    void refusesADocumentThePlatformGenerates()
+    void takesTheSubmittersOwnVersionOfAGeneratedDocument() throws Exception
     {
-        final InvalidPayloadException refused = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload("decisionLetter", upload("letter.pdf", PDF)))));
+        // They may replace what the platform filled in, an edited copy say
+        this.handler.execute(context(payload("decisionLetter", upload("letter-edited.pdf", PDF))));
 
-        assertTrue(refused.getMessage().contains("Decision letter is generated"), refused.getMessage());
-        assertTrue(documents().isEmpty(), "nothing may be stored where the generated document goes");
+        final List<Document> documents = documents();
+        assertEquals(1, documents.size());
+        assertEquals("letter-edited.pdf", documents.get(0).getTitle());
     }
 
     @Test
