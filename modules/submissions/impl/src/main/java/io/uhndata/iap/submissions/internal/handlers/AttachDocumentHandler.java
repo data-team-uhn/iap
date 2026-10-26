@@ -50,8 +50,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>The type is checked before the content is read, and it is the type the caller claims. Nothing here checks
  * that the bytes are of that type.</p>
  *
- * <p>A {@link DocumentRequirement#isGenerated() generated} document is refused: {@link GenerateDocumentHandler}
- * fills it in, and the file sent on has to be the one it produced.</p>
+ * <p>A {@link DocumentRequirement#isGenerated() generated} document takes an upload too: the submitter may replace
+ * what {@link GenerateDocumentHandler} filled in with a version of their own, which becomes its newest version.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -142,17 +142,11 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     {
         final String named = Payloads.requireText(context.getEvent(), REQUIREMENT_PARAMETER,
             "The upload does not say which requirement it answers");
-        final DocumentRequirement requirement = findRequirement(submission, named)
+        return findRequirement(submission, named)
             // One whose condition does not hold is not asked, and the form does not offer it
             .filter(submission::isApplicable)
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));
-        // The platform fills it in from the answers, and the one it filled in is the one sent on
-        if (requirement.isGenerated()) {
-            throw new InvalidPayloadException(requirement.getLabel()
-                + " is generated from the answers, and cannot be uploaded");
-        }
-        return requirement;
     }
 
     /**
