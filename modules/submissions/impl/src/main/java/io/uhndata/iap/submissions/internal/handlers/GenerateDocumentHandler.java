@@ -70,11 +70,11 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
     /** The variable holding the path of the stored PDF, for the nodes downstream and the channel. */
     public static final String GENERATED_PATH_VARIABLE = "generatedDocumentPath";
 
+    /** The name of the filled {@code .docx}, beside the PDF in the same {@code sub:File}. */
+    public static final String DOCX_NODE = "generated.docx";
+
     /** The activity property naming the requirement to fill in. */
     static final String REQUIREMENT_PARAMETER = "requirement";
-
-    /** The name of the filled {@code .docx}, beside the PDF in the same {@code sub:File}. */
-    static final String DOCX_NODE = "generated.docx";
 
     private final DocumentGenerator generator;
 

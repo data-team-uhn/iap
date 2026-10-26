@@ -35,7 +35,8 @@ The schema version does point at its workflow version, so the two halves are alr
 ## The generated request form
 
 `requestForm` is a generated document: the platform fills its `.docx` template in from the answers and
-attaches the PDF, which the requester asks for from the request's page. It needs the generation worker
+attaches the PDF, which the requester asks for from the request's page. They can download the filled `.docx`,
+edit it, and upload it back in its place; the requirement takes only a `.docx` (its `acceptedFileTypes`). It needs the generation worker
 running (`generate_compose.py --generation`, or the worker on `localhost:18766` beside `start.py`).
 
 The template is `SLING-INF/content/Schemas/timeOffRequest/v1/requestForm/template`, a plain `.docx` with no
