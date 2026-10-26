@@ -60,6 +60,9 @@ public class TaskInstance extends Entity
     /** The property holding when the task {@link #getStartTime() started} waiting. */
     public static final String START_TIME_PROPERTY = "startTime";
 
+    /** The property listing the boundary events of the task that have {@link #getFiredEvents() already fired}. */
+    public static final String FIRED_EVENTS_PROPERTY = "firedEvents";
+
     /** The property holding when the task {@link #getEndTime() ended}. */
     public static final String END_TIME_PROPERTY = "endTime";
 

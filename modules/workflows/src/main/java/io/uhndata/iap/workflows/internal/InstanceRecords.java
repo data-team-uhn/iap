@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -34,6 +31,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -52,6 +50,10 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  *
  * <p>Every write goes through the engine's own session and is committed by whoever runs the walk. Deciding where
  * tokens go is {@link InstanceRunner}'s job; this only records it.</p>
+ *
+ * <p>A node this class writes is passed as a {@link Resource}, and a node it only reads as a model. A model cannot be
+ * written through. It is also cached on the resource it was adapted from, so a model read before a write goes on
+ * describing the node as it was.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -100,17 +102,7 @@ final class InstanceRecords
             Map.of(JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
                 WorkflowInstance.STATUS_PROPERTY, WorkflowInstance.ACTIVE_STATUS,
                 WorkflowInstance.START_TIME_PROPERTY, Calendar.getInstance()));
-        // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
-        // right identifier as the wrong type
-        final Node node = Objects.requireNonNull(instance.adaptTo(Node.class),
-            "A freshly created instance is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(versionResource.adaptTo(Node.class),
-            "A workflow version is always backed by a JCR node");
-        try {
-            node.setProperty("workflowVersion", target);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not point the instance at its workflow version", e);
-        }
+        ReferenceUtils.setReference(instance, "workflowVersion", versionResource);
         return instance;
     }
 
@@ -152,9 +144,9 @@ final class InstanceRecords
      * @param token the token to delete
      * @throws PersistenceException when it cannot be deleted
      */
-    void deleteToken(final WorkflowToken token) throws PersistenceException
+    void deleteToken(final Resource token) throws PersistenceException
     {
-        this.resolver.delete(getResource(token.getPath()));
+        this.resolver.delete(token);
     }
 
     /**
@@ -254,11 +246,11 @@ final class InstanceRecords
     {
         final WorkflowInstance model = asInstance(instance);
         for (final WorkflowToken token : model.getTokens()) {
-            deleteToken(token);
+            deleteToken(getResource(token.getPath()));
         }
         for (final TaskInstance task : model.getTaskInstances()) {
             if (TaskInstance.OPEN_STATUS.equals(task.getStatus())) {
-                cancelTask(task);
+                cancelTask(getResource(task.getPath()));
             }
         }
         closeInstance(instance);
@@ -306,10 +298,10 @@ final class InstanceRecords
      * @param outcome what they decided, or {@code null} for a task that offers no choice
      * @throws PersistenceException when the task or the outcome cannot be written
      */
-    void completeTask(final Resource instance, final TaskInstance task, final String actor, final String outcome)
+    void completeTask(final Resource instance, final Resource task, final String actor, final String outcome)
         throws PersistenceException
     {
-        final ModifiableValueMap properties = getModifiableProperties(getResource(task.getPath()));
+        final ModifiableValueMap properties = getModifiableProperties(task);
         properties.put(TaskInstance.STATUS_PROPERTY, TaskInstance.COMPLETED_STATUS);
         properties.put(TaskInstance.END_TIME_PROPERTY, Calendar.getInstance());
         properties.put("assignee", actor);
@@ -325,9 +317,9 @@ final class InstanceRecords
      *
      * @param task the task cancelled
      */
-    void cancelTask(final TaskInstance task)
+    void cancelTask(final Resource task)
     {
-        final ModifiableValueMap properties = getModifiableProperties(getResource(task.getPath()));
+        final ModifiableValueMap properties = getModifiableProperties(task);
         properties.put(TaskInstance.STATUS_PROPERTY, TaskInstance.CANCELLED_STATUS);
         properties.put(TaskInstance.END_TIME_PROPERTY, Calendar.getInstance());
     }
@@ -339,14 +331,15 @@ final class InstanceRecords
      * @param definition the activity the task was raised from
      * @param timer the timer that fired
      */
-    void recordFiredTimer(final TaskInstance task, final Activity definition, final IntermediateCatchingEvent timer)
+    void recordFiredTimer(final Resource task, final Activity definition, final IntermediateCatchingEvent timer)
     {
-        final ModifiableValueMap properties = getModifiableProperties(getResource(task.getPath()));
-        final List<String> fired = new ArrayList<>(task.getFiredEvents());
+        final ModifiableValueMap properties = getModifiableProperties(task);
+        final List<String> fired =
+            new ArrayList<>(List.of(properties.get(TaskInstance.FIRED_EVENTS_PROPERTY, new String[0])));
         fired.add(timer.getElementId());
-        properties.put("firedEvents", fired.toArray(String[]::new));
-        armNextDeadline(definition, Objects.requireNonNullElseGet(task.getStartTime(), Calendar::getInstance), fired,
-            properties);
+        properties.put(TaskInstance.FIRED_EVENTS_PROPERTY, fired.toArray(String[]::new));
+        final Calendar started = properties.get(TaskInstance.START_TIME_PROPERTY, Calendar.class);
+        armNextDeadline(definition, Objects.requireNonNullElseGet(started, Calendar::getInstance), fired, properties);
     }
 
     /**

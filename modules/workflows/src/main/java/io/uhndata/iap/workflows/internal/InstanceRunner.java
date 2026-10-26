@@ -131,7 +131,7 @@ final class InstanceRunner
             "A task is only completed once its definition has been found");
         final Resource instanceResource = this.records.getResource(instance.getPath());
         final Resource token = this.records.findTokenAt(instanceResource, definition.getElementId());
-        this.records.completeTask(instanceResource, task, this.actor, outcome);
+        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()), this.actor, outcome);
 
         // An activity has exactly one way out. If it leads to a gateway, the walk forks there
         final SequenceFlow flow = this.routing.selectOutgoingFlows(definition, instance).get(0);
@@ -160,12 +160,12 @@ final class InstanceRunner
 
         if (timer.isInterrupting()) {
             // Gateways downstream see the last recorded outcome, if there is one
-            this.records.cancelTask(task);
+            this.records.cancelTask(this.records.getResource(task.getPath()));
             runFrom(instanceResource, this.records.findTokenAt(instanceResource, definition.getElementId()), timer,
                 null);
             return;
         }
-        this.records.recordFiredTimer(task, definition, timer);
+        this.records.recordFiredTimer(this.records.getResource(task.getPath()), definition, timer);
         runFrom(instanceResource, this.records.createToken(instanceResource, timer.getElementId()), timer, null);
     }
 
@@ -274,7 +274,7 @@ final class InstanceRunner
         final List<WorkflowToken> waiting = this.records.findTokensAt(instance, node.getElementId());
         for (final WorkflowToken merged : this.routing.findTokensMergingIntoArrival(node, token.getPath(), arrivedBy,
             waiting)) {
-            this.records.deleteToken(merged);
+            this.records.deleteToken(this.records.getResource(merged.getPath()));
             // A fork leading straight into its own join queues every branch before any is walked, so a merged
             // token may still be queued. Left there, the walk would move a token that no longer exists
             pending.removeIf(queued -> queued.token().getPath().equals(merged.getPath()));

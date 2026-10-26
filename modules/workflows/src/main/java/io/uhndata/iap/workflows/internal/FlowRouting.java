@@ -31,6 +31,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
+import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.Gateway;
 import io.uhndata.iap.workflows.models.InclusiveGateway;
@@ -69,18 +70,22 @@ public class FlowRouting
 
     /**
      * Whether a token may pass through a node without stopping there. A start event and a gateway may be passed, and
-     * so may a boundary event a token stands on, since it stands there only once the event has fired. End events and
-     * activities are not asked about: the engine handles them first.
+     * so may a service task, which is performed on the way. So may a boundary event a token stands on, since it stands
+     * there only once the event has fired.
      *
-     * <p>A free-standing catching event may not be passed: a token reaching it would have to wait, and nothing can
-     * wake it yet. Any other node, such as a throwing event, means nothing to the engine and may not be passed
-     * either.</p>
+     * <p>A token stops at a user task, to wait for a person, and at an end event, where it ends. A free-standing
+     * catching event may not be passed either: a token reaching it would have to wait, and nothing can wake it yet.
+     * Any other node, such as a throwing event, means nothing to the engine and may not be passed.</p>
      *
      * @param node the node to ask about
      * @return {@code true} if a token may pass through it
      */
     boolean canPassThrough(final FlowNode node)
     {
+        if (node instanceof Activity) {
+            // No handler means a user task, which waits for a person
+            return ((Activity) node).getHandler() != null;
+        }
         return node instanceof StartEvent || node instanceof Gateway || isFiredBoundaryEvent(node);
     }
 
@@ -129,7 +134,8 @@ public class FlowRouting
 
     /**
      * Which of the tokens waiting on a join would merge into a token arriving there, if the join lets it through.
-     * The arriving token is the one that would carry on past the join; the tokens returned would end there.
+     * The arriving token is the one that would carry on past the join. The tokens returned by this method would be
+     * merged into it, ceasing to exist.
      *
      * <p>An inclusive join would merge every waiting token. A parallel join would merge one waiting token for each of
      * its other incoming flows, leaving any extra token from a flow to wait for the next round.</p>
