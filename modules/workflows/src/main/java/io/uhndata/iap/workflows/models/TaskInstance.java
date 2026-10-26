@@ -45,6 +45,27 @@ public class TaskInstance extends Entity
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";
 
+    /** The property holding the task's {@link #getStatus() status}. */
+    public static final String STATUS_PROPERTY = "status";
+
+    /** The {@link #getStatus() status} a task carries until it is completed or cancelled. */
+    public static final String OPEN_STATUS = "created";
+
+    /** The status of a task a person completed. */
+    public static final String COMPLETED_STATUS = "completed";
+
+    /** The status of a task nobody completed: its deadline ran out, or its instance was terminated. */
+    public static final String CANCELLED_STATUS = "cancelled";
+
+    /** The property holding when the task {@link #getStartTime() started} waiting. */
+    public static final String START_TIME_PROPERTY = "startTime";
+
+    /** The property listing the boundary events of the task that have {@link #getFiredEvents() already fired}. */
+    public static final String FIRED_EVENTS_PROPERTY = "firedEvents";
+
+    /** The property holding when the task {@link #getEndTime() ended}. */
+    public static final String END_TIME_PROPERTY = "endTime";
+
     @ValueMapValue
     private String taskDefinitionId;
 
@@ -70,10 +91,16 @@ public class TaskInstance extends Entity
     private String outcome;
 
     @ValueMapValue
+    private String dueEventId;
+
+    @ValueMapValue
     private String[] offeredOutcomes;
 
     @ValueMapValue
     private String[] performers;
+
+    @ValueMapValue
+    private String[] firedEvents;
 
     /**
      * The {@link FlowNode#getElementId() element identifier} of the {@link Activity} this task was raised from.
@@ -169,6 +196,19 @@ public class TaskInstance extends Entity
     }
 
     /**
+     * The boundary event whose timer set this task's {@link #getDueDate() deadline}, named by its element
+     * identifier. An activity may be watched by several timers, and this says which one fires when the deadline
+     * passes.
+     *
+     * @return an element identifier, or {@code null} when nothing is counting down to this task
+     */
+    @Nullable
+    public String getDueEventId()
+    {
+        return this.dueEventId;
+    }
+
+    /**
      * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
      * offered them when the task was raised.
      *
@@ -199,6 +239,22 @@ public class TaskInstance extends Entity
     public List<String> getPerformers()
     {
         return this.performers == null ? List.of() : List.of(this.performers);
+    }
+
+    /**
+     * The boundary events watching this task that have already fired, named by their
+     * {@link FlowNode#getElementId() element identifiers}.
+     *
+     * <p>Only a non-interrupting event can fire and leave the task open. The task's next
+     * {@link #getDueDate() deadline} is armed from the timers not listed here, so a deadline that has passed is not
+     * delivered again on every sweep.</p>
+     *
+     * @return the identifiers of the events that have fired, empty for a task nothing has happened to yet
+     */
+    @NotNull
+    public List<String> getFiredEvents()
+    {
+        return this.firedEvents == null ? List.of() : List.of(this.firedEvents);
     }
 
     /**

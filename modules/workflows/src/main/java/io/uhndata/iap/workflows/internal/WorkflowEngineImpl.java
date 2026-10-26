@@ -17,14 +17,12 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -42,10 +40,6 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
-import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.EndEvent;
-import io.uhndata.iap.workflows.models.FlowNode;
-import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -75,19 +69,35 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 public class WorkflowEngineImpl implements WorkflowEngine
 {
     /** The subservice name under which the engine's service user is mapped. */
-    private static final String SUBSERVICE_NAME = "workflows";
+    static final String SUBSERVICE_NAME = "workflows";
+
+    /**
+     * How many nodes one delivery may pass through, counted across all its branches, before the definition is
+     * declared broken. Far above anything a real workflow needs, so a definition whose arcs form a cycle fails fast
+     * instead of spinning. A system workflow's run and a user workflow's walk share it.
+     */
+    static final int MAX_STEPS = 200;
+
+    /** How many times an event aimed at a task is run again after another walk of the same instance won a race. */
+    private static final int CONFLICT_RETRIES = 2;
 
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
 
-    /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
-    private static final String CREATED_BY_PROPERTY = "createdBy";
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    /** Evaluates every guard, on a start event and on a gateway's arcs alike. */
     @Reference
     private ConditionEvaluator conditionEvaluator;
+
+    /** Decides where the tokens of a user workflow go. */
+    @Reference
+    private FlowRouting routing;
+
+    /** Ends the user tasks an event is aimed at, and carries their instances on. */
+    @Reference
+    private TaskCompletion taskCompletion;
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
@@ -148,27 +158,34 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * system workflow: the decision, the task's new state and what follows from it all happen, or none of them
      * do.
      *
-     * @param task the task being completed, resolved through the engine's session
+     * <p>Two walks of one instance at once conflict when the second commits. The loser is reverted, which also
+     * brings its session up to date, and run again on top of what the winner did.</p>
+     *
+     * @param task the task the event is aimed at, resolved through the engine's session
      * @param event the incoming event
-     * @param actor the user completing it
-     * @return an empty result: completing a task creates nothing to send the caller to
+     * @param actor the user who sent the event
+     * @return an empty result: ending a task creates nothing to send the caller to
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
     private WorkflowResult resume(final Resource task, final WorkflowEvent event, final String actor)
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
-        try {
-            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor));
-            resolver.commit();
-            return new WorkflowResult(Map.of());
-        } catch (final PersistenceException e) {
-            revert(resolver);
-            throw RepositoryFailures.translate(e);
-        } catch (final WorkflowException | RuntimeException e) {
-            revert(resolver);
-            throw e;
-        }
+        return RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
+            try {
+                this.taskCompletion.apply(resolver, Objects.requireNonNull(resolver.getResource(task.getPath()),
+                    "A task is never deleted while its instance runs"), event, actor,
+                    dispatcher().performer(event, actor));
+                resolver.commit();
+                return new WorkflowResult(Map.of());
+            } catch (final PersistenceException e) {
+                revert(resolver);
+                throw RepositoryFailures.translate(e);
+            } catch (final WorkflowException | RuntimeException e) {
+                revert(resolver);
+                throw e;
+            }
+        });
     }
 
     /**
@@ -186,7 +203,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = target.getResourceResolver();
         try {
-            final Map<String, Object> variables = run(target, event, start, actor, 0);
+            final Map<String, Object> variables = dispatcher().runSystemWorkflow(target, event, start, actor, 0);
             resolver.commit();
             return new WorkflowResult(variables);
         } catch (final PersistenceException e) {
@@ -196,47 +213,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-    }
-
-    /**
-     * Runs a system workflow to quiescence, without committing: node by node from the start event, performing
-     * each service task, until an end event is reached. A system workflow has no instance, and nowhere to wait.
-     * Any node that cannot be passed straight through means the definition is not a valid system workflow.
-     *
-     * @param target the resource the event is aimed at, backed by the engine's own session
-     * @param event the incoming event
-     * @param start the entry point to run from
-     * @param actor the user who fired the event
-     * @param depth how many sent events deep this run is, 0 for the event that came in
-     * @return the variables the run left behind
-     * @throws WorkflowException when the run cannot complete, typed by whose fault that is
-     * @throws PersistenceException when a write fails
-     */
-    private Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor, final int depth) throws WorkflowException, PersistenceException
-    {
-        final ResourceResolver resolver = target.getResourceResolver();
-        final ServiceTaskDispatcher dispatcher = dispatcher();
-        final Map<String, Object> variables = new LinkedHashMap<>();
-        FlowNode node = start;
-        for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
-            if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
-                return variables;
-            }
-            if (node instanceof Activity) {
-                dispatcher.perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node,
-                    variables, actor, dispatcher, depth));
-            } else if (!(node instanceof StartEvent) || step > 0) {
-                // A system workflow cannot contain this node: there is no persisted instance whose token
-                // could rest here
-                throw new WorkflowDefinitionException("A system workflow cannot wait, but " + node.getPath()
-                    + " is not a straight-through node");
-            }
-            node = advance(node);
-        }
-        throw new WorkflowDefinitionException("The workflow did not reach an end event within "
-            + InstanceRunner.MAX_STEPS + " steps; its sequence flows probably form a cycle");
     }
 
     /**
@@ -261,7 +237,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
         PerformerCheck.verify(resolver, start, actor);
-        run(target, event, start, actor, depth);
+        dispatcher().runSystemWorkflow(target, event, start, actor, depth);
     }
 
     /**
@@ -272,52 +248,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ServiceTaskDispatcher dispatcher()
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain);
-    }
-
-    /**
-     * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
-     * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
-     *
-     * @param resolver the engine's session, still uncommitted
-     * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
-     * @throws PersistenceException when the created node cannot be written to
-     */
-    private void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
-        final String actor) throws PersistenceException
-    {
-        final Object created = variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (!(created instanceof String)) {
-            return;
-        }
-        final Resource resource = Objects.requireNonNull(resolver.getResource((String) created),
-            "A handler reported creating something that is not there");
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
-            "A node the engine just created is always modifiable").put(CREATED_BY_PROPERTY, actor);
-    }
-
-    /**
-     * Follows the single outgoing arc of a straight-through node.
-     *
-     * @param node the node execution is leaving
-     * @return the node the arc leads to
-     * @throws WorkflowDefinitionException when the node does not have exactly one resolvable way out
-     */
-    private FlowNode advance(final FlowNode node) throws WorkflowDefinitionException
-    {
-        final List<SequenceFlow> flows = node.getOutgoingFlows();
-        if (flows.size() != 1) {
-            throw new WorkflowDefinitionException("A system workflow must be straight-through, but " + node.getPath()
-                + " has " + flows.size() + " outgoing sequence flows instead of exactly one");
-        }
-        final FlowNode next = flows.get(0).getTarget();
-        if (next == null) {
-            throw new WorkflowDefinitionException("The sequence flow " + flows.get(0).getPath()
-                + " points at " + flows.get(0).getTargetRef() + ", which does not exist in this workflow");
-        }
-        return next;
+        return new ServiceTaskDispatcher(this.handlers, this::chain, this.routing);
     }
 
     /**

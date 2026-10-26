@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   id="timeOffRequestDefinitions"
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
@@ -39,7 +40,21 @@
       <bpmn:outgoing>toRejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="requestApproved">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
+          <sv:property sv:name="comparator"><sv:value>equals</sv:value></sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="source"><sv:value>variable</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>outcome</sv:value></sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
+            <sv:property sv:name="value" sv:multiple="true"><sv:value>approved</sv:value></sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
     <bpmn:endEvent id="requestApproved" name="Time off approved">
