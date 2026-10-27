@@ -32,9 +32,8 @@ import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that every generated document has a {@code .docx} template to be filled in. A submitter cannot upload a
- * generated document, so without one the requirement could never be met, and every submission against the version
- * would stay incomplete.
+ * Check that every generated document has a {@code .docx} template to be filled in. Without one nothing could be
+ * generated.
  *
  * @version $Id$
  * @since 0.1.0

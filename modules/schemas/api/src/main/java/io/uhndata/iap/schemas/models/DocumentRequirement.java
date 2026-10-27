@@ -91,7 +91,8 @@ public class DocumentRequirement extends Requirement
 
     /**
      * Whether the platform fills the document in from the submission, using {@link #getTemplate() the template},
-     * rather than the submitter providing it. A generated document cannot be uploaded.
+     * rather than the submitter providing it. The submitter may still upload a version of their own, such as an
+     * edited copy, in place of what was generated.
      *
      * @return {@code true} if the document is generated
      */

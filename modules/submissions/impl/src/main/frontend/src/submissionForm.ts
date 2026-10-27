@@ -100,8 +100,8 @@ export interface DocumentRequirement extends Requirement {
   // Whether the submission is incomplete without it. An optional one is still asked, since whether it
   // is asked at all was decided on the server, but skipping it blocks nothing.
   required: boolean;
-  // Whether the platform fills it in from the answers. A generated document is never uploaded, and has
-  // no template offered: its template is what the platform fills in.
+  // Whether the platform fills it in from the answers. The submitter may still upload a version of their
+  // own. No template is offered: its template is what the platform fills in.
   generated: boolean;
   // Until submitting is a workflow step (IAP-88): whether an answer changed after the newest document
   // was generated. Only stated for a generated requirement.
