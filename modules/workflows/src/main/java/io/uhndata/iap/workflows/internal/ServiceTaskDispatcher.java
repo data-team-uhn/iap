@@ -27,7 +27,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -62,8 +61,8 @@ final class ServiceTaskDispatcher
     /** What decides where the tokens of any instance a task starts go. */
     private final FlowRouting routing;
 
-    /** Resolves the people named in the definition of any instance a task starts. */
-    private final PrincipalService principals;
+    /** Hands out the runner for any instance a task starts. */
+    private final InstanceRunners runners;
 
     /**
      * Constructor.
@@ -71,15 +70,15 @@ final class ServiceTaskDispatcher
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
      * @param routing what decides where the tokens of any instance a task starts go
-     * @param principals resolves the people named in the definition of any instance a task starts
+     * @param runners hands out the runner for any instance a task starts
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
-        final PrincipalService principals)
+        final InstanceRunners runners)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
-        this.principals = principals;
+        this.runners = runners;
     }
 
     /**
@@ -190,23 +189,16 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * What decides where the tokens of any instance a task starts go.
+     * A runner for an instance a service task starts, performing the service tasks it meets through this dispatcher.
      *
-     * @return the engine's flow routing
+     * @param resolver the engine's own session
+     * @param event the event being delivered
+     * @param actor the user the execution acts for
+     * @return the runner
      */
-    FlowRouting getRouting()
+    InstanceRunner runnerFor(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
     {
-        return this.routing;
-    }
-
-    /**
-     * Resolves the people named in the definition of any instance a task starts.
-     *
-     * @return the engine's principal service
-     */
-    PrincipalService getPrincipals()
-    {
-        return this.principals;
+        return this.runners.runnerFor(resolver, performer(event, actor), actor);
     }
 
     /**

@@ -25,9 +25,7 @@ import java.util.Optional;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -72,26 +70,30 @@ final class InstanceRunner
 
     private final InstanceRecords records;
 
+    private final HostAccess hostAccess;
+
     /**
-     * Constructor.
+     * Constructor, for {@link InstanceRunners}, which holds the services every run shares.
      *
-     * @param resolver the engine's own session, which everything is read and written through
+     * @param records the nodes of the run, in the engine's own session
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
      * @param routing what decides where tokens go
-     * @param principals resolves the people a definition names
+     * @param hostAccess grants read access on the resource an instance drives
      */
-    InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final FlowRouting routing, final PrincipalService principals)
+    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final String actor,
+        final FlowRouting routing, final HostAccess hostAccess)
     {
+        this.records = records;
         this.performer = performer;
         this.actor = actor;
         this.routing = routing;
-        this.records = new InstanceRecords(resolver, principals);
+        this.hostAccess = hostAccess;
     }
 
     /**
-     * Starts a new instance of a workflow version on a host resource and runs it up to its first wait.
+     * Starts a new instance of a workflow version on a host resource and runs it up to its first wait. Everyone the
+     * workflow involves may read the host from then on.
      *
      * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
      * @param version the version to instantiate
@@ -113,6 +115,7 @@ final class InstanceRunner
         }
         final Resource instance = this.records.createInstance(host, version);
         runFrom(instance, this.records.createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
+        this.hostAccess.grantReaders(this.records.getResolver(), host, version, this.actor);
         return instance;
     }
 

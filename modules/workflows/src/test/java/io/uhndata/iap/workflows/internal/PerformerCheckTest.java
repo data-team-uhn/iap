@@ -213,7 +213,7 @@ class PerformerCheckTest
     private static void verify(final ResourceResolver resolver, final Resource subject, final FlowNode node,
         final String actor) throws Exception
     {
-        PerformerCheck.verify(EngineFixture.principals(), resolver, subject, node, actor);
+        EngineFixture.performers().checkFor(resolver, actor).verify(node, subject);
     }
 
     /**

@@ -109,7 +109,7 @@ class HostAccessTest
      */
     private void grantReaders(final ResourceResolver resolver) throws PersistenceException
     {
-        HostAccess.grantReaders(EngineFixture.principals(), resolver, host(), version(), EngineFixture.REQUESTER);
+        EngineFixture.hostAccess().grantReaders(resolver, host(), version(), EngineFixture.REQUESTER);
     }
 
     @Test

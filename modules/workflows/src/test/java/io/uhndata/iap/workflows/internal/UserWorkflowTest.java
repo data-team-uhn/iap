@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -557,23 +556,9 @@ class UserWorkflowTest
     private WorkflowEngine engine(final ServiceTaskHandler... handlers) throws Exception
     {
         this.context.resourceResolver().commit();
-        final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
         registered.add(new StartWorkflowHandler());
-        inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", registered);
-        inject(impl, "conditionEvaluator", EngineFixture.conditions());
-        inject(impl, "routing", EngineFixture.routing());
-        inject(impl, "taskCompletion", EngineFixture.taskCompletion());
-        inject(impl, "principals", EngineFixture.principals());
-        return impl;
-    }
-
-    private static void inject(final Object target, final String field, final Object value) throws Exception
-    {
-        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(target, value);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
     }
 
     /**
@@ -915,14 +900,8 @@ class UserWorkflowTest
     {
         createProcess(EngineFixture.REQUESTERS);
         started();
-        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
-            new PersistenceException("the disk is on fire")));
-        inject(engine, "handlers", List.of(new StartWorkflowHandler()));
-        inject(engine, "conditionEvaluator", EngineFixture.conditions());
-        inject(engine, "routing", EngineFixture.routing());
-        inject(engine, "taskCompletion", EngineFixture.taskCompletion());
-        inject(engine, "principals", EngineFixture.principals());
+        final WorkflowEngine engine = EngineFixture.engine(EngineFixture.serviceUsers(this.context,
+            new PersistenceException("the disk is on fire")), List.of(new StartWorkflowHandler()));
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));

@@ -29,8 +29,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.principals.api.PrincipalContext;
-import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.utils.ReferenceUtils;
@@ -69,18 +67,28 @@ final class InstanceRecords
 
     private final ResourceResolver resolver;
 
-    private final PrincipalService principals;
+    private final Performers performers;
 
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
-     * @param principals resolves the people a definition names
+     * @param performers says who the names in a definition stand for
      */
-    InstanceRecords(final ResourceResolver resolver, final PrincipalService principals)
+    InstanceRecords(final ResourceResolver resolver, final Performers performers)
     {
         this.resolver = resolver;
-        this.principals = principals;
+        this.performers = performers;
+    }
+
+    /**
+     * The session everything is read and written through.
+     *
+     * @return the engine's own session
+     */
+    ResourceResolver getResolver()
+    {
+        return this.resolver;
     }
 
     /**
@@ -300,8 +308,8 @@ final class InstanceRecords
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
             TaskInstance.OUTCOME_OPTIONS_PROPERTY, activity.getOutcomeOptions().toArray(String[]::new),
-            TaskInstance.PERFORMERS_PROPERTY, this.principals.resolve(activity.getPerformers(),
-                PrincipalContext.about(hostOf(instance))).toArray(String[]::new),
+            TaskInstance.PERFORMERS_PROPERTY,
+            this.performers.resolve(activity, hostOf(instance)).toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);

@@ -66,6 +66,7 @@ import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -199,7 +200,7 @@ public final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, routing(), principals());
+            }, routing(), runners());
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }
@@ -357,15 +358,85 @@ public final class EngineFixture
     }
 
     /**
-     * How the engine ends a user task, routing the resumed instance through the fixture's {@link #routing()} and
-     * resolving the people its definition names through the fixture's {@link #principals()}.
+     * Who the names in a definition stand for, as the fixture's {@link #principals() principal service} answers.
+     *
+     * @return the engine's performers
+     */
+    static Performers performers()
+    {
+        return new Performers(principals());
+    }
+
+    /**
+     * How the engine grants read access on the resources its workflows drive.
+     *
+     * @return the engine's host access
+     */
+    static HostAccess hostAccess()
+    {
+        return new HostAccess(performers());
+    }
+
+    /**
+     * Where the engine gets the runner that carries a user workflow on, routing through the fixture's
+     * {@link #routing()}.
+     *
+     * @return the engine's instance runners
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static InstanceRunners runners() throws ReflectiveOperationException
+    {
+        return new InstanceRunners(routing(), performers(), hostAccess());
+    }
+
+    /**
+     * How the engine ends a user task.
      *
      * @return a task completion for the engine
      * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
      */
     static TaskCompletion taskCompletion() throws ReflectiveOperationException
     {
-        return new TaskCompletion(routing(), principals());
+        return new TaskCompletion(performers(), runners());
+    }
+
+    /**
+     * An engine wired as the DS runtime would wire it, over the given service sessions and handlers. Wiring is by
+     * reflection, since the SCR metadata only exists in the packaged bundle.
+     *
+     * @param resolverFactory where the engine opens its own sessions
+     * @param handlers the service task handlers to register
+     * @return a ready engine
+     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
+     */
+    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
+        final List<ServiceTaskHandler> handlers) throws ReflectiveOperationException
+    {
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", resolverFactory);
+        inject(engine, "handlers", handlers);
+        inject(engine, "conditionEvaluator", conditions());
+        inject(engine, "routing", routing());
+        inject(engine, "performers", performers());
+        inject(engine, "runners", runners());
+        inject(engine, "taskCompletion", taskCompletion());
+        return engine;
+    }
+
+    /**
+     * Sets one of the engine's references.
+     *
+     * @param engine the engine
+     * @param field the reference's field name
+     * @param value what to set it to
+     * @throws ReflectiveOperationException when there is no such field
+     */
+    static void inject(final WorkflowEngineImpl engine, final String field, final Object value)
+        throws ReflectiveOperationException
+    {
+        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
+        reference.setAccessible(true);
+        reference.set(engine, value);
     }
 
     /**

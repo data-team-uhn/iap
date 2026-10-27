@@ -130,7 +130,7 @@ class WorkflowEngineImplTest
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
      */
-    private WorkflowEngine engine(final ServiceTaskHandler... extraHandlers) throws Exception
+    private WorkflowEngineImpl engine(final ServiceTaskHandler... extraHandlers) throws Exception
     {
         return engine(null, extraHandlers);
     }
@@ -144,24 +144,17 @@ class WorkflowEngineImplTest
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
      */
-    private WorkflowEngine engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
+    private WorkflowEngineImpl engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
         throws Exception
     {
         // The fixture content was written through the test's own session; the engine matches through its service
         // session, which only sees what has been committed
         this.context.resourceResolver().commit();
-        final WorkflowEngineImpl impl = new WorkflowEngineImpl();
-        inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, failure));
         final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
         allHandlers.add(new CreateEntityHandler());
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
-        inject(impl, "handlers", allHandlers);
-        inject(impl, "conditionEvaluator", EngineFixture.conditions());
-        inject(impl, "routing", EngineFixture.routing());
-        inject(impl, "taskCompletion", EngineFixture.taskCompletion());
-        inject(impl, "principals", EngineFixture.principals());
-        return impl;
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers);
     }
 
     /**
@@ -174,7 +167,7 @@ class WorkflowEngineImplTest
      */
     private WorkflowEngine recording(final List<OpenedSession> opened) throws Exception
     {
-        final WorkflowEngine engine = engine();
+        final WorkflowEngineImpl engine = engine();
         final ResourceResolverFactory serviceUsers = EngineFixture.serviceUsers(this.context, null);
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
@@ -183,15 +176,8 @@ class WorkflowEngineImplTest
             opened.add(session);
             return session;
         });
-        inject(engine, "resolverFactory", factory);
+        EngineFixture.inject(engine, "resolverFactory", factory);
         return engine;
-    }
-
-    private static void inject(final Object target, final String field, final Object value) throws Exception
-    {
-        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(target, value);
     }
 
     @Test
@@ -559,7 +545,7 @@ class WorkflowEngineImplTest
         Mockito.when(brokenFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", brokenFactory);
+        EngineFixture.inject(engine, "resolverFactory", brokenFactory);
         final Resource target = EngineFixture.createTarget(this.context);
 
         assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
@@ -733,11 +719,11 @@ class WorkflowEngineImplTest
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow("archive");
         guard(OTHER_START, "open");
-        final WorkflowEngine engine = engine();
+        final WorkflowEngineImpl engine = engine();
         final Field injected = WorkflowEngineImpl.class.getDeclaredField("conditionEvaluator");
         injected.setAccessible(true);
         final ConditionEvaluator evaluator = Mockito.spy((ConditionEvaluator) injected.get(engine));
-        inject(engine, "conditionEvaluator", evaluator);
+        EngineFixture.inject(engine, "conditionEvaluator", evaluator);
 
         assertNotNull(engine.findApplicableWorkflow(target, CREATE.getName()));
 

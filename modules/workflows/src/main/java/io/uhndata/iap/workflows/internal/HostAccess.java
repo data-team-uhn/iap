@@ -34,9 +34,10 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.principals.api.PrincipalContext;
-import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -54,30 +55,39 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * @version $Id$
  * @since 0.1.0
  */
-final class HostAccess
+@Component(service = HostAccess.class)
+public class HostAccess
 {
-    private HostAccess()
+    private final Performers performers;
+
+    /**
+     * Constructor.
+     *
+     * @param performers says who the names in a definition stand for
+     */
+    @Activate
+    public HostAccess(@Reference final Performers performers)
     {
+        this.performers = performers;
     }
 
     /**
      * Grants read access on a host resource to everyone its workflow involves.
      *
-     * @param principals resolves the people a definition names
      * @param resolver the engine's own session
      * @param host the resource the workflow drives
      * @param version the workflow being instantiated
      * @param actor the user the instance is being run for
      * @throws PersistenceException when the access control list cannot be written
      */
-    static void grantReaders(final PrincipalService principals, final ResourceResolver resolver,
-        final Resource host, final WorkflowVersion version, final String actor) throws PersistenceException
+    void grantReaders(final ResourceResolver resolver, final Resource host, final WorkflowVersion version,
+        final String actor) throws PersistenceException
     {
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
         version.getActivities(null).stream()
             // Special names such as @creator are answered against the host, since an ACL needs real principals
-            .flatMap(task -> principals.resolve(task.getPerformers(), PrincipalContext.about(host)).stream())
+            .flatMap(task -> this.performers.resolve(task, host).stream())
             .forEach(readers::add);
         grant(resolver, host.getPath(), readers);
     }

@@ -26,7 +26,6 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -63,20 +62,20 @@ final class WorkflowQueries
      * @param target the target, resolved through the asking user's own session
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
      * @param evaluator decides whether guards hold
-     * @param principals resolves the people a definition names
+     * @param performers says who the names in a definition stand for
      * @return the event names, in alphabetical order
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, or several
      *             workflows would take one of the events
      */
     static Set<String> availableEvents(final Resource target, final ServiceLogin login,
-        final ConditionEvaluator evaluator, final PrincipalService principals) throws WorkflowException
+        final ConditionEvaluator evaluator, final Performers performers) throws WorkflowException
     {
-        final Scope scope = Scope.of(target.getResourceResolver(), login, principals);
+        final Scope scope = Scope.of(target.getResourceResolver(), login, performers);
         final Resource privileged = scope.privileged(target);
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
-            return TaskCompletion.availableEvents(privileged, scope.performers());
+            return TaskCompletion.availableEvents(privileged, scope.check());
         }
-        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, evaluator, scope.performers());
+        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, evaluator, scope.check());
     }
 
     /**
@@ -87,15 +86,15 @@ final class WorkflowQueries
      * @param event the event's name
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
      * @param evaluator decides whether guards hold
-     * @param principals resolves the people a definition names
+     * @param performers says who the names in a definition stand for
      * @return the workflow version, or {@code null} when no system workflow would take the event from the user
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, several
      *             workflows would take the event, or the user's session cannot read the one that would
      */
     static WorkflowVersion applicableWorkflow(final Resource target, final String event, final ServiceLogin login,
-        final ConditionEvaluator evaluator, final PrincipalService principals) throws WorkflowException
+        final ConditionEvaluator evaluator, final Performers performers) throws WorkflowException
     {
-        final Scope scope = Scope.of(target.getResourceResolver(), login, principals);
+        final Scope scope = Scope.of(target.getResourceResolver(), login, performers);
         final Resource privileged = scope.privileged(target);
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
             return null;
@@ -107,7 +106,7 @@ final class WorkflowQueries
         } catch (final NoApplicableWorkflowException e) {
             return null;
         }
-        return scope.performers().admits(start, privileged)
+        return scope.check().admits(start, privileged)
             ? handOver(target.getResourceResolver(), start) : null;
     }
 
@@ -167,17 +166,17 @@ final class WorkflowQueries
         /** The asking user. */
         private final String actor;
 
-        /** Resolves the people a definition names. */
-        private final PrincipalService principals;
+        /** Says who the names in a definition stand for. */
+        private final Performers performers;
 
         /** Whom the definitions admit, looked up the first time a question needs it. */
-        private PerformerCheck performers;
+        private PerformerCheck check;
 
-        private Scope(final ResourceResolver resolver, final String actor, final PrincipalService principals)
+        private Scope(final ResourceResolver resolver, final String actor, final Performers performers)
         {
             this.resolver = resolver;
             this.actor = actor;
-            this.principals = principals;
+            this.performers = performers;
         }
 
         /**
@@ -185,11 +184,11 @@ final class WorkflowQueries
          *
          * @param asking the resolver the user asks through
          * @param login opens the engine's own session
-         * @param principals resolves the people a definition names
+         * @param performers says who the names in a definition stand for
          * @return the scope, kept in the resolver until it closes
          * @throws WorkflowFailedException when the engine's session cannot be opened
          */
-        static Scope of(final ResourceResolver asking, final ServiceLogin login, final PrincipalService principals)
+        static Scope of(final ResourceResolver asking, final ServiceLogin login, final Performers performers)
             throws WorkflowFailedException
         {
             final String actor = UserIds.canonical(asking);
@@ -200,7 +199,7 @@ final class WorkflowQueries
             if (existing instanceof Scope) {
                 return (Scope) existing;
             }
-            final Scope scope = new Scope(login.open(), actor, principals);
+            final Scope scope = new Scope(login.open(), actor, performers);
             kept.put(key, scope);
             return scope;
         }
@@ -223,12 +222,12 @@ final class WorkflowQueries
          * @return the check, looked up once per scope
          * @throws WorkflowFailedException when the repository cannot say who the user is
          */
-        PerformerCheck performers() throws WorkflowFailedException
+        PerformerCheck check() throws WorkflowFailedException
         {
-            if (this.performers == null) {
-                this.performers = PerformerCheck.of(this.principals, this.resolver, this.actor);
+            if (this.check == null) {
+                this.check = this.performers.checkFor(this.resolver, this.actor);
             }
-            return this.performers;
+            return this.check;
         }
 
         @Override

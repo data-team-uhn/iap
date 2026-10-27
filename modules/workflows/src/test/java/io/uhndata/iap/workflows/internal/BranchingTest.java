@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -676,21 +675,8 @@ class BranchingTest
     private WorkflowEngine engine() throws Exception
     {
         this.context.resourceResolver().commit();
-        final WorkflowEngineImpl impl = new WorkflowEngineImpl();
-        inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", List.of(new StartWorkflowHandler()));
-        inject(impl, "conditionEvaluator", EngineFixture.conditions());
-        inject(impl, "routing", EngineFixture.routing());
-        inject(impl, "taskCompletion", EngineFixture.taskCompletion());
-        inject(impl, "principals", EngineFixture.principals());
-        return impl;
-    }
-
-    private static void inject(final Object target, final String field, final Object value) throws Exception
-    {
-        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(target, value);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null),
+            List.of(new StartWorkflowHandler()));
     }
 
     /**
