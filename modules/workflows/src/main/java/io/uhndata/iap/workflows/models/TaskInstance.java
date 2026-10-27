@@ -32,8 +32,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code wf:TaskInstance} node: a concrete piece of work raised by a running workflow and
- * waiting on a person. A part of its instance, and still a node of its own: "what is on my desk" is a query over
- * tasks, not a walk of the workflows that raised them.
+ * waiting on a person. It is a part of the workflow instance that raised it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,6 +64,12 @@ public class TaskInstance extends EntityPart
 
     /** The property holding when the task {@link #getEndTime() ended}. */
     public static final String END_TIME_PROPERTY = "endTime";
+
+    /** The property listing the outcomes the task may be decided with. */
+    public static final String OUTCOME_OPTIONS_PROPERTY = "outcomeOptions";
+
+    /** The property listing the principals who may complete the task. */
+    public static final String PERFORMERS_PROPERTY = "performers";
 
     @ValueMapValue
     private String taskDefinitionId;

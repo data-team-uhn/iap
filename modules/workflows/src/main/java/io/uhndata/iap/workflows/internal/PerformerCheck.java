@@ -45,9 +45,9 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * repository is being written with full privileges. The refusal happens here, before the first step. An actor
  * passes only if the definition named them, or named a group they belong to.</p>
  *
- * <p>The {@link PrincipalService} says who a definition's names stand for: {@code @creator} for whoever raised the
- * resource being worked on, {@code everyone} for any authenticated user, and a group however a deployment stores it.
- * This class adds only the administrator bypass.</p>
+ * <p>The {@link PrincipalService} says who a definition's names stand for. {@code @creator} is whoever raised the
+ * resource being worked on, {@code everyone} is any authenticated user, and a group counts however a deployment
+ * stores it. This class adds the administrator bypass, and refuses an actor the repository does not know.</p>
  *
  * @version $Id$
  * @since 0.1.0

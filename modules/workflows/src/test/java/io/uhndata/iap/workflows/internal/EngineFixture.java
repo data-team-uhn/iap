@@ -155,19 +155,30 @@ public final class EngineFixture
      *
      * @param target a target whose session is already masked with the canonical id, as {@link #actingAs} does
      * @param spelling what Sling should report the user id to be
-     * @return the target, disagreeing with itself about who is asking
+     * @return the target, whose resolver reports {@code spelling} as the user id
      */
     static Resource typedAtLogin(final Resource target, final String spelling)
     {
-        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        return seenThrough(target, new ResourceResolverWrapper(target.getResourceResolver())
         {
             @Override
             public String getUserID()
             {
                 return spelling;
             }
-        };
-        return new ResourceWrapper(target)
+        });
+    }
+
+    /**
+     * A resource as the given resolver sees it.
+     *
+     * @param resource the resource
+     * @param resolver the resolver it should report
+     * @return the same resource, reporting that resolver as its own
+     */
+    static Resource seenThrough(final Resource resource, final ResourceResolver resolver)
+    {
+        return new ResourceWrapper(resource)
         {
             @Override
             public ResourceResolver getResourceResolver()
@@ -438,9 +449,9 @@ public final class EngineFixture
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
-            // A principal store knowing no group an identity provider synchronises, so an unknown name stays unknown
+            // The principal store knows no synchronised group, so a name the user store lacks names nobody
             Mockito.doReturn(Mockito.mock(PrincipalManager.class)).when(session).getPrincipalManager();
-            // The engine's own session, never the actor's: whatever is asked about the actor goes to the stores
+            // Not the actor, so membership is looked up in the user and principal stores, not read off this session
             Mockito.doReturn("the-engine").when(session).getUserID();
             return session;
         } catch (final RepositoryException e) {

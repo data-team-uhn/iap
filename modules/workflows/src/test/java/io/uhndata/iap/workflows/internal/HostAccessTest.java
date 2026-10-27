@@ -109,7 +109,7 @@ class HostAccessTest
      */
     private void grantReaders(final ResourceResolver resolver) throws PersistenceException
     {
-        HostAccess.grantReaders(EngineFixture.principals(), resolver, host(), version(), "demo-requester");
+        HostAccess.grantReaders(EngineFixture.principals(), resolver, host(), version(), EngineFixture.REQUESTER);
     }
 
     @Test
@@ -117,7 +117,7 @@ class HostAccessTest
     {
         grantReaders(resolver(list()));
 
-        assertEquals(List.of("demo-requester", APPROVERS), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
     }
 
     @Test
@@ -137,7 +137,7 @@ class HostAccessTest
 
         grantReaders(resolverFor(manager));
 
-        assertEquals(List.of("demo-requester", APPROVERS), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
     }
 
     @Test
@@ -159,9 +159,9 @@ class HostAccessTest
     {
         // A definition may perfectly well name a group a given deployment has never created; that is not a reason
         // to refuse to start the workflow
-        grantReaders(resolver(list(), "demo-requester"));
+        grantReaders(resolver(list(), EngineFixture.REQUESTER));
 
-        assertEquals(List.of("demo-requester"), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER), this.granted);
     }
 
     @Test

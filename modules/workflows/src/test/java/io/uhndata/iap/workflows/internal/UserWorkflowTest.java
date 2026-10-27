@@ -20,7 +20,9 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -57,6 +60,9 @@ import io.uhndata.iap.workflows.models.ExclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
+import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -94,8 +100,6 @@ class UserWorkflowTest
 
     private static final String TARGET_REF = "targetRef";
 
-    private static final String STATUS = "status";
-
     private static final String HOST = "/Submissions/aLongWeekend";
 
     private static final String PROCESS = "/Workflows/timeOffRequest/v1";
@@ -103,8 +107,6 @@ class UserWorkflowTest
     private static final String TASK = HOST + "/wf:instances/timeOffRequest/approveRequest";
 
     private static final String APPROVE = "approveRequest";
-
-    private static final String BOOTSTRAP = "/SystemWorkflows/putUnderWorkflow/v1";
 
     private static final WorkflowEvent START = new WorkflowEvent("start", Map.of());
 
@@ -173,7 +175,7 @@ class UserWorkflowTest
      *
      * @param properties what to write on the activity
      */
-    private void onTheUserTask(final Map<String, Object> properties)
+    private void addToTheUserTask(final Map<String, Object> properties)
     {
         Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
             .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified").putAll(properties);
@@ -474,24 +476,59 @@ class UserWorkflowTest
      */
     private void createBootstrap()
     {
-        this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
-        this.context.create().resource("/SystemWorkflows/putUnderWorkflow", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow"));
-        this.context.create().resource(BOOTSTRAP, Map.of(
+        createStartingWorkflow("putUnderWorkflow", "sub/Submission", START.getName());
+    }
+
+    /**
+     * Adds a system workflow that catches an event on resources of one type, runs the given service tasks, and then
+     * starts the workflow its target references.
+     *
+     * @param name the definition's node name
+     * @param targetType the resource type the workflow is aimed at
+     * @param message the event it catches
+     * @param handlers the service tasks to run before starting the workflow, by handler name
+     */
+    private void createStartingWorkflow(final String name, final String targetType, final String message,
+        final String... handlers)
+    {
+        final String version = SystemWorkflowsHomepage.PATH + "/" + name + "/v1";
+        this.context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
+        this.context.create().resource(SystemWorkflowsHomepage.PATH + "/" + name, TYPE,
+            WorkflowDefinition.RESOURCE_TYPE);
+        this.context.create().resource(version, Map.of(
             TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE),
-            "targetResourceType", "sub/Submission"));
-        this.context.create().resource(BOOTSTRAP + "/raised", Map.of(
-            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "raised", "messageName", "start",
+            "targetResourceType", targetType));
+        this.context.create().resource(version + "/caught", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "caught", "messageName", message,
             "performers", new String[] {EngineFixture.REQUESTERS}));
-        this.context.create().resource(BOOTSTRAP + "/raised/toStart", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toStart", TARGET_REF, "start"));
-        this.context.create().resource(BOOTSTRAP + "/start", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "start", HANDLER, "startWorkflow",
-            "workflowFrom", "workflow"));
-        this.context.create().resource(BOOTSTRAP + "/start/toDone", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", TARGET_REF, "done"));
-        this.context.create().resource(BOOTSTRAP + "/done", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
+        String previous = version + "/caught";
+        for (final String handler : handlers) {
+            previous = addStep(previous, version + "/" + handler, Map.of(HANDLER, handler));
+        }
+        previous = addStep(previous, version + "/start",
+            Map.of(HANDLER, StartWorkflowHandler.HANDLER_NAME, "workflowFrom", "workflow"));
+        addStep(previous, version + "/done", Map.of());
+    }
+
+    /**
+     * Adds the next node of a straight walk, and the arc leading to it from the one before. A node with a handler is
+     * an activity; one without ends the walk.
+     *
+     * @param previous the path of the node the arc leaves
+     * @param path the path of the node to add
+     * @param configuration the node's own properties
+     * @return the path of the node added
+     */
+    private String addStep(final String previous, final String path, final Map<String, Object> configuration)
+    {
+        final String elementId = path.substring(path.lastIndexOf('/') + 1);
+        this.context.create().resource(previous + "/to-" + elementId, Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "to-" + elementId, TARGET_REF, elementId));
+        final Map<String, Object> properties = new HashMap<>(configuration);
+        properties.put(TYPE, configuration.isEmpty() ? EndEvent.RESOURCE_TYPE : Activity.RESOURCE_TYPE);
+        properties.put(ELEMENT_ID, elementId);
+        this.context.create().resource(path, properties);
+        return path;
     }
 
     /**
@@ -514,15 +551,18 @@ class UserWorkflowTest
      * Builds an engine wired as the DS runtime would wire it, with the {@code startWorkflow} handler the bootstrap
      * uses, and a service session that can answer who the repository's users are.
      *
+     * @param handlers the service task handlers to register besides {@code startWorkflow}
      * @return a ready engine
      * @throws Exception when reflection fails, which would be a bug in this test
      */
-    private WorkflowEngine engine() throws Exception
+    private WorkflowEngine engine(final ServiceTaskHandler... handlers) throws Exception
     {
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
+        final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
+        registered.add(new StartWorkflowHandler());
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(impl, "handlers", List.of(new StartWorkflowHandler()));
+        inject(impl, "handlers", registered);
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
         inject(impl, "routing", EngineFixture.routing());
         inject(impl, "taskCompletion", EngineFixture.taskCompletion());
@@ -568,37 +608,6 @@ class UserWorkflowTest
     private Resource host(final String actor)
     {
         return as(HOST, actor);
-    }
-
-    /**
-     * A system workflow in the shape of {@code createSubmission}: aimed at the submissions homepage, one activity
-     * raises a submission and the next puts it under its process, in the same walk.
-     */
-    private void createRaisingWorkflow()
-    {
-        final String version = "/SystemWorkflows/raise/v1";
-        this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
-        this.context.create().resource("/SystemWorkflows/raise", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Raise a submission"));
-        this.context.create().resource(version, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE),
-            "targetResourceType", "sub/SubmissionsHomepage"));
-        this.context.create().resource(version + "/requested", Map.of(
-            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "raise",
-            "performers", new String[] {EngineFixture.REQUESTERS}));
-        this.context.create().resource(version + "/requested/toRaise", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRaise", TARGET_REF, "raise"));
-        this.context.create().resource(version + "/raise", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "raise", HANDLER, "raise"));
-        this.context.create().resource(version + "/raise/toStart", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toStart", TARGET_REF, "start"));
-        this.context.create().resource(version + "/start", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "start", HANDLER, "startWorkflow",
-            "workflowFrom", "workflow"));
-        this.context.create().resource(version + "/start/toDone", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", TARGET_REF, "done"));
-        this.context.create().resource(version + "/done", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
     }
 
     /**
@@ -652,11 +661,12 @@ class UserWorkflowTest
     void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        onTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
+        addToTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
 
         started();
 
-        assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("outcomeOptions"));
+        assertArrayEquals(new String[] {"approved", "rejected"},
+            (String[]) read(TASK).get(TaskInstance.OUTCOME_OPTIONS_PROPERTY));
     }
 
     @Test
@@ -666,7 +676,7 @@ class UserWorkflowTest
 
         started();
 
-        assertEquals(0, ((String[]) read(TASK).get("outcomeOptions")).length);
+        assertEquals(0, ((String[]) read(TASK).get(TaskInstance.OUTCOME_OPTIONS_PROPERTY)).length);
     }
 
     @Test
@@ -676,77 +686,72 @@ class UserWorkflowTest
 
         started();
 
-        assertArrayEquals(new String[] {EngineFixture.REQUESTERS}, (String[]) read(TASK).get("performers"));
+        assertArrayEquals(new String[] {EngineFixture.REQUESTERS},
+            (String[]) read(TASK).get(TaskInstance.PERFORMERS_PROPERTY));
     }
 
     @Test
     void answersCreatorAgainstTheHostWhenItRecordsWhoMayCompleteATask() throws Exception
     {
-        createProcess("@creator");
+        createProcess(PrincipalService.CREATOR);
 
         started();
 
-        assertArrayEquals(new String[] {EngineFixture.REQUESTER}, (String[]) read(TASK).get("performers"));
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER},
+            (String[]) read(TASK).get(TaskInstance.PERFORMERS_PROPERTY));
     }
 
     @Test
     void answersCreatorAgainstAHostRaisedEarlierInTheSameWalk() throws Exception
     {
-        createProcess("@creator");
-        createRaisingWorkflow();
-        this.context.resourceResolver().commit();
-        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(new RaisingHandler(), new StartWorkflowHandler()));
-        inject(engine, "conditionEvaluator", EngineFixture.conditions());
-        inject(engine, "routing", EngineFixture.routing());
-        inject(engine, "taskCompletion", EngineFixture.taskCompletion());
-        inject(engine, "principals", EngineFixture.principals());
+        createProcess(PrincipalService.CREATOR);
+        // Aimed at the submissions homepage: one activity raises a submission, and the next starts its process
+        createStartingWorkflow("raise", "sub/SubmissionsHomepage", RAISE.getName(), RaisingHandler.NAME);
+        final WorkflowEngine engine = engine(new RaisingHandler());
 
         engine.receiveEvent(as("/Submissions", EngineFixture.REQUESTER), RAISE);
 
         assertArrayEquals(new String[] {EngineFixture.REQUESTER},
-            (String[]) read(RAISED + "/wf:instances/timeOffRequest/" + APPROVE).get("performers"));
+            (String[]) read(RAISED + "/wf:instances/timeOffRequest/" + APPROVE).get(TaskInstance.PERFORMERS_PROPERTY));
     }
 
     @Test
     void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
     {
-        createProcess("@creator");
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
-        assertEquals("completed", read(TASK).get(STATUS));
+        assertEquals(TaskInstance.COMPLETED_STATUS, read(TASK).get(TaskInstance.STATUS_PROPERTY));
     }
 
     @Test
     void admitsThemEvenWhenTheyTypedTheirNameDifferentlyAtLogin() throws Exception
     {
-        // A login resolves case-insensitively, and @creator compares against the id recorded on the host
-        createProcess("@creator");
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
             EngineFixture.REQUESTER.toUpperCase(Locale.ROOT)), APPROVED);
 
-        assertEquals("completed", read(TASK).get(STATUS));
+        assertEquals(TaskInstance.COMPLETED_STATUS, read(TASK).get(TaskInstance.STATUS_PROPERTY));
     }
 
     @Test
     void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
     {
-        createProcess("@creator");
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(as(TASK, "somebody-else"), APPROVED));
-        assertEquals("created", read(TASK).get(STATUS));
+        assertEquals(TaskInstance.OPEN_STATUS, read(TASK).get(TaskInstance.STATUS_PROPERTY));
     }
 
     @Test
     void offersCompletionToWhoeverRaisedTheHostOfATaskThatComesBackToThem() throws Exception
     {
-        createProcess("@creator");
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         assertEquals(Set.of(TaskCompletion.COMPLETE_EVENT),
@@ -903,8 +908,7 @@ class UserWorkflowTest
     void refusesToCloseADecisionWithoutAnOutcome() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
-            .adaptTo(ModifiableValueMap.class).put("outcomeOptions", new String[] {"approved", "rejected"});
+        addToTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
         final WorkflowEngine engine = started();
 
         // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
@@ -1091,13 +1095,7 @@ class UserWorkflowTest
         createBootstrap();
         reference(HOST, "workflow", PROCESS);
         final RecordingHandler handler = new RecordingHandler();
-        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
-        inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
-        inject(engine, "conditionEvaluator", EngineFixture.conditions());
-        inject(engine, "routing", EngineFixture.routing());
-        inject(engine, "taskCompletion", EngineFixture.taskCompletion());
-        inject(engine, "principals", EngineFixture.principals());
+        final WorkflowEngine engine = engine(handler);
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
@@ -1121,15 +1119,16 @@ class UserWorkflowTest
     }
 
     /**
-     * Raises a submission under the homepage it is aimed at, as {@code createSubmission} does, and reports what it
-     * created.
+     * Raises a submission under the homepage it is aimed at, and reports what it created.
      */
     private static final class RaisingHandler implements ServiceTaskHandler
     {
+        static final String NAME = "raise";
+
         @Override
         public String getName()
         {
-            return "raise";
+            return NAME;
         }
 
         @Override

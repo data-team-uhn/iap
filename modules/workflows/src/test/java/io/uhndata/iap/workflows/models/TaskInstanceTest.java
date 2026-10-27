@@ -79,8 +79,8 @@ class TaskInstanceTest
             Map.entry("endTime", this.started),
             Map.entry("dueDate", this.started),
             Map.entry("outcome", "approved"),
-            Map.entry("outcomeOptions", new String[] {"approved", "rejected"}),
-            Map.entry("performers", new String[] {"time-off-approvers"}),
+            Map.entry(TaskInstance.OUTCOME_OPTIONS_PROPERTY, new String[] {"approved", "rejected"}),
+            Map.entry(TaskInstance.PERFORMERS_PROPERTY, new String[] {"time-off-approvers"}),
             Map.entry("dueEventId", "approvalOverdue"),
             Map.entry("firedEvents", new String[] {"approvalSlow"})));
         final TaskInstance task = resource.adaptTo(TaskInstance.class);

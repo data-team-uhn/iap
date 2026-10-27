@@ -165,9 +165,9 @@ public class TaskCompletion
      */
     private static void stamp(final Resource taskResource)
     {
-        final ModifiableValueMap properties = Objects.requireNonNull(Objects.requireNonNull(
-            taskResource.getParent(), "A task always lives inside its instance")
-            .adaptTo(ModifiableValueMap.class), "The engine's own session can always write an instance");
+        final ModifiableValueMap properties = Objects.requireNonNull(
+            instanceOf(taskResource).adaptTo(ModifiableValueMap.class),
+            "The engine's own session can always write an instance");
         properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
 
@@ -218,7 +218,17 @@ public class TaskCompletion
      */
     private static Resource hostOf(final Resource taskResource)
     {
-        return InstanceRecords.hostOf(Objects.requireNonNull(taskResource.getParent(),
-            "A task always lives inside its instance"));
+        return InstanceRecords.hostOf(instanceOf(taskResource));
+    }
+
+    /**
+     * The workflow instance a task belongs to.
+     *
+     * @param taskResource a task
+     * @return the instance holding it
+     */
+    private static Resource instanceOf(final Resource taskResource)
+    {
+        return Objects.requireNonNull(taskResource.getParent(), "A task always lives inside its instance");
     }
 }

@@ -76,7 +76,7 @@ final class HostAccess
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
         version.getActivities(null).stream()
-            // Resolved as the performer check resolves them, so one declaration decides who may act and who may read
+            // Special names such as @creator are answered against the host, since an ACL needs real principals
             .flatMap(task -> principals.resolve(task.getPerformers(), PrincipalContext.about(host)).stream())
             .forEach(readers::add);
         grant(resolver, host.getPath(), readers);

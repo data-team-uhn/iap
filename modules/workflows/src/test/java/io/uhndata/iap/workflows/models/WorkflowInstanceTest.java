@@ -74,7 +74,7 @@ class WorkflowInstanceTest
     void isAPartOfItsHostRatherThanARecordOfItsOwn()
     {
         final Resource instance = this.context.create().resource(PATH, Map.of(
-            TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+            TYPE, WorkflowInstance.RESOURCE_TYPE, WorkflowInstance.STATUS_PROPERTY, WorkflowInstance.ACTIVE_STATUS));
 
         assertFalse(instance.isResourceType(Entity.RESOURCE_TYPE));
         assertTrue(instance.isResourceType("data/EntityPart"));
@@ -89,16 +89,17 @@ class WorkflowInstanceTest
         this.context.create().resource("/Requests/r1/wf:instances", Map.of(
             TYPE, WorkflowInstances.RESOURCE_TYPE));
         final Resource instance = this.context.create().resource("/Requests/r1/wf:instances/i1", Map.of(
-            TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+            TYPE, WorkflowInstance.RESOURCE_TYPE, WorkflowInstance.STATUS_PROPERTY, WorkflowInstance.ACTIVE_STATUS));
         final Resource task = this.context.create().resource("/Requests/r1/wf:instances/i1/task_1_1", Map.of(
-            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "approve", "status", "open"));
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "approve",
+            TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS));
 
         final Content fromInstance = OperandResolver.findEnclosingEntity(instance.adaptTo(WorkflowInstance.class));
         final Content fromTask = OperandResolver.findEnclosingEntity(task.adaptTo(TaskInstance.class));
 
         assertNotNull(fromInstance);
         assertEquals(host.getPath(), fromInstance.getPath());
-        // The same from a task, which is a part of a part: the walk does not stop at the process either
+        // A task is a part of a part, and the walk passes its instance too
         assertNotNull(fromTask);
         assertEquals(host.getPath(), fromTask.getPath());
     }

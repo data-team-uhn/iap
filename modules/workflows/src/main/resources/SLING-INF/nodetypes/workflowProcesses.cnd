@@ -48,8 +48,8 @@
 // into version storage, and restoring an earlier version would roll the workflow
 // back with it — quietly un-approving things. Verified against Oak, not assumed.
 //
-// That instances are entity parts, not versionable themselves, changes
-// nothing: on check-in, this setting decides what happens to a child of a
+// Instances are entity parts, not versionable themselves, and IGNORE still
+// applies: on check-in, this setting decides what happens to a child of a
 // versionable host, whatever the child's own type.
 [wf:WorkflowInstances] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected

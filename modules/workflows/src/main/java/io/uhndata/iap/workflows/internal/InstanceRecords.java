@@ -299,10 +299,9 @@ final class InstanceRecords
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
-            "outcomeOptions", activity.getOutcomeOptions().toArray(String[]::new),
-            // "@creator" is resolved now, against this host, so the recorded names stand on their own
-            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
-                .toArray(String[]::new),
+            TaskInstance.OUTCOME_OPTIONS_PROPERTY, activity.getOutcomeOptions().toArray(String[]::new),
+            TaskInstance.PERFORMERS_PROPERTY, this.principals.resolve(activity.getPerformers(),
+                PrincipalContext.about(hostOf(instance))).toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);

@@ -218,18 +218,17 @@ A **variable** is named by its node name, so looking one up is a child lookup, a
 value lives in the typed property its `dataType` names, so the repository indexes it as
 what it is.
 
-An instance is a **part** of what it drives, and a task a part of its instance: neither
-exists without the thing it belongs to, and nothing references, versions or identifies
-one. That is also what lets a guard read the host: a condition asks for the enclosing
-entity, and the walk from an instance or a task carries on past them to the host. A
-**task instance** is still a node type of its own, because people look for tasks: "what
-is on my desk" is a query over task instances, not a walk of every running workflow.
-Its `status` says the task is over and its `outcome` says how;
-gateways route on the outcome. `outcomeOptions` and `performers` are copied from the
-defining activity when the task is raised, so it is decided on the terms it was raised
-with, and whoever owes the decision can see them without reading the definition. The
-copies describe rather than permit: what makes a completion lawful is still the
-definition.
+An instance is a **part** of what it drives, and a task is a part of its instance.
+Neither exists without the thing it belongs to, and nothing references, versions or
+identifies one. That lets a guard read the host: a condition asks for the enclosing
+entity, and the walk from an instance or a task goes on to the host. A **task instance**
+still has a node type of its own, because "what is on my desk" is a query over task
+instances, not a walk of every running workflow. Its `status` says the task is over and
+its `outcome` says how; gateways route on the outcome. `outcomeOptions` and `performers`
+are copied from the defining activity when the task is raised, so it is decided on the
+terms it was raised with, and whoever owes the decision can see them without reading the
+definition. The copies describe rather than permit: what makes a completion lawful is
+still the definition.
 
 Anything workflows can run over carries the `wf:WorkflowAttachable` mixin, which
 autocreates the container:
@@ -777,15 +776,14 @@ shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` fo
 - **`everyone` means any authenticated user**, matched by name since it is a dynamic
   principal.
 - **`@creator` means whoever raised the resource being worked on**: the person the
-  engine recorded in `createdBy`, not `jcr:createdBy`, which names the engine's own
-  service user. No group can express it, and most processes need it: a request comes
-  back to the person who made it. A resource nothing raised, such as a homepage, is
-  nobody's, so `@creator` admits nobody there.
+  engine recorded in `createdBy`. `jcr:createdBy` names the engine's own service user
+  instead. A resource nothing raised, such as a homepage, is nobody's, and `@creator`
+  admits nobody there.
 - **Every name is read by the principals service**, so a name means the same people
-  wherever it is written. A group admits its members however a deployment stores it,
-  transitively, and including a role an identity provider synchronises without a group
-  node. A special name such as `@creator` is answered about the resource being worked
-  on: the event's target, or the host of the task being completed.
+  wherever it is written. A group admits its members transitively, however a deployment
+  stores it. That includes a role an identity provider synchronises with no group node.
+  A special name such as `@creator` is answered about the resource being worked on: the
+  event's target, or the host of the task being completed.
 - **Administrators pass regardless**, as they bypass access control in the repository,
   so one bad definition cannot lock out the people who could repair it.
 
@@ -947,25 +945,18 @@ and carries the instance on. Who may complete it is decided by the `performers` 
 defining activity.
 
 **A user task says what it may be decided with.** The engine copies the activity's
-`outcomeOptions` onto each task it raises, under the same name, beside its label: a task
-is decided on the terms it was raised with, and whoever does it can read the task
-without reading the definition. A task offering none has nothing to decide. A plain
-"done" on a task that expected a decision would complete it with no outcome, and the
-next gateway would take its default arc.
+`outcomeOptions` onto each task it raises, under the same name. A task offering none has
+nothing to decide. A task offering some cannot be completed without an outcome.
 
-**A user task also says who it is waiting for.** The engine records the activity's
+**A user task also says who it is waiting for.** The engine copies the activity's
 `performers` onto each task it raises, with `@creator` already answered against the
-host. "What is waiting for me" is then a question about tasks: a listing cannot run the
-engine per row, and the person owing a decision usually cannot read the workflow. The
-copy describes, it does not permit: every completion is still checked against the
-definition.
+host.
 
-**Submitting is a user task, not a separate mechanism.** A request that can still be
-filled in is one whose process is parked on a task performed by `@creator`; completing
-that task sends it. There is no "submit" event and no submit endpoint: the button on a
-submission's page says the task's own label, and a deployment that wants a request to go
-somewhere else first only edits its process. The page offers the tasks the reader may
-complete, as `@events` lists them, and only those with nothing to decide.
+**Submitting is a user task, not a separate mechanism.** A process hands a request back
+to its author with a task performed by `@creator`, and completing that task sends it on.
+There is no submit event and no submit endpoint. A submission's page shows a button for
+each task the reader may complete, as `@events` lists them, labelled with the task's
+label. Tasks that offer outcomes are left out.
 
 **A task can be given a deadline.** A boundary timer with a `timerDuration` is armed
 when the task is raised: the deadline is recorded on the task, as `dueDate` with
@@ -1058,8 +1049,8 @@ each completed on its own.
 - **A gateway's guards cannot name a question by its path.** They are evaluated against
   the instance, which is a part of its host, so `variable` reaches what the run knows,
   and `tags` and `property` read the host. An `answer` operand resolves a relative
-  question path against the definition it sits in, and a workflow holds no questions,
-  so routing on a request's own answers needs the question's identifier.
+  question path against the definition it sits in. A workflow holds no questions, so
+  routing on a request's own answers needs the question's identifier.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem is recorded; a guard is written as a `cond:condition` in
   the arc's `extensionElements`.

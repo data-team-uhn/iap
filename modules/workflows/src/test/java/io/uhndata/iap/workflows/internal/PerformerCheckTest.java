@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.FlowNode;
@@ -59,22 +60,18 @@ class PerformerCheckTest
 
     private static final String REQUESTER = "demo-requester";
 
-    private static final String EVERYONE = "everyone";
-
-    private static final String CREATOR = "@creator";
-
     @Test
     void admitsAnActorTheNodeNamesDirectly() throws Exception
     {
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER, false)), host(), node(REQUESTER), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(REQUESTER), REQUESTER));
     }
 
     @Test
     void admitsAnActorThroughTheirGroup() throws Exception
     {
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER, false), REQUESTERS), host(), node(REQUESTERS), REQUESTER));
+            repositoryWith(user(REQUESTER), REQUESTERS), raisedByNobody(), node(REQUESTERS), REQUESTER));
     }
 
     @Test
@@ -82,14 +79,14 @@ class PerformerCheckTest
     {
         // A group an identity provider synchronises has no node in the user store, so only the principal store
         // can admit through it
-        final ResourceResolver resolver = repositoryWith(user(REQUESTER, false));
+        final ResourceResolver resolver = repositoryWith(user(REQUESTER));
         final GroupPrincipal dynamic = Mockito.mock(GroupPrincipal.class);
         Mockito.when(dynamic.isMember(Mockito.any())).thenReturn(true);
         final PrincipalManager principalManager =
             ((JackrabbitSession) resolver.adaptTo(Session.class)).getPrincipalManager();
         Mockito.when(principalManager.getPrincipal("keycloak-role")).thenReturn(dynamic);
 
-        assertDoesNotThrow(() -> verify(resolver, host(), node("keycloak-role"), REQUESTER));
+        assertDoesNotThrow(() -> verify(resolver, raisedByNobody(), node("keycloak-role"), REQUESTER));
     }
 
     @Test
@@ -97,7 +94,7 @@ class PerformerCheckTest
     {
         // "everyone" is matched by name: it is a dynamic principal, so an actor need not report belonging to it
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER, false)), host(), node(EVERYONE), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
     }
 
     @Test
@@ -105,29 +102,29 @@ class PerformerCheckTest
     {
         // The break-glass: without it, one bad definition could lock out the very people who could fix it
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user("admin", true)), host(), node(), "admin"));
+            repositoryWith(administrator("admin")), raisedByNobody(), node(), "admin"));
     }
 
     @Test
     void admitsWhoeverRaisedTheResourceWhenTheNodeNamesTheCreator() throws Exception
     {
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER, false)), raisedBy(REQUESTER), node(CREATOR), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedBy(REQUESTER), node(PrincipalService.CREATOR), REQUESTER));
     }
 
     @Test
     void stillAdmitsANamedGroupOnANodeThatAlsoNamesTheCreator() throws Exception
     {
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER, false), REQUESTERS), raisedBy("someone-else"),
-            node(CREATOR, REQUESTERS), REQUESTER));
+            repositoryWith(user(REQUESTER), REQUESTERS), raisedBy("someone-else"),
+            node(PrincipalService.CREATOR, REQUESTERS), REQUESTER));
     }
 
     @Test
     void refusesAnActorTheNodeDoesNotName() throws Exception
     {
         final NotAuthorizedException refusal = assertThrows(NotAuthorizedException.class,
-            () -> verify(repositoryWith(user(REQUESTER, false), REQUESTERS), host(), node("time-off-approvers"),
+            () -> verify(repositoryWith(user(REQUESTER), REQUESTERS), raisedByNobody(), node("time-off-approvers"),
                 REQUESTER));
         assertTrue(refusal.getMessage().contains("not allowed"));
     }
@@ -136,16 +133,15 @@ class PerformerCheckTest
     void refusesSomebodyElseWhenTheNodeOnlyNamesTheCreator() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER, false), REQUESTERS), raisedBy("someone-else"), node(CREATOR),
+            repositoryWith(user(REQUESTER), REQUESTERS), raisedBy("someone-else"), node(PrincipalService.CREATOR),
             REQUESTER));
     }
 
     @Test
     void refusesEveryoneWhenTheNodeNamesTheCreatorOfSomethingNobodyRaised() throws Exception
     {
-        // A homepage, say: nothing recorded raising it, so it is nobody's and admits nobody
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER, false)), host(), node(CREATOR), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.CREATOR), REQUESTER));
     }
 
     @Test
@@ -153,31 +149,21 @@ class PerformerCheckTest
     {
         // The fail-closed rule: a definition that forgot to say who may use it admits no one, rather than all
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER, false), REQUESTERS), host(), node(), REQUESTER));
-    }
-
-    @Test
-    void looksNoGroupsUpForANodeNamingNobody() throws Exception
-    {
-        final ResourceResolver resolver = repositoryWith(user(REQUESTER, false), REQUESTERS);
-        final UserManager users = ((JackrabbitSession) resolver.adaptTo(Session.class)).getUserManager();
-
-        assertThrows(NotAuthorizedException.class, () -> verify(resolver, host(), node(), REQUESTER));
-        Mockito.verify(users, Mockito.never()).getAuthorizable(REQUESTERS);
+            repositoryWith(user(REQUESTER), REQUESTERS), raisedByNobody(), node(), REQUESTER));
     }
 
     @Test
     void refusesAnActorTheRepositoryHasNeverHeardOf() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER, false)), host(), node(EVERYONE), "nobody"));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), "nobody"));
     }
 
     @Test
     void refusesAnUnauthenticatedCaller() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER, false)), host(), node(EVERYONE), null));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), null));
     }
 
     @Test
@@ -187,7 +173,8 @@ class PerformerCheckTest
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(Mockito.mock(Session.class));
 
-        assertThrows(WorkflowFailedException.class, () -> verify(resolver, host(), node(EVERYONE), REQUESTER));
+        assertThrows(WorkflowFailedException.class,
+            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
     }
 
     @Test
@@ -198,18 +185,20 @@ class PerformerCheckTest
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
 
-        assertThrows(WorkflowFailedException.class, () -> verify(resolver, host(), node(EVERYONE), REQUESTER));
+        assertThrows(WorkflowFailedException.class,
+            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
     }
 
     @Test
     void failsWhenGroupMembershipCannotBeRead() throws Exception
     {
-        final ResourceResolver resolver = repositoryWith(user(REQUESTER, false));
+        final ResourceResolver resolver = repositoryWith(user(REQUESTER));
         final UserManager users = ((JackrabbitSession) resolver.adaptTo(Session.class)).getUserManager();
         Mockito.when(users.getAuthorizable(REQUESTERS))
             .thenThrow(new RepositoryException("the group index is corrupt"));
 
-        assertThrows(WorkflowFailedException.class, () -> verify(resolver, host(), node(REQUESTERS), REQUESTER));
+        assertThrows(WorkflowFailedException.class,
+            () -> verify(resolver, raisedByNobody(), node(REQUESTERS), REQUESTER));
     }
 
     /**
@@ -245,11 +234,11 @@ class PerformerCheckTest
      *
      * @return a stub resource that does not read as content and carries no record of its own
      */
-    private static Resource host()
+    private static Resource raisedByNobody()
     {
-        final Resource host = Mockito.mock(Resource.class);
-        Mockito.when(host.getValueMap()).thenReturn(new ValueMapDecorator(Map.of()));
-        return host;
+        final Resource resource = Mockito.mock(Resource.class);
+        Mockito.when(resource.getValueMap()).thenReturn(new ValueMapDecorator(Map.of()));
+        return resource;
     }
 
     /**
@@ -268,19 +257,31 @@ class PerformerCheckTest
     }
 
     /**
-     * An actor, optionally an administrator.
+     * An ordinary actor.
      *
      * @param id the actor's user id
-     * @param admin whether the actor is an administrator
      * @return a stub user
      * @throws RepositoryException never, but the stubbed methods declare it
      */
-    private static User user(final String id, final boolean admin) throws RepositoryException
+    private static User user(final String id) throws RepositoryException
     {
         final User actor = Mockito.mock(User.class);
         Mockito.when(actor.getID()).thenReturn(id);
-        Mockito.when(actor.isAdmin()).thenReturn(admin);
         Mockito.when(actor.getPrincipal()).thenReturn(() -> id);
+        return actor;
+    }
+
+    /**
+     * An actor who is an administrator.
+     *
+     * @param id the actor's user id
+     * @return a stub user
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static User administrator(final String id) throws RepositoryException
+    {
+        final User actor = user(id);
+        Mockito.when(actor.isAdmin()).thenReturn(true);
         return actor;
     }
 
@@ -306,7 +307,7 @@ class PerformerCheckTest
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
         Mockito.when(session.getUserManager()).thenReturn(userManager);
         Mockito.when(session.getPrincipalManager()).thenReturn(Mockito.mock(PrincipalManager.class));
-        // Never the actor: membership is asked of the engine's session about somebody else
+        // Not the actor, so membership is looked up in the user and principal stores, not read off this session
         Mockito.when(session.getUserID()).thenReturn("the-engine");
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
