@@ -69,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -266,6 +267,17 @@ class SaveAnswersHandlerTest
         final Calendar stamped = onlyAnswer().getValueMap().get("jcr:lastModified", Calendar.class);
         assertNotNull(stamped);
         assertFalse(stamped.before(before));
+    }
+
+    @Test
+    void leavesAnAnswerSavedAgainUnchangedUnstamped() throws Exception
+    {
+        // Otherwise a generated document reads as out of date when nothing it was filled in from moved
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        stampAnswers();
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+
+        assertNull(onlyAnswer().getValueMap().get("jcr:lastModified", Calendar.class));
     }
 
     @Test

@@ -92,7 +92,7 @@
           <sv:node sv:name="generated">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
             <sv:property sv:name="label"><sv:value>Generated from a template</sv:value></sv:property>
-            <sv:property sv:name="help"><sv:value>Filled in from the submission instead of uploaded by the submitter. Needs a .docx template.</sv:value></sv:property>
+            <sv:property sv:name="help"><sv:value>Filled in from the submission; the submitter may upload their own version instead. Needs a .docx template.</sv:value></sv:property>
           </sv:node>
           <sv:node sv:name="acceptedFileTypes">
             <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>nt:unstructured</sv:value></sv:property>
