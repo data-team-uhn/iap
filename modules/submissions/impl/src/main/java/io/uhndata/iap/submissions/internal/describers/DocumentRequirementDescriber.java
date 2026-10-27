@@ -32,10 +32,8 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
-import io.uhndata.iap.submissions.internal.handlers.GenerateDocumentHandler;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -205,11 +203,11 @@ public class DocumentRequirementDescriber implements RequirementDescriber
      * @param document the document
      * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
      */
-    private static Optional<Content> editableOf(final Document document)
+    private static Optional<Resource> editableOf(final Document document)
     {
         return Optional.ofNullable(document.getCurrentVersion())
             .map(DocumentVersion::getFile)
-            .map(file -> file.getChild(GenerateDocumentHandler.DOCX_NODE, Content.class));
+            .map(File::getGeneratedDocx);
     }
 
     /**
