@@ -17,12 +17,15 @@
  */
 package io.uhndata.iap.documents.generation.api;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
- * Tests for {@link GeneratedDocument}: nothing outside can change the bytes once the document was made.
+ * Tests for {@link GeneratedDocument}: each read starts afresh, and none can change the bytes for the next.
  *
  * @version $Id$
  * @since 0.1.0
@@ -30,16 +33,15 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 class GeneratedDocumentTest
 {
     @Test
-    void theBytesCannotBeChangedFromOutside()
+    void eachReadGivesTheWholeDocument() throws IOException
     {
-        final byte[] pdf = { 1, 2, 3 };
-        final GeneratedDocument document = new GeneratedDocument(new byte[] { 9 }, pdf);
+        final GeneratedDocument document = new GeneratedDocument(new byte[] { 9 }, new byte[] { 1, 2, 3 });
 
-        pdf[0] = 0;
-        document.getPdf()[1] = 0;
-        document.getDocx()[0] = 0;
+        try (InputStream first = document.openPdf()) {
+            first.skip(2);
+        }
 
-        assertArrayEquals(new byte[] { 1, 2, 3 }, document.getPdf());
-        assertArrayEquals(new byte[] { 9 }, document.getDocx());
+        assertArrayEquals(new byte[] { 1, 2, 3 }, document.openPdf().readAllBytes());
+        assertArrayEquals(new byte[] { 9 }, document.openDocx().readAllBytes());
     }
 }

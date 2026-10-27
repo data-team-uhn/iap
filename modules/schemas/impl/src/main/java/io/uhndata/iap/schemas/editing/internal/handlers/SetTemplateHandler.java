@@ -30,6 +30,8 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.documents.generation.api.DocumentGenerator;
+import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.utils.VersioningUtils;
@@ -61,18 +63,16 @@ public class SetTemplateHandler implements ServiceTaskHandler
     /** The requirement's child holding the template, as the node type names it. */
     static final String TEMPLATE_NODE = "template";
 
-    /** The largest template taken, which is also the largest the document generator will fill in. */
-    static final long MAX_TEMPLATE_BYTES = 10L * 1024 * 1024;
+    /** The largest template taken, which is the largest the document generator will fill in. */
+    static final long MAX_TEMPLATE_BYTES = DocumentGenerator.MAX_TEMPLATE_BYTES;
 
     private static final long MEGABYTE = 1024L * 1024;
 
     private static final String GENERIC_TYPE = "application/octet-stream";
 
-    private static final String DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
     /** Types a browser may not know and send untyped, by the extension that names them. */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
-        "docx", DOCX_TYPE,
+        "docx", GeneratedDocument.DOCX_MIME_TYPE,
         "doc", "application/msword",
         "odt", "application/vnd.oasis.opendocument.text",
         "pdf", "application/pdf");
@@ -103,7 +103,7 @@ public class SetTemplateHandler implements ServiceTaskHandler
         }
         final String mimeType = getMimeType(file);
         // Refused now rather than when the version is published, where GeneratedDocumentCheck would
-        if (requirement.isGenerated() && !DOCX_TYPE.equals(mimeType)) {
+        if (requirement.isGenerated() && !GeneratedDocument.DOCX_MIME_TYPE.equals(mimeType)) {
             throw new InvalidPayloadException(requirement.getLabel()
                 + " is generated from the answers, so its template has to be a Word (.docx) file");
         }

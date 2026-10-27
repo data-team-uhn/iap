@@ -33,6 +33,11 @@ import org.jetbrains.annotations.NotNull;
 public interface DocumentGenerator
 {
     /**
+     * The maximum size a template can be.
+     */
+    int MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
+
+    /**
      * Fill {@code template} with the values every provider has for {@code target}, and convert it to PDF.
      *
      * @param template the template, an {@code nt:file} holding a {@code .docx}

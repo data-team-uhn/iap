@@ -54,6 +54,10 @@
       <artifactId>iap-documents-generation-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+    </dependency>
     <!-- The submitter's account, for the values templates are given -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>

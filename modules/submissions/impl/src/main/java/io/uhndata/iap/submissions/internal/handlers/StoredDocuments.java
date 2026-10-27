@@ -129,9 +129,9 @@ final class StoredDocuments
     static void write(final Resource stored, final String name, final InputStream content, final String mimeType)
         throws PersistenceException
     {
-        final Node node = Objects.requireNonNull(stored.adaptTo(Node.class),
-            "A freshly created file is always backed by a JCR node");
         try (InputStream bytes = content) {
+            final Node node = Objects.requireNonNull(stored.adaptTo(Node.class),
+                "A freshly created file is always backed by a JCR node");
             final Node fileNode = node.addNode(name, "nt:file");
             final Node resource = fileNode.addNode("jcr:content", "nt:resource");
             resource.setProperty("jcr:data", fileNode.getSession().getValueFactory().createBinary(bytes));

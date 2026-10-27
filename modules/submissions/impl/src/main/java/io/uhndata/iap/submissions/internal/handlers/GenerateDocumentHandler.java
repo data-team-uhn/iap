@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.io.ByteArrayInputStream;
 import java.util.Objects;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -124,10 +123,9 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         final Resource document = StoredDocuments.findOrCreateDocument(target, submission, requirement,
             requirement.getLabel() + ".pdf", resolver);
         final Resource stored = StoredDocuments.addVersion(document, resolver);
-        StoredDocuments.write(stored, StoredDocuments.UPLOADED_FILE_NODE,
-            new ByteArrayInputStream(generated.getPdf()), GeneratedDocument.PDF_MIME_TYPE);
-        StoredDocuments.write(stored, DOCX_NODE, new ByteArrayInputStream(generated.getDocx()),
-            GeneratedDocument.DOCX_MIME_TYPE);
+        StoredDocuments.write(stored, StoredDocuments.UPLOADED_FILE_NODE, generated.openPdf(),
+            GeneratedDocument.PDF_MIME_TYPE);
+        StoredDocuments.write(stored, DOCX_NODE, generated.openDocx(), GeneratedDocument.DOCX_MIME_TYPE);
         context.setVariable(GENERATED_PATH_VARIABLE, stored.getPath() + "/" + StoredDocuments.UPLOADED_FILE_NODE);
     }
 
