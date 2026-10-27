@@ -22,3 +22,10 @@
 overrides:
   '@babel/runtime': ^7.29.7
   react-is: ^19.2.0
+
+# The lockfile is written only by the pnpm that package.json's packageManager field names.
+# Dependabot uses that version when the field is set, and a newer one of its own otherwise. pnpm 11
+# resolves ajv-formats differently from 10, so lockfiles from the two do not merge. With these
+# settings, any other pnpm refuses to run. The root pom's pnpmVersion must name the same version.
+managePackageManagerVersions: false
+packageManagerStrictVersion: true
