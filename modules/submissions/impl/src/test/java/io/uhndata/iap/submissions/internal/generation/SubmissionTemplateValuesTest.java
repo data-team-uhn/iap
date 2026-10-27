@@ -19,9 +19,11 @@ package io.uhndata.iap.submissions.internal.generation;
 
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -33,7 +35,9 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
@@ -51,7 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link SubmissionTemplateValues}: the answers reach a template nested as the schema nests its
- * questions, every question is there whether answered or not, and anything that is not a submission gets nothing.
+ * questions, every question is there whether answered or not, one that does not apply is blank, and anything that
+ * is not a submission gets nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,6 +74,9 @@ class SubmissionTemplateValuesTest
 
     private static final Calendar CREATED = new GregorianCalendar(2026, Calendar.OCTOBER, 21, 9, 30);
 
+    /** The schema parts these tests hide, by name; everything else applies. */
+    private final Set<String> hidden = new HashSet<>();
+
     // JCR-backed: answers and the submission point at the schema with real REFERENCEs
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -79,6 +87,11 @@ class SubmissionTemplateValuesTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, Section.class, Question.class, Answer.class, Submission.class);
+        // Everything applies unless a test says otherwise; the evaluator has its own tests
+        final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
+            .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
+        this.context.registerService(ConditionEvaluator.class, evaluator);
         this.context.create().resource("/Schemas/study", Map.of(TYPE, Schema.RESOURCE_TYPE, "title", "Study"));
         this.context.create().resource(VERSION_PATH, Map.of(TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0"));
         this.context.create().resource(VERSION_PATH + "/applicant", Map.of(
@@ -141,6 +154,36 @@ class SubmissionTemplateValuesTest
         final Map<?, ?> applicant = (Map<?, ?>) answers().get("applicant");
 
         assertEquals("", applicant.get("name"), "an unanswered question prints nothing rather than failing");
+        assertEquals(List.of(), applicant.get("sites"));
+    }
+
+    @Test
+    void blanksAQuestionThatNoLongerAppliesWhateverWasStoredForIt()
+    {
+        answer("1", "applicant/name", "Dr. A");
+        answer("2", "applicant/sites", "Toronto");
+        this.hidden.add("sites");
+
+        final Map<?, ?> applicant = (Map<?, ?>) answers().get("applicant");
+
+        assertEquals("Dr. A", applicant.get("name"));
+        assertEquals(List.of(), applicant.get("sites"), "blank rather than missing, so the template still fills in");
+    }
+
+    @Test
+    void blanksEverythingUnderASectionOrRequirementThatNoLongerApplies()
+    {
+        answer("1", "applicant/name", "Dr. A");
+        answer("2", "applicant/sites", "Toronto");
+        answer("3", "applicant/supervisor/name", "Dr. B");
+
+        this.hidden.add("supervisor");
+        assertEquals(Map.of("name", ""), ((Map<?, ?>) answers().get("applicant")).get("supervisor"));
+        assertEquals("Dr. A", ((Map<?, ?>) answers().get("applicant")).get("name"));
+
+        this.hidden.add("applicant");
+        final Map<?, ?> applicant = (Map<?, ?>) answers().get("applicant");
+        assertEquals("", applicant.get("name"));
         assertEquals(List.of(), applicant.get("sites"));
     }
 

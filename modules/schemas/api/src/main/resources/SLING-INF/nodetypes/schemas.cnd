@@ -305,7 +305,8 @@
 
   // Whether the platform fills the document in from the submission, using
   // the template below, rather than the submitter providing it. Then the
-  // template is required, and the submitter cannot upload one of their own.
+  // template is required. The submitter may still upload a version of their
+  // own, such as an edited copy, in place of what was generated.
   // Defaults to false.
   - generated (BOOLEAN)
 
