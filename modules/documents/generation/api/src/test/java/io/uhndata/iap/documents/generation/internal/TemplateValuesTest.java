@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -90,6 +91,22 @@ class TemplateValuesTest
         // A Date has no zone of its own, so it is read in the platform's
         assertEquals(Json.createValue(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
             calendar.toInstant().atZone(ZoneId.systemDefault()))), TemplateValues.toJson(calendar.getTime(), "x"));
+    }
+
+    @Test
+    void aZonedDateTimeLeavesItsZoneNameOut()
+    {
+        assertEquals(Json.createValue("2026-10-20T09:30:00-04:00"), TemplateValues.toJson(
+            ZonedDateTime.of(2026, 10, 20, 9, 30, 0, 0, ZoneId.of("America/Toronto")), "x"));
+    }
+
+    @Test
+    void anSqlDateIsTakenToo()
+    {
+        final LocalDate day = LocalDate.of(2026, 10, 20);
+
+        assertEquals(Json.createValue(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
+            day.atStartOfDay(ZoneId.systemDefault()))), TemplateValues.toJson(java.sql.Date.valueOf(day), "x"));
     }
 
     @Test

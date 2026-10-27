@@ -79,9 +79,6 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     /** Where the worker's token is read from when the configuration sets none. */
     static final String TOKEN_VARIABLE = "IAP_GENERATION_TOKEN";
 
-    /** The largest template sent: the worker refuses requests over 16 MiB, and base64 adds a third. */
-    static final int MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
-
     static final String DEFAULT_WORKER_URL = "http://localhost:18766";
 
     /** Above the worker's own worst case: three LibreOffice runs of 10 seconds each. */
@@ -337,6 +334,7 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         final long startedAt)
     {
         final GeneratedDocument document;
+        final int pdfBytes;
         try (JsonReader reader = Json.createReader(new StringReader(body))) {
             final JsonObject reply = reader.readObject();
             final String docx = reply.getString("docx", null);
@@ -344,13 +342,15 @@ public class WorkerDocumentGenerator implements DocumentGenerator
             if (docx == null || pdf == null) {
                 return failure(template, target, "The generation worker's answer is missing a document");
             }
-            document = new GeneratedDocument(Base64.getDecoder().decode(docx), Base64.getDecoder().decode(pdf));
+            final byte[] decodedPdf = Base64.getDecoder().decode(pdf);
+            pdfBytes = decodedPdf.length;
+            document = new GeneratedDocument(Base64.getDecoder().decode(docx), decodedPdf);
         } catch (final JsonException | ClassCastException | IllegalArgumentException e) {
             // Not JSON, or a document that is not base64
             return failure(template, target, "The generation worker's answer could not be read: " + describe(e));
         }
         LOGGER.info("Generated a document for {} from {}: pdfBytes={} inMs={}", target.getPath(),
-            template.getPath(), document.getPdf().length, (System.nanoTime() - startedAt) / 1_000_000L);
+            template.getPath(), pdfBytes, (System.nanoTime() - startedAt) / 1_000_000L);
         return GenerationResult.generated(document);
     }
 

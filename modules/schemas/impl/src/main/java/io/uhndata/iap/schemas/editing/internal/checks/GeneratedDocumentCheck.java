@@ -28,6 +28,7 @@ import java.util.zip.ZipInputStream;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
@@ -41,9 +42,6 @@ import io.uhndata.iap.workflows.spi.ValidityCheck;
 @Component(service = ValidityCheck.class)
 public class GeneratedDocumentCheck extends SchemaVersionCheck
 {
-    /** The media type of a {@code .docx} file. */
-    static final String DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
     private static final String GENERIC_TYPE = "application/octet-stream";
 
     /** The part of a {@code .docx} that holds the document's body. */
@@ -75,7 +73,7 @@ public class GeneratedDocumentCheck extends SchemaVersionCheck
     private static boolean isDocx(final Resource template)
     {
         final String type = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
-        if (DOCX_MIME_TYPE.equals(type)) {
+        if (GeneratedDocument.DOCX_MIME_TYPE.equals(type)) {
             return true;
         }
         // A file loaded with the bundle's content, or put in by hand, is named "template" with no extension to tell
