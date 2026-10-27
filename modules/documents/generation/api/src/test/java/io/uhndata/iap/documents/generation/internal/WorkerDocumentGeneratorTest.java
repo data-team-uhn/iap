@@ -46,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import com.sun.net.httpserver.HttpServer;
+import io.uhndata.iap.documents.generation.api.DocumentGenerator;
 import io.uhndata.iap.documents.generation.api.GenerationResult;
 import io.uhndata.iap.documents.generation.api.GenerationResult.Status;
 import io.uhndata.iap.documents.generation.spi.TemplateContextProvider;
@@ -141,8 +142,8 @@ class WorkerDocumentGeneratorTest
 
         assertEquals(Status.GENERATED, result.getStatus(), result.toString());
         assertNotNull(result.getDocument());
-        assertArrayEquals(DOCX, result.getDocument().getDocx());
-        assertArrayEquals(PDF, result.getDocument().getPdf());
+        assertArrayEquals(DOCX, result.getDocument().openDocx().readAllBytes());
+        assertArrayEquals(PDF, result.getDocument().openPdf().readAllBytes());
         assertArrayEquals(TEMPLATE, Base64.getDecoder().decode(this.received.getString("template")));
         assertEquals("Test my drug",
             this.received.getJsonObject("context").getJsonObject("submission").getString("title"));
@@ -259,7 +260,7 @@ class WorkerDocumentGeneratorTest
     void anOversizedTemplateIsRefusedBeforeItIsSent()
     {
         final Resource huge = this.context.load().binaryFile(
-            new ByteArrayInputStream(new byte[WorkerDocumentGenerator.MAX_TEMPLATE_BYTES + 1]),
+            new ByteArrayInputStream(new byte[DocumentGenerator.MAX_TEMPLATE_BYTES + 1]),
             "/Schemas/letter/decision/huge.docx");
 
         final GenerationResult result = generator(null, null).generate(huge, this.target);

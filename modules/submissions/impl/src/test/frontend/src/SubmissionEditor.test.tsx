@@ -595,7 +595,7 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} />);
       await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
 
-      expect(await screen.findByText(/This document could not be generated \(502\)/)).toBeInTheDocument();
+      expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
     });
 
     it("can be neither generated nor replaced once the request is no longer the submitter's to change", async () => {

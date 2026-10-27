@@ -38,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
@@ -211,7 +212,7 @@ class SchemaVersionChecksTest
         final Resource draft = this.fixture.version(this.schema, "v1", "draft");
         final Resource letter = this.fixture.create(draft.getPath(), "letter", "sch:DocumentRequirement",
             Map.of("label", "Decision letter", "generated", true));
-        template(letter, GeneratedDocumentCheck.DOCX_MIME_TYPE);
+        template(letter, GeneratedDocument.DOCX_MIME_TYPE);
 
         assertEquals("", problems(draft));
     }
