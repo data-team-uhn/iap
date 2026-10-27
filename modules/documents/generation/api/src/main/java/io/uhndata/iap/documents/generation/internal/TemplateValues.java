@@ -19,7 +19,9 @@ package io.uhndata.iap.documents.generation.internal;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
@@ -71,11 +73,12 @@ final class TemplateValues
     {
         return switch (value) {
             case null -> JsonValue.NULL;
-            case Calendar calendar -> Json.createValue(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
-                calendar.toInstant().atZone(calendar.getTimeZone().toZoneId())));
-            case Date date -> Json.createValue(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
-                date.toInstant().atZone(ZoneId.systemDefault())));
-            // The java.time types print themselves as ISO-8601
+            case Calendar calendar -> dateTime(calendar.toInstant().atZone(calendar.getTimeZone().toZoneId()));
+            // Not toInstant(), which java.sql.Date and Time refuse
+            case Date date -> dateTime(Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.systemDefault()));
+            // Its toString() appends [Zone], which is not ISO-8601
+            case ZonedDateTime zoned -> dateTime(zoned);
+            // The other java.time types print themselves as ISO-8601
             case TemporalAccessor temporal -> Json.createValue(temporal.toString());
             case Map<?, ?> map -> object(map, path);
             case Iterable<?> items -> array(items, path);
@@ -83,6 +86,11 @@ final class TemplateValues
             default -> throw new IllegalArgumentException(
                 path + " is a " + value.getClass().getName() + ", which a template cannot hold");
         };
+    }
+
+    private static JsonValue dateTime(final ZonedDateTime dateTime)
+    {
+        return Json.createValue(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(dateTime));
     }
 
     private static JsonValue number(final Number number, final String path)

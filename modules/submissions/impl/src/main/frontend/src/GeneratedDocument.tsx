@@ -23,15 +23,10 @@ import { Alert, Button, Link, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import { FileButton } from "./DocumentUpload";
-import {
-  type AttachedDocument,
-  type DocumentRequirement,
-  attachDocument,
-  generateDocument,
-  toFileUrl
-} from "./submissionForm";
+import { type AttachedDocument, type DocumentRequirement, attachDocument, toFileUrl } from "./submissionForm";
 
 export interface GeneratedDocumentProps {
   path: string;
@@ -78,7 +73,7 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
   const name = requirement.label || requirement.name;
 
   // Either way, the form is read again on success, since what is attached has changed
-  const send = (request: Promise<void>) => {
+  const send = (request: Promise<unknown>) => {
     setBusy(true);
     setFailure(undefined);
     request.then(
@@ -120,7 +115,7 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
           startIcon={<GenerateIcon />}
           disabled={disabled || busy}
           aria-label={`${versions.length > 0 ? "Generate again" : "Generate"} "${name}"`}
-          onClick={() => send(generateDocument(doFetch, path, requirement.name))}
+          onClick={() => send(sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }))}
         >
           {versions.length > 0 ? "Generate again" : "Generate from my answers"}
         </Button>

@@ -30,6 +30,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
@@ -88,8 +89,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * its own copy, {@code MIME_TYPE_BY_EXTENSION} in frontend-commons' {@code fileValidation.ts}.
      */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
-        "pdf", "application/pdf",
-        "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pdf", GeneratedDocument.PDF_MIME_TYPE,
+        "docx", GeneratedDocument.DOCX_MIME_TYPE,
         "doc", "application/msword");
 
     @Override
