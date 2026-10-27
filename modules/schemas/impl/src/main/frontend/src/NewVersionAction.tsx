@@ -24,11 +24,11 @@ import { useNavigate } from "react-router";
 import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import NewSchemaVersionDialog from "./NewSchemaVersionDialog";
-import { lastSegmentOf, latestVersion, nameOf, pathOf } from "./schemaModel";
+import { latestVersion, nameOf, pathOf } from "./schemaModel";
 import { versionPageUrl } from "./useSchemaList";
 
 import type { SchemaActionProps } from "./SchemaActions";

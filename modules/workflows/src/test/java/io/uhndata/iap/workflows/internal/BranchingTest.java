@@ -27,7 +27,6 @@ import javax.jcr.Node;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -722,13 +721,6 @@ class BranchingTest
         this.context.resourceResolver().refresh();
         final Resource resource = this.context.resourceResolver().getResource(path);
         final ResourceResolver resolver = EngineFixture.actingAs(this.context.resourceResolver(), actor);
-        return new ResourceWrapper(resource)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-        };
+        return EngineFixture.seenThrough(resource, resolver);
     }
 }

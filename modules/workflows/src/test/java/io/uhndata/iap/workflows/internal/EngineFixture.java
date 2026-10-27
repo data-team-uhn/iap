@@ -265,15 +265,7 @@ public final class EngineFixture
     public static Resource createTarget(final SlingContext context, final String actor)
     {
         final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
-        final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
-        return new ResourceWrapper(homepage)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-        };
+        return seenThrough(homepage, actingAs(homepage.getResourceResolver(), actor));
     }
 
     /**

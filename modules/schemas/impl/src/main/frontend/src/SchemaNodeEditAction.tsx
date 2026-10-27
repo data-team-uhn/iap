@@ -24,10 +24,10 @@ import { ActionIcon } from "@iap/frontend-commons/components/EventAction";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
 import { creatableOf, fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { lastSegmentOf, pathOf, renamedPath } from "./schemaModel";
+import { pathOf, renamedPath } from "./schemaModel";
 import SchemaNodeIdentifier from "./SchemaNodeIdentifier";
 import { ReloadTree, useTreeEvent } from "./schemaTree";
 import { isPart } from "./schemaVersionTreeModel";
