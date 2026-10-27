@@ -44,7 +44,6 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
-import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
@@ -53,7 +52,6 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
-import io.uhndata.iap.submissions.internal.handlers.GenerateDocumentHandler;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
@@ -349,11 +347,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @param document the document
      * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
      */
-    private static Optional<Content> editableOf(final Document document)
+    private static Optional<Resource> editableOf(final Document document)
     {
         return Optional.ofNullable(document.getCurrentVersion())
             .map(DocumentVersion::getFile)
-            .map(file -> file.getChild(GenerateDocumentHandler.DOCX_NODE, Content.class));
+            .map(File::getGeneratedDocx);
     }
 
     /**
