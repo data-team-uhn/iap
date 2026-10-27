@@ -228,15 +228,3 @@ export async function attachDocument(
   upload.append("file", file);
   await sendEvent(doFetch, path, "attachDocument", upload);
 }
-
-// Until submitting is a workflow step (IAP-88): asks the platform to fill a generated document in from
-// the answers so far, as a `generateDocument` event on the submission. Generating again adds a version.
-export async function generateDocument(
-  doFetch: AuthenticatedFetch, path: string, requirement: string): Promise<void> {
-  const body = new URLSearchParams({ requirement });
-  const response = await doFetch(`${path}.generateDocument.json`, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This document could not be generated (${response.status})`);
-  }
-}

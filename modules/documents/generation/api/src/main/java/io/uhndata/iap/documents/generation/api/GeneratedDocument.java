@@ -17,7 +17,12 @@
  */
 package io.uhndata.iap.documents.generation.api;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
 import org.jetbrains.annotations.NotNull;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * A filled template, as the editable {@code .docx} and the PDF made from it.
@@ -27,11 +32,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class GeneratedDocument
 {
-    /** The media type of {@link #getDocx()}. */
+    /** The media type of {@link #openDocx()}. */
     public static final String DOCX_MIME_TYPE =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-    /** The media type of {@link #getPdf()}. */
+    /** The media type of {@link #openPdf()}. */
     public static final String PDF_MIME_TYPE = "application/pdf";
 
     private final byte[] docx;
@@ -44,31 +49,33 @@ public final class GeneratedDocument
      * @param docx the filled template
      * @param pdf the PDF converted from it
      */
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2",
+        justification = "A PDF can run to megabytes, and the generator hands over arrays it never touches again")
     public GeneratedDocument(@NotNull final byte[] docx, @NotNull final byte[] pdf)
     {
-        this.docx = docx.clone();
-        this.pdf = pdf.clone();
+        this.docx = docx;
+        this.pdf = pdf;
     }
 
     /**
      * The filled template.
      *
-     * @return the {@code .docx} bytes, a copy
+     * @return a new stream over the {@code .docx} bytes
      */
     @NotNull
-    public byte[] getDocx()
+    public InputStream openDocx()
     {
-        return this.docx.clone();
+        return new ByteArrayInputStream(this.docx);
     }
 
     /**
      * The PDF converted from the filled template.
      *
-     * @return the PDF bytes, a copy
+     * @return a new stream over the PDF bytes
      */
     @NotNull
-    public byte[] getPdf()
+    public InputStream openPdf()
     {
-        return this.pdf.clone();
+        return new ByteArrayInputStream(this.pdf);
     }
 }
