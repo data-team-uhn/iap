@@ -168,7 +168,7 @@ class GenerateDocumentHandlerTest
         assertArrayEquals(PDF, bytes(file.getChild("uploadedFile")));
         assertEquals("application/pdf",
             file.getChild("uploadedFile").getValueMap().get("jcr:content/jcr:mimeType", String.class));
-        assertArrayEquals(DOCX, bytes(file.getChild(GenerateDocumentHandler.DOCX_NODE)));
+        assertArrayEquals(DOCX, bytes(file.getChild(File.GENERATED_DOCX_CHILD)));
     }
 
     @Test
@@ -232,6 +232,18 @@ class GenerateDocumentHandlerTest
 
         assertTrue(failure.getMessage().contains("Decision letter could not be generated: 'decision' is undefined"),
             failure.getMessage());
+        assertTrue(documents().isEmpty(), "nothing may look like the requirement's document");
+    }
+
+    @Test
+    void aBusyGeneratorAsksForAnotherTryRatherThanBlamingTheTemplate()
+    {
+        generatorAnswers(GenerationResult.failed(Status.UNAVAILABLE, "The generation worker answered 503"));
+
+        final WorkflowFailedException failure = assertThrows(WorkflowFailedException.class,
+            () -> this.handler.execute(context(LETTER)));
+
+        assertTrue(failure.getMessage().contains("Try again in a moment"), failure.getMessage());
         assertTrue(documents().isEmpty(), "nothing may look like the requirement's document");
     }
 
