@@ -29,7 +29,9 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.documents.generation.api.DocumentGenerator;
 import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.documents.generation.api.GenerationResult;
+import io.uhndata.iap.documents.generation.api.GenerationResult.Status;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -50,7 +52,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * </p>
  *
  * <p>The result is stored as an upload is, so every reader of a submission's documents treats it alike: the PDF is
- * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link #DOCX_NODE}. Generating
+ * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link File#getGeneratedDocx()}. Generating
  * again adds a version rather than replacing one, so the PDF the submitter was shown stays where it was.</p>
  *
  * <p>A requirement whose condition does not hold for this submission is not asked, so nothing is generated for it.
@@ -68,9 +70,6 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
 
     /** The variable holding the path of the stored PDF, for the nodes downstream and the channel. */
     public static final String GENERATED_PATH_VARIABLE = "generatedDocumentPath";
-
-    /** The name of the filled {@code .docx}, beside the PDF in the same {@code sub:File}. */
-    public static final String DOCX_NODE = "generated.docx";
 
     /** The activity property naming the requirement to fill in. */
     static final String REQUIREMENT_PARAMETER = "requirement";
@@ -113,8 +112,11 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         final GenerationResult result = this.generator.generate(template, target);
         final GeneratedDocument generated = result.getDocument();
         if (generated == null) {
-            throw new WorkflowFailedException(requirement.getLabel() + " could not be generated: "
-                + result.getMessage());
+            // Busy or down; asking again later may work
+            throw new WorkflowFailedException(result.getStatus() == Status.UNAVAILABLE
+                ? requirement.getLabel() + " could not be generated right now, as the document service is busy or "
+                    + "unreachable. Try again in a moment."
+                : requirement.getLabel() + " could not be generated: " + result.getMessage());
         }
 
         // Store it as the requirement's document
@@ -125,7 +127,8 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         final Resource stored = StoredDocuments.addVersion(document, resolver);
         StoredDocuments.write(stored, StoredDocuments.UPLOADED_FILE_NODE, generated.openPdf(),
             GeneratedDocument.PDF_MIME_TYPE);
-        StoredDocuments.write(stored, DOCX_NODE, generated.openDocx(), GeneratedDocument.DOCX_MIME_TYPE);
+        StoredDocuments.write(stored, File.GENERATED_DOCX_CHILD, generated.openDocx(),
+            GeneratedDocument.DOCX_MIME_TYPE);
         context.setVariable(GENERATED_PATH_VARIABLE, stored.getPath() + "/" + StoredDocuments.UPLOADED_FILE_NODE);
     }
 
