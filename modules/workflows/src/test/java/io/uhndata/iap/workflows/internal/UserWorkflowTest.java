@@ -181,10 +181,12 @@ class UserWorkflowTest
 
         final Map<String, Object> task = read(TASK);
         assertEquals("approvalOverdue", task.get("dueEventId"));
+        final Calendar started = (Calendar) task.get("startTime");
         final Calendar due = (Calendar) task.get("dueDate");
         assertNotNull(due);
-        final long days = (due.getTimeInMillis() - System.currentTimeMillis()) / 86400000L;
-        assertEquals(4, days, "Five days out, give or take the moment of measuring");
+        // Five calendar days in the server's own zone, which is 121 or 119 hours across a change of clocks
+        assertEquals(ZonedDateTime.ofInstant(started.toInstant(), ZoneId.systemDefault()).plusDays(5).toInstant(),
+            due.toInstant());
     }
 
     @Test
