@@ -18,22 +18,24 @@
 
 import { Typography } from "@mui/material";
 
-import { type ApprovalRequirement, formatDate } from "./submissionForm";
+import { formatDate } from "@iap/frontend-commons/dates";
 
-// Where an approval stands: who it waits on, or what they decided.
+import { type ApprovalRequirement } from "./submissionForm";
+
+// Where an approval stands: who it needs, or what they decided.
 function ApprovalState({ requirement }: { requirement: ApprovalRequirement }) {
-  const { approverGroup, approved, decidedBy, decidedAt } = requirement;
-  if (decidedBy === undefined) {
+  const { approverGroup, decision } = requirement;
+  if (decision === undefined) {
     return (
       <Typography variant="description">
-        {approverGroup ? `Waiting for approval from ${approverGroup}` : "Waiting for approval"}
+        {approverGroup ? `Needs approval from ${approverGroup}` : "Needs approval"}
       </Typography>
     );
   }
-  const when = decidedAt ? ` on ${formatDate(decidedAt)}` : "";
-  return approved
-    ? <Typography variant="body2" color="success">{`Approved by ${decidedBy}${when}`}</Typography>
-    : <Typography variant="description">{`Reviewed by ${decidedBy}${when}, and not approved`}</Typography>;
+  const when = decision.at ? ` on ${formatDate(decision.at)}` : "";
+  return decision.approved
+    ? <Typography variant="body2" color="success">{`Approved by ${decision.by}${when}`}</Typography>
+    : <Typography variant="description">{`Rejected by ${decision.by}${when}`}</Typography>;
 }
 
 export default ApprovalState;

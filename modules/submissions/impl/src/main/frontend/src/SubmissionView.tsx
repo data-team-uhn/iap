@@ -33,11 +33,14 @@ import {
 } from "@mui/material";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
+import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
+import { formatDate } from "@iap/frontend-commons/dates";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
+import { useNode } from "@iap/frontend-commons/useNode";
 import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
 import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
@@ -49,8 +52,6 @@ import {
   type Requirement,
   type SubmissionForm,
   describeNothingAttached,
-  fetchForm,
-  formatDate,
   isApprovalRequirement,
   isDocumentRequirement,
   toFileUrl
@@ -163,28 +164,11 @@ function Attachment({ document, named }: { document: SerializedNode; named: bool
   );
 }
 
-// What the form projection says this request is asked for, or why it could not be read. Neither, until
-// the projection arrives.
-interface FormProjection {
-  form?: SubmissionForm;
-  failure?: string;
-}
-
-// The requirements come from the form projection, not from the submission this page holds. A
-// requirement can be conditional, and the server resolves conditions, so reading them off the schema
-// would list what this request was never asked for.
-function useFormProjection(path: string): FormProjection {
-  const [projection, setProjection] = useState<FormProjection>({});
-  const doFetch = useAuthenticatedFetch();
-
-  // The page rebuilds the sections reading this for each request it shows, so a projection can only
-  // ever land on the request it was asked for
-  useEffect(() => {
-    fetchForm(doFetch, path).then(
-      form => setProjection({ form }),
-      (error: unknown) => setProjection({ failure: describeRequestFailure(error) }));
-  }, [doFetch, path]);
-  return projection;
+// The form projection's answer, read as a form. The servlet always lists the requirements; reading a
+// missing list as empty keeps a malformed answer from taking the whole page down.
+function asForm(node: Record<string, unknown>): SubmissionForm {
+  const requirements = Array.isArray(node.requirements) ? node.requirements as Requirement[] : [];
+  return { ...node, requirements } as SubmissionForm;
 }
 
 // A requirement's name and what it says about itself, above whatever answers it
@@ -199,20 +183,16 @@ function RequirementHeading({ requirement }: { requirement: Requirement }) {
   );
 }
 
-// What the schema asks for and what has been attached against it.
-function Documents({ projection: { form, failure }, documents }: {
-  projection: FormProjection;
+// What the schema asks for and what has been attached against it. Without the projection, what is
+// attached is still shown, since that comes from the submission itself.
+function Documents({ form, loading, documents }: {
+  form: SubmissionForm | undefined;
+  loading: boolean;
   documents: SerializedNode[];
 }) {
-  // Until the projection arrives nothing can be said about what was asked
-  if (!form && !failure) {
+  if (loading) {
     return <CircularProgress size={24} aria-label="Loading the documents" />;
   }
-  // A failed projection still leaves what is attached, which comes from the submission itself
-  const warning = failure
-    ? <Alert severity="warning">{`Which documents this request asks for could not be read: ${failure}`}</Alert>
-    : null;
-
   const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
   const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
     isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
@@ -223,12 +203,15 @@ function Documents({ projection: { form, failure }, documents }: {
   const unattributed = documents.filter(document => !claimed.has(document["@path"]));
 
   if (requirements.length === 0 && documents.length === 0) {
-    return warning ?? <Typography variant="placeholder">This request asks for no documents</Typography>;
+    return (
+      <Typography variant="placeholder">
+        {form ? "This request asks for no documents" : "No documents attached"}
+      </Typography>
+    );
   }
 
   return (
     <Stack spacing={2} divider={<Divider />}>
-      {warning}
       {requirements.map(requirement => {
         const attached = fulfilling(requirement);
         return (
@@ -248,11 +231,9 @@ function Documents({ projection: { form, failure }, documents }: {
 }
 
 // The approvals this request needs, and where each of them stands.
-function Approvals({ projection: { form, failure } }: { projection: FormProjection }) {
+function Approvals({ form }: { form: SubmissionForm | undefined }) {
   if (!form) {
-    return failure
-      ? <Alert severity="warning">{`Which approvals this request needs could not be read: ${failure}`}</Alert>
-      : <CircularProgress size={24} aria-label="Loading the approvals" />;
+    return <CircularProgress size={24} aria-label="Loading the approvals" />;
   }
   const approvals = form.requirements.filter(isApprovalRequirement);
   if (approvals.length === 0) {
@@ -270,17 +251,36 @@ function Approvals({ projection: { form, failure } }: { projection: FormProjecti
   );
 }
 
-// The parts of the request answered other than by its questions, both read off one projection
-function OtherRequirements({ path, documents }: { path: string; documents: SerializedNode[] }) {
-  const projection = useFormProjection(path);
+// The documents and approvals a request is asked for. Both come from the form projection rather than
+// from the submission this page holds: a requirement can be conditional, and the server resolves
+// conditions. The projection is read again whenever the page reads the submission again (`reloads`),
+// since whatever changed the one can change the other.
+function DocumentsAndApprovals({ path, documents, reloads }: {
+  path: string;
+  documents: SerializedNode[];
+  reloads: number;
+}) {
+  const { value: form, loading, loadError, reload } = useNode(path, "form", asForm);
+  const readFor = useRef(reloads);
+  useEffect(() => {
+    if (readFor.current !== reloads) {
+      readFor.current = reloads;
+      void reload();
+    }
+  }, [ reloads, reload ]);
+
   return (
     <>
+      {loadError
+        ? <LoadError title="What this request asks for could not be read" message={loadError} onRetry={reload} />
+        : null}
       <Panel title="Documents">
-        <Documents projection={projection} documents={documents} />
+        <Documents form={form} loading={loading} documents={documents} />
       </Panel>
-      <Panel title="Approvals">
-        <Approvals projection={projection} />
-      </Panel>
+      {/* Without a projection there is nothing true to say about approvals */}
+      {loading || form
+        ? <Panel title="Approvals"><Approvals form={form} /></Panel>
+        : null}
     </>
   );
 }
@@ -528,7 +528,7 @@ function SubmissionView() {
           <FormItems container={form} answers={answers} level={0} />
         </Panel>
       ))}
-      <OtherRequirements path={path} documents={documents} />
+      <DocumentsAndApprovals path={path} documents={documents} reloads={reloads} />
       <Panel title="Reviews">
         {reviews.length > 0
           ? <Reviews reviews={reviews} />

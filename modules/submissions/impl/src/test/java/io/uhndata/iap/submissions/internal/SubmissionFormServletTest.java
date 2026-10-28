@@ -115,6 +115,8 @@ class SubmissionFormServletTest
 
     private static final String APPROVER = "priya";
 
+    private static final String DECISION = "decision";
+
     private static final String START_DATE = "details/startDate";
 
     private static final String END_DATE = "details/endDate";
@@ -519,9 +521,7 @@ class SubmissionFormServletTest
 
         assertEquals(ApprovalRequirement.RESOURCE_TYPE, approval.getString("type"));
         assertEquals(APPROVERS, approval.getString("approverGroup"));
-        assertFalse(approval.getBoolean("approved"));
-        assertFalse(approval.containsKey("decidedBy"));
-        assertFalse(approval.containsKey("decidedAt"));
+        assertFalse(approval.containsKey(DECISION));
     }
 
     @Test
@@ -529,59 +529,96 @@ class SubmissionFormServletTest
     {
         approvedBy("r1", APPROVER, 27);
 
-        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+        final JsonObject decision = decisionOn(APPROVAL);
 
-        assertTrue(approval.getBoolean("approved"));
-        assertEquals(APPROVER, approval.getString("decidedBy"));
-        // The way the resource JSON dates everything, so a reader parses one format
-        assertEquals("2026-08-27T09:15:30.500-05:00", approval.getString("decidedAt"));
+        assertTrue(decision.getBoolean("approved"));
+        assertEquals(APPROVER, decision.getString("by"));
+        // As the resource JSON dates every property, so a reader parses one format
+        assertEquals("2026-08-27T09:15:30.500-05:00", decision.getString("at"));
     }
 
     @Test
-    void reportsARefusalAsADecisionThatDidNotApprove() throws IOException
+    void reportsARejectionAsADecisionThatDidNotApprove() throws IOException
     {
-        refusedBy("r1", APPROVER, 27);
+        rejectedBy("r1", APPROVER, 27);
 
-        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+        final JsonObject decision = decisionOn(APPROVAL);
 
-        assertFalse(approval.getBoolean("approved"));
-        assertEquals(APPROVER, approval.getString("decidedBy"));
+        assertFalse(decision.getBoolean("approved"));
+        assertEquals(APPROVER, decision.getString("by"));
     }
 
     @Test
-    void grantsAnApprovalALaterReviewGranted() throws IOException
+    void reportsADecisionWithNoRecordedDateWithoutOne() throws IOException
     {
-        refusedBy("r1", APPROVER, 27);
+        final Resource undated = this.context.create().resource(SUBMISSION_PATH + "/r1", Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", APPROVER, "tags", new String[] {Submission.APPROVED_TAG}));
+        about(undated, APPROVAL);
+
+        final JsonObject decision = decisionOn(APPROVAL);
+
+        assertEquals(APPROVER, decision.getString("by"));
+        assertFalse(decision.containsKey("at"));
+    }
+
+    @Test
+    void grantsAnApprovalALaterDecisionGranted() throws IOException
+    {
+        rejectedBy("r1", APPROVER, 27);
         approvedBy("r2", "sam", 28);
 
-        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+        final JsonObject decision = decisionOn(APPROVAL);
 
-        assertTrue(approval.getBoolean("approved"));
-        assertEquals("sam", approval.getString("decidedBy"));
+        assertTrue(decision.getBoolean("approved"));
+        assertEquals("sam", decision.getString("by"));
     }
 
     @Test
-    void withdrawsAnApprovalALaterReviewRefused() throws IOException
+    void withdrawsAnApprovalALaterDecisionRejected() throws IOException
     {
         approvedBy("r1", APPROVER, 27);
-        refusedBy("r2", "sam", 28);
+        rejectedBy("r2", "sam", 28);
 
-        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+        final JsonObject decision = decisionOn(APPROVAL);
 
-        assertFalse(approval.getBoolean("approved"));
-        assertEquals("sam", approval.getString("decidedBy"));
+        assertFalse(decision.getBoolean("approved"));
+        assertEquals("sam", decision.getString("by"));
     }
 
     @Test
-    void leavesOutAReviewOfSomethingElse() throws IOException
+    void keepsTheDecisionAReviewStillOpenHasNotReplaced() throws IOException
+    {
+        approvedBy("r1", APPROVER, 27);
+        about(review("r2", "sam", 28, "in-progress"), APPROVAL);
+
+        final JsonObject decision = decisionOn(APPROVAL);
+
+        assertTrue(decision.getBoolean("approved"));
+        assertEquals(APPROVER, decision.getString("by"));
+    }
+
+    @Test
+    void reportsNoDecisionWhileTheOnlyReviewIsOpen() throws IOException
+    {
+        about(review("r1", APPROVER, 27, "in-progress"), APPROVAL);
+
+        assertFalse(requirement(form(REQUESTER), APPROVAL).containsKey(DECISION));
+    }
+
+    @Test
+    void leavesOutADecisionOnAnotherRequirement() throws IOException
     {
         about(review("r1", APPROVER, 27, Submission.APPROVED_TAG), "doctorsNote");
-        review("r2", "sam", 28, Submission.APPROVED_TAG);
 
-        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+        assertFalse(requirement(form(REQUESTER), APPROVAL).containsKey(DECISION));
+    }
 
-        assertFalse(approval.getBoolean("approved"));
-        assertFalse(approval.containsKey("decidedBy"));
+    @Test
+    void leavesOutADecisionOnNoRequirement() throws IOException
+    {
+        review("r1", APPROVER, 27, Submission.APPROVED_TAG);
+
+        assertFalse(requirement(form(REQUESTER), APPROVAL).containsKey(DECISION));
     }
 
     @Test
@@ -669,16 +706,30 @@ class SubmissionFormServletTest
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
     }
 
+    private JsonObject decisionOn(final String requirement) throws IOException
+    {
+        return requirement(form(REQUESTER), requirement).getJsonObject(DECISION);
+    }
+
     private void approvedBy(final String name, final String reviewer, final int day)
     {
         about(review(name, reviewer, day, Submission.APPROVED_TAG), APPROVAL);
     }
 
-    private void refusedBy(final String name, final String reviewer, final int day)
+    private void rejectedBy(final String name, final String reviewer, final int day)
     {
-        about(review(name, reviewer, day), APPROVAL);
+        about(review(name, reviewer, day, Review.REJECTED_TAG), APPROVAL);
     }
 
+    /**
+     * A review naming no requirement yet, created on the given day of August 2026.
+     *
+     * @param name its node name
+     * @param reviewer who wrote it
+     * @param day the day of the month it was created
+     * @param tags its state tags
+     * @return the review
+     */
     private Resource review(final String name, final String reviewer, final int day, final String... tags)
     {
         final Calendar created = new GregorianCalendar(TimeZone.getTimeZone("GMT-05:00"));
@@ -687,7 +738,7 @@ class SubmissionFormServletTest
         created.set(Calendar.MILLISECOND, 500);
         final Resource review = this.context.create().resource(SUBMISSION_PATH + "/" + name, Map.of(
             TYPE, Review.RESOURCE_TYPE, "reviewer", reviewer, "tags", tags));
-        // Set afterwards: the mock repository drops a jcr:created given at creation
+        // Set afterwards: creating a JCR resource ignores a jcr:created given with it
         modify(review.getPath(), "jcr:created", created);
         return review;
     }

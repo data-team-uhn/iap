@@ -160,28 +160,21 @@ public class Submission extends Entity
     }
 
     /**
-     * The most recent review of one requirement, which is where that requirement now stands. Recency is the review's
-     * creation date, since the children of a submission have no order of their own; a review with no recorded date
-     * counts as the oldest.
+     * The latest decision on one requirement, which is where that requirement now stands: the most recent review of
+     * it that approved or rejected it. Reviews still open are left out. Recency is the review's creation date, since
+     * the children of a submission have no order of their own; a review with no recorded date counts as the oldest.
      *
      * @param requirement the requirement to look up
-     * @return the latest review naming it, or {@code null} when nobody has reviewed it
+     * @return the latest review deciding it, or {@code null} while nobody has
      */
     @Nullable
-    public Review getLatestReviewOf(@NotNull final Requirement requirement)
+    public Review findLatestDecisionOn(@NotNull final Requirement requirement)
     {
         return this.getReviews().stream()
-            .filter(review -> isAbout(review, requirement))
+            .filter(review -> review.isAbout(requirement))
+            .filter(Review::isDecided)
             .max(Comparator.comparing(Review::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())))
             .orElse(null);
-    }
-
-    // By path, since a requirement of another schema version is a different requirement even when it has the
-    // same name
-    private static boolean isAbout(final Review review, final Requirement requirement)
-    {
-        final Requirement reviewed = review.getRequirement();
-        return reviewed != null && requirement.getPath().equals(reviewed.getPath());
     }
 
     /**

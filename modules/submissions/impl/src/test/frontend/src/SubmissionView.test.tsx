@@ -25,7 +25,7 @@ import { loadAnswerComponents } from "@iap/submissions/answers";
 // Registers the text answer component, which a browser would fetch as an asset of its own
 import "@iap/submissions/answers/TextAnswer";
 import {
-  FORM_REQUIREMENT,
+  FORM_REQUIREMENT_TYPE,
   type FormRequirement,
   QUESTION,
   type SubmissionForm,
@@ -34,7 +34,7 @@ import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
-import { WAITING, approval } from "./approvals.fixture";
+import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
@@ -612,43 +612,83 @@ describe("SubmissionView", () => {
       expect(await screen.findByText("This request asks for no documents")).toBeInTheDocument();
     });
 
-    it("says what was asked could not be read, rather than that nothing was", async () => {
-      vi.spyOn(console, "error").mockImplementation(() => undefined);
-      const otherwise = tagAwareFetch({ ...DEEP_SUBMISSION, d1: attachment("note.pdf") });
-      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-        ? Promise.reject(new Error("no projection"))
-        : otherwise(url)));
+    // Answers the submission, and the projection however `projectionAnswer` says
+    function withAProjection(projectionAnswer: () => Promise<Response>, submission: unknown = DEEP_SUBMISSION) {
+      const otherwise = tagAwareFetch(submission);
+      return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? projectionAnswer()
+        : otherwise(url));
+    }
+
+    it("says once that what was asked could not be read, rather than that nothing was", async () => {
+      vi.stubGlobal("fetch", withAProjection(() => Promise.reject(new Error("no projection")),
+        { ...DEEP_SUBMISSION, d1: attachment("note.pdf") }));
 
       renderAt("/Submissions/demo-1");
 
-      expect(await screen.findByText(/Which documents this request asks for could not be read/))
-        .toBeInTheDocument();
+      expect(await screen.findAllByText("What this request asks for could not be read")).toHaveLength(1);
       // What is attached comes from the submission itself, so it is still shown
       expect(screen.getByText("note.pdf")).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
-      expect(screen.getByText(/Which approvals this request needs could not be read/)).toBeInTheDocument();
     });
 
-    it("says nothing about what was asked while the projection is on its way", async () => {
-      const otherwise = tagAwareFetch(DEEP_SUBMISSION);
-      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-        ? new Promise<Response>(() => undefined)
-        : otherwise(url)));
+    it("leaves the approvals out when what was asked could not be read", async () => {
+      vi.stubGlobal("fetch", withAProjection(() => Promise.reject(new Error("no projection"))));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("No documents attached")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Approvals" })).toBeNull();
+    });
+
+    it("reads what was asked again when told to retry", async () => {
+      let attempts = 0;
+      vi.stubGlobal("fetch", withAProjection(() => {
+        attempts += 1;
+        return attempts === 1 ? Promise.reject(new Error("no projection")) : jsonResponse(projection([ approval() ]));
+      }));
+
+      renderAt("/Submissions/demo-1");
+      await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+      expect(await screen.findByText(NEEDS_APPROVAL)).toBeInTheDocument();
+      expect(screen.queryByText("What this request asks for could not be read")).toBeNull();
+    });
+
+    it("says nothing about the documents asked for while the projection is on its way", async () => {
+      vi.stubGlobal("fetch", withAProjection(() => new Promise<Response>(() => undefined)));
 
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByRole("progressbar", { name: "Loading the documents" })).toBeInTheDocument();
-      expect(screen.getByRole("progressbar", { name: "Loading the approvals" })).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
     });
 
-    it("says which approvals the request is waiting on, and where each stands", async () => {
+    it("says nothing about the approvals needed while the projection is on its way", async () => {
+      vi.stubGlobal("fetch", withAProjection(() => new Promise<Response>(() => undefined)));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("progressbar", { name: "Loading the approvals" })).toBeInTheDocument();
+      expect(screen.queryByText("This request needs no approvals")).toBeNull();
+    });
+
+    it("says which approvals the request needs, and where each stands", async () => {
       vi.stubGlobal("fetch", serving(projection([ approval() ])));
 
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByRole("heading", { name: "Approval" })).toBeInTheDocument();
-      expect(screen.getByText(WAITING)).toBeInTheDocument();
+      expect(screen.getByText(NEEDS_APPROVAL)).toBeInTheDocument();
+    });
+
+    it("reads a projection that lists no requirements as asking for nothing", async () => {
+      vi.stubGlobal("fetch", serving({ ...EMPTY_FORM, requirements: undefined }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request needs no approvals")).toBeInTheDocument();
+      expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
     });
 
     it("says so when the request needs no approval at all", async () => {
@@ -680,7 +720,7 @@ describe("SubmissionView", () => {
 
     // A form asking one question, which is all that stands between the request and sending it
     const DETAILS: FormRequirement = {
-      name: "details", path: "/Schemas/ClinicalTrial/1.0/details", type: FORM_REQUIREMENT, label: "Request details",
+      name: "details", path: "/Schemas/ClinicalTrial/1.0/details", type: FORM_REQUIREMENT_TYPE, label: "Request details",
       items: [ { name: "why", type: QUESTION, path: "details/why", text: "Why?", dataType: "text",
         minAnswers: 1, maxAnswers: 1, options: [], value: [] } ],
     };
@@ -787,6 +827,17 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1.edit");
 
       expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
+    });
+
+    it("reads what the request is asked for again once the step is done", async () => {
+      const fetchMock = withATaskWaiting();
+      vi.stubGlobal("fetch", fetchMock);
+      const projections = () => fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json"));
+
+      renderAt("/Submissions/demo-1");
+      await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+      await waitFor(() => expect(projections()).toHaveLength(2));
     });
 
     it("goes back to reading the request once the step is done, and reads it again", async () => {

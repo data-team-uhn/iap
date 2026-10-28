@@ -20,32 +20,32 @@ import { render, screen } from "@testing-library/react";
 
 import ApprovalState from "@iap/submissions/ApprovalState";
 
-import { WAITING, approval } from "./approvals.fixture";
+import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 
 const DECIDED_AT = "2026-08-27T09:15:30.500-05:00";
 
 describe("ApprovalState", () => {
-  it("says who an approval waits on while nobody has decided", () => {
+  it("says who an approval needs while nobody has decided", () => {
     render(<ApprovalState requirement={approval()} />);
 
-    expect(screen.getByText(WAITING)).toBeInTheDocument();
+    expect(screen.getByText(NEEDS_APPROVAL)).toBeInTheDocument();
   });
 
-  it("says only that it is waiting when no group is named", () => {
+  it("says only that it needs approval when no group is named", () => {
     render(<ApprovalState requirement={approval({ approverGroup: "" })} />);
 
-    expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
+    expect(screen.getByText("Needs approval")).toBeInTheDocument();
   });
 
   it("says who approved it, and when", () => {
-    render(<ApprovalState requirement={approval({ approved: true, decidedBy: "priya", decidedAt: DECIDED_AT })} />);
+    render(<ApprovalState requirement={approval({ decision: { approved: true, by: "priya", at: DECIDED_AT } })} />);
 
     expect(screen.getByText(`Approved by priya on ${new Date(DECIDED_AT).toLocaleString()}`)).toBeInTheDocument();
   });
 
-  it("reports a refusal as a decision rather than as waiting", () => {
-    render(<ApprovalState requirement={approval({ decidedBy: "priya" })} />);
+  it("says who rejected it", () => {
+    render(<ApprovalState requirement={approval({ decision: { approved: false, by: "priya" } })} />);
 
-    expect(screen.getByText("Reviewed by priya, and not approved")).toBeInTheDocument();
+    expect(screen.getByText("Rejected by priya")).toBeInTheDocument();
   });
 });

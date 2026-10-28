@@ -29,9 +29,9 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
-  DOCUMENT_REQUIREMENT,
+  DOCUMENT_REQUIREMENT_TYPE,
   type DocumentRequirement,
-  FORM_REQUIREMENT,
+  FORM_REQUIREMENT_TYPE,
   type FormItem,
   type FormRequirement,
   QUESTION,
@@ -39,7 +39,7 @@ import {
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
 
-import { WAITING, approval } from "./approvals.fixture";
+import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
@@ -63,7 +63,7 @@ function duration(value: string[] = []) {
 // Typed as the subtype that holds questions, since the generic Requirement declares no items
 function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): FormRequirement {
   return {
-    name: "details", path: "/Schemas/timeOffRequest/v1/details", type: FORM_REQUIREMENT, label: "Request details",
+    name: "details", path: "/Schemas/timeOffRequest/v1/details", type: FORM_REQUIREMENT_TYPE, label: "Request details",
     items, ...overrides
   };
 }
@@ -203,20 +203,20 @@ describe("SubmissionEditor", () => {
     expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
   });
 
-  it("says where an approval stands, since somebody else grants it", async () => {
+  it("says who an approval needs, since somebody else grants it", async () => {
     vi.stubGlobal("fetch", serving(form({ requirements: [ approval() ] })));
 
     render(<SubmissionEditor path={PATH} />);
 
     expect(await screen.findByText("Approval")).toBeInTheDocument();
-    expect(screen.getByText(WAITING)).toBeInTheDocument();
+    expect(screen.getByText(NEEDS_APPROVAL)).toBeInTheDocument();
   });
 
   describe("answering a document requirement", () => {
     const NOTE: DocumentRequirement = {
       name: "doctorsNote",
       path: "/Schemas/timeOffRequest/v1/doctorsNote",
-      type: DOCUMENT_REQUIREMENT,
+      type: DOCUMENT_REQUIREMENT_TYPE,
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
       required: true,

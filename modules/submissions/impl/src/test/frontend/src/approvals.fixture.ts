@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
-import { APPROVAL_REQUIREMENT, type ApprovalRequirement } from "@iap/submissions/submissionForm";
+import { APPROVAL_REQUIREMENT_TYPE, type ApprovalRequirement } from "@iap/submissions/submissionForm";
 
-// What an approval says while it waits
-export const WAITING = "Waiting for approval from time-off-approvers";
+// What an undecided approval says
+export const NEEDS_APPROVAL = "Needs approval from time-off-approvers";
 
 // An approval requirement as the form projection serves it, undecided unless a test says otherwise
 export function approval(state: Partial<ApprovalRequirement> = {}): ApprovalRequirement {
   return {
-    name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: APPROVAL_REQUIREMENT, label: "Approval",
-    approverGroup: "time-off-approvers", approved: false, ...state,
+    name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: APPROVAL_REQUIREMENT_TYPE,
+    label: "Approval", approverGroup: "time-off-approvers", ...state,
   };
 }

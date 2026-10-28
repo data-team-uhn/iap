@@ -105,6 +105,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String REQUIRED_KEY = "required";
 
+    private static final String APPROVER_GROUP_KEY = "approverGroup";
+
+    private static final String DECISION_KEY = "decision";
+
+    private static final String APPROVED_KEY = "approved";
+
+    private static final String DECIDED_BY_KEY = "by";
+
+    private static final String DECIDED_AT_KEY = "at";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -193,11 +203,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * What an approval requirement adds: who decides it, and where it stands.
+     * What an approval requirement adds: who decides it, and the latest decision once somebody has made one.
      *
-     * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. The latest
-     * review is the decision, whichever way it went: it says whether the approval is granted, and who made it and
-     * when. A refusal is reported as a decision, and one that follows an approval withdraws it.</p>
+     * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. Which
+     * review counts as the decision is the submission's to say. Until there is one, there is no decision to report,
+     * whatever reviews are still open.</p>
      *
      * @param requirement the requirement being described
      * @param submission the submission it is being resolved against
@@ -207,14 +217,24 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final JsonObjectBuilder json)
     {
         // Stated always, empty when the approval is not narrowed to a group
-        json.add("approverGroup", Objects.toString(requirement.getApproverGroup(), ""));
-        final Optional<Review> decision = Optional.ofNullable(submission.getLatestReviewOf(requirement));
-        json.add("approved", decision.map(Review::isApproved).orElse(false));
-        decision.ifPresent(review -> {
-            json.add("decidedBy", review.getReviewer());
-            Optional.ofNullable(DateUtils.toString(review.getCreated()))
-                .ifPresent(decided -> json.add("decidedAt", decided));
-        });
+        json.add(APPROVER_GROUP_KEY, Objects.toString(requirement.getApproverGroup(), ""));
+        Optional.ofNullable(submission.findLatestDecisionOn(requirement))
+            .ifPresent(review -> json.add(DECISION_KEY, decision(review)));
+    }
+
+    /**
+     * One decision on an approval: which way it went, who made it, and when, if the review records that.
+     *
+     * @param review the review that decided
+     * @return the decision's JSON
+     */
+    private static JsonObjectBuilder decision(final Review review)
+    {
+        final JsonObjectBuilder json = Json.createObjectBuilder()
+            .add(APPROVED_KEY, review.isApproved())
+            .add(DECIDED_BY_KEY, review.getReviewer());
+        Optional.ofNullable(DateUtils.toString(review.getCreated())).ifPresent(at -> json.add(DECIDED_AT_KEY, at));
+        return json;
     }
 
     /**
