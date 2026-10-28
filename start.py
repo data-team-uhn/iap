@@ -417,8 +417,8 @@ def main(argv):
         for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
                         'iap-demo-data-study'):
             launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
-    # The document daemon and the generation worker run beside a local instance, not as the compose
-    # services the aggregated feature names by default
+    # The default docling.url/generation.url assume you're running via Docker
+    # and should instead point to localhost on a local instance
     launcher_args += ['-V', 'docling.url=http://localhost:18765',
                       '-V', 'generation.url=http://localhost:18766']
     if options['keycloak']:

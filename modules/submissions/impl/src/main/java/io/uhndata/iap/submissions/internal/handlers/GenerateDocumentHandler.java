@@ -52,8 +52,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * </p>
  *
  * <p>The result is stored as an upload is, so every reader of a submission's documents treats it alike: the PDF is
- * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link File#getGeneratedDocx()}. Generating
- * again adds a version rather than replacing one, so the PDF the submitter was shown stays where it was.</p>
+ * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link File#getGeneratedDocx()}.
+ * Generating again adds a version rather than replacing one, so the PDF the submitter was shown stays where it was.
+ * </p>
  *
  * <p>A requirement whose condition does not hold for this submission is not asked, so nothing is generated for it.
  * Any failure to generate fails the step, with the generator's reason, rather than leaving the requirement looking
@@ -103,6 +104,7 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         if (!submission.isApplicable(requirement)) {
             return;
         }
+
         final Resource template = requirement.getTemplate();
         if (template == null) {
             throw new WorkflowFailedException(requirement.getLabel() + " has no template to be generated from");

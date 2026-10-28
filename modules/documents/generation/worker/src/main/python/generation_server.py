@@ -26,10 +26,7 @@ Endpoints:
                    -> 503 when every conversion slot is busy
                    -> 500 {"error", "reference"}, the details in the log only
 
-Synchronous, unlike the Docling daemon: a one-page letter renders in milliseconds and converts
-in under a second, so a caller waits for the answer instead of hearing back through a callback.
-Nothing is written to the shared volume either; the template and both results travel in the
-request and the reply.
+Operates synchronously, unlike the Docling daemon, due to how fast it is.
 
 ``/generate`` refuses an ``Origin`` header and, when ``IAP_GENERATION_TOKEN`` is set, requires
 it as a bearer token, for the reasons :mod:`daemon_utils` gives. ``GET /health`` stays open.
@@ -71,15 +68,13 @@ from daemon_utils import (
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18766
 
-# This service's own secret, not the Docling daemon's: the two are separate containers, and
-# reaching one should not be authority to use the other
+# Env variable containing this service's secret token
 TOKEN_ENVIRONMENT_VARIABLE = "IAP_GENERATION_TOKEN"
 
-# Set by an operator who has confined the port another way, as for the Docling daemon
+# Env variable which, if set, tells the script that it is operating in a Docker network
 TRUSTED_NETWORK_VARIABLE = "IAP_GENERATION_TRUSTED_NETWORK"
 
-# How many conversions may run at once. Each is its own soffice process with its own profile,
-# so they do not collide, but each costs a few hundred MB while it runs.
+# How many conversions may run at once. Each is its own soffice process with its own profile
 SLOTS_VARIABLE = "IAP_GENERATION_MAX_CONCURRENT"
 DEFAULT_SLOTS = 2
 
@@ -222,8 +217,8 @@ class GenerationHandler(BaseHTTPRequestHandler):
 
     def _handle_generate(self) -> None:
         """Fill the template in the body and answer with the .docx and the PDF."""
-        # Checked before the body is read, so a refused caller gets no work done for it; the
-        # unread body then means the connection has to close
+        # Checked before the body is read, so a refused caller gets no work done for it
+        # If so, we just have to close the connection
         keep_alive = self.close_connection
         self.close_connection = True
         if refuse_unauthorized(
@@ -232,8 +227,8 @@ class GenerationHandler(BaseHTTPRequestHandler):
             return
         self.close_connection = keep_alive
 
-        # Every reply is decided inside the try and written once after it, as in the Docling
-        # daemon: a write to a client that has gone away raises, and must not be answered twice
+        # Every reply is decided inside the try and written once after it, and the client
+        # and must not be answered twice
         try:
             body = read_request_body(self, _get_max_request_bytes())
             template, context = _decode_request(body)
