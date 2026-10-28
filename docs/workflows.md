@@ -817,14 +817,6 @@ starts with its parts and marks. Detaching removes every version of a document a
 leaves it empty as its requirement's part, and the detach workflow marks the submission
 again.
 
-A content workflow writes a decision down with `recordReview`, a service task placed
-after the user task that decides. Its `requirement` names the requirement decided, by
-name or by path, since only the definition knows which of several approvals a step
-makes. It records a `sub:Review` by whoever completed the task, tagged with the task's
-`outcome` and pointing at that requirement, with the decider's `outcomeNote` as a
-comment. A completion without an outcome is refused. The latest review tagged
-`approved` or `rejected` is where an approval stands, which the form projection reports.
-
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person
@@ -854,6 +846,14 @@ them without reading the definition. The copies describe the task; what makes a
 completion lawful is still the definition. A task offering outcomes cannot be completed
 without one of them, and a task offering none takes no outcome. A `complete` event aimed
 at the task closes it, records the outcome, and carries the instance on.
+
+**A decision can be written down as a review.** A `recordReview` service task placed
+directly after the user task that decides records a `sub:Review` of the approval
+requirement its `requirement` names: by whoever completed the task, tagged with the
+task's `outcome`, with their `outcomeNote` as a comment. It reads the decision from that
+completion, so nothing may come between the two, neither a join nor a timer. The outcome
+has to name a state a review can be in, such as `approved` or `rejected`, and a
+completion without one is refused.
 
 **Submitting is a user task.** A process hands a request back to its author with a task
 performed by `@creator`, and completing that task sends it on; there is no submit event

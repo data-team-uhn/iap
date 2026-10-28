@@ -18,15 +18,18 @@
 package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.ReferenceUtils;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -36,13 +39,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that writes a decision down against the requirement it decides.
+ * The service task that records a decision as a review of the approval requirement it decides. The review is by
+ * whoever completed the task, tagged with the task's outcome, with the decider's note as a comment. The activity
+ * names the requirement in its {@code requirement}.
  *
- * <p>A decision made in a user task routes the process, but routing does not say what was decided. A schema may ask
- * for several approvals, and only a review naming the requirement says which of them was granted. This handler
- * records one: by whoever completed the task, tagged with the task's outcome, and with the decider's note as a
- * comment. The activity names the requirement in its {@code requirement}, by name or by path, since only the
- * definition knows which decision a step makes.</p>
+ * <p>It reads the decision from the completion that reached it, so it has to follow the user task that decides
+ * directly, with no join or timer between them.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,7 +55,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "recordReview";
 
-    /** The activity property naming the requirement decided. */
+    /** The activity property naming the approval requirement decided. */
     private static final String REQUIREMENT_PARAMETER = "requirement";
 
     /** The event entry carrying the decision. */
@@ -62,7 +64,22 @@ public class RecordReviewHandler implements ServiceTaskHandler
     /** The event entry carrying what the decider said about it. */
     private static final String NOTE_PARAMETER = "outcomeNote";
 
-    private static final String PRIMARY_TYPE = "jcr:primaryType";
+    private static final String PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
+
+    private static final String REVIEW_NODE_TYPE = "sub:Review";
+
+    private static final String REVIEWER_PROPERTY = "reviewer";
+
+    /** The review property pointing at the requirement it decides. */
+    private static final String REQUIREMENT_PROPERTY = "requirement";
+
+    private static final String NOTE_NODE = "note";
+
+    private static final String COMMENT_NODE_TYPE = "sub:Comment";
+
+    private static final String AUTHOR_PROPERTY = "author";
+
+    private static final String TEXT_PROPERTY = "text";
 
     @Override
     public String getName()
@@ -74,24 +91,28 @@ public class RecordReviewHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource host = ExecutionHost.of(context);
-        final Requirement requirement = requirementDecided(SubmissionHost.read(host, HANDLER_NAME),
+        final ApprovalRequirement requirement = requirementDecided(SubmissionHost.read(host, HANDLER_NAME),
             context.getActivity());
         final String outcome = Payloads.requireText(context.getEvent(), OUTCOME_PARAMETER,
             "A decision is written down with the outcome it reached");
-        final Resource review = createReview(context, host, outcome);
-        ReferenceUtils.setReference(review, REQUIREMENT_PARAMETER, requirement);
-        addNote(context, review);
+        VersioningUtils.checkOut(host);
+        final Resource review = recordReview(context, host, requirement, outcome);
+        final String note = Payloads.text(context.getEvent(), NOTE_PARAMETER);
+        if (note != null) {
+            commentOn(review, context.getActor(), note);
+        }
     }
 
     /**
-     * The requirement the activity says it decides, among those the submission's schema version asks.
+     * The approval requirement the activity says it decides, by name, among those the submission's schema version
+     * asks. A name rather than a path, so that one workflow serves every schema version pinning it.
      *
      * @param submission the submission being decided
      * @param activity the activity being performed
      * @return the requirement named by the activity
-     * @throws WorkflowDefinitionException when the activity names none, or one the schema version does not ask
+     * @throws WorkflowDefinitionException when the activity names none, or no approval the schema version asks
      */
-    private static Requirement requirementDecided(final Submission submission, final Activity activity)
+    private static ApprovalRequirement requirementDecided(final Submission submission, final Activity activity)
         throws WorkflowDefinitionException
     {
         final String named = activity.get(REQUIREMENT_PARAMETER, String.class);
@@ -99,28 +120,45 @@ public class RecordReviewHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The activity " + activity.getPath()
                 + " does not say which requirement it decides");
         }
-        return submission.getSchemaVersion().getRequirements().stream()
-            .filter(candidate -> named.equals(candidate.getName()) || named.equals(candidate.getPath()))
+        return submission.getSchemaVersion().getApprovalRequirements().stream()
+            .filter(candidate -> named.equals(candidate.getName()))
             .findFirst()
             .orElseThrow(() -> new WorkflowDefinitionException("The activity " + activity.getPath() + " decides "
-                + named + ", which this submission's schema version does not ask"));
+                + named + ", which is no approval this submission's schema version asks"));
     }
 
-    private static Resource createReview(final WorkflowTaskContext context, final Resource host, final String outcome)
-        throws PersistenceException
+    /**
+     * Creates the review: by whoever completed the task, pointing at the requirement, and tagged with the outcome.
+     *
+     * @param context the executing task's context
+     * @param host the submission the review belongs to
+     * @param requirement the requirement decided
+     * @param outcome the decision, which must name a state a review can be in
+     * @return the review
+     * @throws WorkflowDefinitionException when the outcome names no such state
+     * @throws PersistenceException when the review cannot be written
+     */
+    private static Resource recordReview(final WorkflowTaskContext context, final Resource host,
+        final ApprovalRequirement requirement, final String outcome)
+        throws WorkflowDefinitionException, PersistenceException
     {
         // A UUID rather than the reviewer's name: the same person may decide more than once
-        return context.getResourceResolver().create(host, UUID.randomUUID().toString(), Map.of(
-            PRIMARY_TYPE, "sub:Review", "reviewer", context.getActor(), "tags", new String[] {outcome}));
+        final Resource review = context.getResourceResolver().create(host, UUID.randomUUID().toString(),
+            Map.of(PRIMARY_TYPE_PROPERTY, REVIEW_NODE_TYPE, REVIEWER_PROPERTY, context.getActor()));
+        ReferenceUtils.setReference(review, REQUIREMENT_PROPERTY, requirement);
+        try {
+            Objects.requireNonNull(review.adaptTo(Taggable.class), "A review can be tagged").tag(outcome, true);
+        } catch (final IllegalArgumentException e) {
+            throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
+                + " records the outcome " + outcome + ", which names no state a review can be in");
+        }
+        return review;
     }
 
-    // What the decider said, if anything, as the review's comment
-    private static void addNote(final WorkflowTaskContext context, final Resource review) throws PersistenceException
+    private static void commentOn(final Resource review, final String author, final String note)
+        throws PersistenceException
     {
-        final String note = Payloads.text(context.getEvent(), NOTE_PARAMETER);
-        if (note != null) {
-            context.getResourceResolver().create(review, "note",
-                Map.of(PRIMARY_TYPE, "sub:Comment", "author", context.getActor(), "text", note));
-        }
+        review.getResourceResolver().create(review, NOTE_NODE,
+            Map.of(PRIMARY_TYPE_PROPERTY, COMMENT_NODE_TYPE, AUTHOR_PROPERTY, author, TEXT_PROPERTY, note));
     }
 }

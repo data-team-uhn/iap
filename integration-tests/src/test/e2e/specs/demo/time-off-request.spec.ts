@@ -119,7 +119,7 @@ test.describe('the time off request demo', () => {
   });
 
   test('writes the decision down against the approval the schema asks for', async ({ request }) => {
-    // The step as derived from the diagram, which owns the flow nodes, with its iap: attributes carried over
+    // Derived from the diagram; ServiceTask.json is what maps iap:requirement onto the activity
     const response = await request.get('/Workflows/timeOffRequest/v1/recordReview.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();

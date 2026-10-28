@@ -30,7 +30,8 @@
       <bpmn:outgoing>toApproval</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toApproval" sourceRef="requestSubmitted" targetRef="approveRequest" />
-    <bpmn:userTask id="approveRequest" name="Approve the request">
+    <bpmn:userTask id="approveRequest" name="Approve the request" iap:performers="time-off-approvers"
+        iap:outcomeOptions="approved, rejected">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toRecordReview</bpmn:outgoing>
     </bpmn:userTask>

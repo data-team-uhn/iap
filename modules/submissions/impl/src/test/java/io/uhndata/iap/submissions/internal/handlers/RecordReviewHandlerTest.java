@@ -21,11 +21,14 @@ import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
-import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -52,6 +55,12 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.REQUIREMENT;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION_PATH;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUPER_TYPE;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.TYPE;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.VERSION_PATH;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.reference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -67,23 +76,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class RecordReviewHandlerTest
 {
-    private static final String TYPE = "sling:resourceType";
-
-    private static final String SUPER_TYPE = "sling:resourceSuperType";
-
-    private static final String REQUIREMENT = "sch/Requirement";
-
-    private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
-
     private static final String APPROVAL = "approval";
 
     private static final String APPROVAL_PATH = VERSION_PATH + "/" + APPROVAL;
 
-    private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
-
     private static final String APPROVER = "demo-approver";
 
+    // The keys of the wire format, written out rather than taken from the handler, so a renamed key fails here
+    private static final String REQUIREMENT_KEY = "requirement";
+
     private static final String OUTCOME = "outcome";
+
+    private static final String NOTE = "outcomeNote";
 
     private static final String APPROVED = "approved";
 
@@ -97,27 +101,35 @@ class RecordReviewHandlerTest
 
     private Resource target;
 
+    // What the request reads as when adapted to a node: jcr-mock answers nothing about versioning
+    private Node node;
+
     @BeforeEach
-    void setUp() throws RepositoryException, PersistenceException
+    void setUp() throws Exception
     {
+        this.node = Mockito.mock(Node.class);
+        Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, ApprovalRequirement.class, Review.class, Comment.class,
-            Submission.class, Activity.class);
+            Submission.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
             TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
-        this.context.create().resource(APPROVAL_PATH, Map.of(
-            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval"));
-        // A second requirement, so that "the one it names" is a real choice rather than the only child
+        // Decoys before the requirement decided, so finding it is a choice rather than taking the first: another
+        // approval, and a requirement of another kind
+        this.context.create().resource(VERSION_PATH + "/budget", Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Budget approval"));
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
-        Referenceables.identify(this.context, APPROVAL_PATH);
+        this.context.create().resource(APPROVAL_PATH, Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval"));
+        Referenceables.identify(this.context, VERSION_PATH + "/budget", APPROVAL_PATH);
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "sam",
             "tags", new String[] {"submitted"}));
-        reference(this.target, VERSION_PATH, "schemaVersion");
+        reference(this.context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
     }
 
     @Test
@@ -127,28 +139,33 @@ class RecordReviewHandlerTest
     }
 
     @Test
-    void recordsTheDecisionAgainstTheRequirementItDecides() throws Exception
+    void recordsWhoDecided() throws Exception
     {
-        this.handler.execute(deciding(APPROVAL, Map.of(OUTCOME, APPROVED)));
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
 
-        final Review review = onlyReview();
-        assertEquals(APPROVER, review.getReviewer());
-        assertEquals(APPROVAL_PATH, present(review.getRequirement()).getPath());
-        assertTrue(review.isApproved());
+        assertEquals(APPROVER, onlyReview().getReviewer());
     }
 
     @Test
-    void takesARequirementNamedByItsPath() throws Exception
+    void pointsAtTheRequirementItDecides() throws Exception
     {
-        this.handler.execute(deciding(APPROVAL_PATH, Map.of(OUTCOME, APPROVED)));
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
 
         assertEquals(APPROVAL_PATH, present(onlyReview().getRequirement()).getPath());
     }
 
     @Test
+    void tagsTheReviewWithTheOutcome() throws Exception
+    {
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        assertTrue(onlyReview().isApproved());
+    }
+
+    @Test
     void recordsARejectionAsADecisionThatDidNotApprove() throws Exception
     {
-        this.handler.execute(deciding(APPROVAL, Map.of(OUTCOME, Review.REJECTED_TAG)));
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, Review.REJECTED_TAG)));
 
         final Review review = onlyReview();
         assertTrue(review.isDecided());
@@ -158,8 +175,8 @@ class RecordReviewHandlerTest
     @Test
     void keepsWhatTheDeciderSaidAsAComment() throws Exception
     {
-        this.handler.execute(deciding(APPROVAL,
-            Map.of(OUTCOME, Review.REJECTED_TAG, "outcomeNote", "Take the week after instead")));
+        this.handler.execute(approverCompleting(APPROVAL,
+            Map.of(OUTCOME, Review.REJECTED_TAG, NOTE, "Take the week after instead")));
 
         final List<Comment> comments = onlyReview().getComments();
         assertEquals(1, comments.size());
@@ -168,26 +185,67 @@ class RecordReviewHandlerTest
     }
 
     @Test
-    void leavesNoCommentWhenNothingWasSaid() throws Exception
+    void leavesNoCommentWhenTheNoteIsBlank() throws Exception
     {
-        // A form posts an untouched field as blank
-        this.handler.execute(deciding(APPROVAL, Map.of(OUTCOME, APPROVED, "outcomeNote", "  ")));
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED, NOTE, "  ")));
 
         assertTrue(onlyReview().getComments().isEmpty());
     }
 
     @Test
+    void checksOutTheRequestBeforeRecordingTheDecision() throws Exception
+    {
+        // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no reviews
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(this.node.isCheckedOut()).thenReturn(false);
+        Mockito.when(this.node.isNodeType("mix:versionable")).thenReturn(true);
+        Mockito.when(this.node.getPath()).thenReturn(SUBMISSION_PATH);
+        Mockito.when(this.node.getSession()).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        Mockito.doAnswer(invocation -> {
+            assertFalse(this.target.hasChildren(), "A review was written before the request was checked out");
+            return null;
+        }).when(versions).checkout(SUBMISSION_PATH);
+
+        this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
+
+        Mockito.verify(versions).checkout(SUBMISSION_PATH);
+    }
+
+    @Test
     void refusesADecisionWithNoOutcome()
     {
-        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(deciding(APPROVAL, Map.of())));
+        assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(approverCompleting(APPROVAL, Map.of())));
         assertTrue(reviews().isEmpty());
+    }
+
+    @Test
+    void refusesAnOutcomeThatNamesNoStateAReviewCanBeIn()
+    {
+        final WorkflowDefinitionException failure = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, Tagging.UNDEFINED))));
+
+        assertTrue(failure.getMessage().contains("names no state a review can be in"));
     }
 
     @Test
     void refusesAnActivityThatDoesNotSayWhatItDecides()
     {
         final WorkflowDefinitionException failure = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(deciding(null, Map.of(OUTCOME, APPROVED))));
+            () -> this.handler.execute(approverCompleting(null, Map.of(OUTCOME, APPROVED))));
+
+        assertTrue(failure.getMessage().contains("does not say which requirement"));
+    }
+
+    @Test
+    void refusesAnActivityNamingABlankRequirement()
+    {
+        final WorkflowDefinitionException failure = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(approverCompleting("  ", Map.of(OUTCOME, APPROVED))));
 
         assertTrue(failure.getMessage().contains("does not say which requirement"));
     }
@@ -196,25 +254,56 @@ class RecordReviewHandlerTest
     void refusesAnActivityNamingARequirementTheSchemaDoesNotAsk()
     {
         final WorkflowDefinitionException failure = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(deciding("secondApproval", Map.of(OUTCOME, APPROVED))));
+            () -> this.handler.execute(approverCompleting("secondApproval", Map.of(OUTCOME, APPROVED))));
 
         assertTrue(failure.getMessage().contains("decides secondApproval"));
     }
 
+    @Test
+    void refusesARequirementThatIsNoApproval()
+    {
+        assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(approverCompleting("details", Map.of(OUTCOME, APPROVED))));
+    }
+
+    @Test
+    void refusesARequirementNamedByItsPath()
+    {
+        assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(approverCompleting(APPROVAL_PATH, Map.of(OUTCOME, APPROVED))));
+    }
+
+    @Test
+    void refusesSomethingThatIsNotASubmission()
+    {
+        final Resource homepage = this.context.create().resource("/Submissions/elsewhere",
+            Map.of(TYPE, "sub/SubmissionsHomepage"));
+        final WorkflowTaskContext completing = new TaskContext(homepage, APPROVER,
+            new WorkflowEvent("complete", Map.of(OUTCOME, APPROVED))).performing(recordingActivity(APPROVAL));
+
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(completing));
+    }
+
     private Review onlyReview()
     {
+        typeWhatTheHandlerWrote();
         final List<Review> reviews = reviews();
         assertEquals(1, reviews.size());
         return reviews.get(0);
     }
 
-    // With the sling:resourceType a real repository autocreates from the node type and a mock repository does not
     private List<Review> reviews()
     {
         this.context.resourceResolver().refresh();
-        final Resource submission = present(this.context.resourceResolver().getResource(SUBMISSION_PATH));
-        stampResourceTypes(submission);
-        return present(submission.adaptTo(Submission.class)).getReviews();
+        return present(present(this.context.resourceResolver().getResource(SUBMISSION_PATH))
+            .adaptTo(Submission.class)).getReviews();
+    }
+
+    // A mock repository does not autocreate sling:resourceType from the node type, so stamp it
+    private void typeWhatTheHandlerWrote()
+    {
+        this.context.resourceResolver().refresh();
+        stampResourceTypes(present(this.context.resourceResolver().getResource(SUBMISSION_PATH)));
     }
 
     private void stampResourceTypes(final Resource resource)
@@ -237,29 +326,33 @@ class RecordReviewHandlerTest
         return found;
     }
 
-    private void reference(final Resource from, final String toPath, final String property)
-    {
-        try {
-            present(from.adaptTo(Node.class)).setProperty(property,
-                present(this.context.resourceResolver().getResource(toPath)).adaptTo(Node.class));
-            this.context.resourceResolver().commit();
-        } catch (final RepositoryException | PersistenceException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     /**
-     * The context of the service task after an approval task, completed with the given payload.
+     * The context of the service task after the approval task, completed by the approver with the given payload.
      *
      * @param requirement what the activity says it decides, or {@code null} for an activity saying nothing
      * @param payload what the completion carried
      * @return the context
      */
-    private WorkflowTaskContext deciding(final String requirement, final Map<String, Object> payload)
+    private WorkflowTaskContext approverCompleting(final String requirement, final Map<String, Object> payload)
+    {
+        final Node asNode = this.node;
+        final Resource submission = new ResourceWrapper(this.target)
+        {
+            @Override
+            public <A> A adaptTo(final Class<A> type)
+            {
+                return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
+            }
+        };
+        return new TaskContext(submission, APPROVER, new WorkflowEvent("complete", payload))
+            .performing(recordingActivity(requirement));
+    }
+
+    private static Activity recordingActivity(final String requirement)
     {
         final Activity activity = Mockito.mock(Activity.class);
-        Mockito.when(activity.get("requirement", String.class)).thenReturn(requirement);
+        Mockito.when(activity.get(REQUIREMENT_KEY, String.class)).thenReturn(requirement);
         Mockito.when(activity.getPath()).thenReturn("/Workflows/timeOffRequest/v1/recordReview");
-        return new TaskContext(this.target, APPROVER, new WorkflowEvent("complete", payload)).performing(activity);
+        return activity;
     }
 }
