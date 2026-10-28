@@ -20,14 +20,14 @@
 
 import { type SerializedNode, childrenOfType, lastSegmentOf, strings } from "@iap/frontend-commons/serializedNode";
 
-export const WORKFLOW_INSTANCE = "wf/WorkflowInstance";
-export const TASK_INSTANCE = "wf/TaskInstance";
+export const WORKFLOW_INSTANCE_TYPE = "wf/WorkflowInstance";
+export const TASK_INSTANCE_TYPE = "wf/TaskInstance";
 
 // The event that completes a task
-export const COMPLETE = "complete";
+export const COMPLETE_EVENT = "complete";
 
 // The status a task carries until somebody completes it
-export const OPEN = "created";
+export const OPEN_STATUS = "created";
 
 // One thing a person still has to do on a submission.
 export interface SubmissionTask {
@@ -43,7 +43,7 @@ export interface SubmissionTask {
 
 function asTask(node: SerializedNode): SubmissionTask | null {
   const path = node["@path"];
-  if (typeof path !== "string" || node.status !== OPEN) {
+  if (typeof path !== "string" || node.status !== OPEN_STATUS) {
     return null;
   }
   return {
@@ -56,8 +56,8 @@ function asTask(node: SerializedNode): SubmissionTask | null {
 
 // The open tasks in a submission's serialized workflow container.
 export function tasksFrom(container: SerializedNode): SubmissionTask[] {
-  return childrenOfType(container, WORKFLOW_INSTANCE)
-    .flatMap(instance => childrenOfType(instance, TASK_INSTANCE))
+  return childrenOfType(container, WORKFLOW_INSTANCE_TYPE)
+    .flatMap(instance => childrenOfType(instance, TASK_INSTANCE_TYPE))
     .map(asTask)
     .filter((task): task is SubmissionTask => task !== null);
 }

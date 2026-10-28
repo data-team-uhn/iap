@@ -16,19 +16,19 @@
  * limitations under the License.
  */
 
-import { COMPLETE, OPEN, TASK_INSTANCE, WORKFLOW_INSTANCE } from "@iap/submissions/taskModel";
+import { COMPLETE_EVENT, OPEN_STATUS, TASK_INSTANCE_TYPE, WORKFLOW_INSTANCE_TYPE } from "@iap/submissions/taskModel";
 
 // The label of the step that sends a request on
 export const SEND_LABEL = "Say when you want to be away";
 
 // A step with nothing to decide, which the reader may complete: a request waiting to be sent
-export const SEND = { "label": SEND_LABEL, "status": OPEN, "@events": [ COMPLETE ] };
+export const SEND = { "label": SEND_LABEL, "status": OPEN_STATUS, "@events": [ COMPLETE_EVENT ] };
 
 // A submission's workflow container, holding one running workflow parked on the given tasks, by name
 export function waitingOn(submission: string, tasks: Record<string, Record<string, unknown>>) {
   const instance = `${submission}/wf:instances/timeOffRequest`;
   const children: Record<string, Record<string, unknown>> = Object.fromEntries(Object.entries(tasks)
     .map(([ name, task ]) => [ name,
-      { "@path": `${instance}/${name}`, "sling:resourceType": TASK_INSTANCE, ...task } ]));
-  return { timeOffRequest: { "@path": instance, "sling:resourceType": WORKFLOW_INSTANCE, ...children } };
+      { "@path": `${instance}/${name}`, "sling:resourceType": TASK_INSTANCE_TYPE, ...task } ]));
+  return { timeOffRequest: { "@path": instance, "sling:resourceType": WORKFLOW_INSTANCE_TYPE, ...children } };
 }

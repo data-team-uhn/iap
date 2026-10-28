@@ -25,7 +25,7 @@ import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
-import { COMPLETE, type SubmissionTask } from "./taskModel";
+import { COMPLETE_EVENT, type SubmissionTask } from "./taskModel";
 import { useSubmissionTasks } from "./useSubmissionTasks";
 
 // The tasks a submission is waiting for, as buttons labelled with each task's label.
@@ -39,13 +39,13 @@ function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: ()
   // Each completion reports its own failure, since only it knows which task's label to name
   const { working, run } = useAsyncAction({ onFailure: () => undefined });
 
-  const complete = (task: SubmissionTask) => run(() => sendEvent(doFetch, task.path, COMPLETE)
+  const complete = (task: SubmissionTask) => run(() => sendEvent(doFetch, task.path, COMPLETE_EVENT)
     .then(() => reload())
     .then(() => onCompleted?.())
     // The engine's message: only the definition knows why it refused
     .catch((error: unknown) => notify({ title: `${task.label} did not go through`, message: messageOf(error) })));
 
-  const offered = tasks.filter(task => offers(task, COMPLETE) && task.outcomeOptions.length === 0);
+  const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0);
   if (offered.length === 0) {
     return null;
   }

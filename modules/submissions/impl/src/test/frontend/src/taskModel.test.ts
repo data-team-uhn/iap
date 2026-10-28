@@ -16,7 +16,13 @@
  * limitations under the License.
  */
 
-import { COMPLETE, OPEN, TASK_INSTANCE, WORKFLOW_INSTANCE, tasksFrom } from "@iap/submissions/taskModel";
+import {
+  COMPLETE_EVENT,
+  OPEN_STATUS,
+  TASK_INSTANCE_TYPE,
+  WORKFLOW_INSTANCE_TYPE,
+  tasksFrom
+} from "@iap/submissions/taskModel";
 
 const INSTANCES = "/Submissions/a/b/demo-1/wf:instances";
 
@@ -26,7 +32,7 @@ const CONTAINER = {
   "sling:resourceType": "wf/WorkflowInstances",
   "timeOffRequest": {
     "@path": INSTANCES + "/timeOffRequest",
-    "sling:resourceType": WORKFLOW_INSTANCE,
+    "sling:resourceType": WORKFLOW_INSTANCE_TYPE,
     "status": "active",
     "token": {
       "@path": INSTANCES + "/timeOffRequest/token",
@@ -35,23 +41,23 @@ const CONTAINER = {
     },
     "fillIn": {
       "@path": INSTANCES + "/timeOffRequest/fillIn",
-      "sling:resourceType": TASK_INSTANCE,
+      "sling:resourceType": TASK_INSTANCE_TYPE,
       "label": "Say when you want to be away",
-      "status": OPEN,
+      "status": OPEN_STATUS,
       "outcomeOptions": [],
-      "@events": [ COMPLETE ],
+      "@events": [ COMPLETE_EVENT ],
     },
     "checkedBudget": {
       "@path": INSTANCES + "/timeOffRequest/checkedBudget",
-      "sling:resourceType": TASK_INSTANCE,
+      "sling:resourceType": TASK_INSTANCE_TYPE,
       "label": "Check the budget",
       "status": "completed",
     },
     "approveRequest": {
       "@path": INSTANCES + "/timeOffRequest/approveRequest",
-      "sling:resourceType": TASK_INSTANCE,
+      "sling:resourceType": TASK_INSTANCE_TYPE,
       "label": "Approve the request",
-      "status": OPEN,
+      "status": OPEN_STATUS,
       "outcomeOptions": [ "approved", "rejected" ],
       "@events": [],
     },
@@ -61,7 +67,7 @@ const CONTAINER = {
 // A container holding one instance, which holds the given task
 function holding(task: Record<string, unknown>) {
   return {
-    i: { "sling:resourceType": WORKFLOW_INSTANCE, "t": { "sling:resourceType": TASK_INSTANCE, ...task } },
+    i: { "sling:resourceType": WORKFLOW_INSTANCE_TYPE, "t": { "sling:resourceType": TASK_INSTANCE_TYPE, ...task } },
   };
 }
 
@@ -75,32 +81,32 @@ describe("tasksFrom", () => {
       path: INSTANCES + "/timeOffRequest/fillIn",
       label: "Say when you want to be away",
       outcomeOptions: [],
-      "@events": [ COMPLETE ],
+      "@events": [ COMPLETE_EVENT ],
     });
     expect(tasks[1].outcomeOptions).toEqual([ "approved", "rejected" ]);
   });
 
   it("reads a lone value, which arrives as a bare string rather than an array", () => {
     const [ task ] = tasksFrom(holding({
-      "@path": INSTANCES + "/i/t", "status": OPEN, "outcomeOptions": "acknowledged", "@events": COMPLETE,
+      "@path": INSTANCES + "/i/t", "status": OPEN_STATUS, "outcomeOptions": "acknowledged", "@events": COMPLETE_EVENT,
     }));
 
     expect(task.outcomeOptions).toEqual([ "acknowledged" ]);
-    expect(task["@events"]).toEqual([ COMPLETE ]);
+    expect(task["@events"]).toEqual([ COMPLETE_EVENT ]);
   });
 
   it("falls back to a task's node name when it carries no label", () => {
-    expect(tasksFrom(holding({ "@path": INSTANCES + "/i/nameless", "status": OPEN }))[0].label)
+    expect(tasksFrom(holding({ "@path": INSTANCES + "/i/nameless", "status": OPEN_STATUS }))[0].label)
       .toBe("nameless");
   });
 
   it("reads nothing from a task serialized without the events the reader may send it", () => {
     // Fail closed: a task the server said nothing about offers nothing
-    expect(tasksFrom(holding({ "@path": INSTANCES + "/i/t", "status": OPEN }))[0]["@events"]).toEqual([]);
+    expect(tasksFrom(holding({ "@path": INSTANCES + "/i/t", "status": OPEN_STATUS }))[0]["@events"]).toEqual([]);
   });
 
   it("skips a task the server would not say where to find", () => {
-    expect(tasksFrom(holding({ "label": "Nowhere", "status": OPEN }))).toEqual([]);
+    expect(tasksFrom(holding({ "label": "Nowhere", "status": OPEN_STATUS }))).toEqual([]);
   });
 
   it("reads nothing from an empty container", () => {
