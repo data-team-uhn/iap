@@ -34,6 +34,7 @@ import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
+import { WAITING, approval } from "./approvals.fixture";
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
@@ -298,7 +299,7 @@ describe("SubmissionView", () => {
         "sling:resourceType": "sch/AnswerOption", value: "A wonder drug against everything", label: "The wonder drug",
       },
     });
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch(submission)));
+    vi.stubGlobal("fetch", bothModes(submission));
 
     renderAt("/Submissions/demo-1");
 
@@ -307,7 +308,7 @@ describe("SubmissionView", () => {
   });
 
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
-    const fetchMock = vi.fn(tagAwareFetch(DEEP_SUBMISSION));
+    const fetchMock = bothModes(DEEP_SUBMISSION);
     vi.stubGlobal("fetch", fetchMock);
 
     renderAt("/Submissions/demo-1");
@@ -347,8 +348,8 @@ describe("SubmissionView", () => {
     expect(screen.getByText("Fax")).toBeInTheDocument();
     expect(screen.getByText("ExtraForm")).toBeInTheDocument();
 
-    // The documents section asks the server what this request is being asked for, which this
-    // fixture does not answer; what it asks for is its own group of tests
+    // What the request is asked for comes from the projection, empty here; those sections have their
+    // own group of tests
     expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
 
     // The review with its threaded comment ("jdoe" appears as reviewer and as comment author);
@@ -366,8 +367,8 @@ describe("SubmissionView", () => {
   });
 
   it("credits whoever raised the submission, not the engine that wrote it", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
-      "jcr:createdBy": "workflows", "createdBy": "demo-requester" })));
+    vi.stubGlobal("fetch", bothModes({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "workflows", "createdBy": "demo-requester" }));
 
     renderAt("/Submissions/demo-1");
 
@@ -375,8 +376,8 @@ describe("SubmissionView", () => {
   });
 
   it("falls back on who wrote it when nothing recorded who it was for", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
-      "jcr:createdBy": "sling-jcr-content-loader" })));
+    vi.stubGlobal("fetch", bothModes({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "sling-jcr-content-loader" }));
 
     renderAt("/Submissions/demo-1");
 
@@ -384,7 +385,7 @@ describe("SubmissionView", () => {
   });
 
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch(BARE_SUBMISSION)));
+    vi.stubGlobal("fetch", bothModes(BARE_SUBMISSION));
 
     renderAt("/Submissions/demo-2");
 
@@ -477,7 +478,7 @@ describe("SubmissionView", () => {
     expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
   });
 
-  describe("the documents section", () => {
+  describe("the documents and approvals sections", () => {
     const PROTOCOL = {
       name: "Protocol",
       path: "/Schemas/ClinicalTrial/1.0/Protocol",
@@ -625,6 +626,7 @@ describe("SubmissionView", () => {
       // What is attached comes from the submission itself, so it is still shown
       expect(screen.getByText("note.pdf")).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
+      expect(screen.getByText(/Which approvals this request needs could not be read/)).toBeInTheDocument();
     });
 
     it("says nothing about what was asked while the projection is on its way", async () => {
@@ -636,7 +638,36 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByRole("progressbar", { name: "Loading the documents" })).toBeInTheDocument();
+      expect(screen.getByRole("progressbar", { name: "Loading the approvals" })).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
+    });
+
+    it("says which approvals the request is waiting on, and where each stands", async () => {
+      vi.stubGlobal("fetch", serving(projection([ approval() ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Approval" })).toBeInTheDocument();
+      expect(screen.getByText(WAITING)).toBeInTheDocument();
+    });
+
+    it("says so when the request needs no approval at all", async () => {
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request needs no approvals")).toBeInTheDocument();
+    });
+
+    it("reads what the request is asked for once, for both sections", async () => {
+      const fetchMock = serving(projection([ PROTOCOL, approval() ]));
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Approval" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json"))).toHaveLength(1);
     });
   });
 

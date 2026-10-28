@@ -42,6 +42,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -52,7 +53,9 @@ import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -183,8 +186,35 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                 submission, answers));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, documents, json);
+        } else if (requirement instanceof ApprovalRequirement) {
+            describe((ApprovalRequirement) requirement, submission, json);
         }
         return json;
+    }
+
+    /**
+     * What an approval requirement adds: who decides it, and where it stands.
+     *
+     * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. The latest
+     * review is the decision, whichever way it went: it says whether the approval is granted, and who made it and
+     * when. A refusal is reported as a decision, and one that follows an approval withdraws it.</p>
+     *
+     * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
+     * @param json the requirement's JSON, added to in place
+     */
+    private static void describe(final ApprovalRequirement requirement, final Submission submission,
+        final JsonObjectBuilder json)
+    {
+        // Stated always, empty when the approval is not narrowed to a group
+        json.add("approverGroup", Objects.toString(requirement.getApproverGroup(), ""));
+        final Optional<Review> decision = Optional.ofNullable(submission.getLatestReviewOf(requirement));
+        json.add("approved", decision.map(Review::isApproved).orElse(false));
+        decision.ifPresent(review -> {
+            json.add("decidedBy", review.getReviewer());
+            Optional.ofNullable(DateUtils.toString(review.getCreated()))
+                .ifPresent(decided -> json.add("decidedAt", decided));
+        });
     }
 
     /**

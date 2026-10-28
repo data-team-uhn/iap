@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.tags.models.Taggable;
@@ -155,6 +157,31 @@ public class Submission extends Entity
     public List<Review> getReviews()
     {
         return this.getChildren(Review.RESOURCE_TYPE, Review.class);
+    }
+
+    /**
+     * The most recent review of one requirement, which is where that requirement now stands. Recency is the review's
+     * creation date, since the children of a submission have no order of their own; a review with no recorded date
+     * counts as the oldest.
+     *
+     * @param requirement the requirement to look up
+     * @return the latest review naming it, or {@code null} when nobody has reviewed it
+     */
+    @Nullable
+    public Review getLatestReviewOf(@NotNull final Requirement requirement)
+    {
+        return this.getReviews().stream()
+            .filter(review -> isAbout(review, requirement))
+            .max(Comparator.comparing(Review::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())))
+            .orElse(null);
+    }
+
+    // By path, since a requirement of another schema version is a different requirement even when it has the
+    // same name
+    private static boolean isAbout(final Review review, final Requirement requirement)
+    {
+        final Requirement reviewed = review.getRequirement();
+        return reviewed != null && requirement.getPath().equals(reviewed.getPath());
     }
 
     /**

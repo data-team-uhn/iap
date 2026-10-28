@@ -42,12 +42,16 @@ import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
 import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
+import ApprovalState from "./ApprovalState";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
+  type Requirement,
   type SubmissionForm,
   describeNothingAttached,
   fetchForm,
+  formatDate,
+  isApprovalRequirement,
   isDocumentRequirement,
   toFileUrl
 } from "./submissionForm";
@@ -72,11 +76,6 @@ function formatValue(value: unknown): string {
 // is named instead.
 function createdBy(submission: SerializedNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
-}
-
-// JCR dates are serialized as ISO 8601 strings; anything else is not a date
-function formatDate(value: unknown): string {
-  return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
 }
 
 // What a stored value reads as: the label of the option it picks, where the question offers one.
@@ -164,23 +163,47 @@ function Attachment({ document, named }: { document: SerializedNode; named: bool
   );
 }
 
-// What the schema asks for and what has been attached against it.
-//
-// The requirements come from the form projection rather than from the submission this page already
-// holds, because a document requirement can be conditional, and conditions are resolved on the
-// server by design. Reading them off the schema instead would list documents this request was never
-// asked for.
-function Documents({ path, documents }: { path: string; documents: SerializedNode[] }) {
-  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
+// What the form projection says this request is asked for, or why it could not be read. Neither, until
+// the projection arrives.
+interface FormProjection {
+  form?: SubmissionForm;
+  failure?: string;
+}
+
+// The requirements come from the form projection, not from the submission this page holds. A
+// requirement can be conditional, and the server resolves conditions, so reading them off the schema
+// would list what this request was never asked for.
+function useFormProjection(path: string): FormProjection {
+  const [projection, setProjection] = useState<FormProjection>({});
   const doFetch = useAuthenticatedFetch();
 
-  // The page rebuilds this section for each request it shows, so a projection can only ever land on
-  // the request it was asked for
+  // The page rebuilds the sections reading this for each request it shows, so a projection can only
+  // ever land on the request it was asked for
   useEffect(() => {
-    fetchForm(doFetch, path).then(setForm, (error: unknown) => setFailure(describeRequestFailure(error)));
+    fetchForm(doFetch, path).then(
+      form => setProjection({ form }),
+      (error: unknown) => setProjection({ failure: describeRequestFailure(error) }));
   }, [doFetch, path]);
+  return projection;
+}
 
+// A requirement's name and what it says about itself, above whatever answers it
+function RequirementHeading({ requirement }: { requirement: Requirement }) {
+  return (
+    <>
+      <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+      {requirement.description
+        ? <Typography variant="description">{requirement.description}</Typography>
+        : null}
+    </>
+  );
+}
+
+// What the schema asks for and what has been attached against it.
+function Documents({ projection: { form, failure }, documents }: {
+  projection: FormProjection;
+  documents: SerializedNode[];
+}) {
   // Until the projection arrives nothing can be said about what was asked
   if (!form && !failure) {
     return <CircularProgress size={24} aria-label="Loading the documents" />;
@@ -210,10 +233,7 @@ function Documents({ path, documents }: { path: string; documents: SerializedNod
         const attached = fulfilling(requirement);
         return (
           <Stack key={requirement.name} spacing={1}>
-            <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
-            {requirement.description
-              ? <Typography variant="description">{requirement.description}</Typography>
-              : null}
+            <RequirementHeading requirement={requirement} />
             {attached.length > 0
               ? attached.map((document, position) =>
                 <Attachment key={"attached-" + position} document={document} named={false} />)
@@ -224,6 +244,44 @@ function Documents({ path, documents }: { path: string; documents: SerializedNod
       {unattributed.map((document, index) =>
         <Attachment key={"other-" + index} document={document} named />)}
     </Stack>
+  );
+}
+
+// The approvals this request needs, and where each of them stands.
+function Approvals({ projection: { form, failure } }: { projection: FormProjection }) {
+  if (!form) {
+    return failure
+      ? <Alert severity="warning">{`Which approvals this request needs could not be read: ${failure}`}</Alert>
+      : <CircularProgress size={24} aria-label="Loading the approvals" />;
+  }
+  const approvals = form.requirements.filter(isApprovalRequirement);
+  if (approvals.length === 0) {
+    return <Typography variant="placeholder">This request needs no approvals</Typography>;
+  }
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {approvals.map(approval => (
+        <Stack key={approval.name} spacing={1}>
+          <RequirementHeading requirement={approval} />
+          <ApprovalState requirement={approval} />
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+// The parts of the request answered other than by its questions, both read off one projection
+function OtherRequirements({ path, documents }: { path: string; documents: SerializedNode[] }) {
+  const projection = useFormProjection(path);
+  return (
+    <>
+      <Panel title="Documents">
+        <Documents projection={projection} documents={documents} />
+      </Panel>
+      <Panel title="Approvals">
+        <Approvals projection={projection} />
+      </Panel>
+    </>
   );
 }
 
@@ -470,9 +528,7 @@ function SubmissionView() {
           <FormItems container={form} answers={answers} level={0} />
         </Panel>
       ))}
-      <Panel title="Documents">
-        <Documents path={path} documents={documents} />
-      </Panel>
+      <OtherRequirements path={path} documents={documents} />
       <Panel title="Reviews">
         {reviews.length > 0
           ? <Reviews reviews={reviews} />

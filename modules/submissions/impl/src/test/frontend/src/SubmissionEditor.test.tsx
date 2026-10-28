@@ -39,6 +39,8 @@ import {
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
 
+import { WAITING, approval } from "./approvals.fixture";
+
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
 }));
@@ -187,19 +189,27 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
   });
 
-  it("shows a requirement that holds no questions, rather than dropping it", async () => {
+  it("shows a requirement it cannot complete, rather than dropping it", async () => {
     // Leaving it out would say the request asks less than it does
     vi.stubGlobal("fetch", serving(form({
       requirements: [ {
-        name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: "sch/ApprovalRequirement",
-        label: "Approval"
+        name: "ethics", path: "/Schemas/timeOffRequest/v1/ethics", type: "sch/EthicsRequirement", label: "Ethics"
       } ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("Approval")).toBeInTheDocument();
+    expect(await screen.findByText("Ethics")).toBeInTheDocument();
     expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+  });
+
+  it("says where an approval stands, since somebody else grants it", async () => {
+    vi.stubGlobal("fetch", serving(form({ requirements: [ approval() ] })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Approval")).toBeInTheDocument();
+    expect(screen.getByText(WAITING)).toBeInTheDocument();
   });
 
   describe("answering a document requirement", () => {

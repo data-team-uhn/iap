@@ -29,6 +29,7 @@ import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
 export const FORM_REQUIREMENT = "sch/FormRequirement";
 export const DOCUMENT_REQUIREMENT = "sch/DocumentRequirement";
+export const APPROVAL_REQUIREMENT = "sch/ApprovalRequirement";
 export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
 
@@ -111,10 +112,27 @@ export interface DocumentRequirement extends Requirement {
   attached: AttachedDocument[];
 }
 
+// The kind somebody else grants, carrying where it stands.
+export interface ApprovalRequirement extends Requirement {
+  // The group whose members decide, empty when it is not narrowed to one
+  approverGroup: string;
+  // What the latest decision says, false until there is one
+  approved: boolean;
+  // Who made the latest decision, and when, once somebody has, whichever way it went
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
 // A document attached for a requirement. The path is its newest file's, absent until a file lands.
 export interface AttachedDocument {
   title: string;
   path?: string;
+}
+
+// A date as the reader's locale writes it. JCR dates are serialized as ISO 8601 strings; anything else
+// is not a date, and reads as nothing rather than as "Invalid Date".
+export function formatDate(value: unknown): string {
+  return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
 }
 
 // A repository path as a URL. Each segment is percent-encoded, so names with #, ? or % survive.
@@ -140,6 +158,10 @@ export function isFormRequirement(requirement: Requirement): requirement is Form
 
 export function isDocumentRequirement(requirement: Requirement): requirement is DocumentRequirement {
   return requirement.type === DOCUMENT_REQUIREMENT;
+}
+
+export function isApprovalRequirement(requirement: Requirement): requirement is ApprovalRequirement {
+  return requirement.type === APPROVAL_REQUIREMENT;
 }
 
 // What an empty document slot says. An optional one says so, or it reads as a gap.

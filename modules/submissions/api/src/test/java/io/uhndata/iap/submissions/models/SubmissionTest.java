@@ -507,6 +507,52 @@ class SubmissionTest
     }
 
     @Test
+    void findsTheLatestReviewOfARequirementByItsDate()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
+        // Created out of date order, since the children of a submission have no order of their own
+        this.reviewOnDay("r1", REB_ID, 7);
+        this.reviewOnDay("r2", REB_ID, 6);
+        this.reviewOnDay("r3", CONSENT_ID, 8);
+        this.context.create().resource("/Submissions/submission/r4", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID));
+
+        final Review latest = resource.adaptTo(Submission.class).getLatestReviewOf(this.reb());
+
+        assertEquals("r1", latest.getName());
+    }
+
+    @Test
+    void findsNoReviewOfARequirementNobodyReviewed()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
+        this.reviewOnDay("r1", CONSENT_ID, 7);
+        this.context.create().resource("/Submissions/submission/r2", SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
+
+        assertNull(resource.adaptTo(Submission.class).getLatestReviewOf(this.reb()));
+    }
+
+    private void reviewOnDay(final String name, final String requirement, final int day)
+    {
+        final Calendar reviewed = Calendar.getInstance();
+        reviewed.set(2026, Calendar.APRIL, day, 9, 0, 0);
+        this.context.create().resource("/Submissions/submission/" + name, Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", requirement, "jcr:created", reviewed));
+    }
+
+    private Requirement reb()
+    {
+        return Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/reb"))
+            .adaptTo(ApprovalRequirement.class);
+    }
+
+    @Test
     void listsTheWorkflowsRunningOverIt()
     {
         // The instances live in the container the wf:WorkflowAttachable mixin autocreates, inside the submission
