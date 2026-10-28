@@ -24,7 +24,6 @@ import java.util.Objects;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,10 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.PartCreator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
-import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -150,62 +146,7 @@ class CreatePartsHandlerTest
      */
     private WorkflowTaskContext context(final Resource target, final String createdPath)
     {
-        final ResourceResolver resolver = this.context.resourceResolver();
-        return new WorkflowTaskContext()
-        {
-            @Override
-            public Resource getTarget()
-            {
-                return target;
-            }
-
-            @Override
-            public String getActor()
-            {
-                return REQUESTER;
-            }
-
-            @Override
-            public WorkflowEvent getEvent()
-            {
-                return null;
-            }
-
-            @Override
-            public Activity getActivity()
-            {
-                return null;
-            }
-
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-
-            @Override
-            public Object getVariable(final String name)
-            {
-                return WorkflowResult.CREATED_PATH_VARIABLE.equals(name) ? createdPath : null;
-            }
-
-            @Override
-            public void setVariable(final String name, final Object value)
-            {
-                // Nothing this handler records is a variable
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
-            }
-        };
+        return new TaskContext(target, REQUESTER, Map.of())
+            .withVariable(WorkflowResult.CREATED_PATH_VARIABLE, createdPath);
     }
 }

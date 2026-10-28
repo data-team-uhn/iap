@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,7 +48,6 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,7 +135,6 @@ class CreateSubmissionHandlerTest
         final String name = path.substring(path.lastIndexOf('/') + 1);
         assertEquals(UUID.fromString(name).toString(), name);
         assertEquals(PrefixTree.pathFor("/Submissions", name), path);
-        // The buckets are folders, which is what lets the homepage's own read grant name their type
         assertEquals("sling:Folder",
             this.context.resourceResolver().getResource(path).getParent().getValueMap().get("jcr:primaryType"));
     }
@@ -156,24 +153,15 @@ class CreateSubmissionHandlerTest
     }
 
     @Test
-    void translatesAFailedBucketIntoAPersistenceFailure()
+    void leavesItsBucketsToTheEnginesCommit() throws WorkflowException, PersistenceException
     {
-        // The homepage's own JCR node fails on any use, so the prefix tree's buckets cannot be opened
-        final Node explosive = Mockito.mock(Node.class, invocation -> {
-            throw new RepositoryException("boom");
-        });
-        this.target = new ResourceWrapper(this.target)
-        {
-            @Override
-            public <T> T adaptTo(final Class<T> type)
-            {
-                return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
-            }
-        };
+        final WorkflowTaskContext taskContext = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
 
-        final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH))));
-        assertTrue(failure.getMessage().contains("Could not open the bucket"));
+        this.handler.execute(taskContext);
+
+        // Unsaved, so that a run failing after this task is reverted together with its buckets
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        assertTrue(this.context.resourceResolver().getResource(path).getParent().adaptTo(Node.class).isNew());
     }
 
     @Test
@@ -315,65 +303,8 @@ class CreateSubmissionHandlerTest
      */
     private WorkflowTaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
     {
-        final WorkflowEvent event = new WorkflowEvent("create", payload);
-        final Map<String, Object> variables = new HashMap<>();
-        final Activity activity = Mockito.mock(Activity.class);
-        final Resource submissionsHomepage = this.target;
-        return new WorkflowTaskContext()
-        {
-            @Override
-            public Resource getTarget()
-            {
-                return submissionsHomepage;
-            }
-
-            @Override
-            public String getActor()
-            {
-                return "demo-requester";
-            }
-
-            @Override
-            public WorkflowEvent getEvent()
-            {
-                return event;
-            }
-
-            @Override
-            public Activity getActivity()
-            {
-                return activity;
-            }
-
-            @Override
-            public Object getVariable(final String name)
-            {
-                return variables.get(name);
-            }
-
-            @Override
-            public void setVariable(final String name, final Object value)
-            {
-                variables.put(name, value);
-            }
-
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
-            }
-        };
+        return new TaskContext(this.target, "demo-requester", new WorkflowEvent("create", payload))
+            .performing(Mockito.mock(Activity.class))
+            .throughResolver(resolver);
     }
 }

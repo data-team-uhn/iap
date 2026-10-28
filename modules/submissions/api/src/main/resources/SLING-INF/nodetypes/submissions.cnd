@@ -43,7 +43,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains submissions
+  // The prefix tree's sling:Folder buckets hold the submissions; this admits one placed directly too
   + * (sub:Submission) = sub:Submission
 
   // Allow any other children for extensibility

@@ -44,8 +44,14 @@ final class TaskContext implements WorkflowTaskContext
 
     private final Map<String, Object> variables = new HashMap<>();
 
+    /** The session the handler works through, when it is not the target's own. */
+    private ResourceResolver resolver;
+
+    /** The activity being performed, for a handler that reads it. */
+    private Activity activity;
+
     /**
-     * A context for one handler run.
+     * A context for one handler run, for an event whose name the handler does not read.
      *
      * @param target what the event is aimed at
      * @param actor who sent the event
@@ -53,9 +59,58 @@ final class TaskContext implements WorkflowTaskContext
      */
     TaskContext(final Resource target, final String actor, final Map<String, Object> payload)
     {
+        this(target, actor, new WorkflowEvent("test", payload));
+    }
+
+    /**
+     * A context for one handler run.
+     *
+     * @param target what the event is aimed at
+     * @param actor who sent the event
+     * @param event the event itself
+     */
+    TaskContext(final Resource target, final String actor, final WorkflowEvent event)
+    {
         this.target = target;
         this.actor = actor;
-        this.event = new WorkflowEvent("test", payload);
+        this.event = event;
+    }
+
+    /**
+     * Has the handler work through another session than the target's own.
+     *
+     * @param session the session to hand out
+     * @return this context
+     */
+    TaskContext throughResolver(final ResourceResolver session)
+    {
+        this.resolver = session;
+        return this;
+    }
+
+    /**
+     * Names the activity the handler performs.
+     *
+     * @param performed the activity
+     * @return this context
+     */
+    TaskContext performing(final Activity performed)
+    {
+        this.activity = performed;
+        return this;
+    }
+
+    /**
+     * Sets a variable an earlier activity left behind.
+     *
+     * @param name the variable's name
+     * @param value its value
+     * @return this context
+     */
+    TaskContext withVariable(final String name, final Object value)
+    {
+        this.variables.put(name, value);
+        return this;
     }
 
     @Override
@@ -79,7 +134,10 @@ final class TaskContext implements WorkflowTaskContext
     @Override
     public Activity getActivity()
     {
-        throw new IllegalStateException("No activity was expected to be read here");
+        if (this.activity == null) {
+            throw new IllegalStateException("No activity was expected to be read here");
+        }
+        return this.activity;
     }
 
     @Override
@@ -97,7 +155,7 @@ final class TaskContext implements WorkflowTaskContext
     @Override
     public ResourceResolver getResourceResolver()
     {
-        return this.target.getResourceResolver();
+        return this.resolver == null ? this.target.getResourceResolver() : this.resolver;
     }
 
     @Override

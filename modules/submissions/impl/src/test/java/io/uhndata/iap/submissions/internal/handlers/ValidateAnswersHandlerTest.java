@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.submissions.internal.CompletenessFixture;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.AnswerValidator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -41,8 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link ValidateAnswersHandler}: that every registered rule is asked, and that the first objection
- * is what the submitter is told.
+ * Unit tests for {@link ValidateAnswersHandler}: that a save must pass every registered rule, and that the first
+ * objection stops it and is what the submitter is told.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,6 +53,9 @@ class ValidateAnswersHandlerTest
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
 
     private static final String REQUESTER = "demo-requester";
+
+    /** Someone other than the author, so that the actor cannot be mistaken for the author. */
+    private static final String SAVER = "demo-delegate";
 
     private final SlingContext context = new SlingContext();
 
@@ -75,7 +78,7 @@ class ValidateAnswersHandlerTest
 
     // Nothing registered is the ordinary case for a deployment with no rules of its own
     @Test
-    void acceptsWhenNothingIsRegistered()
+    void acceptsWhenNothingIsRegistered() throws ReflectiveOperationException
     {
         final ValidateAnswersHandler handler = handlerWith();
 
@@ -83,7 +86,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void refusesToRunOnAnythingButASubmission()
+    void refusesToRunOnAnythingButASubmission() throws ReflectiveOperationException
     {
         final Resource schema = this.context.create().resource("/Schemas/timeOffRequest",
             "sling:resourceType", "sch/Schema");
@@ -93,7 +96,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void acceptsWhenEveryRuleIsContent()
+    void acceptsWhenEveryRuleIsContent() throws ReflectiveOperationException
     {
         final ValidateAnswersHandler handler =
             handlerWith(RecordingValidator.accepting(), RecordingValidator.accepting());
@@ -102,7 +105,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void refusesWithTheReasonTheRuleGave()
+    void refusesWithTheReasonTheRuleGave() throws ReflectiveOperationException
     {
         final ValidateAnswersHandler handler =
             handlerWith(RecordingValidator.accepting(), RecordingValidator.refusing("You have 2 days left"));
@@ -115,7 +118,7 @@ class ValidateAnswersHandlerTest
 
     // Which rule objects first is not promised, only that the others are not asked once one has
     @Test
-    void stopsAtTheFirstObjection()
+    void stopsAtTheFirstObjection() throws ReflectiveOperationException
     {
         final RecordingValidator first = RecordingValidator.refusing("first");
         final RecordingValidator second = RecordingValidator.refusing("second");
@@ -130,7 +133,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void handsEachRuleTheSubmissionAndWhoIsSaving()
+    void handsEachRuleTheSubmissionAndWhoIsSaving() throws ReflectiveOperationException
     {
         final RecordingValidator validator = RecordingValidator.accepting();
         final ValidateAnswersHandler handler = handlerWith(validator);
@@ -138,27 +141,20 @@ class ValidateAnswersHandlerTest
         assertDoesNotThrow(() -> handler.execute(savingTo(this.submission)));
 
         assertEquals("A long weekend", validator.askedAbout.getTitle());
-        assertEquals(REQUESTER, validator.askedBy);
+        assertEquals(SAVER, validator.askedBy);
     }
 
     private static ValidateAnswersHandler handlerWith(final AnswerValidator... validators)
+        throws ReflectiveOperationException
     {
         final ValidateAnswersHandler handler = new ValidateAnswersHandler();
-        try {
-            // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so
-            // the references are set by reflection rather than by registerInjectActivateService
-            final Field field = ValidateAnswersHandler.class.getDeclaredField("validators");
-            field.setAccessible(true);
-            field.set(handler, List.of(validators));
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
+        CompletenessFixture.inject(handler, "validators", List.of(validators));
         return handler;
     }
 
     private TaskContext savingTo(final Resource target)
     {
-        return new TaskContext(target, REQUESTER, Map.of());
+        return new TaskContext(target, SAVER, Map.of());
     }
 
     /** A rule that gives a fixed answer, and remembers what it was asked. */

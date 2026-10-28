@@ -36,13 +36,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that puts a save past every registered {@link AnswerValidator}, once the answers are recorded.
- *
- * <p>It runs after the answers are written, so each rule reads what the save recorded. A system workflow commits
- * only at its end event, so a refusal reverts the whole run, answers included.</p>
- *
- * <p>A refusal is an {@link InvalidPayloadException}, which the servlet answers as a 400 carrying the message, and
- * the editor shows on the answer just given.</p>
+ * The service task that puts a save past the registered {@link AnswerValidator}s, once the answers are recorded.
+ * A save must pass every one of them. The first to object stops it, with an {@link InvalidPayloadException}
+ * carrying that validator's reason.
  *
  * @version $Id$
  * @since 0.1.0

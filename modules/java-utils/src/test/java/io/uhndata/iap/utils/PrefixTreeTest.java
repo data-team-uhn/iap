@@ -22,6 +22,8 @@ import javax.jcr.InvalidItemStateException;
 import javax.jcr.Node;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
@@ -109,6 +112,28 @@ class PrefixTreeTest
     }
 
     @Test
+    void pendingBucketsAreLeftForTheCallerToCommit() throws Exception
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final Resource bucket = PrefixTree.pendingBucketFor(resolver.getResource("/content"), NAME, TYPE);
+
+        assertEquals("/content/ab/cd/ef", bucket.getPath());
+        assertEquals(TYPE, bucket.getValueMap().get("jcr:primaryType", String.class));
+        assertTrue(bucket.adaptTo(Node.class).isNew());
+        assertTrue(resolver.getResource("/content/ab").adaptTo(Node.class).isNew());
+    }
+
+    @Test
+    void pendingBucketsReuseTheBucketsAlreadyThere() throws Exception
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final String saved = PrefixTree.bucketFor(this.root, NAME, TYPE).getPath();
+
+        assertEquals(saved, PrefixTree.pendingBucketFor(resolver.getResource("/content"), NAME, TYPE).getPath());
+        assertFalse(resolver.hasChanges());
+    }
+
+    @Test
     void pathsCanBeComputedWithoutTheRepository() throws Exception
     {
         assertEquals(PrefixTree.bucketFor(this.root, NAME, TYPE).getPath() + "/" + NAME,
@@ -123,5 +148,7 @@ class PrefixTreeTest
         final String tooShort = "abcde";
         assertThrows(IllegalArgumentException.class, () -> PrefixTree.bucketFor(this.root, tooShort, TYPE));
         assertThrows(IllegalArgumentException.class, () -> PrefixTree.pathFor("/content", tooShort));
+        assertThrows(IllegalArgumentException.class, () -> PrefixTree.pendingBucketFor(
+            this.context.resourceResolver().getResource("/content"), tooShort, TYPE));
     }
 }

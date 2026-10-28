@@ -97,14 +97,16 @@ else
   import_node "/Schemas" "DemoStudy" "$(cat "$SCRIPT_DIR/DemoStudy.json")"
 fi
 
-VERSION_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1.json" \
-  | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
+# The jcr:uuid of the node at a path
+uuid_of() {
+  curl -s -u "admin:$PASSWORD" "$URL$1.json" | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])"
+}
+
+VERSION_UUID="$(uuid_of /Schemas/DemoStudy/v1)"
 echo "Schema version 1.0 has UUID $VERSION_UUID"
-# A submission names its schema as well as its version. The system workflow writes both, so a POST must too.
-SCHEMA_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy.json" \
-  | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
-PROTOCOL_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1/Protocol.json" \
-  | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
+# A submission must name its schema as well as its version: the node type makes both mandatory
+SCHEMA_UUID="$(uuid_of /Schemas/DemoStudy)"
+PROTOCOL_UUID="$(uuid_of /Schemas/DemoStudy/v1/Protocol)"
 
 # A small sample file attached as the "study protocol" of approved submissions
 SAMPLE_FILE="$(mktemp)"

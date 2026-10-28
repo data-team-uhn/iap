@@ -17,16 +17,9 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
-import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.entities.models.EntityHomepage;
 
@@ -43,35 +36,4 @@ public class SubmissionsHomepage extends EntityHomepage
 {
     /** The {@code sling:resourceType} of a {@code sub:SubmissionsHomepage} node. */
     public static final String RESOURCE_TYPE = "sub/SubmissionsHomepage";
-
-    /**
-     * The submissions filed under this homepage, wherever in its prefix tree they sit.
-     *
-     * <p>This walks the whole tree. A list for display should ask the paginated listing endpoint instead, which never
-     * reads more than a page.</p>
-     *
-     * @return a list of submissions, empty if none
-     */
-    @NotNull
-    public List<Submission> getSubmissions()
-    {
-        return findFiledSubmissions(this.resource).collect(Collectors.toList());
-    }
-
-    /**
-     * Finds the submissions under a node: its own, plus whatever its buckets hold. The walk stops at each submission,
-     * so it never goes into a submission's own children.
-     *
-     * @param node the node to look under
-     * @return the submissions found
-     */
-    @NotNull
-    private static Stream<Submission> findFiledSubmissions(@NotNull final Resource node)
-    {
-        return StreamSupport.stream(node.getChildren().spliterator(), false)
-            .flatMap(child -> child.isResourceType(Submission.RESOURCE_TYPE)
-                ? Stream.of(child.adaptTo(Submission.class))
-                : findFiledSubmissions(child))
-            .filter(Objects::nonNull);
-    }
 }

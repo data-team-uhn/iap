@@ -30,7 +30,6 @@ import javax.jcr.RepositoryException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -59,7 +58,6 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -350,9 +348,6 @@ class DetachDocumentHandlerTest
 
     private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
     {
-        final ResourceResolver resolver = this.context.resourceResolver();
-        final WorkflowEvent event = new WorkflowEvent(DetachDocumentHandler.HANDLER_NAME, payload);
-        final Activity activity = Mockito.mock(Activity.class);
         // jcr-mock answers nothing about versioning, so the request reads as checked out
         final Node checkedOut = Mockito.mock(Node.class);
         try {
@@ -368,61 +363,7 @@ class DetachDocumentHandlerTest
                 return Node.class.equals(type) ? type.cast(checkedOut) : super.adaptTo(type);
             }
         };
-        return new WorkflowTaskContext()
-        {
-            @Override
-            public Resource getTarget()
-            {
-                return submission;
-            }
-
-            @Override
-            public String getActor()
-            {
-                return actor;
-            }
-
-            @Override
-            public WorkflowEvent getEvent()
-            {
-                return event;
-            }
-
-            @Override
-            public Activity getActivity()
-            {
-                return activity;
-            }
-
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-
-            @Override
-            public Object getVariable(final String name)
-            {
-                return null;
-            }
-
-            @Override
-            public void setVariable(final String name, final Object value)
-            {
-                throw new IllegalStateException("No variable was expected to be set here");
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
-            }
-        };
+        return new TaskContext(submission, actor, new WorkflowEvent(DetachDocumentHandler.HANDLER_NAME, payload))
+            .performing(Mockito.mock(Activity.class));
     }
 }

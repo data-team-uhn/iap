@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.utils;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -25,6 +26,8 @@ import javax.jcr.ItemExistsException;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -41,10 +44,10 @@ import org.jetbrains.annotations.NotNull;
  * <li><b>Names must be uniformly distributed</b>, i.e. a UUID or a hash. Filing nodes under a name people chose,
  * or under a sequential identifier, piles them into a handful of buckets and rebuilds the very flat list this
  * exists to avoid.</li>
- * <li><b>Each bucket is saved as it is created</b>, so {@link #bucketFor} must be called <em>before</em> its
+ * <li><b>{@link #bucketFor} saves each bucket as it is created</b>, so it must be called <em>before</em> its
  * caller has any other pending change: recovering from a lost race calls {@code refresh(false)}, which would
  * otherwise discard that work. Buckets are inert, so one left behind by an operation that goes on to fail costs
- * nothing and gets reused.</li>
+ * nothing. A caller writing inside a transaction it does not own uses {@link #pendingBucketFor} instead.</li>
  * <li><b>Buckets are never removed</b>, including when the last node in one goes away.</li>
  * </ul>
  *
@@ -99,6 +102,36 @@ public final class PrefixTree
         Node bucket = root;
         for (int level = 0; level < LEVELS; ++level) {
             bucket = getOrCreateBucket(bucket, segment(name, level), bucketNodeType);
+        }
+        return bucket;
+    }
+
+    /**
+     * Find, adding them as needed, the buckets that a node belongs in, and leave any new bucket among the
+     * caller's pending changes. Nothing is saved, so the buckets are committed or reverted together with whatever
+     * else the caller writes. Two transactions adding the same new bucket conflict, and the second to commit
+     * fails.
+     *
+     * @param root the top of the prefix tree, e.g. the parent that would otherwise hold every node directly
+     * @param name the name of the node being filed, at least {@value #MINIMUM_NAME_LENGTH} uniformly
+     *            distributed characters
+     * @param bucketNodeType the primary type to create missing buckets with; the root's node type must allow it
+     *            as a child, and so must the type itself, since buckets nest
+     * @return the resource that the named node must be added to
+     * @throws IllegalArgumentException if the name is too short to file
+     * @throws PersistenceException if a missing bucket cannot be added
+     */
+    @NotNull
+    public static Resource pendingBucketFor(@NotNull final Resource root, @NotNull final String name,
+        @NotNull final String bucketNodeType) throws PersistenceException
+    {
+        checkName(name);
+        Resource bucket = root;
+        for (int level = 0; level < LEVELS; ++level) {
+            final String segment = segment(name, level);
+            final Resource existing = bucket.getChild(segment);
+            bucket = existing != null ? existing
+                : bucket.getResourceResolver().create(bucket, segment, Map.of("jcr:primaryType", bucketNodeType));
         }
         return bucket;
     }
