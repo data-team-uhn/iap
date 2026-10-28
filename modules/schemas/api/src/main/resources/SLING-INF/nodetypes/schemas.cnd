@@ -303,15 +303,13 @@
   // provided by the submitter meets this requirement
   - aiCheckPrompt (STRING)
 
-  // Whether the platform fills the document in from the submission, using
-  // the template below, rather than the submitter providing it. Then the
-  // template is required. The submitter may still upload a version of their
-  // own, such as an edited copy, in place of what was generated.
+  // Whether the platform should offer to generate this document (via the
+  // `template` file below)
   // Defaults to false.
   - generated (BOOLEAN)
 
-  // Optional template document offered to submitters; for a generated
-  // document, the .docx the platform fills in
+  // Optional template document offered to submitters.
+  // For a generated document, this is the .docx the platform fills in
   + template (nt:file)
 
   // The sections the document is expected to contain
