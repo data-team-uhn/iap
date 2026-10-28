@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +61,6 @@ import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -520,9 +518,6 @@ class SaveAnswersHandlerTest
     private WorkflowTaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
-        final WorkflowEvent event = new WorkflowEvent("save", payload);
-        final Map<String, Object> variables = new HashMap<>();
-        final Activity activity = Mockito.mock(Activity.class);
         final Node asNode = this.node;
         final Resource submission = new ResourceWrapper(this.target)
         {
@@ -538,62 +533,8 @@ class SaveAnswersHandlerTest
                 return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
             }
         };
-        return new WorkflowTaskContext()
-        {
-            @Override
-            public Resource getTarget()
-            {
-                return submission;
-            }
-
-            @Override
-            public String getActor()
-            {
-                return actor;
-            }
-
-            @Override
-            public WorkflowEvent getEvent()
-            {
-                return event;
-            }
-
-            @Override
-            public Activity getActivity()
-            {
-                return activity;
-            }
-
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-
-            @Override
-            public Object getVariable(final String name)
-            {
-                return variables.get(name);
-            }
-
-            @Override
-            public void setVariable(final String name, final Object value)
-            {
-                variables.put(name, value);
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
-            }
-        };
+        return new TaskContext(submission, actor, new WorkflowEvent("save", payload))
+            .performing(Mockito.mock(Activity.class));
     }
 
     /**

@@ -63,8 +63,7 @@ public class DetachDocumentHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "The detach workflow only applies to submissions");
+        final Submission submission = SubmissionHost.read(target, HANDLER_NAME);
         SaveAnswersHandler.checkMayEdit(submission, context.getActor());
 
         final String named = Payloads.requireText(context.getEvent(), AttachDocumentHandler.REQUIREMENT_PARAMETER,

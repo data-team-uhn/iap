@@ -192,7 +192,7 @@ A workflow lives **inside the thing it drives**, so it is found, secured and del
 along with it:
 
 ```
-/Submissions/proposal-42            sub:Submission        (wf:WorkflowAttachable)
+/Submissions/ab/cd/ef/abcdef12-…    sub:Submission        (wf:WorkflowAttachable)
 └── wf:instances                    wf:WorkflowInstances  autocreated, IGNORE
     └── review                      wf:WorkflowInstance   workflowVersion, status, startTime, endTime
         ├── t1                      wf:WorkflowToken      currentNodeId
@@ -784,8 +784,10 @@ its own.
 `/Submissions` works the same way: `/SystemWorkflows/createSubmission` and its
 `createSubmission` handler ship with the *submissions* module, which contributes the
 system workflows for its own homepage through the handler SPI exactly as a project
-would. That handler refuses to create a submission from an inactive version, and sets
-its `schemaVersion` as a real JCR REFERENCE.
+would. That handler refuses to create a submission from an inactive version, names it
+by a UUID filed in the homepage's prefix tree, and sets its `schemaVersion` and `schema`
+as real JCR REFERENCEs. `/Submissions/by-id/<uuid>` reaches a submission without knowing
+its buckets.
 
 `/SystemWorkflows/saveAnswers` targets `sub/Submission` itself, so filling a request in
 — a `POST` to `<submission>.save.json` — is a workflow event like any other. Its handler
@@ -793,17 +795,19 @@ decides whose request it is and whether it is still a draft, and refuses a value
 question the submitter is not shown, judged after the save's own answers are written: a
 question the same save reveals is accepted, and clearing an answer always is.
 
-The save then runs two more steps. `createParts` asks every `PartCreator` (an SPI in
-`submissions-api`) to give each applicable item a part of its own — an answer for every
-question shown, a document for every document requirement that applies — adding what is
-missing and never removing, so an answer whose question stops applying keeps its value.
-`markCompleteness` asks every `CompletenessEvaluator` to judge its own kind of part, and
-places the aggregated `incomplete` system tag on the parts reported, removing it from
-the rest, so the submission carries it while any part does. An answer is incomplete
-while it holds fewer than `minAnswers` non-blank values, a required document while
-nothing is uploaded into it; an approval never counts, since somebody else gives it. An
-applicable item with no part is a fault: the evaluator records it and reports the
-submission itself. The create and attach workflows run both steps, so a new submission
+The save then runs three more steps. `validateAnswers` asks every `AnswerValidator` (an
+SPI in `submissions-api`) whether the answers, as they now stand, may be saved, and the
+first to object refuses the whole save with a 400 carrying its reason. `createParts`
+asks every `PartCreator` to give each applicable item a part of its own — an answer for
+every question shown, a document for every document requirement that applies — adding
+what is missing and never removing, so an answer whose question stops applying keeps its
+value. `markCompleteness` asks every `CompletenessEvaluator` to judge its own kind of
+part, and places the aggregated `incomplete` system tag on the parts reported, removing
+it from the rest, so the submission carries it while any part does. An answer is
+incomplete while it holds fewer than `minAnswers` non-blank values, a required document
+while nothing is uploaded into it; an approval never counts, since somebody else gives
+it. An applicable item with no part is a fault: the evaluator records it and reports the
+submission itself. The create and attach workflows run the last two, so a new submission
 starts with its parts and marks. Detaching removes every version of a document and
 leaves it empty as its requirement's part, and the detach workflow marks the submission
 again.

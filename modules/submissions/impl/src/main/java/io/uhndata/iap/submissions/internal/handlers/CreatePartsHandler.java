@@ -27,9 +27,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
-import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.PartCreator;
-import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -61,11 +59,7 @@ public class CreatePartsHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Resource target = ExecutionHost.of(context);
-        if (!target.isResourceType(Submission.RESOURCE_TYPE)) {
-            throw new WorkflowDefinitionException("The createParts task only applies to submissions, not to "
-                + target.getResourceType());
-        }
+        final Resource target = SubmissionHost.require(ExecutionHost.of(context), HANDLER_NAME);
         for (final PartCreator creator : this.creators) {
             creator.createMissing(target);
         }

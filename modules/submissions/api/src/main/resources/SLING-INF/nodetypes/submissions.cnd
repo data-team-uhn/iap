@@ -43,7 +43,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains submissions
+  // The prefix tree's sling:Folder buckets hold the submissions; this admits one placed directly too
   + * (sub:Submission) = sub:Submission
 
   // Allow any other children for extensibility
@@ -61,6 +61,11 @@
 
   // The sch:SchemaVersion this submission answers
   - schemaVersion (REFERENCE) mandatory
+
+  // The sch:Schema that version belongs to, written beside it by the system workflow that
+  // creates the submission. It repeats schemaVersion's parent so that "every submission
+  // against this schema, whichever version" needs no join.
+  - schema (REFERENCE) mandatory
 
   // The lifecycle state (draft, submitted, in-review, approved, rejected) is not a dedicated
   // property: it is a `lifecycle`-category tag in the inherited `tags` property, defined under

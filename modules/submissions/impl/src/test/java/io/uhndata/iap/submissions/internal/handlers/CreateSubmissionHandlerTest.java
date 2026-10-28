@@ -17,10 +17,9 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.IntStream;
+import java.util.UUID;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -43,12 +42,12 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.Tagging;
+import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -106,47 +105,63 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff", taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
-        final Resource created = this.context.resourceResolver().getResource("/Submissions/myDayOff");
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        final Resource created = this.context.resourceResolver().getResource(path);
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
         // Raised as a draft, which is the state the save workflow checks for: without it the submitter cannot
         // answer their own request at all
         assertEquals(List.of("draft"), List.of(created.getValueMap().get("tags", new String[0])));
-        // A real REFERENCE, holding the version node's own identifier
+        // Real REFERENCEs, holding the version's and the schema's own identifiers
         final Node versionNode =
             this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(Node.class);
         assertEquals(versionNode.getIdentifier(),
             created.getValueMap().get("schemaVersion", String.class));
+        final Node schemaNode = this.context.resourceResolver()
+            .getResource("/Schemas/timeOffRequest").adaptTo(Node.class);
+        assertEquals(schemaNode.getIdentifier(), created.getValueMap().get("schema", String.class));
     }
 
     @Test
-    void dodgesNameCollisions() throws WorkflowException, PersistenceException
+    void filesTheSubmissionUnderAUuidInThePrefixTree() throws WorkflowException, PersistenceException
     {
-        this.context.create().resource("/Submissions/myDayOff", TYPE, "sub/Submission");
         final WorkflowTaskContext taskContext = context(Map.of(
             "title", "My day off", "schemaVersion", VERSION_PATH));
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff2", taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        final String name = path.substring(path.lastIndexOf('/') + 1);
+        assertEquals(UUID.fromString(name).toString(), name);
+        assertEquals(PrefixTree.pathFor("/Submissions", name), path);
+        assertEquals("sling:Folder",
+            this.context.resourceResolver().getResource(path).getParent().getValueMap().get("jcr:primaryType"));
     }
 
-    // Past a hundred siblings the name turns ugly rather than the submission being refused, which is
-    // what NodeNameUtils promises every caller
     @Test
-    void takesAnUglyNameRatherThanGivingUp() throws WorkflowException, PersistenceException
+    void raisesTwoSubmissionsWithTheSameTitleWithoutComplaint() throws WorkflowException, PersistenceException
     {
-        IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
-            "/Submissions/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "sub/Submission"));
+        final WorkflowTaskContext first = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
+        final WorkflowTaskContext second = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
 
-        final WorkflowTaskContext taskContext = context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH));
+        this.handler.execute(first);
+        this.handler.execute(second);
+
+        assertNotEquals(first.getVariable(WorkflowResult.CREATED_PATH_VARIABLE),
+            second.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void leavesItsBucketsToTheEnginesCommit() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext taskContext = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
+
         this.handler.execute(taskContext);
 
-        final String created = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
-        assertTrue(created.startsWith("/Submissions/busy"), created);
-        assertNotEquals("/Submissions/busy", created);
+        // Unsaved, so that a run failing after this task is reverted together with its buckets
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        assertTrue(this.context.resourceResolver().getResource(path).getParent().adaptTo(Node.class).isNew());
     }
 
     @Test
@@ -192,11 +207,16 @@ class CreateSubmissionHandlerTest
         assertTrue(rejection.getMessage().contains("title is required"));
     }
 
+    // The title no longer names the node, so one with no letters in it is as good as any other
     @Test
-    void requiresAUsableTitle()
+    void acceptsATitleNoNodeNameCouldBeMadeFrom() throws WorkflowException, PersistenceException
     {
-        assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of("title", "???", "schemaVersion", VERSION_PATH))));
+        final WorkflowTaskContext taskContext = context(Map.of("title", "???", "schemaVersion", VERSION_PATH));
+
+        this.handler.execute(taskContext);
+
+        assertEquals("???", this.context.resourceResolver().getResource(
+            (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE)).getValueMap().get("title"));
     }
 
     @Test
@@ -283,65 +303,8 @@ class CreateSubmissionHandlerTest
      */
     private WorkflowTaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
     {
-        final WorkflowEvent event = new WorkflowEvent("create", payload);
-        final Map<String, Object> variables = new HashMap<>();
-        final Activity activity = Mockito.mock(Activity.class);
-        final Resource submissionsHomepage = this.target;
-        return new WorkflowTaskContext()
-        {
-            @Override
-            public Resource getTarget()
-            {
-                return submissionsHomepage;
-            }
-
-            @Override
-            public String getActor()
-            {
-                return "demo-requester";
-            }
-
-            @Override
-            public WorkflowEvent getEvent()
-            {
-                return event;
-            }
-
-            @Override
-            public Activity getActivity()
-            {
-                return activity;
-            }
-
-            @Override
-            public Object getVariable(final String name)
-            {
-                return variables.get(name);
-            }
-
-            @Override
-            public void setVariable(final String name, final Object value)
-            {
-                variables.put(name, value);
-            }
-
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-
-            @Override
-            public void sendEvent(final Resource to, final WorkflowEvent sent)
-            {
-                throw new IllegalStateException("No event was expected to be sent here");
-            }
-
-            @Override
-            public void startWorkflow(final Resource host, final WorkflowVersion version)
-            {
-                throw new IllegalStateException("No workflow was expected to be started here");
-            }
-        };
+        return new TaskContext(this.target, "demo-requester", new WorkflowEvent("create", payload))
+            .performing(Mockito.mock(Activity.class))
+            .throughResolver(resolver);
     }
 }

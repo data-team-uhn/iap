@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.List;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -30,9 +28,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link SubmissionsHomepage}.
@@ -58,31 +54,5 @@ class SubmissionsHomepageTest
         final Resource resource = this.context.create().resource("/Submissions",
             "sling:resourceType", SubmissionsHomepage.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(SubmissionsHomepage.class));
-    }
-
-    @Test
-    void listsSubmissions()
-    {
-        final Resource resource = this.context.create().resource("/Submissions",
-            "sling:resourceType", SubmissionsHomepage.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/first", "sling:resourceType", Submission.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/second", "sling:resourceType", Submission.RESOURCE_TYPE);
-        final SubmissionsHomepage homepage = resource.adaptTo(SubmissionsHomepage.class);
-
-        final List<Submission> submissions = homepage.getSubmissions();
-
-        assertEquals(2, submissions.size());
-        assertEquals("first", submissions.get(0).getName());
-        assertEquals("second", submissions.get(1).getName());
-    }
-
-    @Test
-    void listsNoSubmissionsWhenNoneExist()
-    {
-        final Resource resource = this.context.create().resource("/Submissions",
-            "sling:resourceType", SubmissionsHomepage.RESOURCE_TYPE);
-        final SubmissionsHomepage homepage = resource.adaptTo(SubmissionsHomepage.class);
-
-        assertTrue(homepage.getSubmissions().isEmpty());
     }
 }

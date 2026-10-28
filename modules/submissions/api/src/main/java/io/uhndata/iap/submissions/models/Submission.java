@@ -35,6 +35,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
@@ -69,6 +70,9 @@ public class Submission extends Entity
 
     @ValueMapValue
     private String schemaVersion;
+
+    @ValueMapValue
+    private String schema;
 
     /**
      * The title of the submission.
@@ -106,6 +110,18 @@ public class Submission extends Entity
     public SchemaVersion findSchemaVersion()
     {
         return this.getReference(this.schemaVersion, SchemaVersion.class);
+    }
+
+    /**
+     * The schema this submission answers, whichever of its versions it was raised against.
+     *
+     * @return the schema
+     */
+    @NotNull
+    public Schema getSchema()
+    {
+        return Objects.requireNonNull(this.getReference(this.schema, Schema.class),
+            "Missing mandatory schema reference");
     }
 
     /**

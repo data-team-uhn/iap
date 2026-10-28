@@ -43,7 +43,6 @@ import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -92,12 +91,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        if (!target.isResourceType(Submission.RESOURCE_TYPE)) {
-            throw new WorkflowDefinitionException("The save workflow only applies to submissions, not to "
-                + target.getResourceType());
-        }
-        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "A submission resource always reads as a submission");
+        final Submission submission = SubmissionHost.read(target, HANDLER_NAME);
         checkMayEdit(submission, context.getActor());
         final Resource schemaVersion = schemaVersionOf(submission, target);
         final Map<Resource, String[]> answers = new LinkedHashMap<>();

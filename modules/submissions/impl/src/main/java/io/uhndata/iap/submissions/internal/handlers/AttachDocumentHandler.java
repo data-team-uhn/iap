@@ -112,8 +112,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "The attach workflow only applies to submissions");
+        final Submission submission = SubmissionHost.read(target, HANDLER_NAME);
         SaveAnswersHandler.checkMayEdit(submission, context.getActor());
 
         final EventAttachment file = Payloads.attachment(context.getEvent(), FILE_PARAMETER);
