@@ -4,7 +4,7 @@
   "private": true,
   "description": "End-to-end tests driving a real IAP instance through a browser.",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.34.5",
+  "packageManager": "pnpm@10.34.9",
   "scripts": {
     "test": "playwright test",
     "check-results": "node support/check-results.mjs",
