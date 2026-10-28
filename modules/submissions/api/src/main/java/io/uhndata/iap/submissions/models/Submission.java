@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.tags.models.Taggable;
@@ -155,6 +157,24 @@ public class Submission extends Entity
     public List<Review> getReviews()
     {
         return this.getChildren(Review.RESOURCE_TYPE, Review.class);
+    }
+
+    /**
+     * The latest decision on one requirement, which is where that requirement now stands: the most recent review of
+     * it that approved or rejected it. Reviews still open are left out. Recency is the review's creation date, since
+     * the children of a submission have no order of their own; a review with no recorded date counts as the oldest.
+     *
+     * @param requirement the requirement to look up
+     * @return the latest review deciding it, or {@code null} while nobody has
+     */
+    @Nullable
+    public Review findLatestDecisionOn(@NotNull final Requirement requirement)
+    {
+        return this.getReviews().stream()
+            .filter(review -> review.isAbout(requirement))
+            .filter(Review::isDecided)
+            .max(Comparator.comparing(Review::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())))
+            .orElse(null);
     }
 
     /**

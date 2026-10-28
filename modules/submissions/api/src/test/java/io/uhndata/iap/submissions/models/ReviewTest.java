@@ -36,6 +36,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
+import io.uhndata.iap.schemas.models.Requirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -51,6 +52,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ReviewTest
 {
+    private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
+
+    private static final String REVIEW_PATH = "/Submissions/submission/review";
+
+    private static final String REB_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
+
+    private static final String REB_PATH = "/Schemas/schema/1.0/reb";
+
+    private static final String CONSENT_PATH = "/Schemas/schema/1.0/consent";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
@@ -63,8 +74,8 @@ class ReviewTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(Review.class));
     }
 
@@ -72,18 +83,18 @@ class ReviewTest
     void exposesReviewProperties()
         throws RepositoryException
     {
-        this.context.create().resource("/Schemas/schema/1.0/reb",
-            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE, "label", "REB approval");
+        this.context.create().resource(REB_PATH,
+            SLING_RESOURCE_TYPE, ApprovalRequirement.RESOURCE_TYPE, "label", "REB approval");
         final Node targetNode = Mockito.mock(Node.class);
-        Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/reb");
+        Mockito.when(targetNode.getPath()).thenReturn(REB_PATH);
         final Session session = Mockito.mock(Session.class);
-        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
+        Mockito.when(session.getNodeByIdentifier(REB_ID)).thenReturn(targetNode);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
-        final Resource resource = this.context.create().resource("/Submissions/submission/review", Map.of(
-            "sling:resourceType", Review.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource(REVIEW_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE,
             "reviewer", "reviewer1",
-            "requirement", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
+            "requirement", REB_ID,
             "tags", new String[] { "in-progress" }));
         final Review review = resource.adaptTo(Review.class);
 
@@ -95,12 +106,12 @@ class ReviewTest
     @Test
     void listsAllComments()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         this.context.create().resource("/Submissions/submission/review/c2", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
         final Review review = resource.adaptTo(Review.class);
 
         final List<Comment> comments = review.getComments();
@@ -110,14 +121,14 @@ class ReviewTest
     @Test
     void listsOnlyUnresolvedComments()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         this.context.create().resource("/Submissions/submission/review/c2", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Still open", "resolved", false));
         this.context.create().resource("/Submissions/submission/review/c3", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Also open", "resolved", false));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Also open", "resolved", false));
         final Review review = resource.adaptTo(Review.class);
 
         final List<Comment> unresolved = review.getUnresolvedComments();
@@ -130,10 +141,10 @@ class ReviewTest
     @Test
     void reportsNoUnresolvedCommentsWhenAllResolved()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Resolved one", "resolved", true));
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.getUnresolvedComments().isEmpty());
@@ -142,12 +153,12 @@ class ReviewTest
     @Test
     void listsOnlyAssessments()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/review/privacy", Map.of(
-            "sling:resourceType", Assessment.RESOURCE_TYPE, "value", "Addressed"));
+            SLING_RESOURCE_TYPE, Assessment.RESOURCE_TYPE, "value", "Addressed"));
         this.context.create().resource("/Submissions/submission/review/c1", Map.of(
-            "sling:resourceType", Comment.RESOURCE_TYPE, "text", "Not an assessment"));
+            SLING_RESOURCE_TYPE, Comment.RESOURCE_TYPE, "text", "Not an assessment"));
         final Review review = resource.adaptTo(Review.class);
 
         final List<Assessment> assessments = review.getAssessments();
@@ -161,8 +172,8 @@ class ReviewTest
     {
         // A freshly created review may not be tagged yet; it counts as open, not approved
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         final Review review = resource.adaptTo(Review.class);
 
         assertFalse(review.isApproved());
@@ -172,8 +183,8 @@ class ReviewTest
     void reportsApprovedWhenTaggedApproved()
     {
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.isApproved());
@@ -184,8 +195,8 @@ class ReviewTest
     {
         // The review state tag shares the multivalued property with unrelated markers
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "flagged", "approved" });
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "flagged", "approved" });
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.isApproved());
@@ -196,8 +207,8 @@ class ReviewTest
     {
         // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
         // the state cannot be read, and an unreadable state is not an approval
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
 
         assertFalse(review.isApproved());
@@ -207,10 +218,99 @@ class ReviewTest
     void reportsNotApprovedForOtherTags()
     {
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "changes-requested" });
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "changes-requested" });
         final Review review = resource.adaptTo(Review.class);
 
         assertFalse(review.isApproved());
+    }
+
+    @Test
+    void countsAnApprovalAsADecision()
+    {
+        Tagging.enable(this.context);
+
+        assertTrue(this.taggedReview("approved").isDecided());
+    }
+
+    @Test
+    void countsARejectionAsADecision()
+    {
+        Tagging.enable(this.context);
+
+        assertTrue(this.taggedReview(Review.REJECTED_TAG).isDecided());
+    }
+
+    @Test
+    void leavesAnOpenReviewUndecided()
+    {
+        Tagging.enable(this.context);
+
+        assertFalse(this.taggedReview("in-progress", "changes-requested").isDecided());
+    }
+
+    @Test
+    void reportsNotDecidedWithoutTheTagsService()
+    {
+        assertFalse(this.taggedReview("approved").isDecided());
+    }
+
+    @Test
+    void isAboutTheRequirementItNames()
+        throws RepositoryException
+    {
+        this.requirementsResolvable();
+
+        assertTrue(this.reviewOf(REB_ID).isAbout(this.requirement(REB_PATH)));
+    }
+
+    @Test
+    void isNotAboutAnotherRequirement()
+        throws RepositoryException
+    {
+        this.requirementsResolvable();
+
+        assertFalse(this.reviewOf(REB_ID).isAbout(this.requirement(CONSENT_PATH)));
+    }
+
+    @Test
+    void isAboutNoRequirementWhenItNamesNone()
+        throws RepositoryException
+    {
+        this.requirementsResolvable();
+        final Resource resource = this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
+
+        assertFalse(resource.adaptTo(Review.class).isAbout(this.requirement(REB_PATH)));
+    }
+
+    private Review taggedReview(final String... tags)
+    {
+        return this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", tags).adaptTo(Review.class);
+    }
+
+    private Review reviewOf(final String requirement)
+    {
+        return this.context.create().resource(REVIEW_PATH,
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", requirement).adaptTo(Review.class);
+    }
+
+    private Requirement requirement(final String path)
+    {
+        return this.context.resourceResolver().getResource(path).adaptTo(ApprovalRequirement.class);
+    }
+
+    // Two approval requirements, and a session that resolves the first by its identifier
+    private void requirementsResolvable()
+        throws RepositoryException
+    {
+        this.context.create().resource(REB_PATH, SLING_RESOURCE_TYPE, ApprovalRequirement.RESOURCE_TYPE);
+        this.context.create().resource(CONSENT_PATH, SLING_RESOURCE_TYPE, ApprovalRequirement.RESOURCE_TYPE);
+        final Node reb = Mockito.mock(Node.class);
+        Mockito.when(reb.getPath()).thenReturn(REB_PATH);
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier(REB_ID)).thenReturn(reb);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 }

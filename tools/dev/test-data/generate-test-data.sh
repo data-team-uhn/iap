@@ -107,6 +107,7 @@ echo "Schema version 1.0 has UUID $VERSION_UUID"
 # A submission must name its schema as well as its version: the node type makes both mandatory
 SCHEMA_UUID="$(uuid_of /Schemas/DemoStudy)"
 PROTOCOL_UUID="$(uuid_of /Schemas/DemoStudy/v1/Protocol)"
+APPROVAL_UUID="$(uuid_of /Schemas/DemoStudy/v1/REBApproval)"
 
 # A small sample file attached as the "study protocol" of approved submissions
 SAMPLE_FILE="$(mktemp)"
@@ -170,12 +171,16 @@ for i in $(seq 1 "$COUNT"); do
     post_node "/Submissions/demo-$i/Review1" \
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=$REVIEWER" \
+      -F "requirement=$APPROVAL_UUID" \
+      -F "requirement@TypeHint=Reference" \
       -F "tags=$REVIEW_STATUS" \
       -F "tags@TypeHint=String[]"
   elif [ "$STATUS" = "approved" ]; then
     post_node "/Submissions/demo-$i/Review1" \
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=admin" \
+      -F "requirement=$APPROVAL_UUID" \
+      -F "requirement@TypeHint=Reference" \
       -F "tags=approved" \
       -F "tags@TypeHint=String[]"
     # Approved submissions also carry a document fulfilling the protocol requirement, with a

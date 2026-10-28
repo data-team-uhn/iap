@@ -41,6 +41,9 @@ public class Review extends Feedback
     /** The {@code sling:resourceType} of a {@code sub:Review} node. */
     public static final String RESOURCE_TYPE = "sub/Review";
 
+    /** The {@code review} tag a review carries once its reviewer has turned the requirement down. */
+    public static final String REJECTED_TAG = "rejected";
+
     @ValueMapValue
     private String reviewer;
 
@@ -80,6 +83,31 @@ public class Review extends Feedback
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(Submission.APPROVED_TAG);
+    }
+
+    /**
+     * Whether this review has reached a decision, either way. A review whose tags name neither an approval nor a
+     * rejection is still open: its reviewer may be at work on it, or have asked for changes.
+     *
+     * @return {@code true} if approved or rejected, {@code false} also when the tags service is unavailable
+     */
+    public boolean isDecided()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && (tags.hasOwnTag(Submission.APPROVED_TAG) || tags.hasOwnTag(REJECTED_TAG));
+    }
+
+    /**
+     * Whether this review addresses the given requirement. Compared by path, since a requirement of another schema
+     * version is a different requirement even when it has the same name.
+     *
+     * @param requirement the requirement in question
+     * @return {@code true} if this review says it addresses that requirement
+     */
+    public boolean isAbout(@NotNull final Requirement requirement)
+    {
+        final Requirement reviewed = this.getRequirement();
+        return reviewed != null && requirement.getPath().equals(reviewed.getPath());
     }
 
 }

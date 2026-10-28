@@ -29,15 +29,17 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
-  DOCUMENT_REQUIREMENT,
+  DOCUMENT_REQUIREMENT_TYPE,
   type DocumentRequirement,
-  FORM_REQUIREMENT,
+  FORM_REQUIREMENT_TYPE,
   type FormItem,
   type FormRequirement,
   QUESTION,
   SECTION,
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
+
+import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
@@ -61,7 +63,7 @@ function duration(value: string[] = []) {
 // Typed as the subtype that holds questions, since the generic Requirement declares no items
 function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): FormRequirement {
   return {
-    name: "details", path: "/Schemas/timeOffRequest/v1/details", type: FORM_REQUIREMENT, label: "Request details",
+    name: "details", path: "/Schemas/timeOffRequest/v1/details", type: FORM_REQUIREMENT_TYPE, label: "Request details",
     items, ...overrides
   };
 }
@@ -187,26 +189,34 @@ describe("SubmissionEditor", () => {
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
   });
 
-  it("shows a requirement that holds no questions, rather than dropping it", async () => {
+  it("shows a requirement it cannot complete, rather than dropping it", async () => {
     // Leaving it out would say the request asks less than it does
     vi.stubGlobal("fetch", serving(form({
       requirements: [ {
-        name: "approval", path: "/Schemas/timeOffRequest/v1/approval", type: "sch/ApprovalRequirement",
-        label: "Approval"
+        name: "ethics", path: "/Schemas/timeOffRequest/v1/ethics", type: "sch/EthicsRequirement", label: "Ethics"
       } ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("Approval")).toBeInTheDocument();
+    expect(await screen.findByText("Ethics")).toBeInTheDocument();
     expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+  });
+
+  it("says who an approval needs, since somebody else grants it", async () => {
+    vi.stubGlobal("fetch", serving(form({ requirements: [ approval() ] })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Approval")).toBeInTheDocument();
+    expect(screen.getByText(NEEDS_APPROVAL)).toBeInTheDocument();
   });
 
   describe("answering a document requirement", () => {
     const NOTE: DocumentRequirement = {
       name: "doctorsNote",
       path: "/Schemas/timeOffRequest/v1/doctorsNote",
-      type: DOCUMENT_REQUIREMENT,
+      type: DOCUMENT_REQUIREMENT_TYPE,
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
       required: true,

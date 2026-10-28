@@ -24,6 +24,7 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
 import {
   type FormItem,
@@ -31,6 +32,7 @@ import {
   type Requirement,
   type SubmissionForm,
   fetchForm,
+  isApprovalRequirement,
   isDocumentRequirement,
   isFormRequirement,
   isQuestion,
@@ -81,9 +83,10 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. One that holds no questions is still shown, and answered here where it can be: a
-// document is uploaded, and any other kind says it cannot be completed here yet.
-function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
+// What a requirement asks for, answered here where it can be: questions are filled in and a document
+// is uploaded. An approval says where it stands, and any other kind says it cannot be completed here
+// yet.
+function RequirementBody({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
   disabled: boolean;
@@ -91,26 +94,16 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
   onAnswered: (question: FormQuestion, values: string[]) => void;
   onAttached: () => void;
 }) {
-  return (
-    <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
-      { isFormRequirement(requirement)
-        ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-        : isDocumentRequirement(requirement)
-          ? (
-            <DocumentUpload
-              path={path}
-              requirement={requirement}
-              disabled={disabled}
-              onAttached={onAttached}
-            />
-          )
-          : (
-            <Typography variant="placeholder">
-              This part of the request cannot be completed here yet.
-            </Typography>
-          ) }
-    </Panel>
-  );
+  if (isFormRequirement(requirement)) {
+    return <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />;
+  }
+  if (isDocumentRequirement(requirement)) {
+    return <DocumentUpload path={path} requirement={requirement} disabled={disabled} onAttached={onAttached} />;
+  }
+  if (isApprovalRequirement(requirement)) {
+    return <ApprovalState requirement={requirement} />;
+  }
+  return <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>;
 }
 
 // Filling a submission in.
@@ -200,15 +193,16 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
         </Alert>
       ) }
       { form.requirements.map(requirement => (
-        <RequirementPanel
-          key={requirement.name}
-          path={path}
-          requirement={requirement}
-          disabled={!form.editable}
-          states={states}
-          onAnswered={answered}
-          onAttached={attached}
-        />
+        <Panel key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}>
+          <RequirementBody
+            path={path}
+            requirement={requirement}
+            disabled={!form.editable}
+            states={states}
+            onAnswered={answered}
+            onAttached={attached}
+          />
+        </Panel>
       )) }
       { form.requirements.length === 0 && (
         <Typography variant="placeholder">This request asks nothing yet.</Typography>

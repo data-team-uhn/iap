@@ -42,6 +42,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -52,7 +53,9 @@ import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -101,6 +104,16 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private static final String ATTACHED_KEY = "attached";
 
     private static final String REQUIRED_KEY = "required";
+
+    private static final String APPROVER_GROUP_KEY = "approverGroup";
+
+    private static final String DECISION_KEY = "decision";
+
+    private static final String APPROVED_KEY = "approved";
+
+    private static final String DECIDED_BY_KEY = "by";
+
+    private static final String DECIDED_AT_KEY = "at";
 
     @Reference
     private transient ConditionEvaluator conditions;
@@ -183,7 +196,44 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                 submission, answers));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, documents, json);
+        } else if (requirement instanceof ApprovalRequirement) {
+            describe((ApprovalRequirement) requirement, submission, json);
         }
+        return json;
+    }
+
+    /**
+     * What an approval requirement adds: who decides it, and the latest decision once somebody has made one.
+     *
+     * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. Which
+     * review counts as the decision is the submission's to say. Until there is one, there is no decision to report,
+     * whatever reviews are still open.</p>
+     *
+     * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
+     * @param json the requirement's JSON, added to in place
+     */
+    private static void describe(final ApprovalRequirement requirement, final Submission submission,
+        final JsonObjectBuilder json)
+    {
+        // Stated always, empty when the approval is not narrowed to a group
+        json.add(APPROVER_GROUP_KEY, Objects.toString(requirement.getApproverGroup(), ""));
+        Optional.ofNullable(submission.findLatestDecisionOn(requirement))
+            .ifPresent(review -> json.add(DECISION_KEY, decision(review)));
+    }
+
+    /**
+     * One decision on an approval: which way it went, who made it, and when, if the review records that.
+     *
+     * @param review the review that decided
+     * @return the decision's JSON
+     */
+    private static JsonObjectBuilder decision(final Review review)
+    {
+        final JsonObjectBuilder json = Json.createObjectBuilder()
+            .add(APPROVED_KEY, review.isApproved())
+            .add(DECIDED_BY_KEY, review.getReviewer());
+        Optional.ofNullable(DateUtils.toString(review.getCreated())).ifPresent(at -> json.add(DECIDED_AT_KEY, at));
         return json;
     }
 

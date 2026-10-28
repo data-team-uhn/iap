@@ -507,6 +507,89 @@ class SubmissionTest
     }
 
     @Test
+    void findsTheLatestDecisionOnARequirementByItsDate()
+        throws RepositoryException
+    {
+        // The newest is neither the first child nor the last
+        final Submission submission = this.submissionWithReviews();
+        this.reviewOnDay("r1", REB_ID, 5, "approved");
+        this.reviewOnDay("r2", REB_ID, 7, "rejected");
+        this.reviewOnDay("r3", REB_ID, 6, "approved");
+
+        assertEquals("r2", submission.findLatestDecisionOn(this.reb()).getName());
+    }
+
+    @Test
+    void ignoresADecisionOnAnotherRequirement()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewOnDay("r1", REB_ID, 6, "approved");
+        this.reviewOnDay("r2", CONSENT_ID, 8, "approved");
+
+        assertEquals("r1", submission.findLatestDecisionOn(this.reb()).getName());
+    }
+
+    @Test
+    void ignoresAReviewStillOpen()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewOnDay("r1", REB_ID, 6, "approved");
+        this.reviewOnDay("r2", REB_ID, 8, "in-progress");
+
+        assertEquals("r1", submission.findLatestDecisionOn(this.reb()).getName());
+    }
+
+    @Test
+    void countsAnUndatedDecisionAsTheOldest()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewOnDay("r1", REB_ID, 6, "rejected");
+        this.context.create().resource("/Submissions/submission/r2", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] {"approved"}));
+
+        assertEquals("r1", submission.findLatestDecisionOn(this.reb()).getName());
+    }
+
+    @Test
+    void findsNoDecisionWhileNobodyHasDecided()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithReviews();
+        this.reviewOnDay("r1", REB_ID, 6, "in-progress");
+        this.reviewOnDay("r2", CONSENT_ID, 7, "approved");
+
+        assertNull(submission.findLatestDecisionOn(this.reb()));
+    }
+
+    // A submission whose reviews can name the schema's requirements and be read for their tags
+    private Submission submissionWithReviews()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        Tagging.enable(this.context);
+        return this.context.create().resource(SUBMISSION_PATH, SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE)
+            .adaptTo(Submission.class);
+    }
+
+    private void reviewOnDay(final String name, final String requirement, final int day, final String tag)
+    {
+        final Calendar reviewed = Calendar.getInstance();
+        reviewed.set(2026, Calendar.APRIL, day, 9, 0, 0);
+        this.context.create().resource("/Submissions/submission/" + name, Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", requirement, "tags", new String[] {tag},
+            "jcr:created", reviewed));
+    }
+
+    private Requirement reb()
+    {
+        return Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/reb"))
+            .adaptTo(ApprovalRequirement.class);
+    }
+
+    @Test
     void listsTheWorkflowsRunningOverIt()
     {
         // The instances live in the container the wf:WorkflowAttachable mixin autocreates, inside the submission
