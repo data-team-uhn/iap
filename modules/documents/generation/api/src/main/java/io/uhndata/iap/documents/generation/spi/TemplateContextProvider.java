@@ -22,15 +22,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Supplies one named value that templates can use. Register one to make what a module knows about a resource
- * available to every template: the submissions module supplies {@code submission}, so a template can say
- * {@code {{ submission.title }}}.
+ * Supplies one named value that document generation templates can use. Register one to make what a module knows about
+ * a resource available to every template. For example, the submissions module supplies {@code submission}, so a
+ * template can then include it as {@code {{ submission.title }}}.
  *
  * <p>The value may be a {@link java.util.Map} with {@code String} keys, an {@link Iterable} or array, a
  * {@link CharSequence}, a {@link Number}, a {@link Boolean}, an {@link Enum} (its name), or a
  * {@link java.util.Calendar}, {@link java.util.Date} or {@link java.time.temporal.TemporalAccessor} (as ISO-8601
- * text), nested as deeply as needed. Anything else fails the generation, rather than reaching a letter as whatever
- * its {@code toString()} happens to say.</p>
+ * text), nested as deeply as needed. Anything else fails the generation, as this does not use {@code toString()}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,8 +37,9 @@ import org.jetbrains.annotations.Nullable;
 public interface TemplateContextProvider
 {
     /**
-     * The name templates use for this provider's value. Each name belongs to one provider; a second provider
-     * claiming it is ignored, with a warning.
+     * The name templates use for this provider's value.
+     *
+     * <p>A second provider with an overlapping name is ignored, with a warning.</p>
      *
      * @return a name such as {@code submission}, a valid Jinja identifier
      */
