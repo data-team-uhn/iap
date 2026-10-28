@@ -631,10 +631,16 @@ describe("SubmissionView", () => {
     // The submission's own workflow, parked on a step with nothing to decide
     const WAITING = waitingOn("/Submissions/demo-1", { fillIn: SEND });
 
+    // A request the save workflow has marked as still missing something
+    const INCOMPLETE = { ...DEEP_SUBMISSION, tags: [ "draft", "incomplete" ] };
+
     // What the page reads: its own serialization, the form projection, the tag definitions, and, once the
     // step is completed, a workflow with nothing left waiting. Completing the step answers once `completion` settles.
-    function withATaskWaiting(completion: Promise<void> = Promise.resolve()) {
-      const otherwise = bothModes();
+    function withATaskWaiting(
+      completion: Promise<void> = Promise.resolve(),
+      submission: unknown = DEEP_SUBMISSION,
+    ) {
+      const otherwise = bothModes(submission);
       let done = false;
       return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
         if (init?.method === "POST") {
@@ -649,6 +655,14 @@ describe("SubmissionView", () => {
         return otherwise(url).then(response => ({ ...response, url }));
       });
     }
+
+    it("holds the step back while the request is still missing something", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting(Promise.resolve(), INCOMPLETE));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    });
 
     it("offers the waiting step while filling the request in, not only while reading it", async () => {
       vi.stubGlobal("fetch", withATaskWaiting());

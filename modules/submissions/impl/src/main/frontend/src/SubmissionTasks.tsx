@@ -17,7 +17,7 @@
  */
 
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
-import { Button, Stack } from "@mui/material";
+import { Button, Stack, Tooltip } from "@mui/material";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -33,9 +33,11 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent, not
 // disabled. Tasks with outcome options are left out, since the button sends no outcome.
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
-// still being saved; when it fails, nothing is completed.
-function SubmissionTasks({ path, beforeComplete, onCompleted }: {
+// still being saved; when it fails, nothing is completed. `blockedReason`, when given, holds every
+// step back: the buttons are disabled, and their tooltip gives the reason.
+function SubmissionTasks({ path, blockedReason, beforeComplete, onCompleted }: {
   path: string;
+  blockedReason?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 }) {
@@ -61,15 +63,19 @@ function SubmissionTasks({ path, beforeComplete, onCompleted }: {
   return (
     <Stack direction="row" spacing={1}>
       { offered.map(task => (
-        <Button
-          key={task.path}
-          variant="contained"
-          startIcon={<SendOutlinedIcon />}
-          disabled={working}
-          onClick={() => complete(task)}
-        >
-          {task.label}
-        </Button>
+        // A disabled button fires no events, so the reason hangs on a wrapper that still does
+        <Tooltip key={task.path} title={blockedReason ?? ""}>
+          <span>
+            <Button
+              variant="contained"
+              startIcon={<SendOutlinedIcon />}
+              disabled={working || blockedReason !== undefined}
+              onClick={() => complete(task)}
+            >
+              {task.label}
+            </Button>
+          </span>
+        </Tooltip>
       )) }
     </Stack>
   );

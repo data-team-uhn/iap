@@ -37,7 +37,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
-import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, childrenOfType, isNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
 import TagChip from "@iap/tags/TagChip";
 
@@ -262,6 +262,14 @@ function Reviews({ reviews }: { reviews: SerializedNode[] }) {
   );
 }
 
+// Why the submission is not ready for its next step, or nothing when it is. The save workflow
+// places the `incomplete` system tag while something the schema asks for is missing.
+function whyNotReady(submission: SerializedNode | undefined): string | undefined {
+  return stringsOf(submission?.tags).includes("incomplete")
+    ? "Answer everything this request asks for first."
+    : undefined;
+}
+
 // The read-only page displaying one submission, registered as a view on the `iap/coreUI/view`
 // extension point for `/Submissions/*`. The submission is fetched with the `deep` serialization,
 // which also expands the referenced schema version and its requirements. The answers can then be
@@ -341,6 +349,7 @@ function SubmissionView() {
         {/* What the process is waiting for, offered in both modes */}
         <SubmissionTasks
           path={path}
+          blockedReason={whyNotReady(submission)}
           beforeComplete={saves.allDone}
           onCompleted={() => {
             if (shownPath.current !== path) {

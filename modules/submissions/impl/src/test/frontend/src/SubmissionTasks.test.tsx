@@ -55,11 +55,13 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ beforeComplete, onCompleted }: {
+const renderTasks = ({ blockedReason, beforeComplete, onCompleted }: {
+  blockedReason?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} beforeComplete={beforeComplete} onCompleted={onCompleted} />,
+  <SubmissionTasks path={PATH} blockedReason={blockedReason} beforeComplete={beforeComplete}
+    onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
 
@@ -77,6 +79,17 @@ describe("SubmissionTasks", () => {
 
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.-dereference.events.json");
+  });
+
+  it("holds the step back while the submission is not ready, and says why", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ blockedReason: "Answer everything first." });
+    const send = await screen.findByRole("button", { name: SEND_LABEL });
+    await userEvent.hover(send.parentElement!);
+
+    expect(send).toBeDisabled();
+    expect(await screen.findByRole("tooltip", { name: "Answer everything first." })).toBeInTheDocument();
   });
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {
