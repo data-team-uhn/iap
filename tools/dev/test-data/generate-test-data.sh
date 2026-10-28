@@ -28,7 +28,8 @@
 # values as strings, which Oak rejects for the typed REFERENCE property; the POST servlet's
 # `@TypeHint=Reference` handles the conversion properly.
 #
-# All content is created with the admin user, so every submission shows up in admin's
+# All content is created with the admin user, and each submission records admin in `createdBy`,
+# as the engine does for whoever raises one, so every submission shows up in admin's
 # "My submissions"; reviews alternate between admin and another (fake) reviewer, so only some
 # submissions show up in admin's "My review queue".
 #
@@ -147,6 +148,7 @@ for i in $(seq 1 "$COUNT"); do
   TOPIC="${TOPICS[$(( i % ${#TOPICS[@]} ))]}"
   post_node "/Submissions/demo-$i" \
     -F "jcr:primaryType=sub:Submission" \
+    -F "createdBy=admin" \
     --form-string "title=Study #$i: ${TOPIC^}" \
     -F "tags=$STATUS" \
     -F "tags@TypeHint=String[]" \
