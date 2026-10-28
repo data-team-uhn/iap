@@ -129,6 +129,22 @@ describe("ChoiceAnswer", () => {
       expect(screen.getByRole("checkbox", { name: "Half day" })).toBeEnabled();
     });
 
+    it("offers nothing on a request that can no longer be changed", () => {
+      render(
+        <ChoiceAnswer
+          question={question({ maxAnswers: 2 })}
+          values={[ "half-day" ]}
+          disabled
+          onChange={vi.fn()}
+          onAnswered={vi.fn()}
+        />
+      );
+
+      for (const box of screen.getAllByRole("checkbox")) {
+        expect(box).toBeDisabled();
+      }
+    });
+
     it("keeps offering while the cap is not reached", () => {
       renderChoice({ maxAnswers: 2 }, [ "half-day" ]);
 

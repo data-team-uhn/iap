@@ -51,7 +51,7 @@ export interface FormQuestion {
   dataType: string;
   // How many values an answer takes, as the schema stores it. A positive minimum is what "required"
   // means, a maximum other than 1 allows several values, and zero or less leaves that end open.
-  // Read it through isRequired and isMultiple.
+  // Read it through isRequired, isMultiple and answerCap.
   minAnswers: number;
   maxAnswers: number;
   // Hard bounds for numeric answers, present only where the schema states them. The save enforces
@@ -156,6 +156,21 @@ export function isRequired(question: FormQuestion): boolean {
 // Whether more than one value may be given: the other reading of the pair.
 export function isMultiple(question: FormQuestion): boolean {
   return question.maxAnswers !== 1;
+}
+
+// The most values an answer takes, or undefined when it takes any number.
+export function answerCap(question: FormQuestion): number | undefined {
+  return question.maxAnswers > 0 ? question.maxAnswers : undefined;
+}
+
+// How many values a question taking several wants, as a sentence starting with `verb`, or nothing
+// when it wants any number.
+export function countGuidance(question: FormQuestion, verb: string): string {
+  const cap = answerCap(question);
+  return [
+    question.minAnswers > 1 ? `${verb} at least ${question.minAnswers}.` : null,
+    cap !== undefined && cap > 1 ? `${verb} up to ${cap}.` : null,
+  ].filter(Boolean).join(" ");
 }
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that

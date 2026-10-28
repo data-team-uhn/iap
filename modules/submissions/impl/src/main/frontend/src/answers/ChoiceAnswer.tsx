@@ -28,7 +28,7 @@ import {
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { isMultiple, isRequired } from "../submissionForm";
+import { answerCap, countGuidance, isMultiple, isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -42,13 +42,9 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   if (isMultiple(question)) {
     // A capped list stops offering at the cap instead of taking a pick the save would refuse. The
     // unchecked boxes grey out, which shows the rule as well as enforcing it.
-    const capped = question.maxAnswers > 1;
-    const atCap = capped && values.length >= question.maxAnswers;
-    const counts = [
-      question.minAnswers > 1 ? `Choose at least ${question.minAnswers}.` : null,
-      capped ? `Choose up to ${question.maxAnswers}.` : null,
-    ].filter(Boolean).join(" ");
-    const guidance = [ help, counts ].filter(Boolean).join(" ");
+    const cap = answerCap(question);
+    const atCap = cap !== undefined && values.length >= cap;
+    const guidance = [ help, countGuidance(question, "Choose") ].filter(Boolean).join(" ");
     const toggle = (value: string, checked: boolean) =>
       onAnswered(checked
         // Kept in the offered order rather than the order they were clicked, so that two people
@@ -68,7 +64,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
               control={
                 <Checkbox
                   checked={values.includes(option.value)}
-                  disabled={atCap && !values.includes(option.value)}
+                  disabled={disabled || (atCap && !values.includes(option.value))}
                   onChange={event => toggle(option.value, event.target.checked)}
                 />
               }

@@ -60,6 +60,13 @@ describe("NumberAnswer", () => {
     expect(input).toHaveAttribute("max", "30");
   });
 
+  it("rounds a whole number's bounds inwards", () => {
+    const { input } = renderNumber("long", [], { minValue: 0.5, maxValue: 30.5 });
+
+    expect(input).toHaveAttribute("min", "1");
+    expect(input).toHaveAttribute("max", "30");
+  });
+
   it("leaves the input unbounded where the schema is", () => {
     const { input } = renderNumber("long");
 

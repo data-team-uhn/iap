@@ -29,13 +29,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link ValueRangeValidator}: hard bounds on numbers, and nothing else's job taken on.
+ * Unit tests for {@link ValueRangeConstraint}: hard bounds on numbers, and nothing else's job taken on.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ValueRangeValidatorTest
+class ValueRangeConstraintTest
 {
     private static final String MIN_VALUE = "minValue";
 
@@ -46,9 +46,9 @@ class ValueRangeValidatorTest
     private ConstraintFixture fixture;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
-        this.fixture = ConstraintFixture.showingEverything(this.context, new ValueRangeValidator());
+        this.fixture = ConstraintFixture.showingEverything(this.context);
     }
 
     @Test
@@ -79,15 +79,23 @@ class ValueRangeValidatorTest
     }
 
     @Test
-    void passesOverValuesThatAreNotNumbers() throws Exception
+    void writesALargeBoundWithoutAnExponent() throws Exception
     {
-        assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d), "soon"));
+        assertEquals("The answer to \"The question\" must be at most 100000000000000000000.",
+            this.fixture.verdictOn(Map.of(MAX_VALUE, 1e20d), "1e21"));
     }
 
     @Test
-    void passesOverBlankValues() throws Exception
+    void writesASmallBoundWithoutAnExponent() throws Exception
     {
-        assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d), " "));
+        assertEquals("The answer to \"The question\" must be at least 0.0001.",
+            this.fixture.verdictOn(Map.of(MIN_VALUE, 0.0001d), "0.00001"));
+    }
+
+    @Test
+    void passesOverValuesThatAreNotNumbers() throws Exception
+    {
+        assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d), "soon"));
     }
 
     @Test

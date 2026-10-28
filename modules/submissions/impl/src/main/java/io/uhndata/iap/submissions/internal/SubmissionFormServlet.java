@@ -319,12 +319,26 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add("minAnswers", question.getMinAnswers())
             .add("maxAnswers", question.getMaxAnswers())
             .add("value", value);
-        // Stated only where the schema states them: the editor turns them into hints, and the save enforces them
-        Optional.ofNullable(question.getMinValue()).ifPresent(bound -> json.add("minValue", bound));
-        Optional.ofNullable(question.getMaxValue()).ifPresent(bound -> json.add("maxValue", bound));
+        addStatedConstraints(json, question);
+        return json;
+    }
+
+    /**
+     * Adds the value constraints a question states, and only those.
+     *
+     * <p>A bound that is not finite has no JSON form, so it is left out rather than failing the whole form.</p>
+     *
+     * @param json the question's JSON
+     * @param question the question
+     */
+    private static void addStatedConstraints(final JsonObjectBuilder json, final Question question)
+    {
+        Optional.ofNullable(question.getMinValue()).filter(Double::isFinite)
+            .ifPresent(bound -> json.add("minValue", bound));
+        Optional.ofNullable(question.getMaxValue()).filter(Double::isFinite)
+            .ifPresent(bound -> json.add("maxValue", bound));
         Optional.ofNullable(question.getPattern()).ifPresent(pattern -> json.add("pattern", pattern));
         Optional.ofNullable(question.getPatternMessage()).ifPresent(message -> json.add("patternMessage", message));
-        return json;
     }
 
     /**

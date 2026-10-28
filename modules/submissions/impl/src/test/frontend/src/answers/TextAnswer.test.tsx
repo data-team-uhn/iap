@@ -70,5 +70,11 @@ describe("TextAnswer", () => {
 
       expect(screen.getByText("The days you will be away. One per line.")).toBeInTheDocument();
     });
+
+    it("says how many lines it takes", () => {
+      renderText({ maxAnswers: 3 });
+
+      expect(screen.getByText("One per line. Give up to 3.")).toBeInTheDocument();
+    });
   });
 });

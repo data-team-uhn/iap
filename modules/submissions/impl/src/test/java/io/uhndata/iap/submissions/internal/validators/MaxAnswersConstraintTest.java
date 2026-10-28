@@ -29,13 +29,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link MaxAnswersValidator}: the ceiling refuses, the floor does not, and blanks get no say.
+ * Unit tests for {@link MaxAnswersConstraint}: the ceiling refuses, the floor does not, and blanks get no say.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class MaxAnswersValidatorTest
+class MaxAnswersConstraintTest
 {
     private static final String MAX_ANSWERS = "maxAnswers";
 
@@ -44,9 +44,9 @@ class MaxAnswersValidatorTest
     private ConstraintFixture fixture;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
-        this.fixture = ConstraintFixture.showingEverything(this.context, new MaxAnswersValidator());
+        this.fixture = ConstraintFixture.showingEverything(this.context);
     }
 
     @Test
@@ -71,12 +71,6 @@ class MaxAnswersValidatorTest
     }
 
     @Test
-    void countsOnlyNonBlankValues() throws Exception
-    {
-        assertNull(this.fixture.verdictOn(Map.of(MAX_ANSWERS, 1L), "a", " "));
-    }
-
-    @Test
     void ignoresQuestionsTakingAnyNumber() throws Exception
     {
         assertNull(this.fixture.verdictOn(Map.of(MAX_ANSWERS, 0L), "a", "b", "c", "d"));
@@ -85,8 +79,7 @@ class MaxAnswersValidatorTest
     @Test
     void passesOverAQuestionTheSubmitterIsNotShown() throws Exception
     {
-        assertNull(ConstraintFixture.hidingEverything(this.context, new MaxAnswersValidator())
-            .verdictOn(Map.of(MAX_ANSWERS, 1L), "a", "b"));
+        assertNull(ConstraintFixture.hidingEverything(this.context).verdictOn(Map.of(MAX_ANSWERS, 1L), "a", "b"));
     }
 
     @Test

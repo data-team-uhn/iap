@@ -17,52 +17,36 @@
  */
 package io.uhndata.iap.submissions.internal.validators;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.submissions.spi.AnswerValidator;
+import io.uhndata.iap.submissions.spi.AnswerConstraint;
 
 /**
- * Refuses a save whose numeric answer falls outside the question's {@code minValue}/{@code maxValue} bounds.
- *
- * <p>Both bounds are hard. A value that is not a number is passed over, since whether an answer fits its data
- * type is a separate question.</p>
+ * Refuses a numeric value outside a question's {@code minValue}/{@code maxValue} bounds. Both bounds are hard. A
+ * value that is not a finite number is left to {@link NumericTypeConstraint}.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = AnswerValidator.class)
-public class ValueRangeValidator implements AnswerValidator, QuestionRule
+@Component(service = AnswerConstraint.class, property = "service.ranking:Integer=30")
+public final class ValueRangeConstraint implements AnswerConstraint
 {
-    @Reference
-    private ConditionEvaluator conditions;
-
     @Override
-    public String validate(final Submission submission, final String actor)
+    public Optional<String> refusal(final Question question, final List<String> values)
     {
-        return firstRefusalIn(submission, this.conditions);
-    }
-
-    @Override
-    public boolean constrains(final Question question)
-    {
-        return question.getMinValue() != null || question.getMaxValue() != null;
-    }
-
-    @Override
-    public String refusal(final Question question, final List<String> values)
-    {
+        if (question.getMinValue() == null && question.getMaxValue() == null) {
+            return Optional.empty();
+        }
         return values.stream()
             .map(value -> refusalFor(question, value))
             .filter(Objects::nonNull)
-            .findFirst()
-            .orElse(null);
+            .findFirst();
     }
 
     /**
@@ -70,7 +54,7 @@ public class ValueRangeValidator implements AnswerValidator, QuestionRule
      *
      * @param question the question, carrying the bounds
      * @param value one value of its answer
-     * @return a reason to refuse, or {@code null} when the value is in range or is not a number
+     * @return a reason to refuse, or {@code null} when the value is in range or is not a finite number
      */
     private static String refusalFor(final Question question, final String value)
     {
@@ -92,13 +76,13 @@ public class ValueRangeValidator implements AnswerValidator, QuestionRule
     }
 
     /**
-     * A bound written the way its author wrote it: without the trailing zero a whole number would otherwise carry.
+     * A bound written the way its author wrote it, without a trailing zero or an exponent.
      *
      * @param bound the configured bound
      * @return the bound as text
      */
     private static String plain(final double bound)
     {
-        return bound == Math.floor(bound) ? String.valueOf((long) bound) : String.valueOf(bound);
+        return BigDecimal.valueOf(bound).stripTrailingZeros().toPlainString();
     }
 }

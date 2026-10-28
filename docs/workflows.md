@@ -797,7 +797,11 @@ question the same save reveals is accepted, and clearing an answer always is.
 
 The save then runs three more steps. `validateAnswers` asks every `AnswerValidator` (an
 SPI in `submissions-api`) whether the answers, as they now stand, may be saved, and the
-first to object refuses the whole save with a 400 carrying its reason. `createParts`
+first to object refuses the whole save with a 400 carrying its reason. One of them
+judges the constraints a question carries by asking every `AnswerConstraint`, another
+SPI, in ascending `service.ranking`: the shipped ones check the answer count (10), the
+data type of a number (20), its bounds (30) and a pattern (40), so a bundle adding its
+own picks the ranking that puts it where it belongs. `createParts`
 asks every `PartCreator` to give each applicable item a part of its own — an answer for
 every question shown, a document for every document requirement that applies — adding
 what is missing and never removing, so an answer whose question stops applying keeps its

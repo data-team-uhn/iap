@@ -19,7 +19,7 @@
 import { TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
-import { isMultiple, isRequired } from "../submissionForm";
+import { countGuidance, isMultiple, isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -28,7 +28,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 function TextAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
   const many = isMultiple(question);
   const helperText = many
-    ? `${question.description ?? ""} One per line.`.trim()
+    ? [ question.description, "One per line.", countGuidance(question, "Give") ].filter(Boolean).join(" ")
     : question.description;
 
   return (

@@ -39,13 +39,13 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
       slotProps={{
         inputLabel: { shrink: true },
         // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
-        // them, which is what asking for a long is for. The schema's bounds become the input's own
-        // hints; the save enforces them.
+        // them, which is what asking for a long is for. A long's bounds are rounded inwards, since
+        // `min` is also where the steps start counting from.
         htmlInput: {
           step: whole ? 1 : "any",
           inputMode: whole ? "numeric" : "decimal",
-          min: question.minValue,
-          max: question.maxValue,
+          min: whole && question.minValue !== undefined ? Math.ceil(question.minValue) : question.minValue,
+          max: whole && question.maxValue !== undefined ? Math.floor(question.maxValue) : question.maxValue,
         },
       }}
       helperText={question.description}

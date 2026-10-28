@@ -29,14 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link PatternValidator}: the whole value must match, the schema's own words are preferred, and a
+ * Unit tests for {@link PatternConstraint}: the whole value must match, the schema's own words are preferred, and a
  * broken pattern is loud rather than silently unenforced.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class PatternValidatorTest
+class PatternConstraintTest
 {
     private static final String PATTERN = "pattern";
 
@@ -47,9 +47,9 @@ class PatternValidatorTest
     private ConstraintFixture fixture;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
-        this.fixture = ConstraintFixture.showingEverything(this.context, new PatternValidator());
+        this.fixture = ConstraintFixture.showingEverything(this.context);
     }
 
     @Test
@@ -78,12 +78,6 @@ class PatternValidatorTest
     {
         assertEquals("The answer to \"The question\" must match [0-9]+.",
             this.fixture.verdictOn(Map.of(PATTERN, DIGITS), "42a"));
-    }
-
-    @Test
-    void passesOverBlankValues() throws Exception
-    {
-        assertNull(this.fixture.verdictOn(Map.of(PATTERN, DIGITS), " "));
     }
 
     @Test

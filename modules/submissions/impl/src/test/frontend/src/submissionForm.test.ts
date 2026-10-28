@@ -21,6 +21,8 @@ import {
   SECTION,
   type FormItem,
   type FormQuestion,
+  answerCap,
+  countGuidance,
   fetchForm,
   isMultiple,
   isQuestion,
@@ -59,6 +61,16 @@ describe("the answer-count pair", () => {
     expect(isMultiple(counts(0, 4))).toBe(true);
     // Zero or negative means no cap at all
     expect(isMultiple(counts(0, 0))).toBe(true);
+  });
+
+  it("caps an answer only where the maximum is positive", () => {
+    expect(answerCap(counts(0, 3))).toBe(3);
+    expect(answerCap(counts(0, 0))).toBeUndefined();
+  });
+
+  it("puts how many values are wanted into words", () => {
+    expect(countGuidance(counts(2, 3), "Choose")).toBe("Choose at least 2. Choose up to 3.");
+    expect(countGuidance(counts(0, 0), "Choose")).toBe("");
   });
 });
 

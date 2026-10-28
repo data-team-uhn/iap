@@ -18,6 +18,7 @@
 package io.uhndata.iap.submissions.internal.validators;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -35,36 +36,45 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.CompletenessFixture;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.submissions.spi.AnswerValidator;
+import io.uhndata.iap.submissions.spi.AnswerConstraint;
+
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.FORM_ITEM;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.REQUIREMENT;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUPER_TYPE;
+import static io.uhndata.iap.submissions.internal.CompletenessFixture.TYPE;
 
 /**
  * Judges the smallest submission a constraint can be judged on: a schema asking one question, {@code "The
  * question"}, carrying the given constraint properties, answered with the given values. What varies between the
- * validator tests is only the constraint and the values, so that is all a test states.
+ * constraint tests is only the constraint and the values, so that is all a test states.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class ConstraintFixture
 {
-    private static final String TYPE = "sling:resourceType";
-
     private static final String VERSION_PATH = "/Schemas/schema/v1";
 
     private static final String SUBMISSION_PATH = "/Submissions/one";
 
     private final SlingContext context;
 
-    private final AnswerValidator validator;
+    private final AnswerConstraintsValidator validator = new AnswerConstraintsValidator();
 
-    private ConstraintFixture(final SlingContext context, final AnswerValidator validator)
+    private ConstraintFixture(final SlingContext context, final ConditionEvaluator conditions,
+        final List<AnswerConstraint> constraints)
     {
         this.context = context;
-        this.validator = validator;
+        try {
+            CompletenessFixture.inject(this.validator, "conditions", conditions);
+            CompletenessFixture.inject(this.validator, "constraints", constraints);
+        } catch (final ReflectiveOperationException e) {
+            throw new AssertionError("The validator declares the references it is given here", e);
+        }
     }
 
     /**
-     * The context a validator test needs: JCR-backed, since a submission points at its schema version, and an
+     * The context a constraint test needs: JCR-backed, since a submission points at its schema version, and an
      * answer at its question, with real REFERENCEs.
      *
      * @return a new context, for the test's own field
@@ -78,28 +88,49 @@ final class ConstraintFixture
      * A fixture under which every question is shown.
      *
      * @param context the test's own context
-     * @param validator the validator under test, given its condition evaluator here
      * @return the fixture
-     * @throws ReflectiveOperationException never, for the validators in this package
      */
-    static ConstraintFixture showingEverything(final SlingContext context, final AnswerValidator validator)
-        throws ReflectiveOperationException
+    static ConstraintFixture showingEverything(final SlingContext context)
     {
-        return new ConstraintFixture(context, judgingUnder(validator, true));
+        return showingEverythingTo(context, shippedConstraints());
+    }
+
+    /**
+     * A fixture under which every question is shown, judged by the given constraints alone.
+     *
+     * @param context the test's own context
+     * @param constraints the constraints, in the order the framework would hand them over
+     * @return the fixture
+     */
+    static ConstraintFixture showingEverythingTo(final SlingContext context, final AnswerConstraint... constraints)
+    {
+        return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class, call -> true),
+            List.of(constraints));
     }
 
     /**
      * A fixture under which no question is shown.
      *
      * @param context the test's own context
-     * @param validator the validator under test, given its condition evaluator here
      * @return the fixture
-     * @throws ReflectiveOperationException never, for the validators in this package
      */
-    static ConstraintFixture hidingEverything(final SlingContext context, final AnswerValidator validator)
-        throws ReflectiveOperationException
+    static ConstraintFixture hidingEverything(final SlingContext context)
     {
-        return new ConstraintFixture(context, judgingUnder(validator, false));
+        // A mock answers false to every question it is asked
+        return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class),
+            List.of(shippedConstraints()));
+    }
+
+    /**
+     * The constraints submissions ships, in ascending order of their {@code service.ranking}, which is how the
+     * framework hands them to the validator.
+     *
+     * @return the constraints
+     */
+    private static AnswerConstraint[] shippedConstraints()
+    {
+        return new AnswerConstraint[] { new MaxAnswersConstraint(), new NumericTypeConstraint(),
+            new ValueRangeConstraint(), new PatternConstraint() };
     }
 
     /**
@@ -120,13 +151,11 @@ final class ConstraintFixture
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, SchemaVersion.class,
             FormRequirement.class, Question.class, Answer.class, Submission.class);
         this.context.create().resource(VERSION_PATH, Map.of(TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0"));
-        // sling:resourceSuperType is autocreated from the node type in a real repository, and by nothing in a
-        // mock one, so it is set for the schema walk's type matching
-        this.context.create().resource(VERSION_PATH + "/form", Map.of(TYPE, FormRequirement.RESOURCE_TYPE,
-            "sling:resourceSuperType", "sch/Requirement", "label", "Details"));
+        this.context.create().resource(VERSION_PATH + "/form",
+            Map.of(TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Details"));
         final Map<String, Object> question = new HashMap<>(constraints);
         question.put(TYPE, Question.RESOURCE_TYPE);
-        question.put("sling:resourceSuperType", "sch/FormItem");
+        question.put(SUPER_TYPE, FORM_ITEM);
         question.putIfAbsent("text", "The question");
         this.context.create().resource(VERSION_PATH + "/form/q", question);
 
@@ -140,14 +169,5 @@ final class ConstraintFixture
                 "question");
         }
         return submission.adaptTo(Submission.class);
-    }
-
-    private static AnswerValidator judgingUnder(final AnswerValidator validator, final boolean shown)
-        throws ReflectiveOperationException
-    {
-        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
-        Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenReturn(shown);
-        CompletenessFixture.inject(validator, "conditions", conditions);
-        return validator;
     }
 }
