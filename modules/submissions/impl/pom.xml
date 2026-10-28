@@ -48,7 +48,6 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Generated documents: the generateDocument step, and the values submissions give templates -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-documents-generation-api</artifactId>
@@ -58,7 +57,6 @@
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
     </dependency>
-    <!-- The submitter's account, for the values templates are given -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-jackrabbit-api</artifactId>
