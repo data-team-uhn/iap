@@ -20,8 +20,13 @@ import {
   QUESTION,
   SECTION,
   type FormItem,
+  type FormQuestion,
+  answerCap,
+  countGuidance,
   fetchForm,
+  isMultiple,
   isQuestion,
+  isRequired,
   saveAnswer,
 } from "@iap/submissions/submissionForm";
 
@@ -39,6 +44,33 @@ describe("isQuestion", () => {
   it("tells a question apart from a section", () => {
     expect(isQuestion({ type: QUESTION } as FormItem)).toBe(true);
     expect(isQuestion({ type: SECTION } as FormItem)).toBe(false);
+  });
+});
+
+describe("the answer-count pair", () => {
+  const counts = (minAnswers: number, maxAnswers: number) =>
+    ({ minAnswers, maxAnswers } as FormQuestion);
+
+  it("reads a positive minimum as required", () => {
+    expect(isRequired(counts(1, 1))).toBe(true);
+    expect(isRequired(counts(0, 1))).toBe(false);
+  });
+
+  it("reads any maximum but one as taking several values", () => {
+    expect(isMultiple(counts(0, 1))).toBe(false);
+    expect(isMultiple(counts(0, 4))).toBe(true);
+    // Zero or negative means no cap at all
+    expect(isMultiple(counts(0, 0))).toBe(true);
+  });
+
+  it("caps an answer only where the maximum is positive", () => {
+    expect(answerCap(counts(0, 3))).toBe(3);
+    expect(answerCap(counts(0, 0))).toBeUndefined();
+  });
+
+  it("puts how many values are wanted into words", () => {
+    expect(countGuidance(counts(2, 3), "Choose")).toBe("Choose at least 2. Choose up to 3.");
+    expect(countGuidance(counts(0, 0), "Choose")).toBe("");
   });
 });
 

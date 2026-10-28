@@ -480,15 +480,13 @@ class SaveAnswersHandlerTest
         assertTrue(submission().getAnswers().isEmpty());
     }
 
-    // The clear sentinel is one empty value, not "any blank anywhere": a question may legitimately offer an
-    // empty-string option, and a multi-valued answer may legitimately carry one
     @Test
-    void storesABlankThatIsNotTheClearSentinel() throws Exception
+    void dropsBlankValues() throws Exception
     {
-        this.handler.execute(context(Map.of(START_DATE, new String[] {"a", "", "c"})));
+        this.handler.execute(context(Map.of(START_DATE, new String[] {"a", "", " ", "c"})));
 
         stampAnswers();
-        assertEquals(List.of("a", "", "c"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+        assertEquals(List.of("a", "c"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
     // Mandatory in the CND is a rule about the content, not a promise to every reader: a reference whose

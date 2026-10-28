@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -214,28 +215,24 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     private String[] values(final String question, final Object submitted) throws InvalidPayloadException
     {
         if (submitted instanceof String) {
-            return clearing(new String[] {(String) submitted});
+            return withoutBlanks(new String[] {(String) submitted});
         }
         if (submitted instanceof String[]) {
-            return clearing((String[]) submitted);
+            return withoutBlanks((String[]) submitted);
         }
         throw new InvalidPayloadException("The answer to " + question + " must be text");
     }
 
     /**
-     * Reads the clear sentinel, leaving every other answer exactly as it was given.
-     *
-     * <p>A cleared field posts one empty value, because naming the question is the only way to say "clear this".</p>
-     *
-     * <p>Only that exact shape. Dropping every blank instead would be a wider rule than the sentinel, and would
-     * quietly make an option whose value is the empty string impossible to record.</p>
+     * Drops the blank values. A cleared field posts one empty value, because naming the question is the only way to
+     * say "clear this", so an answer left with no values is cleared.
      *
      * @param given the values as the payload carried them
-     * @return an empty array if this is the sentinel, otherwise {@code given} unchanged
+     * @return the non-blank values, in the order given
      */
-    private String[] clearing(final String[] given)
+    private String[] withoutBlanks(final String[] given)
     {
-        return given.length == 1 && given[0].isEmpty() ? new String[0] : given;
+        return Arrays.stream(given).filter(value -> !value.isBlank()).toArray(String[]::new);
     }
 
     /**

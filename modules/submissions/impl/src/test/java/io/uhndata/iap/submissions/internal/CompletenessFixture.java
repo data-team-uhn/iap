@@ -75,11 +75,11 @@ public final class CompletenessFixture
     public static final String DOCTORS_NOTE = "doctorsNote";
 
     /** Autocreated by a real repository from the node type, and by nothing in a mock one. */
-    private static final String SUPER_TYPE = "sling:resourceSuperType";
+    public static final String SUPER_TYPE = "sling:resourceSuperType";
 
-    private static final String REQUIREMENT = "sch/Requirement";
+    public static final String REQUIREMENT = "sch/Requirement";
 
-    private static final String FORM_ITEM = "sch/FormItem";
+    public static final String FORM_ITEM = "sch/FormItem";
 
     private CompletenessFixture()
     {
