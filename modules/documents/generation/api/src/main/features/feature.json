@@ -22,9 +22,8 @@
     }
   ],
   "variables":{
-    // Where the generation worker listens. A variable, as docling.url is, so a local run can point IAP at a
-    // worker on localhost: start.py passes -V generation.url=http://localhost:18766, and the default below is
-    // the compose service name (tools/deploy/generate_compose.py --generation).
+    // URL for the template generation worker. The default below is the compose service name
+    // (tools/deploy/generate_compose.py --generation).
     "generation.url":"http://generation:18766"
   },
   "configurations":{

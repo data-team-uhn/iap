@@ -31,7 +31,7 @@
   <description>The worker filling .docx templates with docxtpl and converting them with LibreOffice.</description>
 
   <properties>
-    <!-- python3, not python, for the reason the processing module gives -->
+    <!-- python3, not python, as `python` is absent on a machine without python-is-python3 -->
     <python.executable>python3</python.executable>
   </properties>
 
@@ -114,7 +114,7 @@
                   <name>iap/generation</name>
                   <build>
                     <!-- modules/documents, so the image can take the shared helpers from utils/
-                         as well as its own code; the Dockerfile says which files -->
+                         as well as its own code, specified in the Dockerfile -->
                     <contextDir>${project.basedir}/../..</contextDir>
                     <dockerFile>generation/worker/Dockerfile</dockerFile>
                   </build>
