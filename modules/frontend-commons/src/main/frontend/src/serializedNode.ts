@@ -36,7 +36,7 @@ export function childrenOf(node: SerializedNode): SerializedNode[] {
 export const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
   childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
 
-// The strings a property holds. A single value is serialized as a bare string, not as a one-element list
+// The strings a property holds, as an array. This turns a single value and no value at all into arrays as well.
 export function strings(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((entry): entry is string => typeof entry === "string");
