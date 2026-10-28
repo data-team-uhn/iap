@@ -110,11 +110,22 @@ test.describe('the time off request demo', () => {
     const bpmn = await response.text();
     expect(bpmn).toContain('<bpmn:startEvent id="requestSubmitted"');
     expect(bpmn).toContain('<bpmn:userTask id="approveRequest"');
+    expect(bpmn).toContain('<bpmn:serviceTask id="recordReview"');
     expect(bpmn).toContain('<bpmn:exclusiveGateway id="decision"');
     expect(bpmn).toContain('<bpmn:endEvent id="requestApproved"');
     expect(bpmn).toContain('<bpmn:endEvent id="requestRejected"');
     // Diagram interchange too, or the visual editor has nothing to draw
     expect(bpmn).toContain('<bpmndi:BPMNDiagram');
+  });
+
+  test('writes the decision down against the approval the schema asks for', async ({ request }) => {
+    // The step as derived from the diagram, which owns the flow nodes, with its iap: attributes carried over
+    const response = await request.get('/Workflows/timeOffRequest/v1/recordReview.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const step = (await response.json()) as { handler?: string; requirement?: string };
+    expect(step.handler).toBe('recordReview');
+    expect(step.requirement).toBe('approval');
   });
 
   test('creates the two people the demo is about', async ({ page }) => {

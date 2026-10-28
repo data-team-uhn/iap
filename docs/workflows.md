@@ -817,6 +817,14 @@ starts with its parts and marks. Detaching removes every version of a document a
 leaves it empty as its requirement's part, and the detach workflow marks the submission
 again.
 
+A content workflow writes a decision down with `recordReview`, a service task placed
+after the user task that decides. Its `requirement` names the requirement decided, by
+name or by path, since only the definition knows which of several approvals a step
+makes. It records a `sub:Review` by whoever completed the task, tagged with the task's
+`outcome` and pointing at that requirement, with the decider's `outcomeNote` as a
+comment. A completion without an outcome is refused. The latest review tagged
+`approved` or `rejected` is where an approval stands, which the form projection reports.
+
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person
