@@ -36,6 +36,7 @@ import {
 import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 
 import { requestDeletion, type DeletionResponse } from "./deletionApi";
 
@@ -81,7 +82,7 @@ interface DeleteItemProps {
 const DeleteItem = (props: DeleteItemProps) => {
   const {
     path,
-    name = path.substring(path.lastIndexOf("/") + 1),
+    name = lastSegmentOf(path),
     type,
     permanent = false,
     variant = "icon",

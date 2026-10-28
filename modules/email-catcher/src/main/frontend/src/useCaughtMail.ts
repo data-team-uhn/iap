@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 import {
   CATCHER_STATUS_PATH,
@@ -30,7 +31,6 @@ import {
   messagePath,
   parseCatcherStatus,
   parseCaughtMessage,
-  type SerializedNode,
 } from "./caughtMailModel";
 
 // The caught mail screens' I/O, in one place. Two hooks rather than one: the status and a message

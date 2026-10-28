@@ -37,6 +37,7 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
@@ -97,7 +98,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const reloadWorkflow = useCallback(() => void reload(), [ reload ]);
   // The steps above this page that its path cannot name: the homepage, and the workflow under its title
   // once it is read
-  const workflowName = definitionPath.slice(definitionPath.lastIndexOf("/") + 1);
+  const workflowName = lastSegmentOf(definitionPath);
   usePageCrumbs([
     { path: adminUrl(homepage.path), label: homepage.title },
     { path: adminUrl(definitionPath), label: workflow?.title ?? workflowName },
@@ -140,7 +141,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   // Editable where the server offers to save the diagram, which is on a draft. Anything else opens
   // read-only, with an explanation.
   const editable = requestedEdit && version !== undefined && offers(version, "save");
-  const label = version ? version.version || version.name : path.slice(path.lastIndexOf("/") + 1);
+  const label = version ? version.version || version.name : lastSegmentOf(path);
 
   // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
   // refused save stays on the page, reports itself, and offers to retry.

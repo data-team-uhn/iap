@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
+
 // What the workflow screens know about the repository: where workflows live, how a version's
 // lifecycle reads, and how one workflow's versions are listed. No React, no fetch.
 
@@ -77,16 +79,8 @@ export interface WorkflowSummary {
   versions: WorkflowVersionSummary[];
 }
 
-function isNode(value: unknown): value is JcrNode {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 // The versions stored under a serialized workflow definition, in the repository's own order.
@@ -100,9 +94,9 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
         path: `${definitionPath}/${name}`,
         version: text(version.version),
         description: text(version.description),
-        tags: strings(version.tags),
+        tags: stringsOf(version.tags),
         lastModified: text(version["jcr:lastModified"]),
-        "@events": strings(version["@events"]),
+        "@events": stringsOf(version["@events"]),
       };
     });
 }
@@ -112,14 +106,14 @@ export function workflowFrom(path: string, definition: JcrNode): WorkflowSummary
   const versions = parseVersions(path, definition);
   return {
     path,
-    name: path.slice(path.lastIndexOf("/") + 1),
-    title: text(definition.title) || path.slice(path.lastIndexOf("/") + 1),
+    name: lastSegmentOf(path),
+    title: text(definition.title) || lastSegmentOf(path),
     active: versions.some(version => version.tags.includes(ACTIVE_TAG)),
     retired: versions.some(version => version.tags.includes(RETIRED_TAG))
       && !versions.some(version => version.tags.includes(ACTIVE_TAG)),
     created: text(definition["jcr:created"]),
     lastModified: text(definition["jcr:lastModified"]),
-    "@events": strings(definition["@events"]),
+    "@events": stringsOf(definition["@events"]),
     versions,
   };
 }
