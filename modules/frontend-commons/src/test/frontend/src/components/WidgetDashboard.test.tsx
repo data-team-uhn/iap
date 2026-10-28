@@ -155,6 +155,17 @@ describe("WidgetDashboard", () => {
     expect(screen.getByText("Plain content")).toBeInTheDocument();
   });
 
+  it("lets each column shrink to its share of the width, regardless of how wide a widget's content is", async () => {
+    mockedLoadExtensions.mockResolvedValue([ widget("Table", 0) ]);
+
+    render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
+
+    // jsdom doesn't lay anything out, and it ignores the column rules because they depend on the screen
+    // width. So the test checks the cell instead: it must be allowed to get narrower than its content.
+    const cell = (await screen.findByText("Table content")).closest(".MuiPaper-root")!.parentElement!;
+    expect(getComputedStyle(cell).minWidth).toBe("0px");
+  });
+
   it("renders a widget that declares no name", async () => {
     const unnamed: Record<string, unknown> = { ...widget("Unnamed", 0) };
     delete unnamed["ext:name"];

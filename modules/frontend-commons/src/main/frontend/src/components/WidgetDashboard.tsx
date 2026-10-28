@@ -111,11 +111,14 @@ function WidgetGrid({ widgets }: { widgets: WidgetExtension[] }) {
         display: "grid",
         gap: 2,
         // Cells stretch (the grid default), so widgets sharing a row are the same height; each
-        // Widget surface fills its cell (see Widget.tsx).
+        // Widget surface fills its cell (see Widget.tsx). Each column gets an equal share of the width,
+        // regardless of how wide its widgets' content is. A plain `1fr` column would grow to fit its
+        // widest widget, which can make the page wider than a phone's screen. Content that doesn't fit
+        // scrolls inside its widget instead.
         gridTemplateColumns: {
-          xs: "1fr",
-          sm: `repeat(${smColumns}, 1fr)`,
-          lg: `repeat(${lgColumns}, 1fr)`,
+          xs: "minmax(0, 1fr)",
+          sm: `repeat(${smColumns}, minmax(0, 1fr))`,
+          lg: `repeat(${lgColumns}, minmax(0, 1fr))`,
         },
       }}
     >
@@ -148,6 +151,7 @@ function WidgetGrid({ widgets }: { widgets: WidgetExtension[] }) {
             <Box
               key={widgetKey(widget, index)}
               sx={{
+                minWidth: 0,
                 gridColumn: {
                   xs: "span 1",
                   sm: `span ${Math.min(span, smColumns)}`,
