@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/detachDocument">
   <bpmn:message id="detachDocumentMessage" name="detachDocument" />
   <bpmn:process id="detachDocument" name="Remove a document from a submission" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="everyone" name="File removed">
+    <bpmn:startEvent id="requested" iap:performers="@creator" name="File removed">
       <bpmn:outgoing>toDetach</bpmn:outgoing>
       <bpmn:messageEventDefinition id="detachDocumentRequested" messageRef="detachDocumentMessage" />
     </bpmn:startEvent>

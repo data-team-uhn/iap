@@ -30,8 +30,9 @@ import NewSubmissionDialog from "./NewSubmissionDialog";
 import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// Only the submissions created by the current user; `@me` is resolved server-side.
-const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "jcr:createdBy", value: "@me" }];
+// The submissions the current user raised; `@me` is resolved server-side. `createdBy` is the person the
+// engine acted for. `jcr:createdBy` names the engine itself.
+const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // One dashboard widget extension, as the dashboard hands it to the widget it renders.
 type WidgetExtension = Record<string, unknown>;

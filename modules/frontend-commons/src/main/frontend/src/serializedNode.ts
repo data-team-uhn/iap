@@ -31,3 +31,18 @@ export function childrenOf(node: SerializedNode): SerializedNode[] {
     ? order.map(name => node[String(name)]).filter(isNode)
     : Object.values(node).filter(isNode);
 }
+
+// A node's children of one resource type, in the order childrenOf gives
+export const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
+  childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
+
+// The strings a property holds, as an array. This turns a single value and no value at all into arrays as well.
+export function stringsOf(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  return typeof value === "string" ? [ value ] : [];
+}
+
+// The last segment of a path, which is the name of the node it leads to
+export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);

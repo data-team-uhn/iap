@@ -12,7 +12,7 @@
       "elementId": "requested",
       "label": "File uploaded",
       "messageName": "attachDocument",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toAttach": {
         "jcr:primaryType": "wf:SequenceFlow",

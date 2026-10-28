@@ -32,6 +32,8 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
@@ -50,6 +52,10 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.principals.internal.CreatorResolver;
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.models.Activity;
@@ -60,6 +66,7 @@ import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -144,6 +151,45 @@ public final class EngineFixture
     }
 
     /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. A login resolves case-insensitively, so the two can differ.
+     *
+     * @param target a target whose session is already masked with the canonical id, as {@link #actingAs} does
+     * @param spelling what Sling should report the user id to be
+     * @return the target, whose resolver reports {@code spelling} as the user id
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        return seenThrough(target, new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        });
+    }
+
+    /**
+     * A resource as the given resolver sees it.
+     *
+     * @param resource the resource
+     * @param resolver the resolver it should report
+     * @return the same resource, reporting that resolver as its own
+     */
+    static Resource seenThrough(final Resource resource, final ResourceResolver resolver)
+    {
+        return new ResourceWrapper(resource)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
      * How a task context performs further work, for a handler under test that does none: no handlers to dispatch
      * to, and no event may be sent.
      *
@@ -154,7 +200,7 @@ public final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, routing());
+            }, routing(), runners());
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }
@@ -176,6 +222,25 @@ public final class EngineFixture
         final Activity activity, final Map<String, Object> variables, final String actor)
     {
         return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+    }
+
+    /**
+     * The principal service, wired as the platform wires it: the real service, with the special names it ships.
+     * Built by hand for the same reason as {@link #conditions()}.
+     *
+     * @return a principal service answering {@code @creator} and {@code @me}
+     */
+    static PrincipalService principals()
+    {
+        final PrincipalServiceImpl service = new PrincipalServiceImpl();
+        try {
+            final Field resolvers = PrincipalServiceImpl.class.getDeclaredField("resolvers");
+            resolvers.setAccessible(true);
+            resolvers.set(service, List.of(new CreatorResolver(), new MeResolver()));
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("The fixture could not build its principal service", e);
+        }
+        return service;
     }
 
     /**
@@ -201,15 +266,7 @@ public final class EngineFixture
     public static Resource createTarget(final SlingContext context, final String actor)
     {
         final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
-        final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
-        return new ResourceWrapper(homepage)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return resolver;
-            }
-        };
+        return seenThrough(homepage, actingAs(homepage.getResourceResolver(), actor));
     }
 
     /**
@@ -301,14 +358,98 @@ public final class EngineFixture
     }
 
     /**
-     * How the engine ends a user task, routing the resumed instance through the fixture's {@link #routing()}.
+     * Who the names in a definition stand for, as the fixture's {@link #principals() principal service} answers.
+     *
+     * @return the engine's performers
+     */
+    static Performers performers()
+    {
+        return new Performers(principals());
+    }
+
+    /**
+     * How the engine grants read access on the resources its workflows drive.
+     *
+     * @return the engine's host access
+     */
+    static HostAccess hostAccess()
+    {
+        return new HostAccess(performers());
+    }
+
+    /**
+     * Where the engine gets the runner that carries a user workflow on, routing through the fixture's
+     * {@link #routing()}.
+     *
+     * @return the engine's instance runners
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static InstanceRunners runners() throws ReflectiveOperationException
+    {
+        return new InstanceRunners(routing(), performers(), hostAccess());
+    }
+
+    /**
+     * How the engine ends a user task.
      *
      * @return a task completion for the engine
      * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
      */
     static TaskCompletion taskCompletion() throws ReflectiveOperationException
     {
-        return new TaskCompletion(routing());
+        return new TaskCompletion(performers(), runners());
+    }
+
+    /**
+     * What the engine answers without changing anything, asking the fixture's {@link #conditions() evaluator} and
+     * {@link #performers()}.
+     *
+     * @return the engine's queries
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static WorkflowQueries queries() throws ReflectiveOperationException
+    {
+        return new WorkflowQueries(conditions(), performers());
+    }
+
+    /**
+     * An engine wired as the DS runtime would wire it, over the given service sessions and handlers. Wiring is by
+     * reflection, since the SCR metadata only exists in the packaged bundle.
+     *
+     * @param resolverFactory where the engine opens its own sessions
+     * @param handlers the service task handlers to register
+     * @return a ready engine
+     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
+     */
+    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
+        final List<ServiceTaskHandler> handlers) throws ReflectiveOperationException
+    {
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", resolverFactory);
+        inject(engine, "handlers", handlers);
+        inject(engine, "conditionEvaluator", conditions());
+        inject(engine, "routing", routing());
+        inject(engine, "performers", performers());
+        inject(engine, "runners", runners());
+        inject(engine, "taskCompletion", taskCompletion());
+        inject(engine, "queries", queries());
+        return engine;
+    }
+
+    /**
+     * Sets one of the engine's references.
+     *
+     * @param engine the engine
+     * @param field the reference's field name
+     * @param value what to set it to
+     * @throws ReflectiveOperationException when there is no such field
+     */
+    static void inject(final WorkflowEngineImpl engine, final String field, final Object value)
+        throws ReflectiveOperationException
+    {
+        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
+        reference.setAccessible(true);
+        reference.set(engine, value);
     }
 
     /**
@@ -377,10 +518,17 @@ public final class EngineFixture
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
             Mockito.when(userManager.getAuthorizable(TaskCompletion.TIMER_USER)).thenReturn(timer);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
+            // Membership is asked of the group, about the member, and only the ordinary user is in it
+            Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
+                REQUESTER.equals(((Authorizable) invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
+            // The principal store knows no synchronised group, so a name the user store lacks names nobody
+            Mockito.doReturn(Mockito.mock(PrincipalManager.class)).when(session).getPrincipalManager();
+            // Not the actor, so membership is looked up in the user and principal stores, not read off this session
+            Mockito.doReturn("the-engine").when(session).getUserID();
             return session;
         } catch (final RepositoryException e) {
             throw new IllegalStateException(e);
@@ -419,6 +567,7 @@ public final class EngineFixture
         Mockito.when(principal.getName()).thenReturn(REQUESTERS);
         final Group group = Mockito.mock(Group.class);
         Mockito.when(group.getID()).thenReturn(REQUESTERS);
+        Mockito.when(group.isGroup()).thenReturn(true);
         Mockito.when(group.getPrincipal()).thenReturn(principal);
         return group;
     }

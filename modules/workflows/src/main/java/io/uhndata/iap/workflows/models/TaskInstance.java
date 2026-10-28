@@ -28,19 +28,18 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code wf:TaskInstance} node: a concrete piece of work raised by a running workflow and
- * waiting on a person. An entity in its own right rather than a part of the instance, because a task is something
- * people go looking for — "what is on my desk" is a query over these, not a walk of the workflows that raised them.
+ * waiting on a person. It is a part of the workflow instance that raised it.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, resourceType = TaskInstance.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class TaskInstance extends Entity
+public class TaskInstance extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";
@@ -65,6 +64,12 @@ public class TaskInstance extends Entity
 
     /** The property holding when the task {@link #getEndTime() ended}. */
     public static final String END_TIME_PROPERTY = "endTime";
+
+    /** The property listing the outcomes the task may be decided with. */
+    public static final String OUTCOME_OPTIONS_PROPERTY = "outcomeOptions";
+
+    /** The property listing the principals who may complete the task. */
+    public static final String PERFORMERS_PROPERTY = "performers";
 
     @ValueMapValue
     private String taskDefinitionId;
@@ -94,7 +99,7 @@ public class TaskInstance extends Entity
     private String dueEventId;
 
     @ValueMapValue
-    private String[] offeredOutcomes;
+    private String[] outcomeOptions;
 
     @ValueMapValue
     private String[] performers;
@@ -209,19 +214,19 @@ public class TaskInstance extends Entity
     }
 
     /**
-     * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
+     * The decisions this task may be completed with, as its {@link Activity#getOutcomeOptions() defining activity}
      * offered them when the task was raised.
      *
-     * <p>Copied onto the task rather than looked up, for the same reason the {@link #getLabel() label} is: a task is
-     * decided on the terms it was raised with rather than on terms the definition may have grown since, and whoever
-     * has to do it can read the task without necessarily being able to read the workflow it came from.</p>
+     * <p>Copied onto the task, as the {@link #getLabel() label} is, so whoever has to do it can read the decision
+     * without reading the workflow it came from. The copy describes the decision: completion still checks an outcome
+     * against the definition.</p>
      *
      * @return the outcomes on offer, empty when completing this task is not a decision
      */
     @NotNull
-    public List<String> getOfferedOutcomes()
+    public List<String> getOutcomeOptions()
     {
-        return this.offeredOutcomes == null ? List.of() : List.of(this.offeredOutcomes);
+        return this.outcomeOptions == null ? List.of() : List.of(this.outcomeOptions);
     }
 
     /**

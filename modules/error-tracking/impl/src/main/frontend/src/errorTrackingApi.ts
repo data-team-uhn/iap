@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { childrenOfType, type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
+
 // The client half of the error triage screens: counting what needs attention, reading one recorded
 // error with the decisions taken about it, and recording a new decision. Every call takes the fetch
 // to use as its first argument rather than reaching for a hook, so this file stays free of React and
@@ -164,43 +166,16 @@ export function errorNameFromRoute(route: string): string | null {
 /** The repository path of one error. */
 const errorPath = (name: string): string => `${LOGGED_ERRORS_PATH}/${name}`;
 
-/** A JSON node as IAP's serializer emits it: properties, plus children keyed by name. */
-type SerializedNode = Record<string, unknown>;
-
 /** Reads a property as a string, ignoring anything that is not one. */
 const asString = (node: SerializedNode, name: string): string | undefined => {
   const value = node[name];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
-/**
- * Reads a multi-valued property as an array of strings. A single-valued property round-trips as a
- * bare string rather than a one-element array, so both shapes are accepted.
- */
-const asStrings = (node: SerializedNode, name: string): string[] => {
-  const value = node[name];
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string");
-  }
-  return typeof value === "string" ? [ value ] : [];
-};
-
 const asNumber = (node: SerializedNode, name: string): number | undefined => {
   const value = node[name];
   return typeof value === "number" ? value : undefined;
 };
-
-/** Whether a serialized value is a child node rather than a property. */
-const isNode = (value: unknown): value is SerializedNode =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** The children of a serialized node that carry a given resource type. */
-const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
-  Object.entries(node)
-    .filter(([ key ]) => !key.startsWith("@"))
-    .map(([ , value ]) => value)
-    .filter(isNode)
-    .filter(child => child["sling:resourceType"] === resourceType);
 
 /** Newest decision first, by how much had happened when it was taken and then by when. */
 const NEWEST_FIRST = (left: Decision, right: Decision): number => {
@@ -230,15 +205,15 @@ function readError(name: string, node: SerializedNode): LoggedErrorDetail {
     occurrences: asNumber(node, "occurrences") ?? 0,
     firstSeen: asString(node, "jcr:created"),
     lastOccurrence: asString(node, "lastOccurrence"),
-    messages: asStrings(node, "messages"),
-    subjects: asStrings(node, "subjects"),
-    actors: asStrings(node, "actors"),
+    messages: stringsOf(node.messages),
+    subjects: stringsOf(node.subjects),
+    actors: stringsOf(node.actors),
     lastContext: asString(node, "lastContext"),
     type: asString(node, "type"),
     stackTrace: asString(node, "stackTrace"),
     problem,
     // Only the triage markers, so an unrelated tag on the error is not shown as a decision
-    triage: asStrings(node, TRIAGE_PROPERTY),
+    triage: stringsOf(node[TRIAGE_PROPERTY]),
     decisions: childrenOfType(node, "err/Acknowledgement").map(readDecision).sort(NEWEST_FIRST),
   };
 }

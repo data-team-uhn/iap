@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { childrenOf, isNode } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, childrenOfType, isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
 
 describe("isNode", () => {
   it("tells a node from a value or a list of values", () => {
@@ -41,5 +41,32 @@ describe("childrenOf", () => {
   it("lists them as their keys come when the node says no order", () => {
     // Whole numbers first, whatever order they were written in
     expect(childrenOf(node).map(child => child["@name"])).toEqual([ "2", "10", "low" ]);
+  });
+});
+
+describe("childrenOfType", () => {
+  it("keeps the children of one resource type, in the node's order", () => {
+    const node = { "@order": [ "b", "a", "c" ],
+      "a": { "@name": "a", "sling:resourceType": "x/Task" },
+      "b": { "@name": "b", "sling:resourceType": "x/Task" },
+      "c": { "@name": "c", "sling:resourceType": "x/Token" } };
+
+    expect(childrenOfType(node, "x/Task").map(child => child["@name"])).toEqual([ "b", "a" ]);
+  });
+});
+
+describe("stringsOf", () => {
+  it("reads a list, a bare single value, and nothing else", () => {
+    expect(stringsOf([ "a", 3, "b" ])).toEqual([ "a", "b" ]);
+    expect(stringsOf("a")).toEqual([ "a" ]);
+    expect(stringsOf(undefined)).toEqual([]);
+    expect(stringsOf(3)).toEqual([]);
+  });
+});
+
+describe("lastSegmentOf", () => {
+  it("gives the name a path ends with", () => {
+    expect(lastSegmentOf("/Submissions/ab/request")).toBe("request");
+    expect(lastSegmentOf("request")).toBe("request");
   });
 });

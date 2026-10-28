@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.security.Principal;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,9 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
@@ -53,10 +57,20 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * @version $Id$
  * @since 0.1.0
  */
-final class HostAccess
+@Component(service = HostAccess.class)
+public class HostAccess
 {
-    private HostAccess()
+    private final Performers performers;
+
+    /**
+     * Constructor.
+     *
+     * @param performers says who the names in a definition stand for
+     */
+    @Activate
+    public HostAccess(@Reference final Performers performers)
     {
+        this.performers = performers;
     }
 
     /**
@@ -68,14 +82,17 @@ final class HostAccess
      * @param actor the user the instance is being run for
      * @throws PersistenceException when the access control list cannot be written
      */
-    static void grantReaders(final ResourceResolver resolver, final Resource host, final WorkflowVersion version,
+    void grantReaders(final ResourceResolver resolver, final Resource host, final WorkflowVersion version,
         final String actor) throws PersistenceException
     {
+        final List<String> named = version.getActivities(null).stream()
+            .flatMap(task -> task.getPerformers().stream())
+            .distinct()
+            .collect(Collectors.toList());
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
-        readers.addAll(version.getActivities(null).stream()
-            .flatMap(task -> task.getPerformers().stream())
-            .collect(Collectors.toSet()));
+        // Special names such as @creator are answered against the host, since an ACL needs real principals
+        readers.addAll(this.performers.resolve(named, host));
         grant(resolver, host.getPath(), readers);
     }
 
@@ -140,15 +157,16 @@ final class HostAccess
      * The principal behind a user or group name.
      *
      * @param session the engine's session
-     * @param name the authorizable's id
+     * @param name the principal's name
      * @return the principal, or {@code null} if there is nobody by that name. A definition may name a group a
      *         given deployment has not created
-     * @throws RepositoryException when the user store cannot be read
+     * @throws RepositoryException when the user or principal store cannot be read
      */
     private static Principal principalOf(final JackrabbitSession session, final String name)
         throws RepositoryException
     {
         final Authorizable authorizable = session.getUserManager().getAuthorizable(name);
-        return authorizable == null ? null : authorizable.getPrincipal();
+        // A group an identity provider synchronises has a principal and no authorizable
+        return authorizable == null ? session.getPrincipalManager().getPrincipal(name) : authorizable.getPrincipal();
     }
 }

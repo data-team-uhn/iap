@@ -31,6 +31,7 @@ import javax.jcr.security.AccessControlPolicyIterator;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.PersistenceException;
@@ -75,6 +76,9 @@ class HostAccessTest
 
     private final List<String> granted = new ArrayList<>();
 
+    /** Groups an identity provider synchronises: the principal store knows them, the user store does not. */
+    private final List<String> synchronised = new ArrayList<>();
+
     @BeforeEach
     void setUp()
     {
@@ -101,12 +105,23 @@ class HostAccessTest
         return this.context.resourceResolver().getResource(HOST);
     }
 
+    /**
+     * Grants read on the fixture's host for an instance run by the requester, resolving names as the engine does.
+     *
+     * @param resolver the engine's session to grant through
+     * @throws PersistenceException when the grant fails, which some cases assert on
+     */
+    private void grantReaders(final ResourceResolver resolver) throws PersistenceException
+    {
+        EngineFixture.hostAccess().grantReaders(resolver, host(), version(), EngineFixture.REQUESTER);
+    }
+
     @Test
     void grantsReadToTheActorAndTheUserTaskPerformers() throws Exception
     {
-        HostAccess.grantReaders(resolver(list()), host(), version(), "demo-requester");
+        grantReaders(resolver(list()));
 
-        assertEquals(List.of("demo-requester", APPROVERS), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
     }
 
     @Test
@@ -124,9 +139,9 @@ class HostAccessTest
         Mockito.when(manager.getApplicablePolicies(Mockito.anyString())).thenReturn(applicable);
         Mockito.when(manager.privilegeFromName(Mockito.anyString())).thenReturn(Mockito.mock(Privilege.class));
 
-        HostAccess.grantReaders(resolverFor(manager), host(), version(), "demo-requester");
+        grantReaders(resolverFor(manager));
 
-        assertEquals(List.of("demo-requester", APPROVERS), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
     }
 
     @Test
@@ -139,7 +154,7 @@ class HostAccessTest
         Mockito.when(manager.getApplicablePolicies(Mockito.anyString())).thenReturn(applicable);
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> HostAccess.grantReaders(resolverFor(manager), host(), version(), "demo-requester"));
+            () -> grantReaders(resolverFor(manager)));
         assertTrue(failure.getMessage().contains("Could not grant read access"));
     }
 
@@ -148,9 +163,19 @@ class HostAccessTest
     {
         // A definition may perfectly well name a group a given deployment has never created; that is not a reason
         // to refuse to start the workflow
-        HostAccess.grantReaders(resolver(list(), "demo-requester"), host(), version(), "demo-requester");
+        grantReaders(resolver(list(), EngineFixture.REQUESTER));
 
-        assertEquals(List.of("demo-requester"), this.granted);
+        assertEquals(List.of(EngineFixture.REQUESTER), this.granted);
+    }
+
+    @Test
+    void grantsReadToAGroupOnlyThePrincipalStoreKnows() throws Exception
+    {
+        this.synchronised.add(APPROVERS);
+
+        grantReaders(resolver(list(), EngineFixture.REQUESTER));
+
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
     }
 
     @Test
@@ -160,7 +185,7 @@ class HostAccessTest
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(Mockito.mock(Session.class));
 
         assertThrows(PersistenceException.class,
-            () -> HostAccess.grantReaders(resolver, host(), version(), "demo-requester"));
+            () -> grantReaders(resolver));
     }
 
     /**
@@ -219,8 +244,14 @@ class HostAccessTest
             Mockito.when(authorizable.getPrincipal()).thenReturn(principal);
             return authorizable;
         });
+        final PrincipalManager principals = Mockito.mock(PrincipalManager.class);
+        Mockito.when(principals.getPrincipal(Mockito.anyString())).thenAnswer(invocation -> {
+            final String name = invocation.getArgument(0);
+            return this.synchronised.contains(name) ? (Principal) () -> name : null;
+        });
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
         Mockito.when(session.getUserManager()).thenReturn(users);
+        Mockito.when(session.getPrincipalManager()).thenReturn(principals);
         Mockito.when(session.getAccessControlManager()).thenReturn(manager);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);

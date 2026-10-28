@@ -67,14 +67,18 @@ final class InstanceRecords
 
     private final ResourceResolver resolver;
 
+    private final Performers performers;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
+     * @param performers says who the names in a definition stand for
      */
-    InstanceRecords(final ResourceResolver resolver)
+    InstanceRecords(final ResourceResolver resolver, final Performers performers)
     {
         this.resolver = resolver;
+        this.performers = performers;
     }
 
     /**
@@ -225,11 +229,22 @@ final class InstanceRecords
     {
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
-            final Resource host = Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-                "An instance always lives in a container").getParent(), "A container always lives in its host");
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(host.adaptTo(Taggable.class), "A workflow's host is taggable").tag(hostTag, true);
+            Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class), "A workflow's host is taggable")
+                .tag(hostTag, true);
         }
+    }
+
+    /**
+     * The resource a workflow instance drives, two levels up past its container.
+     *
+     * @param instance a workflow instance
+     * @return the host resource
+     */
+    static Resource hostOf(final Resource instance)
+    {
+        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
+            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**
@@ -282,6 +297,9 @@ final class InstanceRecords
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            TaskInstance.OUTCOME_OPTIONS_PROPERTY, activity.getOutcomeOptions().toArray(String[]::new),
+            TaskInstance.PERFORMERS_PROPERTY,
+            this.performers.resolve(activity, hostOf(instance)).toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);

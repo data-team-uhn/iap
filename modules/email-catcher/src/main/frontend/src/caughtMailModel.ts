@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
+
 // What a caught message is, where it lives, and how to read one out of the serializer's JSON. No
 // React, no fetch: everything here is a pure function of its arguments, so it can be tested without
 // rendering anything or stubbing a response. The I/O that uses it is in useCaughtMail.
@@ -88,22 +90,9 @@ export interface CaughtMessage {
   htmlBody?: string;
 }
 
-/** A JSON node as IAP's serializer emits it: properties, plus children keyed by name. */
-export type SerializedNode = Record<string, unknown>;
-
 const asString = (node: SerializedNode, name: string): string | undefined => {
   const value = node[name];
   return typeof value === "string" && value.length > 0 ? value : undefined;
-};
-
-// A single-valued property is serialized as a bare string rather than a list of one, so both shapes
-// have to be read: a message to one recipient is the common case, not the exception.
-const asStrings = (node: SerializedNode, name: string): string[] => {
-  const value = node[name];
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string");
-  }
-  return typeof value === "string" ? [ value ] : [];
 };
 
 /**
@@ -139,12 +128,12 @@ export const parseCaughtMessage = (node: SerializedNode, name: string): CaughtMe
   name,
   subject: asString(node, "subject"),
   caughtAt: asString(node, "caughtAt"),
-  from: asStrings(node, "from"),
-  replyTo: asStrings(node, "replyTo"),
-  to: asStrings(node, "to"),
-  cc: asStrings(node, "cc"),
-  bcc: asStrings(node, "bcc"),
-  headers: asStrings(node, "headers"),
+  from: stringsOf(node.from),
+  replyTo: stringsOf(node.replyTo),
+  to: stringsOf(node.to),
+  cc: stringsOf(node.cc),
+  bcc: stringsOf(node.bcc),
+  headers: stringsOf(node.headers),
   textBody: asString(node, "textBody"),
   htmlBody: asString(node, "htmlBody"),
 });

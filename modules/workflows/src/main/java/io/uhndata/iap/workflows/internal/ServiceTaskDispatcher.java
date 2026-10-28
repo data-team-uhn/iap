@@ -58,21 +58,27 @@ final class ServiceTaskDispatcher
     /** How the engine runs the workflow waiting for an event a service task sends. */
     private final EventChain chain;
 
-    /** What decides where the tokens of any instance a task starts go. */
+    /** Moves a system workflow's run from node to node. */
     private final FlowRouting routing;
+
+    /** Hands out the runner for any instance a task starts. */
+    private final InstanceRunners runners;
 
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
-     * @param routing what decides where the tokens of any instance a task starts go
+     * @param routing moves a system workflow's run from node to node
+     * @param runners hands out the runner for any instance a task starts
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
+        final InstanceRunners runners)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
+        this.runners = runners;
     }
 
     /**
@@ -97,12 +103,14 @@ final class ServiceTaskDispatcher
         FlowNode node = start;
         for (int step = 0; step < WorkflowEngineImpl.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
                 return variables;
             }
             if (node instanceof Activity) {
                 perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor,
                     this, depth));
+                // After each activity rather than at the end: a later activity may start a workflow on what this one
+                // created, and @creator there reads createdBy
+                recordActor(resolver, variables, actor);
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -117,8 +125,8 @@ final class ServiceTaskDispatcher
 
     /**
      * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
-     * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
+     * {@code jcr:createdBy} names the service user. Nothing else would remember the human. The audit trail, every
+     * "things I raised" listing and {@code @creator} all read it.
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
@@ -177,17 +185,20 @@ final class ServiceTaskDispatcher
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+            new WorkflowTaskContextImpl(InstanceRecords.hostOf(instance), event, activity, variables, actor, this, 0));
     }
 
     /**
-     * What decides where the tokens of any instance a task starts go.
+     * A runner for an instance a service task starts, performing the service tasks it meets through this dispatcher.
      *
-     * @return the engine's flow routing
+     * @param resolver the engine's own session
+     * @param event the event being delivered
+     * @param actor the user the execution acts for
+     * @return the runner
      */
-    FlowRouting getRouting()
+    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
     {
-        return this.routing;
+        return this.runners.createRunner(resolver, performer(event, actor), actor);
     }
 
     /**
@@ -204,18 +215,6 @@ final class ServiceTaskDispatcher
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**

@@ -119,7 +119,8 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
 // ticked, and the form is then read again. That is what keeps the questions on screen correct, because
 // which of them apply depends on the answers, and the server is the only thing that decides it.
 // Nothing here evaluates a condition; a question that stops applying simply stops being sent.
-function SubmissionEditor({ path }: { path: string }) {
+// `onSaving` hears of each save as it starts, for whatever must wait until the answers are stored.
+function SubmissionEditor({ path, onSaving }: { path: string; onSaving?: (save: Promise<unknown>) => void }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
@@ -146,7 +147,9 @@ function SubmissionEditor({ path }: { path: string }) {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
-    saveAnswer(doFetch, path, question.path, values)
+    const save = saveAnswer(doFetch, path, question.path, values);
+    onSaving?.(save);
+    save
       // The field's own outcome, whether or not a later answer has overtaken this one. A save that
       // succeeded is not reported as still saving because something else happened after it. Settled
       // in this handler rather than in a trailing catch, so that only the read below reaches one
@@ -161,7 +164,7 @@ function SubmissionEditor({ path }: { path: string }) {
       // A read that fails says nothing about the answer, which is why it is reported against the
       // form rather than against the field
       .catch((e: unknown) => setError(message(e)));
-  }, [ doFetch, path, reload ]);
+  }, [ doFetch, path, reload, onSaving ]);
 
   // The form again, because what it asks can change with what was just attached: a requirement that
   // is now answered, and a request that is no longer incomplete

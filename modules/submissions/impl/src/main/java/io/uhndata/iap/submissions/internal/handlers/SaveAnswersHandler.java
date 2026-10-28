@@ -62,8 +62,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * accepted.</p>
  *
  * <p><strong>Both rules about who may do this are enforced here:</strong> the actor is the person the engine recorded
- * as having raised the submission, and that the submission is still a draft. The first rule is checked here explicitly
- * rather than declared, because {@code PerformerCheck} does not yet support the {@code @creator} role.</p>
+ * as having raised the submission, and that the submission is still a draft. The start event also declares
+ * {@code @creator}, so the engine offers saving only to that person. The first rule is checked again here because
+ * administrators pass every declaration.</p>
  *
  * @version $Id$
  * @since 0.1.0

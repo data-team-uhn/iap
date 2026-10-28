@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { childrenOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, stringsOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
 
 // Reading schemas and versions straight from the repository's JSON serialization, which is the one
@@ -34,9 +34,6 @@ export const listing = (depth: number): string => `${depth}.simple.events.fields
 const isOfType = (value: unknown, primaryType: string): value is SerializedNode =>
   typeof value === "object" && value !== null && (value as SerializedNode)["jcr:primaryType"] === primaryType;
 
-const strings = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-
 const text = (node: SerializedNode, key: string): string | undefined => {
   const value = node[key];
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
@@ -44,13 +41,10 @@ const text = (node: SerializedNode, key: string): string | undefined => {
 
 export const pathOf = (node: SerializedNode): string => String(node["@path"]);
 
-// The last step of a path: the name of what it leads to
-export const lastSegmentOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
-
 // The path a node would have if renamed in place
 export const renamedPath = (path: string, name: string): string => `${path.slice(0, path.lastIndexOf("/"))}/${name}`;
 
-export const tagsOf = (node: SerializedNode): string[] => strings(node.tags);
+export const tagsOf = (node: SerializedNode): string[] => stringsOf(node.tags);
 
 export const nameOf = (node: SerializedNode): string => String(node["@name"]);
 
