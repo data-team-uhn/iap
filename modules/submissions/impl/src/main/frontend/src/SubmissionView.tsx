@@ -298,12 +298,9 @@ function SubmissionView() {
   // the same path
   const [reloads, setReloads] = useState(0);
 
-  // Reading depends on the mode as well as the path, and not only so that leaving the editor
-  // fetches at all. The editor saves as it goes, so what it changed is what coming back should show.
+  // Read in both modes: the steps offered above them depend on the submission, which changes while it
+  // is filled in. Switching modes reads it again, so that leaving the editor shows what it changed.
   useEffect(() => {
-    if (editing) {
-      return undefined;
-    }
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
       .then(response => {

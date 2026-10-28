@@ -710,6 +710,15 @@ describe("SubmissionView", () => {
       expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.form.json");
     });
 
+    it("reads the submission while the editor is open", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+
+      await waitFor(() => expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json"));
+    });
+
     // The editor used to be a dead end: reachable only from a listing, with nothing on it leading
     // anywhere. Going back also re-reads, since the editor saves as it goes.
     it("comes back out of the editor, reading the submission afresh", async () => {
