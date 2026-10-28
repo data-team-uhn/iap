@@ -36,8 +36,8 @@ import io.uhndata.iap.submissions.spi.AnswerValidator;
 
 /**
  * Refuses a save whose answers break a constraint their question carries, as judged by the registered
- * {@link AnswerConstraint}s: the answer count, the data type of a numeric answer, its bounds, a pattern, and whatever
- * other bundles add.
+ * {@link AnswerConstraint}s: the answer count, the answers offered, the data type of a numeric answer, its bounds, a
+ * pattern, and whatever other bundles add.
  *
  * <p>Only the questions the submitter is shown are judged, the same set the completeness marking judges. Falling
  * short of {@code minAnswers} is not judged here: answers arrive one at a time, so a shortfall is incompleteness,

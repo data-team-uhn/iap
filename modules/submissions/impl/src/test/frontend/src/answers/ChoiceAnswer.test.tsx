@@ -88,6 +88,32 @@ describe("ChoiceAnswer", () => {
     expect(screen.getByText("Pick the one that fits.")).toBeInTheDocument();
   });
 
+  it("marks a required question's options required", () => {
+    renderChoice({ minAnswers: 1 });
+
+    expect(screen.getByRole("radio", { name: "Half day" })).toBeRequired();
+  });
+
+  it("clears an optional answer", async () => {
+    const onAnswered = renderChoice({}, [ "full-day" ]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(onAnswered).toHaveBeenCalledWith([]);
+  });
+
+  it("offers no way to clear a required answer", () => {
+    renderChoice({ minAnswers: 1 }, [ "full-day" ]);
+
+    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+
+  it("offers nothing to clear before an answer is picked", () => {
+    renderChoice();
+
+    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+
   describe("a question that takes several answers", () => {
     it("offers them as boxes to tick rather than a single pick", async () => {
       const onAnswered = renderChoice({ maxAnswers: 0 });

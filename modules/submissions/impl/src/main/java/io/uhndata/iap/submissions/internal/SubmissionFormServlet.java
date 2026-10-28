@@ -318,9 +318,26 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             // The answer-count pair itself rather than flags derived from it, read the way it is stored
             .add("minAnswers", question.getMinAnswers())
             .add("maxAnswers", question.getMaxAnswers())
+            .add("options", options(question))
             .add("value", value);
         addStatedConstraints(json, question);
         return json;
+    }
+
+    /**
+     * The answers a question offers, as the editor shows them. Stated even when empty, so that "answered freely" is
+     * something the form says.
+     *
+     * @param question the question
+     * @return its options, in the order the schema declares them
+     */
+    private static JsonArrayBuilder options(final Question question)
+    {
+        final JsonArrayBuilder options = Json.createArrayBuilder();
+        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
+            .add("value", option.getValue())
+            .add(LABEL_KEY, option.getLabel())));
+        return options;
     }
 
     /**

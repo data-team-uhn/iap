@@ -56,6 +56,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -121,8 +122,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, Answer.class, Document.class, DocumentVersion.class, File.class,
-            Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, DocumentVersion.class,
+            File.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -214,6 +215,33 @@ class SubmissionFormServletTest
         assertFalse(startDate.containsKey("maxValue"));
         assertFalse(startDate.containsKey("pattern"));
         assertFalse(startDate.containsKey("patternMessage"));
+    }
+
+    @Test
+    void offersNothingForAQuestionAnsweredFreely() throws IOException
+    {
+        assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("options").isEmpty());
+    }
+
+    @Test
+    void offersTheAnswersAQuestionDeclares() throws IOException
+    {
+        final String duration = VERSION_PATH + "/" + DETAILS + "/duration";
+        this.context.create().resource(duration, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How long?", "dataType", "text"));
+        this.context.create().resource(duration + "/half", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day"));
+        // The label falls back to the value, so an option may declare only the one string
+        this.context.create().resource(duration + "/several", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days"));
+
+        final JsonArray offered = item(requirement(form(REQUESTER), DETAILS), "duration").getJsonArray("options");
+
+        assertEquals(2, offered.size());
+        assertEquals("half-day", offered.getJsonObject(0).getString("value"));
+        assertEquals("Half day", offered.getJsonObject(0).getString("label"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("value"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("label"));
     }
 
     @Test

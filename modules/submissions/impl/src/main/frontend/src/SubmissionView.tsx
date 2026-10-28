@@ -78,11 +78,20 @@ function formatDate(value: unknown): string {
   return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
 }
 
+// What a stored value reads as: the label of the option it picks, where the question offers one.
+function labelled(question: SerializedNode, value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(entry => labelled(question, entry));
+  }
+  const option = childrenOfType(question, "sch/AnswerOption").find(child => child.value === value);
+  return option === undefined ? value : option.label ?? option.value;
+}
+
 // One question with its answer (or a placeholder when unanswered).
 function QuestionRow({ question, answers }: { question: SerializedNode; answers: SerializedNode[] }) {
   const answer = answers.find(candidate =>
     isNode(candidate.question) && candidate.question["@path"] === question["@path"]);
-  const value = answer && formatValue(answer.value);
+  const value = answer && formatValue(labelled(question, answer.value));
   return (
     <Box>
       <Typography variant="subtitle2">{String(question.text ?? question["@name"])}</Typography>
