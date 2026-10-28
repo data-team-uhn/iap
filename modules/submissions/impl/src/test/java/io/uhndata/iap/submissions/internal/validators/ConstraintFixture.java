@@ -30,6 +30,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
@@ -59,12 +60,23 @@ final class ConstraintFixture
 
     private final SlingContext context;
 
+    private final ConditionEvaluator conditions;
+
+    /** The constraints the validator consults, in the order the framework would hand them over. */
+    private final List<AnswerConstraint> constraints;
+
+    /** The values of the answers the question offers; none leaves it answered freely. */
+    private final List<String> offered;
+
     private final AnswerConstraintsValidator validator = new AnswerConstraintsValidator();
 
     private ConstraintFixture(final SlingContext context, final ConditionEvaluator conditions,
-        final List<AnswerConstraint> constraints)
+        final List<AnswerConstraint> constraints, final List<String> offered)
     {
         this.context = context;
+        this.conditions = conditions;
+        this.constraints = constraints;
+        this.offered = offered;
         try {
             CompletenessFixture.inject(this.validator, "conditions", conditions);
             CompletenessFixture.inject(this.validator, "constraints", constraints);
@@ -105,7 +117,7 @@ final class ConstraintFixture
     static ConstraintFixture showingEverythingTo(final SlingContext context, final AnswerConstraint... constraints)
     {
         return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class, call -> true),
-            List.of(constraints));
+            List.of(constraints), List.of());
     }
 
     /**
@@ -118,7 +130,7 @@ final class ConstraintFixture
     {
         // A mock answers false to every question it is asked
         return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class),
-            List.of(shippedConstraints()));
+            List.of(shippedConstraints()), List.of());
     }
 
     /**
@@ -129,8 +141,19 @@ final class ConstraintFixture
      */
     private static AnswerConstraint[] shippedConstraints()
     {
-        return new AnswerConstraint[] { new MaxAnswersConstraint(), new NumericTypeConstraint(),
-            new ValueRangeConstraint(), new PatternConstraint() };
+        return new AnswerConstraint[] { new MaxAnswersConstraint(), new OfferedAnswersConstraint(),
+            new NumericTypeConstraint(), new ValueRangeConstraint(), new PatternConstraint() };
+    }
+
+    /**
+     * The same fixture, with the question offering a fixed set of answers.
+     *
+     * @param values the values of the answers offered
+     * @return a new fixture
+     */
+    ConstraintFixture offering(final String... values)
+    {
+        return new ConstraintFixture(this.context, this.conditions, this.constraints, List.of(values));
     }
 
     /**
@@ -149,7 +172,7 @@ final class ConstraintFixture
     private Submission submission(final Map<String, Object> constraints, final String... values) throws Exception
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, SchemaVersion.class,
-            FormRequirement.class, Question.class, Answer.class, Submission.class);
+            FormRequirement.class, Question.class, AnswerOption.class, Answer.class, Submission.class);
         this.context.create().resource(VERSION_PATH, Map.of(TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0"));
         this.context.create().resource(VERSION_PATH + "/form",
             Map.of(TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Details"));
@@ -158,6 +181,8 @@ final class ConstraintFixture
         question.put(SUPER_TYPE, FORM_ITEM);
         question.putIfAbsent("text", "The question");
         this.context.create().resource(VERSION_PATH + "/form/q", question);
+        this.offered.forEach(value -> this.context.create().resource(VERSION_PATH + "/form/q/" + value,
+            Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", value)));
 
         final Resource submission = this.context.create().resource(SUBMISSION_PATH,
             Map.of(TYPE, Submission.RESOURCE_TYPE, "title", "One"));

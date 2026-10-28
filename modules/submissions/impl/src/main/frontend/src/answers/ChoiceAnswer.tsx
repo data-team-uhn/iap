@@ -37,7 +37,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   const label = questionLabel(question);
   const help = question.description;
-  const options = question.options ?? [];
+  const { options } = question;
 
   if (isMultiple(question)) {
     // A capped list stops offering at the cap instead of taking a pick the save would refuse. The
@@ -101,7 +101,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
 // Offering a fixed set of answers says more about a question than its data type does, so this
 // outbids the component that would otherwise type the answer in
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
-  (question.options ?? []).length > 0 ? [ ChoiceAnswer, 60 ] : null;
+  question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
 
 registerAnswerComponent(choiceAnswerCandidate);
 

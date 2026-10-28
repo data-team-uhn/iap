@@ -62,9 +62,9 @@ export interface FormQuestion {
   // does not. The save enforces it, and its refusal carries the message.
   pattern?: string;
   patternMessage?: string;
-  // The answers this question offers. Absent, or empty, when it is answered freely, which is how
-  // most question types are answered.
-  options?: FormAnswerOption[];
+  // The answers this question offers, empty when it is answered freely, which is how most question
+  // types are answered
+  options: FormAnswerOption[];
   value: string[];
 }
 

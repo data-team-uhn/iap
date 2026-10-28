@@ -308,6 +308,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
+        // Stated even when empty, so that "answered freely" is something the form says
+        final JsonArrayBuilder options = Json.createArrayBuilder();
+        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
+            .add("value", option.getValue())
+            .add(LABEL_KEY, option.getLabel())));
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
@@ -318,6 +323,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             // The answer-count pair itself rather than flags derived from it, read the way it is stored
             .add("minAnswers", question.getMinAnswers())
             .add("maxAnswers", question.getMaxAnswers())
+            .add("options", options)
             .add("value", value);
         addStatedConstraints(json, question);
         return json;

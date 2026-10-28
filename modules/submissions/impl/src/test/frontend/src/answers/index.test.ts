@@ -44,6 +44,7 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     dataType: "text",
     minAnswers: 0,
     maxAnswers: 1,
+    options: [],
     value: [],
     ...overrides,
   };

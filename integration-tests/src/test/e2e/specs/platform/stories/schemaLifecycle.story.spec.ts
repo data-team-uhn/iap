@@ -241,14 +241,12 @@ test.describe('stories: a schema from its first draft to a second version', () =
     submission = new URL(page.url()).pathname;
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
-    // Asked only when its condition holds, which the server decides as each answer is saved. The editor does not
-    // offer a question's options yet, so the answer is typed.
+    // Asked only when its condition holds, which the server decides as each answer is saved
     const what = page.getByLabel(WHAT, { exact: true });
     await expect(what).toBeVisible();
     await expect(page.getByLabel(WHY, { exact: true })).toHaveCount(0);
 
-    await what.fill('Laptop');
-    await what.press('Tab');
+    await what.getByRole('radio', { name: 'Laptop', exact: true }).check();
     const why = page.getByLabel(WHY, { exact: true });
     await expect(why).toBeVisible();
 
