@@ -108,11 +108,8 @@ operand is changed to name it by identifier before the move. When content moves 
 another entity, the conditions moving with it also switch to identifiers for what they
 name outside it.
 
-Where a question offers a fixed set of answers (`sch:AnswerOption` children), what is
-compared is the chosen option's **`value`**, never the label the submitter read. The
-label may be reworded or translated freely, and saving refuses a value from outside the
-offered set, so the comparison cannot stop matching because somebody typed a phrase
-differently.
+An `answer` operand on a question offering a fixed set of answers compares the chosen
+option's **`value`** (see [schemas.md](schemas.md)), and saving refuses any other value.
 
 A module about to remove or move content asks `AnswerDependencies` (in the API) what
 depends on it: every name an `answer` operand may give what the content holds, the

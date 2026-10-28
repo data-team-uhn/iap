@@ -17,6 +17,7 @@
  */
 
 import {
+  Button,
   Checkbox,
   FormControl,
   FormControlLabel,
@@ -89,10 +90,16 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
             key={option.value}
             value={option.value}
             label={option.label}
-            control={<Radio />}
+            control={<Radio required={isRequired(question)} />}
           />
         ))}
       </RadioGroup>
+      {/* A picked radio cannot be unpicked, so an optional answer needs its own way back to none */}
+      {!isRequired(question) && values.length > 0 && (
+        <Button size="small" disabled={disabled} onClick={() => onAnswered([])} sx={{ alignSelf: "start" }}>
+          Clear
+        </Button>
+      )}
       {help && <FormHelperText>{help}</FormHelperText>}
     </FormControl>
   );

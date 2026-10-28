@@ -278,6 +278,21 @@ describe("SubmissionView", () => {
     clearTagDefinitionsCache();
   });
 
+  it("shows the label of the option an answer picked, not its stored value", async () => {
+    const submission = structuredClone(DEEP_SUBMISSION);
+    Object.assign(submission.schemaVersion.BasicInformation.StudyTitle, {
+      wonder: {
+        "sling:resourceType": "sch/AnswerOption", value: "A wonder drug against everything", label: "The wonder drug",
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch(submission)));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText("The wonder drug")).toBeInTheDocument();
+    expect(screen.queryByText("A wonder drug against everything")).toBeNull();
+  });
+
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
     const fetchMock = vi.fn(tagAwareFetch(DEEP_SUBMISSION));
     vi.stubGlobal("fetch", fetchMock);
