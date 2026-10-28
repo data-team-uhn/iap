@@ -21,11 +21,24 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { loadAnswerComponents } from "@iap/submissions/answers";
+// Registers the text answer component, which a browser would fetch as an asset of its own
+import "@iap/submissions/answers/TextAnswer";
+import {
+  FORM_REQUIREMENT,
+  type FormRequirement,
+  QUESTION,
+  type SubmissionForm,
+} from "@iap/submissions/submissionForm";
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
+
+vi.mock("@iap/ui-extension/extensionManager", () => ({
+  loadExtensions: vi.fn(() => Promise.resolve([])),
+}));
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -242,19 +255,19 @@ function version(documentPath: string, name: string) {
 
 // The form projection as the SubmissionFormServlet would serve it, asking nothing. Enough to tell
 // the editor apart from the read-only page, without restating what the editor's own tests cover.
-const EMPTY_FORM = {
+const EMPTY_FORM: SubmissionForm = {
   path: "/Submissions/demo-1",
   title: "Test my drug",
   editable: true,
   requirements: [],
 };
 
-// Answers the tag definitions, the deep serialization and the form projection alike, so that a test
-// can move between the page's two modes the way a reader does.
-function bothModes(submission: unknown = DEEP_SUBMISSION) {
+// Answers the tag definitions, the submission's serializations and the form projection alike, so that a
+// test can move between the page's two modes the way a reader does.
+function bothModes(submission: unknown = DEEP_SUBMISSION, form: SubmissionForm = EMPTY_FORM) {
   const otherwise = tagAwareFetch(submission);
   return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-    ? Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
+    ? jsonResponse(form)
     : otherwise(url));
 }
 
@@ -631,24 +644,111 @@ describe("SubmissionView", () => {
     // The submission's own workflow, parked on a step with nothing to decide
     const WAITING = waitingOn("/Submissions/demo-1", { fillIn: SEND });
 
-    // What the page reads: its own serialization, the form projection, the tag definitions, and, once the
-    // step is completed, a workflow with nothing left waiting. Completing the step answers once `completion` settles.
-    function withATaskWaiting(completion: Promise<void> = Promise.resolve()) {
-      const otherwise = bothModes();
+    // A request one of whose parts the save workflow has marked as still missing something
+    const INCOMPLETE = { ...DEEP_SUBMISSION, aggregatedTags: [ "incomplete" ] };
+
+    // A form asking one question, which is all that stands between the request and sending it
+    const DETAILS: FormRequirement = {
+      name: "details", path: "/Schemas/ClinicalTrial/1.0/details", type: FORM_REQUIREMENT, label: "Request details",
+      items: [ { name: "why", type: QUESTION, path: "details/why", text: "Why?", dataType: "text",
+        minAnswers: 1, maxAnswers: 1, options: [], value: [] } ],
+    };
+    const ONE_QUESTION: SubmissionForm = {
+      path: "/Submissions/demo-1", title: "Test my drug", editable: true, requirements: [ DETAILS ],
+    };
+
+    // What the page reads: the submission's serializations, the form projection, the tag definitions, and
+    // the workflow, parked on the step until it is completed. `submission` says what the request reads as
+    // at each moment. Saving an answer answers once `save` settles, then calls `onSaved`, and completing the
+    // step answers once `completion` settles.
+    function withATaskWaiting({ completion = Promise.resolve(), save = Promise.resolve(), onSaved, submission, form }: {
+      completion?: Promise<void>;
+      save?: Promise<void>;
+      onSaved?: () => void;
+      submission?: () => unknown;
+      form?: SubmissionForm;
+    } = {}) {
       let done = false;
-      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
-        if (init?.method === "POST") {
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(url => {
+        if (url.endsWith(".complete.json")) {
           done = true;
-          return completion.then(
-            () => ({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response));
+          return completion.then(() => jsonResponse({}));
+        }
+        if (url.endsWith(".save.json")) {
+          return save.then(() => {
+            onSaved?.();
+            return jsonResponse({});
+          });
         }
         if (url.includes("wf:instances")) {
-          return Promise.resolve(
-            { url, ok: true, json: () => Promise.resolve(done ? {} : WAITING) } as unknown as Response);
+          return jsonResponse(done ? {} : WAITING);
         }
-        return otherwise(url).then(response => ({ ...response, url }));
+        return bothModes(submission?.() ?? DEEP_SUBMISSION, form)(url).then(response => ({ ...response, url }));
       });
     }
+
+    const completed = (fetchMock: ReturnType<typeof withATaskWaiting>) =>
+      fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".complete.json"));
+
+    // A request missing its one answer until the save of that answer has been answered
+    function completedBy(save: Promise<void>) {
+      let stored = false;
+      return withATaskWaiting({
+        form: ONE_QUESTION,
+        save,
+        onSaved: () => {
+          stored = true;
+        },
+        submission: () => (stored ? DEEP_SUBMISSION : INCOMPLETE),
+      });
+    }
+
+    it("says what the request is still missing beside the step", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => INCOMPLETE }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
+    });
+
+    it("refuses the step while the request is still missing something", async () => {
+      const fetchMock = withATaskWaiting({ submission: () => INCOMPLETE });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1");
+      await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+      expect(await screen.findByText(`${SEND_LABEL} did not go through`)).toBeInTheDocument();
+      expect(completed(fetchMock)).toHaveLength(0);
+    });
+
+    it("sends the request once its last answer is saved, even when Send is what saves it", async () => {
+      await loadAnswerComponents();
+      const save = Promise.withResolvers<undefined>();
+      const fetchMock = completedBy(save.promise);
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+      await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
+      // Not leaving the field first: the click on Send is what finishes the answer
+      await userEvent.click(screen.getByRole("button", { name: SEND_LABEL }));
+      expect(completed(fetchMock)).toHaveLength(0);
+      save.resolve(undefined);
+
+      await waitFor(() => expect(completed(fetchMock)).toHaveLength(1));
+    });
+
+    it("stops saying what is missing once the editor completes the request", async () => {
+      await loadAnswerComponents();
+      vi.stubGlobal("fetch", completedBy(Promise.resolve()));
+
+      renderAt("/Submissions/demo-1.edit");
+      expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
+      await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
+      await userEvent.tab();
+
+      await waitFor(() => expect(screen.queryByText("Answer everything this request asks for first.")).toBeNull());
+    });
 
     it("offers the waiting step while filling the request in, not only while reading it", async () => {
       vi.stubGlobal("fetch", withATaskWaiting());
@@ -673,7 +773,7 @@ describe("SubmissionView", () => {
 
     it("leaves the reader where they went when the step completes after they left", async () => {
       const completion = Promise.withResolvers<undefined>();
-      vi.stubGlobal("fetch", withATaskWaiting(completion.promise));
+      vi.stubGlobal("fetch", withATaskWaiting({ completion: completion.promise }));
       const user = userEvent.setup();
       render(
         <MemoryRouter initialEntries={["/Submissions/demo-1.edit"]}>
@@ -708,6 +808,15 @@ describe("SubmissionView", () => {
 
       expect(await screen.findByText("This request asks nothing yet.")).toBeInTheDocument();
       expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.form.json");
+    });
+
+    it("reads the submission while the editor is open", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+
+      await waitFor(() => expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json"));
     });
 
     // The editor used to be a dead end: reachable only from a listing, with nothing on it leading

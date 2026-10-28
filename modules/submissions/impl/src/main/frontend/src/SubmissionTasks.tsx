@@ -17,7 +17,7 @@
  */
 
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
-import { Button, Stack } from "@mui/material";
+import { Button, Stack, Typography } from "@mui/material";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -33,9 +33,11 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent, not
 // disabled. Tasks with outcome options are left out, since the button sends no outcome.
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
-// still being saved; when it fails, nothing is completed.
-function SubmissionTasks({ path, beforeComplete, onCompleted }: {
+// still being saved; when it fails, nothing is completed, and the reader is told why.
+// `readinessNote`, when given, says what still stands between the submission and its next step.
+function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
   path: string;
+  readinessNote?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 }) {
@@ -59,7 +61,8 @@ function SubmissionTasks({ path, beforeComplete, onCompleted }: {
     return null;
   }
   return (
-    <Stack direction="row" spacing={1}>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+      { readinessNote && <Typography variant="description">{readinessNote}</Typography> }
       { offered.map(task => (
         <Button
           key={task.path}

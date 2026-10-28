@@ -55,11 +55,13 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ beforeComplete, onCompleted }: {
+const renderTasks = ({ readinessNote, beforeComplete, onCompleted }: {
+  readinessNote?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} beforeComplete={beforeComplete} onCompleted={onCompleted} />,
+  <SubmissionTasks path={PATH} readinessNote={readinessNote} beforeComplete={beforeComplete}
+    onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
 
@@ -77,6 +79,23 @@ describe("SubmissionTasks", () => {
 
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.-dereference.events.json");
+  });
+
+  it("says what still stands in the way of the step", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ readinessNote: "Answer everything first." });
+
+    expect(await screen.findByText("Answer everything first.")).toBeInTheDocument();
+  });
+
+  // Whether the step goes through is decided when it is taken, after the answers still being saved
+  it("still offers the step while something stands in its way", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ readinessNote: "Answer everything first." });
+
+    expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
   });
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {
