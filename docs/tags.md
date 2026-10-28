@@ -44,6 +44,7 @@ List<TagDefinition> here   = taggable.getApplicableDefinitions();
 
 taggable.tag("sensitive");                  // + tag(name, allowSystem)
 taggable.untag("sensitive");                // + untag(name, allowSystem)
+taggable.tagReplacing("submitted", true);   // in place of its category's other tags
 taggable.setTags(List.of("a", "b"));        // + setTags(names, allowSystem)
 resolver.commit();
 ```
@@ -52,7 +53,10 @@ Everything runs through the resolver the model was read with, under the caller's
 permissions, and writes are the caller's to commit. `tag`/`untag`/`setTags` validate
 against the definitions: the tag must exist, apply to the content, and not be a
 `system` tag. The `allowSystem` variants are reserved for the platform code owning a
-system tag.
+system tag. `tagReplacing` moves content from one state to the next: it places a tag
+and retires the content's own tags sharing a category with it, keeping other
+categories and undefined tags. The `addTag` task's `replaceExisting` and an end event's
+`hostTag` both use it.
 
 `Tag` carries `getName()`, `getDefinition()`, `isDefined()`, `getOrigins()`
 (`EXPLICIT`/`COMPUTED`/`INHERITED`/`AGGREGATED`) and `getSources()`.

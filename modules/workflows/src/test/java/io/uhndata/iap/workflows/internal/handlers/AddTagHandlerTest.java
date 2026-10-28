@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,20 +63,17 @@ class AddTagHandlerTest
     private Resource target;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        TaggingFixture.enable(this.context);
-        this.target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
-        final Field tagManager = AddTagHandler.class.getDeclaredField("tagManager");
-        tagManager.setAccessible(true);
-        tagManager.set(this.handler, TaggingFixture.definitions(Map.of(
+        TaggingFixture.enable(this.context, Map.of(
             "draft", List.of("lifecycle"),
             "active", List.of("lifecycle"),
             "approved", List.of("lifecycle", "review"),
             "in-progress", List.of("review"),
-            "sensitive", List.of("privacy"))));
+            "sensitive", List.of("privacy")));
+        this.target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
     }
 
     @Test

@@ -218,8 +218,9 @@ final class InstanceRecords
     }
 
     /**
-     * Tags the host with what reaching an end event means, if the end event says so. Every branch that reaches an
-     * end event does this, not only the last one.
+     * Tags the host with what reaching an end event means, if the end event says so. The tag replaces the host's
+     * tags sharing a category with it, so a request just approved stops being in review. Every branch that reaches
+     * an end event does this, not only the last one.
      *
      * @param instance the running instance
      * @param end the end event reached
@@ -231,7 +232,7 @@ final class InstanceRecords
         if (hostTag != null) {
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
             Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class), "A workflow's host is taggable")
-                .tag(hostTag, true);
+                .tagReplacing(hostTag, true);
         }
     }
 

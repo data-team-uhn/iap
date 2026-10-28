@@ -53,6 +53,12 @@ import io.uhndata.iap.tags.models.Taggable;
  */
 public final class WorkflowFixture
 {
+    /** The lifecycle tags the engine tests place, with the categories their shipped definitions give them. */
+    public static final Map<String, List<String>> LIFECYCLE_TAGS = Map.of(
+        "draft", List.of("lifecycle"),
+        "approved", List.of("lifecycle", "review"),
+        "rejected", List.of("lifecycle", "review"));
+
     /** The {@code sling:resourceType} property name, spelled out often enough to be worth a constant. */
     public static final String TYPE = "sling:resourceType";
 
@@ -171,10 +177,22 @@ public final class WorkflowFixture
      */
     public static void enableTagging(final SlingContext context)
     {
+        enableTagging(context, Map.of());
+    }
+
+    /**
+     * Makes resources taggable, as {@link #enableTagging(SlingContext)} does, knowing which categories each tag
+     * belongs to, so that a tag placed to replace the others of its category retires them.
+     *
+     * @param context the mock context whose resources become taggable
+     * @param categories each tag's categories, by tag name; a tag left out belongs to none
+     */
+    public static void enableTagging(final SlingContext context, final Map<String, List<String>> categories)
+    {
         context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
             final Taggable taggable = Mockito.mock(Taggable.class);
             try {
-                stubTagging(taggable, resource);
+                stubTagging(taggable, resource, categories);
             } catch (final PersistenceException e) {
                 // Stubbing never reaches the real method, so this cannot happen; the signature says otherwise
                 throw new IllegalStateException(e);
@@ -184,26 +202,61 @@ public final class WorkflowFixture
     }
 
     /**
+     * What a resource's tags become when a tag replaces those sharing a category with it, which is what the tags
+     * service does for real. A tag belonging to no category retires nothing.
+     *
+     * @param tags the tags placed now
+     * @param tag the tag being placed
+     * @param categories each tag's categories, by tag name
+     * @return the tags afterwards, in order
+     */
+    public static Set<String> replacing(final Set<String> tags, final String tag,
+        final Map<String, List<String>> categories)
+    {
+        final List<String> claimed = categories.getOrDefault(tag, List.of());
+        final Set<String> result = new LinkedHashSet<>(tags);
+        result.removeIf(existing -> !existing.equals(tag)
+            && categories.getOrDefault(existing, List.of()).stream().anyMatch(claimed::contains));
+        result.add(tag);
+        return result;
+    }
+
+    /**
      * Teaches a mocked {@code Taggable} to place and report tags on the resource's own property. Only placing
      * with system tags allowed is stubbed, since that is how the engine places a lifecycle tag, and an
      * engine asking without it would place nothing here, as it would fail for real on a system tag.
      *
      * @param taggable the mock to stub
      * @param resource the resource it stands for
+     * @param categories each tag's categories, by tag name
      * @throws PersistenceException never; {@code tag} declares it and stubbing names the method
      */
-    private static void stubTagging(final Taggable taggable, final Resource resource) throws PersistenceException
+    private static void stubTagging(final Taggable taggable, final Resource resource,
+        final Map<String, List<String>> categories) throws PersistenceException
     {
         Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-            final ModifiableValueMap properties =
-                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class));
-            final Set<String> names = new LinkedHashSet<>(
-                List.of(properties.get("tags", new String[0])));
+            final Set<String> names = ownTags(resource);
             final boolean added = names.add(invocation.getArgument(0));
-            properties.put("tags", names.toArray(new String[0]));
+            writeTags(resource, names);
             return added;
         });
+        Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+            final Set<String> before = ownTags(resource);
+            final Set<String> after = replacing(before, invocation.getArgument(0), categories);
+            writeTags(resource, after);
+            return !after.equals(before);
+        });
         Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
-            List.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
+            ownTags(resource).contains(invocation.getArgument(0)));
+    }
+
+    private static Set<String> ownTags(final Resource resource)
+    {
+        return new LinkedHashSet<>(List.of(resource.getValueMap().get("tags", new String[0])));
+    }
+
+    private static void writeTags(final Resource resource, final Set<String> names)
+    {
+        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class)).put("tags", names.toArray(new String[0]));
     }
 }

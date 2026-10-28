@@ -179,6 +179,26 @@ public class Taggable extends Content
     }
 
     /**
+     * Places a tag on this content in place of its own tags that share a category with it. That is how content
+     * moves from one state to the next. Tags of other categories, and undefined ones, are kept. The change is made
+     * in memory: committing it is the caller's responsibility, through the resolver this model was read with.
+     *
+     * @param name the name of a defined tag applicable to this content
+     * @param allowSystem when {@code true}, {@link TagDefinition#isSystem() system} tags may be placed and retired;
+     *            reserved for the platform code managing the tags in question
+     * @return {@code true} if the content was modified, {@code false} if it already carried the tag and nothing it
+     *         replaces
+     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this content, or if the
+     *             change would place or retire a system tag and {@code allowSystem} is not set
+     * @throws IllegalStateException if the tags service is not available
+     * @throws PersistenceException if the content cannot be modified by the current session
+     */
+    public boolean tagReplacing(@NotNull final String name, final boolean allowSystem) throws PersistenceException
+    {
+        return requireOperations().tagReplacing(this.resource, name, allowSystem);
+    }
+
+    /**
      * Removes a tag from this content. Undefined tags, e.g. left behind after their definition was deleted, may be
      * removed too. The change is made in memory: committing it is the caller's responsibility, through the
      * resolver this model was read with.

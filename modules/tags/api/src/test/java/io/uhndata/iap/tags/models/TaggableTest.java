@@ -80,6 +80,7 @@ class TaggableTest
     {
         assertThrows(IllegalStateException.class, () -> this.taggable.tag("draft"));
         assertThrows(IllegalStateException.class, () -> this.taggable.untag("draft"));
+        assertThrows(IllegalStateException.class, () -> this.taggable.tagReplacing("draft", true));
         assertThrows(IllegalStateException.class, () -> this.taggable.setTags(Set.of("draft")));
         assertEquals("entity", this.taggable.getName());
     }

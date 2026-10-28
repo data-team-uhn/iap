@@ -102,7 +102,7 @@ class BranchingTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        WorkflowFixture.enableTagging(this.context);
+        WorkflowFixture.enableTagging(this.context, WorkflowFixture.LIFECYCLE_TAGS);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
             "createdBy", EngineFixture.REQUESTER));

@@ -29,9 +29,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 
-import io.uhndata.iap.tags.api.TagManager;
-import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 /**
  * Tagging in a mock repository, for the tag service task tests. The tags service the {@code Taggable} model
@@ -57,17 +56,34 @@ final class TaggingFixture
      */
     static void enable(final SlingContext context)
     {
+        enable(context, Map.of());
+    }
+
+    /**
+     * Registers the {@code Taggable} view, knowing which categories each tag belongs to, so that a tag placed to
+     * replace the others of its category retires them.
+     *
+     * @param context the mock context whose resources become taggable
+     * @param categories each tag's categories, by tag name; a tag left out belongs to none
+     */
+    static void enable(final SlingContext context, final Map<String, List<String>> categories)
+    {
         context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
             final Taggable taggable = Mockito.mock(Taggable.class);
             try {
                 Mockito.when(taggable.getTags()).thenAnswer(invocation -> tags(resource));
                 Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
                     final String tag = invocation.getArgument(0);
-                    if (UNDEFINED.equals(tag)) {
-                        throw new IllegalArgumentException("Undefined tag: " + tag);
-                    }
+                    refuseUndefined(tag);
                     final Set<String> tags = tags(resource);
                     return tags.add(tag) && write(resource, tags);
+                });
+                Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+                    final String tag = invocation.getArgument(0);
+                    refuseUndefined(tag);
+                    final Set<String> before = tags(resource);
+                    final Set<String> after = WorkflowFixture.replacing(before, tag, categories);
+                    return !after.equals(before) && write(resource, after);
                 });
                 Mockito.when(taggable.untag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
                     final Set<String> tags = tags(resource);
@@ -80,21 +96,11 @@ final class TaggingFixture
         });
     }
 
-    /**
-     * A tag vocabulary: each tag name mapped to its categories.
-     *
-     * @param categories the categories of each defined tag
-     * @return a tag manager answering from it
-     */
-    static TagManager definitions(final Map<String, List<String>> categories)
+    private static void refuseUndefined(final String tag)
     {
-        final TagManager manager = Mockito.mock(TagManager.class);
-        categories.forEach((name, tagCategories) -> {
-            final TagDefinition definition = Mockito.mock(TagDefinition.class);
-            Mockito.when(definition.getCategories()).thenReturn(tagCategories);
-            Mockito.when(manager.getDefinition(name)).thenReturn(definition);
-        });
-        return manager;
+        if (UNDEFINED.equals(tag)) {
+            throw new IllegalArgumentException("Undefined tag: " + tag);
+        }
     }
 
     /**

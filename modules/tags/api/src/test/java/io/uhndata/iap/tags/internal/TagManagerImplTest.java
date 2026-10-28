@@ -64,11 +64,19 @@ class TagManagerImplTest
 {
     private static final String TYPE_PROPERTY = "sling:resourceType";
 
+    private static final String ENTITY_PATH = "/data/entity";
+
+    private static final String ENTITY_TYPE = "data/Entity";
+
     private static final String DRAFT = "draft";
 
     private static final String SENSITIVE = "sensitive";
 
     private static final String INCOMPLETE = "incomplete";
+
+    private static final String SUBMITTED = "submitted";
+
+    private static final String LEGACY = "legacy";
 
     /** Marks a test resource whose stand-in node answers to the boundary mixin. */
     private static final String BOUNDARY = "testBoundary";
@@ -106,7 +114,7 @@ class TagManagerImplTest
             TYPE_PROPERTY, "tag/Definition",
             "category", new String[] { "privacy" },
             "inheritable", true,
-            "targetResourceTypes", new String[] { "data/Entity" },
+            "targetResourceTypes", new String[] { ENTITY_TYPE },
             "order", 4L));
         this.context.create().resource("/Tags/patientSurvey", Map.of(
             TYPE_PROPERTY, "tag/Definition",
@@ -192,8 +200,8 @@ class TagManagerImplTest
     @Test
     void readsOwnTags()
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT, "legacy" }));
 
         assertEquals(Set.of(DRAFT, "legacy"), this.taggable(resource).getTags());
@@ -206,8 +214,8 @@ class TagManagerImplTest
     @Test
     void addsTags() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "data/Entity");
+        final Resource resource = this.context.create().resource(ENTITY_PATH,
+            TYPE_PROPERTY, ENTITY_TYPE);
 
         assertTrue(this.taggable(resource).tag(DRAFT));
         // Re-adding an already present tag is a no-op
@@ -219,8 +227,8 @@ class TagManagerImplTest
     @Test
     void rejectsUndefinedTags()
     {
-        final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "data/Entity");
+        final Resource resource = this.context.create().resource(ENTITY_PATH,
+            TYPE_PROPERTY, ENTITY_TYPE);
         assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag("unknown"));
     }
 
@@ -236,8 +244,8 @@ class TagManagerImplTest
     @Test
     void rejectsSystemTagsUnlessAllowed() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "data/Entity");
+        final Resource resource = this.context.create().resource(ENTITY_PATH,
+            TYPE_PROPERTY, ENTITY_TYPE);
 
         assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag("submitted"));
         assertTrue(this.taggable(resource).tag("submitted", true));
@@ -249,8 +257,8 @@ class TagManagerImplTest
     @Test
     void removesTags() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT, "legacy" }));
 
         assertTrue(this.taggable(resource).untag(DRAFT));
@@ -263,8 +271,8 @@ class TagManagerImplTest
     @Test
     void replacesTags() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT }));
 
         this.taggable(resource).setTags(List.of(SENSITIVE, INCOMPLETE));
@@ -274,8 +282,8 @@ class TagManagerImplTest
     @Test
     void replacingTagsWithTheSameSetIsANoOp() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             // "submitted" is a system tag, but an unchanged set is not validated since nothing is added or removed
             "tags", new String[] { DRAFT, "submitted" }));
 
@@ -284,10 +292,61 @@ class TagManagerImplTest
     }
 
     @Test
+    void placesATagInPlaceOfTheOnesSharingItsCategory() throws PersistenceException
+    {
+        final Resource resource = entityTagged(DRAFT, SENSITIVE, LEGACY);
+
+        assertTrue(this.taggable(resource).tagReplacing(SUBMITTED, true));
+        // Another category, and a tag nothing defines, are not this tag's to retire
+        assertEquals(Set.of(SENSITIVE, LEGACY, SUBMITTED), this.taggable(resource).getTags());
+    }
+
+    @Test
+    void reportsNoChangeWhenTheTagIsAlreadyAloneInItsCategory() throws PersistenceException
+    {
+        final Resource resource = entityTagged(SUBMITTED, SENSITIVE);
+
+        assertFalse(this.taggable(resource).tagReplacing(SUBMITTED, true));
+        assertEquals(Set.of(SUBMITTED, SENSITIVE), this.taggable(resource).getTags());
+    }
+
+    @Test
+    void retiresTheOthersEvenWhenTheTagIsAlreadyThere() throws PersistenceException
+    {
+        final Resource resource = entityTagged(SUBMITTED, DRAFT);
+
+        assertTrue(this.taggable(resource).tagReplacing(SUBMITTED, true));
+        assertEquals(Set.of(SUBMITTED), this.taggable(resource).getTags());
+    }
+
+    @Test
+    void refusesToRetireASystemTagUnlessAllowed()
+    {
+        final Resource resource = entityTagged(SUBMITTED);
+
+        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tagReplacing(DRAFT, false));
+        assertEquals(Set.of(SUBMITTED), this.taggable(resource).getTags());
+    }
+
+    @Test
+    void refusesAnUndefinedTagBeforeRetiringAnything()
+    {
+        final Resource resource = entityTagged(DRAFT);
+
+        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tagReplacing("unknown", true));
+        assertEquals(Set.of(DRAFT), this.taggable(resource).getTags());
+    }
+
+    private Resource entityTagged(final String... tags)
+    {
+        return this.context.create().resource(ENTITY_PATH, Map.of(TYPE_PROPERTY, ENTITY_TYPE, "tags", tags));
+    }
+
+    @Test
     void readsEffectiveTagNamesFromEveryPhaseProperty()
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT },
             Phase.BOTTOM_UP.getPropertyName(), new String[] { INCOMPLETE },
             Phase.TOP_DOWN.getPropertyName(), new String[] { SENSITIVE },
@@ -301,8 +360,8 @@ class TagManagerImplTest
     @Test
     void effectiveTagNamesOfAnUntouchedNodeAreJustTheExplicitTags()
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT }));
 
         assertEquals(Set.of(DRAFT), this.taggable(resource).getEffectiveTagNames());
@@ -311,8 +370,8 @@ class TagManagerImplTest
     @Test
     void locallyComputedTagsAreOwnTagsWithTheirOwnOrigin()
     {
-        final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource entity = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { DRAFT },
             Phase.LOCAL.getPropertyName(), new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part",
@@ -333,8 +392,8 @@ class TagManagerImplTest
     @Test
     void aggregatesLocallyComputedTagsOfDescendants()
     {
-        final Resource entity = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "data/Entity");
+        final Resource entity = this.context.create().resource(ENTITY_PATH,
+            TYPE_PROPERTY, ENTITY_TYPE);
         this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
@@ -354,7 +413,7 @@ class TagManagerImplTest
     {
         this.context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) TagManagerImplTest::asNode);
-        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "data/Entity");
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
         // A listing inside the entity, and content of its own carrying the aggregated tag
         this.context.create().resource("/data/entity/listing", Map.of(
             TYPE_PROPERTY, "data/EntityHomepage",
@@ -378,7 +437,7 @@ class TagManagerImplTest
     {
         this.context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) TagManagerImplTest::asNode);
-        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "data/Entity");
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
         this.context.create().resource("/data/entity/unclassifiable", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
             UNCLASSIFIABLE, true,
@@ -463,8 +522,8 @@ class TagManagerImplTest
     @Test
     void reportsUnmodifiableResources()
     {
-        final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "data/Entity");
+        final Resource resource = this.context.create().resource(ENTITY_PATH,
+            TYPE_PROPERTY, ENTITY_TYPE);
         final Resource readOnly = new ResourceWrapper(resource)
         {
             @Override
@@ -482,8 +541,8 @@ class TagManagerImplTest
     @Test
     void replacingTagsValidatesAdditionsAndRemovals() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { "submitted", DRAFT }));
 
         // Adding an undefined tag is rejected
@@ -503,8 +562,8 @@ class TagManagerImplTest
     @Test
     void computesEffectiveTags() throws PersistenceException
     {
-        final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource entity = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { SENSITIVE, "legacy" }));
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
@@ -529,14 +588,14 @@ class TagManagerImplTest
         final Map<String, Tag> partTags = collect(this.taggable(part).getEffectiveTags());
         assertEquals(Set.of(DRAFT, SENSITIVE, INCOMPLETE), partTags.keySet());
         assertEquals(Set.of(Tag.Origin.INHERITED), partTags.get(SENSITIVE).getOrigins());
-        assertEquals(Set.of("/data/entity"), partTags.get(SENSITIVE).getSources());
+        assertEquals(Set.of(ENTITY_PATH), partTags.get(SENSITIVE).getSources());
     }
 
     @Test
     void combinesOriginsForTheSameTag()
     {
-        this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
@@ -544,14 +603,14 @@ class TagManagerImplTest
 
         final Map<String, Tag> tags = collect(this.taggable(part).getEffectiveTags());
         assertEquals(Set.of(Tag.Origin.EXPLICIT, Tag.Origin.INHERITED), tags.get(SENSITIVE).getOrigins());
-        assertEquals(Set.of("/data/entity/part", "/data/entity"), tags.get(SENSITIVE).getSources());
+        assertEquals(Set.of("/data/entity/part", ENTITY_PATH), tags.get(SENSITIVE).getSources());
     }
 
     @Test
     void checksEffectiveTags()
     {
-        final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "data/Entity",
+        final Resource entity = this.context.create().resource(ENTITY_PATH, Map.of(
+            TYPE_PROPERTY, ENTITY_TYPE,
             "tags", new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part",
             TYPE_PROPERTY, "data/EntityPart");
@@ -573,7 +632,7 @@ class TagManagerImplTest
         assertFalse(this.taggable(entity).hasTag("unknown"));
         // Inheritable and aggregated tags placed nowhere near the resource are not carried either
         final Resource lonely = this.context.create().resource("/lonely",
-            TYPE_PROPERTY, "data/Entity");
+            TYPE_PROPERTY, ENTITY_TYPE);
         assertFalse(this.taggable(lonely).hasTag(SENSITIVE));
         assertFalse(this.taggable(lonely).hasTag(INCOMPLETE));
     }
