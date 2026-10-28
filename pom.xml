@@ -2695,7 +2695,7 @@
                  non-executable shim. Raise this once the plugin resolves
                  pnpm's own bin field instead of hardcoding the name. Both package.json files name
                  the same version as their packageManager, and pnpm refuses to run on a mismatch. -->
-            <pnpmVersion>10.34.5</pnpmVersion>
+            <pnpmVersion>10.34.9</pnpmVersion>
             <workingDirectory>src/main/frontend</workingDirectory>
           </configuration>
         </plugin>

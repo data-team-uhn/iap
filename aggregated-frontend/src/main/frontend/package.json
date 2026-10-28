@@ -3,7 +3,7 @@
   "license": "Apache-2.0",
   "name": "iap-aggregated-frontend",
   "description": "IAP is a software tool for streamlining research proposal authorization.",
-  "packageManager": "pnpm@10.34.5",
+  "packageManager": "pnpm@10.34.9",
   "repository": {
     "url": "https://github.com/data-team-uhn/iap.git",
     "directory": "aggregated-frontend/src/main/frontend",
