@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -305,6 +305,7 @@ function SubmissionView() {
   // Bumped when something else on the page changes the submission, so the fetch below runs again for
   // the same path
   const [reloads, setReloads] = useState(0);
+  const readAgain = useCallback(() => setReloads(current => current + 1), []);
 
   // Read in both modes: the steps offered above them depend on the submission, which changes while it
   // is filled in. Switching modes reads it again, so that leaving the editor shows what it changed.
@@ -356,7 +357,7 @@ function SubmissionView() {
               return;
             }
             // Back to reading it: a completed step usually leaves the submission read-only
-            setReloads(current => current + 1);
+            readAgain();
             void navigate(path);
           }}
         />
@@ -394,7 +395,7 @@ function SubmissionView() {
         {header}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
             the previous one's answers until the new form lands */}
-        <SubmissionEditor key={path} path={path} onSaving={saves.track} />
+        <SubmissionEditor key={path} path={path} onSaving={saves.track} onChanged={readAgain} />
       </Stack>
     );
   }

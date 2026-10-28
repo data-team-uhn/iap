@@ -21,11 +21,18 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { loadAnswerComponents } from "@iap/submissions/answers";
+// Imported rather than fetched, as in the editor's own tests
+import "@iap/submissions/answers/TextAnswer";
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
+
+vi.mock("@iap/ui-extension/extensionManager", () => ({
+  loadExtensions: vi.fn(() => Promise.resolve([])),
+}));
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -634,6 +641,14 @@ describe("SubmissionView", () => {
     // A request the save workflow has marked as still missing something
     const INCOMPLETE = { ...DEEP_SUBMISSION, tags: [ "draft", "incomplete" ] };
 
+    // A form asking one question, which is all that stands between the request and sending it
+    const ONE_QUESTION = {
+      path: "/Submissions/demo-1", title: "Test my drug", editable: true,
+      requirements: [ { name: "details", type: "sch/FormRequirement", label: "Request details",
+        items: [ { name: "why", type: "sch/Question", path: "details/why", text: "Why?", dataType: "text",
+          minAnswers: 1, maxAnswers: 1, options: [], value: [] } ] } ],
+    };
+
     // What the page reads: its own serialization, the form projection, the tag definitions, and, once the
     // step is completed, a workflow with nothing left waiting. Completing the step answers once `completion` settles.
     function withATaskWaiting(
@@ -656,12 +671,48 @@ describe("SubmissionView", () => {
       });
     }
 
+    // A request incomplete until its one question is answered: the first read of the submission
+    // carries the tag, every later one does not, as the save workflow records it
+    function completedByItsOneAnswer() {
+      const reply = (url: string, body: unknown) =>
+        Promise.resolve({ url, ok: true, json: () => Promise.resolve(body) } as unknown as Response);
+      let reads = 0;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          return reply(url, {});
+        }
+        if (url.includes("wf:instances")) {
+          return reply(url, WAITING);
+        }
+        if (url.endsWith(".form.json")) {
+          return reply(url, ONE_QUESTION);
+        }
+        if (url.endsWith(".deep.json")) {
+          reads += 1;
+          return tagAwareFetch(reads === 1 ? INCOMPLETE : DEEP_SUBMISSION)(url);
+        }
+        return tagAwareFetch(DEEP_SUBMISSION)(url);
+      });
+    }
+
     it("holds the step back while the request is still missing something", async () => {
       vi.stubGlobal("fetch", withATaskWaiting(Promise.resolve(), INCOMPLETE));
 
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    });
+
+    it("lets the step through once the editor completes the request", async () => {
+      await loadAnswerComponents();
+      vi.stubGlobal("fetch", completedByItsOneAnswer());
+
+      renderAt("/Submissions/demo-1.edit");
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+      await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
+      await userEvent.tab();
+
+      await waitFor(() => expect(screen.getByRole("button", { name: SEND_LABEL })).toBeEnabled());
     });
 
     it("offers the waiting step while filling the request in, not only while reading it", async () => {

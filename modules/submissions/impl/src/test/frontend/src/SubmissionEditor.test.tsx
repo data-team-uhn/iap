@@ -106,6 +106,13 @@ function serving(...reads: SubmissionForm[]) {
   });
 }
 
+// Refuses every save, as the server does once the request has been submitted in another tab.
+function refusingSaves() {
+  return vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+    ? json({ error: "This request has been submitted" }, { ok: false, status: 403 })
+    : json(form()));
+}
+
 describe("SubmissionEditor", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -137,19 +144,38 @@ describe("SubmissionEditor", () => {
     expect(posted?.[0]).toBe(`${PATH}.save.json`);
   });
 
+  it("tells the page once an answer is saved", async () => {
+    const changed = vi.fn();
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
+    await userEvent.tab();
+
+    await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+  });
+
   it("reports a refused save on the field it belongs to", async () => {
-    // A save can be refused, because somebody submitted the request in another tab. The field is
-    // where that has to show, since the rest of the form is untouched
-    const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
-      ? json({ error: "This request has been submitted" }, { ok: false, status: 403 })
-      : json(form()));
-    vi.stubGlobal("fetch", fetchMock);
+    // The field is where a refusal shows, since the rest of the form is untouched
+    vi.stubGlobal("fetch", refusingSaves());
 
     render(<SubmissionEditor path={PATH} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
     expect(await screen.findByText("Not saved")).toBeInTheDocument();
+  });
+
+  it("tells the page nothing when a save is refused", async () => {
+    const changed = vi.fn();
+    vi.stubGlobal("fetch", refusingSaves());
+
+    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "half day");
+    await userEvent.tab();
+
+    expect(await screen.findByText("Not saved")).toBeInTheDocument();
+    expect(changed).not.toHaveBeenCalled();
   });
 
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
@@ -248,6 +274,16 @@ describe("SubmissionEditor", () => {
       expect(input).toHaveAttribute("accept", "application/pdf,image/png");
       expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
       expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+    });
+
+    it("tells the page once a document is attached", async () => {
+      const changed = vi.fn();
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} onChanged={changed} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {
