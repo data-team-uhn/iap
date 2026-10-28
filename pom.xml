@@ -2689,7 +2689,7 @@
             </execution>
           </executions>
           <configuration>
-            <nodeVersion>v26.0.0</nodeVersion>
+            <nodeVersion>v26.12.1</nodeVersion>
             <!-- Held at 10.x by frontend-maven-plugin, which links its pnpm executable to
                  bin/pnpm.cjs. That is pnpm's declared entry point only up to 10; from 11 on it is a
                  non-executable shim. Raise this once the plugin resolves
