@@ -75,15 +75,16 @@ class TagsOperandResolverTest
         this.context.create().resource("/Submissions/sub", Map.of(
             SLING_RESOURCE_TYPE, ENTITY_TYPE,
             "tags", new String[]{ "sensitive", "draft" },
-            "aggregatedTags", new String[]{ "draft", "incomplete" },
-            "inheritedTags", new String[]{ "external" }));
+            "inheritedTags", new String[]{ "external" },
+            "computedTags", new String[]{ "overdue", "sensitive" },
+            "aggregatedTags", new String[]{ "draft", "incomplete" }));
         // The condition is evaluated somewhere inside the entity, its tags still apply
         final Content part = this.context.create().resource("/Submissions/sub/part")
             .adaptTo(Content.class);
 
         final Operand resolved = this.resolver.resolve(this.operand, part);
 
-        assertEquals(List.of("sensitive", "draft", "incomplete", "external"), resolved.stream().toList());
+        assertEquals(List.of("sensitive", "draft", "external", "overdue", "incomplete"), resolved.stream().toList());
         assertEquals(OperandType.TEXT, resolved.getType());
     }
 

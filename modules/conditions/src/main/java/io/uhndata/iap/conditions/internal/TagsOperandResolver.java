@@ -18,8 +18,10 @@
 package io.uhndata.iap.conditions.internal;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.osgi.service.component.annotations.Component;
 
@@ -28,6 +30,8 @@ import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
  * Resolves {@code tags} operands: the effective tags of the enclosing entity, e.g. everything a submission is
@@ -41,10 +45,12 @@ import io.uhndata.iap.content.models.Content;
 public class TagsOperandResolver implements OperandResolver
 {
     /**
-     * The properties holding tag names on a tagged node: the explicitly placed tags, plus the tags aggregated from
-     * descendants and inherited from ancestors, both materialized at commit time by the tagging subsystem.
+     * The properties holding tag names on a tagged node: the explicitly placed tags, plus the one each propagation
+     * phase materializes at commit time, in the order the phases run. Taken from the phases themselves, so that one
+     * added later is read too.
      */
-    private static final String[] TAG_PROPERTIES = { "tags", "aggregatedTags", "inheritedTags" };
+    private static final List<String> TAG_PROPERTIES = Stream.concat(Stream.of(TagManager.TAGS_PROPERTY),
+        Arrays.stream(TagProcessor.Phase.values()).map(TagProcessor.Phase::getPropertyName)).toList();
 
     @Override
     public String getSource()
@@ -56,7 +62,7 @@ public class TagsOperandResolver implements OperandResolver
     public Operand resolve(final ConditionOperand operand, final Content context)
     {
         final Content entity = Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);
-        return Operand.of(Arrays.stream(TAG_PROPERTIES)
+        return Operand.of(TAG_PROPERTIES.stream()
             .map(property -> entity.get(property, String[].class))
             .filter(Objects::nonNull)
             .flatMap(Arrays::stream)
