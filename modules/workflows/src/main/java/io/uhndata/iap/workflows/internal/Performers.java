@@ -32,9 +32,8 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.FlowNode;
 
 /**
- * Says who the names in a workflow definition stand for, through the {@link PrincipalService}, so that a name means
- * the same people wherever the engine reads it: deciding who may act, recording who a task waits for, and granting
- * who may read.
+ * Says who the names in a workflow definition stand for, through the {@link PrincipalService}. Every part of the
+ * engine asks here, so a name means the same people everywhere.
  *
  * @version $Id$
  * @since 0.1.0
@@ -106,8 +105,9 @@ public class Performers
      * @return a check for this user
      * @throws WorkflowFailedException when the repository cannot say who the user is
      */
-    PerformerCheck checkFor(final ResourceResolver serviceResolver, final String actor) throws WorkflowFailedException
+    PerformerCheck createCheck(final ResourceResolver serviceResolver, final String actor)
+        throws WorkflowFailedException
     {
-        return PerformerCheck.of(this, serviceResolver, actor);
+        return new PerformerCheck(this, serviceResolver, actor);
     }
 }

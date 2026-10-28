@@ -94,18 +94,18 @@ public class TaskCompletion
      * admits them.
      *
      * @param taskResource the task, resolved through the engine's session
-     * @param performers who is asking
+     * @param check whom the definitions admit, for the asking user
      * @return {@code complete}, or nothing
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    static Set<String> availableEvents(final Resource taskResource, final PerformerCheck performers)
+    static Set<String> availableEvents(final Resource taskResource, final PerformerCheck check)
         throws WorkflowFailedException
     {
         final TaskInstance task = Objects.requireNonNull(taskResource.adaptTo(TaskInstance.class),
             "A wf:TaskInstance resource always adapts to its model");
         final Activity definition = task.getDefinition();
         return TaskInstance.OPEN_STATUS.equals(task.getStatus()) && definition != null
-            && performers.admits(definition, hostOf(taskResource)) ? Set.of(COMPLETE_EVENT) : Set.of();
+            && check.admits(definition, findHost(taskResource)) ? Set.of(COMPLETE_EVENT) : Set.of();
     }
 
     /**
@@ -116,24 +116,24 @@ public class TaskCompletion
      * @param event the incoming event
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
-     * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
-     *             without an outcome, or the definition cannot be run on from here
+     * @throws WorkflowException when the event does not apply, the actor may not complete it, the outcome is missing
+     *             or not one the task offers, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
         final String actor, final InstanceRunner.ServiceTaskPerformer performer)
         throws WorkflowException, PersistenceException
     {
-        checkEventApplies(event);
+        final TaskEvent kind = TaskEvent.of(event);
         final TaskInstance task = readOpenTask(taskResource);
         final Activity definition = readDefinition(task);
         stamp(taskResource);
-        final Resource host = hostOf(taskResource);
-        final PerformerCheck check = this.performers.checkFor(resolver, actor);
-        final InstanceRunner runner = this.runners.runnerFor(resolver, performer, actor);
-        if (TIMEOUT_EVENT.equals(event.getName())) {
+        final Resource host = findHost(taskResource);
+        final PerformerCheck check = this.performers.createCheck(resolver, actor);
+        final InstanceRunner runner = this.runners.createRunner(resolver, performer, actor);
+        if (kind == TaskEvent.TIMEOUT) {
             final IntermediateCatchingEvent timer = findRunningTimer(task, definition);
-            check.verify(whoMayFire(timer), host);
+            check.verify(listWhoMayFire(timer), host);
             checkDeadlinePassed(task);
             runner.fireDeadline(task, timer);
         } else {
@@ -143,16 +143,35 @@ public class TaskCompletion
     }
 
     /**
-     * Refuses an event a task has nothing waiting for.
+     * What can happen to an open task, and the only events it waits for.
      *
-     * @param event the incoming event
-     * @throws NoApplicableWorkflowException when the event neither completes nor times out a task
+     * @version $Id$
+     * @since 0.1.0
      */
-    private static void checkEventApplies(final WorkflowEvent event) throws NoApplicableWorkflowException
+    private enum TaskEvent
     {
-        if (!COMPLETE_EVENT.equals(event.getName()) && !TIMEOUT_EVENT.equals(event.getName())) {
-            throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
-                + " event; the only things that can happen to one are being completed and running out of time");
+        /** A person completes it. */
+        COMPLETE,
+
+        /** Its deadline runs out. */
+        TIMEOUT;
+
+        /**
+         * The kind of an event aimed at a task.
+         *
+         * @param event the incoming event
+         * @return what the event does to the task
+         * @throws NoApplicableWorkflowException when the event neither completes nor times out a task
+         */
+        static TaskEvent of(final WorkflowEvent event) throws NoApplicableWorkflowException
+        {
+            return switch (event.getName()) {
+                case COMPLETE_EVENT -> COMPLETE;
+                case TIMEOUT_EVENT -> TIMEOUT;
+                default -> throw new NoApplicableWorkflowException("A task has nothing waiting for a "
+                    + event.getName()
+                    + " event; the only things that can happen to one are being completed and running out of time");
+            };
         }
     }
 
@@ -198,16 +217,18 @@ public class TaskCompletion
      * @param task the task being completed
      * @param definition the activity the task was raised from
      * @return the outcome, or {@code null} for a task with nothing to decide
-     * @throws InvalidPayloadException when a task with outcomes to choose from is completed without one
+     * @throws InvalidPayloadException when the outcome is missing or is not one the task offers
      */
     private static String readOutcome(final WorkflowEvent event, final TaskInstance task, final Activity definition)
         throws InvalidPayloadException
     {
         final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
-        // A decision left blank would let the next gateway route on whatever an earlier task decided
-        if (outcome == null && !definition.getOutcomeOptions().isEmpty()) {
-            throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
-                + String.join(", ", definition.getOutcomeOptions()));
+        final List<String> options = definition.getOutcomeOptions();
+        // Anything else would let the next gateway route on a decision nobody was offered
+        if (outcome == null ? !options.isEmpty() : !options.contains(outcome)) {
+            throw new InvalidPayloadException(options.isEmpty()
+                ? "Completing " + task.getPath() + " takes no outcome"
+                : "Completing " + task.getPath() + " takes one of its outcomes: " + String.join(", ", options));
         }
         return outcome;
     }
@@ -222,7 +243,7 @@ public class TaskCompletion
     private static void stamp(final Resource taskResource)
     {
         final ModifiableValueMap properties = Objects.requireNonNull(
-            instanceOf(taskResource).adaptTo(ModifiableValueMap.class),
+            findInstance(taskResource).adaptTo(ModifiableValueMap.class),
             "The engine's own session can always write an instance");
         properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
@@ -253,7 +274,7 @@ public class TaskCompletion
      * @param timer the boundary timer
      * @return the principals it admits
      */
-    private static List<String> whoMayFire(final IntermediateCatchingEvent timer)
+    private static List<String> listWhoMayFire(final IntermediateCatchingEvent timer)
     {
         final List<String> performers = timer.getPerformers();
         return performers.isEmpty() ? List.of(TIMER_USER) : performers;
@@ -279,9 +300,9 @@ public class TaskCompletion
      * @param taskResource a task
      * @return the host resource
      */
-    private static Resource hostOf(final Resource taskResource)
+    private static Resource findHost(final Resource taskResource)
     {
-        return InstanceRecords.hostOf(instanceOf(taskResource));
+        return InstanceRecords.hostOf(findInstance(taskResource));
     }
 
     /**
@@ -290,7 +311,7 @@ public class TaskCompletion
      * @param taskResource a task
      * @return the instance holding it
      */
-    private static Resource instanceOf(final Resource taskResource)
+    private static Resource findInstance(final Resource taskResource)
     {
         return Objects.requireNonNull(taskResource.getParent(), "A task always lives inside its instance");
     }

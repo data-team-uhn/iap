@@ -151,7 +151,7 @@ class UserWorkflowTest
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproval", TARGET_REF, APPROVE));
         this.context.create().resource(PROCESS + "/" + APPROVE, Map.of(
             TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, APPROVE, "label", "Approve the request",
-            "performers", performers));
+            "performers", performers, "outcomeOptions", new String[] {"approved", "rejected"}));
         this.context.create().resource(PROCESS + "/" + APPROVE + "/toDecision", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDecision", TARGET_REF, "decision"));
         this.context.create().resource(PROCESS + "/decision", Map.of(
@@ -501,29 +501,52 @@ class UserWorkflowTest
             "performers", new String[] {EngineFixture.REQUESTERS}));
         String previous = version + "/caught";
         for (final String handler : handlers) {
-            previous = addStep(previous, version + "/" + handler, Map.of(HANDLER, handler));
+            previous = addActivity(previous, version + "/" + handler, Map.of(HANDLER, handler));
         }
-        previous = addStep(previous, version + "/start",
+        previous = addActivity(previous, version + "/start",
             Map.of(HANDLER, StartWorkflowHandler.HANDLER_NAME, "workflowFrom", "workflow"));
-        addStep(previous, version + "/done", Map.of());
+        addEnd(previous, version + "/done");
     }
 
     /**
-     * Adds the next node of a straight walk, and the arc leading to it from the one before. A node with a handler is
-     * an activity; one without ends the walk.
+     * Adds an activity as the next node of a straight walk, with the arc leading to it from the one before.
+     *
+     * @param previous the path of the node the arc leaves
+     * @param path the path of the activity to add
+     * @param configuration the activity's own properties
+     * @return the path of the activity added
+     */
+    private String addActivity(final String previous, final String path, final Map<String, Object> configuration)
+    {
+        final Map<String, Object> properties = new HashMap<>(configuration);
+        properties.put(TYPE, Activity.RESOURCE_TYPE);
+        return addNode(previous, path, properties);
+    }
+
+    /**
+     * Ends a straight walk with an end event, and the arc leading to it from the node before.
+     *
+     * @param previous the path of the node the arc leaves
+     * @param path the path of the end event to add
+     */
+    private void addEnd(final String previous, final String path)
+    {
+        addNode(previous, path, new HashMap<>(Map.of(TYPE, EndEvent.RESOURCE_TYPE)));
+    }
+
+    /**
+     * Adds a node and the arc leading to it from the one before.
      *
      * @param previous the path of the node the arc leaves
      * @param path the path of the node to add
-     * @param configuration the node's own properties
+     * @param properties the node's properties, its type included
      * @return the path of the node added
      */
-    private String addStep(final String previous, final String path, final Map<String, Object> configuration)
+    private String addNode(final String previous, final String path, final Map<String, Object> properties)
     {
         final String elementId = path.substring(path.lastIndexOf('/') + 1);
         this.context.create().resource(previous + "/to-" + elementId, Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "to-" + elementId, TARGET_REF, elementId));
-        final Map<String, Object> properties = new HashMap<>(configuration);
-        properties.put(TYPE, configuration.isEmpty() ? EndEvent.RESOURCE_TYPE : Activity.RESOURCE_TYPE);
         properties.put(ELEMENT_ID, elementId);
         this.context.create().resource(path, properties);
         return path;
@@ -650,6 +673,7 @@ class UserWorkflowTest
     void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
+        addToTheUserTask(Map.of("outcomeOptions", new String[0]));
 
         started();
 
@@ -871,6 +895,7 @@ class UserWorkflowTest
     void completesWithoutAnOutcomeWhenTheProcessDoesNotBranchOnOne() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
+        addToTheUserTask(Map.of("outcomeOptions", new String[0]));
         final WorkflowEngine engine = started();
 
         // No outcome recorded, so nothing matches and the default arc carries it
@@ -885,7 +910,6 @@ class UserWorkflowTest
     void refusesToCloseADecisionWithoutAnOutcome() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        addToTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
         final WorkflowEngine engine = started();
 
         // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
@@ -893,6 +917,29 @@ class UserWorkflowTest
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, " "))));
         assertEquals("created", read(TASK).get("status"));
         assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
+    void refusesAnOutcomeTheTaskDoesNotOffer() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertThrows(InvalidPayloadException.class, () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
+            new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "reject"))));
+        assertEquals(TaskInstance.OPEN_STATUS, read(TASK).get(TaskInstance.STATUS_PROPERTY));
+    }
+
+    @Test
+    void refusesAnOutcomeOnATaskWithNothingToDecide() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        addToTheUserTask(Map.of("outcomeOptions", new String[0]));
+        final WorkflowEngine engine = started();
+
+        assertThrows(InvalidPayloadException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
+        assertEquals(TaskInstance.OPEN_STATUS, read(TASK).get(TaskInstance.STATUS_PROPERTY));
     }
 
     @Test
@@ -1018,6 +1065,7 @@ class UserWorkflowTest
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS + "/decision/toRejected")
             .adaptTo(ModifiableValueMap.class).put("isDefault", false);
+        addToTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected", "maybe"}));
         final WorkflowEngine engine = started();
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,

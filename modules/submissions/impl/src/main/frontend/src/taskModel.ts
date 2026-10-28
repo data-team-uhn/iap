@@ -18,7 +18,7 @@
 
 // The open tasks in a submission's workflows, read from its serialized `wf:instances` container. No React, no fetch.
 
-import { type SerializedNode, childrenOfType, lastSegmentOf, strings } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, childrenOfType, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
 
 export const WORKFLOW_INSTANCE_TYPE = "wf/WorkflowInstance";
 export const TASK_INSTANCE_TYPE = "wf/TaskInstance";
@@ -49,8 +49,8 @@ function asTask(node: SerializedNode): SubmissionTask | null {
   return {
     path,
     label: typeof node.label === "string" ? node.label : lastSegmentOf(path),
-    outcomeOptions: strings(node.outcomeOptions),
-    "@events": strings(node["@events"]),
+    outcomeOptions: stringsOf(node.outcomeOptions),
+    "@events": stringsOf(node["@events"]),
   };
 }
 

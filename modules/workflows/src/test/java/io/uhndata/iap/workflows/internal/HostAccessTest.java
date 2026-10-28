@@ -31,6 +31,7 @@ import javax.jcr.security.AccessControlPolicyIterator;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.PersistenceException;
@@ -74,6 +75,9 @@ class HostAccessTest
     private final SlingContext context = new SlingContext();
 
     private final List<String> granted = new ArrayList<>();
+
+    /** Groups an identity provider synchronises: the principal store knows them, the user store does not. */
+    private final List<String> synchronised = new ArrayList<>();
 
     @BeforeEach
     void setUp()
@@ -165,6 +169,16 @@ class HostAccessTest
     }
 
     @Test
+    void grantsReadToAGroupOnlyThePrincipalStoreKnows() throws Exception
+    {
+        this.synchronised.add(APPROVERS);
+
+        grantReaders(resolver(list(), EngineFixture.REQUESTER));
+
+        assertEquals(List.of(EngineFixture.REQUESTER, APPROVERS), this.granted);
+    }
+
+    @Test
     void failsWithoutARepositoryThatKnowsItsUsers()
     {
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
@@ -230,8 +244,14 @@ class HostAccessTest
             Mockito.when(authorizable.getPrincipal()).thenReturn(principal);
             return authorizable;
         });
+        final PrincipalManager principals = Mockito.mock(PrincipalManager.class);
+        Mockito.when(principals.getPrincipal(Mockito.anyString())).thenAnswer(invocation -> {
+            final String name = invocation.getArgument(0);
+            return this.synchronised.contains(name) ? (Principal) () -> name : null;
+        });
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
         Mockito.when(session.getUserManager()).thenReturn(users);
+        Mockito.when(session.getPrincipalManager()).thenReturn(principals);
         Mockito.when(session.getAccessControlManager()).thenReturn(manager);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);

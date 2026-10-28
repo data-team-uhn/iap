@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { childrenOf, childrenOfType, isNode, lastSegmentOf, strings } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, childrenOfType, isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
 
 describe("isNode", () => {
   it("tells a node from a value or a list of values", () => {
@@ -55,12 +55,12 @@ describe("childrenOfType", () => {
   });
 });
 
-describe("strings", () => {
+describe("stringsOf", () => {
   it("reads a list, a bare single value, and nothing else", () => {
-    expect(strings([ "a", 3, "b" ])).toEqual([ "a", "b" ]);
-    expect(strings("a")).toEqual([ "a" ]);
-    expect(strings(undefined)).toEqual([]);
-    expect(strings(3)).toEqual([]);
+    expect(stringsOf([ "a", 3, "b" ])).toEqual([ "a", "b" ]);
+    expect(stringsOf("a")).toEqual([ "a" ]);
+    expect(stringsOf(undefined)).toEqual([]);
+    expect(stringsOf(3)).toEqual([]);
   });
 });
 

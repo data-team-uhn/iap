@@ -153,6 +153,20 @@ class PerformerCheckTest
     }
 
     @Test
+    void asksAboutMembershipOnceForAListItWasAlreadyAskedAbout() throws Exception
+    {
+        final PrincipalService principals = Mockito.spy(EngineFixture.principals());
+        final PerformerCheck check = new Performers(principals)
+            .createCheck(repositoryWith(user(REQUESTER), REQUESTERS), REQUESTER);
+
+        check.verify(node(REQUESTERS), raisedByNobody());
+        check.verify(node(REQUESTERS), raisedByNobody());
+
+        Mockito.verify(principals, Mockito.times(1))
+            .isOneOf(Mockito.eq(REQUESTER), Mockito.anyList(), Mockito.any());
+    }
+
+    @Test
     void refusesAnActorTheRepositoryHasNeverHeardOf() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
@@ -213,7 +227,7 @@ class PerformerCheckTest
     private static void verify(final ResourceResolver resolver, final Resource subject, final FlowNode node,
         final String actor) throws Exception
     {
-        EngineFixture.performers().checkFor(resolver, actor).verify(node, subject);
+        EngineFixture.performers().createCheck(resolver, actor).verify(node, subject);
     }
 
     /**

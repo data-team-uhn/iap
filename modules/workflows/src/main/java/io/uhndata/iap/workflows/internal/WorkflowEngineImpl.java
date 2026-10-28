@@ -91,7 +91,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ConditionEvaluator conditionEvaluator;
 
-    /** Decides where the tokens of a user workflow go. */
+    /**
+     * Moves a system workflow's run from node to node. The engine drives user workflows too, through the runners it
+     * is handed, which carry their own routing.
+     */
     @Reference
     private FlowRouting routing;
 
@@ -106,6 +109,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** Hands out the runner that carries a user workflow on. */
     @Reference
     private InstanceRunners runners;
+
+    /** Answers what a user could do without changing anything. */
+    @Reference
+    private WorkflowQueries queries;
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
@@ -128,7 +135,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             }
             final StartEvent start =
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            this.performers.checkFor(serviceResolver, actor).verify(start, privilegedTarget);
+            this.performers.createCheck(serviceResolver, actor).verify(start, privilegedTarget);
             return execute(privilegedTarget, event, start, actor);
         }
     }
@@ -136,15 +143,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        return WorkflowQueries.availableEvents(target, this::serviceResolver, this.conditionEvaluator,
-            this.performers);
+        return this.queries.availableEvents(target, this::serviceResolver);
     }
 
     @Override
     public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
-        return WorkflowQueries.applicableWorkflow(target, event, this::serviceResolver, this.conditionEvaluator,
-            this.performers);
+        return this.queries.applicableWorkflow(target, event, this::serviceResolver);
     }
 
     /**
@@ -246,7 +251,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         }
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
-        this.performers.checkFor(resolver, actor).verify(start, target);
+        this.performers.createCheck(resolver, actor).verify(start, target);
         dispatcher().runSystemWorkflow(target, event, start, actor, depth);
     }
 

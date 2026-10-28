@@ -58,7 +58,7 @@ final class ServiceTaskDispatcher
     /** How the engine runs the workflow waiting for an event a service task sends. */
     private final EventChain chain;
 
-    /** What decides where the tokens of any instance a task starts go. */
+    /** Moves a system workflow's run from node to node. */
     private final FlowRouting routing;
 
     /** Hands out the runner for any instance a task starts. */
@@ -69,7 +69,7 @@ final class ServiceTaskDispatcher
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
-     * @param routing what decides where the tokens of any instance a task starts go
+     * @param routing moves a system workflow's run from node to node
      * @param runners hands out the runner for any instance a task starts
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
@@ -196,9 +196,9 @@ final class ServiceTaskDispatcher
      * @param actor the user the execution acts for
      * @return the runner
      */
-    InstanceRunner runnerFor(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
+    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
     {
-        return this.runners.runnerFor(resolver, performer(event, actor), actor);
+        return this.runners.createRunner(resolver, performer(event, actor), actor);
     }
 
     /**

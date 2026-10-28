@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -66,14 +68,8 @@ final class PerformerCheck
     /** The actor, or {@code null} when the repository does not know them. */
     private final Authorizable authorizable;
 
-    private PerformerCheck(final Performers performers, final ResourceResolver serviceResolver, final String actor,
-        final Authorizable authorizable)
-    {
-        this.performers = performers;
-        this.serviceResolver = serviceResolver;
-        this.actor = actor;
-        this.authorizable = authorizable;
-    }
+    /** Whether the actor is among a list of principals, by the resolved list, asked once per list. */
+    private final Map<List<String>, Boolean> memberships = new HashMap<>();
 
     /**
      * Looks the actor up once, to be asked about any number of nodes.
@@ -81,13 +77,15 @@ final class PerformerCheck
      * @param performers says who the names in a definition stand for
      * @param serviceResolver the engine's own session, used to look the actor up
      * @param actor the user who fired the event, as their repository user id
-     * @return a check for this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static PerformerCheck of(final Performers performers, final ResourceResolver serviceResolver, final String actor)
+    PerformerCheck(final Performers performers, final ResourceResolver serviceResolver, final String actor)
         throws WorkflowFailedException
     {
-        return new PerformerCheck(performers, serviceResolver, actor, lookUp(serviceResolver, actor));
+        this.performers = performers;
+        this.serviceResolver = serviceResolver;
+        this.actor = actor;
+        this.authorizable = lookUp(serviceResolver, actor);
     }
 
     /**
@@ -151,7 +149,13 @@ final class PerformerCheck
         if (this.authorizable instanceof User && ((User) this.authorizable).isAdmin()) {
             return true;
         }
-        return this.performers.isOneOf(this.actor, this.performers.resolve(admitted, subject), this.serviceResolver);
+        final List<String> resolved = this.performers.resolve(admitted, subject);
+        Boolean member = this.memberships.get(resolved);
+        if (member == null) {
+            member = this.performers.isOneOf(this.actor, resolved, this.serviceResolver);
+            this.memberships.put(resolved, member);
+        }
+        return member;
     }
 
     /**

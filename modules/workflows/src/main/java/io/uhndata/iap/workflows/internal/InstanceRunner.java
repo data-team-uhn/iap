@@ -115,7 +115,7 @@ final class InstanceRunner
         }
         final Resource instance = this.records.createInstance(host, version);
         runFrom(instance, this.records.createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
-        this.hostAccess.grantReaders(this.records.getResolver(), host, version, this.actor);
+        this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor);
         return instance;
     }
 

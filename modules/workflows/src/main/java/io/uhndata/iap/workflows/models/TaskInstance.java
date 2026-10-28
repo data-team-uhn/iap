@@ -217,9 +217,9 @@ public class TaskInstance extends EntityPart
      * The decisions this task may be completed with, as its {@link Activity#getOutcomeOptions() defining activity}
      * offered them when the task was raised.
      *
-     * <p>Copied onto the task rather than looked up, for the same reason the {@link #getLabel() label} is: a task is
-     * decided on the terms it was raised with rather than on terms the definition may have grown since, and whoever
-     * has to do it can read the task without necessarily being able to read the workflow it came from.</p>
+     * <p>Copied onto the task, as the {@link #getLabel() label} is, so whoever has to do it can read the decision
+     * without reading the workflow it came from. The copy describes the decision: completion still checks an outcome
+     * against the definition.</p>
      *
      * @return the outcomes on offer, empty when completing this task is not a decision
      */

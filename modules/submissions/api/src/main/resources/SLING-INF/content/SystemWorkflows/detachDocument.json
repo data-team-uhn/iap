@@ -12,7 +12,7 @@
       "elementId": "requested",
       "label": "File removed",
       "messageName": "detachDocument",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toDetach": {
         "jcr:primaryType": "wf:SequenceFlow",

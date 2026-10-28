@@ -85,14 +85,14 @@ final class SystemWorkflowLocator
      * @param serviceResolver the engine's own session, able to read the system workflows tree
      * @param target the resource events would be aimed at, backed by the engine's own session
      * @param evaluator decides whether a start event's guard holds
-     * @param performers who is asking
+     * @param check whom the definitions admit, for the asking user
      * @return the event names, in alphabetical order
      * @throws WorkflowDefinitionException when several start events wait for one event, which receiving it would
      *             refuse
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
     static Set<String> availableEvents(final ResourceResolver serviceResolver, final Resource target,
-        final ConditionEvaluator evaluator, final PerformerCheck performers) throws WorkflowException
+        final ConditionEvaluator evaluator, final PerformerCheck check) throws WorkflowException
     {
         final Map<String, List<StartEvent>> byEvent = waiting(serviceResolver, target, evaluator, event -> true)
             .stream()
@@ -103,7 +103,7 @@ final class SystemWorkflowLocator
             if (waitingFor.getValue().size() > 1) {
                 throw contested(target, waitingFor.getKey(), waitingFor.getValue());
             }
-            if (performers.admits(waitingFor.getValue().get(0), target)) {
+            if (check.admits(waitingFor.getValue().get(0), target)) {
                 events.add(waitingFor.getKey());
             }
         }

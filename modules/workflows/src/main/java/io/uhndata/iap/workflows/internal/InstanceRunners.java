@@ -23,8 +23,8 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 /**
- * Hands out the {@link InstanceRunner} that carries user workflows on for one run: the engine's session, the user the
- * run acts for, and how it performs service tasks. The services every run shares are injected here once.
+ * Hands out an {@link InstanceRunner} for one run, given the engine's session, the user it acts for and how it performs
+ * service tasks. The services every run shares are injected here once.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,7 +62,7 @@ public class InstanceRunners
      * @param actor the user whose action is moving the instance
      * @return the runner
      */
-    InstanceRunner runnerFor(final ResourceResolver resolver, final InstanceRunner.ServiceTaskPerformer performer,
+    InstanceRunner createRunner(final ResourceResolver resolver, final InstanceRunner.ServiceTaskPerformer performer,
         final String actor)
     {
         return new InstanceRunner(new InstanceRecords(resolver, this.performers), performer, actor, this.routing,

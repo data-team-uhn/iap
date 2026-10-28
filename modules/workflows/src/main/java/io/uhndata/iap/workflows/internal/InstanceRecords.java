@@ -82,16 +82,6 @@ final class InstanceRecords
     }
 
     /**
-     * The session everything is read and written through.
-     *
-     * @return the engine's own session
-     */
-    ResourceResolver getResolver()
-    {
-        return this.resolver;
-    }
-
-    /**
      * Creates the instance node inside the host's workflow container. Its name is the workflow's own, so a host
      * carrying several reads clearly.
      *

@@ -164,11 +164,9 @@
   - outcome (STRING)
 
   // The decisions this task may be completed with, copied from its defining
-  // activity when the task was raised. Copied rather than looked up, for the same
-  // reason the label is: a task is decided on the terms it was raised with, not
-  // on terms the definition may have grown since, and the person doing it cannot
-  // necessarily read the definition at all. A task offering none is one there is
-  // nothing to decide about — it is done, or it is not.
+  // activity when the task was raised, so the person doing it can read them
+  // without reading the definition. Completion still checks an outcome against
+  // the definition. A task offering none has nothing to decide.
   - outcomeOptions (STRING) multiple
 
   // The principals who may complete this task, as its defining activity named

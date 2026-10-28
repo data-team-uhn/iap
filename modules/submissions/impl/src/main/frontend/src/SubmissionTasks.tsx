@@ -32,16 +32,25 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 //
 // Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent, not
 // disabled. Tasks with outcome options are left out, since the button sends no outcome.
-function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: () => void }) {
+// `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
+// still being saved; when it fails, nothing is completed.
+function SubmissionTasks({ path, beforeComplete, onCompleted }: {
+  path: string;
+  beforeComplete?: () => Promise<void>;
+  onCompleted?: () => void;
+}) {
   const { tasks, reload } = useSubmissionTasks(path);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
   // Each completion reports its own failure, since only it knows which task's label to name
   const { working, run } = useAsyncAction({ onFailure: () => undefined });
 
-  const complete = (task: SubmissionTask) => run(() => sendEvent(doFetch, task.path, COMPLETE_EVENT)
-    .then(() => reload())
-    .then(() => onCompleted?.())
+  const complete = (task: SubmissionTask) => run(() => (beforeComplete?.() ?? Promise.resolve())
+    .then(() => sendEvent(doFetch, task.path, COMPLETE_EVENT))
+    .then(() => {
+      onCompleted?.();
+      return reload();
+    })
     // The engine's message: only the definition knows why it refused
     .catch((error: unknown) => notify({ title: `${task.label} did not go through`, message: messageOf(error) })));
 

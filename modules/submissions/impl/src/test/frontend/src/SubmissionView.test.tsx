@@ -18,7 +18,7 @@
 
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SubmissionView from "@iap/submissions/SubmissionView";
@@ -256,6 +256,11 @@ function bothModes(submission: unknown = DEEP_SUBMISSION) {
   return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
     ? Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
     : otherwise(url));
+}
+
+// Where the router is, for a test that checks the page did not navigate
+function Location() {
+  return <p data-testid="location">{useLocation().pathname}</p>;
 }
 
 function renderAt(path: string) {
@@ -612,14 +617,15 @@ describe("SubmissionView", () => {
     const WAITING = waitingOn("/Submissions/demo-1", { fillIn: SEND });
 
     // What the page reads: its own serialization, the form projection, the tag definitions, and, once the
-    // step is completed, a workflow with nothing left waiting
-    function withATaskWaiting() {
+    // step is completed, a workflow with nothing left waiting. Completing the step answers once `completion` settles.
+    function withATaskWaiting(completion: Promise<void> = Promise.resolve()) {
       const otherwise = bothModes();
       let done = false;
       return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
         if (init?.method === "POST") {
           done = true;
-          return Promise.resolve({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+          return completion.then(
+            () => ({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response));
         }
         if (url.includes("wf:instances")) {
           return Promise.resolve(
@@ -648,6 +654,30 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
       expect(await screen.findByText("Test my drug")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: SEND_LABEL })).toBeNull();
+    });
+
+    it("leaves the reader where they went when the step completes after they left", async () => {
+      const completion = Promise.withResolvers<undefined>();
+      vi.stubGlobal("fetch", withATaskWaiting(completion.promise));
+      const user = userEvent.setup();
+      render(
+        <MemoryRouter initialEntries={["/Submissions/demo-1.edit"]}>
+          <Routes>
+            <Route path="/" element={<Location />} />
+            <Route path="*" element={<SubmissionView />} />
+          </Routes>
+        </MemoryRouter>,
+        { wrapper: NoticeProvider }
+      );
+      await user.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+      await user.click(screen.getByRole("link", { name: "← Back to the dashboard" }));
+      await act(async () => {
+        completion.resolve(undefined);
+        await completion.promise;
+      });
+
+      expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
     });
   });
 

@@ -688,9 +688,9 @@ shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` fo
 - **`everyone` means any authenticated user**, matched by name since it is a dynamic
   principal.
 - **`@creator` means whoever raised the resource being worked on** — the event's target,
-  or the host of the task being completed — as recorded in `createdBy`. A resource
-  nothing raised, such as a homepage, has no creator, and `@creator` admits nobody
-  there.
+  or the host of the task being completed — as recorded in `createdBy`. Where nothing
+  recorded one, such as on a homepage, it falls back to `jcr:createdBy`, the account
+  that wrote the node.
 - **Every other name is resolved by the principals service**, so a group admits its
   members transitively however a deployment stores it, including a role an identity
   provider synchronises with no group node.
@@ -832,11 +832,11 @@ POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gat
 
 **A user task is an activity with no handler.** The engine parks the token there and
 raises a task, copying the activity's `outcomeOptions` and its `performers` onto it,
-with `@creator` already answered against the host. The task is decided on those terms
-rather than on whatever the definition has grown since, and whoever owes the decision
-can see them without reading the definition; what makes a completion lawful is still the
-definition. A task offering outcomes cannot be completed without one. A `complete` event
-aimed at the task closes it, records the outcome, and carries the instance on.
+with `@creator` already answered against the host, so whoever owes the decision can see
+them without reading the definition. The copies describe the task; what makes a
+completion lawful is still the definition. A task offering outcomes cannot be completed
+without one of them, and a task offering none takes no outcome. A `complete` event aimed
+at the task closes it, records the outcome, and carries the instance on.
 
 **Submitting is a user task.** A process hands a request back to its author with a task
 performed by `@creator`, and completing that task sends it on; there is no submit event

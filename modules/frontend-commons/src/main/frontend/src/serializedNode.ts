@@ -37,7 +37,7 @@ export const childrenOfType = (node: SerializedNode, resourceType: string): Seri
   childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
 
 // The strings a property holds, as an array. This turns a single value and no value at all into arrays as well.
-export function strings(value: unknown): string[] {
+export function stringsOf(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((entry): entry is string => typeof entry === "string");
   }

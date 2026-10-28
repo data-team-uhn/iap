@@ -11,7 +11,7 @@
       "elementId": "requested",
       "label": "Answers submitted",
       "messageName": "save",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toSave": {
         "jcr:primaryType": "wf:SequenceFlow",

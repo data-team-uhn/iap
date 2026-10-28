@@ -34,7 +34,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -546,6 +545,7 @@ class WorkflowEngineImplTest
             .thenThrow(new LoginException("no such service user"));
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         EngineFixture.inject(engine, "resolverFactory", brokenFactory);
+        EngineFixture.inject(engine, "queries", EngineFixture.queries());
         final Resource target = EngineFixture.createTarget(this.context);
 
         assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
@@ -692,14 +692,7 @@ class WorkflowEngineImplTest
     {
         final Resource plain = this.context.create().resource("/plain", TYPE, "test/Plain");
         final ResourceResolver admin = EngineFixture.actingAs(plain.getResourceResolver(), EngineFixture.ADMIN);
-        final Resource target = new ResourceWrapper(plain)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return admin;
-            }
-        };
+        final Resource target = EngineFixture.seenThrough(plain, admin);
         EngineFixture.createSystemWorkflow(this.context, "test/Plain");
         EngineFixture.createBootstrapGraph(this.context);
         final WorkflowEngine engine = engine();
@@ -781,14 +774,7 @@ class WorkflowEngineImplTest
                 return path.startsWith(SystemWorkflowsHomepage.PATH) ? null : super.getResource(path);
             }
         };
-        final Resource unseen = new ResourceWrapper(target)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return blind;
-            }
-        };
+        final Resource unseen = EngineFixture.seenThrough(target, blind);
         final WorkflowEngine engine = engine();
 
         assertNotNull(engine.findApplicableWorkflow(target, CREATE.getName()));
@@ -851,14 +837,7 @@ class WorkflowEngineImplTest
         final WorkflowEngine engine = recording(opened);
         final ResourceResolver asking = EngineFixture.actingAs(
             this.context.getService(ResourceResolverFactory.class).getResourceResolver(null), EngineFixture.ADMIN);
-        final Resource target = new ResourceWrapper(asking.getResource(homepage.getPath()))
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return asking;
-            }
-        };
+        final Resource target = EngineFixture.seenThrough(asking.getResource(homepage.getPath()), asking);
 
         engine.getAvailableEvents(target);
         assertFalse(opened.get(0).closed);
@@ -875,14 +854,7 @@ class WorkflowEngineImplTest
         EngineFixture.createBootstrapGraph(this.context, "some-other-group");
         final ResourceResolver asRequester =
             EngineFixture.actingAs(this.context.resourceResolver(), EngineFixture.REQUESTER);
-        final Resource requester = new ResourceWrapper(administrator)
-        {
-            @Override
-            public ResourceResolver getResourceResolver()
-            {
-                return asRequester;
-            }
-        };
+        final Resource requester = EngineFixture.seenThrough(administrator, asRequester);
         final WorkflowEngine engine = engine();
 
         // Both wrap the test's own resolver and share its property map, so only the user tells them apart

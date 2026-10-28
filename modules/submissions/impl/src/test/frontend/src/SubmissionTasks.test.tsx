@@ -40,8 +40,31 @@ function repository(container: unknown, completion: Partial<Response> = { ok: tr
     : { url, ok: true, status: 200, json: () => Promise.resolve(container) }) as unknown as Response));
 }
 
-const renderTasks = (onCompleted?: () => void) =>
-  render(<SubmissionTasks path={PATH} onCompleted={onCompleted} />, { wrapper: NoticeProvider });
+// Answers the first read of the container, then fails every read after it, as a re-read can.
+function repositoryFailingRereads(container: unknown) {
+  let reads = 0;
+  return vi.fn<FetchStub>((url, init) => {
+    if (init?.method === "POST") {
+      return Promise.resolve(
+        { url, redirected: false, ok: true, status: 200, json: () => Promise.resolve({}) } as unknown as Response);
+    }
+    reads += 1;
+    return Promise.resolve((reads === 1
+      ? { url, ok: true, status: 200, json: () => Promise.resolve(container) }
+      : { url, ok: false, status: 500, json: () => Promise.resolve({}) }) as unknown as Response);
+  });
+}
+
+const renderTasks = ({ beforeComplete, onCompleted }: {
+  beforeComplete?: () => Promise<void>;
+  onCompleted?: () => void;
+} = {}) => render(
+  <SubmissionTasks path={PATH} beforeComplete={beforeComplete} onCompleted={onCompleted} />,
+  { wrapper: NoticeProvider },
+);
+
+const posted = (fetchMock: ReturnType<typeof repository>) =>
+  fetchMock.mock.calls.filter(call => call[1]?.method === "POST");
 
 describe("SubmissionTasks", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -56,21 +79,69 @@ describe("SubmissionTasks", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.-dereference.events.json");
   });
 
-  it("completes the task and tells the page, which is what makes it a submit button", async () => {
+  it("completes the task with no outcome, since it has nothing to decide", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
     vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+    await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
+    expect(posted(fetchMock)[0][0]).toBe(TASK + ".complete.json");
+    expect(String(posted(fetchMock)[0][1]?.body)).toBe("");
+  });
+
+  it("tells the page once the step is done, which is what makes it a submit button", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
     const completed = vi.fn();
 
-    renderTasks(completed);
+    renderTasks({ onCompleted: completed });
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
 
     await waitFor(() => expect(completed).toHaveBeenCalled());
-    const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
-    expect(post?.[0]).toBe(TASK + ".complete.json");
-    // No outcome, since the task has nothing to decide
-    expect(String(post?.[1]?.body)).toBe("");
-    // What it is waiting for is read again
-    expect(fetchMock.mock.calls.filter(call => call[1]?.method !== "POST")).toHaveLength(2);
+  });
+
+  it("reads what the request is waiting for again once the step is done", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter(call => call[1]?.method !== "POST")).toHaveLength(2));
+  });
+
+  it("waits for the answers still being saved before completing the step", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    vi.stubGlobal("fetch", fetchMock);
+    const saving = Promise.withResolvers<undefined>();
+
+    renderTasks({ beforeComplete: () => saving.promise });
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+    expect(posted(fetchMock)).toHaveLength(0);
+
+    saving.resolve(undefined);
+    await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
+  });
+
+  it("completes nothing when an answer could not be saved", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTasks({ beforeComplete: () => Promise.reject(new Error("The answer was refused")) });
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+    expect(await screen.findByText(`${SEND_LABEL} did not go through`)).toBeInTheDocument();
+    expect(posted(fetchMock)).toHaveLength(0);
+  });
+
+  it("offers nothing when the read after a step fails, rather than the step just done", async () => {
+    vi.stubGlobal("fetch", repositoryFailingRereads(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks();
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: SEND_LABEL })).toBeNull());
   });
 
   it("says what the engine said when it refuses", async () => {

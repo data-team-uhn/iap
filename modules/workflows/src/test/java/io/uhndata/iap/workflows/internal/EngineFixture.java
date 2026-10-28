@@ -401,6 +401,18 @@ public final class EngineFixture
     }
 
     /**
+     * What the engine answers without changing anything, asking the fixture's {@link #conditions() evaluator} and
+     * {@link #performers()}.
+     *
+     * @return the engine's queries
+     * @throws ReflectiveOperationException when the evaluator cannot be wired, which would be a bug in this fixture
+     */
+    static WorkflowQueries queries() throws ReflectiveOperationException
+    {
+        return new WorkflowQueries(conditions(), performers());
+    }
+
+    /**
      * An engine wired as the DS runtime would wire it, over the given service sessions and handlers. Wiring is by
      * reflection, since the SCR metadata only exists in the packaged bundle.
      *
@@ -420,6 +432,7 @@ public final class EngineFixture
         inject(engine, "performers", performers());
         inject(engine, "runners", runners());
         inject(engine, "taskCompletion", taskCompletion());
+        inject(engine, "queries", queries());
         return engine;
     }
 

@@ -24,6 +24,9 @@ import java.util.Set;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.utils.UserIds;
@@ -50,10 +53,24 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * @version $Id$
  * @since 0.1.0
  */
-final class WorkflowQueries
+@Component(service = WorkflowQueries.class)
+public class WorkflowQueries
 {
-    private WorkflowQueries()
+    private final ConditionEvaluator evaluator;
+
+    private final Performers performers;
+
+    /**
+     * Constructor.
+     *
+     * @param evaluator decides whether guards hold
+     * @param performers says who the names in a definition stand for
+     */
+    @Activate
+    public WorkflowQueries(@Reference final ConditionEvaluator evaluator, @Reference final Performers performers)
     {
+        this.evaluator = evaluator;
+        this.performers = performers;
     }
 
     /**
@@ -61,21 +78,18 @@ final class WorkflowQueries
      *
      * @param target the target, resolved through the asking user's own session
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
-     * @param evaluator decides whether guards hold
-     * @param performers says who the names in a definition stand for
      * @return the event names, in alphabetical order
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, or several
      *             workflows would take one of the events
      */
-    static Set<String> availableEvents(final Resource target, final ServiceLogin login,
-        final ConditionEvaluator evaluator, final Performers performers) throws WorkflowException
+    Set<String> availableEvents(final Resource target, final ServiceLogin login) throws WorkflowException
     {
-        final Scope scope = Scope.of(target.getResourceResolver(), login, performers);
+        final Scope scope = Scope.of(target.getResourceResolver(), login, this.performers);
         final Resource privileged = scope.privileged(target);
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
             return TaskCompletion.availableEvents(privileged, scope.check());
         }
-        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, evaluator, scope.check());
+        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, this.evaluator, scope.check());
     }
 
     /**
@@ -85,16 +99,14 @@ final class WorkflowQueries
      * @param target the target, resolved through the asking user's own session
      * @param event the event's name
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
-     * @param evaluator decides whether guards hold
-     * @param performers says who the names in a definition stand for
      * @return the workflow version, or {@code null} when no system workflow would take the event from the user
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, several
      *             workflows would take the event, or the user's session cannot read the one that would
      */
-    static WorkflowVersion applicableWorkflow(final Resource target, final String event, final ServiceLogin login,
-        final ConditionEvaluator evaluator, final Performers performers) throws WorkflowException
+    WorkflowVersion applicableWorkflow(final Resource target, final String event, final ServiceLogin login)
+        throws WorkflowException
     {
-        final Scope scope = Scope.of(target.getResourceResolver(), login, performers);
+        final Scope scope = Scope.of(target.getResourceResolver(), login, this.performers);
         final Resource privileged = scope.privileged(target);
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
             return null;
@@ -102,7 +114,7 @@ final class WorkflowQueries
         final StartEvent start;
         try {
             start = SystemWorkflowLocator.find(scope.resolver, privileged, new WorkflowEvent(event, Map.of()),
-                evaluator);
+                this.evaluator);
         } catch (final NoApplicableWorkflowException e) {
             return null;
         }
@@ -225,7 +237,7 @@ final class WorkflowQueries
         PerformerCheck check() throws WorkflowFailedException
         {
             if (this.check == null) {
-                this.check = this.performers.checkFor(this.resolver, this.actor);
+                this.check = this.performers.createCheck(this.resolver, this.actor);
             }
             return this.check;
         }

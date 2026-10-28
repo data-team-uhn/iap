@@ -1,4 +1,4 @@
 {
   "jcr:primaryType": "sling:Folder",
-  "sling:resourceSuperType": "data/Entity"
+  "sling:resourceSuperType": "data/EntityPart"
 }

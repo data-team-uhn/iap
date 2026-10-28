@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -38,6 +38,7 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
+import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
@@ -273,6 +274,17 @@ function SubmissionView() {
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
+  // The editor's saves still on their way, which completing a step must not overtake
+  const saves = usePendingWork();
+  // The submission on screen, or none once the page is gone: a step completed after the reader moved
+  // on must not bring them back
+  const shownPath = useRef<string | undefined>(path);
+  useEffect(() => {
+    shownPath.current = path;
+    return () => {
+      shownPath.current = undefined;
+    };
+  }, [path]);
   // Bumped when something else on the page changes the submission, so the fetch below runs again for
   // the same path
   const [reloads, setReloads] = useState(0);
@@ -323,7 +335,11 @@ function SubmissionView() {
         {/* What the process is waiting for, offered in both modes */}
         <SubmissionTasks
           path={path}
+          beforeComplete={saves.allDone}
           onCompleted={() => {
+            if (shownPath.current !== path) {
+              return;
+            }
             // Back to reading it: a completed step usually leaves the submission read-only
             setReloads(current => current + 1);
             void navigate(path);
@@ -363,7 +379,7 @@ function SubmissionView() {
         {header}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
             the previous one's answers until the new form lands */}
-        <SubmissionEditor key={path} path={path} />
+        <SubmissionEditor key={path} path={path} onSaving={saves.track} />
       </Stack>
     );
   }
