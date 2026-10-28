@@ -37,8 +37,9 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
-import { type SerializedNode, childrenOfType, isNode, stringsOf } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
 import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
+import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
@@ -262,12 +263,15 @@ function Reviews({ reviews }: { reviews: SerializedNode[] }) {
   );
 }
 
-// Why the submission is not ready for its next step, or nothing when it is. The save workflow
-// places the `incomplete` system tag while something the schema asks for is missing.
+// The system tag the save workflow places on a part of a submission that is still missing something,
+// and which reaches the submission by aggregation
+const INCOMPLETE_TAG = "incomplete";
+
+const INCOMPLETE_REASON = "Answer everything this request asks for first.";
+
+// Why the submission is not ready for its next step, or nothing when it is
 function whyNotReady(submission: SerializedNode | undefined): string | undefined {
-  return stringsOf(submission?.tags).includes("incomplete")
-    ? "Answer everything this request asks for first."
-    : undefined;
+  return carriesTag(submission, INCOMPLETE_TAG) ? INCOMPLETE_REASON : undefined;
 }
 
 // The read-only page displaying one submission, registered as a view on the `iap/coreUI/view`
@@ -292,7 +296,7 @@ function SubmissionView() {
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
   // The editor's saves still on their way, which completing a step must not overtake
-  const saves = usePendingWork();
+  const { track: trackSave, allDone: savesDone } = usePendingWork();
   // The submission on screen, or none once the page is gone: a step completed after the reader moved
   // on must not bring them back
   const shownPath = useRef<string | undefined>(path);
@@ -307,8 +311,25 @@ function SubmissionView() {
   const [reloads, setReloads] = useState(0);
   const readAgain = useCallback(() => setReloads(current => current + 1), []);
 
-  // Read in both modes: the steps offered above them depend on the submission, which changes while it
-  // is filled in. Switching modes reads it again, so that leaving the editor shows what it changed.
+  // Before a step is completed: the answers still being saved, then the submission read afresh, since
+  // they may change what it still lacks. A submission not ready refuses the step, with the reason.
+  const readyForNextStep = useCallback(() => savesDone()
+    .then(() => fetchUtil(`${path}.json`))
+    .then(response => {
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      return response.json() as Promise<SerializedNode>;
+    })
+    .then(fresh => {
+      const reason = whyNotReady(fresh);
+      if (reason !== undefined) {
+        throw new Error(reason);
+      }
+    }), [ savesDone, fetchUtil, path ]);
+
+  // Read in both modes: whether the waiting step can be taken depends on what the request still lacks,
+  // which changes while it is filled in
   useEffect(() => {
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
@@ -337,7 +358,7 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil, editing, reloads]);
+  }, [path, fetchUtil, reloads]);
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
@@ -350,8 +371,8 @@ function SubmissionView() {
         {/* What the process is waiting for, offered in both modes */}
         <SubmissionTasks
           path={path}
-          blockedReason={whyNotReady(submission)}
-          beforeComplete={saves.allDone}
+          readinessNote={whyNotReady(submission)}
+          beforeComplete={readyForNextStep}
           onCompleted={() => {
             if (shownPath.current !== path) {
               return;
@@ -368,6 +389,8 @@ function SubmissionView() {
           // deselection, and there is no third mode to land in, so it leaves the page as it is.
           onChange={(_event, next: string | null) => {
             if (next) {
+              // Read again, so that leaving the editor shows what it changed
+              readAgain();
               void navigate(next === "edit" ? `${path}${EDIT}` : path);
             }
           }}
@@ -395,7 +418,7 @@ function SubmissionView() {
         {header}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
             the previous one's answers until the new form lands */}
-        <SubmissionEditor key={path} path={path} onSaving={saves.track} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} />
       </Stack>
     );
   }

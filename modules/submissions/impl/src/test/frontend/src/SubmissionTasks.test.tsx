@@ -55,12 +55,12 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ blockedReason, beforeComplete, onCompleted }: {
-  blockedReason?: string;
+const renderTasks = ({ readinessNote, beforeComplete, onCompleted }: {
+  readinessNote?: string;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} blockedReason={blockedReason} beforeComplete={beforeComplete}
+  <SubmissionTasks path={PATH} readinessNote={readinessNote} beforeComplete={beforeComplete}
     onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
@@ -81,15 +81,21 @@ describe("SubmissionTasks", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.-dereference.events.json");
   });
 
-  it("holds the step back while the submission is not ready, and says why", async () => {
+  it("says what still stands in the way of the step", async () => {
     vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
 
-    renderTasks({ blockedReason: "Answer everything first." });
-    const send = await screen.findByRole("button", { name: SEND_LABEL });
-    await userEvent.hover(send.parentElement!);
+    renderTasks({ readinessNote: "Answer everything first." });
 
-    expect(send).toBeDisabled();
-    expect(await screen.findByRole("tooltip", { name: "Answer everything first." })).toBeInTheDocument();
+    expect(await screen.findByText("Answer everything first.")).toBeInTheDocument();
+  });
+
+  // Whether the step goes through is decided when it is taken, after the answers still being saved
+  it("still offers the step while something stands in its way", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ readinessNote: "Answer everything first." });
+
+    expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
   });
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {
