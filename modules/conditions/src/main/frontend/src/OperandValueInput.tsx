@@ -16,17 +16,13 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
+import DateInput from "@iap/frontend-commons/inputs/DateInput";
+import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
+import NumberInput from "@iap/frontend-commons/inputs/NumberInput";
+import TextInput from "@iap/frontend-commons/inputs/TextInput";
 
-import { Autocomplete, MenuItem, TextField } from "@mui/material";
-
-import { choicesOf, type OperandShape, type ValueType, valueProblem, withCurrent } from "./conditionModel";
-
-const INPUT_MODES: Partial<Record<ValueType, "numeric" | "decimal">> = {
-  long: "numeric",
-  double: "decimal",
-  decimal: "decimal",
-};
+import { choicesOf, type OperandShape, valueProblem } from "./conditionModel";
 
 interface OperandValueInputProps {
   label: string;
@@ -44,57 +40,27 @@ interface OperandValueInputProps {
 // The values an operand is compared with: picked among the choices when there are some, or else entered as the
 // type compared calls for, one or several
 function OperandValueInput(props: OperandValueInputProps) {
-  const { label, shape, several, required, open, value, disabled, onChange } = props;
-  const [ listed, setListed ] = useState(open === true);
+  const { label, shape, several, required, open = false, value, disabled, onChange } = props;
   const choices = choicesOf(shape);
-  const problem = value.map(item => valueProblem(item, shape.type)).find(found => found !== undefined);
-  const common = { label, disabled, required, error: problem !== undefined, helperText: problem, fullWidth: true };
+  const problems = value.map(item => valueProblem(item, shape.type)).filter(found => found !== undefined).slice(0, 1);
+  const common = { label, required, disabled, problems, values: value, onChange };
 
   if (several) {
-    const labelOf = (option: string) => choices.find(choice => choice.value === option)?.label ?? option;
-    return (
-      <Autocomplete<string, true, false, boolean>
-        multiple
-        open={listed}
-        onOpen={() => setListed(true)}
-        onClose={() => setListed(false)}
-        freeSolo={choices.length === 0}
-        autoSelect={choices.length === 0}
-        options={choices.map(choice => choice.value)}
-        getOptionLabel={labelOf}
-        value={value}
-        disabled={disabled}
-        onChange={(_event, picked) => onChange(picked)}
-        renderInput={params => <TextField {...params} {...common} />}
-        // A long value wraps rather than being cut short
-        slotProps={{
-          chip: { sx: { height: "auto" }, slotProps: { label: { sx: { whiteSpace: "normal", py: 0.5 } } } },
-        }}
-      />
-    );
+    return <MultiValueInput {...common} choices={choices} openOnMount={open} />;
   }
-  const current = value.at(0) ?? "";
   if (choices.length > 0) {
-    const offered = withCurrent(choices, current);
-    return (
-      <TextField select {...common} value={current} slotProps={{ select: { defaultOpen: open } }}
-        onChange={event => onChange([ event.target.value ])}>
-        { offered.map(choice => <MenuItem key={choice.value} value={choice.value}>{choice.label}</MenuItem>) }
-      </TextField>
-    );
+    return <ChoiceSelect {...common} choices={choices} allowNone={false} openOnMount={open} />;
   }
-  return (
-    <TextField
-      {...common}
-      type={shape.type === "date" ? "date" : "text"}
-      value={current}
-      slotProps={{
-        htmlInput: { inputMode: INPUT_MODES[shape.type ?? "text"] ?? "text" },
-        inputLabel: shape.type === "date" ? { shrink: true } : undefined,
-      }}
-      onChange={event => onChange(event.target.value === "" ? [] : [ event.target.value ])}
-    />
-  );
+  if (shape.type === "long") {
+    return <NumberInput {...common} kind="whole" />;
+  }
+  if (shape.type === "double" || shape.type === "decimal") {
+    return <NumberInput {...common} kind="decimal" />;
+  }
+  if (shape.type === "date") {
+    return <DateInput {...common} />;
+  }
+  return <TextInput {...common} />;
 }
 
 export default OperandValueInput;
