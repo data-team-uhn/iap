@@ -59,25 +59,25 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = { Servlet.class }, property = { "sling.auth.requirements=-" + RemoteNodeServlet.ENDPOINT })
-@SlingServletPaths(value = RemoteNodeServlet.ENDPOINT)
+@Component(service = { Servlet.class }, property = { "sling.auth.requirements=-" + RemoteNodeServlet.ENDPOINT_PATH })
+@SlingServletPaths(value = RemoteNodeServlet.ENDPOINT_PATH)
 public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
 {
     /** Where a remote peer posts. Unauthenticated as far as Sling is concerned; the token is the credential. */
-    public static final String ENDPOINT = "/system/remote";
+    public static final String ENDPOINT_PATH = "/system/remote";
 
     /** The only subtree a remote peer may create anything in. */
-    public static final String ROOT = "/remote";
+    public static final String ROOT_PATH = "/remote";
 
     private static final long serialVersionUID = 7446831744251462695L;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteNodeServlet.class);
 
-    /** The subservice whose user holds the write rights on {@link #ROOT}. */
-    private static final String SUBSERVICE = "remote";
+    /** The subservice whose user holds the write rights on {@link #ROOT_PATH}. */
+    private static final String SUBSERVICE_NAME = "remote";
 
     /** The JSON key a refusal is reported under. */
-    private static final String ERROR = "error";
+    private static final String ERROR_KEY = "error";
 
     /**
      * What the body's {@code path} may be: one segment, ASCII letters and digits only.
@@ -85,7 +85,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     private static final Pattern SAFE_NAME = Pattern.compile("\\p{Alnum}{1,64}");
 
     /** The scheme the token is expected under, tolerated rather than required. */
-    private static final String BEARER = "Bearer ";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final transient TokenManager tokenManager;
 
@@ -111,7 +111,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     {
         final IapToken token = authenticate(request);
         if (token == null) {
-            reply(response, HttpServletResponse.SC_UNAUTHORIZED, ERROR,
+            reply(response, HttpServletResponse.SC_UNAUTHORIZED, ERROR_KEY,
                 "A valid token is required in the Authorization header");
             return;
         }
@@ -120,12 +120,12 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
         try {
             name = requestedName(request);
         } catch (final JsonException e) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY,
                 "The request body must be a JSON object");
             return;
         }
         if (name == null || !SAFE_NAME.matcher(name).matches()) {
-            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR,
+            reply(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_KEY,
                 "`path` must be a single alphanumeric node name");
             return;
         }
@@ -145,8 +145,8 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
         if (header == null) {
             return null;
         }
-        final String presented = header.regionMatches(true, 0, BEARER, 0, BEARER.length())
-            ? header.substring(BEARER.length()) : header;
+        final String presented = header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())
+            ? header.substring(BEARER_PREFIX.length()) : header;
         final IapToken token = this.tokenManager.parse(presented.trim());
         // The parser rejects an expired token itself; checked again because this is the only gate before a write
         return token == null || token.isExpired(System.currentTimeMillis()) ? null : token;
@@ -178,15 +178,15 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     private void create(final SlingJakartaHttpServletResponse response, final String name, final IapToken token)
         throws IOException
     {
-        final String path = ROOT + "/" + name;
+        final String path = ROOT_PATH + "/" + name;
         try (ResourceResolver resolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
-            final Resource parent = resolver.getResource(ROOT);
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
+            final Resource parent = resolver.getResource(ROOT_PATH);
             if (parent == null) {
-                throw new PersistenceException(ROOT + " does not exist");
+                throw new PersistenceException(ROOT_PATH + " does not exist");
             }
             if (resolver.getResource(path) != null) {
-                reply(response, HttpServletResponse.SC_CONFLICT, ERROR, path + " already exists");
+                reply(response, HttpServletResponse.SC_CONFLICT, ERROR_KEY, path + " already exists");
                 return;
             }
 
@@ -202,7 +202,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
             ErrorLogger.logError(e, ErrorContext.of(RemoteNodeServlet.class, "create")
                 .about(path)
                 .actingFor(token.getUserId()));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR, "The node could not be created");
+            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ERROR_KEY, "The node could not be created");
         }
     }
 

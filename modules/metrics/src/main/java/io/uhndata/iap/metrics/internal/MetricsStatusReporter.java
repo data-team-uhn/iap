@@ -47,7 +47,7 @@ import io.uhndata.iap.status.spi.StatusReporter;
 @Component(immediate = true)
 public class MetricsStatusReporter implements StatusReporter
 {
-    private static final String TITLE = "Metrics";
+    private static final String REPORT_TITLE = "Metrics";
 
     @Reference
     private MetricsManager metricsManager;
@@ -55,7 +55,7 @@ public class MetricsStatusReporter implements StatusReporter
     @Override
     public String getName()
     {
-        return TITLE;
+        return REPORT_TITLE;
     }
 
     @Override
@@ -83,7 +83,7 @@ public class MetricsStatusReporter implements StatusReporter
             }
             metrics.forEach(metric -> lines.add(buildLine(metric)));
         });
-        return new StatusReport(TITLE, StatusReport.Status.INFO, String.join("\n", lines));
+        return new StatusReport(REPORT_TITLE, StatusReport.Status.INFO, String.join("\n", lines));
     }
 
     @Override

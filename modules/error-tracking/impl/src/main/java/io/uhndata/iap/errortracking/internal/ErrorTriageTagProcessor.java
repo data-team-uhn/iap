@@ -67,7 +67,7 @@ public class ErrorTriageTagProcessor implements TagProcessor
     private static final String DECIDED_AT = "acknowledgedOccurrences";
 
     /** The property holding when a decision was taken, autocreated by the repository. */
-    private static final String CREATED = "jcr:created";
+    private static final String CREATED_PROPERTY = "jcr:created";
 
     /** The node types this processor has anything to say about. */
     private static final Set<String> RECORDED_ERRORS = Set.of("err:LoggedFailure", "err:LoggedProblem");
@@ -97,15 +97,15 @@ public class ErrorTriageTagProcessor implements TagProcessor
         }
         final NodeState latest = latestDecision(error);
         if (latest == null || number(error, "occurrences", 1) > number(latest, DECIDED_AT, 0)) {
-            return Set.of(LoggedError.UNACKNOWLEDGED);
+            return Set.of(LoggedError.UNACKNOWLEDGED_TAG);
         }
         final String resolution = string(latest, "resolution");
         // A union rather than a two-element Set.of: `acknowledged` is itself one of the shipped triage tags, and a
         // decision resolved that way would otherwise throw on the duplicate. The tag editor swallows what a
         // processor throws, so the error would keep the markers it already had — silently staying unacknowledged
         // however often somebody acknowledged it
-        return resolution == null ? Set.of(LoggedError.ACKNOWLEDGED)
-            : Stream.of(LoggedError.ACKNOWLEDGED, resolution).collect(Collectors.toUnmodifiableSet());
+        return resolution == null ? Set.of(LoggedError.ACKNOWLEDGED_TAG)
+            : Stream.of(LoggedError.ACKNOWLEDGED_TAG, resolution).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -125,7 +125,7 @@ public class ErrorTriageTagProcessor implements TagProcessor
             .map(ChildNodeEntry::getNodeState)
             .filter(decision -> ACKNOWLEDGEMENT_TYPE.equals(string(decision, PRIMARY_TYPE)))
             .max(Comparator.comparingLong((NodeState decision) -> number(decision, DECIDED_AT, 0))
-                .thenComparingLong(decision -> number(decision, CREATED, Long.MIN_VALUE)))
+                .thenComparingLong(decision -> number(decision, CREATED_PROPERTY, Long.MIN_VALUE)))
             .orElse(null);
     }
 

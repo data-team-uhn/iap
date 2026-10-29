@@ -49,7 +49,7 @@ class ErrorLoggerTest
         @Override
         public void logError(final Throwable error)
         {
-            logError(error, ErrorContext.EMPTY);
+            logError(error, ErrorContext.NO_CONTEXT);
         }
 
         @Override
@@ -142,7 +142,7 @@ class ErrorLoggerTest
     {
         ErrorLogger.setService(this.service);
 
-        ErrorLogger.logProblem("unknown comparator", ErrorContext.EMPTY);
+        ErrorLogger.logProblem("unknown comparator", ErrorContext.NO_CONTEXT);
 
         assertEquals(List.of("unknown comparator"), this.service.problems);
     }
@@ -150,7 +150,7 @@ class ErrorLoggerTest
     @Test
     void withoutAServiceRecordingAProblemIsSilentlySkipped()
     {
-        assertDoesNotThrow(() -> ErrorLogger.logProblem("unknown comparator", ErrorContext.EMPTY));
+        assertDoesNotThrow(() -> ErrorLogger.logProblem("unknown comparator", ErrorContext.NO_CONTEXT));
     }
 
     @Test
@@ -160,7 +160,7 @@ class ErrorLoggerTest
 
         ErrorLogger.logError(new IllegalStateException("boom"));
 
-        assertEquals(List.of(ErrorContext.EMPTY), this.service.contexts);
+        assertEquals(List.of(ErrorContext.NO_CONTEXT), this.service.contexts);
     }
 
     @Test

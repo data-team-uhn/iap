@@ -315,7 +315,7 @@ class StoredNotificationDeliveryTest
 
     private Resource find(final Resource under, final int depth)
     {
-        if (depth == PrefixTree.LEVELS) {
+        if (depth == PrefixTree.BUCKET_LEVELS) {
             final Iterator<Resource> children = under.listChildren();
             return children.hasNext() ? children.next() : null;
         }

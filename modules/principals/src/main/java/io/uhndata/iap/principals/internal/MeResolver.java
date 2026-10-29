@@ -42,7 +42,7 @@ public class MeResolver implements SpecialNameResolver
     @Override
     public String getName()
     {
-        return PrincipalService.ME;
+        return PrincipalService.ME_SPECIAL_NAME;
     }
 
     @Override

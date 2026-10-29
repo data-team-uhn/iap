@@ -47,11 +47,11 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(resourceTypes = { "sling/servlet/default" }, methods = { "GET" },
-    selectors = { AutodocServlet.SELECTOR }, extensions = { "json", "md" })
+    selectors = { AutodocServlet.DOCUMENTATION_SELECTOR }, extensions = { "json", "md" })
 public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements JakartaOptingServlet
 {
     /** The selector under which the documentation is served. */
-    public static final String SELECTOR = "doc";
+    public static final String DOCUMENTATION_SELECTOR = "doc";
 
     private static final long serialVersionUID = -5476186011291043672L;
 
@@ -62,7 +62,7 @@ public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements Ja
         try {
             // isNodeType sees the mixin both when set explicitly on the node
             // and when inherited from a supertype of the node's primary type
-            return node != null && node.isNodeType(AutoDocumentable.MIXIN);
+            return node != null && node.isNodeType(AutoDocumentable.DOCUMENTED_TYPE);
         } catch (final RepositoryException e) {
             return false;
         }

@@ -73,7 +73,7 @@ class ParseJobTest
         assertSame(resolver, ParseJob.openResolver(factory));
         // The subservice name is the whole point of having this in one place
         Mockito.verify(factory)
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE));
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE_NAME));
     }
 
     @Test

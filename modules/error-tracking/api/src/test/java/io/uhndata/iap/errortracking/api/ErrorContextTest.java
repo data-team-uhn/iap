@@ -55,11 +55,11 @@ class ErrorContextTest
     @Test
     void knowsNothingWhenNothingWasSaid()
     {
-        assertNull(ErrorContext.EMPTY.getComponent());
-        assertNull(ErrorContext.EMPTY.getOperation());
-        assertNull(ErrorContext.EMPTY.getSubject());
-        assertNull(ErrorContext.EMPTY.getActor());
-        assertTrue(ErrorContext.EMPTY.getDetails().isEmpty());
+        assertNull(ErrorContext.NO_CONTEXT.getComponent());
+        assertNull(ErrorContext.NO_CONTEXT.getOperation());
+        assertNull(ErrorContext.NO_CONTEXT.getSubject());
+        assertNull(ErrorContext.NO_CONTEXT.getActor());
+        assertTrue(ErrorContext.NO_CONTEXT.getDetails().isEmpty());
     }
 
     @Test
@@ -81,7 +81,7 @@ class ErrorContextTest
         final Resource resource = Mockito.mock(Resource.class);
         Mockito.when(resource.getPath()).thenReturn("/Submissions/1");
 
-        assertEquals("/Submissions/1", ErrorContext.EMPTY.about(resource).getSubject());
+        assertEquals("/Submissions/1", ErrorContext.NO_CONTEXT.about(resource).getSubject());
     }
 
     @Test
@@ -113,14 +113,14 @@ class ErrorContextTest
     {
         assertEquals("doTheThing", ErrorContext.of(" x ", " doTheThing ").getOperation());
         assertEquals("x", ErrorContext.of(" x ", "y").getComponent());
-        assertEquals("/Submissions/1", ErrorContext.EMPTY.about(" /Submissions/1 ").getSubject());
-        assertEquals("alice", ErrorContext.EMPTY.actingFor(" alice ").getActor());
+        assertEquals("/Submissions/1", ErrorContext.NO_CONTEXT.about(" /Submissions/1 ").getSubject());
+        assertEquals("alice", ErrorContext.NO_CONTEXT.actingFor(" alice ").getActor());
     }
 
     @Test
     void detailsKeepTheOrderTheyWereGivenIn()
     {
-        final ErrorContext context = ErrorContext.EMPTY.with("first", 1).with("second", 2).with("third", 3);
+        final ErrorContext context = ErrorContext.NO_CONTEXT.with("first", 1).with("second", 2).with("third", 3);
 
         assertEquals(List.of("first", "second", "third"), List.copyOf(context.getDetails().keySet()));
     }
@@ -128,13 +128,14 @@ class ErrorContextTest
     @Test
     void aDetailGivenTwiceKeepsTheLatestValue()
     {
-        assertEquals(Map.of("attempt", "2"), ErrorContext.EMPTY.with("attempt", 1).with("attempt", 2).getDetails());
+        assertEquals(Map.of("attempt", "2"), ErrorContext.NO_CONTEXT.with("attempt", 1).with("attempt",
+            2).getDetails());
     }
 
     @Test
     void detailsAreReadOnly()
     {
-        final Map<String, String> details = ErrorContext.EMPTY.with("attempt", 1).getDetails();
+        final Map<String, String> details = ErrorContext.NO_CONTEXT.with("attempt", 1).getDetails();
 
         assertThrows(UnsupportedOperationException.class, () -> details.put("sneaky", "value"));
     }
@@ -153,13 +154,13 @@ class ErrorContextTest
         };
 
         assertEquals("<toString failed: java.lang.IllegalStateException>",
-            ErrorContext.EMPTY.with("thing", unprintable).getDetails().get("thing"));
+            ErrorContext.NO_CONTEXT.with("thing", unprintable).getDetails().get("thing"));
     }
 
     @Test
     void aVeryLongDetailIsCutShort()
     {
-        final String rendered = ErrorContext.EMPTY.with("essay", "x".repeat(1000)).getDetails().get("essay");
+        final String rendered = ErrorContext.NO_CONTEXT.with("essay", "x".repeat(1000)).getDetails().get("essay");
 
         assertEquals(501, rendered.length());
         assertTrue(rendered.endsWith("…"));
@@ -168,7 +169,7 @@ class ErrorContextTest
     @Test
     void onlySoManyDetailsAreKept()
     {
-        ErrorContext context = ErrorContext.EMPTY;
+        ErrorContext context = ErrorContext.NO_CONTEXT;
         for (int i = 0; i < 30; i++) {
             context = context.with("detail" + i, i);
         }

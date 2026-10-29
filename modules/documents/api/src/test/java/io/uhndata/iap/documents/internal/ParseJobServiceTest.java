@@ -118,7 +118,7 @@ class ParseJobServiceTest
     @Test
     void queuesAJobForAFile() throws IOException
     {
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         final String jobId = this.service.queue(DOCUMENT, TARGET);
@@ -129,13 +129,13 @@ class ParseJobServiceTest
         assertEquals(DOCUMENT, job.get(ParseJob.PN_PATH, String.class));
         assertEquals(TARGET, job.get(ParseJob.PN_TARGET, String.class));
         assertNotNull(job.get(ParseJob.PN_CREATED));
-        Mockito.verify(this.jobManager).addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
+        Mockito.verify(this.jobManager).addJob(ParseJob.JOB_TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
     }
 
     @Test
     void recordsNoTargetForAParseNobodyIsWaitingOn() throws IOException
     {
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         assertNull(jobProperties(this.service.queue(DOCUMENT, null)).get(ParseJob.PN_TARGET, String.class));

@@ -40,7 +40,7 @@ class MeResolverTest
     @Test
     void answersForItsName()
     {
-        assertEquals(PrincipalService.ME, this.resolver.getName());
+        assertEquals(PrincipalService.ME_SPECIAL_NAME, this.resolver.getName());
     }
 
     @Test

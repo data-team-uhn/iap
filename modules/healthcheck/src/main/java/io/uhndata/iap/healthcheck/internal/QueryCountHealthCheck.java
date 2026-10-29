@@ -115,7 +115,7 @@ public final class QueryCountHealthCheck implements HealthCheck
         boolean check(long actualCount, long compareAgainst);
     }
 
-    private static final Map<String, Checker> COMPARATORS = Map.of(
+    private static final Map<String, Checker> COMPARATORS_BY_SYMBOL = Map.of(
         "<", (a, b) -> a < b,
         "<=", (a, b) -> a <= b,
         "=", (a, b) -> a == b,
@@ -184,7 +184,7 @@ public final class QueryCountHealthCheck implements HealthCheck
         final String comparator = configuration.getProperty(COMPARATOR_PROPERTY).getString();
         final long compareAgainst = configuration.getProperty(COMPARE_AGAINST_PROPERTY).getLong();
 
-        if (!COMPARATORS.containsKey(comparator)) {
+        if (!COMPARATORS_BY_SYMBOL.containsKey(comparator)) {
             result.healthCheckError(
                 "Invalid comparator '{}' in configuration '{}'",
                 comparator, configuration.getName());
@@ -202,7 +202,7 @@ public final class QueryCountHealthCheck implements HealthCheck
             actualCount++;
         }
 
-        if (COMPARATORS.get(comparator).check(actualCount, compareAgainst)) {
+        if (COMPARATORS_BY_SYMBOL.get(comparator).check(actualCount, compareAgainst)) {
             result.debug("Count check passed for '{}'", configuration.getName());
             return true;
         }

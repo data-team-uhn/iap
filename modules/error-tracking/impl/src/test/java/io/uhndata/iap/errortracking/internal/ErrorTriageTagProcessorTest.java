@@ -65,21 +65,21 @@ class ErrorTriageTagProcessorTest
     @Test
     void anErrorNobodyHasDecidedAboutNeedsAttention()
     {
-        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(node("err:LoggedFailure", 3, null, 0))));
     }
 
     @Test
     void anErrorSomebodyHasDecidedAboutDoesNot()
     {
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "known-issue"),
             this.processor.computeTags(context(node("err:LoggedFailure", 3, "known-issue", 3))));
     }
 
     @Test
     void aProblemIsTriagedTheSameWay()
     {
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "wont-fix"),
             this.processor.computeTags(context(node("err:LoggedProblem", 1, "wont-fix", 1))));
     }
 
@@ -88,7 +88,7 @@ class ErrorTriageTagProcessorTest
     {
         // The whole reason the decision records a count: a fault that recurs after somebody decided it was fixed
         // asks for attention again by itself, with nothing having to watch the clock
-        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(node("err:LoggedFailure", 4, "known-issue", 3))));
     }
 
@@ -99,8 +99,8 @@ class ErrorTriageTagProcessorTest
         // such a decision are one tag rather than two — a two-element immutable set would throw on the duplicate,
         // the tag editor would swallow that, and the error would stay unacknowledged however often it was
         // acknowledged
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED),
-            this.processor.computeTags(context(node("err:LoggedFailure", 3, LoggedError.ACKNOWLEDGED, 3))));
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG),
+            this.processor.computeTags(context(node("err:LoggedFailure", 3, LoggedError.ACKNOWLEDGED_TAG, 3))));
     }
 
     @Test
@@ -110,7 +110,7 @@ class ErrorTriageTagProcessorTest
         decide(error, "first", "known-issue", 3);
         decide(error, "second", "wont-fix", 7);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "wont-fix"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -124,7 +124,7 @@ class ErrorTriageTagProcessorTest
         decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
         decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "wont-fix"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -137,7 +137,7 @@ class ErrorTriageTagProcessorTest
         decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
         decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "known-issue"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -148,7 +148,7 @@ class ErrorTriageTagProcessorTest
         decide(error, "decision1", "known-issue", 4);
         decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "wont-fix"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -159,7 +159,7 @@ class ErrorTriageTagProcessorTest
         error.child("decision1").setProperty("jcr:primaryType", "err:Acknowledgement")
             .setProperty("acknowledgedOccurrences", 1L);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -170,7 +170,7 @@ class ErrorTriageTagProcessorTest
         error.child("notes").setProperty("jcr:primaryType", "nt:unstructured")
             .setProperty("acknowledgedOccurrences", 99L);
 
-        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -184,7 +184,7 @@ class ErrorTriageTagProcessorTest
         error.setProperty("jcr:primaryType", "err:LoggedFailure");
         decide(error, "decision1", "known-issue", 1);
 
-        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG, "known-issue"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -197,7 +197,7 @@ class ErrorTriageTagProcessorTest
 
         // A decision that does not say how much had happened counts as having been taken at zero, so anything
         // recorded since puts the error back in front of somebody
-        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -207,7 +207,7 @@ class ErrorTriageTagProcessorTest
         final NodeBuilder error = builder("err:LoggedFailure", 1);
         error.setProperty("occurrences", java.util.List.of(1L, 2L), org.apache.jackrabbit.oak.api.Type.LONGS);
 
-        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(error.getNodeState())));
     }
 

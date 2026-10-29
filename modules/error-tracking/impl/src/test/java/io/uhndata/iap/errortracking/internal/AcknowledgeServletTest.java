@@ -145,7 +145,7 @@ class AcknowledgeServletTest
     {
         // The marker for "nobody has dealt with this" is computed from the decisions, never itself decided
         final MockSlingJakartaHttpServletResponse response =
-            post(error("abc", 1), Map.of("resolution", LoggedError.UNACKNOWLEDGED));
+            post(error("abc", 1), Map.of("resolution", LoggedError.UNACKNOWLEDGED_TAG));
 
         assertEquals(HttpServletResponse.SC_BAD_REQUEST, response.getStatus());
     }

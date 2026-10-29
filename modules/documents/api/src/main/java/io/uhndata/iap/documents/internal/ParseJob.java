@@ -36,7 +36,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 final class ParseJob
 {
     /** The Sling job topic under which parse jobs are queued. */
-    static final String TOPIC = "iap/documents/parse";
+    static final String JOB_TOPIC = "iap/documents/parse";
 
     /** The absolute path of the node holding all the parse job nodes. */
     static final String JOBS_PATH = "/var/documents/jobs";
@@ -61,7 +61,7 @@ final class ParseJob
     static final String DAEMON_TOKEN_PROPERTY = "daemonToken";
 
     /** The name of the subservice performing all repository access to the job nodes. */
-    static final String SUBSERVICE = "parse-jobs";
+    static final String SUBSERVICE_NAME = "parse-jobs";
 
     /** The JSON key the daemon uses for the job identifier in accept and callback bodies. */
     static final String JSON_JOB_ID = "job_id";
@@ -129,16 +129,16 @@ final class ParseJob
 
     /**
      * Open the repository session that every access to the job nodes goes through. Kept here with
-     * {@link #SUBSERVICE} so that the servlets and the job consumer cannot drift apart on which service user they
+     * {@link #SUBSERVICE_NAME} so that the servlets and the job consumer cannot drift apart on which service user they
      * ask for.
      *
-     * @param resolverFactory the factory to ask for the {@link #SUBSERVICE} session
+     * @param resolverFactory the factory to ask for the {@link #SUBSERVICE_NAME} session
      * @return a resolver the caller is responsible for closing
      * @throws LoginException if the subservice is not configured, so no session can be opened
      */
     static ResourceResolver openResolver(final ResourceResolverFactory resolverFactory) throws LoginException
     {
-        return resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE));
+        return resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
     }
 
     /**

@@ -209,7 +209,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     private static boolean required(final ItemDefinition definition)
     {
         return definition.isMandatory() && !definition.isAutoCreated()
-            && !ContentTypes.RESIDUAL.equals(definition.getName());
+            && !ContentTypes.RESIDUAL_NAME.equals(definition.getName());
     }
 
     /**

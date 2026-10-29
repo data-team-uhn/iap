@@ -34,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
  * Spreads a large, open-ended set of sibling nodes over a tree of buckets named after the first characters of each
  * node's own name, {@code <root>/<xx>/<yy>/<zz>/<name>}, the way Oak files version histories under
  * {@code /jcr:system}. Piling every node of a kind under one parent produces a node that repository browsers
- * cannot open and that the repository itself starts warning about; {@value #LEVELS} levels of
+ * cannot open and that the repository itself starts warning about; {@value #BUCKET_LEVELS} levels of
  * {@value #SEGMENT_LENGTH} characters keep every parent below 256 children until there are millions of nodes.
  *
  * <p>
@@ -57,13 +57,13 @@ import org.jetbrains.annotations.NotNull;
 public final class PrefixTree
 {
     /** The number of bucket levels between the root and a node filed in the tree: {@value}. */
-    public static final int LEVELS = 3;
+    public static final int BUCKET_LEVELS = 3;
 
     /** How many characters of a node's name each bucket level is named after: {@value}. */
     public static final int SEGMENT_LENGTH = 2;
 
     /** The length of the shortest name that can be filed in a prefix tree: {@value}. */
-    public static final int MINIMUM_NAME_LENGTH = LEVELS * SEGMENT_LENGTH;
+    public static final int MINIMUM_NAME_LENGTH = BUCKET_LEVELS * SEGMENT_LENGTH;
 
     /**
      * The segment under which a filed node can be addressed by name alone, as {@code <root>/by-id/<name>}:
@@ -100,7 +100,7 @@ public final class PrefixTree
     {
         checkName(name);
         Node bucket = root;
-        for (int level = 0; level < LEVELS; ++level) {
+        for (int level = 0; level < BUCKET_LEVELS; ++level) {
             bucket = getOrCreateBucket(bucket, segment(name, level), bucketNodeType);
         }
         return bucket;
@@ -127,7 +127,7 @@ public final class PrefixTree
     {
         checkName(name);
         Resource bucket = root;
-        for (int level = 0; level < LEVELS; ++level) {
+        for (int level = 0; level < BUCKET_LEVELS; ++level) {
             final String segment = segment(name, level);
             final Resource existing = bucket.getChild(segment);
             bucket = existing != null ? existing
@@ -150,7 +150,7 @@ public final class PrefixTree
     {
         checkName(name);
         final String prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
-        return IntStream.range(0, LEVELS)
+        return IntStream.range(0, BUCKET_LEVELS)
             .mapToObj(level -> segment(name, level))
             .collect(Collectors.joining("/", prefix, "/" + name));
     }

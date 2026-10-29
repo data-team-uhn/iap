@@ -82,7 +82,7 @@ import io.uhndata.iap.links.models.LinkDefinition;
 public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceChangeListener
 {
     /** The subservice name mapped to the {@code iap-links} service user. */
-    static final String SUBSERVICE = "links";
+    static final String SUBSERVICE_NAME = "links";
 
     /** The subservice name mapped to the {@code iap-link-types} service user reading the definitions. */
     static final String DEFINITIONS_SUBSERVICE = "link-types";
@@ -495,7 +495,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return existing;
         }
         try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
             final Resource serviceOwner = serviceResolver.getResource(owner.getPath());
             if (serviceOwner != null) {
                 this.createContainerCheckedOut(serviceResolver, serviceOwner);
@@ -503,7 +503,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             }
         } catch (final LoginException | PersistenceException | RepositoryException e) {
             LOGGER.warn("Failed to create the links container on {} with the {} service user: {}",
-                owner.getPath(), SUBSERVICE, e.getMessage(), e);
+                owner.getPath(), SUBSERVICE_NAME, e.getMessage(), e);
         }
         Resource container = owner.getChild(CONTAINER_NAME);
         if (container == null) {

@@ -96,7 +96,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
         Map.of(ResourceResolverFactory.SUBSERVICE, "errortracking");
 
     /** What is shown instead of anything that quotes content, to a reader who is not logged in. */
-    private static final String HIDDEN = "Messages, stack traces, affected paths and users are hidden "
+    private static final String HIDDEN_PLACEHOLDER = "Messages, stack traces, affected paths and users are hidden "
         + "while not logged in.";
 
     @Reference
@@ -169,7 +169,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
             // The message of a repository failure routinely quotes a path, so it goes the same way as everything
             // else that might
             return new StatusReport("*ERROR*: Could not report logged errors", StatusReport.Status.ERROR,
-                unprivileged ? HIDDEN : e.getMessage());
+                unprivileged ? HIDDEN_PLACEHOLDER : e.getMessage());
         }
     }
 
@@ -228,7 +228,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
         final StatusReport.Status level =
             ongoing.isEmpty() ? StatusReport.Status.WARNING : StatusReport.Status.ERROR;
         return new StatusReport(summarize(unacknowledged, ongoing, acknowledged, dropped), level,
-            overflow(dropped) + (unprivileged ? summaryTable(unacknowledged) + "\n" + HIDDEN
+            overflow(dropped) + (unprivileged ? summaryTable(unacknowledged) + "\n" + HIDDEN_PLACEHOLDER
                 : body(unacknowledged, acknowledged)));
     }
 

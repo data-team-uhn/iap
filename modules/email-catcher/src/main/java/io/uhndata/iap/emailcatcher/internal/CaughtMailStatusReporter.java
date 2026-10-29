@@ -59,7 +59,7 @@ import io.uhndata.iap.status.spi.StatusReporter;
 @Component(immediate = true)
 public class CaughtMailStatusReporter implements StatusReporter
 {
-    private static final String TITLE = "Email Catcher";
+    private static final String REPORT_TITLE = "Email Catcher";
 
     /**
      * The catcher's own mail service, present only while it is switched on. Dynamic and greedy so that toggling
@@ -75,14 +75,14 @@ public class CaughtMailStatusReporter implements StatusReporter
     @Override
     public String getName()
     {
-        return TITLE;
+        return REPORT_TITLE;
     }
 
     @Override
     public StatusReport report(final boolean unprivileged)
     {
         if (this.catcher == null) {
-            return new StatusReport(TITLE, StatusReport.Status.DEBUG,
+            return new StatusReport(REPORT_TITLE, StatusReport.Status.DEBUG,
                 "The email catcher is off, so email is being delivered normally.");
         }
         // Where the messages went is an internal path, and a report that may be posted somewhere unprivileged has
@@ -90,7 +90,7 @@ public class CaughtMailStatusReporter implements StatusReporter
         final String text = "Outgoing email is being caught, not delivered: nothing the platform sends is"
             + " reaching anybody."
             + (unprivileged ? "" : " Messages are filed under " + CaughtMailService.CAUGHT_MAIL_PATH + ".");
-        return new StatusReport(TITLE, StatusReport.Status.WARNING, text);
+        return new StatusReport(REPORT_TITLE, StatusReport.Status.WARNING, text);
     }
 
     @Override

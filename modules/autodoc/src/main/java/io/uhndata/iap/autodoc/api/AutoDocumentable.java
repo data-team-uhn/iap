@@ -49,10 +49,10 @@ import org.jetbrains.annotations.Nullable;
 public interface AutoDocumentable
 {
     /** The mixin marking the nodes that serve documentation. */
-    String MIXIN = "doc:Documented";
+    String DOCUMENTED_TYPE = "doc:Documented";
 
     /** The category under which items without an explicit category are documented. */
-    String UNCATEGORIZED = "uncategorized";
+    String DEFAULT_CATEGORY = "uncategorized";
 
     /**
      * The title of the documentation, e.g. {@code Tags}.
@@ -81,7 +81,7 @@ public interface AutoDocumentable
     /**
      * The {@link #getDocumentedItems items} grouped by their categories: categories sorted by name, items kept in
      * display order, items belonging to several categories repeated under each, items without a category grouped
-     * under {@value #UNCATEGORIZED}, which always comes last regardless of its alphabetical position.
+     * under {@value #DEFAULT_CATEGORY}, which always comes last regardless of its alphabetical position.
      *
      * @return the documented items, grouped by category
      */
@@ -89,11 +89,11 @@ public interface AutoDocumentable
     default Map<String, List<DocumentedItem>> getDocumentedItemsByCategory()
     {
         final Map<String, List<DocumentedItem>> categories = new TreeMap<>(
-            Comparator.comparing((String category) -> UNCATEGORIZED.equals(category))
+            Comparator.comparing((String category) -> DEFAULT_CATEGORY.equals(category))
                 .thenComparing(Comparator.naturalOrder()));
         for (final DocumentedItem item : getDocumentedItems()) {
             final List<String> declared = item.getDocumentationCategories();
-            for (final String category : declared.isEmpty() ? List.of(UNCATEGORIZED) : declared) {
+            for (final String category : declared.isEmpty() ? List.of(DEFAULT_CATEGORY) : declared) {
                 categories.computeIfAbsent(category, key -> new ArrayList<>()).add(item);
             }
         }
@@ -141,7 +141,7 @@ public interface AutoDocumentable
             out.append('\n').append(intro).append('\n');
         }
         final Map<String, List<DocumentedItem>> categories = getDocumentedItemsByCategory();
-        final boolean flat = categories.size() == 1 && categories.containsKey(UNCATEGORIZED);
+        final boolean flat = categories.size() == 1 && categories.containsKey(DEFAULT_CATEGORY);
         categories.forEach((category, items) -> {
             if (!flat) {
                 out.append("\n## ").append(category).append('\n');

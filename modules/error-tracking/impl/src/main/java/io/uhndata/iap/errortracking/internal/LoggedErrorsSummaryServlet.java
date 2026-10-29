@@ -52,7 +52,7 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
     resourceTypes = LoggedErrorsHomepage.RESOURCE_TYPE,
-    selectors = AdminSummaryServlet.SELECTOR,
+    selectors = AdminSummaryServlet.SUMMARY_SELECTOR,
     extensions = "json",
     methods = { HttpConstants.METHOD_GET })
 public class LoggedErrorsSummaryServlet extends AdminSummaryServlet

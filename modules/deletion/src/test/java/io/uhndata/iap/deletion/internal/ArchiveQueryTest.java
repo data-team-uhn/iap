@@ -83,7 +83,7 @@ class ArchiveQueryTest
     @Test
     void everySortableColumnIsAccepted()
     {
-        ArchiveQuery.SORTABLE.forEach(column ->
+        ArchiveQuery.SORTABLE_PROPERTIES.forEach(column ->
             assertTrue(ArchiveQuery.entries("/Archive", null, column, false)
                 .endsWith("ORDER BY entry.[" + column + "] ASC")));
     }

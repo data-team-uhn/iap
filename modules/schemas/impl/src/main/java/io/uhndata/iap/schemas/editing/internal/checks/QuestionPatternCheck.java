@@ -38,7 +38,7 @@ public class QuestionPatternCheck extends SchemaVersionCheck
     @Override
     public List<String> check(final Resource version)
     {
-        return DraftParts.ofType(version, DraftParts.QUESTION)
+        return DraftParts.ofType(version, DraftParts.QUESTION_TYPE)
             .filter(part -> !compiles(DraftParts.asQuestion(part).getPattern()))
             .map(part -> DraftParts.describe(part, version) + " has a pattern that is not a valid regular expression")
             .toList();

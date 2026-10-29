@@ -94,7 +94,7 @@ class PerformerCheckTest
     {
         // "everyone" is matched by name: it is a dynamic principal, so an actor need not report belonging to it
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE_GROUP), REQUESTER));
     }
 
     @Test
@@ -109,7 +109,8 @@ class PerformerCheckTest
     void admitsWhoeverRaisedTheResourceWhenTheNodeNamesTheCreator() throws Exception
     {
         assertDoesNotThrow(() -> verify(
-            repositoryWith(user(REQUESTER)), raisedBy(REQUESTER), node(PrincipalService.CREATOR), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedBy(REQUESTER), node(PrincipalService.CREATOR_SPECIAL_NAME),
+            REQUESTER));
     }
 
     @Test
@@ -117,7 +118,7 @@ class PerformerCheckTest
     {
         assertDoesNotThrow(() -> verify(
             repositoryWith(user(REQUESTER), REQUESTERS), raisedBy("someone-else"),
-            node(PrincipalService.CREATOR, REQUESTERS), REQUESTER));
+            node(PrincipalService.CREATOR_SPECIAL_NAME, REQUESTERS), REQUESTER));
     }
 
     @Test
@@ -133,15 +134,15 @@ class PerformerCheckTest
     void refusesSomebodyElseWhenTheNodeOnlyNamesTheCreator() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER), REQUESTERS), raisedBy("someone-else"), node(PrincipalService.CREATOR),
-            REQUESTER));
+            repositoryWith(user(REQUESTER), REQUESTERS), raisedBy("someone-else"),
+            node(PrincipalService.CREATOR_SPECIAL_NAME), REQUESTER));
     }
 
     @Test
     void refusesEveryoneWhenTheNodeNamesTheCreatorOfSomethingNobodyRaised() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.CREATOR), REQUESTER));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.CREATOR_SPECIAL_NAME), REQUESTER));
     }
 
     @Test
@@ -170,14 +171,14 @@ class PerformerCheckTest
     void refusesAnActorTheRepositoryHasNeverHeardOf() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), "nobody"));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE_GROUP), "nobody"));
     }
 
     @Test
     void refusesAnUnauthenticatedCaller() throws Exception
     {
         assertThrows(NotAuthorizedException.class, () -> verify(
-            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE), null));
+            repositoryWith(user(REQUESTER)), raisedByNobody(), node(PrincipalService.EVERYONE_GROUP), null));
     }
 
     @Test
@@ -188,7 +189,7 @@ class PerformerCheckTest
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(Mockito.mock(Session.class));
 
         assertThrows(WorkflowFailedException.class,
-            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
+            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE_GROUP), REQUESTER));
     }
 
     @Test
@@ -200,7 +201,7 @@ class PerformerCheckTest
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
 
         assertThrows(WorkflowFailedException.class,
-            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE), REQUESTER));
+            () -> verify(resolver, raisedByNobody(), node(PrincipalService.EVERYONE_GROUP), REQUESTER));
     }
 
     @Test

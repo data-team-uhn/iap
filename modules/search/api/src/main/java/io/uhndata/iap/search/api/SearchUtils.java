@@ -49,7 +49,7 @@ public final class SearchUtils
     private static final int MAX_CONTEXT = 8;
 
     /** The marker standing in for the context that was cut off. */
-    private static final String ELLIPSIS = "...";
+    private static final String ELLIPSIS_MARKER = "...";
 
     private static final String LABEL_KEY = "label";
 
@@ -201,9 +201,9 @@ public final class SearchUtils
     }
 
     /**
-     * Cuts a piece of context down to {@value #MAX_CONTEXT} characters, marking with {@value #ELLIPSIS} that there
-     * was more. The count is in code points, not in {@code char}s. Cutting an emoji in half would leave the response
-     * holding an unpaired surrogate.
+     * Cuts a piece of context down to {@value #MAX_CONTEXT} characters, marking with {@value #ELLIPSIS_MARKER} that
+     * there was more. The count is in code points, not in {@code char}s. Cutting an emoji in half would leave the
+     * response holding an unpaired surrogate.
      *
      * @param context the text to cut down
      * @param fromStart {@code true} to keep the beginning of the text, {@code false} to keep the end
@@ -215,8 +215,8 @@ public final class SearchUtils
             return context;
         }
         if (fromStart) {
-            return context.substring(0, context.offsetByCodePoints(0, MAX_CONTEXT)) + ELLIPSIS;
+            return context.substring(0, context.offsetByCodePoints(0, MAX_CONTEXT)) + ELLIPSIS_MARKER;
         }
-        return ELLIPSIS + context.substring(context.offsetByCodePoints(context.length(), -MAX_CONTEXT));
+        return ELLIPSIS_MARKER + context.substring(context.offsetByCodePoints(context.length(), -MAX_CONTEXT));
     }
 }

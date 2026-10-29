@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  * A subclass computes the figures in {@link #summarize}, and registers itself on its own resource type with the
- * {@link #SELECTOR} selector. This class writes the answer, or an error status when the summary cannot be read.
+ * {@link #SUMMARY_SELECTOR} selector. This class writes the answer, or an error status when the summary cannot be read.
  * </p>
  *
  * @version $Id$
@@ -44,11 +44,11 @@ import org.slf4j.LoggerFactory;
 public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
 {
     /** The selector every summary answers on. */
-    public static final String SELECTOR = "adminSummary";
+    public static final String SUMMARY_SELECTOR = "adminSummary";
 
     private static final long serialVersionUID = 1L;
 
-    private static final String UNREADABLE = "The summary cannot be read";
+    private static final String UNREADABLE_MESSAGE = "The summary cannot be read";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AdminSummaryServlet.class);
 
@@ -65,7 +65,7 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         } catch (final RuntimeException e) {
             // A failure the subclass did not foresee still answers in the format the widget reads
-            body = failed(request, UNREADABLE, e);
+            body = failed(request, UNREADABLE_MESSAGE, e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
         response.setContentType("application/json");

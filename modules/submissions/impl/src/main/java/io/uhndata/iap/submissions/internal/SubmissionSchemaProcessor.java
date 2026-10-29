@@ -42,7 +42,7 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 @Component(immediate = true)
 public class SubmissionSchemaProcessor implements ResourceJsonProcessor
 {
-    private static final String NAME = "schemaPath";
+    private static final String PROCESSOR_NAME = "schemaPath";
 
     private static final String SUBMISSION_TYPE = "sub:Submission";
 
@@ -52,7 +52,7 @@ public class SubmissionSchemaProcessor implements ResourceJsonProcessor
     @Override
     public String getName()
     {
-        return NAME;
+        return PROCESSOR_NAME;
     }
 
     @Override

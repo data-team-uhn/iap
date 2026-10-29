@@ -31,16 +31,16 @@ import org.jetbrains.annotations.Nullable;
 public final class DeletionOptions
 {
     /** For {@link #of(boolean, boolean)}: resources referencing the deleted one are deleted along with it. */
-    public static final boolean RECURSIVE = true;
+    public static final boolean DELETE_RECURSIVELY = true;
 
     /** For {@link #of(boolean, boolean)}: resources referencing the deleted one block the deletion. */
-    public static final boolean NOT_RECURSIVE = false;
+    public static final boolean REFUSE_IF_REFERENCED = false;
 
     /** For {@link #of(boolean, boolean)}: the deleted resources are removed for good. */
-    public static final boolean PERMANENT = true;
+    public static final boolean DELETE_PERMANENTLY = true;
 
     /** For {@link #of(boolean, boolean)}: the deleted resources are moved into the archive. */
-    public static final boolean ARCHIVE = false;
+    public static final boolean MOVE_TO_ARCHIVE = false;
 
     private final boolean recursive;
 
@@ -64,16 +64,16 @@ public final class DeletionOptions
     @NotNull
     public static DeletionOptions recoverable()
     {
-        return new DeletionOptions(NOT_RECURSIVE, ARCHIVE, null);
+        return new DeletionOptions(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE, null);
     }
 
     /**
-     * Explicit options, best written with the named flags, e.g. {@code of(NOT_RECURSIVE, ARCHIVE)}.
+     * Explicit options, best written with the named flags, e.g. {@code of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE)}.
      *
      * @param recursive whether resources referencing the deleted one are deleted along with it instead of blocking
-     *            the deletion: {@link #RECURSIVE} or {@link #NOT_RECURSIVE}
+     *            the deletion: {@link #DELETE_RECURSIVELY} or {@link #REFUSE_IF_REFERENCED}
      * @param permanent whether the deleted resources are removed for good instead of being moved into the archive:
-     *            {@link #PERMANENT} or {@link #ARCHIVE}
+     *            {@link #DELETE_PERMANENTLY} or {@link #MOVE_TO_ARCHIVE}
      * @return options with the requested behavior
      */
     @NotNull

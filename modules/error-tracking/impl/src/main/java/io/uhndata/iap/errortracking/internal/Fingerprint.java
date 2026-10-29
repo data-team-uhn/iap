@@ -68,7 +68,7 @@ final class Fingerprint
     private static final int MAX_TRACE_LENGTH = 64 * 1024;
 
     /** How a fault's identity is hashed into a node name. Required of every Java platform. */
-    private static final String ALGORITHM = "SHA-256";
+    private static final String HASH_ALGORITHM = "SHA-256";
 
     /** The prefix of the packages that are ours, used to guess which class is worth blaming. */
     private static final String OWN_PACKAGE = "io.uhndata.iap.";
@@ -78,7 +78,7 @@ final class Fingerprint
      * identity in a lambda's class name, and the counters in {@code $$Lambda$14}, {@code $Proxy17} and
      * {@code GeneratedMethodAccessor42}.
      */
-    private static final Pattern GENERATED = Pattern.compile(
+    private static final Pattern GENERATED_ID_PATTERN = Pattern.compile(
         "0x[0-9a-fA-F]+|(?<=\\$\\$Lambda\\$)\\d+|(?<=\\$Proxy)\\d+|(?<=Accessor)\\d+");
 
     /** Only static methods, no instances. */
@@ -171,7 +171,7 @@ final class Fingerprint
         final StackTraceElement[] frames = error.getStackTrace();
         final int count = Math.min(frames.length, MAX_FRAMES);
         for (int i = 0; i < count; i++) {
-            identity.append(GENERATED.matcher(frames[i].getClassName()).replaceAll(""))
+            identity.append(GENERATED_ID_PATTERN.matcher(frames[i].getClassName()).replaceAll(""))
                 .append('#').append(frames[i].getMethodName())
                 .append(':').append(frames[i].getLineNumber())
                 .append('\n');
@@ -187,7 +187,7 @@ final class Fingerprint
      */
     private static String digest(final String identity)
     {
-        return digest(identity, ALGORITHM);
+        return digest(identity, HASH_ALGORITHM);
     }
 
     /**

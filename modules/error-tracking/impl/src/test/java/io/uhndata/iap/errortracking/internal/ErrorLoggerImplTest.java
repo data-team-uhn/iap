@@ -703,8 +703,8 @@ class ErrorLoggerImplTest
     void ignoresNothingToRecord()
     {
         this.logger.logError(null);
-        this.logger.logProblem(null, ErrorContext.EMPTY);
-        this.logger.logProblem("   ", ErrorContext.EMPTY);
+        this.logger.logProblem(null, ErrorContext.NO_CONTEXT);
+        this.logger.logProblem("   ", ErrorContext.NO_CONTEXT);
 
         assertTrue(errors().isEmpty());
     }

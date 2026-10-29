@@ -88,7 +88,7 @@ public class DueTimers implements Runnable
     private static final String JOB_NAME = "iap-workflow-due-timers";
 
     /** The operation a failure is recorded under, when the sweep as a whole fails. */
-    private static final String SWEEP = "sweep";
+    private static final String SWEEP_OPERATION = "sweep";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DueTimers.class);
 
@@ -138,10 +138,10 @@ public class DueTimers implements Runnable
             }
         } catch (final LoginException e) {
             LOGGER.error("A service user the sweep needs is not available, so no deadline can be delivered", e);
-            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP_OPERATION));
         } catch (final RepositoryException e) {
             LOGGER.error("Could not look for passed deadlines", e);
-            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP));
+            ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP_OPERATION));
         }
     }
 

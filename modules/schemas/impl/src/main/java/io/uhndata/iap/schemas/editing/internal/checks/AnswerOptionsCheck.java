@@ -42,7 +42,7 @@ public class AnswerOptionsCheck extends SchemaVersionCheck
     @Override
     public List<String> check(final Resource version)
     {
-        return DraftParts.ofType(version, DraftParts.QUESTION)
+        return DraftParts.ofType(version, DraftParts.QUESTION_TYPE)
             .flatMap(part -> problems(DraftParts.asQuestion(part), DraftParts.describe(part, version)).stream())
             .toList();
     }

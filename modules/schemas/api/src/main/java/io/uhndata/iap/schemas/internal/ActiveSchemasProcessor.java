@@ -64,7 +64,7 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     private static final List<String> SERIALIZED_TREES =
         List.of(SchemasHomepage.RESOURCE_TYPE, Schema.RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
 
-    private static final String NAME = "active";
+    private static final String PROCESSOR_NAME = "active";
 
     private static final String SCHEMA_TYPE = "sch:Schema";
 
@@ -80,7 +80,7 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     @Override
     public String getName()
     {
-        return NAME;
+        return PROCESSOR_NAME;
     }
 
     @Override

@@ -45,7 +45,7 @@ abstract class AbstractPropertyOperandResolver implements OperandResolver
         final String[] value = operand.getValue();
         if (value == null || value.length == 0) {
             this.logger.warn("A {} operand at {} does not name a property", getSource(), operand.getPath());
-            return Operand.EMPTY;
+            return Operand.NO_VALUES;
         }
         // No declared type: type unification infers it from the stored value
         return Operand.of(holder(context).get(value[0]));

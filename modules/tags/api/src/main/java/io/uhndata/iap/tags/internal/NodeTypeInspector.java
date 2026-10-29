@@ -51,7 +51,7 @@ public final class NodeTypeInspector
     private static final String MIXIN_TYPES = "jcr:mixinTypes";
 
     /** Holds the full, transitively expanded set of supertypes of a registered node type. */
-    private static final String SUPERTYPES = "rep:supertypes";
+    private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private final NodeState registry;
 
@@ -127,7 +127,7 @@ public final class NodeTypeInspector
         if (ENTITY_TYPE.equals(type)) {
             return true;
         }
-        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES);
+        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES_PROPERTY);
         return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
             .anyMatch(ENTITY_TYPE::equals);
     }
@@ -158,7 +158,7 @@ public final class NodeTypeInspector
         if (BOUNDARY_TYPE.equals(type)) {
             return true;
         }
-        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES);
+        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES_PROPERTY);
         return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
             .anyMatch(BOUNDARY_TYPE::equals);
     }
@@ -172,7 +172,7 @@ public final class NodeTypeInspector
         if (accepts(definition)) {
             return true;
         }
-        final PropertyState supertypes = definition.getProperty(SUPERTYPES);
+        final PropertyState supertypes = definition.getProperty(SUPERTYPES_PROPERTY);
         return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
             .anyMatch(supertype -> accepts(this.registry.getChildNode(supertype)));
     }

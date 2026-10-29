@@ -33,7 +33,7 @@ final class JwtIssuers
     private static final int MAX_LENGTH = 2048;
 
     /** Disallow line breaks and other control characters. */
-    private static final Pattern CONTROL = Pattern.compile("\\p{Cntrl}");
+    private static final Pattern CONTROL_CHARACTER_PATTERN = Pattern.compile("\\p{Cntrl}");
 
     private JwtIssuers()
     {
@@ -54,7 +54,7 @@ final class JwtIssuers
             return false;
         }
         if (issuer.isBlank() || issuer.length() > MAX_LENGTH || !issuer.equals(issuer.strip())
-            || CONTROL.matcher(issuer).find()) {
+            || CONTROL_CHARACTER_PATTERN.matcher(issuer).find()) {
             return false;
         }
         if (issuer.indexOf(':') < 0) {
