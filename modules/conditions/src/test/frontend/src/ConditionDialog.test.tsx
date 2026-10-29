@@ -202,6 +202,9 @@ describe("ConditionDialog", () => {
     fireEvent.change(within(condition).getByRole("textbox", { name: "Value" }), { target: { value: "1" } });
     expect(summary(dialog)).toBe("Only when the number of values in the field colours is more than 1");
     await pick(condition, "Using", "The values");
+    // Comparing the values themselves is a choice, not a missing one
+    fireEvent.blur(within(condition).getByRole("combobox", { name: "Using" }));
+    expect(within(condition).queryByText("A value is required")).not.toBeInTheDocument();
     expect(within(condition).getByRole("combobox", { name: "Comparison" })).toHaveTextContent("is");
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();

@@ -181,6 +181,24 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
 card per schema, so the card describes its versions.
 
+### Value inputs
+
+Before writing a field that edits a value, check `frontend-commons/inputs`. Each input takes the values as a list
+of strings, whatever the cardinality, and reports them through `onChange` while typing and `onCommit` once a value
+is finished. An input never saves anything: the caller decides what to keep, and how a value is stored.
+
+| Input | For |
+|---|---|
+| `TextInput` | One value typed freely, on one line or several |
+| `ChoiceSelect` | One value picked from a list, with None when it is optional |
+| `MultiValueInput` | Several values as chips, picked from a list or typed |
+| `ValueText` | Values shown as text under their label; every input shows this when `readOnly` |
+
+The common props are in `valueInput.ts`. `problems` replaces the description and marks the field in error.
+A `required` field with no value, or only empty ones, adds "A value is required", but only once it has been
+left. A stored value that the list no longer offers stays selected and shown as it is, rather than being dropped
+when the form is saved.
+
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme

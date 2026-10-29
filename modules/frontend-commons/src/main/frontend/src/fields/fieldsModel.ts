@@ -17,17 +17,13 @@
  */
 
 import { escapeJQL } from "../escape";
+import { type Choice } from "../inputs/choices";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
 // A field an update would change, as the `fields` serialization describes it (see updateContent in
 // docs/workflows.md). The server holds a patch to the same rules, so these only save a refused request.
 export type FieldKind = "text" | "long" | "double" | "boolean" | "reference";
-
-export interface FieldChoice {
-  value: string;
-  label: string;
-}
 
 export interface ContentField {
   name: string;
@@ -39,7 +35,7 @@ export interface ContentField {
   help?: string;
   referenceType?: string;
   referenceRoot?: string;
-  choices?: FieldChoice[];
+  choices?: Choice[];
   // Applies only while that property holds one of these values; an empty property applies nowhere
   appliesWhen?: { property: string; values: string[] };
   // What content of its type starts with, which is what it holds when it is not set
