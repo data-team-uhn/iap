@@ -160,7 +160,7 @@ class RetireActiveVersionsHandlerTest
 
         final Resource notes = this.context.resourceResolver().getResource(AuthoringFixture.path("notes"));
         assertNotNull(notes);
-        assertEquals(Set.of("active"), TaggingFixture.tags(notes));
+        assertEquals(Set.of("active"), WorkflowFixture.tags(notes));
     }
 
     @Test
@@ -175,7 +175,7 @@ class RetireActiveVersionsHandlerTest
 
         this.handler.execute(AuthoringFixture.context(promoted, "activate", Map.of(), this.activity, variables));
 
-        assertEquals(Set.of("retired"), TaggingFixture.tags(current));
+        assertEquals(Set.of("retired"), WorkflowFixture.tags(current));
         assertArrayEquals(new String[] {current.getPath()},
             (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
     }
@@ -217,6 +217,6 @@ class RetireActiveVersionsHandlerTest
     {
         final Resource resource = this.context.resourceResolver().getResource(AuthoringFixture.path(name));
         assertNotNull(resource);
-        return TaggingFixture.tags(resource);
+        return WorkflowFixture.tags(resource);
     }
 }

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,21 +62,15 @@ class AddTagHandlerTest
 
     private Resource target;
 
+    private TaggingFixture tagging;
+
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        TaggingFixture.enable(this.context);
+        this.tagging = TaggingFixture.enable(this.context);
         this.target = EngineFixture.createTarget(this.context);
         EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
-        final Field tagManager = AddTagHandler.class.getDeclaredField("tagManager");
-        tagManager.setAccessible(true);
-        tagManager.set(this.handler, TaggingFixture.definitions(Map.of(
-            "draft", List.of("lifecycle"),
-            "active", List.of("lifecycle"),
-            "approved", List.of("lifecycle", "review"),
-            "in-progress", List.of("review"),
-            "sensitive", List.of("privacy"))));
     }
 
     @Test
@@ -93,37 +86,27 @@ class AddTagHandlerTest
 
         this.handler.execute(context(Map.of("tag", "active"), new HashMap<>()));
 
-        assertEquals(Set.of("draft", "sensitive", "active"), TaggingFixture.tags(this.target));
+        assertEquals(Set.of("draft", "sensitive", "active"), WorkflowFixture.tags(this.target));
+        assertEquals(List.of(), this.tagging.getReplacements());
     }
 
     @Test
-    void replacesTheTagsSharingACategory() throws Exception
+    void placesTheTagInPlaceOfOthersWhenReplacingExisting() throws Exception
     {
-        tag(this.target, "draft", "sensitive", "leftover");
+        tag(this.target, "draft", "sensitive");
 
         this.handler.execute(context(Map.of("tag", "active", "replaceExisting", true), new HashMap<>()));
 
-        assertEquals(Set.of("sensitive", "leftover", "active"), TaggingFixture.tags(this.target));
+        assertEquals(List.of("active"), this.tagging.getReplacements());
+        assertEquals(Set.of("draft", "sensitive"), WorkflowFixture.tags(this.target));
     }
 
     @Test
-    void replacesTheTagsSharingAnyOfItsCategories() throws Exception
+    void readsReplaceExistingWrittenAsText() throws Exception
     {
-        tag(this.target, "draft", "in-progress", "sensitive");
-
         this.handler.execute(context(Map.of("tag", "approved", "replaceExisting", "true"), new HashMap<>()));
 
-        assertEquals(Set.of("sensitive", "approved"), TaggingFixture.tags(this.target));
-    }
-
-    @Test
-    void keepsTheTagWhenItIsAlreadyThere() throws Exception
-    {
-        tag(this.target, "active");
-
-        this.handler.execute(context(Map.of("tag", "active", "replaceExisting", true), new HashMap<>()));
-
-        assertEquals(Set.of("active"), TaggingFixture.tags(this.target));
+        assertEquals(List.of("approved"), this.tagging.getReplacements());
     }
 
     @Test
@@ -135,8 +118,8 @@ class AddTagHandlerTest
 
         this.handler.execute(context(Map.of("tag", "draft"), variables));
 
-        assertEquals(Set.of("draft"), TaggingFixture.tags(created));
-        assertEquals(Set.of(), TaggingFixture.tags(this.target));
+        assertEquals(Set.of("draft"), WorkflowFixture.tags(created));
+        assertEquals(Set.of(), WorkflowFixture.tags(this.target));
     }
 
     @Test

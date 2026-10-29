@@ -17,23 +17,16 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.Collections;
-import java.util.List;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.tags.api.TagManager;
-import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The {@code addTag} service task: places the activity's {@code tag} on the host. With {@code replaceExisting}
- * set, it first removes the host's other own tags that share a category with it, which is how a workflow moves
- * its host from one state to the next.
+ * set, the tag replaces the host's own tags that share a category with it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,9 +40,6 @@ public class AddTagHandler extends AbstractTagHandler
     /** The activity property asking for the tags sharing a category with the new one to be removed. */
     private static final String REPLACE_PARAMETER = "replaceExisting";
 
-    @Reference
-    private TagManager tagManager;
-
     @Override
     public String getName()
     {
@@ -61,25 +51,9 @@ public class AddTagHandler extends AbstractTagHandler
         throws PersistenceException
     {
         if (Boolean.parseBoolean(String.valueOf(context.getActivity().get(REPLACE_PARAMETER)))) {
-            final List<String> categories = categories(tag);
-            for (final String existing : host.getTags()) {
-                if (!existing.equals(tag) && !Collections.disjoint(categories, categories(existing))) {
-                    host.untag(existing, true);
-                }
-            }
+            host.tagReplacing(tag, true);
+        } else {
+            host.tag(tag, true);
         }
-        host.tag(tag, true);
-    }
-
-    /**
-     * The categories a tag belongs to.
-     *
-     * @param tag a tag name
-     * @return its categories, none for an undefined tag
-     */
-    private List<String> categories(final String tag)
-    {
-        final TagDefinition definition = this.tagManager.getDefinition(tag);
-        return definition == null ? List.of() : definition.getCategories();
     }
 }

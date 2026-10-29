@@ -79,7 +79,7 @@ class RemoveTagHandlerTest
 
         this.handler.execute(context(Map.of("tag", "retired"), new HashMap<>()));
 
-        assertEquals(Set.of("sensitive"), TaggingFixture.tags(this.target));
+        assertEquals(Set.of("sensitive"), WorkflowFixture.tags(this.target));
     }
 
     @Test
@@ -89,7 +89,7 @@ class RemoveTagHandlerTest
 
         this.handler.execute(context(Map.of("tag", "retired"), new HashMap<>()));
 
-        assertEquals(Set.of("sensitive"), TaggingFixture.tags(this.target));
+        assertEquals(Set.of("sensitive"), WorkflowFixture.tags(this.target));
     }
 
     private void tag(final Resource resource, final String... tags)

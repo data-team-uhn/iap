@@ -135,7 +135,7 @@ by hand.
   with, which a gateway downstream routes on, so that a task list knows what to offer.
   An empty list means there is nothing to decide, only something to do.
 - **`hostTag` on an end event** places a tag on the host when a content workflow
-  finishes there, retiring whatever tag the host carries in the same category. Elsewhere
+  finishes there, retiring the host's tags that share any of its categories. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
 
 ### The vocabulary
@@ -307,7 +307,7 @@ the execution has created, once it has created something, and on the target othe
 | `createEntity` | `entityType` | Creates an entity of that type under the target, named by camel-casing the event's `title` with a numeric suffix on collision, and reports its path in `createdPath`, which the servlet turns into a redirect |
 | `callActivity` | `message` | Runs the system workflow waiting for that event on the host, before carrying on |
 | `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, and runs it to its first wait |
-| `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, first removes the host's own tags sharing a category with it |
+| `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, in place of the host's own tags sharing any of its categories |
 | `removeTag` | `tag` | Removes the tag |
 | `checkValid` | — | Refuses the event with every problem the applicable `ValidityCheck`s report |
 | `updateContent` | `fields` | Applies the event's `patch` to the listed fields |

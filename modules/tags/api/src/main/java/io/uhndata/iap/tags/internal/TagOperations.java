@@ -116,6 +116,22 @@ public interface TagOperations
     boolean tag(@NotNull Resource resource, @NotNull String name, boolean allowSystem) throws PersistenceException;
 
     /**
+     * Places a tag on a node in place of the node's own tags that share a category with it, in memory: committing it
+     * is the caller's responsibility. Tags of other categories, and undefined ones, are kept.
+     *
+     * @param resource the node to tag
+     * @param name the name of a defined tag applicable to the node
+     * @param allowSystem when {@code true}, system tags may be placed and retired
+     * @return {@code true} if the node was modified, {@code false} if it already carried the tag and nothing it
+     *         replaces
+     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this node, or if it or a tag
+     *             it retires is a system tag and {@code allowSystem} is not set
+     * @throws PersistenceException if the node cannot be modified by the current session
+     */
+    boolean tagReplacing(@NotNull Resource resource, @NotNull String name, boolean allowSystem)
+        throws PersistenceException;
+
+    /**
      * Removes a tag from a node, in memory: committing it is the caller's responsibility.
      *
      * @param resource the node to untag

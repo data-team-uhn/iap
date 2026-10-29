@@ -239,13 +239,42 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     public boolean tag(final Resource resource, final String name, final boolean allowSystem)
         throws PersistenceException
     {
-        checkAddable(resource, name, allowSystem);
+        requireAddable(resource, name, allowSystem);
         final Set<String> tags = getTags(resource);
         if (!tags.add(name)) {
             return false;
         }
         write(resource, tags);
         return true;
+    }
+
+    @Override
+    public boolean tagReplacing(final Resource resource, final String name, final boolean allowSystem)
+        throws PersistenceException
+    {
+        final List<String> categories = requireAddable(resource, name, allowSystem).getCategories();
+        final Set<String> current = getTags(resource);
+        final Set<String> target = new LinkedHashSet<>(current);
+        target.removeIf(existing -> sharesCategory(existing, categories));
+        target.add(name);
+        if (target.equals(current)) {
+            return false;
+        }
+        setTags(resource, target, allowSystem);
+        return true;
+    }
+
+    /**
+     * Whether a tag belongs to any of the given categories. An undefined tag belongs to none.
+     *
+     * @param name a tag name
+     * @param categories the categories to look for
+     * @return {@code true} if the tag is defined in at least one of them
+     */
+    private boolean sharesCategory(final String name, final List<String> categories)
+    {
+        final TagDefinition definition = getDefinition(name);
+        return definition != null && definition.getCategories().stream().anyMatch(categories::contains);
     }
 
     @Override
@@ -272,7 +301,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
         }
         for (final String name : target) {
             if (!current.contains(name)) {
-                checkAddable(resource, name, allowSystem);
+                requireAddable(resource, name, allowSystem);
             }
         }
         for (final String name : current) {
@@ -351,9 +380,10 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
      * @param resource the resource to tag
      * @param name the tag name
      * @param allowSystem whether system tags are allowed
+     * @return the tag's definition
      * @throws IllegalArgumentException if the tag may not be placed
      */
-    private void checkAddable(final Resource resource, final String name, final boolean allowSystem)
+    private TagDefinition requireAddable(final Resource resource, final String name, final boolean allowSystem)
     {
         final TagDefinition definition = getDefinition(name);
         if (definition == null) {
@@ -365,6 +395,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
                 "Tag " + name + " may not be placed on " + resource.getResourceType() + " content");
         }
         checkSystem(definition, allowSystem);
+        return definition;
     }
 
     /**

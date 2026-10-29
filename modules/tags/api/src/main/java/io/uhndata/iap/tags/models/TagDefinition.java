@@ -135,7 +135,8 @@ public class TagDefinition extends Content implements DocumentedItem
 
     /**
      * The categories this tag belongs to, e.g. {@code lifecycle} or {@code review}, used for grouping and filtering
-     * tags in listings.
+     * tags in listings. Placing this tag {@link Taggable#tagReplacing(String, boolean) in place of others} retires the
+     * content's tags sharing any of these categories.
      *
      * @return the categories, an empty list if none are set
      */
