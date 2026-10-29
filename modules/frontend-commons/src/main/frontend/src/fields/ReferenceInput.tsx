@@ -16,45 +16,12 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
-import { Autocomplete, TextField } from "@mui/material";
-
-import { useAuthenticatedFetch } from "../reLogin";
-import { describeRequestFailure } from "../requestFailure";
-import { type ContentField, type ReferenceCandidate } from "./fieldsModel";
-import { readCandidates } from "./referenceCandidates";
-
-// The nodes a reference field may point at, read once, sorted by what they are offered as
-function useCandidates(field: ContentField) {
-  const doFetch = useAuthenticatedFetch();
-  const [ candidates, setCandidates ] = useState<ReferenceCandidate[]>([]);
-  const [ loadError, setLoadError ] = useState<string>();
-  const { referenceType, referenceRoot } = field;
-
-  useEffect(() => {
-    if (!referenceType) {
-      return;
-    }
-    let current = true;
-    readCandidates(doFetch, { referenceType, referenceRoot })
-      .then(found => {
-        if (current) {
-          setCandidates(found);
-        }
-      })
-      .catch((error: unknown) => {
-        if (current) {
-          setLoadError(describeRequestFailure(error));
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [ doFetch, referenceType, referenceRoot ]);
-
-  return { candidates, loadError };
-}
+import { type ContentField } from "./fieldsModel";
+import ChoiceSearch from "../inputs/ChoiceSearch";
+import MultiValueInput from "../inputs/MultiValueInput";
+import { referenceChoices } from "../inputs/referenceChoices";
+import TextInput from "../inputs/TextInput";
+import { fromSingle, singleValue } from "../inputs/valueInput";
 
 interface ReferenceInputProps {
   field: ContentField;
@@ -67,31 +34,20 @@ interface ReferenceInputProps {
 
 // Picks what a reference field points at among the nodes it may. A field naming no type takes any path.
 function ReferenceInput({ field, value, disabled, helperText, onChange }: ReferenceInputProps) {
-  const { candidates, loadError } = useCandidates(field);
-  const chosen = Array.isArray(value) ? value : [ value ].filter(path => path !== "");
-  // What is pointed at stays offered even when it is no longer a candidate, so it still shows
-  const options = [ ...new Set([ ...candidates.map(candidate => candidate.path), ...chosen ]) ];
-  const labelOf = (path: string) => candidates.find(candidate => candidate.path === path)?.label ?? path;
-
+  const { label, mandatory, multiple, referenceType, referenceRoot } = field;
+  const common = {
+    label, description: helperText, required: mandatory, disabled,
+    values: Array.isArray(value) ? value : fromSingle(value),
+    onChange: (next: string[]) => onChange(multiple ? next : singleValue(next)),
+  };
+  if (!referenceType) {
+    return multiple ? <MultiValueInput {...common} /> : <TextInput {...common} />;
+  }
   return (
-    <Autocomplete<string, boolean, false, boolean>
-      multiple={field.multiple}
-      freeSolo={!field.referenceType}
-      autoSelect={!field.referenceType}
-      options={options}
-      getOptionLabel={labelOf}
-      value={field.multiple ? chosen : chosen[0] ?? null}
-      disabled={disabled}
-      onChange={(_event, picked) => onChange(field.multiple ? picked as string[] : picked as string | null ?? "")}
-      renderInput={params => (
-        <TextField
-          {...params}
-          label={field.label}
-          required={field.mandatory}
-          error={!!loadError}
-          helperText={loadError ?? helperText}
-        />
-      )}
+    <ChoiceSearch
+      {...common}
+      multiple={multiple}
+      source={referenceChoices({ resourceType: referenceType, root: referenceRoot })}
     />
   );
 }
