@@ -30,7 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.jcr.Node;
@@ -254,19 +253,14 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
         throws PersistenceException
     {
         final List<String> categories = requireAddable(resource, name, allowSystem).getCategories();
-        final Set<String> tags = getTags(resource);
-        final Set<String> retired = tags.stream()
-            .filter(existing -> !existing.equals(name) && sharesCategory(existing, categories))
-            .collect(Collectors.toSet());
-        for (final String existing : retired) {
-            checkRemovable(existing, allowSystem);
-        }
-        final boolean placed = tags.add(name);
-        if (!placed && retired.isEmpty()) {
+        final Set<String> current = getTags(resource);
+        final Set<String> target = new LinkedHashSet<>(current);
+        target.removeIf(existing -> sharesCategory(existing, categories));
+        target.add(name);
+        if (target.equals(current)) {
             return false;
         }
-        tags.removeAll(retired);
-        write(resource, tags);
+        setTags(resource, target, allowSystem);
         return true;
     }
 

@@ -188,8 +188,8 @@ public class Taggable extends Content
      *            reserved for the platform code managing the tags in question
      * @return {@code true} if the content was modified, {@code false} if it already carried the tag and nothing it
      *         replaces
-     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this content, or if the
-     *             change would place or retire a system tag and {@code allowSystem} is not set
+     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this content, or if it or a
+     *             tag it retires is a system tag and {@code allowSystem} is not set
      * @throws IllegalStateException if the tags service is not available
      * @throws PersistenceException if the content cannot be modified by the current session
      */

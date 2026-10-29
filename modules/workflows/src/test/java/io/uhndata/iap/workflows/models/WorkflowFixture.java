@@ -167,22 +167,11 @@ public final class WorkflowFixture
 
     /**
      * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
-     * installed. The engine places a host's lifecycle tag when a workflow finishes, so without this every run
+     * installed. The engine replaces a host's lifecycle tag when a workflow finishes, so without this every run
      * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
      *
      * <p>Records into the resource's own {@code tags} property, which is where the service writes for real, so
-     * a test can read back what a workflow placed.</p>
-     *
-     * @param context the mock context whose resources become taggable
-     */
-    public static void enableTagging(final SlingContext context)
-    {
-        enableTagging(context, Map.of());
-    }
-
-    /**
-     * Makes resources taggable, as {@link #enableTagging(SlingContext)} does, knowing which categories each tag
-     * belongs to, so that a tag placed to replace the others of its category retires them.
+     * a test can read back what a workflow placed and what it retired.</p>
      *
      * @param context the mock context whose resources become taggable
      * @param categories each tag's categories, by tag name; a tag left out belongs to none
@@ -202,15 +191,59 @@ public final class WorkflowFixture
     }
 
     /**
-     * What a resource's tags become when a tag replaces those sharing a category with it, which is what the tags
-     * service does for real. A tag belonging to no category retires nothing.
+     * The tags placed on a resource.
+     *
+     * @param resource a resource
+     * @return its own tags, in order
+     */
+    public static Set<String> tags(final Resource resource)
+    {
+        return new LinkedHashSet<>(List.of(resource.getValueMap().get("tags", new String[0])));
+    }
+
+    /**
+     * Replaces the tags placed on a resource.
+     *
+     * @param resource a resource
+     * @param names its tags from now on
+     */
+    public static void writeTags(final Resource resource, final Set<String> names)
+    {
+        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class)).put("tags", names.toArray(new String[0]));
+    }
+
+    /**
+     * Teaches a mocked {@code Taggable} to replace and report tags on the resource's own property. Only replacing
+     * with system tags allowed is stubbed, since that is how the engine moves a host between lifecycle tags.
+     *
+     * @param taggable the mock to stub
+     * @param resource the resource it stands for
+     * @param categories each tag's categories, by tag name
+     * @throws PersistenceException never; the stubbed method declares it
+     */
+    private static void stubTagging(final Taggable taggable, final Resource resource,
+        final Map<String, List<String>> categories) throws PersistenceException
+    {
+        Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+            final Set<String> before = tags(resource);
+            final Set<String> after = afterReplacing(before, invocation.getArgument(0), categories);
+            writeTags(resource, after);
+            return !after.equals(before);
+        });
+        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
+            tags(resource).contains(invocation.getArgument(0)));
+    }
+
+    /**
+     * What a resource's tags become when a tag replaces those sharing any of its categories. A tag belonging to
+     * no category retires nothing.
      *
      * @param tags the tags placed now
      * @param tag the tag being placed
      * @param categories each tag's categories, by tag name
      * @return the tags afterwards, in order
      */
-    public static Set<String> replacing(final Set<String> tags, final String tag,
+    private static Set<String> afterReplacing(final Set<String> tags, final String tag,
         final Map<String, List<String>> categories)
     {
         final List<String> claimed = categories.getOrDefault(tag, List.of());
@@ -219,44 +252,5 @@ public final class WorkflowFixture
             && categories.getOrDefault(existing, List.of()).stream().anyMatch(claimed::contains));
         result.add(tag);
         return result;
-    }
-
-    /**
-     * Teaches a mocked {@code Taggable} to place and report tags on the resource's own property. Only placing
-     * with system tags allowed is stubbed, since that is how the engine places a lifecycle tag, and an
-     * engine asking without it would place nothing here, as it would fail for real on a system tag.
-     *
-     * @param taggable the mock to stub
-     * @param resource the resource it stands for
-     * @param categories each tag's categories, by tag name
-     * @throws PersistenceException never; {@code tag} declares it and stubbing names the method
-     */
-    private static void stubTagging(final Taggable taggable, final Resource resource,
-        final Map<String, List<String>> categories) throws PersistenceException
-    {
-        Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-            final Set<String> names = ownTags(resource);
-            final boolean added = names.add(invocation.getArgument(0));
-            writeTags(resource, names);
-            return added;
-        });
-        Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-            final Set<String> before = ownTags(resource);
-            final Set<String> after = replacing(before, invocation.getArgument(0), categories);
-            writeTags(resource, after);
-            return !after.equals(before);
-        });
-        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
-            ownTags(resource).contains(invocation.getArgument(0)));
-    }
-
-    private static Set<String> ownTags(final Resource resource)
-    {
-        return new LinkedHashSet<>(List.of(resource.getValueMap().get("tags", new String[0])));
-    }
-
-    private static void writeTags(final Resource resource, final Set<String> names)
-    {
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class)).put("tags", names.toArray(new String[0]));
     }
 }

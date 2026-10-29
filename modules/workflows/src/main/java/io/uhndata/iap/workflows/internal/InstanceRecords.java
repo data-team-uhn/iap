@@ -230,7 +230,7 @@ final class InstanceRecords
     {
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
-            // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
+            // Moving the host between lifecycle tags is the engine's job, as it is the tag tasks'
             Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class), "A workflow's host is taggable")
                 .tagReplacing(hostTag, true);
         }

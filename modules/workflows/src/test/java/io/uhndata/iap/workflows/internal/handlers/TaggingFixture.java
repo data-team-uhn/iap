@@ -17,14 +17,11 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.Arrays;
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
@@ -35,7 +32,8 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 /**
  * Tagging in a mock repository, for the tag service task tests. The tags service the {@code Taggable} model
  * delegates to does not run under sling-mock, so the view reads and writes the node's own {@code tags} property,
- * which is what the service does for real, and refuses the one undefined tag the tests use.
+ * which is what the service does for real, and refuses the one undefined tag the tests use. Which tags a
+ * replacement retires is the tags service's own rule, so a replacement is only recorded here.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,6 +43,8 @@ final class TaggingFixture
     /** A tag that has no definition, so placing it is refused. */
     static final String UNDEFINED = "undefined";
 
+    private final List<String> replacements = new ArrayList<>();
+
     private TaggingFixture()
     {
     }
@@ -53,47 +53,59 @@ final class TaggingFixture
      * Registers the {@code Taggable} view over the node's own {@code tags} property.
      *
      * @param context the mock context whose resources become taggable
+     * @return the fixture, which remembers the replacements asked of it
      */
-    static void enable(final SlingContext context)
+    static TaggingFixture enable(final SlingContext context)
     {
-        enable(context, Map.of());
+        final TaggingFixture fixture = new TaggingFixture();
+        context.registerAdapter(Resource.class, Taggable.class,
+            (Function<Resource, Taggable>) fixture::taggableFor);
+        return fixture;
     }
 
     /**
-     * Registers the {@code Taggable} view, knowing which categories each tag belongs to, so that a tag placed to
-     * replace the others of its category retires them.
+     * The tags placed in place of others, in the order they were asked for.
      *
-     * @param context the mock context whose resources become taggable
-     * @param categories each tag's categories, by tag name; a tag left out belongs to none
+     * @return the tag names given to {@code tagReplacing}
      */
-    static void enable(final SlingContext context, final Map<String, List<String>> categories)
+    List<String> getReplacements()
     {
-        context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
-            final Taggable taggable = Mockito.mock(Taggable.class);
-            try {
-                Mockito.when(taggable.getTags()).thenAnswer(invocation -> tags(resource));
-                Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-                    final String tag = invocation.getArgument(0);
-                    refuseUndefined(tag);
-                    final Set<String> tags = tags(resource);
-                    return tags.add(tag) && write(resource, tags);
-                });
-                Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-                    final String tag = invocation.getArgument(0);
-                    refuseUndefined(tag);
-                    final Set<String> before = tags(resource);
-                    final Set<String> after = WorkflowFixture.replacing(before, tag, categories);
-                    return !after.equals(before) && write(resource, after);
-                });
-                Mockito.when(taggable.untag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-                    final Set<String> tags = tags(resource);
-                    return tags.remove(invocation.getArgument(0)) && write(resource, tags);
-                });
-            } catch (final Exception e) {
-                throw new IllegalStateException(e);
-            }
-            return taggable;
-        });
+        return this.replacements;
+    }
+
+    private Taggable taggableFor(final Resource resource)
+    {
+        final Taggable taggable = Mockito.mock(Taggable.class);
+        try {
+            Mockito.when(taggable.getTags()).thenAnswer(invocation -> WorkflowFixture.tags(resource));
+            Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+                final String tag = invocation.getArgument(0);
+                refuseUndefined(tag);
+                final Set<String> tags = WorkflowFixture.tags(resource);
+                final boolean added = tags.add(tag);
+                if (added) {
+                    WorkflowFixture.writeTags(resource, tags);
+                }
+                return added;
+            });
+            Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+                final String tag = invocation.getArgument(0);
+                refuseUndefined(tag);
+                this.replacements.add(tag);
+                return true;
+            });
+            Mockito.when(taggable.untag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+                final Set<String> tags = WorkflowFixture.tags(resource);
+                final boolean removed = tags.remove(invocation.getArgument(0));
+                if (removed) {
+                    WorkflowFixture.writeTags(resource, tags);
+                }
+                return removed;
+            });
+        } catch (final Exception e) {
+            throw new IllegalStateException(e);
+        }
+        return taggable;
     }
 
     private static void refuseUndefined(final String tag)
@@ -101,22 +113,5 @@ final class TaggingFixture
         if (UNDEFINED.equals(tag)) {
             throw new IllegalArgumentException("Undefined tag: " + tag);
         }
-    }
-
-    /**
-     * The tags placed on a resource.
-     *
-     * @param resource a resource
-     * @return its own tags, in order
-     */
-    static Set<String> tags(final Resource resource)
-    {
-        return new LinkedHashSet<>(Arrays.asList(resource.getValueMap().get("tags", new String[0])));
-    }
-
-    private static boolean write(final Resource resource, final Set<String> tags)
-    {
-        resource.adaptTo(ModifiableValueMap.class).put("tags", tags.toArray(new String[0]));
-        return true;
     }
 }

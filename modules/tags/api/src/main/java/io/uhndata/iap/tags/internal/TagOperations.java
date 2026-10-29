@@ -124,8 +124,8 @@ public interface TagOperations
      * @param allowSystem when {@code true}, system tags may be placed and retired
      * @return {@code true} if the node was modified, {@code false} if it already carried the tag and nothing it
      *         replaces
-     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this node, or if the change
-     *             would place or retire a system tag and {@code allowSystem} is not set
+     * @throws IllegalArgumentException if the tag is not defined or may not be placed on this node, or if it or a tag
+     *             it retires is a system tag and {@code allowSystem} is not set
      * @throws PersistenceException if the node cannot be modified by the current session
      */
     boolean tagReplacing(@NotNull Resource resource, @NotNull String name, boolean allowSystem)

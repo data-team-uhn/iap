@@ -791,7 +791,7 @@ class UserWorkflowTest
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
+        // A lifecycle is a tag: the models read `tags`, so an end event replaces the host's lifecycle tag there
         assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -1000,7 +1000,6 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -1121,7 +1120,6 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
         assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 

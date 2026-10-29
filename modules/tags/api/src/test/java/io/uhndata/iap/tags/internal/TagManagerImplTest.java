@@ -78,6 +78,10 @@ class TagManagerImplTest
 
     private static final String LEGACY = "legacy";
 
+    private static final String APPROVED = "approved";
+
+    private static final String IN_PROGRESS = "in-progress";
+
     /** Marks a test resource whose stand-in node answers to the boundary mixin. */
     private static final String BOUNDARY = "testBoundary";
 
@@ -135,7 +139,7 @@ class TagManagerImplTest
     @Test
     void listsDefinitionsInDisplayOrder()
     {
-        assertEquals(List.of(DRAFT, "submitted", INCOMPLETE, SENSITIVE, "PATIENT SURVEY"),
+        assertEquals(List.of(DRAFT, SUBMITTED, INCOMPLETE, SENSITIVE, "PATIENT SURVEY"),
             this.tagManager.getDefinitions()
                 .stream().map(TagDefinition::getName).toList());
     }
@@ -154,7 +158,7 @@ class TagManagerImplTest
     @Test
     void findsDefinitionsByCategory()
     {
-        assertEquals(List.of(DRAFT, "submitted"),
+        assertEquals(List.of(DRAFT, SUBMITTED),
             this.tagManager.findDefinitions("LifeCycle", null)
                 .stream().map(TagDefinition::getName).toList());
     }
@@ -174,7 +178,7 @@ class TagManagerImplTest
     @Test
     void combinesCategoryAndTextFilters()
     {
-        assertEquals(List.of("submitted"),
+        assertEquals(List.of(SUBMITTED),
             this.tagManager.findDefinitions("lifecycle", "sub")
                 .stream().map(TagDefinition::getName).toList());
         assertTrue(this.tagManager.findDefinitions("privacy", DRAFT).isEmpty());
@@ -192,7 +196,7 @@ class TagManagerImplTest
         final Resource part = this.context.create().resource("/data/part",
             TYPE_PROPERTY, "data/EntityPart");
         // All unrestricted tags apply, the entity-only SENSITIVE tag does not
-        assertEquals(List.of(DRAFT, "submitted", INCOMPLETE, "PATIENT SURVEY"),
+        assertEquals(List.of(DRAFT, SUBMITTED, INCOMPLETE, "PATIENT SURVEY"),
             this.taggable(part).getApplicableDefinitions()
                 .stream().map(TagDefinition::getName).toList());
     }
@@ -200,13 +204,11 @@ class TagManagerImplTest
     @Test
     void readsOwnTags()
     {
-        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { DRAFT, "legacy" }));
+        final Resource resource = entityTagged(DRAFT, LEGACY);
 
-        assertEquals(Set.of(DRAFT, "legacy"), this.taggable(resource).getTags());
+        assertEquals(Set.of(DRAFT, LEGACY), this.taggable(resource).getTags());
         assertTrue(this.taggable(resource).hasOwnTag(DRAFT));
-        assertFalse(this.taggable(resource).hasOwnTag("submitted"));
+        assertFalse(this.taggable(resource).hasOwnTag(SUBMITTED));
         assertEquals(Set.of(),
             this.taggable(this.context.create().resource("/data/untagged")).getTags());
     }
@@ -247,33 +249,29 @@ class TagManagerImplTest
         final Resource resource = this.context.create().resource(ENTITY_PATH,
             TYPE_PROPERTY, ENTITY_TYPE);
 
-        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag("submitted"));
-        assertTrue(this.taggable(resource).tag("submitted", true));
-        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).untag("submitted"));
-        assertTrue(this.taggable(resource).untag("submitted", true));
+        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag(SUBMITTED));
+        assertTrue(this.taggable(resource).tag(SUBMITTED, true));
+        assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).untag(SUBMITTED));
+        assertTrue(this.taggable(resource).untag(SUBMITTED, true));
         assertEquals(Set.of(), this.taggable(resource).getTags());
     }
 
     @Test
     void removesTags() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { DRAFT, "legacy" }));
+        final Resource resource = entityTagged(DRAFT, LEGACY);
 
         assertTrue(this.taggable(resource).untag(DRAFT));
         assertFalse(this.taggable(resource).untag(DRAFT));
         // Undefined tags left behind, e.g. after their definition was deleted, can still be removed
-        assertTrue(this.taggable(resource).untag("legacy"));
+        assertTrue(this.taggable(resource).untag(LEGACY));
         assertEquals(Set.of(), this.taggable(resource).getTags());
     }
 
     @Test
     void replacesTags() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { DRAFT }));
+        final Resource resource = entityTagged(DRAFT);
 
         this.taggable(resource).setTags(List.of(SENSITIVE, INCOMPLETE));
         assertEquals(Set.of(SENSITIVE, INCOMPLETE), this.taggable(resource).getTags());
@@ -285,10 +283,10 @@ class TagManagerImplTest
         final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
             TYPE_PROPERTY, ENTITY_TYPE,
             // "submitted" is a system tag, but an unchanged set is not validated since nothing is added or removed
-            "tags", new String[] { DRAFT, "submitted" }));
+            "tags", new String[] { DRAFT, SUBMITTED }));
 
-        this.taggable(resource).setTags(List.of("submitted", DRAFT));
-        assertEquals(Set.of(DRAFT, "submitted"), this.taggable(resource).getTags());
+        this.taggable(resource).setTags(List.of(SUBMITTED, DRAFT));
+        assertEquals(Set.of(DRAFT, SUBMITTED), this.taggable(resource).getTags());
     }
 
     @Test
@@ -337,6 +335,36 @@ class TagManagerImplTest
         assertEquals(Set.of(DRAFT), this.taggable(resource).getTags());
     }
 
+    @Test
+    void retiresTheTagsOfEachOfItsCategories() throws PersistenceException
+    {
+        defineDecisionTags();
+        final Resource resource = entityTagged(DRAFT, IN_PROGRESS, SENSITIVE);
+
+        assertTrue(this.taggable(resource).tagReplacing(APPROVED, true));
+        assertEquals(Set.of(SENSITIVE, APPROVED), this.taggable(resource).getTags());
+    }
+
+    @Test
+    void retiresATagSharingOnlyOneOfItsCategories() throws PersistenceException
+    {
+        defineDecisionTags();
+        final Resource resource = entityTagged(APPROVED, SENSITIVE);
+
+        assertTrue(this.taggable(resource).tagReplacing(DRAFT, true));
+        assertEquals(Set.of(SENSITIVE, DRAFT), this.taggable(resource).getTags());
+    }
+
+    private void defineDecisionTags()
+    {
+        this.context.create().resource("/Tags/approved", Map.of(
+            TYPE_PROPERTY, "tag/Definition",
+            "category", new String[] { "lifecycle", "review" }));
+        this.context.create().resource("/Tags/in-progress", Map.of(
+            TYPE_PROPERTY, "tag/Definition",
+            "category", new String[] { "review" }));
+    }
+
     private Resource entityTagged(final String... tags)
     {
         return this.context.create().resource(ENTITY_PATH, Map.of(TYPE_PROPERTY, ENTITY_TYPE, "tags", tags));
@@ -360,9 +388,7 @@ class TagManagerImplTest
     @Test
     void effectiveTagNamesOfAnUntouchedNodeAreJustTheExplicitTags()
     {
-        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { DRAFT }));
+        final Resource resource = entityTagged(DRAFT);
 
         assertEquals(Set.of(DRAFT), this.taggable(resource).getEffectiveTagNames());
     }
@@ -541,19 +567,17 @@ class TagManagerImplTest
     @Test
     void replacingTagsValidatesAdditionsAndRemovals() throws PersistenceException
     {
-        final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { "submitted", DRAFT }));
+        final Resource resource = entityTagged(SUBMITTED, DRAFT);
 
         // Adding an undefined tag is rejected
         assertThrows(IllegalArgumentException.class,
-            () -> this.taggable(resource).setTags(List.of("submitted", "unknown")));
+            () -> this.taggable(resource).setTags(List.of(SUBMITTED, "unknown")));
         // Dropping the system tag "submitted" is rejected
         assertThrows(IllegalArgumentException.class,
             () -> this.taggable(resource).setTags(List.of(DRAFT)));
         // Keeping the system tag while changing the others is fine
-        this.taggable(resource).setTags(List.of("submitted", INCOMPLETE));
-        assertEquals(Set.of("submitted", INCOMPLETE), this.taggable(resource).getTags());
+        this.taggable(resource).setTags(List.of(SUBMITTED, INCOMPLETE));
+        assertEquals(Set.of(SUBMITTED, INCOMPLETE), this.taggable(resource).getTags());
         // With the platform-reserved variant, system tags may be dropped too
         this.taggable(resource).setTags(List.of(DRAFT), true);
         assertEquals(Set.of(DRAFT), this.taggable(resource).getTags());
@@ -562,9 +586,7 @@ class TagManagerImplTest
     @Test
     void computesEffectiveTags() throws PersistenceException
     {
-        final Resource entity = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { SENSITIVE, "legacy" }));
+        final Resource entity = entityTagged(SENSITIVE, LEGACY);
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { DRAFT }));
@@ -575,12 +597,12 @@ class TagManagerImplTest
         // The entity carries its own tags, plus INCOMPLETE aggregated from a descendant;
         // the non-aggregated DRAFT on the part does not bubble up
         final Map<String, Tag> entityTags = collect(this.taggable(entity).getEffectiveTags());
-        assertEquals(Set.of(SENSITIVE, "legacy", INCOMPLETE), entityTags.keySet());
+        assertEquals(Set.of(SENSITIVE, LEGACY, INCOMPLETE), entityTags.keySet());
         assertEquals(Set.of(Tag.Origin.EXPLICIT), entityTags.get(SENSITIVE).getOrigins());
         assertEquals(Set.of(Tag.Origin.AGGREGATED), entityTags.get(INCOMPLETE).getOrigins());
         assertEquals(Set.of("/data/entity/part/answer"), entityTags.get(INCOMPLETE).getSources());
         // The undefined "legacy" tag is still reported, without a definition
-        assertFalse(entityTags.get("legacy").isDefined());
+        assertFalse(entityTags.get(LEGACY).isDefined());
         assertTrue(entityTags.get(SENSITIVE).isDefined());
 
         // The part carries its own DRAFT, SENSITIVE inherited from the entity, and INCOMPLETE
@@ -594,9 +616,7 @@ class TagManagerImplTest
     @Test
     void combinesOriginsForTheSameTag()
     {
-        this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { SENSITIVE }));
+        entityTagged(SENSITIVE);
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { SENSITIVE }));
@@ -609,9 +629,7 @@ class TagManagerImplTest
     @Test
     void checksEffectiveTags()
     {
-        final Resource entity = this.context.create().resource(ENTITY_PATH, Map.of(
-            TYPE_PROPERTY, ENTITY_TYPE,
-            "tags", new String[] { SENSITIVE }));
+        final Resource entity = entityTagged(SENSITIVE);
         final Resource part = this.context.create().resource("/data/entity/part",
             TYPE_PROPERTY, "data/EntityPart");
         this.context.create().resource("/data/entity/part/answer", Map.of(
