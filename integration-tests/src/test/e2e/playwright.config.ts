@@ -94,6 +94,11 @@ export default defineConfig({
   // intermittent "element(s) not found" this raises the ceiling on. Assertions still resolve as soon as
   // the condition holds, so a passing run is no slower for it.
   expect: { timeout: 15_000 },
+  // Playwright's 30s default holds only two waits at the assertion timeout above. A spec that signs in,
+  // raises a submission and saves several answers needs more. Raising it once here keeps `test.slow()` off
+  // every test that once ran slow. It stays modest, so that a real slowdown still fails. The stories still
+  // mark themselves slow.
+  timeout: 60_000,
   use: {
     // Kept on retry and on failure: a trace is the difference between diagnosing a CI-only failure in
     // minutes and not at all
