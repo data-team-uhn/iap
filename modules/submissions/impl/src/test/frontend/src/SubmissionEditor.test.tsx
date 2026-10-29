@@ -465,7 +465,7 @@ describe("SubmissionEditor", () => {
     const LETTER: DocumentRequirement = {
       name: "decisionLetter",
       path: "/Schemas/timeOffRequest/v1/decisionLetter",
-      type: DOCUMENT_REQUIREMENT,
+      type: DOCUMENT_REQUIREMENT_TYPE,
       label: "Decision letter",
       required: true,
       generated: true,
