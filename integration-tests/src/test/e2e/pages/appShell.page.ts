@@ -41,6 +41,27 @@ export class AppShell {
     await expect(this.page).toHaveURL(/\/login/);
   }
 
+  /**
+   * Puts on a different persona, the way a person does: in the account menu, where each persona is a radio
+   * item. Choosing one closes the menu, so waiting for the menu to close waits for the switch.
+   *
+   * @param persona the label of the persona to wear, e.g. `Reviewer`
+   */
+  async actAs(persona: string): Promise<void> {
+    await this.page.getByRole('button', { name: /^Account:/ }).click();
+    await this.page.getByRole('menuitemradio', { name: persona }).click();
+    await expect(this.page.getByRole('menu')).toHaveCount(0);
+  }
+
+  /** The persona the account menu says is on, which is its checked radio item. */
+  async actingAs(): Promise<string> {
+    await this.page.getByRole('button', { name: /^Account:/ }).click();
+    const persona = await this.page.getByRole('menuitemradio', { checked: true }).textContent();
+    await this.page.keyboard.press('Escape');
+    await expect(this.page.getByRole('menu')).toHaveCount(0);
+    return (persona ?? '').trim();
+  }
+
   /** Who the shell says is signed in, which is the account control's own name for itself. */
   async signedInAs(): Promise<string> {
     const label = await this.page.getByRole('button', { name: /^Account:/ }).getAttribute('aria-label');

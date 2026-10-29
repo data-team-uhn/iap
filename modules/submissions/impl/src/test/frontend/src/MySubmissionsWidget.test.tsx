@@ -140,6 +140,14 @@ describe("MySubmissionsWidget", () => {
     expect(url.searchParams.get("descending")).toBe("true");
   });
 
+  it("names its search box for what it searches", async () => {
+    vi.stubGlobal("fetch", widgetFetch({ rows: [] }));
+
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
+
+    expect(await screen.findByRole("searchbox", { name: "Search my submissions" })).toBeInTheDocument();
+  });
+
   it("draws its own header, so the action sits on the title's line", async () => {
     // The dashboard is told to skip its own header for this widget
     vi.stubGlobal("fetch", widgetFetch());
