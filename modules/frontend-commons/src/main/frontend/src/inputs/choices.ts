@@ -40,3 +40,6 @@ export const withCurrent = (
 ): Choice[] =>
   (current === undefined || current === "" || choices.some(choice => choice.value === current)
     ? choices : [ ...choices, { value: current, label: labelOf(current) } ]);
+
+export const booleanChoices = (trueLabel = "Yes", falseLabel = "No"): Choice[] =>
+  [ { value: "true", label: trueLabel }, { value: "false", label: falseLabel } ];

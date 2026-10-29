@@ -191,6 +191,7 @@ is finished. An input never saves anything: the caller decides what to keep, and
 |---|---|
 | `TextInput` | One value typed freely, on one line or several |
 | `ChoiceSelect` | One value picked from a list, with None when it is optional |
+| `BooleanInput` | A yes or no, stored as `true` or `false` and shown as Yes and No unless `trueLabel` and `falseLabel` say otherwise |
 | `MultiValueInput` | Several values as chips, picked from a list or typed |
 | `NumberInput` | One number, whole or decimal, typed on a numeric keypad |
 | `DateInput` | One calendar day, stored as `yyyy-mm-dd` |
@@ -199,7 +200,7 @@ is finished. An input never saves anything: the caller decides what to keep, and
 The common props are in `valueInput.ts`. `problems` replaces the description and marks the field in error.
 A `required` field with no value, or only empty ones, adds "A value is required", but only once it has been
 left. A stored value that the list no longer offers stays selected and shown as it is, rather than being dropped
-when the form is saved.
+when the form is saved. So does a `BooleanInput` value that is neither `true` nor `false`.
 
 While a `NumberInput` value is a number so far, a keystroke that would break that is refused. A stored value that is no
 number shows as written and can be typed over freely. `DateInput` reports a half-typed day as empty through `onChange`,
