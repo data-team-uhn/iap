@@ -25,6 +25,7 @@ import { Box, DialogContent, IconButton, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
+import CommentButton from "./CommentButton";
 import MarkList from "./MarkList";
 import { cannotMark, getMarkPage, getMarksKey, getMarkText, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
@@ -33,14 +34,16 @@ import PdfToolbar from "./PdfToolbar";
 import { getFileName, getPassageNote, getPassageStatus } from "./pdfViewerModel";
 import SearchField from "./SearchField";
 import StepControls from "./StepControls";
+import { getTextAnchor } from "./textAnchor";
 import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
 import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
+import { useSelectedText } from "./useSelectedText";
 import LoadError from "../components/LoadError";
 import ResponsiveDialog from "../components/ResponsiveDialog";
 
-import type { Mark } from "./marksModel";
+import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
 
 export interface PdfViewerProps {
   // The PDF to open.
@@ -56,6 +59,11 @@ export interface PdfViewerProps {
   selectedMarkId?: string;
   // Called with the mark the person selects, in the document or in the list of passages.
   onSelectMark?: (id: string) => void;
+  // Told the passage the person selected in the document, when they press the Comment button the viewer
+  // offers under it. Without it, there is no Comment button.
+  onAnnotate?: (anchor: TextAnchor) => void;
+  // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
+  renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
@@ -75,7 +83,7 @@ export default function PdfViewer(props: PdfViewerProps) {
 
 // The document stays open here while the viewer moves between the container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
-  const { url, page, selectedMarkId, onSelectMark, title, container, onClose } = props;
+  const { url, page, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, title, container, onClose } = props;
   const marksKey = getMarksKey(props.marks);
   const marks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
@@ -102,6 +110,17 @@ function PdfViewerSession(props: PdfViewerProps) {
     onSelectMark: select,
   });
   const { showMark } = view;
+  const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
+  const { dismiss } = selectedText;
+  // Clears the selection once the passage is passed on, so the mark the caller makes of it shows.
+  const annotate = pdf === undefined || onAnnotate === undefined
+    ? undefined
+    : async (spans: MarkSpan[]) => {
+      const pages = await Promise.all(spans.map(span => pdf.getPageTextWithLines(span.page)));
+      onAnnotate(getTextAnchor(spans, page => pages[spans.findIndex(span => span.page === page)]));
+      dismiss();
+      document.getSelection()?.removeAllRanges();
+    };
   useEffect(() => {
     if (selectedMarkId === followedId.current || !marks.some(mark => mark.id === selectedMarkId)) {
       return;
@@ -153,6 +172,9 @@ function PdfViewerSession(props: PdfViewerProps) {
       openError={openError}
       onRetry={retry}
       view={view}
+      renderMarkDetails={renderMarkDetails}
+      selectedText={selectedText}
+      onAnnotate={annotate}
       placeButton={placeButton}
       edgeToEdge={inDialog}
       onClose={onClose}
@@ -195,6 +217,9 @@ interface ViewerBodyProps {
   openError: string | undefined;
   onRetry: () => Promise<void>;
   view: ReturnType<typeof usePdfView>;
+  renderMarkDetails: PdfViewerProps["renderMarkDetails"];
+  selectedText: ReturnType<typeof useSelectedText>;
+  onAnnotate: ((spans: MarkSpan[]) => Promise<void>) | undefined;
   // Moves the viewer between its container and the dialog, when it has a container.
   placeButton: ReactNode;
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
@@ -204,7 +229,7 @@ interface ViewerBodyProps {
 
 function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
-  const { placeButton, edgeToEdge, onClose } = props;
+  const { renderMarkDetails, selectedText, onAnnotate, placeButton, edgeToEdge, onClose } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -232,8 +257,14 @@ function ViewerBody(props: ViewerBodyProps) {
     find("");
     setSearchOpen(false);
   };
-  // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page.
+  // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page. Escape
+  // hides the Comment button before it closes anything.
   const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && selectedText.selected !== undefined) {
+      event.stopPropagation();
+      selectedText.dismiss();
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && pageCount !== undefined) {
       event.preventDefault();
       setSearchOpen(compact);
@@ -270,6 +301,7 @@ function ViewerBody(props: ViewerBodyProps) {
             />
           )
           : undefined}
+        details={renderMarkDetails?.(selected, true)}
         onShowPassage={() => showMark(selected.id)}
       />
     );
@@ -350,7 +382,17 @@ function ViewerBody(props: ViewerBodyProps) {
                 sx={{ mb: 1 }}
               />
             )}
-          <PdfDocumentView setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={several} />
+          <PdfDocumentView setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={several}>
+            {selectedText.selected === undefined || onAnnotate === undefined
+              ? null
+              : (
+                <CommentButton
+                  at={selectedText.selected}
+                  onPress={selectedText.hold}
+                  onComment={spans => void onAnnotate(spans)}
+                />
+              )}
+          </PdfDocumentView>
         </Box>
         {several && !narrow
           ? (
@@ -359,6 +401,7 @@ function ViewerBody(props: ViewerBodyProps) {
               places={places}
               status={status}
               selectedId={selected?.id}
+              renderDetails={renderMarkDetails}
               onSelect={showSelected}
             />
           )
