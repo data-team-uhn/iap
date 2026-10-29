@@ -1132,6 +1132,7 @@
             <exclude>**/node_modules/**</exclude>
             <exclude>**/frontend/dist/**</exclude>
             <exclude>**/assets.config</exclude>
+            <exclude>**/package-folders.config</exclude>
             <exclude>**/pnpm-lock.yaml</exclude>
             <!-- Exclude JSON files since comments are not supported -->
             <exclude>**/*.json</exclude>

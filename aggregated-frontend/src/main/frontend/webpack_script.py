@@ -66,6 +66,17 @@ def merge_webpack_files(root, dir_name, namespace, aggregated_frontend_dir, webp
                 line = line.replace("'./src/", "'./src/" + namespace + "/").replace('"./src/', '"./src/' + namespace + '/')
                 webpack_config_entries.append(line)
 
+# Collect the package folders a module lists in its package-folders.config, one quoted
+# '<package>/<folder>' a line, for the build to publish. A folder two modules list is published once.
+def merge_package_folders(root, dir_name, package_folders):
+    fl = path.join(root, dir_name, 'src', 'main', 'frontend', 'package-folders.config')
+    if path.exists(fl):
+        with open(fl, 'rt') as ins:
+            for line in ins:
+                folder = line.strip().rstrip(',')
+                if folder.startswith(("'", '"')) and folder not in package_folders:
+                    package_folders.append(folder)
+
 # Copy a module's UI files from src/<maven_source>/frontend/src into the module's own
 # subdirectory of the aggregated frontend, src/main/frontend/src/<module>/. Keeping each
 # module in its own directory prevents files from different modules from silently
@@ -134,6 +145,7 @@ def main(args=sys.argv[1:]):
     webpack_merged_file = path.join(aggregated_frontend_dir, 'src', 'main', 'frontend', 'webpack.config.js')
     shutil.copy2(webpack_merged_template_file, webpack_merged_file)
     webpack_config_entries = []
+    package_folders = []
 
     package_merged = {}
 
@@ -162,9 +174,10 @@ def main(args=sys.argv[1:]):
                     module_dir = path.join(root, name)
                     has_sources = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'src'))
                     has_config = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'assets.config'))
+                    has_folders = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'package-folders.config'))
                     # Asking a directory that ships no UI for its artifactId would fail on every
                     # ordinary directory in the tree, so only the ones being aggregated are asked
-                    if not has_sources and not has_config:
+                    if not has_sources and not has_config and not has_folders:
                         continue
                     namespace = namespace_for(module_dir)
                     if namespace in seen_modules:
@@ -175,6 +188,7 @@ def main(args=sys.argv[1:]):
                     if has_sources:
                         source_modules.append(namespace)
                     merge_webpack_files(root, name, namespace, aggregated_frontend_dir, webpack_config_entries)
+                    merge_package_folders(root, name, package_folders)
                     merge_ui_files(root, name, namespace, aggregated_frontend_dir)
                     if include_tests:
                         merge_ui_files(root, name, namespace, aggregated_frontend_dir, 'test')
@@ -190,6 +204,8 @@ def main(args=sys.argv[1:]):
         lines = f.readlines()
         entry_line_number = lines.index('ENTRY_CONTENT\n')
         lines[entry_line_number] = lines[entry_line_number].replace('ENTRY_CONTENT\n', '    ' + '    '.join(webpack_config_entries))
+        folders_line_number = lines.index('PACKAGE_FOLDERS_CONTENT\n')
+        lines[folders_line_number] = ''.join('  %s,\n' % folder for folder in package_folders)
 
     with open(webpack_merged_file, "w") as f:
         for item in lines:
