@@ -20,6 +20,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import { SchemaVersionPage } from '../../../pages/schemaVersion.page';
 import { ADMIN, adminAuth, signInAs } from '../../../support/auth';
+import { childrenOfType, tagsOf } from '../../../support/nodes';
 
 /**
  * THE STORY: a schema, from its first draft to a second version, with a submission made against it.
@@ -393,20 +394,11 @@ async function offeredForSubmission(page: Page): Promise<string[]> {
   return offered;
 }
 
-/** The tags a node carries itself, as the repository serves them. */
-async function tagsOf(request: APIRequestContext, path: string): Promise<string[]> {
-  const response = await request.get(`${path}.json`, { headers: adminAuth });
-  expect(response.ok(), `${path} could not be read`).toBeTruthy();
-  return ((await response.json()) as { tags?: string[] }).tags ?? [];
-}
-
 /** The labels of a schema's active versions, read from every version, drafts and retired ones included. */
-async function activeVersions(request: APIRequestContext, schema: string): Promise<string[]> {
+async function activeVersions(request: APIRequestContext, schema: string): Promise<(string | undefined)[]> {
   const response = await request.get(`${schema}.1.simple.-active.json`, { headers: adminAuth });
   expect(response.ok(), `${schema} could not be read`).toBeTruthy();
-  return Object.values((await response.json()) as Record<string, unknown>)
-    .filter((child): child is { version: string; tags?: string[] } => typeof child === 'object' && child !== null
-      && (child as Record<string, unknown>)['jcr:primaryType'] === 'sch:SchemaVersion')
+  return childrenOfType(await response.json(), 'sch:SchemaVersion')
     .filter(version => version.tags?.includes('active'))
     .map(version => version.version);
 }

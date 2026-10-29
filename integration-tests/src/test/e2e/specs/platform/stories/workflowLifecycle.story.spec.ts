@@ -20,6 +20,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { WorkflowConsolePage } from '../../../pages/workflowConsole.page';
 import { ADMIN, adminAuth, signInAs } from '../../../support/auth';
+import { tagsOf } from '../../../support/nodes';
 
 /**
  * THE STORY: a workflow, from its first draft to its retirement.
@@ -192,13 +193,6 @@ test.describe('stories: carrying a platform workflow forward', () => {
 /** The workflow a version belongs to: its parent, since versions are stored inside their workflow. */
 function workflowOf(version: string): string {
   return version.slice(0, version.lastIndexOf('/'));
-}
-
-/** The tags a node carries itself, as the repository serves them. */
-async function tagsOf(request: APIRequestContext, path: string): Promise<string[]> {
-  const response = await request.get(`${path}.json`, { headers: adminAuth });
-  expect(response.ok(), `${path} could not be read`).toBeTruthy();
-  return ((await response.json()) as { tags?: string[] }).tags ?? [];
 }
 
 /** A version's flow nodes as the repository serves them: each one's name, type and handler. */

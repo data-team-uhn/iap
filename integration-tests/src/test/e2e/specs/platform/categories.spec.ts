@@ -19,6 +19,7 @@
 import { expect, test } from '@playwright/test';
 
 import { adminAuth } from '../../support/auth';
+import { childrenOfType } from '../../support/nodes';
 
 /**
  * The submission categories a bare deployment starts with — none — and the three endpoints that read
@@ -35,9 +36,7 @@ test.describe('submission categories', () => {
     // A taxonomy is a deployment's own content: the module contributes the node types and the
     // administration UI, and nothing else. Anything the platform did ship here would be a category
     // every deployment has to notice and delete.
-    const categories = Object.values(tree)
-      .filter((value): value is Record<string, unknown> => typeof value === 'object' && value !== null)
-      .filter(child => child['jcr:primaryType'] === 'cat:Category');
+    const categories = childrenOfType(tree, 'cat:Category');
     expect(categories).toHaveLength(0);
   });
 

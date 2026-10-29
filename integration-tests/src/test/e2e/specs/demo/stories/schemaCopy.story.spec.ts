@@ -19,6 +19,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { adminAuth } from '../../../support/auth';
+import { childNodes, childrenOfType } from '../../../support/nodes';
 
 /**
  * A new schema can start as a copy of a version of another, which is how a process already in use is
@@ -35,10 +36,6 @@ const SOURCE = '/Schemas/timeOffRequest/v1';
 
 type SerializedNode = Record<string, unknown>;
 
-const isVersion = (child: unknown): child is SerializedNode =>
-  typeof child === 'object' && child !== null
-  && (child as SerializedNode)['jcr:primaryType'] === 'sch:SchemaVersion';
-
 /** A node with its references as raw identifiers, so that two nodes' references can be compared. */
 async function read(request: APIRequestContext, path: string): Promise<SerializedNode> {
   const response = await request.get(`${path}.-dereference.json`, { headers: adminAuth });
@@ -50,9 +47,7 @@ async function read(request: APIRequestContext, path: string): Promise<Serialize
 async function schemaTitles(request: APIRequestContext): Promise<unknown[]> {
   const response = await request.get('/Schemas.1.-active.json', { headers: adminAuth });
   expect(response.status()).toBe(200);
-  return Object.values(await response.json() as SerializedNode)
-    .filter((child): child is SerializedNode => typeof child === 'object' && child !== null)
-    .map(child => child.title);
+  return childNodes(await response.json()).map(child => child.title);
 }
 
 test.describe('a new schema can start as a copy of a version of another', () => {
@@ -68,10 +63,11 @@ test.describe('a new schema can start as a copy of a version of another', () => 
     // A draft is listed only to a reader asking for -active
     const listing = await request.get(`${schema}.1.simple.-active.json`, { headers: adminAuth });
     expect(listing.status()).toBe(200);
-    const versions = Object.values(await listing.json() as SerializedNode).filter(isVersion);
+    const versions = childrenOfType(await listing.json(), 'sch:SchemaVersion');
     expect(versions).toHaveLength(1);
     expect(versions[0].tags, 'marking the copy a draft replaces where the source stood').toEqual(['draft']);
-    const copy = String(versions[0]['@path']);
+    const copy = versions[0]['@path'] ?? '';
+    expect(copy, 'the copy is listed with its path').not.toBe('');
 
     const [original, copied] = await Promise.all([read(request, SOURCE), read(request, copy)]);
     expect(copied.version, 'the copy keeps its own label').toBe('Revised');
