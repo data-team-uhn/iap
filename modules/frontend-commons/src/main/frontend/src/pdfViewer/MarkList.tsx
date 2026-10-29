@@ -22,21 +22,33 @@ import { Box, ButtonBase, Typography } from "@mui/material";
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, passageCard, passageTint } from "./passageStyles";
-import { describePages, getPassageNote, type ViewerStatus } from "./pdfViewerModel";
+import { cutShort, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import {
+  capitalize,
+  describeAmong,
+  describePages,
+  getPassageNote,
+  type MarkName,
+  type ViewerStatus,
+} from "./pdfViewerModel";
+import StepControls from "./StepControls";
+import { fadeEdges, useScrollEdges } from "../useScrollEdges";
 
 import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
 
-// Past this many lines, a passage is cut short unless it is the one selected.
-const MAX_LINES = 4;
+// How many lines of a passage, and of what the caller shows under it, an entry shows unless it is the one
+// selected. The focus inside what is cut shows all of it, so nothing is typed out of sight.
+const MAX_LINES = 2;
+const MAX_DETAILS_LINES = 2;
 
-// The passages beside the document, in the order given, each on a card in its mark's colour, selecting
-// it, with the caller's details for it underneath. A passage found takes the reader to it, and the one
-// selected is shown whole and kept in view.
-function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }: {
+// The passages beside the document, each on a card in its mark's colour, with the caller's details for
+// it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
+// view. Above them, a heading says which is selected of how many, with buttons stepping through them.
+function MarkList({ marks, name, places, status, selectedId, renderDetails, onSelect }: {
   marks: Mark[];
+  name: MarkName;
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
@@ -45,6 +57,7 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
 }) {
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
+  const edges = useScrollEdges(list);
 
   useEffect(() => {
     const entry = selectedId === undefined ? undefined : entries.current.get(selectedId);
@@ -53,63 +66,101 @@ function MarkList({ marks, places, status, selectedId, renderDetails, onSelect }
     }
   }, [selectedId]);
 
+  const position = marks.findIndex(mark => mark.id === selectedId) + 1;
+
   return (
-    <Box
-      ref={list}
-      component="ul"
-      aria-label="Passages"
-      sx={{
-        width: LIST_WIDTH,
-        flexShrink: 0,
-        overflow: "auto",
-        listStyle: "none",
-        m: 0,
-        p: 0.5,
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-      }}
-    >
-      {marks.map((mark, index) => {
-        const selected = mark.id === selectedId;
-        return (
-          <Box
-            component="li"
-            key={mark.id}
-            ref={(element: HTMLLIElement) => {
-              entries.current.set(mark.id, element);
-              return () => {
-                entries.current.delete(mark.id);
-              };
-            }}
-            sx={theme => ({
-              ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
-              // Each card keeps its full height, and the list scrolls instead.
-              flexShrink: 0,
-              overflow: "hidden",
-              outline: selected ? "2px solid" : "none",
-              outlineColor: `${mark.kind}.main`,
-              outlineOffset: "-2px",
-            })}
-          >
-            <MarkEntry
-              mark={mark}
-              position={index + 1}
-              place={places[mark.id]}
-              status={status}
-              selected={selected}
-              onSelect={() => onSelect(mark.id)}
-            />
-            {renderDetails?.(mark, selected)}
-          </Box>
-        );
-      })}
+    <Box sx={{ width: LIST_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <StepControls
+        position={position}
+        count={marks.length}
+        itemName={name.one}
+        heading={describeAmong(name, { index: position, count: marks.length })}
+        onStep={next => onSelect(marks[next - 1].id)}
+      />
+      <Box
+        ref={list}
+        component="ul"
+        aria-label={capitalize(name.many)}
+        sx={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflow: "auto",
+          listStyle: "none",
+          m: 0,
+          p: 0.5,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+          maskImage: fadeEdges(edges),
+        }}
+      >
+        {marks.map((mark, index) => {
+          const selected = mark.id === selectedId;
+          return (
+            <Box
+              component="li"
+              key={mark.id}
+              ref={(element: HTMLLIElement) => {
+                entries.current.set(mark.id, element);
+                return () => {
+                  entries.current.delete(mark.id);
+                };
+              }}
+              sx={theme => ({
+                ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
+                // Each card keeps its full height, and the list scrolls instead.
+                flexShrink: 0,
+                overflow: "hidden",
+                outline: selected ? "2px solid" : "none",
+                outlineColor: `${mark.kind}.main`,
+                outlineOffset: "-2px",
+              })}
+            >
+              <MarkEntry
+                mark={mark}
+                name={name}
+                position={index + 1}
+                place={places[mark.id]}
+                status={status}
+                selected={selected}
+                onSelect={() => onSelect(mark.id)}
+              />
+              {renderDetails === undefined
+                ? null
+                : <MarkDetails cut={!selected}>{renderDetails(mark, selected)}</MarkDetails>}
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
 
-function MarkEntry({ mark, position, place, status, selected, onSelect }: {
+function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(box);
+  return (
+    <Box
+      ref={box}
+      // Back to its top once the focus leaves, wherever the focus scrolled it while it was cut
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          event.currentTarget.scrollTop = 0;
+        }
+      }}
+      sx={{
+        ...passageDetails(edges, cut ? MAX_DETAILS_LINES : undefined),
+        "&:focus-within": { maxHeight: "none", maskImage: "none" },
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function MarkEntry({ mark, name, position, place, status, selected, onSelect }: {
   mark: Mark;
+  name: MarkName;
   position: number;
   place: MarkPlace;
   status: ViewerStatus;
@@ -138,9 +189,9 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
         )}
     </>
   );
-  let label = `Select passage ${position}`;
+  let label = `Select ${name.one} ${position}`;
   if (place.status === "found") {
-    label = `Show passage ${position} on ${describePages(place.page, place.toPage)}`;
+    label = `Show ${name.one} ${position} on ${describePages(place.page, place.toPage)}`;
   }
 
   return (
@@ -156,6 +207,7 @@ function MarkEntry({ mark, position, place, status, selected, onSelect }: {
         px: 1.5,
         py: 1,
         textAlign: "start",
+        ...passageLayer(theme, mark.kind),
         "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark.kind, 0.5) } },
         "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark.kind, 0.5) },
       })}

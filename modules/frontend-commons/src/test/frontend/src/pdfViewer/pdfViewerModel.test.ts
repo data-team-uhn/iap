@@ -180,6 +180,16 @@ describe("getPassageStatus", () => {
     expect(getPassageStatus({ page: 2 }, found(4, 5), third)).toBe("Passage 3 of 17 is marked on pages 4 and 5.");
   });
 
+  it("names the passage as the marks are called", () => {
+    const comments = { one: "comment", many: "comments" };
+    expect(getPassageStatus({ page: 2 }, SEARCHING, undefined, comments)).toBe("Looking for the comment…");
+    expect(getPassageStatus({ page: 2 }, found(4), undefined, comments)).toBe("The comment is marked on page 4.");
+    expect(getPassageStatus({ page: 2 }, SEARCHING, { index: 3, count: 17 }, comments))
+      .toBe("Looking for comment 3 of 17…");
+    expect(getPassageStatus({ page: 2 }, found(4), { index: 3, count: 17 }, comments))
+      .toBe("Comment 3 of 17 is marked on page 4.");
+  });
+
   it("says nothing when the document could not be opened", () => {
     expect(getPassageStatus({ openError: "Gone." }, SEARCHING)).toBe("");
   });
