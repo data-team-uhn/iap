@@ -19,12 +19,13 @@
 import { Fragment, useState, type ReactNode } from "react";
 
 import {
-  Alert, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, Stack, Switch, TextField,
+  Alert, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, Stack, Switch,
 } from "@mui/material";
 
 import ResponsiveDialog from "../components/ResponsiveDialog";
 import ChoiceSelect from "../inputs/ChoiceSelect";
 import MultiValueInput from "../inputs/MultiValueInput";
+import NumberInput from "../inputs/NumberInput";
 import TextInput from "../inputs/TextInput";
 import { fromSingle, singleValue } from "../inputs/valueInput";
 import { messageOf } from "../requestFailure";
@@ -34,16 +35,6 @@ import {
   type PatchValue, type SerializedNode,
 } from "./fieldsModel";
 import ReferenceInput from "./ReferenceInput";
-
-const INVALID: Partial<Record<ContentField["kind"], string>> = {
-  long: "Enter a whole number.",
-  double: "Enter a number.",
-};
-
-const INPUT_MODES: Partial<Record<ContentField["kind"], "numeric" | "decimal">> = {
-  long: "numeric",
-  double: "decimal",
-};
 
 interface FieldInputProps {
   field: ContentField;
@@ -70,7 +61,9 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
     );
   }
   const choices = field.choices ?? [];
-  const common = { label: field.label, description: field.help, required: field.mandatory, disabled };
+  const whole = field.kind === "long";
+  const problems = isValid(field, value) ? [] : [ whole ? "Enter a whole number." : "Enter a number." ];
+  const common = { label: field.label, description: field.help, required: field.mandatory, disabled, problems };
   if (Array.isArray(value)) {
     return <MultiValueInput {...common} choices={choices} values={value} onChange={onChange} />;
   }
@@ -81,19 +74,7 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
   if (field.kind === "text") {
     return <TextInput {...single} multiline={field.multiline} />;
   }
-  const invalid = !isValid(field, value);
-  return (
-    <TextField
-      label={field.label}
-      required={field.mandatory}
-      disabled={disabled}
-      error={invalid}
-      helperText={invalid ? INVALID[field.kind] : field.help}
-      value={value}
-      slotProps={{ htmlInput: { inputMode: INPUT_MODES[field.kind] ?? "text" } }}
-      onChange={event => onChange(event.target.value)}
-    />
-  );
+  return <NumberInput {...single} kind={whole ? "whole" : "decimal"} />;
 }
 
 interface FieldsDialogProps {

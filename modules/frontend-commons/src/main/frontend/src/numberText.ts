@@ -25,3 +25,10 @@ export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) 
 // Whether the text is a decimal number, maybe signed, with an optional point and exponent, and not too large to hold
 export const isDecimalNumber = (text: string): boolean =>
   /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));
+
+// Whether the text could still become a whole number as more is typed: a sign, digits, or nothing yet
+export const isWholeSoFar = (text: string): boolean => /^[-+]?\d*$/.test(text);
+
+// Whether the text could still become a decimal number as more is typed, e.g. "-.", "1." or "2e-"
+export const isDecimalSoFar = (text: string): boolean =>
+  /^[-+]?(\d*\.?\d*|(\d+\.?\d*|\.\d+)e[-+]?\d*)$/i.test(text);

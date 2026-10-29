@@ -30,6 +30,7 @@ import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
 const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
   age: { type: "long", multiple: false },
+  weight: { type: "double", multiple: false },
   colours: {
     type: "text", multiple: true, choices: [ { value: "red", label: "Red" }, { value: "blue", label: "Blue" } ],
   },
@@ -120,7 +121,7 @@ describe("ConditionDialog", () => {
     const value = within(condition).getByRole("textbox", { name: "Value" });
     expect(value).toBeRequired();
     expect(value).toHaveAttribute("inputmode", "numeric");
-    fireEvent.change(value, { target: { value: "adult" } });
+    fireEvent.change(value, { target: { value: "-" } });
     expect(within(condition).getByText("Enter a whole number.")).toBeInTheDocument();
     expect(summary(dialog)).toBeUndefined();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -245,8 +246,11 @@ describe("ConditionDialog", () => {
     fireEvent.change(date, { target: { value: "" } });
     expect(summary(dialog)).toBeUndefined();
 
+    await pick(condition, "Field", "weight");
+    expect(within(condition).getByRole("textbox", { name: "Value" })).toHaveAttribute("inputmode", "decimal");
+
     await pick(condition, "Field", "free");
-    expect(within(condition).getByRole("textbox", { name: "Value" })).toHaveAttribute("inputmode", "text");
+    expect(within(condition).getByRole("textbox", { name: "Value" })).not.toHaveAttribute("inputmode");
 
     await pick(condition, "Comparison", "is empty");
     expect(within(condition).queryByRole("combobox", { name: "Compared with" })).not.toBeInTheDocument();
