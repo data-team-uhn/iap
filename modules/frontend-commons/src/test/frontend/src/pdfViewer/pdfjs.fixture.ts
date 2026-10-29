@@ -39,12 +39,16 @@ type Listener = (event: never) => void;
 function createDefaults() {
   return {
     pages: [ ...DEFAULT_PAGES ],
+    // The pages of each document, by the URL the viewer fetches it from. Any other URL opens fakePdf.pages.
+    documents: {} as Record<string, string[]>,
     // What opening the document fails with, if anything.
     openFailure: undefined as Error | undefined,
     // Package folders the build did not publish, as asset names.
     unpublished: [] as string[],
-    // Set to hold back reading the pages' text until releaseText() is called.
+    // Set to hold back reading the pages' text, or the text of the pages from one on, until releaseText()
+    // is called.
     holdText: false,
+    holdTextFrom: undefined as number | undefined,
     releaseText: undefined as (() => void) | undefined,
     // Set to hold back the first page being shown until releasePages() is called.
     holdPages: false,
@@ -53,6 +57,9 @@ function createDefaults() {
     unreadable: [] as number[],
     // Set to draw only the page shown, as PDF.js does with a long document, rather than every page.
     drawShownPageOnly: false,
+    // Set to hold back drawing the pages shown until releaseDrawing() is called.
+    holdDrawing: false,
+    heldDrawing: [] as (() => void)[],
     // Every document opened, every worker handed to an open, every page whose text was read, and
     // every place the reader was put back at.
     opened: 0,
@@ -77,6 +84,11 @@ function createDefaults() {
 
 export const fakePdf = {
   ...createDefaults(),
+  // Draws what was held back, and draws as it comes from then on.
+  releaseDrawing(): void {
+    fakePdf.holdDrawing = false;
+    fakePdf.heldDrawing.splice(0).forEach(draw => draw());
+  },
   reset(): void {
     Object.assign(fakePdf, createDefaults());
     delete (Range.prototype as Partial<Range>).getClientRects;
@@ -85,12 +97,13 @@ export const fakePdf = {
 
 // jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page. A mark sits where
 // its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
-// as given, which decides whether the viewer has room beside the document. Undone by reset().
-export function stubLayout({ elementWidth = 0 } = {}): void {
+// and as high as given, which decides whether the viewer has room beside the document, and whether a
+// mark is in view. Undone by reset().
+export function stubLayout({ elementWidth = 0, elementHeight = 0 } = {}): void {
   Range.prototype.getClientRects = () => [ new DOMRect(0, MATCH_TOP, 100, 20) ] as unknown as DOMRectList;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.dataset.markId === undefined) {
-      return new DOMRect(0, 0, elementWidth, 0);
+      return new DOMRect(0, 0, elementWidth, elementHeight);
     }
     const share = (value: string) => Number.parseFloat(value) / 100;
     const { left, top, width, height } = this.style;
@@ -135,26 +148,34 @@ export class FakeWorker {
   constructor(readonly url: URL, readonly options: WorkerOptions) {}
 }
 
-// What the server answers when the viewer fetches the file. A new response per call, since a body
-// can only be read once.
+// What the server answers when the viewer fetches the file: its URL, which says which document it is. A new
+// response per call, since a body can only be read once.
 export function stubFetch(status = 200): void {
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(new ArrayBuffer(8), { status }))));
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(
+    new Response(new TextEncoder().encode(url), { status }),
+  )));
 }
 
-// A document whose pages' text is fakePdf.pages, one text item per line, inside marked content.
+// A document whose pages' text is as given, one text item per line, inside marked content.
 class FakeDocument {
-  readonly numPages = fakePdf.pages.length;
+  readonly pages: string[];
+  readonly numPages: number;
   #held: Promise<void> | undefined;
+
+  constructor(pages: string[]) {
+    this.pages = pages;
+    this.numPages = pages.length;
+  }
 
   getPage(pageNumber: number) {
     return Promise.resolve({
       getTextContent: async () => {
-        await this.#hold();
+        await this.#hold(pageNumber);
         fakePdf.textReads.push(pageNumber);
         if (fakePdf.unreadable.includes(pageNumber)) {
           throw createPdfjsError("UnknownErrorException", "Bad text content");
         }
-        const lines = (fakePdf.pages[pageNumber - 1] ?? "").split("\n");
+        const lines = (this.pages[pageNumber - 1] ?? "").split("\n");
         // Marked content, which says how the text is structured, holds none of it.
         const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1 }));
         return { items: [ { type: "beginMarkedContent" }, ...items, { type: "endMarkedContent" } ] };
@@ -162,12 +183,16 @@ class FakeDocument {
     });
   }
 
-  #hold(): Promise<void> {
-    if (!fakePdf.holdText) {
+  #hold(pageNumber: number): Promise<void> {
+    if (!fakePdf.holdText && pageNumber < (fakePdf.holdTextFrom ?? Infinity)) {
       return Promise.resolve();
     }
     this.#held ??= new Promise(resolve => {
-      fakePdf.releaseText = resolve;
+      const releaseOthers = fakePdf.releaseText;
+      fakePdf.releaseText = () => {
+        releaseOthers?.();
+        resolve();
+      };
     });
     return this.#held;
   }
@@ -299,19 +324,24 @@ class FakePDFViewer {
 
   // Every page not yet drawn, or only the one shown, after the change that shows it, as PDF.js does.
   #drawShown(): void {
-    queueMicrotask(() => {
+    const draw = () => {
       this.#pageViews.forEach((pageView, index) => {
         if (pageView.textLayer === null && (!fakePdf.drawShownPageOnly || index + 1 === this.#page)) {
           this.#drawText(pageView, index + 1);
         }
       });
-    });
+    };
+    if (fakePdf.holdDrawing) {
+      fakePdf.heldDrawing.push(draw);
+    } else {
+      queueMicrotask(draw);
+    }
   }
 
   #drawText(pageView: FakePageView, pageNumber: number): void {
     const div = document.createElement("div");
     div.className = "textLayer";
-    for (const line of (fakePdf.pages[pageNumber - 1] ?? "").split("\n")) {
+    for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
       const span = document.createElement("span");
       span.textContent = line;
       div.append(span, document.createElement("br"));
@@ -392,12 +422,16 @@ class FakePDFFindController {
 
   // The matches on each page searched so far, by page: none before the search has searched any.
   get pageMatches(): number[][] | undefined {
-    const searched = fakePdf.pagesSearched ?? fakePdf.pages.length;
+    const searched = fakePdf.pagesSearched ?? this.#pages.length;
     if (searched === 0) {
       return undefined;
     }
-    return fakePdf.pages.slice(0, searched)
+    return this.#pages.slice(0, searched)
       .map((_, pageIdx) => this.#matches.filter(match => match.pageIdx === pageIdx).map(({ matchIdx }) => matchIdx));
+  }
+
+  get #pages(): string[] {
+    return this._linkService.pdfDocument?.pages ?? fakePdf.pages;
   }
 
   // Overridden by PdfViewer's search.
@@ -421,7 +455,7 @@ class FakePDFFindController {
     if (type === "") {
       this.#matches = query === ""
         ? []
-        : fakePdf.pages.flatMap((text, pageIdx) => text.toLowerCase().split(query.toLowerCase())
+        : this.#pages.flatMap((text, pageIdx) => text.toLowerCase().split(query.toLowerCase())
           .slice(1)
           .map((_, matchIdx) => ({ pageIdx, matchIdx })));
       if (query === "") {
@@ -481,12 +515,13 @@ export function createPdfjsModule() {
     getDocument: (options: { data: ArrayBuffer; worker?: unknown }) => {
       fakePdf.openOptions.push(options);
       fakePdf.workers.push(options.worker);
+      const url = new TextDecoder().decode(options.data);
       return {
         promise: fakePdf.openFailure !== undefined
           ? Promise.reject(fakePdf.openFailure)
           : Promise.resolve().then(() => {
             fakePdf.opened++;
-            return new FakeDocument();
+            return new FakeDocument(fakePdf.documents[url] ?? fakePdf.pages);
           }),
         destroy: () => {
           fakePdf.destroyedTasks++;

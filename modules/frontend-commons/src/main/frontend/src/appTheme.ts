@@ -86,7 +86,8 @@ declare module "@mui/material/styles" {
     word: string;
   }
   // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
-  // `highlight` holds the marks both make over a document's content.
+  // `highlight` holds the marks both make over a document's content, and those a comparison of two
+  // versions of a document makes.
   interface TypeHighlight {
     assistant: string;
     assistantCurrent: string;
@@ -94,6 +95,12 @@ declare module "@mui/material/styles" {
     annotationCurrent: string;
     search: string;
     searchCurrent: string;
+    added: string;
+    addedCurrent: string;
+    addedMarker: string;
+    removed: string;
+    removedCurrent: string;
+    removedMarker: string;
   }
   // The colours of content that applies only under a condition: `main` for its icon, `surface` behind the line
   // saying when it applies
@@ -220,6 +227,13 @@ const ANNOTATION_DARK: PaletteColorOptions = {
   contrastText: "rgba(0, 0, 0, 0.87)",
 };
 
+// What a comparison marks as added or removed, in the light scheme.
+const ADDED_LIGHT = { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" };
+// The added word colour, translucent as the removed one is, so a mark under it shows through. Over white
+// it is the same colour.
+const ADDED_FILL = "rgba(45, 222, 87, 0.4)";
+const REMOVED_LIGHT = { main: "#cf222e", line: "#ffebe9", word: "rgba(255, 129, 130, 0.4)" };
+
 // Marks over a document's own content. That content stays light in both schemes, so the marks do not
 // change with the scheme. The current mark is the one in focus, such as the match a search moved to.
 const HIGHLIGHT = {
@@ -229,6 +243,12 @@ const HIGHLIGHT = {
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
+  added: ADDED_FILL,
+  addedCurrent: alpha(ADDED_LIGHT.main, 0.45),
+  addedMarker: ADDED_LIGHT.main,
+  removed: REMOVED_LIGHT.word,
+  removedCurrent: alpha(REMOVED_LIGHT.main, 0.45),
+  removedMarker: REMOVED_LIGHT.main,
 };
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
@@ -323,8 +343,8 @@ const appTheme = createTheme({
         },
         condition: { main: "#0277bd", surface: "#e6f2fa" },
         diff: {
-          added: { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" },
-          removed: { main: "#cf222e", line: "#ffebe9", word: "rgba(255, 129, 130, 0.4)" },
+          added: ADDED_LIGHT,
+          removed: REMOVED_LIGHT,
           moved: { main: "#9a6700", line: "#fffaee" },
           hunk: { main: "#4a6a8a", line: "#f2f7fc" },
         },

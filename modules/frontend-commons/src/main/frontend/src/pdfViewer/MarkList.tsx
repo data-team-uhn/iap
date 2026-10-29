@@ -18,17 +18,22 @@
 import { memo, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
+import { visuallyHidden } from "@mui/utils";
 
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import { cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
 import {
-  capitalize,
   describeAmong,
   describePages,
+  countMarks,
+  describeSorts,
   getPassageNote,
-  type MarkName,
+  getStepNames,
+  getWidestHeadings,
+  PASSAGES,
+  type MarkNaming,
   type ViewerStatus,
 } from "./pdfViewerModel";
 import StepControls from "./StepControls";
@@ -46,15 +51,21 @@ const MAX_DETAILS_LINES = 2;
 // The passages beside the document, each on a card in its mark's colour, with the caller's details for
 // it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
 // view. Above them, a heading says which is selected of how many, with buttons stepping through them.
-function MarkList({ marks, name, places, status, selectedId, renderDetails, onSelect }: {
+function MarkList(props: {
   marks: Mark[];
-  name: MarkName;
+  // What each mark is called and its place among those of its sort.
+  naming: Map<string, MarkNaming>;
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
+  // What shows a mark in place of its quote, such as a change's diff, if anything, and what that says to a
+  // screen reader, which does not read inside the entry's button.
+  renderBody?: (mark: Mark) => ReactNode;
+  describeBody?: (mark: Mark) => string | undefined;
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
+  const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
@@ -67,20 +78,34 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
   }, [selectedId]);
 
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
+  const selected = naming.get(selectedId ?? "");
+  // With none of them selected, as while a change is side by side, it says how many there are.
+  const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
   return (
-    <Box sx={{ width: LIST_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <Box
+      sx={{
+        width: LIST_WIDTH,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        bgcolor: "background.default",
+        borderRadius: 1,
+      }}
+    >
       <StepControls
         position={position}
         count={marks.length}
-        itemName={name.one}
-        heading={describeAmong(name, { index: position, count: marks.length })}
+        itemName={getStepNames(marks, naming, position, PASSAGES)}
+        heading={heading}
+        widest={[ ...getWidestHeadings(naming.values()), countMarks(naming.values()) ]}
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box
         ref={list}
         component="ul"
-        aria-label={capitalize(name.many)}
+        aria-label={describeSorts(naming.values())}
         sx={{
           flex: "1 1 auto",
           minHeight: 0,
@@ -96,6 +121,7 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
       >
         {marks.map((mark, index) => {
           const selected = mark.id === selectedId;
+          const details = renderDetails?.(mark, selected);
           return (
             <Box
               component="li"
@@ -112,22 +138,23 @@ function MarkList({ marks, name, places, status, selectedId, renderDetails, onSe
                 flexShrink: 0,
                 overflow: "hidden",
                 outline: selected ? "2px solid" : "none",
-                outlineColor: `${mark.kind}.main`,
+                outlineColor: getSelectedOutline(theme, mark.kind),
                 outlineOffset: "-2px",
               })}
             >
               <MarkEntry
                 mark={mark}
-                name={name}
-                position={index + 1}
+                body={renderBody?.(mark)}
+                bodySaid={describeBody?.(mark)}
+                naming={naming.get(mark.id) ?? { name: PASSAGES, index: index + 1, count: marks.length }}
                 place={places[mark.id]}
                 status={status}
                 selected={selected}
                 onSelect={() => onSelect(mark.id)}
               />
-              {renderDetails === undefined
+              {details === undefined || details === null
                 ? null
-                : <MarkDetails cut={!selected}>{renderDetails(mark, selected)}</MarkDetails>}
+                : <MarkDetails cut={!selected}>{details}</MarkDetails>}
             </Box>
           );
         })}
@@ -158,27 +185,34 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
-function MarkEntry({ mark, name, position, place, status, selected, onSelect }: {
+function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
   mark: Mark;
-  name: MarkName;
-  position: number;
+  body: ReactNode;
+  bodySaid: string | undefined;
+  naming: MarkNaming;
   place: MarkPlace;
   status: ViewerStatus;
   selected: boolean;
   onSelect: () => void;
 }) {
   const quoteId = useId();
-  const note = getPassageNote(status, place);
-  const text = getMarkText(mark, place);
+  const note = getPassageNote(status, place, "quote" in mark);
+  const text = body === undefined || body === null ? getMarkText(mark, place) : undefined;
   const content = (
     <>
+      {body === undefined || body === null
+        ? null
+        : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
+      {bodySaid === undefined
+        ? null
+        : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
       <Typography
         id={quoteId}
         variant="body2"
         component="span"
         sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
       >
-        {text === undefined ? null : `“${text}”`}
+        {text === undefined || text === "" ? null : `“${text}”`}
       </Typography>
       {note === undefined
         ? null
@@ -189,16 +223,17 @@ function MarkEntry({ mark, name, position, place, status, selected, onSelect }: 
         )}
     </>
   );
-  let label = `Select ${name.one} ${position}`;
+  const { name, index } = naming;
+  let label = `Select ${name.one} ${index}`;
   if (place.status === "found") {
-    label = `Show ${name.one} ${position} on ${describePages(place.page, place.toPage)}`;
+    label = `Show ${name.one} ${index} on ${describePages(place.page, place.toPage)}`;
   }
 
   return (
     <ButtonBase
       focusRipple
       aria-label={label}
-      aria-describedby={quoteId}
+      aria-describedby={bodySaid === undefined ? quoteId : `${quoteId}-said`}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       sx={theme => ({
