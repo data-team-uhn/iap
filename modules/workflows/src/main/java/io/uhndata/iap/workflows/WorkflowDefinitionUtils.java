@@ -111,6 +111,12 @@ public final class WorkflowDefinitionUtils
     /** The detail naming the BPMN element a translation problem was about. */
     private static final String ELEMENT_DETAIL = "element";
 
+    /** The detail naming the id a broken reference points at. */
+    private static final String REFERENCE_DETAIL = "references";
+
+    /** The detail naming the extension node a translation problem was about, within its BPMN element. */
+    private static final String EXTENSION_NODE_DETAIL = "extensionNode";
+
     private static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
 
     private static final String PROCESS_ELEMENT = "process";
@@ -239,6 +245,11 @@ public final class WorkflowDefinitionUtils
         Set<String> claimedNames()
         {
             return this.createdNodes.keySet();
+        }
+
+        ErrorContext problem()
+        {
+            return ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(this.path);
         }
     }
 
@@ -482,12 +493,13 @@ public final class WorkflowDefinitionUtils
             final String ref = message.getAttribute(MESSAGE_REF_ATTRIBUTE);
             final String name = context.messageNames().get(ref);
             if (StringUtils.isBlank(name)) {
-                // Worth raising: an unnamed message can not ever be passed as an event
-                LOGGER.warn("Message event {} in {} references message {} which declares no name",
-                    element.getAttribute(ID_ATTRIBUTE), context.path(), ref);
-                ErrorLogger.logProblem("message event references a message that declares no name",
-                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
-                        .with(ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE)).with("references", ref));
+                // Worth raising: no event can ever be sent to it
+                final String id = element.getAttribute(ID_ATTRIBUTE);
+                final String problem = context.messageNames().containsKey(ref)
+                    ? "message event references a message with no name"
+                    : "message event references no declared message";
+                LOGGER.warn("Message event {} in {}: {} ({})", id, context.path(), problem, ref);
+                ErrorLogger.logProblem(problem, context.problem().with(ELEMENT_DETAIL, id).with(REFERENCE_DETAIL, ref));
             } else {
                 node.setProperty(MESSAGE_NAME_PROPERTY, name);
             }
@@ -532,7 +544,8 @@ public final class WorkflowDefinitionUtils
         if (extensions == null) {
             return;
         }
-        svChildren(extensions, SV_NODE).forEach(child -> buildSvNode(child, node, context));
+        final String owner = element.getAttribute(ID_ATTRIBUTE);
+        svChildren(extensions, SV_NODE).forEach(child -> buildSvNode(child, node, owner, context));
     }
 
     /**
@@ -540,32 +553,20 @@ public final class WorkflowDefinitionUtils
      *
      * @param svNode the System View element describing the node
      * @param parent the node it belongs under
+     * @param owner the id of the BPMN element whose extension it is
      * @param context the parse in progress
      */
-    private static void buildSvNode(final Element svNode, final NodeBuilder parent, final ParseContext context)
+    private static void buildSvNode(final Element svNode, final NodeBuilder parent, final String owner,
+        final ParseContext context)
     {
         final String name = svAttribute(svNode, SV_NAME_ATTRIBUTE);
         if (StringUtils.isBlank(name)) {
-            LOGGER.warn("An sv:node in {} declares no sv:name, skipping it and everything under it",
-                context.path());
-            // The worst of this family: the subtree an author wrote is often a gateway's guard. A gateway whose
-            // guard is silently absent does not fail. It routes as though the arc were unguarded, and so decides
-            ErrorLogger.logProblem("an extension node declares no sv:name",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path()));
+            leaveOut("extension node declares no name", owner, null, context);
             return;
         }
-        // The primary type is a property in System View and the node's identity in Oak, so it is read out of the
-        // properties before the node exists rather than set like the others afterwards
-        final String primaryType = svProperties(svNode)
-            .filter(property -> JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
-            .findFirst()
-            .map(property -> String.join("", svValues(property)))
-            .orElse(null);
+        final String primaryType = svPrimaryType(svNode);
         if (StringUtils.isBlank(primaryType)) {
-            LOGGER.warn("The sv:node {} in {} declares no jcr:primaryType, skipping it", name, context.path());
-            ErrorLogger.logProblem("an extension node declares no jcr:primaryType",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
-                    .with(ELEMENT_DETAIL, name));
+            leaveOut("extension node declares no primary type", owner, name, context);
             return;
         }
         final NodeBuilder child = parent.child(name);
@@ -573,8 +574,41 @@ public final class WorkflowDefinitionUtils
         applySystemProperties(child, primaryType, context);
         svProperties(svNode)
             .filter(property -> !JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
-            .forEach(property -> setSvProperty(property, child, context));
-        svChildren(svNode, SV_NODE).forEach(grandchild -> buildSvNode(grandchild, child, context));
+            .forEach(property -> setSvProperty(property, child, owner, context));
+        svChildren(svNode, SV_NODE).forEach(grandchild -> buildSvNode(grandchild, child, owner, context));
+    }
+
+    /**
+     * The primary type an {@code sv:node} declares. It is a property in System View and the node's identity in Oak,
+     * so it is read out of the properties before the node exists rather than set like the others afterwards.
+     *
+     * @param svNode the System View element describing the node
+     * @return the declared primary type, or {@code null} if it declares none
+     */
+    private static String svPrimaryType(final Element svNode)
+    {
+        return svProperties(svNode)
+            .filter(property -> JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
+            .findFirst()
+            .map(property -> String.join("", svValues(property)))
+            .orElse(null);
+    }
+
+    /**
+     * Logs and records a part of an extension subtree that cannot be translated, and so is left out with everything
+     * under it.
+     *
+     * @param problem what is wrong with it
+     * @param owner the id of the BPMN element whose extension it is
+     * @param node the name of the extension node it concerns, or {@code null} when it has none
+     * @param context the parse in progress
+     */
+    private static void leaveOut(final String problem, final String owner, final String node,
+        final ParseContext context)
+    {
+        LOGGER.warn("Leaving part of the extension of {} in {} out: {}", owner, context.path(), problem);
+        ErrorLogger.logProblem(problem,
+            context.problem().with(ELEMENT_DETAIL, owner).with(EXTENSION_NODE_DETAIL, node));
     }
 
     /**
@@ -582,15 +616,15 @@ public final class WorkflowDefinitionUtils
      *
      * @param svProperty the System View element describing the property
      * @param node the node to set it on
+     * @param owner the id of the BPMN element whose extension it is
      * @param context the parse in progress
      */
-    private static void setSvProperty(final Element svProperty, final NodeBuilder node, final ParseContext context)
+    private static void setSvProperty(final Element svProperty, final NodeBuilder node, final String owner,
+        final ParseContext context)
     {
         final String name = svAttribute(svProperty, SV_NAME_ATTRIBUTE);
         if (StringUtils.isBlank(name)) {
-            LOGGER.warn("An sv:property of a node in {} declares no sv:name, ignoring it", context.path());
-            ErrorLogger.logProblem("an extension property declares no sv:name",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path()));
+            leaveOut("extension property declares no name", owner, null, context);
             return;
         }
         final List<String> values = svValues(svProperty);
@@ -736,7 +770,7 @@ public final class WorkflowDefinitionUtils
         if (StringUtils.isBlank(attachedToRef)) {
             LOGGER.warn("BoundaryEvent {} in {} has no attachedToRef, skipping", id, context.path());
             ErrorLogger.logProblem("boundary event has no attachedToRef",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id));
             return;
         }
@@ -746,7 +780,7 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("BoundaryEvent {} in {} is attached to unknown node {}, skipping", id, context.path(),
                 attachedToRef);
             ErrorLogger.logProblem("boundary event is attached to an unknown node",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id).with("attachedTo", attachedToRef));
             return;
         }
@@ -786,7 +820,7 @@ public final class WorkflowDefinitionUtils
         if (!isValidName(id)) {
             LOGGER.warn("BPMN element id {} in {} is not usable as a JCR node name, skipping", id, context.path());
             ErrorLogger.logProblem("BPMN element id is not usable as a node name",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id));
             return null;
         }
@@ -794,7 +828,7 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("BPMN element id {} in {} is used more than once, skipping the later element", id,
                 context.path());
             ErrorLogger.logProblem("BPMN element id is used more than once",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id));
             return null;
         }
@@ -802,7 +836,7 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("BPMN element id {} in {} collides with an existing non-flow-node child, skipping", id,
                 context.path());
             ErrorLogger.logProblem("BPMN element id collides with an existing child",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id));
             return null;
         }
@@ -959,7 +993,7 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
                 flowNodeType.identifier(), context.path());
             ErrorLogger.logProblem("FlowNodeType declares jcrProperties that are not a JSON object",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with("flowNodeType", flowNodeType.identifier()));
             return;
         }
@@ -1065,7 +1099,7 @@ public final class WorkflowDefinitionUtils
         if (StringUtils.isBlank(sourceRef) || StringUtils.isBlank(targetRef)) {
             LOGGER.warn("SequenceFlow {} is missing sourceRef or targetRef, skipping", id);
             ErrorLogger.logProblem("sequence flow is missing sourceRef or targetRef",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                context.problem()
                     .with(ELEMENT_DETAIL, id));
             return;
         }
@@ -1075,15 +1109,15 @@ public final class WorkflowDefinitionUtils
         if (!context.claimedNames().contains(sourceRef)) {
             LOGGER.warn("SequenceFlow {} references unknown source node {}, skipping", id, sourceRef);
             ErrorLogger.logProblem("sequence flow references an unknown node",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
-                    .with(ELEMENT_DETAIL, id).with("references", sourceRef));
+                context.problem()
+                    .with(ELEMENT_DETAIL, id).with(REFERENCE_DETAIL, sourceRef));
             return;
         }
         if (!context.claimedNames().contains(targetRef)) {
             LOGGER.warn("SequenceFlow {} references unknown target node {}, skipping", id, targetRef);
             ErrorLogger.logProblem("sequence flow references an unknown node",
-                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
-                    .with(ELEMENT_DETAIL, id).with("references", targetRef));
+                context.problem()
+                    .with(ELEMENT_DETAIL, id).with(REFERENCE_DETAIL, targetRef));
             return;
         }
         // Not `workflowVersion().getChildNode(sourceRef)`: a boundary event is stored inside the activity it
@@ -1131,7 +1165,7 @@ public final class WorkflowDefinitionUtils
                 LOGGER.warn("SequenceFlow {} guards with the expression {}, which the engine cannot evaluate;"
                     + " write it as a cond:condition in its extensionElements", id, expression);
                 ErrorLogger.logProblem("sequence flow guard is a conditionExpression, not a cond:condition",
-                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION_OPERATION).about(context.path())
+                    context.problem()
                         .with(ELEMENT_DETAIL, id).with("conditionExpression", expression));
             });
     }
