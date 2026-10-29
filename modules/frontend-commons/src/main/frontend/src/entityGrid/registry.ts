@@ -43,6 +43,11 @@ export type EntityGridColumn = GridColDef<EntityRow> & {
   cardValue?: (row: EntityRow) => ReactNode;
 };
 
+// The server-side property a column stands for, which sorting orders by and filtering compares
+export function serverProperty(column: EntityGridColumn): string {
+  return column.sortProperty ?? column.field;
+}
+
 // Rows nested under each listed entity, shown beneath it as a tree: e.g. a schema's versions. They
 // arrive with their entity, serialized deep enough to include them, so paging, sorting and searching
 // still apply to the entities alone.

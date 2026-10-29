@@ -42,7 +42,7 @@ import EntityListItem, { CardActions, columnContent } from "./EntityListItem";
 import {
   ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
 } from "./gridRows";
-import { type EntityGridChildren, type EntityGridColumn, getEntityTypeConfig } from "./registry";
+import { type EntityGridChildren, type EntityGridColumn, getEntityTypeConfig, serverProperty } from "./registry";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 import useColumnVisibility from "./useColumnVisibility";
 import useEntityPage from "./useEntityPage";
@@ -166,9 +166,11 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const [columnFilters, setColumnFilters] = useState<PropertyFilter[]>([]);
   const [columnVisibilityModel, changeColumnVisibility] = useColumnVisibility(entityType);
   const local = givenRows !== undefined;
+  const sortedColumn = columns.find(column => column.field === sortModel[0]?.field);
   const page = useEntityPage({
-    config: local ? undefined : config, homepage, columns, paginationModel, sortModel, filters, childFilter,
-    columnFilters, fullText, refreshToken,
+    config: local ? undefined : config, homepage, paginationModel,
+    sortBy: sortedColumn && serverProperty(sortedColumn), descending: sortModel[0]?.sort === "desc",
+    filters, childFilter, columnFilters, fullText, refreshToken,
   });
   const rows = givenRows ?? page.rows;
   const { rowCount, approximate, error, retry } = page;
@@ -198,7 +200,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
 
   // Sorting reorders the whole collection server-side, so page 4 of the old order says nothing
   // about where the reader wants to be in the new one; start them at the top of it.
-  const sortBy = (model: GridSortModel) => {
+  const changeSort = (model: GridSortModel) => {
     setSortModel(model);
     setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
   };
@@ -287,7 +289,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
         pageSizeOptions={pageSizeOptions}
         sortingMode={local ? "client" : "server"}
         sortModel={sortModel.map(item => ({ ...item, field: toTreeField(item.field, tree) }))}
-        onSortModelChange={model => sortBy(model.map(item => ({ ...item, field: fromTreeField(item.field, tree) })))}
+        onSortModelChange={model =>
+          changeSort(model.map(item => ({ ...item, field: fromTreeField(item.field, tree) })))}
         filterMode={local ? "client" : "server"}
         onFilterModelChange={local ? undefined : searchFor}
         listView={compactList}
