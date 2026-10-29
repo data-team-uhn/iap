@@ -47,12 +47,12 @@ import io.uhndata.iap.submissions.models.Submission;
 public class SubmitterTemplateValues implements TemplateContextProvider
 {
     /** The name templates use for these values. */
-    static final String NAME = "submitter";
+    static final String CONTEXT_NAME = "submitter";
 
     @Override
     public String getName()
     {
-        return NAME;
+        return CONTEXT_NAME;
     }
 
     @Override
