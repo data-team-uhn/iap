@@ -293,4 +293,41 @@ public class Submission extends Entity
         }
         return byQuestion;
     }
+
+    /**
+     * The values answering a particular question, named by its path within the schema version. That path stays the
+     * same in a new version of the schema, and in a copy of it.
+     *
+     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     *     {@code details/startDate}
+     * @return the non-blank values of the answer as stored, such as {@code 2026-11-23} for a date; empty if the
+     *     question is unanswered, the schema version has no question at that path, or this session cannot read the
+     *     schema version
+     */
+    @NotNull
+    public List<String> getAnswersTo(@NotNull final String questionPath)
+    {
+        final SchemaVersion version = this.findSchemaVersion();
+        if (version == null) {
+            // Nothing is asked of a reader who cannot see what was asked
+            return List.of();
+        }
+        return this.getAnswersByQuestion().getOrDefault(version.getPath() + "/" + questionPath, List.of()).stream()
+            .filter(value -> !value.isBlank())
+            .toList();
+    }
+
+    /**
+     * The single value answering a particular question, for the questions that take one.
+     *
+     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     *     {@code details/startDate}
+     * @return the first non-blank value stored in the answer; {@code null} if the question is unanswered, the schema
+     *     version has no question at that path, or this session cannot read the schema version
+     */
+    @Nullable
+    public String getAnswerTo(@NotNull final String questionPath)
+    {
+        return this.getAnswersTo(questionPath).stream().findFirst().orElse(null);
+    }
 }

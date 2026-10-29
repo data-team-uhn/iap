@@ -483,6 +483,53 @@ class SubmissionTest
             Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion().get(QUESTION_1_PATH));
     }
 
+    @Test
+    void readsAnAnswerByItsQuestionPathWithinTheSchemaVersion()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes", "and also" }));
+
+        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
+
+        assertEquals(List.of("yes", "and also"), submission.getAnswersTo("form/section/q1"));
+        assertEquals("yes", submission.getAnswerTo("form/section/q1"));
+        // The whole path names the question, never just its end
+        assertEquals(List.of(), submission.getAnswersTo("section/q1"));
+    }
+
+    @Test
+    void readsAnUnaskedOrUnansweredQuestionAsNothing()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        // Asked, but answered with a blank, which is not an answer
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value", new String[]{ "   " }));
+
+        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
+
+        assertEquals(List.of(), submission.getAnswersTo("form/section/q1"));
+        assertNull(submission.getAnswerTo("form/section/q1"));
+        assertEquals(List.of(), submission.getAnswersTo("nothing/like/this"));
+        assertNull(submission.getAnswerTo("nothing/like/this"));
+    }
+
+    @Test
+    void readsNoAnswerWhereTheSchemaVersionCannotBeReached()
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+
+        assertEquals(List.of(), Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersTo("form/q2"));
+    }
+
     /**
      * A submission fulfilling everything the fixture schema asks, except that its second question is answered with
      * exactly the given values.
