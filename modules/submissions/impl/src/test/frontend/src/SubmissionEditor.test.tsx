@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched: in a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
@@ -43,6 +44,11 @@ import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
+}));
+
+// The file check has its own tests; here it passes every file unless a test says otherwise
+vi.mock("@iap/frontend-commons/fileValidation", () => ({
+  validateUpload: vi.fn(() => Promise.resolve(undefined)),
 }));
 
 // Settles the load before the first render, so a field draws its input rather than the spinner it
@@ -294,6 +300,32 @@ describe("SubmissionEditor", () => {
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    });
+
+    it("checks the file against the types the requirement takes before sending it", async () => {
+      vi.mocked(validateUpload).mockResolvedValueOnce("note.txt is not a file of an accepted type: .pdf.");
+      const fetchMock = serving(asked());
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [ pick("note.txt") ] } });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
+      expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
+        expect.any(File), [ "application/pdf", "image/png" ], {}, expect.any(AbortSignal));
+      expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
+    });
+
+    it("sends the file anyway when checking it takes too long", async () => {
+      vi.mocked(validateUpload).mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"));
+      const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(true);
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {

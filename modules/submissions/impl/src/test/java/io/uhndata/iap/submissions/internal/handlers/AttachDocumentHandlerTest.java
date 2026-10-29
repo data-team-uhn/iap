@@ -322,6 +322,15 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void doesNotReadANameWithoutADotAsAnExtension()
+    {
+        final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
+            .execute(context(payload(NOTE, upload("pdf", "application/octet-stream")))));
+
+        assertTrue(failure.getMessage().contains("application/octet-stream"));
+    }
+
+    @Test
     void refusesAGenericTypeWhoseExtensionSaysNothing()
     {
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
