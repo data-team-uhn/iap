@@ -1,0 +1,6 @@
+{
+  // The wording of one notification, with one rendering per channel inside. A channel with no rendering here
+  // sends nothing. The uiMessage is the sentence the in-app list shows.
+  "jcr:primaryType": "sling:Folder",
+  "uiMessage": "Your time off request “${subjectTitle}” was approved"
+}

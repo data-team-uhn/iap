@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Judge a time off request's urgency again",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Flags a waiting time off request whose time off now starts tomorrow or earlier. The demo's nightly sweep sends the event, since the calendar changes nothing on the request itself.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "A new day began",
+      "messageName": "reassessTimeOffUrgency",
+      "performers": ["tor-urgency"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toUrgency": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUrgency",
+        "targetRef": "markUrgency"
+      }
+    },
+    "markUrgency": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markUrgency",
+      "label": "Flag it if it starts soon",
+      "handler": "markTimeOffUrgency",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Urgency judged",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

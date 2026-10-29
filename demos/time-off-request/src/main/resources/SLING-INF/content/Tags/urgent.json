@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Urgent",
+  "description": "The time off starts tomorrow or sooner, so it needs a decision now.",
+  "category": ["priority"],
+  "targetResourceTypes": ["sub/Submission"],
+  "system": true,
+  "color": "#8a1f5a",
+  "icon": "PriorityHighOutlined",
+  "order": 40
+}

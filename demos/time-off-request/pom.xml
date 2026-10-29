@@ -47,7 +47,10 @@
             <!-- Workflows first: the schema version points at its workflow version with a `jcr:reference:` property, which can only resolve once the target node exists. -->
             <Sling-Initial-Content>
               SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+              SLING-INF/content/Tags;path:=/Tags;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/notificationTemplates;path:=/libs/iap/notificationTemplates;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
