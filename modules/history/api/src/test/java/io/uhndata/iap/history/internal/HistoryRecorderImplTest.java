@@ -92,7 +92,7 @@ class HistoryRecorderImplTest
         assertEquals("reviewer1", action.getProperty("actor").getString());
         assertEquals("submit", action.getProperty("operation").getString());
         assertEquals("submissionFiled", action.getProperty("event").getString());
-        assertEquals(PrefixTree.pathFor(HistoryRecorderImpl.ROOT, action.getName()), path,
+        assertEquals(PrefixTree.pathFor(HistoryRecorderImpl.ROOT_PATH, action.getName()), path,
             "The action must be filed where the prefix tree says it is, or nothing can find it by name");
         assertFalse(action.getProperty("complete").getBoolean(),
             "Nothing has snapshotted anything yet, so the action cannot claim to be finished");

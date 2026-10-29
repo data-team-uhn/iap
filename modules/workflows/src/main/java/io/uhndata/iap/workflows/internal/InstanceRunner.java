@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
+import java.util.Calendar;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -152,12 +154,17 @@ final class InstanceRunner
      *
      * @param task the task whose deadline has passed
      * @param timer the boundary event counting down to it
+     * @throws InvalidStateException when the task's deadline has not passed yet, whoever asks
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void fireDeadline(final TaskInstance task, final IntermediateCatchingEvent timer)
         throws WorkflowException, PersistenceException
     {
+        final Calendar due = task.getDueDate();
+        if (due == null || due.after(Calendar.getInstance())) {
+            throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
+        }
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
         final Activity definition = Objects.requireNonNull(task.getDefinition(),

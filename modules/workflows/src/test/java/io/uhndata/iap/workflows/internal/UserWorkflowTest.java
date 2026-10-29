@@ -646,6 +646,19 @@ class UserWorkflowTest
         return resource == null ? Map.of() : resource.getValueMap();
     }
 
+    /**
+     * The repository's identifier for a node, which a workflow's own nodes have without being referenceable.
+     *
+     * @param path the node's path
+     * @return its identifier
+     * @throws RepositoryException when the node cannot be read
+     */
+    private String identifierOf(final String path) throws RepositoryException
+    {
+        return Objects.requireNonNull(this.context.resourceResolver().getResource(path).adaptTo(Node.class),
+            "The test repository is a JCR one").getIdentifier();
+    }
+
     @Test
     void startsAnInstanceInsideTheResourceItDrives() throws Exception
     {
@@ -829,12 +842,12 @@ class UserWorkflowTest
         final RecordedAction decision = this.history.actions().get(before);
         assertEquals(EngineFixture.REQUESTER, decision.getActor());
         assertEquals(TaskCompletion.COMPLETE_EVENT, decision.getEvent());
-        assertEquals(read(TASK).get("jcr:uuid"), decision.getTaskInstance());
+        assertEquals(identifierOf(TASK), decision.getTaskInstance());
         assertEquals("approved", decision.getOutcome());
-        assertEquals(read(HOST + "/wf:instances/timeOffRequest").get("jcr:uuid"), decision.getWorkflowInstance());
+        assertEquals(identifierOf(HOST + "/wf:instances/timeOffRequest"), decision.getWorkflowInstance());
         assertEquals(read(TASK).get("taskDefinitionId"), decision.getActivityId());
         assertTrue(decision.getEffects().stream()
-            .anyMatch(effect -> "completed".equals(effect.role()) && TASK.equals(effect.subjectPath())));
+            .anyMatch(effect -> "host".equals(effect.role()) && HOST.equals(effect.subjectPath())));
     }
 
     @Test
