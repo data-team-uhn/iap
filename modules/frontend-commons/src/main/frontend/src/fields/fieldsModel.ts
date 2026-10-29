@@ -17,16 +17,12 @@
  */
 
 import { escapeJQL } from "../escape";
+import { type Choice } from "../inputs/choices";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
 // What a field holds: text, a whole number, a number, a boolean, or a reference to another node.
 export type FieldKind = "text" | "long" | "double" | "boolean" | "reference";
-
-export interface FieldChoice {
-  value: string;
-  label: string;
-}
 
 // A field that an update event may change, as the `fields` serialization lists it in `@fields`
 // (see updateContent in docs/workflows.md). The server checks a patch against the same rules, and
@@ -48,7 +44,7 @@ export interface ContentField {
   // For a reference, the path the nodes it may point at are under; anywhere if absent
   referenceRoot?: string;
   // The values the field may take; any value of its kind if absent
-  choices?: FieldChoice[];
+  choices?: Choice[];
   // Applies only while that property holds one of these values; an empty property name applies nowhere
   appliesWhen?: { property: string; values: string[] };
   // What content of its type starts with, which is what it holds when it is not set
