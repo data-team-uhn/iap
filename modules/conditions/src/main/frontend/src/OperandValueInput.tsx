@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import BooleanInput from "@iap/frontend-commons/inputs/BooleanInput";
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import DateInput from "@iap/frontend-commons/inputs/DateInput";
 import MultiValueInput from "@iap/frontend-commons/inputs/MultiValueInput";
@@ -47,6 +48,9 @@ function OperandValueInput(props: OperandValueInputProps) {
 
   if (several) {
     return <MultiValueInput {...common} choices={choices} openOnMount={open} />;
+  }
+  if (shape.type === "boolean") {
+    return <BooleanInput {...common} allowNone={false} openOnMount={open} />;
   }
   if (choices.length > 0) {
     return <ChoiceSelect {...common} choices={choices} allowNone={false} openOnMount={open} />;

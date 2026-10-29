@@ -21,7 +21,7 @@
 // builder edits, a draft into the content a replaceContent event writes, and either into words. Operand sources are
 // pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
 
-import { type Choice } from "@iap/frontend-commons/inputs/choices";
+import { booleanChoices, type Choice } from "@iap/frontend-commons/inputs/choices";
 import { isDecimalNumber, isWholeNumber } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
@@ -120,11 +120,9 @@ export const AGGREGATES: Aggregate[] = [
 /** The source of an operand whose values are written in the condition itself. A stored operand without one has it. */
 export const LITERAL = "literal";
 
-const BOOLEAN_CHOICES: Choice[] = [ { value: "true", label: "Yes" }, { value: "false", label: "No" } ];
-
 /** The values an operand of this shape can be compared with, when they are a known list: Yes and No for a boolean. */
 export const choicesOf = (shape: OperandShape): Choice[] =>
-  (shape.type === "boolean" ? BOOLEAN_CHOICES : shape.choices ?? []);
+  (shape.type === "boolean" ? booleanChoices() : shape.choices ?? []);
 
 const ORDERED: ValueType[] = [ "long", "double", "decimal", "date" ];
 
