@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.utils;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -28,6 +30,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -111,27 +114,60 @@ public final class DateUtils
     @Nullable
     public static ZonedDateTime parseDateTime(@Nullable final String str)
     {
+        return parseWithFirstMatchingFormat(str, format -> {
+            // The date string may or may not have a timezone offset, try both a zoned and a local datetime
+            final TemporalAccessor result = format.parseBest(str, ZonedDateTime::from, LocalDateTime::from);
+            // No timezone in the string means the system default
+            return result instanceof ZonedDateTime zoned ? zoned
+                : LocalDateTime.from(result).atZone(ZoneId.systemDefault());
+        });
+    }
+
+    /**
+     * Parses the day out of the given input string, ignoring any time and zone it also carries.
+     *
+     * <p>
+     * Use it to read a stored {@code date} answer. That is usually the bare {@code yyyy-MM-dd} a date input stores,
+     * but may be a full timestamp, whose offset must not move the day to the reader's zone.
+     * </p>
+     *
+     * @param str a date as {@code yyyy-MM-dd}, or a timestamp in one of the {@link #DATETIME_FORMATS}; {@code null}
+     *     or blank when there is no date
+     * @return the day as written in the string; {@code null} if the string is {@code null}, blank, or matches none of
+     *     the supported formats
+     * @since 0.1.0
+     */
+    @Nullable
+    public static LocalDate parseDate(@Nullable final String str)
+    {
+        // The day is read straight off the string, before any offset can move it
+        return parseWithFirstMatchingFormat(str, format -> LocalDate.from(format.parse(str)));
+    }
+
+    /**
+     * Reads a date string with the first of the supported formats that matches it.
+     *
+     * @param <T> the type the string is read into, such as {@code LocalDate}
+     * @param str a date or timestamp in one of the {@link #DATETIME_FORMATS}; {@code null} or blank when there is
+     *     no date
+     * @param reading reads the string with one format, throwing a {@code DateTimeException} when it does not match
+     * @return what the first matching format read; {@code null} if the string is {@code null} or blank, or no format
+     *     matches it
+     */
+    private static <T> T parseWithFirstMatchingFormat(final String str, final Function<DateTimeFormatter, T> reading)
+    {
         if (StringUtils.isBlank(str)) {
             return null;
         }
-        // We try parsing the date with each of the accepted formats, in descending order of specificity
-        final ZonedDateTime date = DATETIME_FORMATS.stream().map(format -> {
+        // The formats are listed in descending order of specificity
+        return DATETIME_FORMATS.stream().map(format -> {
             try {
-                // The date string may or may not have a timezone offset, try both a zoned and a local datetime
-                TemporalAccessor result = format.parseBest(str, ZonedDateTime::from, LocalDateTime::from);
-                if (result instanceof ZonedDateTime) {
-                    // Good, we managed to parse the timezone from the string, just return the result
-                    return (ZonedDateTime) result;
-                } else if (result instanceof LocalDateTime) {
-                    // No timezone in the string, use the system default
-                    return ((LocalDateTime) result).atZone(ZoneId.systemDefault());
-                }
-            } catch (Exception ex) {
-                // Not important, the date string doesn't match the expected format, just try the next format
+                return reading.apply(format);
+            } catch (final DateTimeException ex) {
+                // This format does not match, so try the next one
+                return null;
             }
-            return null;
         }).filter(Objects::nonNull).findFirst().orElse(null);
-        return date;
     }
 
     /**
