@@ -19,23 +19,12 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { adminAuth } from '../../support/auth';
+import { childrenOfType, type SerializedChild } from '../../support/nodes';
 
-interface SerializedNode {
-  'jcr:primaryType'?: string;
-  '@path'?: string;
-  tags?: string[];
-}
-
-// The schema versions serialized under a node, whatever their names
-const versionsUnder = (node: Record<string, unknown>): SerializedNode[] =>
-  Object.values(node).filter((child): child is SerializedNode =>
-    typeof child === 'object' && child !== null
-    && (child as SerializedNode)['jcr:primaryType'] === 'sch:SchemaVersion');
-
-async function versionsOf(request: APIRequestContext, path: string, selectors: string): Promise<SerializedNode[]> {
+async function versionsOf(request: APIRequestContext, path: string, selectors: string): Promise<SerializedChild[]> {
   const response = await request.get(`${path}.1.${selectors}.json`, { headers: adminAuth });
   expect(response.status()).toBe(200);
-  return versionsUnder(await response.json() as Record<string, unknown>);
+  return childrenOfType(await response.json(), 'sch:SchemaVersion');
 }
 
 /**
@@ -62,6 +51,6 @@ test.describe('the schemas', () => {
     expect(page.status()).toBe(200);
     const row = (await page.json() as { rows: Record<string, unknown>[] }).rows.find(each => each['@path'] === path);
     expect(row, 'the new schema is not listed').toBeDefined();
-    expect(versionsUnder(row ?? {}).map(version => version.tags)).toEqual([['draft']]);
+    expect(childrenOfType(row, 'sch:SchemaVersion').map(version => version.tags)).toEqual([['draft']]);
   });
 });
