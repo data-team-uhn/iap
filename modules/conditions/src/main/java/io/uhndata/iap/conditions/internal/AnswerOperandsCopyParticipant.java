@@ -25,6 +25,7 @@ import javax.jcr.RepositoryException;
 
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.utils.copy.CopyParticipant;
 
 /**
@@ -48,7 +49,7 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
         throws RepositoryException
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
-            && AnswerOperandResolver.SOURCE_NAME.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
+            && AnswerDependencies.ANSWER_SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
             // A path resolves against the operand's entity, which the copy keeps whole, so it stays valid.
             // An identifier names the original question, so it is changed to the copy's.
             OperandValues.rename(copy, named -> identifiers.getOrDefault(named, named));

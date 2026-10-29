@@ -15,10 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.conditions.internal;
+package io.uhndata.iap.submissions.internal;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
@@ -30,7 +32,7 @@ import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.submissions.models.Submission;
 
 /**
  * Resolves {@code answer} operands: the recorded answer to a question, e.g. a submission's answer to one of its
@@ -40,10 +42,15 @@ import io.uhndata.iap.entities.models.Entity;
  * type, steering the evaluator's comparison type unification.
  *
  * <p>
- * The answer itself is any node whose {@code question} property references the identified question, looked up
- * nearest-scope-first: the context's own subtree is searched before widening, one ancestor at a time, to the whole
- * enclosing entity. When the same question is answered several times in repeated blocks, a condition evaluated
- * inside one block therefore sees that block's own answer, not an arbitrary one.
+ * The answer itself is any node whose {@code question} property references the identified question. It is looked
+ * up nearest-scope-first: the context's own subtree, then one ancestor at a time up to the submission holding the
+ * context. When the same question is answered several times in repeated blocks, a condition evaluated inside one
+ * block therefore sees that block's own answer, not an arbitrary one.
+ * </p>
+ *
+ * <p>
+ * The submission is the boundary because answers belong to one. A sibling submission is never an ancestor, so the
+ * search cannot read another submission's answers. A context outside any submission has no answers at all.
  * </p>
  *
  * @version $Id$
@@ -52,9 +59,6 @@ import io.uhndata.iap.entities.models.Entity;
 @Component
 public class AnswerOperandResolver implements OperandResolver
 {
-    /** The operand source this resolver serves. */
-    static final String SOURCE_NAME = "answer";
-
     /** The property through which an answer node references its question. */
     private static final String QUESTION_PROPERTY = "question";
 
@@ -95,7 +99,7 @@ public class AnswerOperandResolver implements OperandResolver
     @Override
     public String getSource()
     {
-        return SOURCE_NAME;
+        return AnswerDependencies.ANSWER_SOURCE;
     }
 
     @Override
@@ -110,20 +114,31 @@ public class AnswerOperandResolver implements OperandResolver
         if (question == null) {
             return Operand.NO_VALUES;
         }
+        final Optional<Content> answer = enclosingSubmission(context)
+            .flatMap(submission -> this.findNearestAnswer(context, submission, question.identifier));
+        return Operand.of(answer.map(found -> found.get(VALUE_PROPERTY)).orElse(null), question.type);
+    }
+
+    private Optional<Content> findNearestAnswer(final Content context, final Content submission,
+        final String questionId)
+    {
         Content scope = context;
         Content searched = null;
-        while (scope != null) {
-            final Optional<Content> answer = this.findAnswer(scope, searched, question.identifier);
-            if (answer.isPresent()) {
-                return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
-            }
-            if (scope.isOfType(Entity.RESOURCE_TYPE)) {
-                break;
+        while (true) {
+            final Optional<Content> answer = this.findAnswer(scope, searched, questionId);
+            if (answer.isPresent() || scope.getPath().equals(submission.getPath())) {
+                return answer;
             }
             searched = scope;
-            scope = scope.getParent();
+            scope = Objects.requireNonNull(scope.getParent(), "The submission is an ancestor of the context");
         }
-        return Operand.of(null, question.type);
+    }
+
+    private static Optional<Content> enclosingSubmission(final Content context)
+    {
+        return Stream.iterate(context, Objects::nonNull, Content::getParent)
+            .filter(scope -> scope.isOfType(Submission.RESOURCE_TYPE))
+            .findFirst();
     }
 
     private Question resolveQuestion(final String reference, final ConditionOperand operand, final Content context)

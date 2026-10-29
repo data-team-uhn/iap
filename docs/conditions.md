@@ -87,26 +87,27 @@ mismatched is not comparable and fails closed with a warning.
 | `source` | Resolves to |
 |---|---|
 | `literal` (default) | the operand's own `value`, as stored |
-| `answer` | the recorded answer to the question named by `value` |
+| `answer` | the recorded answer to the question named by `value`; served by the submissions module |
 | `tags` | the enclosing entity's effective tags — `tags` + `aggregatedTags` + `inheritedTags`; `value` ignored |
 | `property` | the enclosing entity's property named by `value` — e.g. `status`, `jcr:createdBy` |
 | `ownProperty` | the property named by `value`, read on the content the condition is evaluated on rather than on its enclosing entity — e.g. a question's `optionsFrom` |
 
-`answer` has two details worth knowing. The question is identified by UUID or by a
-path **relative to the entity holding the operand definition** (e.g. `form/age`
-under the schema version), not relative to the context — so questions sharing a name
-in different sections never collide. And the answer node (anything whose `question`
-property references it) is looked up **nearest-scope-first**: the context's own
-subtree, then widening one ancestor at a time up to the enclosing entity. A condition
-evaluated inside a repeated block therefore sees that block's own answer. In copied
-content (see `copyContent` in [workflows.md](workflows.md)), an `answer` operand naming
-a copied question by UUID is pointed at the copy, while a path is kept as written: it
-stays readable, and the copy's own structure is what it resolves against. Moving content
-(see `moveContent` in [workflows.md](workflows.md)) works the other way. A path to a
-moved question, or to anything under a moved part, would no longer find it, so the
-operand is changed to name it by identifier before the move. When content moves into
-another entity, the conditions moving with it also switch to identifiers for what they
-name outside it.
+`answer` has two details worth knowing. The question is identified by UUID or by a path
+**relative to the entity holding the operand definition** (e.g. `form/age` under the
+schema version), not relative to the context — so questions sharing a name in different
+sections never collide. And the answer node (anything whose `question` property
+references it) is looked up **nearest-scope-first**: the context's own subtree, then
+widening one ancestor at a time up to the submission holding the context. A condition
+evaluated inside a repeated block therefore sees that block's own answer, one evaluated
+on a workflow instance sees its submission's, and one evaluated outside a submission
+sees none. In copied content (see `copyContent` in [workflows.md](workflows.md)), an
+`answer` operand naming a copied question by UUID is pointed at the copy, while a path
+is kept as written: it stays readable, and the copy's own structure is what it resolves
+against. Moving content (see `moveContent` in [workflows.md](workflows.md)) works the
+other way. A path to a moved question, or to anything under a moved part, would no
+longer find it, so the operand is changed to name it by identifier before the move. When
+content moves into another entity, the conditions moving with it also switch to
+identifiers for what they name outside it.
 
 An `answer` operand on a question offering a fixed set of answers compares the chosen
 option's **`value`** (see [schemas.md](schemas.md)), and saving refuses any other value.
