@@ -25,13 +25,14 @@ import { picker, useFieldProps, type ValueInputProps } from "./valueInput";
 import ValueText from "./ValueText";
 
 interface MultiValueInputProps extends ValueInputProps {
-  // What can be picked. With none, values are typed freely.
   choices?: Choice[];
+  // Whether a value can be typed rather than picked. Defaults to true if are no choices, false otherwise.
+  free?: boolean;
+  loading?: boolean;
   // The values one typed entry stands for, e.g. each item of "a, b"
   splitTyped?: (typed: string) => string[];
   // Whether a value's chip is marked in error
   chipError?: (value: string) => boolean;
-  // Whether the list opens as soon as it appears
   openOnMount?: boolean;
 }
 
@@ -47,9 +48,9 @@ export default function MultiValueInput(props: MultiValueInputProps) {
     disabled,
     readOnly = false
   } = props;
+  const { free = choices.length === 0, loading = false } = props;
   const { field, visit } = useFieldProps(props);
   const [ listed, setListed ] = useState(openOnMount);
-  const free = choices.length === 0;
 
   if (readOnly) {
     return <ValueText label={label} values={values} choices={choices} />;
@@ -61,7 +62,7 @@ export default function MultiValueInput(props: MultiValueInputProps) {
       onOpen={() => setListed(true)}
       onClose={() => setListed(false)}
       freeSolo={free}
-      // Text typed and left without Enter is still a value. A closed list keeps only what was picked.
+      loading={loading}
       autoSelect={free}
       options={choices.map(choice => choice.value)}
       getOptionLabel={value => choiceLabel(choices, value)}
