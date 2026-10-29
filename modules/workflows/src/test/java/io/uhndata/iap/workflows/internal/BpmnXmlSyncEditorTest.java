@@ -423,12 +423,13 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertRecorded("message event references a message with no name", START_1);
+        assertNothingRecorded();
     }
 
     @Test
-    void reportsAMessageEventPointingAtNoDeclaredMessage() throws Exception
+    void leavesAMessageEventPointingAtNoDeclaredMessageUnnamed() throws Exception
     {
+        // Every new workflow starts with message events like this, so it is an unfinished draft rather than a fault
         final NodeState after = firstSave(richBase(), DEFS_OPEN
             + "  <bpmn:message id=\"saveMessage\" name=\"save\" />\n" + PROCESS_OPEN
             + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
@@ -437,7 +438,7 @@ class BpmnXmlSyncEditorTest
             + PROCESS_CLOSE + DEFS_CLOSE);
 
         assertNull(after.getChildNode(START_1).getString("messageName"));
-        assertRecorded("message event references no declared message", START_1);
+        assertNothingRecorded();
     }
 
     @Test
@@ -1655,5 +1656,10 @@ class BpmnXmlSyncEditorTest
     {
         Mockito.verify(this.errors).logProblem(Mockito.eq(problem),
             Mockito.argThat(context -> element.equals(context.getDetails().get("element"))));
+    }
+
+    private void assertNothingRecorded()
+    {
+        Mockito.verify(this.errors, Mockito.never()).logProblem(Mockito.anyString(), Mockito.any());
     }
 }

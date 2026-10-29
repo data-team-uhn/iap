@@ -493,13 +493,12 @@ public final class WorkflowDefinitionUtils
             final String ref = message.getAttribute(MESSAGE_REF_ATTRIBUTE);
             final String name = context.messageNames().get(ref);
             if (StringUtils.isBlank(name)) {
-                // Worth raising: no event can ever be sent to it
-                final String id = element.getAttribute(ID_ATTRIBUTE);
+                // Warned, not recorded: a draft is allowed to be unfinished, and the diagram every new workflow
+                // starts from has two such events
                 final String problem = context.messageNames().containsKey(ref)
-                    ? "message event references a message with no name"
-                    : "message event references no declared message";
-                LOGGER.warn("Message event {} in {}: {} ({})", id, context.path(), problem, ref);
-                ErrorLogger.logProblem(problem, context.problem().with(ELEMENT_DETAIL, id).with(REFERENCE_DETAIL, ref));
+                    ? "references a message with no name" : "references no declared message";
+                LOGGER.warn("Message event {} in {} {} ({})", element.getAttribute(ID_ATTRIBUTE), context.path(),
+                    problem, ref);
             } else {
                 node.setProperty(MESSAGE_NAME_PROPERTY, name);
             }
