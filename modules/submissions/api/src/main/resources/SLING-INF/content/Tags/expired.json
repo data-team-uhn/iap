@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Expired",
+  "description": "The time allowed for a decision ran out before one was made.",
+  "category": ["lifecycle"],
+  "system": true,
+  "color": "#6b5b45",
+  "icon": "HourglassEmptyOutlined",
+  "order": 80
+}
