@@ -47,21 +47,21 @@ import io.uhndata.iap.utils.PrefixTree;
 public class HistoryRecorderImpl implements HistoryRecorder
 {
     /** Where the record lives. */
-    static final String ROOT = "/History";
+    static final String ROOT_PATH = "/History";
 
     /** The type of the store root and of the prefix-tree buckets under it. */
     static final String BUCKET_TYPE = "hist:Log";
 
     /** The subservice whose user maintains the buckets. */
-    static final String SUBSERVICE = "history";
+    static final String SUBSERVICE_NAME = "history";
 
     private static final String ACTION_TYPE = "hist:Action";
 
     private static final String ENTRY_TYPE = "hist:Entry";
 
-    private static final String COMPLETE = "complete";
+    private static final String COMPLETE_PROPERTY = "complete";
 
-    private static final String SNAPSHOT = "snapshot";
+    private static final String SNAPSHOT_PROPERTY = "snapshot";
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -72,7 +72,7 @@ public class HistoryRecorderImpl implements HistoryRecorder
         throws RepositoryException
     {
         final String name = this.newActionName();
-        final String path = PrefixTree.pathFor(ROOT, name);
+        final String path = PrefixTree.pathFor(ROOT_PATH, name);
         final Node bucket = this.bucketFor(session, path, name);
 
         final Node node = bucket.addNode(name, ACTION_TYPE);
@@ -115,9 +115,9 @@ public class HistoryRecorderImpl implements HistoryRecorder
                 throw new PathNotFoundException(
                     "The action at " + actionPath + " did not affect " + taken.getKey());
             }
-            action.getNode(taken.getKey()).setProperty(SNAPSHOT, taken.getValue());
+            action.getNode(taken.getKey()).setProperty(SNAPSHOT_PROPERTY, taken.getValue());
         }
-        action.setProperty(COMPLETE, true);
+        action.setProperty(COMPLETE_PROPERTY, true);
         session.save();
     }
 
@@ -155,12 +155,12 @@ public class HistoryRecorderImpl implements HistoryRecorder
             return session.getNode(bucketPath);
         }
         try (ResourceResolver resolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
             final Session own = resolver.adaptTo(Session.class);
             if (own == null) {
                 throw new RepositoryException("The history store has no session to create its buckets in");
             }
-            PrefixTree.bucketFor(own.getNode(ROOT), name, BUCKET_TYPE);
+            PrefixTree.bucketFor(own.getNode(ROOT_PATH), name, BUCKET_TYPE);
         } catch (final LoginException e) {
             throw new RepositoryException("The history store cannot reach its own service user", e);
         }
