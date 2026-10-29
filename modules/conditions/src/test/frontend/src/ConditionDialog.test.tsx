@@ -34,6 +34,7 @@ const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
   colours: {
     type: "text", multiple: true, choices: [ { value: "red", label: "Red" }, { value: "blue", label: "Blue" } ],
   },
+  size: { type: "text", multiple: false, choices: [ { value: "s", label: "Small" }, { value: "l", label: "Large" } ] },
   due: { type: "date", multiple: false },
   consent: { type: "boolean", multiple: false },
   notes: { type: "text", multiple: true },
@@ -237,6 +238,10 @@ describe("ConditionDialog", () => {
     // Its choices are offered at once
     fireEvent.click(await screen.findByRole("option", { name: "No" }));
     expect(summary(dialog)).toBe("Only when the field consent is “No”");
+
+    await pick(condition, "Field", "size");
+    fireEvent.click(await screen.findByRole("option", { name: "Large" }));
+    expect(summary(dialog)).toBe("Only when the field size is “Large”");
 
     await pick(condition, "Field", "due");
     const date = within(condition).getByLabelText(/Value/);
