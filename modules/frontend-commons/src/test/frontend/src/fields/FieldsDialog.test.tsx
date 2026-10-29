@@ -127,6 +127,8 @@ describe("FieldsDialog", () => {
     await pick(dialog, "Answer type", "Whole number");
     const bound = within(dialog).getByRole("textbox", { name: "Lowest value" });
     expect(bound).toHaveAttribute("inputmode", "decimal");
+    fireEvent.change(bound, { target: { value: "." } });
+    expect(within(dialog).getByText("Enter a number.")).toBeInTheDocument();
     fireEvent.change(bound, { target: { value: "18.5" } });
     save(dialog);
 
@@ -136,7 +138,20 @@ describe("FieldsDialog", () => {
   it("keeps a save back while a value is not of the field's kind", () => {
     const { dialog } = renderDialog(QUESTION_NODE);
 
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "Most answers" }), { target: { value: "many" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Most answers" }), { target: { value: "-" } });
+
+    expect(within(dialog).getByText("Enter a whole number.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("says a value of a many-valued number field is not a number", () => {
+    const { dialog } = renderDialog({
+      "@fields": [ field("scores", "Scores", { kind: "long", multiple: true }) ], "scores": [ 1 ],
+    });
+
+    const input = within(dialog).getByRole("combobox", { name: "Scores" });
+    fireEvent.change(input, { target: { value: "abc" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(within(dialog).getByText("Enter a whole number.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();

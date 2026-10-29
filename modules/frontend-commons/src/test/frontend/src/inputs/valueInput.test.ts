@@ -37,13 +37,14 @@ describe("valueInput", () => {
     expect(onCommit.mock.calls).toEqual([ [ [ "a" ] ] ]);
   });
 
-  it("commits on Enter, not on other keys", () => {
+  it("commits on Enter, not on other keys, given the field", () => {
     const commit = vi.fn();
+    const target = new EventTarget();
     const { onKeyDown } = commitProps(commit);
 
-    onKeyDown({ key: "a" });
+    onKeyDown({ key: "a", target });
     expect(commit).not.toHaveBeenCalled();
-    onKeyDown({ key: "Enter" });
-    expect(commit).toHaveBeenCalledOnce();
+    onKeyDown({ key: "Enter", target });
+    expect(commit).toHaveBeenCalledExactlyOnceWith(target);
   });
 });
