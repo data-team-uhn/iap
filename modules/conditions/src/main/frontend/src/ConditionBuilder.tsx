@@ -23,15 +23,18 @@ import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import {
-  Box, Button, Chip, IconButton, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Box, Button, Chip, IconButton, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from "@mui/material";
 
+import { withCurrent } from "@iap/frontend-commons/inputs/choices";
+import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
+import { singleValue } from "@iap/frontend-commons/inputs/valueInput";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import {
-  aggregatesFor, type Choice, choicesOf, comparatorOf, comparatorsFor, describeDraft, type DraftCondition,
+  aggregatesFor, choicesOf, comparatorOf, comparatorsFor, describeDraft, type DraftCondition,
   type DraftGroup, type DraftOperand, type DraftSingle, isChosen, isComplete, LITERAL, newGroup, newOperand,
-  newSingle, type OperandSource, secondShapeOf, shapeOf, sourceOf, valuesTaken, withCurrent,
+  newSingle, type OperandSource, secondShapeOf, shapeOf, sourceOf, valuesTaken,
 } from "./conditionModel";
 import OperandValueInput from "./OperandValueInput";
 
@@ -74,24 +77,6 @@ function Row({ children }: { children: ReactNode }) {
   return <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>{children}</Stack>;
 }
 
-interface ChoiceSelectProps {
-  label: string;
-  value: string;
-  choices: Choice[];
-  disabled: boolean;
-  onChange: (value: string) => void;
-}
-
-/** A required menu of choices, filling the width it is given. */
-function ChoiceSelect({ label, value, choices, disabled, onChange }: ChoiceSelectProps) {
-  return (
-    <TextField select required fullWidth label={label} value={value} disabled={disabled}
-      onChange={event => onChange(event.target.value)}>
-      { choices.map(choice => <MenuItem key={choice.value} value={choice.value}>{choice.label}</MenuItem>) }
-    </TextField>
-  );
-}
-
 interface SourceSelectProps {
   label: string;
   value: string;
@@ -110,8 +95,9 @@ interface SourceSelectProps {
 function SourceSelect({ label, value, sources, literal, disabled, onChange }: SourceSelectProps) {
   const offered = [ ...literal ? [ { name: LITERAL, label: literal } ] : [], ...sources ];
   return (
-    <ChoiceSelect label={label} value={value} disabled={disabled} onChange={onChange}
-      choices={withCurrent(offered.map(source => ({ value: source.name, label: source.label })), value)} />
+    <ChoiceSelect required label={label} values={[ value ]} disabled={disabled}
+      onChange={values => onChange(singleValue(values))}
+      choices={offered.map(source => ({ value: source.name, label: source.label }))} />
   );
 }
 
@@ -201,19 +187,19 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
           ) }
           { (aggregates.length > 0 || a.aggregate !== undefined) && (
             <Box sx={NARROW}>
-              <ChoiceSelect label="Using" value={a.aggregate ?? ""} disabled={disabled}
-                choices={withCurrent([ { value: "", label: "The values" },
-                  ...aggregates.map(item => ({ value: item.name, label: item.label })) ], a.aggregate)}
-                onChange={value => withA(withAggregate(a, value))} />
+              <ChoiceSelect label="Using" allowNone={false} values={[ a.aggregate ?? "" ]} disabled={disabled}
+                choices={[ { value: "", label: "The values" },
+                  ...aggregates.map(item => ({ value: item.name, label: item.label })) ]}
+                onChange={values => withA(withAggregate(a, singleValue(values)))} />
             </Box>
           ) }
         </Row>
         <Row>
           <Box sx={NARROW}>
-            <ChoiceSelect label="Comparison" value={condition.comparator} disabled={disabled}
+            <ChoiceSelect required label="Comparison" values={[ condition.comparator ]} disabled={disabled}
               choices={withCurrent(offered.map(item => ({ value: item.name, label: item.phrase })),
                 condition.comparator, name => comparatorOf(name)?.phrase ?? name)}
-              onChange={withComparator} />
+              onChange={values => withComparator(singleValue(values))} />
           </Box>
         </Row>
         { taken !== "none" && (

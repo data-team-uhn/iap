@@ -21,19 +21,14 @@
 // builder edits, a draft into the content a replaceContent event writes, and either into words. Operand sources are
 // pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
 
+import { type Choice } from "@iap/frontend-commons/inputs/choices";
 import { isDecimalNumber, isWholeNumber } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
+export { type Choice } from "@iap/frontend-commons/inputs/choices";
+
 /** The comparison types of the conditions module's OperandType. */
 export type ValueType = "text" | "long" | "double" | "decimal" | "boolean" | "date";
-
-/** One entry of a list to pick from. */
-export interface Choice {
-  /** What is stored when it is picked. */
-  value: string;
-  /** What the list shows for it. */
-  label: string;
-}
 
 /**
  * What an operand holds, as far as its source knows. A source that cannot tell leaves a field out. An unknown type
@@ -126,19 +121,6 @@ export const AGGREGATES: Aggregate[] = [
 export const LITERAL = "literal";
 
 const BOOLEAN_CHOICES: Choice[] = [ { value: "true", label: "Yes" }, { value: "false", label: "No" } ];
-
-/**
- * The choices, plus the current value when it is none of them. A condition naming something this model does not
- * know then shows it and keeps it, rather than losing it to the first choice.
- *
- * @param choices the choices known
- * @param current the value picked now, if any
- * @param labelOf how to label the current value when it is added; by default, as it is
- * @returns the choices, with the current value last when it was added
- */
-export const withCurrent = (choices: Choice[], current?: string, labelOf = (value: string) => value): Choice[] =>
-  (current === undefined || current === "" || choices.some(choice => choice.value === current)
-    ? choices : [ ...choices, { value: current, label: labelOf(current) } ]);
 
 /** The values an operand of this shape can be compared with, when they are a known list: Yes and No for a boolean. */
 export const choicesOf = (shape: OperandShape): Choice[] =>

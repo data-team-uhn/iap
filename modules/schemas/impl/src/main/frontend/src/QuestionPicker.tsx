@@ -19,8 +19,8 @@
 import { Autocomplete, Box, TextField, Typography } from "@mui/material";
 
 import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
-import { withCurrent } from "@iap/conditions/conditionModel";
 import CodePill from "@iap/frontend-commons/components/CodePill";
+import { withCurrent } from "@iap/frontend-commons/inputs/choices";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 import { nameOf } from "./schemaModel";
