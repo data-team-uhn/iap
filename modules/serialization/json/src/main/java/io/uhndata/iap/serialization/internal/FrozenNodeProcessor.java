@@ -63,7 +63,7 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
     private static final Logger LOGGER = LoggerFactory.getLogger(FrozenNodeProcessor.class);
 
     /** What the copy calls the original's own bookkeeping, and what a reader knows it as. */
-    private static final Map<String, String> RESTORED = Map.of(
+    private static final Map<String, String> RESTORED_NAMES = Map.of(
         "jcr:frozenPrimaryType", "jcr:primaryType",
         "jcr:frozenUuid", "jcr:uuid");
 
@@ -71,7 +71,7 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
      * What describes the copy rather than the content. Named here, rather than relying on the repository not to write
      * them.
      */
-    private static final Map<String, String> SUPPRESSED = Map.of(
+    private static final Map<String, String> SUPPRESSED_NAMES = Map.of(
         "jcr:primaryType", "the copy's own type, which is always nt:frozenNode",
         "jcr:uuid", "the copy's own identifier, if the repository ever writes one",
         "jcr:frozenMixinTypes", "the original's mixins, which are bookkeeping either way");
@@ -105,11 +105,11 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
         }
         try {
             final String actual = property.getName();
-            if (SUPPRESSED.containsKey(actual)) {
+            if (SUPPRESSED_NAMES.containsKey(actual)) {
                 return null;
             }
             // `input` is ignored: `simple` drops these, and this puts them back
-            return RESTORED.getOrDefault(actual, input);
+            return RESTORED_NAMES.getOrDefault(actual, input);
         } catch (final RepositoryException e) {
             LOGGER.warn("Unexpected error while naming property {} of frozen node {}: {}", property, node,
                 e.getMessage());

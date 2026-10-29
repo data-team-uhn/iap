@@ -50,7 +50,7 @@ import io.uhndata.iap.workflows.models.WorkflowInstances;
 public class TaskPerformabilityProcessor implements ResourceJsonProcessor
 {
     /** Whether the reader may decide the task on behalf of someone else. */
-    static final String DELEGABLE = "@delegable";
+    static final String DELEGABLE_KEY = "@delegable";
 
     private static final String TASK_NODE_TYPE = "wf:TaskInstance";
 
@@ -94,7 +94,7 @@ public class TaskPerformabilityProcessor implements ResourceJsonProcessor
             if (!node.isNodeType(TASK_NODE_TYPE)) {
                 return;
             }
-            json.add(DELEGABLE, this.delegation.isDelegate(node.getSession()));
+            json.add(DELEGABLE_KEY, this.delegation.isDelegate(node.getSession()));
         } catch (final RepositoryException e) {
             // Answering nothing offers no control, which is the safe direction
         }
