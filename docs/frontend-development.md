@@ -254,6 +254,11 @@ An anchor is kept as text with what it anchors, such as a review comment. `encod
 a text fragment directive without its `text=`: `before-,quote,-after`, each part percent-encoded, dashes
 included. `decodeAnchor` gives nothing for an anchor not kept, or one it cannot read.
 
+The viewer reads pages only while some passage is still being looked for. A passage placed by its
+spans or kept as an anchor needs only its own pages, and a document opened with no passages is not read
+at all. Meanwhile, a bar along the top of the document shows how much of it has been read.
+`useMarkPlaces` gives how many pages have been read, along with where the passages are.
+
 Once found, a quote is kept as spans too. The viewer draws every mark over PDF.js's text layer itself,
 and leaves PDF.js's own search alone. A mark with a quote or an anchor is shown with its quote, and one
 placed by its spans with the text they cover. Marks let the pointer through, so text can still be
@@ -298,12 +303,15 @@ as adding the passage as a mark and opening a comment box for it. Text in a PDF 
 with a pointer, so commenting on a passage needs one too. A view built from the viewer's parts can
 follow the selection with `useSelectedText`.
 
-The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case
-and accents. Every match is highlighted, and the one shown more deeply. The field says which match
-is shown of how many, and the up and down buttons beside it step through them, wrapping round at the
-ends. In the field, Enter and Shift+Enter do the same, and Escape clears the search. Where the
-toolbar has no room for the field, a button opens it in the toolbar's place, and Escape closes it.
-Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
+The toolbar also searches the document for a word or phrase, with PDF.js's own search, ignoring case and
+accents. Every match is highlighted, and the one shown more deeply. The field says which match is shown
+of how many, and the up and down buttons beside it step through them, wrapping round at the ends. The
+count grows as PDF.js searches the pages, with a spinner beside it until every page is searched. In the
+field, Enter and Shift+Enter do the same, and Escape clears the search. Where the toolbar has no room
+for the field, a button opens it in the toolbar's place, and Escape closes it. Ctrl+F, or Cmd+F,
+searches while the focus is in the viewer.
+
+A spinner shows in the frame until PDF.js has laid out the document's pages.
 
 It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
 into a dialog and back, keeping the page, the zoom, the marks and the search. A `container` that is
