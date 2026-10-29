@@ -66,7 +66,7 @@ public class SetTemplateHandler implements ServiceTaskHandler
     /** The largest template taken, which is the largest the document generator will fill in. */
     static final long MAX_TEMPLATE_BYTES = DocumentGenerator.MAX_TEMPLATE_BYTES;
 
-    private static final long MEGABYTE = 1024L * 1024;
+    private static final long BYTES_PER_MEGABYTE = 1024L * 1024;
 
     private static final String GENERIC_TYPE = "application/octet-stream";
 
@@ -98,8 +98,9 @@ public class SetTemplateHandler implements ServiceTaskHandler
         }
         if (file.getSize() > MAX_TEMPLATE_BYTES) {
             // Rounded up, so a file just over the limit does not read as being at it
-            throw new InvalidPayloadException("That file is " + (file.getSize() + MEGABYTE - 1) / MEGABYTE
-                + " MB, and a template can be at most " + MAX_TEMPLATE_BYTES / MEGABYTE + " MB");
+            throw new InvalidPayloadException("That file is "
+                + (file.getSize() + BYTES_PER_MEGABYTE - 1) / BYTES_PER_MEGABYTE
+                + " MB, and a template can be at most " + MAX_TEMPLATE_BYTES / BYTES_PER_MEGABYTE + " MB");
         }
         final String mimeType = getMimeType(file);
         // Refused now rather than when the version is published, where GeneratedDocumentCheck would

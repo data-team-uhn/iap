@@ -18,7 +18,6 @@
 package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.Calendar;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
