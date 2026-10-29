@@ -98,16 +98,16 @@ schema version), not relative to the context — so questions sharing a name in 
 sections never collide. And the answer node (anything whose `question` property
 references it) is looked up **nearest-scope-first**: the context's own subtree, then
 widening one ancestor at a time up to the submission holding the context. A condition
-evaluated inside a repeated block therefore sees that block's own answer, one evaluated
-on a workflow instance sees its submission's, and one evaluated outside a submission
-sees none. In copied content (see `copyContent` in [workflows.md](workflows.md)), an
-`answer` operand naming a copied question by UUID is pointed at the copy, while a path
-is kept as written: it stays readable, and the copy's own structure is what it resolves
-against. Moving content (see `moveContent` in [workflows.md](workflows.md)) works the
-other way. A path to a moved question, or to anything under a moved part, would no
-longer find it, so the operand is changed to name it by identifier before the move. When
-content moves into another entity, the conditions moving with it also switch to
-identifiers for what they name outside it.
+evaluated inside a repeated block therefore sees that block's own answer. One evaluated
+outside a submission sees none, including a workflow running over a schema. In copied
+content (see `copyContent` in [workflows.md](workflows.md)), an `answer` operand naming
+a copied question by UUID is pointed at the copy, while a path is kept as written: it
+stays readable, and the copy's own structure is what it resolves against. Moving content
+(see `moveContent` in [workflows.md](workflows.md)) works the other way. A path to a
+moved question, or to anything under a moved part, would no longer find it, so the
+operand is changed to name it by identifier before the move. When content moves into
+another entity, the conditions moving with it also switch to identifiers for what they
+name outside it.
 
 An `answer` operand on a question offering a fixed set of answers compares the chosen
 option's **`value`** (see [schemas.md](schemas.md)), and saving refuses any other value.

@@ -17,10 +17,10 @@
  */
 package io.uhndata.iap.submissions.internal;
 
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
@@ -45,12 +45,8 @@ import io.uhndata.iap.submissions.models.Submission;
  * The answer itself is any node whose {@code question} property references the identified question. It is looked
  * up nearest-scope-first: the context's own subtree, then one ancestor at a time up to the submission holding the
  * context. When the same question is answered several times in repeated blocks, a condition evaluated inside one
- * block therefore sees that block's own answer, not an arbitrary one.
- * </p>
- *
- * <p>
- * The submission is the boundary because answers belong to one. A sibling submission is never an ancestor, so the
- * search cannot read another submission's answers. A context outside any submission has no answers at all.
+ * block therefore sees that block's own answer, not an arbitrary one. A context outside any submission has no
+ * answer.
  * </p>
  *
  * @version $Id$
@@ -114,31 +110,27 @@ public class AnswerOperandResolver implements OperandResolver
         if (question == null) {
             return Operand.NO_VALUES;
         }
-        final Optional<Content> answer = enclosingSubmission(context)
-            .flatMap(submission -> this.findNearestAnswer(context, submission, question.identifier));
-        return Operand.of(answer.map(found -> found.get(VALUE_PROPERTY)).orElse(null), question.type);
-    }
-
-    private Optional<Content> findNearestAnswer(final Content context, final Content submission,
-        final String questionId)
-    {
-        Content scope = context;
         Content searched = null;
-        while (true) {
-            final Optional<Content> answer = this.findAnswer(scope, searched, questionId);
-            if (answer.isPresent() || scope.getPath().equals(submission.getPath())) {
-                return answer;
+        for (final Content scope : scopesUpToSubmission(context)) {
+            final Optional<Content> answer = this.findAnswer(scope, searched, question.identifier);
+            if (answer.isPresent()) {
+                return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
             }
             searched = scope;
-            scope = Objects.requireNonNull(scope.getParent(), "The submission is an ancestor of the context");
         }
+        return Operand.of(null, question.type);
     }
 
-    private static Optional<Content> enclosingSubmission(final Content context)
+    private static List<Content> scopesUpToSubmission(final Content context)
     {
-        return Stream.iterate(context, Objects::nonNull, Content::getParent)
-            .filter(scope -> scope.isOfType(Submission.RESOURCE_TYPE))
-            .findFirst();
+        final List<Content> scopes = new ArrayList<>();
+        for (Content scope = context; scope != null; scope = scope.getParent()) {
+            scopes.add(scope);
+            if (scope.isOfType(Submission.RESOURCE_TYPE)) {
+                return scopes;
+            }
+        }
+        return List.of();
     }
 
     private Question resolveQuestion(final String reference, final ConditionOperand operand, final Content context)
