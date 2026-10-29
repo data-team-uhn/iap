@@ -41,6 +41,9 @@ import io.uhndata.iap.tags.models.Taggable;
  */
 public final class Tagging
 {
+    /** A tag that has no definition, so placing it is refused, as the tags service refuses it. */
+    public static final String UNDEFINED = "undefined";
+
     private Tagging()
     {
         // Utility class
@@ -82,11 +85,19 @@ public final class Tagging
         Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
             Set.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
         Mockito.when(taggable.tag(Mockito.anyString()))
-            .thenAnswer(invocation -> write(resource, invocation.getArgument(0), true));
+            .thenAnswer(invocation -> place(resource, invocation.getArgument(0)));
         Mockito.when(taggable.tag(Mockito.anyString(), Mockito.anyBoolean()))
-            .thenAnswer(invocation -> write(resource, invocation.getArgument(0), true));
+            .thenAnswer(invocation -> place(resource, invocation.getArgument(0)));
         Mockito.when(taggable.untag(Mockito.anyString(), Mockito.anyBoolean()))
             .thenAnswer(invocation -> write(resource, invocation.getArgument(0), false));
+    }
+
+    private static boolean place(final Resource resource, final String name)
+    {
+        if (UNDEFINED.equals(name)) {
+            throw new IllegalArgumentException("Undefined tag: " + name);
+        }
+        return write(resource, name, true);
     }
 
     /**

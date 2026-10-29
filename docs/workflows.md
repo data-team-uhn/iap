@@ -847,6 +847,14 @@ completion lawful is still the definition. A task offering outcomes cannot be co
 without one of them, and a task offering none takes no outcome. A `complete` event aimed
 at the task closes it, records the outcome, and carries the instance on.
 
+**A decision can be written down as a review.** A `recordReview` service task placed
+directly after the user task that decides records a `sub:Review` of the approval
+requirement its `requirement` names: by whoever completed the task, tagged with the
+task's `outcome`, with their `outcomeNote` as a comment. It reads the decision from that
+completion, so nothing may come between the two, neither a join nor a timer. The outcome
+has to name a state a review can be in, such as `approved` or `rejected`, and a
+completion without one is refused.
+
 **Submitting is a user task.** A process hands a request back to its author with a task
 performed by `@creator`, and completing that task sends it on; there is no submit event
 or endpoint. A submission's page shows a button for each task the reader may complete,
