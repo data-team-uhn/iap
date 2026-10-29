@@ -28,6 +28,7 @@ import javax.jcr.Session;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
@@ -46,7 +47,7 @@ public class ConditionQuestionsCheck extends SchemaVersionCheck
     public List<String> check(final Resource version)
     {
         return DraftParts.ofType(version, "cond:ConditionOperand")
-            .filter(operand -> "answer".equals(operand.getValueMap().get("source", "literal")))
+            .filter(operand -> AnswerDependencies.ANSWER_SOURCE.equals(operand.getValueMap().get("source", "literal")))
             .filter(operand -> !namesAQuestionOf(operand.getValueMap().get("value", new String[0]), version))
             .map(operand -> DraftParts.describe(DraftParts.conditioned(operand), version)
                 + " has a condition on a question that is not in this version")

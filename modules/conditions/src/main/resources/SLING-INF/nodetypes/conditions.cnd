@@ -111,8 +111,9 @@
   - value (UNDEFINED) multiple
 
   // Where the values come from at evaluation time. Built-in sources are
-  // `literal`, `answer`, `tags` and `property`; new ones can be added by
-  // registering an OperandResolver service with a new source name.
+  // `literal`, `tags`, `property` and `ownProperty`; the submissions module adds
+  // `answer`, and new ones can be added by registering an OperandResolver service
+  // with a new source name.
   - source (STRING) = "literal" autocreated
 
   // Optional fold collapsing the resolved values into a single value before
