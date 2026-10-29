@@ -50,12 +50,12 @@ import io.uhndata.iap.submissions.models.Submission;
 public class SubmissionTemplateValues implements TemplateContextProvider
 {
     /** The name templates use for these values. */
-    static final String NAME = "submission";
+    static final String CONTEXT_NAME = "submission";
 
     @Override
     public String getName()
     {
-        return NAME;
+        return CONTEXT_NAME;
     }
 
     @Override

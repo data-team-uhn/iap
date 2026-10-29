@@ -49,7 +49,7 @@ public class GeneratedDocumentCheck extends SchemaVersionCheck
     @Override
     public List<String> check(final Resource version)
     {
-        return DraftParts.ofType(version, DraftParts.DOCUMENT)
+        return DraftParts.ofType(version, DraftParts.DOCUMENT_TYPE)
             .filter(part -> part.getValueMap().get("generated", false))
             .map(part -> problem(part, version))
             .flatMap(Optional::stream)
