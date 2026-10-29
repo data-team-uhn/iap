@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-import { escapeJQL } from "../escape";
 import { type Choice } from "../inputs/choices";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
@@ -221,36 +220,3 @@ export const blockingFields = (fields: ContentField[], values: FieldValues, node
     const value = patchValueOf(field, values[field.name]);
     return value === undefined || field.mandatory && value === null;
   });
-
-// The JCR-SQL2 query for the nodes a reference field may point at: the nodes of its type, under its
-// root. Undefined when it names no type, since any path may then be entered.
-export function referenceQuery(field: Pick<ContentField, "referenceType" | "referenceRoot">): string | undefined {
-  if (!field.referenceType) {
-    return undefined;
-  }
-  const root = field.referenceRoot?.replace(/(.)\/+$/, "$1");
-  return `select * from [nt:base] as n where n.[sling:resourceType] = '${escapeJQL(field.referenceType)}'`
-    + (root ? ` and isdescendantnode(n, '${escapeJQL(root)}')` : "");
-}
-
-export interface ReferenceCandidate {
-  path: string;
-  label: string;
-  // The node's `jcr:uuid`, if it has one, which a reference may store instead of the path
-  identifier?: string;
-}
-
-// A node a reference may point at, labelled by its title or label, or else by its path under the
-// root; undefined for a node without a path
-export function candidateOf(node: SerializedNode, referenceRoot?: string): ReferenceCandidate | undefined {
-  const path = node["@path"];
-  if (typeof path !== "string") {
-    return undefined;
-  }
-  const named = [ node.title, node.label ].find(name => typeof name === "string" && name.trim() !== "");
-  const root = referenceRoot?.replace(/\/*$/, "/");
-  const relative = root && path.startsWith(root) ? path.substring(root.length) : path;
-  const identifier = node["jcr:uuid"];
-  return { path, label: typeof named === "string" ? named : relative,
-    ...typeof identifier === "string" ? { identifier } : {} };
-}

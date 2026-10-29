@@ -339,7 +339,7 @@ is reported in the summary instead; see [Shaping the response](#shaping-the-resp
   source.
 - **Restricting `query` to administrators** would close off arbitrary JCR-SQL2. The
   candidate list of a reference field, in `frontend-commons`
-  (`fields/referenceCandidates.ts`), sends a `query`.
+  (`inputs/referenceChoices.ts`), sends a `query`.
 - **A `storedQuery` mode** would run only one of a set of predefined queries. It would
   allow JCR queries without the risks of `query`.
 - **Two more trees that are not content are still in reach of a `fulltext` search.**
