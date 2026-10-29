@@ -293,6 +293,31 @@ class StructuredParameterTest
     }
 
     @Test
+    void writesAStructureWhoseMandatoryItemsItsTypeAutocreates() throws Exception
+    {
+        final NodeBuilder root = VocabularyFixture.repository();
+        final NodeBuilder part = NodeTypesFixture.acceptingAnyProperty(NodeTypesFixture.type(root, "x:Part", "nt:base")
+            .setProperty(MANDATORY_PROPERTIES, List.of(PRIMARY_TYPE, "sling:resourceType"), Type.NAMES)
+            .setProperty(MANDATORY_CHILD_NODES, List.of("note"), Type.NAMES));
+        part.child("rep:namedPropertyDefinitions").child("sling:resourceType").child("STRING")
+            .setProperty("jcr:autoCreated", true).setProperty("jcr:defaultValues", List.of("x/Part"), Type.STRINGS);
+        part.child("rep:namedChildNodeDefinitions").child("note").child("nt:unstructured")
+            .setProperty("jcr:autoCreated", true).setProperty("jcr:defaultPrimaryType", "nt:unstructured", Type.NAME);
+        final NodeBuilder type = VocabularyFixture.handler(root, "Strict", "strict");
+        VocabularyFixture.parameter(fields(structure(type, "single", 1).setProperty(JCR_NODE_TYPE, "x:Part")),
+            PATH, TEXT, 0, 1);
+
+        try (RecordedProblems problems = new RecordedProblems()) {
+            final NodeState single = parse(root, serviceTask("<iap:strict><iap:single path=\"/a\"/></iap:strict>"))
+                .getChildNode(TASK).getChildNode("single");
+
+            assertEquals(List.of(), problems.names());
+            assertEquals("x/Part", single.getString("sling:resourceType"));
+            assertTrue(single.hasChildNode("note"));
+        }
+    }
+
+    @Test
     void reportsAStructureTheNodeHoldingItDoesNotAdmitRatherThanFailingTheSave() throws Exception
     {
         // Strict: a holder takes a folder as its target and an x:Note as its note, and no other child

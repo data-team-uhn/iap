@@ -80,6 +80,11 @@ which the visual editor loads and saves, and the flow nodes it was parsed into, 
 the engine reads. `bpmnXmlParsedHash` records the source as of the last successful
 parse, so a graph that has fallen behind its diagram can be spotted.
 
+The parse writes the flow nodes straight into the commit, where nothing autocreates, so once they are
+written it gives each node what its node type autocreates: `sling:resourceType`, `jcr:created`, and any
+declared default, such as an operand's `source` of `literal`. A diagram states only what differs from those
+defaults.
+
 The source is an `nt:file` child served at the version's own path,
 `/Workflows/timeOffRequest/v1/bpmn.xml`, so a diagram can be downloaded and re-uploaded
 as a document and does not weigh on every serialization of the version. It is written by
@@ -327,9 +332,8 @@ property at all, as a strict record type may not allow its key, which Oak would 
 save, so it is reported and not written either. The same goes for the node a structure is stored as: a
 `jcrNodeType` that is not registered, is abstract or a mixin, or has a mandatory child node or a mandatory
 property besides its primary type, or a node holding the structure whose type declares no child of that
-name and type, by name or residually, is reported and the structure not written. A mandatory property counts
-even when it is autocreated, as `sling:resourceType` is on every `data:EntityPart` subtype, since only the JCR
-API autocreates and the parse writes below it. Every one of these is
+name and type, by name or residually, is reported and the structure not written. A mandatory item the type
+autocreates, as every `data:EntityPart` subtype does `sling:resourceType`, does not count. Every one of these is
 reported through the same problem log a bad element is, naming the parameter and the element, and parsing
 carries on regardless: a diagram that says something impossible costs at most the values it got wrong, never
 the save. **Fixed `jcrProperties` are applied after parameters and win over them**, so a handler's own

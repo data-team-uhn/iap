@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +46,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.apache.jackrabbit.util.ISO8601;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,8 +89,9 @@ import io.uhndata.iap.utils.NodeTypeUtils;
  * mid-process catch. Diagram-only elements ({@code bpmndi:*}) are never visited, since only the children of the
  * {@code bpmn:process} element are traversed.</p>
  *
- * <p>Written against the Oak {@link NodeBuilder} of an in-progress commit, which is why the properties the JCR
- * layer would autocreate are set explicitly here; see {@code applySystemProperties}.</p>
+ * <p>Written against the Oak {@link NodeBuilder} of an in-progress commit, where nothing autocreates. Once every node
+ * is written, each is given what its node type autocreates, so a diagram need not restate a default such as an
+ * operand's {@code source}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -188,16 +187,6 @@ public final class WorkflowDefinitionUtils
 
     private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
 
-    private static final String JCR_CREATED_PROPERTY = "jcr:created";
-
-    private static final String JCR_CREATED_BY_PROPERTY = "jcr:createdBy";
-
-    private static final String SLING_RESOURCE_TYPE_PROPERTY = "sling:resourceType";
-
-    private static final String SLING_RESOURCE_SUPER_TYPE_PROPERTY = "sling:resourceSuperType";
-
-    private static final String JCR_SUPERTYPES_PROPERTY = "jcr:supertypes";
-
     /** The characters JCR reserves, and therefore forbids in a node name. */
     private static final String INVALID_NAME_CHARACTERS = "/:[]|*";
 
@@ -220,11 +209,11 @@ public final class WorkflowDefinitionUtils
      *
      * @since 0.1.0
      */
-    private record ParseContext(NodeBuilder workflowVersion, NodeState root, String author, String created,
+    private record ParseContext(NodeBuilder workflowVersion, NodeState root, String author, Calendar created,
         Map<String, NodeBuilder> createdNodes, Map<String, String> messageNames, ParseProblems problems)
     {
         ParseContext(final NodeBuilder workflowVersion, final NodeState root, final String author,
-            final String created, final Map<String, String> messageNames, final ParseProblems problems)
+            final Calendar created, final Map<String, String> messageNames, final ParseProblems problems)
         {
             this(workflowVersion, root, author, created, new LinkedHashMap<>(), messageNames, problems);
         }
@@ -255,7 +244,7 @@ public final class WorkflowDefinitionUtils
      * @param root the committed repository root. {@code /WorkflowTypes} is where the {@code wf:FlowNodeType}
      *            candidates are found. {@code /jcr:system/jcr:nodeTypes} recognizes previously parsed
      *            {@code wf:FlowNode}/{@code wf:SequenceFlow} children, subtypes included, when clearing them. It
-     *            also supplies a created node's immediate supertype. A reference parameter's value is resolved
+     *            also says what a created node's type autocreates. A reference parameter's value is resolved
      *            against the tree as a whole.
      * @param author the user id to record as {@code jcr:createdBy} on newly created flow nodes/sequence flows
      * @param workflowVersionPath the path of {@code workflowVersion}, for diagnostic messages only
@@ -276,7 +265,7 @@ public final class WorkflowDefinitionUtils
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
         final ParseContext context = new ParseContext(workflowVersion, root, author,
-            ISO8601.format(Calendar.getInstance()), messageNames(process), problems);
+            Calendar.getInstance(), messageNames(process), problems);
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes =
             loadFlowNodeTypes(root.getChildNode(WORKFLOW_TYPES_ROOT_NAME), context.nodeTypesRoot());
         final Map<String, Element> elementsById = new LinkedHashMap<>();
@@ -309,6 +298,9 @@ public final class WorkflowDefinitionUtils
         for (final Element sequenceFlow : sequenceFlows) {
             createSequenceFlow(sequenceFlow, elementsById, flowNodeTypes, context);
         }
+        // Last, so that nothing the diagram wrote is overwritten by a default
+        context.createdNodes().values().forEach(node ->
+            NodeTypeUtils.autoCreateItems(node, context.nodeTypesRoot(), author, context.created()));
     }
 
     /**
@@ -482,7 +474,6 @@ public final class WorkflowDefinitionUtils
         applyEventDefinitions(element, node, context);
         applyExtensionNodes(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
-        applySystemProperties(node, flowNodeType.jcrNodeType(), context);
     }
 
     /**
@@ -571,7 +562,6 @@ public final class WorkflowDefinitionUtils
         }
         final NodeBuilder child = parent.child(name);
         child.setProperty(JCR_PRIMARY_TYPE, primaryType, Type.NAME);
-        applySystemProperties(child, primaryType, context);
         svProperties(svNode)
             .filter(property -> !JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
             .forEach(property -> setSvProperty(property, child, owner, context));
@@ -882,44 +872,6 @@ public final class WorkflowDefinitionUtils
     }
 
     /**
-     * Sets the system properties a {@code NodeBuilder}-created node does not get for free the way a node created
-     * through the JCR API would: {@code jcr:created}/{@code jcr:createdBy}, and the {@code sling:resourceType}/
-     * {@code sling:resourceSuperType} pair that mirrors this node's JCR type/immediate supertype by naming
-     * convention (e.g. {@code wf:StartEvent} extending {@code wf:Event} becomes {@code wf/StartEvent} extending
-     * {@code wf/Event}), matching the fixed defaults every concrete flow node type declares in
-     * {@code workflowDefinitions.cnd}.
-     */
-    private static void applySystemProperties(final NodeBuilder node, final String primaryType,
-        final ParseContext context)
-    {
-        node.setProperty(JCR_CREATED_PROPERTY, context.created(), Type.DATE);
-        node.setProperty(JCR_CREATED_BY_PROPERTY, context.author());
-        node.setProperty(SLING_RESOURCE_TYPE_PROPERTY, toResourceType(primaryType));
-        final String supertype = directSupertype(primaryType, context.nodeTypesRoot());
-        if (supertype != null) {
-            node.setProperty(SLING_RESOURCE_SUPER_TYPE_PROPERTY, toResourceType(supertype));
-        }
-    }
-
-    private static String toResourceType(final String jcrNodeType)
-    {
-        return jcrNodeType.replace(':', '/');
-    }
-
-    /**
-     * Looks up the immediate (directly declared, not transitively expanded) supertype of {@code type} from
-     * {@code jcr:supertypes}, the property Oak materializes for each registered node type under
-     * {@code /jcr:system/jcr:nodeTypes}. Every concrete {@code wf:FlowNode}/{@code wf:SequenceFlow} subtype in
-     * {@code workflowDefinitions.cnd} declares exactly one supertype, so the first value is unambiguous.
-     */
-    private static String directSupertype(final String type, final NodeState nodeTypesRoot)
-    {
-        final Iterator<String> values =
-            nodeTypesRoot.getChildNode(type).getNames(JCR_SUPERTYPES_PROPERTY).iterator();
-        return values.hasNext() ? values.next() : null;
-    }
-
-    /**
      * Picks the most specific {@code wf:FlowNodeType} matching the given element out of the candidates that match its
      * {@code xmlElement}. These are already sorted from highest to lowest priority, and by name within one. A candidate
      * with an {@code xmlChildElement} only matches when the element has a direct BPMN child of that name. One with an
@@ -1109,7 +1061,6 @@ public final class WorkflowDefinitionUtils
         if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
             flow.setProperty("isDefault", true);
         }
-        applySystemProperties(flow, SEQUENCE_FLOW_NODETYPE, context);
     }
 
     /**

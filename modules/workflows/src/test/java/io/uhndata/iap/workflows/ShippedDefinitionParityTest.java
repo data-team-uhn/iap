@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
+
+import io.uhndata.iap.utils.NodeTypeUtils;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -88,9 +91,6 @@ class ShippedDefinitionParityTest
     /** The boundary event property whose only source is the diagram's {@code cancelActivity} attribute. */
     private static final String CANCEL_ACTIVITY = "cancelActivity";
 
-    /** The operand property whose default is {@code literal}. */
-    private static final String OPERAND_SOURCE = "source";
-
     /** How a Sling initial content descriptor writes a JCR reference: the property name, prefixed. */
     private static final String REFERENCE_PREFIX = "jcr:reference:";
 
@@ -100,9 +100,7 @@ class ShippedDefinitionParityTest
     /**
      * What a descriptor and a parse are allowed to disagree about, each for a reason of its own.
      *
-     * <p>{@code jcr:created}/{@code jcr:createdBy} are stamped by whichever of the two wrote the node.
-     * {@code sling:resourceType}/{@code sling:resourceSuperType} are autocreated by the node type for a descriptor
-     * and derived from it by the parse, so they restate the primary type either way. {@code jcr:uuid} is the
+     * <p>{@code jcr:created} is stamped by whichever of the two wrote the node. {@code jcr:uuid} is the
      * repository's, and no descriptor names one. {@code catching} is autocreated and protected by every event node
      * type, so a descriptor never sets it and the parse has nothing to set. {@code bpmnXmlParsedHash} is recorded
      * on the version by the editor that drives the parse, not by the parse.</p>
@@ -111,8 +109,8 @@ class ShippedDefinitionParityTest
      * {@link #defaultedCancelActivity}. Everything else - the element ids, the labels, the arcs, the typed
      * parameters, and which vocabulary entry each node points at - has to match.</p>
      */
-    private static final Set<String> IGNORED_PROPERTIES = Set.of("jcr:created", "jcr:createdBy",
-        "sling:resourceType", "sling:resourceSuperType", "jcr:uuid", "catching", "bpmnXmlParsedHash");
+    private static final Set<String> IGNORED_PROPERTIES =
+        Set.of("jcr:created", "jcr:uuid", "catching", "bpmnXmlParsedHash");
 
     /** The diagram is a child of the version in the repository, and is the parse's input rather than its output. */
     private static final Set<String> IGNORED_CHILDREN = Set.of(BPMN_XML);
@@ -198,6 +196,8 @@ class ShippedDefinitionParityTest
     {
         final NodeBuilder expected = EmptyNodeState.EMPTY_NODE.builder();
         load(declared, expected);
+        // What loading the descriptor through the JCR API would add
+        NodeTypeUtils.autoCreateItems(expected, NodeTypeUtils.registry(repository), AUTHOR, Calendar.getInstance());
         final NodeBuilder actual = EmptyNodeState.EMPTY_NODE.builder();
         // A definition that only half translates is a failure too, so what the parse said about the diagram is
         // compared as well as what it produced from it.
@@ -239,7 +239,7 @@ class ShippedDefinitionParityTest
         final Set<String> names = new TreeSet<>(declared.keySet());
         names.addAll(parsed.keySet());
         for (final String name : names) {
-            if (defaultedCancelActivity(name, expected, actual) || defaultedSource(name, declared, parsed)) {
+            if (defaultedCancelActivity(name, expected, actual)) {
                 continue;
             }
             if (!Objects.equals(declared.get(name), parsed.get(name))) {
@@ -259,18 +259,6 @@ class ShippedDefinitionParityTest
     {
         return CANCEL_ACTIVITY.equals(name) && !actual.hasProperty(CANCEL_ACTIVITY)
             && expected.getBoolean(CANCEL_ACTIVITY);
-    }
-
-    /**
-     * Whether a difference about an operand's {@code source} is only the node type's own default being spelled out.
-     * A descriptor loaded through the repository gets {@code literal} autocreated, and this test reads it as plain
-     * data, so a descriptor leaving it out agrees with a diagram that states it.
-     */
-    private static boolean defaultedSource(final String name, final Map<String, String> declared,
-        final Map<String, String> parsed)
-    {
-        return OPERAND_SOURCE.equals(name) && !declared.containsKey(name)
-            && "STRING literal".equals(parsed.get(name));
     }
 
     /**

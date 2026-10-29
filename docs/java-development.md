@@ -72,6 +72,11 @@ changing it is one edit.
 Reserve raw `Node` and `NodeState` access for the places that genuinely cannot use
 models: Oak commit hooks and editors, which run below the resource layer.
 
+A node a commit editor writes into the commit's `NodeBuilder` gets nothing its node type
+autocreates, since only the JCR API autocreates. Once the editor has written a subtree,
+`NodeTypeUtils.autoCreateItems` gives every node in it what a session would have:
+`sling:resourceType`, `jcr:created` and `jcr:createdBy`, and each declared default.
+
 ## Module layout
 
 A module owns a slice of the platform end to end — its node types, the models over

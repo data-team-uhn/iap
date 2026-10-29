@@ -27,10 +27,10 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
  *
  * <p>The parser asks the registry two questions, and both have to be answerable for a parse to produce the same
  * nodes it does in a running repository. {@code rep:supertypes}, the transitively-expanded list, is how a
- * previously parsed child is recognized as a flow node worth clearing. {@code jcr:supertypes}, the directly
- * declared one, is what a created node's {@code sling:resourceSuperType} is derived from. It also reads the
- * flattened property and child node definitions, to tell which parameters a node can hold. Shared so that a test
- * about the parser and a test about the shipped definitions agree on what the platform's own node types are.</p>
+ * previously parsed child is recognized as a flow node worth clearing. The flattened property and child node
+ * definitions tell which parameters a node can hold, and what a created node is given by default. Shared so that a
+ * test about the parser and a test about the shipped definitions agree on what the platform's own node types
+ * are.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -39,7 +39,15 @@ public final class NodeTypesFixture
 {
     private static final String REP_SUPERTYPES = "rep:supertypes";
 
-    private static final String JCR_SUPERTYPES = "jcr:supertypes";
+    private static final String NAMED_PROPERTY_DEFINITIONS = "rep:namedPropertyDefinitions";
+
+    private static final String AUTO_CREATED = "jcr:autoCreated";
+
+    private static final String DEFAULT_VALUES = "jcr:defaultValues";
+
+    private static final String CONDITION_OPERAND = "cond:ConditionOperand";
+
+    private static final String ENTITY_PART = "data:EntityPart";
 
     private static final String FLOW_NODE = "wf:FlowNode";
 
@@ -85,10 +93,13 @@ public final class NodeTypesFixture
             "wf:GatewayType", "wf:SequenceFlowType")) {
             type(nodeTypes, entry, List.of(FLOW_NODE_TYPE), FLOW_NODE_TYPE);
         }
-        // A sequence flow is recognized by name rather than by supertype, so only what its resource super type is
-        // derived from has to be declared.
-        acceptingAnyProperty(nodeTypes.child("wf:SequenceFlow")
-            .setProperty(JCR_SUPERTYPES, List.of("data:EntityPart"), Type.NAMES));
+        type(nodeTypes, "wf:SequenceFlow", List.of(ENTITY_PART), ENTITY_PART);
+        // What a condition written into a diagram is built of
+        type(nodeTypes, "cond:ConditionGroup", List.of("cond:Condition"), "cond:Condition");
+        type(nodeTypes, "cond:SingleCondition", List.of("cond:Condition"), "cond:Condition")
+            .child("rep:namedChildNodeDefinitions").child("operandB").child(CONDITION_OPERAND)
+            .setProperty(AUTO_CREATED, true).setProperty("jcr:defaultPrimaryType", CONDITION_OPERAND, Type.NAME);
+        autoCreated(type(nodeTypes, CONDITION_OPERAND, List.of(ENTITY_PART), ENTITY_PART), "source", "literal");
         nodeTypes.child("nt:file").setProperty(REP_SUPERTYPES, List.of("nt:hierarchyNode"), Type.NAMES);
         // What a structure is stored as when it names no node type, and what a repeated one's records sit in
         acceptingAnyChild(acceptingAnyProperty(nodeTypes.child("nt:unstructured")
@@ -111,12 +122,23 @@ public final class NodeTypesFixture
             .setProperty(REP_SUPERTYPES, List.of(supertypes), Type.NAMES);
     }
 
-    private static void type(final NodeBuilder nodeTypes, final String name, final List<String> supertypes,
+    /** Registers a node type autocreating what every content node type in the platform's CNDs does. */
+    private static NodeBuilder type(final NodeBuilder nodeTypes, final String name, final List<String> supertypes,
         final String directSupertype)
     {
-        acceptingAnyChild(acceptingAnyProperty(nodeTypes.child(name)
-            .setProperty(REP_SUPERTYPES, supertypes, Type.NAMES)
-            .setProperty(JCR_SUPERTYPES, List.of(directSupertype), Type.NAMES)));
+        final NodeBuilder type = acceptingAnyChild(acceptingAnyProperty(nodeTypes.child(name)
+            .setProperty(REP_SUPERTYPES, supertypes, Type.NAMES)));
+        autoCreated(type, "sling:resourceType", name.replace(':', '/'));
+        autoCreated(type, "sling:resourceSuperType", directSupertype.replace(':', '/'));
+        type.child(NAMED_PROPERTY_DEFINITIONS).child("jcr:created").child("DATE").setProperty(AUTO_CREATED, true);
+        type.child(NAMED_PROPERTY_DEFINITIONS).child("jcr:createdBy").child("STRING").setProperty(AUTO_CREATED, true);
+        return type;
+    }
+
+    private static void autoCreated(final NodeBuilder type, final String name, final String value)
+    {
+        type.child(NAMED_PROPERTY_DEFINITIONS).child(name).child("STRING").setProperty(AUTO_CREATED, true)
+            .setProperty(DEFAULT_VALUES, List.of(value), Type.STRINGS);
     }
 
     /**

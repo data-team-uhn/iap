@@ -242,8 +242,9 @@ class BpmnXmlSyncEditorTest
         assertTrue(condition.exists(), "the condition subtree should hang off the arc");
         assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
         assertEquals("equals", condition.getString("comparator"));
-        // Set from the type, since a NodeBuilder autocreates nothing
         assertEquals("cond/SingleCondition", condition.getString("sling:resourceType"));
+        // Left out of the diagram, so built from the node type's defaults
+        assertEquals("literal", condition.getChildNode("operandB").getString("source"));
 
         final NodeState operandA = condition.getChildNode("operandA");
         assertEquals("cond:ConditionOperand", operandA.getName(PRIMARY_TYPE));
@@ -1561,37 +1562,19 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode(ONLY_START).exists());
     }
 
-    /**
-     * Exercises {@code directSupertype}'s two null-returning paths: a {@code jcrNodeType} not registered under
-     * {@code /jcr:system/jcr:nodeTypes} at all (no {@code jcr:supertypes} property to read), and one registered
-     * with an empty {@code jcr:supertypes} (property present, but its value iterator has nothing to return).
-     */
     @Test
-    void directSupertypeHandlesMissingAndEmptySupertypesProperty() throws Exception
+    void aNodeOfATypeTheRegistryDoesNotKnowGetsNoDefaults() throws Exception
     {
         final NodeBuilder root = base();
-        VocabularyFixture.entry(root, "NoSupertypeGateway", "bpmn:exclusiveGateway", "wf:NoSupertypeType", 0);
-        VocabularyFixture.entry(root, "EmptySupertypeGateway", "bpmn:parallelGateway", "wf:EmptySupertypeType", 0);
-        // wf:NoSupertypeType is intentionally left unregistered under jcr:nodeTypes altogether.
-        root.child("jcr:system").child("jcr:nodeTypes").child("wf:EmptySupertypeType")
-            .setProperty("jcr:supertypes", List.of(), Type.NAMES);
+        VocabularyFixture.entry(root, "UnregisteredGateway", "bpmn:exclusiveGateway", "wf:Unregistered", 0);
 
         final NodeState version = firstSave(root,
-            DEFS_OPEN
-            + PROCESS_OPEN
-            + "    <bpmn:exclusiveGateway id=\"gwNoSuper\"/>\n"
-            + "    <bpmn:parallelGateway id=\"gwEmptySuper\"/>\n"
-            + PROCESS_CLOSE
-            + DEFS_CLOSE);
+            DEFS_OPEN + PROCESS_OPEN + "    <bpmn:exclusiveGateway id=\"gateway\"/>\n" + PROCESS_CLOSE + DEFS_CLOSE);
 
-        final NodeState gwNoSuper = version.getChildNode("gwNoSuper");
-        assertTrue(gwNoSuper.exists());
-        assertEquals("wf/NoSupertypeType", gwNoSuper.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertFalse(gwNoSuper.hasProperty(RESOURCE_SUPER_TYPE));
-
-        final NodeState gwEmptySuper = version.getChildNode("gwEmptySuper");
-        assertTrue(gwEmptySuper.exists());
-        assertFalse(gwEmptySuper.hasProperty(RESOURCE_SUPER_TYPE));
+        final NodeState gateway = version.getChildNode("gateway");
+        assertTrue(gateway.exists());
+        assertFalse(gateway.hasProperty("sling:resourceType"));
+        assertFalse(gateway.hasProperty("jcr:created"));
     }
 
     /**

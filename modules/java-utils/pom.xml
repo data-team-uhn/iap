@@ -60,7 +60,15 @@
     </dependency>
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-store-spi</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>jackrabbit-jcr-commons</artifactId>
     </dependency>
     <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
@@ -136,11 +144,6 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.jackrabbit</groupId>
-      <artifactId>oak-api</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <!-- JSON-P implementation, needed at runtime by the ErrorMetadata tests -->

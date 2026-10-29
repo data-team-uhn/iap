@@ -510,8 +510,8 @@ final class ParameterTranslation
      *
      * <p>The structure's {@code jcrNodeType} may not be registered. It may be abstract or a mixin, which no node
      * can have as its primary type. It may have a mandatory child node, or a mandatory property besides its primary
-     * type. That holds even for an autocreated property, since only the JCR API autocreates. It holds too for one a
-     * field could supply, since a field may be left out or dropped.</p>
+     * type, that it does not autocreate. That holds even for one a field could supply, since a field may be left out
+     * or dropped.</p>
      *
      * <p>Or the node holding the structure may have no definition for a child of that name and type, named or
      * residual. A repeated structure is held in an {@code nt:unstructured} container, which takes records of any
@@ -549,10 +549,19 @@ final class ParameterTranslation
         if (record.getBoolean(IS_ABSTRACT) || record.getBoolean(IS_MIXIN)) {
             return "a structured parameter is stored as an abstract or mixin node type";
         }
-        final boolean mandatory = record.getNames(MANDATORY_CHILD_NODES).iterator().hasNext()
-            || StreamSupport.stream(record.getNames(MANDATORY_PROPERTIES).spliterator(), false)
-                .anyMatch(name -> !JCR_PRIMARY_TYPE.equals(name));
+        final boolean mandatory = unfilled(record, MANDATORY_CHILD_NODES, NAMED_CHILD_NODE_DEFINITIONS)
+            || unfilled(record, MANDATORY_PROPERTIES, NAMED_PROPERTY_DEFINITIONS);
         return mandatory ? "a structured parameter is stored as a node type with mandatory items" : null;
+    }
+
+    /** Whether a node type has a mandatory item that neither the parse writes nor the type autocreates. */
+    private static boolean unfilled(final NodeState type, final String mandatory, final String definitions)
+    {
+        return StreamSupport.stream(type.getNames(mandatory).spliterator(), false)
+            .filter(name -> !JCR_PRIMARY_TYPE.equals(name))
+            .anyMatch(name -> StreamSupport.stream(
+                type.getChildNode(definitions).getChildNode(name).getChildNodeEntries().spliterator(), false)
+                .noneMatch(definition -> definition.getNodeState().getBoolean("jcr:autoCreated")));
     }
 
     private static void report(final String problem, final ParameterInfo parameter, final Context context)
