@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Start Workflow",
-  "description": "Starts the workflow the created entity's data points at. Which workflow that is, is found by following a chain of reference properties named by workflowFrom.",
+  "description": "Starts the workflow that the newly created item refers to. That workflow is found by following the chain of references named in Workflow from.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "startWorkflow",
@@ -10,7 +10,7 @@
   "workflowFrom": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Workflow from",
-    "description": "The chain of reference properties, relative to the created entity, leading to the workflow version to start, e.g. \"schemaVersion/workflow\".",
+    "description": "The chain of references, starting from the new item, leading to the workflow version to start, e.g. \"schemaVersion/workflow\".",
     "minValues": 1
   }
 }

@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Create Workflow Version",
-  "description": "Opens a new version of a workflow, for the step after it to mark a draft, carrying whatever diagram the request brought: of the workflow an earlier step created, or else of the target. A version opened empty is created bpmnAuthoritative, since it has no hand-written flow nodes for a reparse to throw away; one the event names a source for is left for the copy that follows to say.",
+  "description": "Opens a new version of a workflow, for the step after it to mark a draft, carrying whatever diagram the request brought: of the workflow an earlier step created, or else the one this request is about. A version opened empty is created bpmnAuthoritative (the diagram is the source of truth), since it has no hand-written flow nodes for a re-read of the diagram to throw away; one the request names a source for is left for the copy that follows to say.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "createWorkflowVersion",

@@ -10,7 +10,7 @@
   "timeDuration": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Duration",
-    "description": "How long the timer runs before it starts the workflow, as an ISO 8601 duration such as P5D.",
+    "description": "How long the timer runs before it starts the workflow, as a duration such as P5D (5 days) or PT2H (2 hours).",
     "xmlLocation": "bpmnElement",
     "xmlPath": "timerEventDefinition"
   }

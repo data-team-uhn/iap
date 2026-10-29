@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Service Task",
-  "description": "Work that the platform carries out on its own, without waiting for a person. Falls back to this generic entry for a handler with no per-handler vocabulary of its own.",
+  "description": "An automatic step the system carries out without waiting for a person.",
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:serviceTask",
@@ -9,7 +9,7 @@
   "handler": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Handler",
-    "description": "The registered handler that performs this task. A task naming none waits for a person.",
+    "description": "Which automatic action to perform. If none is chosen, the task waits for a person.",
     "xmlLocation": "attribute"
   }
 }

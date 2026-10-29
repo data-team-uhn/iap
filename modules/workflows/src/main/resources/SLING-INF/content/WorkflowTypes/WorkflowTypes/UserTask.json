@@ -9,7 +9,7 @@
   "performers": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Performers",
-    "description": "The principals - users or groups - allowed to complete this task. Absent or empty means nobody; the built-in \"everyone\" group means any authenticated user.",
+    "description": "The people or groups who can complete this task. If none are chosen, no one can; \"everyone\" allows any signed-in user.",
     "dataType": "principal",
     "maxValues": 0,
     "xmlLocation": "attribute"
@@ -17,7 +17,7 @@
   "outcomeOptions": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Outcomes",
-    "description": "The outcomes a person may record when completing this task, e.g. \"approved\", \"rejected\". A routing gateway decides on whichever one they choose.",
+    "description": "The choices the person can pick when finishing this task, e.g. \"approved\", \"rejected\". Later paths can depend on the choice.",
     "maxValues": 0,
     "xmlLocation": "attribute"
   }

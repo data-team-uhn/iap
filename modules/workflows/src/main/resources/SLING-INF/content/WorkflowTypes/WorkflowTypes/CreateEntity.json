@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Create Entity",
-  "description": "Creates a new entity under the target, of the configured JCR node type. The event's title names it, both as its stored title and, camel-cased, as its node name.",
+  "description": "Creates a new item of the configured type under the item this request is about. The request's title becomes its title and, in camelCase, its name.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "createEntity",
@@ -10,7 +10,7 @@
   "entityType": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Entity type",
-    "description": "The JCR node type of the entity to create, e.g. \"wf:WorkflowDefinition\".",
+    "description": "The type of item to create, e.g. \"wf:WorkflowDefinition\".",
     "minValues": 1
   }
 }

@@ -88,6 +88,9 @@ class ShippedDefinitionParityTest
     /** The boundary event property whose only source is the diagram's {@code cancelActivity} attribute. */
     private static final String CANCEL_ACTIVITY = "cancelActivity";
 
+    /** The operand property whose default is {@code literal}. */
+    private static final String OPERAND_SOURCE = "source";
+
     /** How a Sling initial content descriptor writes a JCR reference: the property name, prefixed. */
     private static final String REFERENCE_PREFIX = "jcr:reference:";
 
@@ -236,7 +239,7 @@ class ShippedDefinitionParityTest
         final Set<String> names = new TreeSet<>(declared.keySet());
         names.addAll(parsed.keySet());
         for (final String name : names) {
-            if (defaultedCancelActivity(name, expected, actual)) {
+            if (defaultedCancelActivity(name, expected, actual) || defaultedSource(name, declared, parsed)) {
                 continue;
             }
             if (!Objects.equals(declared.get(name), parsed.get(name))) {
@@ -256,6 +259,18 @@ class ShippedDefinitionParityTest
     {
         return CANCEL_ACTIVITY.equals(name) && !actual.hasProperty(CANCEL_ACTIVITY)
             && expected.getBoolean(CANCEL_ACTIVITY);
+    }
+
+    /**
+     * Whether a difference about an operand's {@code source} is only the node type's own default being spelled out.
+     * A descriptor loaded through the repository gets {@code literal} autocreated, and this test reads it as plain
+     * data, so a descriptor leaving it out agrees with a diagram that states it.
+     */
+    private static boolean defaultedSource(final String name, final Map<String, String> declared,
+        final Map<String, String> parsed)
+    {
+        return OPERAND_SOURCE.equals(name) && !declared.containsKey(name)
+            && "STRING literal".equals(parsed.get(name));
     }
 
     /**

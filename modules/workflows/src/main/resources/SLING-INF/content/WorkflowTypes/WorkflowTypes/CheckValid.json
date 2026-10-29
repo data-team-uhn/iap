@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Check Valid",
-  "description": "Refuses to go on unless the target passes every validity check that applies to it. Every problem is reported at once.",
+  "description": "Stops the workflow unless the item passes every validity check that applies to it. All problems are reported together.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "checkValid",

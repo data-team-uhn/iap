@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Add Link",
-  "description": "Links the resource this step acts on, the one an earlier step created or else the target, to the content the event names. An event naming nothing links nothing, so a workflow can link as an option.",
+  "description": "Links the item this step works on (the one an earlier step created, or else the one this request is about) to the content the request names. A request naming nothing links nothing, so linking can be optional.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "addLink",
@@ -10,7 +10,7 @@
   "to": {
     "jcr:primaryType": "wf:Parameter",
     "label": "To",
-    "description": "The event entry holding the path of the content linked to, e.g. \"source\".",
+    "description": "The request entry holding the path of the content to link to, e.g. \"source\".",
     "minValues": 1
   },
   "linkType": {
@@ -22,6 +22,6 @@
   "linkLabel": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Link label",
-    "description": "A label for the link. Left blank, the link has none."
+    "description": "A label for the link."
   }
 }

@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Retire Active Versions",
-  "description": "Retires whichever versions of the target's workflow are currently active, to make room for one being promoted in their place. The step before the version is tagged active in the activation workflow.",
+  "description": "Retires whichever versions of the workflow this request is about are currently active, to make room for one being promoted in their place. The step before the version is tagged active in the activation workflow.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "retireActiveVersions",

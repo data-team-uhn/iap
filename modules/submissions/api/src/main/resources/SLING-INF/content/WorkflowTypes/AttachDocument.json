@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Attach Document",
-  "description": "Stores the uploaded file as the document answering a requirement of the event's submission, as long as the person who raised it is still drafting it and the file is of a type the requirement accepts.",
+  "description": "Stores the uploaded file as the document answering a requirement of the submission, as long as the person who raised it is still drafting it and the file is of a type the requirement accepts.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "attachDocument",

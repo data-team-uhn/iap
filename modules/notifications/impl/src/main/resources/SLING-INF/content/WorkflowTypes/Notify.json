@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Notify",
-  "description": "Tells people something happened: who to tell, how urgent it is and where the wording lives are all named here, so adding a notification is adding a node and some wording, never Java.",
+  "description": "Sends a message to people when something happens. Choose who receives it, how urgently, and which wording to use.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "notify",
@@ -10,12 +10,12 @@
   "event": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Event",
-    "description": "What happened, naming the event a template's wording can turn into a sentence. Falls back to the node's own id when left blank."
+    "description": "What happened, e.g. \"proposal approved\". Used to choose the message wording. If left blank, the name of this step is used."
   },
   "template": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Template",
-    "description": "The path of the notification template folder under /libs/iap/notificationTemplates/ whose wording this task sends.",
+    "description": "The wording of the message, named by its template folder under /libs/iap/notificationTemplates/.",
     "dataType": "reference",
     "minValues": 1
   },
@@ -30,7 +30,7 @@
   "recipients": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Recipients",
-    "description": "Who to tell: \"@creator\" for whoever raised the thing in question, or a person or group, expanded into its members when the moment comes.",
+    "description": "Who to tell: \"@creator\" for the person who raised the item, or any person or group.",
     "dataType": "principal",
     "minValues": 1,
     "maxValues": 0

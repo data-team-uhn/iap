@@ -10,21 +10,21 @@
   "timeDuration": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Duration",
-    "description": "How long the task may stay open before the event fires, as an ISO 8601 duration such as P5D.",
+    "description": "How long the task may stay open before the event fires, as a duration such as P5D (5 days) or PT2H (2 hours).",
     "xmlLocation": "bpmnElement",
     "xmlPath": "timerEventDefinition"
   },
   "cancelActivity": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Cancel the task",
-    "description": "Whether the event cancels the task it is attached to when it fires, or leaves the task open and starts a parallel branch. Left out, it cancels the task.",
+    "description": "Whether the task stops when this fires (yes), or carries on while a separate path also starts (no). Default: yes.",
     "dataType": "boolean",
     "xmlLocation": "bpmnAttribute"
   },
   "performers": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Performers",
-    "description": "The principals - users or groups - allowed to fire this timer. Absent or empty means only the clock, the iap-timer service user.",
+    "description": "The people or groups who may trigger this deadline by hand. If none are chosen, only the automatic timer can.",
     "dataType": "principal",
     "maxValues": 0,
     "xmlLocation": "attribute"

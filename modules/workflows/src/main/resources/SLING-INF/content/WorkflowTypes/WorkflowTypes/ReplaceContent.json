@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Replace Content",
-  "description": "Replaces one child of the resource this step acts on, the one an earlier step created or else the target, with the tree the event gives. An event giving none removes the child.",
+  "description": "Replaces one child of the item this step works on (the one an earlier step created, or else the one this request is about) with the content the request gives. A request giving none removes the child.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "replaceContent",
@@ -9,14 +9,14 @@
   "jcrProperties": "{\"handler\": \"replaceContent\"}",
   "child": {
     "jcr:primaryType": "wf:Parameter",
-    "label": "Child",
+    "label": "Child to replace",
     "description": "The name of the child replaced, e.g. \"cond:condition\".",
     "minValues": 1
   },
   "nodeTypes": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Node types",
-    "description": "The node types the new tree may hold, each with its subtypes.",
+    "description": "The types of content the replacement may hold, including their subtypes.",
     "minValues": 1,
     "maxValues": 0
   }

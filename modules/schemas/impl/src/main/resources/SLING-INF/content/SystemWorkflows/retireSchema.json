@@ -23,7 +23,6 @@
         },
         "operandB": {
           "jcr:primaryType": "cond:ConditionOperand",
-          "source": "literal",
           "value": ["retired"]
         }
       },

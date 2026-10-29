@@ -141,9 +141,7 @@
   - sling:resourceType (STRING) = "wf/GatewayType" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// A particular type of arc between two workflow nodes. Its jcrNodeType is
-// wf:SequenceFlow, which is not a wf:FlowNode: an arc is stored inside the node
-// it leaves, whatever the entry says.
+// A particular type of arc between two workflow nodes
 [wf:SequenceFlowType] > wf:FlowNodeType
   - sling:resourceType (STRING) = "wf/SequenceFlowType" mandatory autocreated protected
 
@@ -167,18 +165,17 @@
   // What may be put in it:
   // - Reference is the path of another node
   // - Principal is the name of a user or group
-  // - Structure is a record of named fields, each a parameter of its own, e.g.
+  // - Structure is a set of named fields, each a parameter of its own, e.g.
   //   one of the node types Create Content offers
   - dataType (STRING) = 'text' mandatory autocreated
     < 'text', 'boolean', 'long', 'reference', 'principal', 'structure'
 
-  // How many values it takes.
-  // A maximum of 0 is unbounded.
   - minValues (LONG) = '0' autocreated
+  // A maximum of 0 is unbounded.
   - maxValues (LONG) = '1' autocreated
 
-  // For a reference, the node type every value must be of. A parameter that names
-  // none accepts any node that exists.
+  // For a reference, the node type every value must be of. An unspecifed type
+  // accepts any type.
   - referenceType (STRING)
 
   // Where in the node's BPMN the value is written:
@@ -191,8 +188,8 @@
 
   // For a value within BPMN, the BPMN child elements leading from the flow
   // node's element to the one holding it, separated by slashes, e.g.
-  // multiInstanceLoopCharacteristics/complexBehaviorDefinition for the condition
-  // of a multi-instance activity. Absent when the flow node's element holds it.
+  // multiInstanceLoopCharacteristics/complexBehaviorDefinition.
+  // Absent when the flow node's element holds it.
   - xmlPath (STRING)
 
   // For a repeated structure, the field whose value names the node each element
@@ -207,9 +204,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The values this parameter offers. A parameter declaring none takes whatever
-  // its dataType accepts; one declaring options takes only their values. The
-  // panel offers them as a choice, and the parser reports any other.
+  // The values this parameter offers if provided.
   + * (wf:ParameterOption)
 
   // For a structure, its fields, read from inside each of its elements.
@@ -232,17 +227,12 @@
 
 //-----------------------------------------------------------------------------
 // One of the values a parameter offers.
-//
-// The value is the durable half: it is what a diagram stores and what a handler
-// reads, so renaming one changes the meaning of every diagram already written
-// with it. The label is only what the author reads, and can be reworded freely.
 [wf:ParameterOption] > data:EntityPart
   - sling:resourceType (STRING) = "wf/ParameterOption" mandatory autocreated protected
 
-  // What a diagram picking this option stores
+  // The stored value of this option
   - value (STRING) mandatory
 
-  // What the author reads; the value itself when left out
   - label (STRING)
 
   // Allow any other properties for extensibility

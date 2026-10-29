@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Delete",
-  "description": "Deletes the event's target, into the archive unless permanent is set. Never recursive, and refused when something else refers to the target or a veto protects it. The deletion is committed at once, so it belongs at the end of a workflow.",
+  "description": "Deletes the item this request is about, moving it to the archive unless Permanent is set. Never recursive, and refused when something else refers to the item or a protection rule covers it. The deletion takes effect at once, so it belongs at the end of a workflow.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "delete",
@@ -10,7 +10,7 @@
   "permanent": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Permanent",
-    "description": "Whether to delete outright rather than into the archive.",
+    "description": "Whether to delete the item outright (yes) or move it to the archive (no).",
     "dataType": "boolean"
   }
 }

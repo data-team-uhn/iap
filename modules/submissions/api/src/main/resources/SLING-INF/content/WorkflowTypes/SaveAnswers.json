@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Save Answers",
-  "description": "Records the submitter's answers against the submission's schema version, one payload entry per question addressed by its relative path. Only the submission's own author may save, and only while it is still a draft.",
+  "description": "Records the submitter's answers against the submission's schema version, one entry per question, identified by its path within the schema version. Only the submission's own author may save, and only while it is still a draft.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "saveAnswers",

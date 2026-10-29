@@ -276,9 +276,8 @@
   // Catching is what this node type is, boundary event or not
   - catching (BOOLEAN) = true mandatory autocreated protected
 
-  // Whether firing cancels the watched activity (true) or starts a parallel
-  // branch and lets it carry on (false). True by default, as there.
-  // Ignored on a free-standing event.
+  // Whether firing cancels a watched activity (true) or starts a parallel
+  // branch (false). True by default. Ignored on a non-boundary event.
   - cancelActivity (BOOLEAN) = true autocreated
 
   // How long this event waits before firing, as an ISO-8601 duration such as

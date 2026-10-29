@@ -10,7 +10,7 @@
   "performers": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Performers",
-    "description": "The principals - users or groups - allowed to start a new instance by firing this event. Absent or empty means nobody; the built-in \"everyone\" group means any authenticated user.",
+    "description": "The people or groups who can start this workflow by sending this message. If none are chosen, no one can; \"everyone\" allows any signed-in user.",
     "dataType": "principal",
     "maxValues": 0,
     "xmlLocation": "attribute"

@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Call Activity",
-  "description": "Work handed on to another workflow, which runs as part of this one before it carries on.",
+  "description": "Runs another workflow as a step here, and carries on once it finishes.",
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:callActivity",
@@ -10,7 +10,7 @@
   "message": {
     "jcr:primaryType": "wf:Parameter",
     "label": "Message",
-    "description": "The event to send on to the host, e.g. \"createVersion\", starting the workflow that waits for it as part of this execution.",
+    "description": "The name of the request that starts the other workflow, e.g. \"createVersion\".",
     "minValues": 1,
     "xmlLocation": "attribute"
   }

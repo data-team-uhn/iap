@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Create Submission",
-  "description": "Raises a new submission against the schema version named by the event's schemaVersion, tagged draft, and holding a real reference to that version.",
+  "description": "Starts a new submission, tagged draft, for the schema version the request names (schemaVersion), keeping a reference to that version.",
   "priority": 10,
   "xmlElement": "bpmn:serviceTask",
   "xmlExtensionElement": "createSubmission",

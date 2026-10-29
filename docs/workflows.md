@@ -194,7 +194,7 @@ the entry behind the `copyContent` handler:
   },
   "skipProperties": {
     "jcr:primaryType": "wf:Parameter",
-    "label": "Skip properties",
+    "label": "Properties not copied",
     "maxValues": 0
   }
 }

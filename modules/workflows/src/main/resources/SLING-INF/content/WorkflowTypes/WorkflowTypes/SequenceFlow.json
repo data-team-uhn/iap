@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "wf:SequenceFlowType",
   "label": "Sequence Flow",
-  "description": "An arc from one node to the next, which the workflow follows once the node it leaves is done.",
+  "description": "A connection from one step to the next, followed once the step it leaves is done.",
   "priority": 0,
   "xmlElement": "bpmn:sequenceFlow",
   "jcrNodeType": "wf:SequenceFlow"
