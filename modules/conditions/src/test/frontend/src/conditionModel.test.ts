@@ -20,7 +20,7 @@ import {
   AGGREGATES, aggregated, aggregatesFor, COMPARATORS, comparatorsFor, contentOf, describeCondition, describeDraft,
   draftOf, type DraftGroup, type DraftSingle, isChosen, isComplete, newGroup, newSingle, type OperandSource,
   OWN_PROPERTY_SOURCE, ownPropertySource, PROPERTY_SOURCE, propertySource, shapeOf, tagsSource, valueProblem,
-  valuesTaken, whenApplies, whenDraftApplies, withCurrent,
+  valuesTaken, whenApplies, whenDraftApplies,
 } from "@iap/conditions/conditionModel";
 
 // A source whose operands name a field of a known type
@@ -291,16 +291,6 @@ describe("conditionModel", () => {
       expect(whenApplies(group(false, {}), SOURCES)).toBe("Never");
       expect(whenApplies(single("is empty", field("age")), SOURCES)).toBe("Only when the field age is empty");
       expect(whenDraftApplies(newGroup(), SOURCES)).toBeUndefined();
-    });
-
-    it("keeps what is chosen among the choices, by what it is called", () => {
-      const choices = [ { value: "a", label: "A" } ];
-      expect(withCurrent(choices, "a")).toBe(choices);
-      expect(withCurrent(choices)).toBe(choices);
-      expect(withCurrent(choices, "")).toBe(choices);
-      expect(withCurrent(choices, "b")).toEqual([ ...choices, { value: "b", label: "b" } ]);
-      expect(withCurrent(choices, "b", value => value.toUpperCase()))
-        .toEqual([ ...choices, { value: "b", label: "B" } ]);
     });
 
     it("names what the built-in sources read, as the module using them calls it", () => {

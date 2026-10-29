@@ -26,6 +26,7 @@ import type { OperandEditorProps } from "@iap/conditions/ConditionBuilder";
 import ConditionDialog from "@iap/conditions/ConditionDialog";
 import { type OperandSource, PROPERTY_SOURCE, tagsSource } from "@iap/conditions/conditionModel";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
 import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
 const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
@@ -202,6 +203,9 @@ describe("ConditionDialog", () => {
     fireEvent.change(within(condition).getByRole("textbox", { name: "Value" }), { target: { value: "1" } });
     expect(summary(dialog)).toBe("Only when the number of values in the field colours is more than 1");
     await pick(condition, "Using", "The values");
+    // Picking "The values" fills the field, so leaving it shows no required problem
+    fireEvent.blur(within(condition).getByRole("combobox", { name: "Using" }));
+    expect(within(condition).queryByText(REQUIRED_PROBLEM)).not.toBeInTheDocument();
     expect(within(condition).getByRole("combobox", { name: "Comparison" })).toHaveTextContent("is");
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();

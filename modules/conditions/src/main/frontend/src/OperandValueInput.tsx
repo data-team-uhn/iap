@@ -20,7 +20,9 @@ import { useState } from "react";
 
 import { Autocomplete, MenuItem, TextField } from "@mui/material";
 
-import { choicesOf, type OperandShape, type ValueType, valueProblem, withCurrent } from "./conditionModel";
+import { withCurrent } from "@iap/frontend-commons/inputs/choices";
+
+import { choicesOf, type OperandShape, type ValueType, valueProblem } from "./conditionModel";
 
 const INPUT_MODES: Partial<Record<ValueType, "numeric" | "decimal">> = {
   long: "numeric",
