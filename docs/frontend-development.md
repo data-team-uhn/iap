@@ -193,6 +193,7 @@ is finished. An input never saves anything: the caller decides what to keep, and
 | `ChoiceSelect` | One value picked from a list, with None when it is optional |
 | `BooleanInput` | A yes or no, stored as `true` or `false` and shown as Yes and No unless `trueLabel` and `falseLabel` say otherwise |
 | `MultiValueInput` | Several values as chips, picked from a list or typed |
+| `ChoiceSearch` | One value or several, picked from a list read from a `ChoiceSource` and narrowed as it is typed |
 | `NumberInput` | One number, whole or decimal, typed on a numeric keypad |
 | `DateInput` | One calendar day, stored as `yyyy-mm-dd` |
 | `ValueText` | Values shown as text under their label; every input shows this when `readOnly` |
@@ -201,6 +202,13 @@ The common props are in `valueInput.ts`. `problems` replaces the description and
 A `required` field with no value, or only empty ones, adds "A value is required", but only once it has been
 left. A stored value that the list no longer offers stays selected and shown as it is, rather than being dropped
 when the form is saved. So does a `BooleanInput` value that is neither `true` nor `false`.
+
+A `ChoiceSource` (`choiceSource.ts`) is where a `ChoiceSearch` gets its list, such as `referenceChoices` for the nodes a
+reference may point at. `useChoices` reads a source once, and again only when its `key` changes. `referenceChoices`
+takes a `resourceType`, a JCR `nodeType` or both, and a `root`. A node type takes in its subtypes and the nodes that
+have it as a mixin, as `isNodeType` does on the server. Each node is offered by its title or label and stored as its
+absolute path. At most a thousand are read, and a stored path among none of them stays selected, labelled with the path.
+`ReferenceInput` in `fields/` is this for a `ContentField`.
 
 While a `NumberInput` value is a number so far, a keystroke that would break that is refused. A stored value that is no
 number shows as written and can be typed over freely. `DateInput` reports a half-typed day as empty through `onChange`,

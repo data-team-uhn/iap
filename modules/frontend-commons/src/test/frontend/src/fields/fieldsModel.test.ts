@@ -17,8 +17,8 @@
  */
 
 import {
-  applicableFields, applies, blockingFields, candidateOf, changesOf, type ContentField, creatableOf, fieldsOf,
-  initialValue, initialValues, isValid, newContentOf, patchValueOf, referenceQuery,
+  applicableFields, applies, blockingFields, changesOf, type ContentField, creatableOf, fieldsOf,
+  initialValue, initialValues, isValid, newContentOf, patchValueOf,
 } from "@iap/frontend-commons/fields/fieldsModel";
 
 const field = (name: string, extra: Partial<ContentField> = {}): ContentField =>
@@ -171,33 +171,6 @@ describe("changesOf", () => {
     const values = { ...initialValues(NODE, fields), title: "", maxAnswers: "x", minValue: "" };
     expect(blockingFields(fields, values, NODE)).toEqual([ TITLE, COUNT ]);
     expect(blockingFields(fields, initialValues(NODE, fields), NODE)).toEqual([]);
-  });
-});
-
-describe("references", () => {
-  it("looks for the nodes of the field's type under its root", () => {
-    expect(referenceQuery(WORKFLOW)).toBe("select * from [nt:base] as n where n.[sling:resourceType] = 'wf/Version'"
-      + " and isdescendantnode(n, '/Workflows')");
-    expect(referenceQuery(field("x", { kind: "reference", referenceType: "o'dd", referenceRoot: "/" })))
-      .toBe("select * from [nt:base] as n where n.[sling:resourceType] = 'o''dd' and isdescendantnode(n, '/')");
-    expect(referenceQuery(field("x", { kind: "reference", referenceType: "t" })))
-      .toBe("select * from [nt:base] as n where n.[sling:resourceType] = 't'");
-    expect(referenceQuery(field("x", { kind: "reference" }))).toBeUndefined();
-  });
-
-  it("offers a node by its name, or else by where it is", () => {
-    expect(candidateOf({ "@path": "/Workflows/fast/v2", "title": "Fast track" }, "/Workflows"))
-      .toEqual({ path: "/Workflows/fast/v2", label: "Fast track" });
-    expect(candidateOf({ "@path": "/Workflows/fast/v2", "title": " ", "label": "Fast" }, "/Workflows"))
-      .toEqual({ path: "/Workflows/fast/v2", label: "Fast" });
-    expect(candidateOf({ "@path": "/Workflows/review/v1" }, "/Workflows/"))
-      .toEqual({ path: "/Workflows/review/v1", label: "review/v1" });
-    expect(candidateOf({ "@path": "/Elsewhere/v1" }, "/Workflows")).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
-    expect(candidateOf({ "@path": "/Elsewhere/v1" })).toEqual({ path: "/Elsewhere/v1", label: "/Elsewhere/v1" });
-    expect(candidateOf({ title: "No path" })).toBeUndefined();
-    // The identifier a reference may store instead of the path
-    expect(candidateOf({ "@path": "/Workflows/fast/v2", "jcr:uuid": "uuid-fast", "title": "Fast track" }))
-      .toEqual({ path: "/Workflows/fast/v2", label: "Fast track", identifier: "uuid-fast" });
   });
 });
 
