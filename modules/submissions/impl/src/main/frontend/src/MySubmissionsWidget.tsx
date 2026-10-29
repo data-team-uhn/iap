@@ -113,7 +113,6 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
         filters={MY_SUBMISSIONS}
         extraColumns={extraColumns}
         refreshToken={refreshToken}
-        searchLabel="Search my submissions"
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
       />

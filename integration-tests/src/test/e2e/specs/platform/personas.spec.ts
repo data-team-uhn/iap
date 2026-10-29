@@ -16,48 +16,53 @@
  * limitations under the License.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { AppShell } from '../../pages/appShell.page';
 import { ADMIN, signInAs } from '../../support/auth';
 
-test.describe('the personas a dashboard is arranged for', () => {
-  // Each widget is recognised by the accessible name of its search box, which is unmistakably that widget
-  // whatever it currently holds. Its empty state would not do: the instance is shared, and other specs
-  // file submissions as this account.
-  const MINE = 'Search my submissions';
+// The dashboard widgets' titles, which name their regions
+const MY_SUBMISSIONS = 'Submissions';
 
-  const QUEUE = 'Search my review queue';
+const REVIEW_QUEUE = 'Review queue';
 
-  test('gives a submitter the table of their own submissions', async ({ page }) => {
-    await signInAs(page, ADMIN);
+const widget = (page: Page, title: string) => page.getByRole('region', { name: title, exact: true });
 
-    // Submitter is where everyone lands: the catalogue is ordered least-permissive-first and the first
-    // entry is the default
-    expect(await new AppShell(page).actingAs()).toBe('Submitter');
-    await expect(page.getByLabel(MINE)).toBeVisible();
-  });
-
-  test('takes it away from a reviewer, whose dashboard is not about their own submissions', async ({ page }) => {
+test.describe('the dashboard', () => {
+  test('signs everyone in acting as a submitter', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
-    await expect(page.getByLabel(MINE)).toBeVisible();
+
+    expect(await shell.actingAs()).toBe('Submitter');
+  });
+
+  test('shows a submitter their own submissions', async ({ page }) => {
+    await signInAs(page, ADMIN);
+
+    await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
+  });
+
+  test('hides their own submissions from a reviewer, and keeps the review queue', async ({ page }) => {
+    const shell = new AppShell(page);
+    await signInAs(page, ADMIN);
+    await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
 
     await shell.actAs('Reviewer');
 
-    // The review queue stays, which is what makes this the widget going away rather than the page
-    await expect(page.getByLabel(MINE)).toHaveCount(0);
-    await expect(page.getByLabel(QUEUE)).toBeVisible();
+    await expect(widget(page, REVIEW_QUEUE)).toBeVisible();
+    await expect(widget(page, MY_SUBMISSIONS)).toHaveCount(0);
   });
 
-  test('brings it back when the submitter hat goes on again', async ({ page }) => {
+  test('hides their own submissions from an administrator, and shows them again to a submitter', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
+    await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
 
     await shell.actAs('Administrator');
-    await expect(page.getByLabel(MINE)).toHaveCount(0);
+    await expect(widget(page, REVIEW_QUEUE)).toBeVisible();
+    await expect(widget(page, MY_SUBMISSIONS)).toHaveCount(0);
 
     await shell.actAs('Submitter');
-    await expect(page.getByLabel(MINE)).toBeVisible();
+    await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
   });
 });

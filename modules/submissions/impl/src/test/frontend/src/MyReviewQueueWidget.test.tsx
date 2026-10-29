@@ -22,13 +22,6 @@ import { MemoryRouter } from "react-router";
 import MyReviewQueueWidget from "@iap/submissions/MyReviewQueueWidget";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
-// Answers every listing request with an empty page
-const emptyPageFetch = () => {
-  const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
-  return vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-    { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
-};
-
 describe("MyReviewQueueWidget", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -37,7 +30,9 @@ describe("MyReviewQueueWidget", () => {
   });
 
   it("asks for submissions with an open review assigned to the current user", async () => {
-    const fetchMock = emptyPageFetch();
+    const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
+      { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<MyReviewQueueWidget />, { wrapper: MemoryRouter });
@@ -51,13 +46,5 @@ describe("MyReviewQueueWidget", () => {
     expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer", "tags", "tags"]);
     expect(url.searchParams.getAll("childFieldComparator")).toEqual(["=", "<>", "<>"]);
     expect(url.searchParams.getAll("childFieldValue")).toEqual(["@me", "approved", "rejected"]);
-  });
-
-  it("names its search box for what it searches", async () => {
-    vi.stubGlobal("fetch", emptyPageFetch());
-
-    render(<MyReviewQueueWidget />, { wrapper: MemoryRouter });
-
-    expect(await screen.findByRole("searchbox", { name: "Search my review queue" })).toBeInTheDocument();
   });
 });

@@ -52,6 +52,25 @@ describe("Widget", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
+  it("is a region named by its title", () => {
+    render(<Widget title="Review queue"><div>body</div></Widget>);
+
+    expect(screen.getByRole("region", { name: "Review queue" })).toBeInTheDocument();
+  });
+
+  it("keeps its title as the region's name when it hides its header", () => {
+    render(<Widget title="Submissions" hideHeader><div>body</div></Widget>);
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("region", { name: "Submissions" })).toBeInTheDocument();
+  });
+
+  it("is no region when it has no title", () => {
+    render(<Widget><div>body</div></Widget>);
+
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+
   it("renders the subtitle when provided", () => {
     render(<Widget title="My widget" subtitle="a short description"><div>body</div></Widget>);
 

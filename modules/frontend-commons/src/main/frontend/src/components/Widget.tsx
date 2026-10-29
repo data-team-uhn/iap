@@ -73,8 +73,16 @@ interface WidgetProps {
 // subtitle, and an optional action beside them. Title and subtitle form one header block, kept
 // tight together and separated from the content below; the action sits at the header's end.
 function Widget({ title, titleHref, subtitle, action, emphasis, borderless, hideHeader, children }: WidgetProps) {
+  // A titled widget is a region named by its title, so it can be found by what it is called, whether or
+  // not its own header shows the title
+  const named = Boolean(title);
   return (
-    <WidgetSurface emphasis={emphasis} borderless={borderless}>
+    <WidgetSurface
+      emphasis={emphasis}
+      borderless={borderless}
+      role={named ? "region" : undefined}
+      aria-label={named ? title : undefined}
+    >
       {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
           intentional here. */}
       {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}

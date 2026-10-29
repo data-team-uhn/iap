@@ -42,7 +42,6 @@ function MyReviewQueueWidget() {
     <EntityDataGrid
       entityType={SUBMISSION_TYPE}
       childFilter={MY_OPEN_REVIEWS}
-      searchLabel="Search my review queue"
       emptyMessage="No submissions to review"
       noResultsMessage="No matching submissions"
     />
