@@ -18,7 +18,7 @@
 
 // Covers labelling a value by its choice, keeping the current value in the list, and the yes and no choices.
 
-import { choiceLabel, withCurrent } from "@iap/frontend-commons/inputs/choices";
+import { booleanChoices, choiceLabel, withCurrent } from "@iap/frontend-commons/inputs/choices";
 
 const choices = [ { value: "a", label: "A" } ];
 
@@ -36,5 +36,12 @@ describe("withCurrent", () => {
     expect(withCurrent(choices, "")).toBe(choices);
     expect(withCurrent(choices, "b")).toEqual([ ...choices, { value: "b", label: "b" } ]);
     expect(withCurrent(choices, "b", value => value.toUpperCase())).toEqual([ ...choices, { value: "b", label: "B" } ]);
+  });
+});
+
+describe("booleanChoices", () => {
+  it("stores true and false, labelled Yes and No unless told otherwise", () => {
+    expect(booleanChoices()).toEqual([ { value: "true", label: "Yes" }, { value: "false", label: "No" } ]);
+    expect(booleanChoices("On", "Off").map(choice => choice.label)).toEqual([ "On", "Off" ]);
   });
 });
