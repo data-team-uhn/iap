@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The application shell: the bar that is there whatever page a signed-in person is on.
@@ -36,14 +36,47 @@ export class AppShell {
    * immediately would do its next step as whoever was still signed in.
    */
   async signOut(): Promise<void> {
-    await this.page.getByRole('button', { name: /^Account:/ }).click();
+    await this.openAccountMenu();
     await this.page.getByRole('menuitem', { name: 'Sign out' }).click();
     await expect(this.page).toHaveURL(/\/login/);
   }
 
+  /**
+   * Puts on a different persona, the way a person does: in the account menu, where each persona is a radio
+   * item. Choosing one closes the menu, so waiting for the menu to close waits for the switch.
+   *
+   * @param persona the label of the persona to wear, e.g. `Reviewer`
+   */
+  async actAs(persona: string): Promise<void> {
+    await this.openAccountMenu();
+    await this.page.getByRole('menuitemradio', { name: persona }).click();
+    await this.accountMenuClosed();
+  }
+
+  /** The persona the account menu says is on, which is its checked radio item. */
+  async actingAs(): Promise<string> {
+    await this.openAccountMenu();
+    const persona = await this.page.getByRole('menuitemradio', { checked: true }).textContent();
+    await this.page.keyboard.press('Escape');
+    await this.accountMenuClosed();
+    return (persona ?? '').trim();
+  }
+
   /** Who the shell says is signed in, which is the account control's own name for itself. */
   async signedInAs(): Promise<string> {
-    const label = await this.page.getByRole('button', { name: /^Account:/ }).getAttribute('aria-label');
+    const label = await this.accountButton().getAttribute('aria-label');
     return (label ?? '').replace('Account: ', '');
+  }
+
+  private accountButton(): Locator {
+    return this.page.getByRole('button', { name: /^Account:/ });
+  }
+
+  private async openAccountMenu(): Promise<void> {
+    await this.accountButton().click();
+  }
+
+  private async accountMenuClosed(): Promise<void> {
+    await expect(this.page.getByRole('menu')).toHaveCount(0);
   }
 }
