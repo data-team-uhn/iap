@@ -58,12 +58,13 @@ export function picker<Value = string>({ onChange, onCommit }: {
   };
 }
 
-// The handlers that finish a typed value: leaving the field, or pressing Enter in it.
-export const commitProps = (commit: () => void) => ({
-  onBlur: commit,
-  onKeyDown: (event: { key: string }) => {
+// The event handlers that finish a typed value: leaving the field, or pressing Enter in it. Each passes
+// `commit` the field's element.
+export const commitProps = (commit: (target: EventTarget) => void) => ({
+  onBlur: (event: { target: EventTarget }) => commit(event.target),
+  onKeyDown: (event: { key: string; target: EventTarget }) => {
     if (event.key === "Enter") {
-      commit();
+      commit(event.target);
     }
   },
 });
