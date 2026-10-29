@@ -177,7 +177,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
-| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with a passage found and marked in it |
+| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it |
 
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
@@ -202,26 +202,52 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
 card per schema, so the card describes its versions.
 
-`PdfViewer` shows a PDF with PDF.js's own viewer, and looks for a quoted passage in it from the page
-given:
+`PdfViewer` shows a PDF with PDF.js's own viewer, and finds and marks passages in it:
 
 ```tsx
 <PdfViewer
   url={file}
   page={evidence.page}
-  quote={evidence.quote}
-  markedBy="assistant"
+  marks={[ { id: evidence.id, quote: evidence.quote, page: evidence.page, kind: "assistant" } ]}
   title="Protocol"
   onClose={close}
 />
 ```
 
-It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
-into a dialog and back, keeping the page, the zoom and the mark. A `container` that is `null`, as a
-ref is before React attaches it, shows nothing until the element is there. The match ignores
-spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and finds a passage
-that runs across a page break. `markedBy` says whose mark it is, an AI assistant's or a person's,
-and sets its colour.
+Each mark is a quote, looked for from its own `page` onwards, and a `kind`: whose mark it is, an AI
+assistant's (`assistant`) or a person's (`annotation`), so it is coloured accordingly. A passage is
+matched by ignoring spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and
+across a page break. The viewer draws the marks over PDF.js's text layer itself, and leaves PDF.js's
+own search alone. Marks let the pointer through, so text can still be selected across them, and a
+click is matched to a mark by where it falls.
+
+A single passage is shown on a card above the document. Several passages are listed beside it, in
+the order given, with those that cannot be found last. In a viewer narrower than
+`NARROW_VIEWER_WIDTH` they are shown one at a time above it instead, with controls stepping through
+them. It is the viewer's width that counts, not the screen's (`useNarrowViewer`): a viewer in a side
+panel is narrow on any screen.
+
+Selecting a passage from the list scrolls the document to it. Clicking a mark in the document selects
+its card in the list and brings the card into view, or, in a narrow viewer, shows it above the
+document. When the viewer opens, it selects the first passage in the order given that is not known
+to be missing, and takes the reader to it once found. The selection stays there until the person
+selects another.
+
+A caller that needs to follow or set the selection, such as a review screen showing comments beside
+the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports each passage the person
+selects through `onSelectMark`. When the caller sets `selectedMarkId` to another mark, the viewer
+selects it and takes the reader to it, as if it had been picked from the list. Echoing back the mark
+the viewer just reported doesn't move the reader. `marks` can be a new array on every render: the
+viewer compares marks by `id`, `quote`, `page` and `kind`, and only looks for passages again when
+one of those changes.
+
+It opens in a dialog, or, given a `container` element, fills that element and offers to pop out into
+a dialog and back, keeping the page, the zoom and the marks. A `container` that is `null`, as a ref is
+before React attaches it, shows nothing until the element is there.
+
+Its parts can also be used on their own: `usePdfDocument` opens the file and reads each page's text
+once, `useMarkPlaces` finds where marks are as those pages are read, and `usePdfView` shows the
+document in a frame, with the marks drawn, and moves the reader.
 
 ## Styling
 

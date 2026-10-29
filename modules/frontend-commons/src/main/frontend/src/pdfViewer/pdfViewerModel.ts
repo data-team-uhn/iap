@@ -19,48 +19,13 @@
 import { isNotAuthenticated, SIGNED_OUT_MESSAGE } from "../reLogin";
 import { describeRequestFailure } from "../requestFailure";
 
-export type SearchState =
-  | { status: "searching" }
-  | { status: "tooShort" }
-  // `toPage` is the next page, for a passage that runs across a page break.
-  | { status: "found"; page: number; toPage?: number }
-  | { status: "notFound" }
-  | { status: "noText" };
+import type { MarkPlace } from "./marksModel";
 
-export interface ViewerState {
-  // Why the document could not be opened, in the user's words. Cleared by a retry.
+// What a passage's note depends on besides the passage's place: why the document could not be opened,
+// and the page shown once it is open.
+export interface ViewerStatus {
   openError?: string;
-  // Counts the retries, so the document is opened again.
-  attempt: number;
-  pageCount?: number;
   page?: number;
-  search: SearchState;
-}
-
-export type ViewerAction =
-  | { type: "opened"; pageCount: number; page: number }
-  | { type: "openFailed"; message: string }
-  | { type: "retry" }
-  | { type: "paged"; page: number }
-  | { type: "searched"; search: SearchState };
-
-export function createViewerState(canSearch: boolean): ViewerState {
-  return { attempt: 0, search: canSearch ? { status: "searching" } : { status: "tooShort" } };
-}
-
-export function reduceViewerState(state: ViewerState, action: ViewerAction): ViewerState {
-  switch (action.type) {
-    case "opened":
-      return { ...state, pageCount: action.pageCount, page: action.page };
-    case "openFailed":
-      return { ...state, openError: action.message };
-    case "retry":
-      return { ...state, openError: undefined, attempt: state.attempt + 1 };
-    case "paged":
-      return { ...state, page: action.page };
-    case "searched":
-      return { ...state, search: action.search };
-  }
 }
 
 // Why the document could not be opened, in the person's words.
@@ -100,15 +65,14 @@ export type PassageNote =
   | { foundOnPage: number; toPage?: number; shown: boolean };
 
 // Nothing when the open failed, since the error box says it.
-export function getPassageNote(state: ViewerState): PassageNote | undefined {
-  const { page, search } = state;
-  if (state.openError !== undefined) {
+export function getPassageNote({ openError, page }: ViewerStatus, place: MarkPlace): PassageNote | undefined {
+  if (openError !== undefined) {
     return undefined;
   }
   if (page === undefined) {
     return { text: "opening the document…", short: "…" };
   }
-  switch (search.status) {
+  switch (place.status) {
     case "searching":
       return { text: "looking for it…", short: "…" };
     case "tooShort":
@@ -118,32 +82,37 @@ export function getPassageNote(state: ViewerState): PassageNote | undefined {
     case "noText":
       return { text: "this document has no text to search", short: "no text" };
     case "found":
-      return { foundOnPage: search.page, toPage: search.toPage, shown: search.page === page || search.toPage === page };
+      return { foundOnPage: place.page, toPage: place.toPage, shown: place.page === page || place.toPage === page };
   }
 }
 
-// How the search went, as a sentence for a screen reader to announce apart from the passage. Empty
-// when the open failed.
-export function getPassageStatus(state: ViewerState): string {
-  const { page, search } = state;
-  if (state.openError !== undefined) {
+// The passage's note as a sentence for a screen reader, which announces it apart from the passage.
+// Among several passages, it names the passage by its position. Empty when the document could not be
+// opened, since the error box says so.
+export function getPassageStatus(
+  { openError, page }: ViewerStatus,
+  place: MarkPlace,
+  among?: { index: number; count: number },
+): string {
+  if (openError !== undefined) {
     return "";
   }
   if (page === undefined) {
     return "Opening the document…";
   }
-  switch (search.status) {
+  const passage = among === undefined ? "The passage" : `Passage ${among.index} of ${among.count}`;
+  switch (place.status) {
     case "searching":
-      return "Looking for the passage…";
+      return among === undefined ? "Looking for the passage…" : `Looking for passage ${among.index} of ${among.count}…`;
     case "tooShort":
-      return "The passage is too short to look for.";
+      return `${passage} is too short to look for.`;
     case "notFound":
-      return "The passage is not in this document.";
+      return `${passage} is not in this document.`;
     case "noText":
       return "This document has no text to search.";
     case "found":
-      return search.toPage === undefined
-        ? `The passage is marked on page ${search.page}.`
-        : `The passage is marked on pages ${search.page} and ${search.toPage}.`;
+      return place.toPage === undefined
+        ? `${passage} is marked on page ${place.page}.`
+        : `${passage} is marked on pages ${place.page} and ${place.toPage}.`;
   }
 }
