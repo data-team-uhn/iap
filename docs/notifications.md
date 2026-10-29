@@ -80,6 +80,26 @@ workflow uses to say who may act: `@creator` is whoever raised the thing in ques
 else is a person or a group, expanded into its members when the moment comes. The same name always
 means the same people in both places, because both are answered by the same service.
 
+```json
+"notifyApproved": {
+  "jcr:primaryType": "wf:Activity",
+  "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+  "elementId": "notifyApproved",
+  "handler": "notify",
+  "template": "/libs/iap/notificationTemplates/submissionApproved",
+  "recipients": [ "@creator" ],
+  "urgency": "immediate",
+  "event": "approved"
+}
+```
+
+| Property | Default | Meaning |
+|---|---|---|
+| `template` | — | The template folder, as [below](#where-the-templates-live) |
+| `recipients` | — | Who to tell; a step naming nobody tells nobody, and records a problem |
+| `urgency` | `immediate` | How soon: `immediate`, `batched`, or a deployment's own |
+| `event` | the `elementId` | What happened, which a person's notification settings key on |
+
 What happens next deliberately splits in two. The workflow states *what happened and who it
 concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are
 installed — an email right away, a marker in the interface, or nothing at all for somebody who
