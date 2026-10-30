@@ -832,7 +832,10 @@ fails as a definition error:
 ```
 POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
                                                                         │
-                                             wf:instances/timeOffRequest │  token parked on approveRequest
+                                             wf:instances/timeOffRequest │  token parked on fillIn
+                                                                        ▼
+POST …/fillIn ──▶ complete ──▶ [task closed, request marked submitted, token parked on approveRequest]
+                                                                        │
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │

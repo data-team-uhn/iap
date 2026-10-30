@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "mail:Template",
+  "senderAddress": "time-off@example.com",
+  "senderName": "Time off requests",
+  "subject": "Your time off request was not approved"
+}

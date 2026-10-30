@@ -26,12 +26,21 @@
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~demo-time-off-request": {
       "service.ranking:Integer": 400,
       "scripts": [
-        // The two people the demo is about. Passwords match the names because this is a demo: it is
-        // reached through --demo or the demo integration-test suite, never a real deployment.
+        // The two people the demo is about. Their passwords match their names. Only --demo and the demo
+        // integration tests load this feature.
         "create group time-off-requesters \n create group time-off-approvers",
         "create user demo-requester with password demo-requester \n create user demo-approver with password demo-approver",
-        "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers"
+        "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers",
+        "set properties on authorizable(demo-requester) \n set profile/email to \"demo-requester@example.com\" \n end",
+        "set properties on authorizable(demo-approver) \n set profile/email to \"demo-approver@example.com\" \n end",
+        // The nightly urgency sweep finds the waiting requests and sends each an event. It runs on a clock, with
+        // nobody signed in to act as, so it needs a service user of its own. The engine makes the changes, so the
+        // sweep only reads.
+        "create service user tor-urgency \n set ACL for tor-urgency \n allow jcr:read on /Submissions \n end"
       ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~demo-time-off-urgency": {
+      "user.mapping": ["io.uhndata.iap.demo-time-off-request:urgency=[tor-urgency]"]
     }
   }
 }

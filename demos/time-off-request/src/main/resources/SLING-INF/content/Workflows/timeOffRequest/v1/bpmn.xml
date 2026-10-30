@@ -1,77 +1,156 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-   Copyright 2026 DATA @ UHN. See the NOTICE file
-   distributed with this work for additional information
-   regarding copyright ownership.
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
                   id="timeOffRequestDefinitions"
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
-    <bpmn:startEvent id="requestSubmitted" name="Request submitted">
-      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    <bpmn:startEvent id="requestSubmitted" name="Request raised">
+      <bpmn:outgoing>toBudget</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toApproval" sourceRef="requestSubmitted" targetRef="approveRequest" />
-    <bpmn:userTask id="approveRequest" name="Approve the request" iap:performers="time-off-approvers"
-        iap:outcomeOptions="approved, rejected">
+    <bpmn:sequenceFlow id="toBudget" sourceRef="requestSubmitted" targetRef="checkBudget" />
+    <bpmn:serviceTask id="checkBudget" iap:handler="checkTimeOffBudget" name="Check the time off budget">
+      <bpmn:incoming>toBudget</bpmn:incoming>
+      <bpmn:outgoing>toFillIn</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
+    <bpmn:userTask id="fillIn" iap:performers="@creator" name="Say when you want to be away">
+      <bpmn:incoming>toFillIn</bpmn:incoming>
+      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="markSubmitted" />
+    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted"
+        name="Mark it as submitted">
       <bpmn:incoming>toApproval</bpmn:incoming>
+      <bpmn:outgoing>toUrgency</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toUrgency" sourceRef="markSubmitted" targetRef="markUrgency" />
+    <!-- The answers are final once the request is sent, so it is judged now. The nightly sweep would only
+         judge it tonight, and a request sent this morning for tomorrow needs to be seen today. -->
+    <bpmn:serviceTask id="markUrgency" name="Note how soon this starts" iap:handler="markTimeOffUrgency">
+      <bpmn:incoming>toUrgency</bpmn:incoming>
+      <bpmn:outgoing>toApprovalTask</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toApprovalTask" sourceRef="markUrgency" targetRef="approveRequest" />
+    <bpmn:userTask id="approveRequest" iap:performers="time-off-approvers" iap:outcomeOptions="approved, rejected" name="Approve the request">
+      <bpmn:incoming>toApprovalTask</bpmn:incoming>
       <bpmn:outgoing>toRecordReview</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toRecordReview" sourceRef="approveRequest" targetRef="recordReview" />
-    <!-- Written down before the gateway routes on it, so the decision is recorded whichever way the request
-         goes -->
+    <!-- The decision is written down before the gateway routes on it, so that it is recorded whichever way the
+         request goes. iap:requirement names the approval it answers, since a schema may ask for several. -->
     <bpmn:serviceTask id="recordReview" name="Write the decision down" iap:handler="recordReview"
         iap:requirement="approval">
       <bpmn:incoming>toRecordReview</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toDecision" sourceRef="recordReview" targetRef="decision" />
+    <!-- Two deadlines on the same task, and cancelActivity decides what each does. This one nudges: at two
+         days the request is marked overdue, and the task stays open for the approvers. The one below gives
+         up. -->
+    <bpmn:boundaryEvent id="approvalReminder" name="Waiting too long" attachedToRef="approveRequest"
+        cancelActivity="false">
+      <bpmn:outgoing>toReminded</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P2D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toReminded" sourceRef="approvalReminder" targetRef="reminded" />
+    <bpmn:boundaryEvent id="approvalOverdue" name="Not decided in time" attachedToRef="approveRequest"
+        cancelActivity="true">
+      <bpmn:outgoing>toExpired</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toExpired" sourceRef="approvalOverdue" targetRef="requestExpired" />
     <bpmn:exclusiveGateway id="decision" name="Approved?" default="toRejected">
       <bpmn:incoming>toDecision</bpmn:incoming>
       <bpmn:outgoing>toApproved</bpmn:outgoing>
       <bpmn:outgoing>toRejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="requestApproved">
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="notifyApproved">
+      <!-- The guard the engine evaluates, written as JCR System View so the node names, types and the
+           multi-valued operand value all survive -->
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
-          <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:SingleCondition</sv:value></sv:property>
-          <sv:property sv:name="comparator"><sv:value>equals</sv:value></sv:property>
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
           <sv:node sv:name="operandA">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="source"><sv:value>variable</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>outcome</sv:value></sv:property>
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>variable</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>outcome</sv:value>
+            </sv:property>
           </sv:node>
           <sv:node sv:name="operandB">
-            <sv:property sv:name="jcr:primaryType" sv:type="Name"><sv:value>cond:ConditionOperand</sv:value></sv:property>
-            <sv:property sv:name="value" sv:multiple="true"><sv:value>approved</sv:value></sv:property>
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>approved</sv:value>
+            </sv:property>
           </sv:node>
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
-    <bpmn:endEvent id="requestApproved" name="Time off approved">
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="notifyRejected" />
+    <!-- Telling the requester is a step on the diagram, so whoever draws it can move or remove it. Both tasks
+         use the same handler, each with its own template. -->
+    <bpmn:serviceTask id="notifyApproved" name="Tell them it was approved" iap:handler="notify"
+        iap:event="approved" iap:template="/libs/iap/notificationTemplates/timeOffApproved" iap:recipients="@creator"
+        iap:urgency="immediate">
       <bpmn:incoming>toApproved</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="requestRejected" name="Time off refused">
+      <bpmn:outgoing>toApprovedEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toApprovedEnd" sourceRef="notifyApproved" targetRef="requestApproved" />
+    <bpmn:serviceTask id="notifyRejected" name="Tell them it was refused" iap:handler="notify"
+        iap:event="rejected" iap:template="/libs/iap/notificationTemplates/timeOffRejected" iap:recipients="@creator"
+        iap:urgency="immediate">
       <bpmn:incoming>toRejected</bpmn:incoming>
+      <bpmn:outgoing>toRejectedEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toRejectedEnd" sourceRef="notifyRejected" targetRef="requestRejected" />
+    <bpmn:endEvent id="requestApproved" iap:hostTag="approved" name="Time off approved">
+      <bpmn:incoming>toApprovedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="requestRejected" iap:hostTag="rejected" name="Time off refused">
+      <bpmn:incoming>toRejectedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="reminded" iap:hostTag="overdue" name="Marked overdue">
+      <bpmn:incoming>toReminded</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="requestExpired" iap:hostTag="expired" name="Nobody decided in time">
+      <bpmn:incoming>toExpired</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="timeOffRequestDiagram">
@@ -82,51 +161,127 @@
           <dc:Bounds x="139" y="223" width="79" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+      <bpmndi:BPMNShape id="checkBudgetShape" bpmnElement="checkBudget">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="recordReviewShape" bpmnElement="recordReview">
+      <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
         <dc:Bounds x="400" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="555" y="173" width="50" height="50" />
+      <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markUrgencyShape" bpmnElement="markUrgency">
+        <dc:Bounds x="700" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+        <dc:Bounds x="850" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recordReviewShape" bpmnElement="recordReview">
+        <dc:Bounds x="1000" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvalReminderShape" bpmnElement="approvalReminder">
+        <dc:Bounds x="844" y="220" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="554" y="143" width="53" height="14" />
+          <dc:Bounds x="750" y="262" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
-        <dc:Bounds x="672" y="100" width="36" height="36" />
+      <bpmndi:BPMNShape id="approvalOverdueShape" bpmnElement="approvalOverdue">
+        <dc:Bounds x="920" y="220" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="650" y="143" width="81" height="14" />
+          <dc:Bounds x="962" y="262" width="95" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="remindedShape" bpmnElement="reminded">
+        <dc:Bounds x="1080" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1062" y="385" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="requestExpiredShape" bpmnElement="requestExpired">
+        <dc:Bounds x="1080" y="452" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1053" y="495" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
+        <dc:Bounds x="1160" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1159" y="143" width="53" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyApprovedShape" bpmnElement="notifyApproved">
+        <dc:Bounds x="1270" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyRejectedShape" bpmnElement="notifyRejected">
+        <dc:Bounds x="1270" y="238" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
+        <dc:Bounds x="1430" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1408" y="143" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestRejectedShape" bpmnElement="requestRejected">
-        <dc:Bounds x="672" y="260" width="36" height="36" />
+        <dc:Bounds x="1430" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="652" y="303" width="77" height="14" />
+          <dc:Bounds x="1410" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
+      <bpmndi:BPMNEdge id="toBudgetEdge" bpmnElement="toBudget">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toRecordReviewEdge" bpmnElement="toRecordReview">
+      <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="400" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
         <di:waypoint x="500" y="198" />
-        <di:waypoint x="555" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toUrgencyEdge" bpmnElement="toUrgency">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="700" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovalTaskEdge" bpmnElement="toApprovalTask">
+        <di:waypoint x="800" y="198" />
+        <di:waypoint x="850" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRecordReviewEdge" bpmnElement="toRecordReview">
+        <di:waypoint x="950" y="198" />
+        <di:waypoint x="1000" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="1100" y="198" />
+        <di:waypoint x="1160" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRemindedEdge" bpmnElement="toReminded">
+        <di:waypoint x="862" y="256" />
+        <di:waypoint x="862" y="360" />
+        <di:waypoint x="1080" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toExpiredEdge" bpmnElement="toExpired">
+        <di:waypoint x="938" y="256" />
+        <di:waypoint x="938" y="470" />
+        <di:waypoint x="1080" y="470" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="580" y="173" />
-        <di:waypoint x="580" y="118" />
-        <di:waypoint x="672" y="118" />
+        <di:waypoint x="1185" y="173" />
+        <di:waypoint x="1185" y="118" />
+        <di:waypoint x="1270" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedEndEdge" bpmnElement="toApprovedEnd">
+        <di:waypoint x="1370" y="118" />
+        <di:waypoint x="1430" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="580" y="223" />
-        <di:waypoint x="580" y="278" />
-        <di:waypoint x="672" y="278" />
+        <di:waypoint x="1185" y="223" />
+        <di:waypoint x="1185" y="278" />
+        <di:waypoint x="1270" y="278" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRejectedEndEdge" bpmnElement="toRejectedEnd">
+        <di:waypoint x="1370" y="278" />
+        <di:waypoint x="1430" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

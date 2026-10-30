@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "mail:Template",
+  "senderAddress": "time-off@example.com",
+  "senderName": "Time off requests",
+  "subject": "Your time off request was approved"
+  // The bodies are bodyTemplate.txt and bodyTemplate.html, in the folder of the same name beside this file.
+  // An nt:resource needs jcr:data as a binary, which a JSON string is not. The content loader turns real
+  // files into nt:file nodes.
+}
