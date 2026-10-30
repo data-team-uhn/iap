@@ -256,4 +256,58 @@ export default defineConfig([
       "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
+
+  // The catalogue browser stands alone, so a page other than a submission can show it. Nothing under
+  // `catalogue/` may import another module; the glue joining it to a submission lives beside it.
+  {
+    files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
+    // Its tests import it through the @iap alias, as every suite does
+    ignores: [ "src/data-requirement/catalogue/**/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/**/fixtures.ts" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**" ],
+            message: "The catalogue may not depend on another module; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+
+  // Nor climb out of `catalogue/` by a relative path: `../` from its top level, `../../` from a
+  // subdirectory.
+  {
+    files: [ "src/data-requirement/catalogue/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/fixtures.ts" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../*" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+  {
+    files: [ "src/data-requirement/catalogue/*/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*/*.{test,spec}.{ts,tsx}" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../../*" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
 ]);

@@ -106,7 +106,8 @@ Options:
                                  `iap-test-data` feature).
       --demo                     Additionally load the demo projects (the
                                  `iap-demo-*` features): complete, working
-                                 processes rather than sample content.
+                                 processes rather than sample content, along
+                                 with any optional module a demo is built on.
       --keycloak                 Additionally load Keycloak / OIDC sign-in (the
                                  `iap-oidc-support` and `iap-keycloak`
                                  features).
@@ -410,8 +411,11 @@ def main(argv):
     if options['test']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
     if options['demo']:
-        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
-                          % platform_version]
+        # The data study demo needs the optional data requirement module, which the launched
+        # distribution leaves out. Without it, the demo's content names node types nobody registered.
+        for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
+                        'iap-demo-data-study'):
+            launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
     # The document daemon runs beside a local instance, not as the compose service the aggregated
     # feature names by default
     launcher_args += ['-V', 'docling.url=http://localhost:18765']

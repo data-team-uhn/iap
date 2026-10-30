@@ -1,0 +1,29 @@
+{
+  "_comment": "How much of each field the tree shows. Flipping a flag here changes what appears without touching a component, and nothing is deleted when one is off - the badge components still exist and come straight back.",
+
+  "tree": {
+    "field": {
+      "_comment": "showIdentifier renders the source's own name in monospace beside the label. When nothing curated a label, humaniseIdentifierWhenNoCommonName turns `birthDate` into `Birth date` so the row still reads as English. sentenceCaseLabels lowers curated Title Case to `Date of birth`, matching the collection names above it, and leaves acronyms and type names alone by their shape.",
+      "showIdentifier": false,
+      "humaniseIdentifierWhenNoCommonName": true,
+      "sentenceCaseLabels": true,
+      "showCardinality": false,
+      "showType": false,
+      "showPhi": true,
+      "showDescription": true,
+      "showExample": true
+    },
+    "collection": {
+      "_comment": "The source's own name beside the collection label, e.g. `Patient` next to `Patient records`.",
+      "showIdentifier": false
+    }
+  },
+
+  "_labelOverridesComment": "Patches identifiers whose humanised form reads badly, keyed by the source's own name. Every key below is data, so the note lives out here rather than inside.",
+  "labelOverrides": {
+    "id": "ID"
+  },
+
+  "_preserveWordsComment": "Words and phrases sentenceCaseLabels must not lower. Acronyms and type names are already safe by their shape; this is for the ones only a person knows - product names, and defined terms a deployment wants kept as written. Empty here on purpose: the words are a deployment's own vocabulary, so they are supplied through the display override rather than shipped by the platform. Matched case-insensitively on whole words, and the spelling written here is the spelling displayed.",
+  "preserveWords": []
+}

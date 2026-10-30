@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retrospective data study",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "bpmnAuthoritative": true,
+    "description": "A researcher describes a study, chooses the data it needs and sends it; a steward releases the data or refuses it."
+  }
+}

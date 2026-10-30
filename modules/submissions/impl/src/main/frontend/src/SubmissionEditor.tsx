@@ -16,94 +16,47 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
+import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import AnswerField, { type SaveState } from "./AnswerField";
-import ApprovalState from "./ApprovalState";
-import DocumentUpload from "./DocumentUpload";
+import { getRequirementComponent, type FieldState } from "./requirementComponents";
+import { registerBuiltinRequirementComponents, useRequirementComponents } from "./requirements";
 import {
-  type FormItem,
   type FormQuestion,
   type Requirement,
   type SubmissionForm,
   fetchForm,
-  isApprovalRequirement,
-  isDocumentRequirement,
-  isFormRequirement,
-  isQuestion,
   saveAnswer,
 } from "./submissionForm";
 
-interface FieldState {
-  state: SaveState;
-  error?: string;
-}
+registerBuiltinRequirementComponents();
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
-  items: FormItem[];
-  disabled: boolean;
-  states: Record<string, FieldState | undefined>;
-  onAnswered: (question: FormQuestion, values: string[]) => void;
-}) {
-  return (
-    <Stack spacing={2}>
-      { items.map(item => isQuestion(item)
-        ? (
-          <AnswerField
-            key={item.path}
-            question={item}
-            disabled={disabled}
-            state={states[item.path]?.state ?? "idle"}
-            error={states[item.path]?.error}
-            onAnswered={values => onAnswered(item, values)}
-          />
-        )
-        : (
-          <Box key={item.name}>
-            <Typography variant="subtitle1">{item.label || item.name}</Typography>
-            { item.description && (
-              <Typography variant="description">{item.description}</Typography>
-            ) }
-            <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-            </Box>
-          </Box>
-        )) }
-    </Stack>
-  );
-}
-
-// What a requirement asks for, answered here where it can be: questions are filled in and a document
-// is uploaded. An approval says where it stands, and any other kind says it cannot be completed here
-// yet.
-function RequirementBody({ path, requirement, disabled, states, onAnswered, onAttached }: {
+// What a requirement asks for, drawn by the component registered for its kind. A kind with no
+// component says it cannot be completed here yet.
+function RequirementBody({ path, requirement, disabled, states, onAnswered, onChanged }: {
   path: string;
   requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
-  onAttached: () => void;
+  onChanged: () => void;
 }) {
-  if (isFormRequirement(requirement)) {
-    return <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />;
+  const Body = getRequirementComponent(requirement);
+  if (!Body) {
+    return <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>;
   }
-  if (isDocumentRequirement(requirement)) {
-    return <DocumentUpload path={path} requirement={requirement} disabled={disabled} onAttached={onAttached} />;
-  }
-  if (isApprovalRequirement(requirement)) {
-    return <ApprovalState requirement={requirement} />;
-  }
-  return <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>;
+  // createElement rather than <Body/>: the component comes from the registry, and
+  // react-hooks/static-components refuses JSX on a component chosen during render. The registry
+  // returns the same function each time, so nothing remounts.
+  return createElement(Body, { path, requirement, disabled, states, onAnswered, onChanged });
 }
 
 // Filling a submission in.
@@ -129,6 +82,9 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   // replaced.
   const latestFormRead = useRef(0);
   const doFetch = useAuthenticatedFetch();
+  // A requirement drawn by another module's component waits for that component to load, or it would
+  // first show as something that cannot be completed here
+  const componentsReady = useRequirementComponents();
 
   const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
     if (token === latestFormRead.current) {
@@ -168,9 +124,9 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
       .catch((e: unknown) => setError(message(e)));
   }, [ doFetch, path, reload, onSaving, onChanged ]);
 
-  // The form again, because what it asks can change with what was just attached: a requirement that
-  // is now answered, and a request that is no longer incomplete
-  const attached = useCallback(() => {
+  // The form again, because what it asks can change with what a requirement just did: one that is now
+  // answered, and a request that is no longer incomplete
+  const changed = useCallback(() => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     onChanged?.();
@@ -180,7 +136,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
-  if (!form) {
+  if (!form || !componentsReady) {
     return <CircularProgress aria-label="Loading the request" />;
   }
 
@@ -200,7 +156,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
             disabled={!form.editable}
             states={states}
             onAnswered={answered}
-            onAttached={attached}
+            onChanged={changed}
           />
         </Panel>
       )) }
