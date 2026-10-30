@@ -229,6 +229,17 @@ assert on rendered text. The pure model modules are the easy win — `categoryMo
 can be tested exhaustively with no rendering at all, which is a good reason to keep
 computation out of components.
 
+Most test files share a process with others, because starting jsdom, React and MUI again
+for every file costs more than most files spend testing. A file that calls `vi.mock` or
+`vi.doMock` runs in a process of its own: `vitest.config.ts` finds those by reading the
+sources, so nothing needs listing by hand. A shared file sees whatever earlier files left
+behind: stubbed globals, spies, the document, and the state of the modules they all import.
+`vitest.shared.setup.ts` clears that between files. It resets the module registry, so a
+module-level cache, such as the tag definitions in `tagDefinitions.ts`, starts empty in each
+file with nothing listed by hand. It also removes the `<meta>` tags a test added to the page
+head and empties `localStorage`. Anything else a test leaves in the document is its own to
+clean up.
+
 The lint configuration is worth reading once. It enforces `consistent-type-imports`
 (`import type` for types), `switch-exhaustiveness-check`, and several rules about
 implicit conversions; test sources are held to the same standard minus the few rules

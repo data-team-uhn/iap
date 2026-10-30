@@ -273,20 +273,6 @@ describe("SchemaVersionView", () => {
     expect(posted.map(event => event.url)).toEqual([ RENAME_NAME ]);
   });
 
-  it("reads the tree again when closed after a rename", async () => {
-    serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
-    renderVersion("study", "v3");
-
-    const dialog = await editPart("Your name");
-    startRenaming(dialog);
-    renameTo(dialog, "fullName");
-    await within(dialog).findByText("fullName");
-
-    const before = treeReads();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(treeReads()).toBe(before + 1));
-  });
-
   it("reads the tree again when closed after a rename, even when the save that followed was refused", async () => {
     serveSchemas({ answers: {
       [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" },
@@ -372,7 +358,8 @@ describe("SchemaVersionView", () => {
     expect(posted[1].params.has("before")).toBe(false);
   });
 
-  it("creates a part with the identifier suggested from what it says, until it is given its own", async () => {
+  it("creates a part with the identifier suggested from what it says, until it is given its own, "
+    + "and leaves the server to choose when the suggestion is kept", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
 
@@ -400,27 +387,13 @@ describe("SchemaVersionView", () => {
 
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
     expect(posted[0].params.get("name")).toBe("contact");
-  });
-
-  it("leaves the identifier to the server when none is given, as for an option", async () => {
-    const posted = serveSchemas();
-    renderVersion("study", "v3");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Add below" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Question" }));
-    const dialog = await screen.findByRole("dialog", { name: /Add question/ });
-    fireEvent.change(within(dialog).getByLabelText(/Question/), { target: { value: "Where do you live?" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake.create.json"));
-    expect(posted[0].params.has("name")).toBe(false);
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
-    await expand("Your name");
-    fireEvent.click(screen.getByRole("button", { name: "Add option" }));
-    const option = await screen.findByRole("dialog", { name: /Add option/ });
-    expect(within(option).queryByRole("textbox", { name: "Identifier" })).not.toBeInTheDocument();
-    fireEvent.change(within(option).getByLabelText(/Value/), { target: { value: "long" } });
-    fireEvent.click(within(option).getByRole("button", { name: "Save" }));
+    const next = await screen.findByRole("dialog", { name: /Add question/ });
+    fireEvent.change(within(next).getByLabelText(/Question/), { target: { value: "Where do you live?" } });
+    fireEvent.click(within(next).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1].params.has("name")).toBe(false);
   });
@@ -459,18 +432,20 @@ describe("SchemaVersionView", () => {
     expect(within(dialog).queryByRole("group", { name: "Where it goes" })).not.toBeInTheDocument();
   });
 
-  it("adds an option to a question", async () => {
+  it("adds an option to a question, leaving its identifier to the server", async () => {
     const posted = serveSchemas();
     renderVersion("study", "v3");
 
     await expand("Your name");
     fireEvent.click(screen.getByRole("button", { name: "Add option" }));
     const dialog = await screen.findByRole("dialog", { name: /Add option/ });
+    expect(within(dialog).queryByRole("textbox", { name: "Identifier" })).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Value/), { target: { value: "long" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study/v3/intake/name.create.json"));
     expect(posted[0].params.get("type")).toBe("sch:AnswerOption");
+    expect(posted[0].params.has("name")).toBe(false);
   });
 
   it("removes a part or an option, and says why one stays", async () => {
@@ -838,19 +813,26 @@ describe("SchemaVersionView", () => {
     expect(screen.queryByRole("button", { name: "Compare with…" })).not.toBeInTheDocument();
   });
 
-  it("acts on the version, and goes back to the schema once it is discarded", async () => {
+  it("goes back to the schema once the version is discarded", async () => {
     const posted = serveSchemas();
-    renderVersion("study", "v3");
+    // A stand-in for the schema's page, whose version grid this does not check
+    render(
+      <ThemeProvider theme={appTheme}>
+        <MemoryRouter initialEntries={[ "/admin/schemas/study/v3" ]}>
+          <Routes>
+            <Route path="/admin/schemas/*" element={<SchemaPage />} />
+            <Route path="/admin/schemas/study" element={<p>The schema page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+      { wrapper: NoticeProvider },
+    );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Activate" }));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Activate" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard" }));
 
-    expect(await screen.findByRole("gridcell", { name: "1.0" })).toBeInTheDocument();
-    expect(posted.map(event => event.url))
-      .toEqual([ "/Schemas/study/v3.activate.json", "/Schemas/study/v3.discard.json" ]);
+    expect(await screen.findByText("The schema page")).toBeInTheDocument();
+    expect(posted.map(event => event.url)).toEqual([ "/Schemas/study/v3.discard.json" ]);
   });
 
   describe("on a phone", () => {
@@ -897,8 +879,10 @@ describe("SchemaVersionView", () => {
       expect(await screen.findByRole("dialog", { name: "Edit question" })).toBeInTheDocument();
     });
 
-    it("moves a part chosen from its menu, showing only moving meanwhile", async () => {
-      serveSchemas();
+    it("moves a part chosen from its menu, showing only moving meanwhile, and saying only where it goes", async () => {
+      serveSchemas({ answers: {
+        "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
+      } });
       renderVersion("study", "v3");
 
       fireEvent.click(within(await openActions("Your age")).getByRole("menuitem", { name: "Move" }));
@@ -908,14 +892,8 @@ describe("SchemaVersionView", () => {
       fireEvent.click(within(await card("Your age")).getByRole("button", { name: "Move", pressed: true }));
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
       expect(await menuButton("Your age")).toBeInTheDocument();
-    });
 
-    it("says only where a part is moving to, as it is the one shown moving", async () => {
-      serveSchemas({ answers: {
-        "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
-      } });
-      renderVersion("study", "v3");
-
+      // The part is the one shown moving, so the place says only where it goes
       fireEvent.click(within(await openActions("Your age")).getByRole("menuitem", { name: "Move" }));
       const spot = await screen.findByRole("button", { name: "Move before Your name" });
       fireEvent.click(spot);
@@ -936,26 +914,20 @@ describe("SchemaVersionView", () => {
       expect(lines(await openActions("Short"))).toEqual([ "Remove" ]);
     });
 
-    it("offers the versions to compare with from the version's menu", async () => {
-      serveSchemas();
+    it("acts on the version from its menu, and offers the versions to compare with there", async () => {
+      const posted = serveSchemas();
       renderVersion("study", "v3");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
+      fireEvent.click(await within(await screen.findByRole("menu")).findByRole("menuitem", { name: "Activate" }));
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Activate" }));
+      await waitFor(() => expect(posted.map(event => event.url)).toEqual([ "/Schemas/study/v3.activate.json" ]));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
       fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
       fireEvent.click(await within(await screen.findByRole("menu")).findByRole("menuitem", { name: "Compare with…" }));
 
       expect(await screen.findByRole("menuitem", { name: /Version 2\.0/ })).toBeInTheDocument();
-    });
-
-    it("acts on the version from its menu", async () => {
-      const posted = serveSchemas();
-      renderVersion("study", "v3");
-
-      fireEvent.click(await screen.findByRole("button", { name: "Actions for version 3.0" }));
-      const versionMenu = await screen.findByRole("menu");
-      fireEvent.click(await within(versionMenu).findByRole("menuitem", { name: "Activate" }));
-      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Activate" }));
-
-      await waitFor(() => expect(posted.map(event => event.url)).toEqual([ "/Schemas/study/v3.activate.json" ]));
     });
   });
 });

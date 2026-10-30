@@ -35,8 +35,10 @@ Ports are reserved by `build-helper-maven-plugin` rather than hard-coded, so con
 anything already sitting on 8080 — do not collide. Maven passes each instance's URL to Playwright through
 the environment, and `playwright.config.ts` turns those into one project per instance.
 
-Each suite is actually **two** projects: `<suite>-<browser>` for its specs, and
-`<suite>-stories-<browser>` for the story tests below, which runs only once the first has finished.
+Each suite is actually **three** projects: `<suite>-<browser>` for its specs,
+`<suite>-stories-<browser>` for the story tests below, which runs only once the first has finished, and
+`<suite>-sign-in-<browser>`, which the specs depend on. It signs in as the administrator once and saves
+the session, so that `signInAs(page, ADMIN)` reuses it instead of filling the sign-in form each time.
 **Specs observe, stories mutate.** Much of what a spec asserts is what a *freshly launched* deployment
 looks like: an empty instance, and a story that creates content has no business being in flight while
 any of that is being checked.
@@ -151,9 +153,10 @@ Two consequences worth knowing:
   content is installed renders permanently without it, and no amount of assertion retrying recovers.
   Name what a suite depends on in `Instance.readyPaths` (probed anonymously, exactly as the browser reads
   it) rather than hoping.
-- A failing run leaves a trace, a screenshot and a video in `target/e2e-report`. Open it with
-  `pnpm report` — for anything that only fails on CI, that is the difference between a diagnosis and a
-  guess.
+- A failing test leaves a screenshot in `target/e2e-report`, and on CI, where it is retried once, a
+  trace and a video of the retry. Open it with `pnpm report` — for anything that only fails on CI, that
+  is the difference between a diagnosis and a guess. Recording every run would roughly double the test
+  time, so locally rerun the failing test with `-Dplaywright.args="--trace on"` to get a trace.
 
 ## Typechecking and linting
 

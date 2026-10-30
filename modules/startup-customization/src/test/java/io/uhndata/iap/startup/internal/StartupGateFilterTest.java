@@ -40,6 +40,11 @@ import org.apache.felix.hc.api.execution.HealthCheckSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.osgi.framework.AllServiceListener;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleEvent;
+import org.osgi.framework.BundleListener;
+import org.osgi.framework.ServiceEvent;
 import org.osgi.service.component.ComponentContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +59,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +97,8 @@ class StartupGateFilterTest
 
     private ComponentContext componentContext;
 
+    private BundleContext bundleContext;
+
     private ScheduledExecutorService poller;
 
     private StartupGateFilter filter;
@@ -108,6 +116,8 @@ class StartupGateFilterTest
     {
         this.executor = mock(HealthCheckExecutor.class);
         this.componentContext = mock(ComponentContext.class);
+        this.bundleContext = mock(BundleContext.class);
+        when(this.componentContext.getBundleContext()).thenReturn(this.bundleContext);
         this.poller = mock(ScheduledExecutorService.class);
         this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
         this.request = mock(HttpServletRequest.class);
@@ -175,6 +185,35 @@ class StartupGateFilterTest
     private void assertStillGated()
     {
         verify(this.componentContext, never()).disableComponent(anyString());
+    }
+
+    private void assertRetired()
+    {
+        verify(this.componentContext).disableComponent(StartupPlaceholderServlet.class.getName());
+        verify(this.componentContext).disableComponent(StartupPlaceholderContext.class.getName());
+        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+        verify(this.poller).shutdown();
+    }
+
+    /** Rebuilds the gate as an end-to-end launch starts it, with {@link StartupGateFilter#RETIRE_WHEN_QUIET} set. */
+    private void retiringWhenQuiet() throws IOException
+    {
+        when(this.bundleContext.getProperty(StartupGateFilter.RETIRE_WHEN_QUIET)).thenReturn("true");
+        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
+    }
+
+    private void aServiceChanges()
+    {
+        final ArgumentCaptor<AllServiceListener> listener = ArgumentCaptor.forClass(AllServiceListener.class);
+        verify(this.bundleContext).addServiceListener(listener.capture());
+        listener.getValue().serviceChanged(mock(ServiceEvent.class));
+    }
+
+    private void aBundleChanges()
+    {
+        final ArgumentCaptor<BundleListener> listener = ArgumentCaptor.forClass(BundleListener.class);
+        verify(this.bundleContext).addBundleListener(listener.capture());
+        listener.getValue().bundleChanged(mock(BundleEvent.class));
     }
 
     @Test
@@ -471,10 +510,36 @@ class StartupGateFilterTest
         this.filter.poll(0);
         this.filter.poll(StartupGateFilter.SETTLE_NANOS);
 
-        verify(this.componentContext).disableComponent(StartupPlaceholderServlet.class.getName());
-        verify(this.componentContext).disableComponent(StartupPlaceholderContext.class.getName());
-        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
-        verify(this.poller).shutdown();
+        assertRetired();
+    }
+
+    @Test
+    void neitherListensNorRetiresEarlyUnlessTheLaunchAsks()
+    {
+        everythingPasses();
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.QUIET_NANOS);
+
+        assertStillGated();
+        verify(this.bundleContext, never()).addServiceListener(any(AllServiceListener.class));
+        verify(this.bundleContext, never()).addBundleListener(any());
+    }
+
+    @Test
+    void retiresOnceReadinessHasHeldAndTheFrameworkIsQuietWhenTheLaunchAsks() throws IOException
+    {
+        retiringWhenQuiet();
+        everythingPasses();
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.QUIET_NANOS - 1);
+
+        assertStillGated();
+
+        this.filter.poll(StartupGateFilter.QUIET_NANOS);
+
+        assertRetired();
     }
 
     @Test
@@ -496,7 +561,75 @@ class StartupGateFilterTest
 
         this.filter.poll(StartupGateFilter.SETTLE_NANOS + 2);
 
-        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+        assertRetired();
+    }
+
+    @Test
+    void aServiceChangeRestartsTheQuietWindow() throws IOException
+    {
+        retiringWhenQuiet();
+        everythingPasses();
+        this.filter.poll(0);
+
+        aServiceChanges();
+        this.filter.poll(1);
+        this.filter.poll(StartupGateFilter.QUIET_NANOS);
+
+        assertStillGated();
+
+        this.filter.poll(StartupGateFilter.QUIET_NANOS + 1);
+
+        assertRetired();
+    }
+
+    @Test
+    void aBundleChangeRestartsTheQuietWindow() throws IOException
+    {
+        retiringWhenQuiet();
+        everythingPasses();
+        this.filter.poll(0);
+
+        aBundleChanges();
+        this.filter.poll(1);
+        this.filter.poll(StartupGateFilter.QUIET_NANOS);
+
+        assertStillGated();
+
+        this.filter.poll(StartupGateFilter.QUIET_NANOS + 1);
+
+        assertRetired();
+    }
+
+    @Test
+    void countsAChangeOnlyAgainstThePollThatFollowsIt() throws IOException
+    {
+        retiringWhenQuiet();
+        everythingPasses();
+        aServiceChanges();
+        this.filter.poll(0);
+
+        this.filter.poll(StartupGateFilter.QUIET_NANOS);
+
+        assertRetired();
+    }
+
+    @Test
+    void retiresAfterTheSettlePeriodEvenIfTheFrameworkNeverGoesQuiet() throws IOException
+    {
+        retiringWhenQuiet();
+        everythingPasses();
+        final long step = StartupGateFilter.QUIET_NANOS / 2;
+        for (long now = 0; now < StartupGateFilter.SETTLE_NANOS; now += step) {
+            aServiceChanges();
+            this.filter.poll(now);
+        }
+
+        assertStillGated();
+
+        aServiceChanges();
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS);
+
+        assertRetired();
     }
 
     @Test
@@ -522,10 +655,7 @@ class StartupGateFilterTest
         this.filter.poll(StartupGateFilter.CEILING_NANOS);
 
         assertTrue(letsRequestsThrough());
-        verify(this.componentContext).disableComponent(StartupPlaceholderServlet.class.getName());
-        verify(this.componentContext).disableComponent(StartupPlaceholderContext.class.getName());
-        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
-        verify(this.poller).shutdown();
+        assertRetired();
     }
 
     @Test
@@ -594,29 +724,39 @@ class StartupGateFilterTest
         this.filter.deactivate();
 
         verify(this.poller).shutdownNow();
+        verify(this.bundleContext, never()).removeServiceListener(any());
+        verify(this.bundleContext, never()).removeBundleListener(any());
     }
 
     @Test
-    void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws Exception
+    void stopsPollingAndListeningWhenDeactivatedAfterAskingToRetireWhenQuiet() throws IOException
+    {
+        retiringWhenQuiet();
+        final ArgumentCaptor<AllServiceListener> serviceListener = ArgumentCaptor.forClass(AllServiceListener.class);
+        final ArgumentCaptor<BundleListener> bundleListener = ArgumentCaptor.forClass(BundleListener.class);
+        verify(this.bundleContext).addServiceListener(serviceListener.capture());
+        verify(this.bundleContext).addBundleListener(bundleListener.capture());
+
+        this.filter.deactivate();
+
+        verify(this.poller).shutdownNow();
+        verify(this.bundleContext).removeServiceListener(serviceListener.getValue());
+        verify(this.bundleContext).removeBundleListener(bundleListener.getValue());
+    }
+
+    @Test
+    void pollsRepeatedlyOnItsOwnScheduleWhenActivatedByOsgi() throws IOException
     {
         everythingPasses();
-        final AtomicBoolean passedThrough = new AtomicBoolean();
-        final FilterChain recordingChain = (req, res) -> passedThrough.set(true);
-        // The real scheduler is in charge here: nothing below calls poll(), so the gate can only open if the
-        // component scheduled its own readiness evaluations.
+        // The real scheduler is in charge here: nothing below calls poll(), so the checks can only run repeatedly if
+        // the component scheduled its own readiness evaluations.
         final StartupGateFilter osgiFilter = new StartupGateFilter(this.executor, this.componentContext);
 
         try {
-            final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-            while (!passedThrough.get() && System.nanoTime() < deadline) {
-                osgiFilter.doFilter(this.request, this.response, recordingChain);
-                Thread.sleep(50);
-            }
+            verify(this.executor, timeout(10_000).atLeast(2)).execute(any(), any());
         } finally {
             osgiFilter.deactivate();
         }
-
-        assertTrue(passedThrough.get());
     }
 
     @Test

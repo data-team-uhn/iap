@@ -340,32 +340,21 @@ describe("LoggedErrorView", () => {
     await waitFor(() => { expect(reads(fetchMock)).toHaveLength(2); });
   });
 
-  it("sends the decision that was chosen, and the note", async () => {
+  it("sends the decision that was chosen and the note, then clears the note", async () => {
     const fetchMock = answering();
     vi.stubGlobal("fetch", fetchMock);
     view();
     await screen.findByText("java.lang.IllegalStateException");
+    const note = screen.getByRole("textbox", { name: /Why/ });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Decision" }));
     await userEvent.click(within(screen.getByRole("listbox")).getByText(/Known issue/));
-    await userEvent.type(screen.getByRole("textbox", { name: /Why/ }), "upstream bug");
+    await userEvent.type(note, "upstream bug");
     await userEvent.click(screen.getByRole("button", { name: "Record decision" }));
 
     await screen.findByText("Decision recorded");
     const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
     expect(post?.[1]?.body).toBe("resolution=known-issue&note=upstream+bug");
-  });
-
-  it("clears the note once the decision it explained has been recorded", async () => {
-    vi.stubGlobal("fetch", answering());
-    view();
-    await screen.findByText("java.lang.IllegalStateException");
-    const note = screen.getByRole("textbox", { name: /Why/ });
-
-    await userEvent.type(note, "by design");
-    await userEvent.click(screen.getByRole("button", { name: "Record decision" }));
-
-    await screen.findByText("Decision recorded");
     // Leaving it filled would invite it being sent again with the next, unrelated decision
     await waitFor(() => { expect(note).toHaveValue(""); });
   });

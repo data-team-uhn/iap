@@ -134,6 +134,7 @@ describe("SchemaManager", () => {
     fireEvent.change(within(dialog).getByLabelText(/Title/), { target: { value: "Clinical trial" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posted[0]?.url).toBe("/Schemas/study.update.json"));
+    expect(JSON.parse(posted[0].params.get("patch") ?? "")).toEqual({ title: "Clinical trial" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(await within(study).findByRole("button", { name: "Retire" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Retire" }));

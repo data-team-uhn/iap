@@ -92,8 +92,8 @@ jobs:
           if-no-files-found: ignore
 
       # A browser test that fails only on CI is close to undiagnosable from the log alone. Playwright
-      # keeps a trace, a screenshot and a video for exactly those runs; without this step they are
-      # discarded with the runner.
+      # keeps a screenshot of a failure, and a trace and a video of its retry; without this step they
+      # are discarded with the runner.
       - name: Upload end-to-end test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7

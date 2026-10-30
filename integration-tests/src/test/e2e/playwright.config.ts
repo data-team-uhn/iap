@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import path from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 import { activeInstances } from './support/instances';
@@ -49,9 +51,9 @@ const browsers = (): string[] => {
 };
 
 /**
- * Two Playwright projects per launched instance per browser, each pointed at its own instance and
- * reading its tests from its own directory. Anything shared — page objects, fixtures — lives outside
- * those directories and is imported.
+ * Three Playwright projects per launched instance per browser, each pointed at its own instance. The
+ * specs and stories read their tests from the suite's own directory. Page objects, fixtures and anything
+ * else shared live outside those directories and are imported.
  *
  * A suite whose instance was not launched simply produces no project, so `-Dit.platform.skip=true` needs
  * no matching change here.
@@ -72,6 +74,10 @@ const browsers = (): string[] => {
  * had not run yet. The cost is that a failing spec skips its suite's stories, which is the right way
  * round: the build is already failing, and a story that failed only because the instance was not in the
  * state it says it starts from is worse than no result.
+ *
+ * The specs in turn depend on `<suite>-sign-in-<browser>`, which signs in as the administrator once and
+ * saves the session for `signInAs` to reuse. It is not a project-wide `storageState`: tests that check
+ * what an unauthenticated caller sees must still start signed out.
  */
 export default defineConfig({
   testDir: './specs',
@@ -100,26 +106,38 @@ export default defineConfig({
   // mark themselves slow.
   timeout: 60_000,
   use: {
-    // Kept on retry and on failure: a trace is the difference between diagnosing a CI-only failure in
-    // minutes and not at all
-    trace: 'retain-on-failure',
+    // Recorded on the retry only, because recording every run roughly doubled the suites' test time. A
+    // CI failure is retried once, so it still yields a trace: the difference between diagnosing a
+    // CI-only failure in minutes and not at all. Locally, rerun the failing test with `--trace on`.
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'on-first-retry',
     ignoreHTTPSErrors: true,
   },
   projects: activeInstances().flatMap(instance =>
     browsers().flatMap(browser => {
       const use = { ...devices[DEVICE_FOR_BROWSER[browser]], baseURL: instance.baseURL };
       const specs = `${instance.name}-${browser}`;
+      const signIn = `${instance.name}-sign-in-${browser}`;
+      const metadata = { adminSession: path.join(__dirname, `../../../target/e2e-auth/${specs}.json`) };
       // Selected by where a test lives rather than by a `testDir` of its own, so that a suite with no
       // stories yet needs no directory created for one.
       return [
-        { name: specs, testDir: `./specs/${instance.name}`, testIgnore: '**/stories/**', use },
+        { name: signIn, testDir: './support', testMatch: 'admin-session.setup.ts', metadata, use },
+        {
+          name: specs,
+          testDir: `./specs/${instance.name}`,
+          testIgnore: '**/stories/**',
+          dependencies: [ signIn ],
+          metadata,
+          use,
+        },
         {
           name: `${instance.name}-stories-${browser}`,
           testDir: `./specs/${instance.name}`,
           testMatch: '**/stories/**',
           dependencies: [ specs ],
+          metadata,
           use,
         },
       ];

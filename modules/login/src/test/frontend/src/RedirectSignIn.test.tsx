@@ -20,6 +20,8 @@ import { render, screen } from "@testing-library/react";
 
 import RedirectSignIn, { redirectSignInTarget } from "@iap/login/RedirectSignIn";
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe("redirectSignInTarget", () => {
   it("attaches the validated return path to the target endpoint", () => {
     const target = redirectSignInTarget({ "ext:targetURL": "/goto-external-login" });
@@ -59,10 +61,8 @@ describe("RedirectSignIn", () => {
 
   it("navigates to the identity provider when the button is pressed", () => {
     const assign = vi.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...window.location, assign, origin: window.location.origin, pathname: "/login", search: "" },
-    });
+    vi.stubGlobal("location",
+      { ...window.location, assign, origin: window.location.origin, pathname: "/login", search: "" });
     render(<RedirectSignIn extension={{ "ext:targetURL": "/goto-external-login" }} />);
 
     screen.getByRole("button", { name: "Continue to sign-in" }).click();

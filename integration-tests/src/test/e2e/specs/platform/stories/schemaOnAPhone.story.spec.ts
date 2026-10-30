@@ -53,6 +53,7 @@ test.describe('stories: a schema set up from a phone', () => {
 
     await test.step('he signs in on his phone, and opens the schemas', async () => {
       await signInAs(page, ADMIN);
+      await page.goto('/');
       await page.getByRole('button', { name: 'Administration' }).click();
       await page.getByRole('link', { name: /Schemas/ }).first().click();
       await expect(page.getByRole('heading', { name: 'Schemas' })).toBeVisible();

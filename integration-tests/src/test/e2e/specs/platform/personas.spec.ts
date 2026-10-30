@@ -32,12 +32,14 @@ test.describe('the dashboard', () => {
   test('signs everyone in acting as a submitter', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
+    await page.goto('/');
 
     expect(await shell.actingAs()).toBe('Submitter');
   });
 
   test('shows a submitter their own submissions', async ({ page }) => {
     await signInAs(page, ADMIN);
+    await page.goto('/');
 
     await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
   });
@@ -45,6 +47,7 @@ test.describe('the dashboard', () => {
   test('hides their own submissions from a reviewer, and keeps the review queue', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
+    await page.goto('/');
     await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
 
     await shell.actAs('Reviewer');
@@ -56,6 +59,7 @@ test.describe('the dashboard', () => {
   test('hides their own submissions from an administrator, and shows them again to a submitter', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
+    await page.goto('/');
     await expect(widget(page, MY_SUBMISSIONS)).toBeVisible();
 
     await shell.actAs('Administrator');

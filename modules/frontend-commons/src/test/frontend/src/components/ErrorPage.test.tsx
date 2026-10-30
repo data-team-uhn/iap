@@ -25,6 +25,7 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ErrorPage from "@iap/frontend-commons/components/ErrorPage";
 
+afterEach(() => vi.unstubAllGlobals());
 
 const renderErrorPage = (props: Partial<ComponentProps<typeof ErrorPage>> = {}) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
@@ -56,10 +57,8 @@ describe("ErrorPage", () => {
 
     const original = window.location.href;
     const setHref = vi.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...window.location, get href() { return original; }, set href(value: string) { setHref(value); } },
-    });
+    vi.stubGlobal("location",
+      { ...window.location, get href() { return original; }, set href(value: string) { setHref(value); } });
 
     await user.click(screen.getByRole("button", { name: "Go home" }));
 

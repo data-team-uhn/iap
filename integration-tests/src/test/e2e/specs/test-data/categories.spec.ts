@@ -16,10 +16,9 @@
  * limitations under the License.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { LoginPage } from '../../pages/login.page';
-import { ADMIN, adminAuth } from '../../support/auth';
+import { ADMIN, adminAuth, signInAs } from '../../support/auth';
 
 /**
  * The sample taxonomy of study types, which only this instance carries, and the two things that can
@@ -27,14 +26,6 @@ import { ADMIN, adminAuth } from '../../support/auth';
  * administration console shows them. The endpoints' behaviour on an empty tree is the platform suite's.
  */
 test.describe('the sample category taxonomy', () => {
-  const signIn = async (page: Page): Promise<void> => {
-    const login = new LoginPage(page);
-    await login.open();
-    await login.signInAs(ADMIN.username, ADMIN.password);
-    // The sign-in form going away is what says the session exists; navigating before that races it.
-    await expect(login.signIn).toHaveCount(0);
-  };
-
   test('installs the sample taxonomy under /Categories', async ({ request }) => {
     const response = await request.get('/Categories.deep.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
@@ -109,7 +100,7 @@ test.describe('the sample category taxonomy', () => {
   });
 
   test('summarises the sample categories on the administration console', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
 
     // Top-level categories start collapsed, so only these two labels are on screen.
@@ -118,7 +109,7 @@ test.describe('the sample category taxonomy', () => {
   });
 
   test('opens the category manager on the sample tree', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
     await page.getByRole('link', { name: 'Manage: Submission categories' }).click();
 

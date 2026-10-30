@@ -191,20 +191,8 @@ describe("MySubmissionsWidget", () => {
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(SUBMISSION_PATH));
   });
 
-  it("stays on the dashboard when the engine created nothing to open", async () => {
+  it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
     // Accepted without raising anything, so the dashboard is where the submitter stays
-    vi.stubGlobal("fetch", widgetFetch({ redirected: false }));
-
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
-    await raiseOne();
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByTestId("where")).toHaveTextContent("/");
-  });
-
-  // The grid never unmounted, so nothing re-reads unless it is told; without that a submission
-  // that was raised is indistinguishable from nothing having happened
-  it("re-reads the listing even when there is nowhere to send the submitter", async () => {
     const fetchMock = widgetFetch({ redirected: false });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -215,6 +203,10 @@ describe("MySubmissionsWidget", () => {
 
     await raiseOne();
 
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("where")).toHaveTextContent("/");
+    // The grid never unmounted, so nothing re-reads unless it is told; without that a submission
+    // that was raised is indistinguishable from nothing having happened
     await waitFor(() => expect(listings()).toBe(2));
   });
 

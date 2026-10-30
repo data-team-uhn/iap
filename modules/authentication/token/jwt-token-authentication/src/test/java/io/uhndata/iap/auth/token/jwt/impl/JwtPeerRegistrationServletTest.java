@@ -81,6 +81,9 @@ public class JwtPeerRegistrationServletTest
 
     private static final String PEER_ISSUER = "https://peer.example.org";
 
+    /** Shared by every test, since generating an RSA key pair costs a good fraction of a second. */
+    private static final KeyPair PEER_PAIR = Jwts.SIG.RS256.keyPair().build();
+
     @Mock
     private ResourceResolverFactory resolverFactory;
 
@@ -102,8 +105,6 @@ public class JwtPeerRegistrationServletTest
     @Mock
     private SlingJakartaHttpServletResponse response;
 
-    private KeyPair peerPair;
-
     private StringWriter body;
 
     private JwtPeerRegistrationServlet servlet;
@@ -111,7 +112,6 @@ public class JwtPeerRegistrationServletTest
     @BeforeEach
     public void setUp() throws Exception
     {
-        this.peerPair = Jwts.SIG.RS256.keyPair().build();
         this.body = new StringWriter();
         when(this.response.getWriter()).thenReturn(new PrintWriter(this.body));
 
@@ -132,14 +132,14 @@ public class JwtPeerRegistrationServletTest
 
         this.servlet.doPost(this.request, this.response);
 
-        final String expectedKid = IapJwtTokenManagerImpl.getFingerprint(this.peerPair.getPublic());
+        final String expectedKid = IapJwtTokenManagerImpl.getFingerprint(PEER_PAIR.getPublic());
         final ArgumentCaptor<Map<String, Object>> stored = captor();
         verify(this.serviceResolver).create(eq(this.keyRoot), eq(expectedKid), stored.capture());
         verify(this.serviceResolver).commit();
         verify(this.response).setStatus(HttpServletResponse.SC_CREATED);
 
         Assertions.assertEquals(PEER_ISSUER, stored.getValue().get(IapJwtTokenManagerImpl.ISSUER_PROP));
-        Assertions.assertEquals(Encoders.BASE64.encode(this.peerPair.getPublic().getEncoded()),
+        Assertions.assertEquals(Encoders.BASE64.encode(PEER_PAIR.getPublic().getEncoded()),
             stored.getValue().get(IapJwtTokenManagerImpl.VERIFY_PROP));
         Assertions.assertTrue(this.body.toString().contains(expectedKid), this.body.toString());
     }
@@ -164,7 +164,7 @@ public class JwtPeerRegistrationServletTest
             .subject("peer-service")
             .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
             .header().keyId(nodeName.getValue()).and()
-            .signWith(this.peerPair.getPrivate())
+            .signWith(PEER_PAIR.getPrivate())
             .compact();
 
         Assertions.assertNotNull(manager.parse(peerToken),
@@ -175,7 +175,7 @@ public class JwtPeerRegistrationServletTest
     public void aPemArmouredKeyIsAccepted() throws Exception
     {
         final String pem = "-----BEGIN PUBLIC KEY-----\n"
-            + Encoders.BASE64.encode(this.peerPair.getPublic().getEncoded()).replaceAll("(.{64})", "$1\n")
+            + Encoders.BASE64.encode(PEER_PAIR.getPublic().getEncoded()).replaceAll("(.{64})", "$1\n")
             + "\n-----END PUBLIC KEY-----\n";
         post("{\"issuer\": \"" + PEER_ISSUER + "\", \"key\": \"" + pem.replace("\n", "\\n") + "\"}");
 
@@ -183,7 +183,7 @@ public class JwtPeerRegistrationServletTest
 
         // Stored under the same fingerprint as the unarmoured form, since the key is re-encoded before hashing
         verify(this.serviceResolver).create(any(),
-            eq(IapJwtTokenManagerImpl.getFingerprint(this.peerPair.getPublic())), any());
+            eq(IapJwtTokenManagerImpl.getFingerprint(PEER_PAIR.getPublic())), any());
         verify(this.response).setStatus(HttpServletResponse.SC_CREATED);
     }
 
@@ -300,7 +300,7 @@ public class JwtPeerRegistrationServletTest
     public void anAlreadyRegisteredKeyIsNotSilentlyReplaced() throws Exception
     {
         when(this.serviceResolver.getResource(IapJwtTokenManagerImpl.KEY_ROOT + "/"
-            + IapJwtTokenManagerImpl.getFingerprint(this.peerPair.getPublic()))).thenReturn(this.keyRoot);
+            + IapJwtTokenManagerImpl.getFingerprint(PEER_PAIR.getPublic()))).thenReturn(this.keyRoot);
         post(validBody());
 
         this.servlet.doPost(this.request, this.response);
@@ -383,7 +383,7 @@ public class JwtPeerRegistrationServletTest
 
     private String encodedPeerKey()
     {
-        return Encoders.BASE64.encode(this.peerPair.getPublic().getEncoded());
+        return Encoders.BASE64.encode(PEER_PAIR.getPublic().getEncoded());
     }
 
     private String validBody()

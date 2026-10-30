@@ -194,19 +194,6 @@ describe("WorkflowsView", () => {
     expect(screen.getByRole("button", { name: "New workflow" })).toBeDisabled();
   });
 
-  it("offers to create a workflow, once it knows where one could be created", async () => {
-    const user = userEvent.setup();
-    stubFetch([ { path: "/Workflows", title: "Workflows" } ]);
-
-    renderView();
-
-    const create = await screen.findByRole("button", { name: "New workflow" });
-    await waitFor(() => expect(create).toBeEnabled());
-    await user.click(create);
-
-    expect(await screen.findByRole("dialog", { name: "New workflow" })).toBeInTheDocument();
-  });
-
   it("creates a workflow in the tab being listed, not the first homepage discovered", async () => {
     // The open tab is the tree its author is working in; filing a new workflow under the first
     // homepage instead would put it somewhere they are not looking

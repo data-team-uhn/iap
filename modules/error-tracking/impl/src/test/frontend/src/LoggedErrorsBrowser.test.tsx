@@ -95,24 +95,9 @@ describe("LoggedErrorsBrowser", () => {
     expect(url.searchParams.getAll("fieldName")).not.toContain("computedTags");
   });
 
-  it("narrows the listing to what needs attention when asked", async () => {
+  it("narrows the listing to what needs attention when asked, and puts it back when the switch is turned off", async () => {
     // The grid's own column filter can express the same thing, but finding it takes several
     // clicks and this is the question somebody opening the page is nearly always asking
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
-    browser();
-    await screen.findByText("IllegalStateException");
-
-    await userEvent.click(screen.getByRole("switch", { name: "Only what needs attention" }));
-
-    await waitFor(() => {
-      const latest = new URL(listings(fetchMock).at(-1)!, "http://localhost");
-      expect(latest.searchParams.getAll("fieldName")).toContain("computedTags");
-      expect(latest.searchParams.getAll("fieldValue")).toContain("unacknowledged");
-    });
-  });
-
-  it("puts the listing back when the switch is turned off again", async () => {
     const fetchMock = answering();
     vi.stubGlobal("fetch", fetchMock);
     browser();
@@ -121,8 +106,9 @@ describe("LoggedErrorsBrowser", () => {
 
     await userEvent.click(toggle);
     await waitFor(() => {
-      expect(new URL(listings(fetchMock).at(-1)!, "http://localhost").searchParams.getAll("fieldName"))
-        .toContain("computedTags");
+      const latest = new URL(listings(fetchMock).at(-1)!, "http://localhost");
+      expect(latest.searchParams.getAll("fieldName")).toContain("computedTags");
+      expect(latest.searchParams.getAll("fieldValue")).toContain("unacknowledged");
     });
 
     await userEvent.click(toggle);
