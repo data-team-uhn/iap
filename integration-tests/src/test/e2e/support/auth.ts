@@ -65,7 +65,9 @@ export function adminSessionFile(): string {
  * repository. It leaves the browser on no page a test may rely on, so the test goes next to where it starts.
  * The administrator loads no page at all: it reuses the session its project's sign-in setup saved rather than
  * filling the form at every one of some fifty sign-ins. Signing out elsewhere does not end that session: Sling
- * checks its cookie, it stores none.
+ * checks its cookie, it stores none. The cookie is a form-login token, valid for Sling's default 30 minutes from
+ * the setup's sign-in, and the saved copy is never refreshed: a suite running longer than that would find the
+ * administrator signed out partway.
  */
 export async function signInAs(page: Page, user: Credentials): Promise<void> {
   if (user !== ADMIN) {

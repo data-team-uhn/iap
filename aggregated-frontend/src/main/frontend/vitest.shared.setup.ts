@@ -25,13 +25,17 @@ afterEach(() => {
   cleanup();
 });
 
-// A module-level cache, a stubbed global, a spy or anything left in the document outlives the file that set it up. A
-// spy on a global still holding another file's mock picks up that mock's calls. Resetting the modules makes the next
-// file evaluate the sources again; the packages Node loads itself keep their single instance.
+// A module-level cache, a stubbed global or environment variable, a spy, fake timers or anything left in the document
+// or storage outlives the file that set it up. A spy on a global still holding another file's mock picks up that
+// mock's calls, and fake timers left running stall the next file's waits. Resetting the modules makes the next file
+// evaluate the sources again; the packages Node loads itself keep their single instance.
 afterAll(() => {
   vi.resetModules();
   document.head.querySelectorAll("meta").forEach(meta => meta.remove());
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });

@@ -1091,7 +1091,7 @@
               <goal>prepare-agent</goal>
             </goals>
             <configuration>
-              <!-- The check reads only our classes to speed up builds -->
+              <!-- The agent instruments only our classes, to speed up the tests; the coverage check is unchanged -->
               <includes>
                 <include>io.uhndata.*</include>
               </includes>
