@@ -15,12 +15,8 @@
   ],
   "babel": {
     "presets": [
-      ["@babel/preset-env", {
-        "bugfixes": true
-      }],
-      ["@babel/preset-react", {
-        "runtime": "automatic"
-      }],
+      "@babel/preset-env",
+      "@babel/preset-react",
       "@babel/preset-typescript"
     ]
   },
@@ -64,10 +60,10 @@
     "bpmn-js": "18.31.1"
   },
   "devDependencies": {
-    "@babel/core": "7.29.7",
-    "@babel/preset-env": "7.29.7",
-    "@babel/preset-react": "7.29.7",
-    "@babel/preset-typescript": "7.29.7",
+    "@babel/core": "8.0.10",
+    "@babel/preset-env": "8.0.7",
+    "@babel/preset-react": "8.0.1",
+    "@babel/preset-typescript": "8.0.7",
     "babel-loader": "10.1.1",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
