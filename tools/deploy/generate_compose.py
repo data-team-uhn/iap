@@ -561,6 +561,9 @@ def iap_environment(args):
         comment(environment, "Sent as the Authorization header of every generation request; the")
         comment(environment, "worker below is given the same value. In .env.")
         environment['IAP_GENERATION_TOKEN'] = '${IAP_GENERATION_TOKEN}'
+        comment(environment, "The largest template, in bytes, checked at upload and at generation.")
+        comment(environment, "The worker below sizes its request limit from the same value.")
+        environment['IAP_MAX_TEMPLATE_BYTES'] = '${IAP_MAX_TEMPLATE_BYTES:-10485760}'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
@@ -735,6 +738,7 @@ def generation_service():
         'IAP_GENERATION_TRUSTED_NETWORK': '${IAP_GENERATION_TRUSTED_NETWORK:-0}',
         # Each running conversion is a soffice process of a few hundred MB.
         'IAP_GENERATION_MAX_CONCURRENT': '${IAP_GENERATION_MAX_CONCURRENT:-2}',
+        'IAP_MAX_TEMPLATE_BYTES': '${IAP_MAX_TEMPLATE_BYTES:-10485760}',
     }
     service['deploy'] = {
         'resources': {
