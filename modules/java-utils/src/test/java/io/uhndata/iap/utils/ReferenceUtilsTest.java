@@ -17,9 +17,13 @@
  */
 package io.uhndata.iap.utils;
 
+import java.util.List;
+
+import javax.jcr.Property;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Value;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -35,6 +39,7 @@ import org.mockito.Mockito;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ReferenceUtils}: a reference is stored as one, on a real repository.
@@ -55,6 +60,7 @@ class ReferenceUtilsTest
         this.session = this.context.resourceResolver().adaptTo(Session.class);
         this.session.getRootNode().addNode("holder", "nt:unstructured");
         this.session.getRootNode().addNode("target", "nt:unstructured").addMixin("mix:referenceable");
+        this.session.getRootNode().addNode("other", "nt:unstructured").addMixin("mix:referenceable");
         this.session.getRootNode().addNode("plain", "nt:unstructured");
         this.session.save();
     }
@@ -91,6 +97,58 @@ class ReferenceUtilsTest
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
             () -> ReferenceUtils.setReference(holder, "points", plain));
+
+        assertInstanceOf(RepositoryException.class, failure.getCause());
+    }
+
+    @Test
+    void pointsAPropertyAtSeveralNodesInOrder() throws PersistenceException, RepositoryException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+
+        ReferenceUtils.setReferences(resolver.getResource("/holder"), "points",
+            List.of(resolver.getResource("/other"), resolver.getResource("/target")));
+
+        final Value[] values = this.session.getNode("/holder").getProperty("points").getValues();
+        assertEquals(2, values.length);
+        assertEquals(PropertyType.REFERENCE, values[0].getType());
+        assertEquals("/other", this.session.getNodeByIdentifier(values[0].getString()).getPath());
+        assertEquals("/target", this.session.getNodeByIdentifier(values[1].getString()).getPath());
+    }
+
+    @Test
+    void pointsAPropertyAtNothingAsAnEmptyListOfReferences() throws PersistenceException, RepositoryException
+    {
+        ReferenceUtils.setReferences(this.context.resourceResolver().getResource("/holder"), "points", List.of());
+
+        final Property points = this.session.getNode("/holder").getProperty("points");
+        assertTrue(points.isMultiple());
+        assertEquals(PropertyType.REFERENCE, points.getType());
+        assertEquals(0, points.getValues().length);
+    }
+
+    @Test
+    void refusesSeveralWhenOneIsNoNode()
+    {
+        final Resource notNode = Mockito.mock(Resource.class);
+        final Resource holder = this.context.resourceResolver().getResource("/holder");
+        final Resource target = this.context.resourceResolver().getResource("/target");
+
+        assertThrows(PersistenceException.class,
+            () -> ReferenceUtils.setReferences(holder, "points", List.of(target, notNode)));
+        assertThrows(PersistenceException.class,
+            () -> ReferenceUtils.setReferences(notNode, "points", List.of(target)));
+    }
+
+    @Test
+    void reportsReferencesTheRepositoryRefuses()
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final Resource holder = resolver.getResource("/holder");
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> ReferenceUtils.setReferences(holder, "points",
+                List.of(resolver.getResource("/target"), resolver.getResource("/plain"))));
 
         assertInstanceOf(RepositoryException.class, failure.getCause());
     }
