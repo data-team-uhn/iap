@@ -31,9 +31,9 @@ import {
 } from "@mui/x-data-grid-pro";
 
 import ColoredChipsFilterInput from "./ColoredChipsFilterInput";
+import { type EntityGridColumn, serverProperty } from "./registry";
 
 import type { PropertyFilter } from "./pagination";
-import type { EntityGridColumn } from "./registry";
 
 // The stock grid operators (per column type) that the servlet can honor. Operators needing OR
 // (isAnyOf, "not" on a day interval) expand into conditions sharing an OR group.
@@ -126,8 +126,7 @@ function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefi
   if (!column || column.filterable === false) {
     return [];
   }
-  // Like for sorting, sortProperty overrides which server-side property a column maps to
-  const name = column.sortProperty ?? column.field;
+  const name = serverProperty(column);
   // `hasOwn` rather than `in`: the operator is a string from the grid's model, and `in` would also
   // answer for everything Object.prototype carries, so an operator named "constructor" or
   // "toString" would look supported and be translated into nonsense.

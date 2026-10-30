@@ -23,16 +23,17 @@ import { useAuthenticatedFetch } from "../reLogin";
 import { describeRequestFailure } from "../requestFailure";
 import { type DescendantFilter, type EntityRow, type PropertyFilter, fetchEntityPage } from "./pagination";
 
-import type { EntityGridColumn, EntityGridConfig } from "./registry";
-import type { GridPaginationModel, GridSortModel } from "@mui/x-data-grid-pro";
+import type { EntityGridConfig } from "./registry";
+import type { GridPaginationModel } from "@mui/x-data-grid-pro";
 
 export interface EntityPageRequest {
   config?: EntityGridConfig;
   // The homepage to list from, when it is not the config's own
   homepage?: string;
-  columns: EntityGridColumn[];
   paginationModel: GridPaginationModel;
-  sortModel: GridSortModel;
+  // The server-side property to order by, if any
+  sortBy?: string;
+  descending: boolean;
   filters?: PropertyFilter[];
   childFilter?: DescendantFilter;
   columnFilters: PropertyFilter[];
@@ -54,7 +55,7 @@ export interface EntityPage {
 
 // One page of entities from the pagination servlet, read again whenever what it asks for changes.
 export default function useEntityPage(request: EntityPageRequest): EntityPage {
-  const { config, homepage, columns, paginationModel, sortModel, filters, childFilter, columnFilters, fullText,
+  const { config, homepage, paginationModel, sortBy, descending, filters, childFilter, columnFilters, fullText,
     refreshToken } = request;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -79,13 +80,12 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
     // from a request key instead proved racy against the grid's own debounced model updates
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    const sortColumn = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
     fetchEntityPage(fetchUtil, {
       homepage: homepage ?? config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
       limit: paginationModel.pageSize,
-      sortBy: sortColumn ? sortColumn.sortProperty ?? sortColumn.field : undefined,
-      descending: sortModel[0]?.sort === "desc",
+      sortBy,
+      descending,
       filters: [...filters ?? [], ...columnFilters],
       childFilter,
       fullText: fullText || undefined,
@@ -112,8 +112,7 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
     return () => {
       cancelled = true;
     };
-  }, [columns, config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount,
-    refreshToken]);
+  }, [config, fetchUtil, paginationModel, sortBy, descending, filterKey, fullText, retryCount, refreshToken]);
 
   return { rows, rowCount, approximate, loading, error, retry: () => setRetryCount(count => count + 1) };
 }

@@ -42,19 +42,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <strong>One handler, however many notifications a process sends.</strong> What differs between "your request
  * was approved" and "your request was refused" is the template and the audience. Both are written in the workflow
  * definition rather than in Java. A service task naming this handler carries the template folder, the roles
- * to tell, and how urgent it is.
+ * to tell, and how urgent it is; {@code docs/notifications.md} shows one, with each property it takes.
  * </p>
- *
- * {@snippet lang="json" :
- * "notifyApproved": {
- *   "jcr:primaryType": "wf:ServiceTask",
- *   "handler": "notify",
- *   "template": "/libs/iap/notificationTemplates/submissionApproved",
- *   "recipients": [ "@creator" ],
- *   "urgency": "immediate",
- *   "event": "approved"
- * }
- * }
  *
  * <p>
  * <strong>It never fails the workflow.</strong> A decision that has been made has been made. Rolling a

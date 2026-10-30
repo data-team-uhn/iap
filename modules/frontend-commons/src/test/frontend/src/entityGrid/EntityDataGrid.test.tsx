@@ -951,6 +951,20 @@ describe("EntityDataGrid", () => {
     expect(sorted).toEqual(["0/status"]);
   });
 
+  it("reads the page once when a caller adds a column of its own", async () => {
+    const fetchMock = mockPage([{ "@path": "/GridEntities/e1", "title": "First entity" }]);
+    const actions = [ { field: "__actions__", renderCell: () => <button type="button">Act</button> } ];
+
+    const { rerender } = render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />,
+      { wrapper: MemoryRouter });
+    await screen.findByText("First entity");
+    rerender(<EntityDataGrid entityType={TEST_TYPE} extraColumns={actions} disableVirtualization />);
+    await screen.findByRole("button", { name: "Act" });
+    await flushRender();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("names its search box, so a reader is told what it searches", async () => {
     // "Search…" is a placeholder, not a name. Without this the control announces itself identically
     // wherever it appears, to a screen reader and to anything else that addresses the page by its
