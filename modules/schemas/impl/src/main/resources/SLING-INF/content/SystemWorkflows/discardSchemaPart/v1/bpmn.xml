@@ -47,7 +47,10 @@
       <bpmn:messageEventDefinition id="discardRequested" messageRef="discardMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toDelete" sourceRef="requested" targetRef="delete" />
-    <bpmn:serviceTask id="delete" iap:handler="delete" name="Delete the part">
+    <bpmn:serviceTask id="delete" name="Delete the part">
+      <bpmn:extensionElements>
+        <iap:delete />
+      </bpmn:extensionElements>
       <bpmn:incoming>toDelete</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

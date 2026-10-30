@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Validate Answers",
+  "description": "Refuses to go on unless the answers just saved pass every validator that applies to them.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "validateAnswers",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"validateAnswers\"}"
+}

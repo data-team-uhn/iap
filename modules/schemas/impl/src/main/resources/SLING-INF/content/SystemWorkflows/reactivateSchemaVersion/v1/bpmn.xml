@@ -63,12 +63,18 @@
       <bpmn:messageEventDefinition id="activateRequested" messageRef="activateMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toRetire" sourceRef="requested" targetRef="retire" />
-    <bpmn:serviceTask id="retire" iap:handler="retireActiveVersions" name="Retire the version this one replaces">
+    <bpmn:serviceTask id="retire" name="Retire the version this one replaces">
+      <bpmn:extensionElements>
+        <iap:retireActiveVersions />
+      </bpmn:extensionElements>
       <bpmn:incoming>toRetire</bpmn:incoming>
       <bpmn:outgoing>toMarkActive</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMarkActive" sourceRef="retire" targetRef="markActive" />
-    <bpmn:serviceTask id="markActive" iap:handler="addTag" iap:replaceExisting="true" iap:tag="active" name="Mark it as active">
+    <bpmn:serviceTask id="markActive" name="Mark it as active">
+      <bpmn:extensionElements>
+        <iap:addTag replaceExisting="true" tag="active" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMarkActive</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

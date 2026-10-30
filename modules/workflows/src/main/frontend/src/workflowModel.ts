@@ -21,6 +21,8 @@ import { isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializ
 // What the workflow screens know about the repository: where workflows live, how a version's
 // lifecycle reads, and how one workflow's versions are listed. No React, no fetch.
 
+import { IAP_NS } from "./moddle";
+
 // The workflow definitions' canonical home; others may exist (the platform's own under
 // /SystemWorkflows, another location's mirrored locally) but are discovered rather than listed here —
 // this one is only the entry point discovery is asked through, and always exists.
@@ -151,9 +153,10 @@ export const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>`;
 
 // The diagram a brand-new workflow version starts from — a start event, one user task, an end event —
-// so the editor opens on something rather than an empty canvas.
+// so the editor opens on something rather than an empty canvas. It declares the IAP namespace, which
+// the parameters an author adds are written in.
 export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_07212ml" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:iap="${IAP_NS}" id="Definitions_07212ml" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
   <bpmn:process id="Process_1ajiizs" isExecutable="false">
     <bpmn:sequenceFlow id="Flow_1bghbvl" sourceRef="StartEvent_0gcwblc" targetRef="Activity_0waxs0q" />
     <bpmn:sequenceFlow id="Flow_1cyttg7" sourceRef="Activity_0waxs0q" targetRef="Event_1q4m3yf" />

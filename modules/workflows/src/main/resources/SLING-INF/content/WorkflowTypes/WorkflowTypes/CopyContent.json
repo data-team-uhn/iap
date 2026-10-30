@@ -1,0 +1,27 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Copy Content",
+  "description": "Copies whatever the request names as its source into the item this step works on (the one an earlier step created, or else the one this request is about). A request naming no source copies nothing, so copying can be optional.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "copyContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"copyContent\"}",
+  "sourceType": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Source type",
+    "description": "The type of content a source must be, e.g. \"wf/WorkflowVersion\". Left blank, a source of any type is copied."
+  },
+  "skipProperties": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Properties not copied",
+    "description": "Properties of the source that are not copied, such as a label the copy has its own of.",
+    "maxValues": 0
+  },
+  "dropTagCategories": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Tag groups not copied",
+    "description": "Tag groups whose tags on the source are not copied, such as where the source stands in its lifecycle.",
+    "maxValues": 0
+  }
+}

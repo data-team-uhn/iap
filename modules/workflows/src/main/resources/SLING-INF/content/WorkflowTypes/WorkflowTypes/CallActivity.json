@@ -1,14 +1,17 @@
 {
   "jcr:primaryType": "wf:ActivityType",
   "label": "Call Activity",
-  "description": "Work handed on to another workflow, which runs as part of this one before it carries on.",
+  "description": "Runs another workflow as a step here, and carries on once it finishes.",
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:callActivity",
   "jcrNodeType": "wf:Activity",
   "jcrProperties": "{\"handler\": \"callActivity\"}",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
-    "{https://iap.uhndata.io/bpmn}message=message"
-  ]
+  "message": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Message",
+    "description": "The name of the request that starts the other workflow, e.g. \"createVersion\".",
+    "minValues": 1,
+    "xmlLocation": "attribute"
+  }
 }

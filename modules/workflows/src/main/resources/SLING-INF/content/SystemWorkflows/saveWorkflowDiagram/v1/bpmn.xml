@@ -46,7 +46,10 @@
       <bpmn:messageEventDefinition id="saveRequested" messageRef="saveMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
-    <bpmn:serviceTask id="save" iap:handler="saveWorkflowDiagram" name="Store the diagram">
+    <bpmn:serviceTask id="save" name="Store the diagram">
+      <bpmn:extensionElements>
+        <iap:saveWorkflowDiagram />
+      </bpmn:extensionElements>
       <bpmn:incoming>toSave</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

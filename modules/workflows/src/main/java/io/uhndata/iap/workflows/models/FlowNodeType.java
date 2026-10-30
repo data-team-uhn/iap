@@ -21,6 +21,7 @@ import java.io.StringReader;
 import java.util.List;
 
 import jakarta.json.Json;
+import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
@@ -37,14 +38,17 @@ import io.uhndata.iap.entities.models.Entity;
  * a given kind of workflow node. Corresponds to the {@code wf:FlowNodeType} node type.
  *
  * <p>This is the translation table between the two representations of a workflow. Reading a BPMN document, the
- * parser matches each element against the {@link #getXmlElement() element} and {@link #getXmlChildElement() child
- * element} of every entry and keeps the highest-{@link #getPriority() priority} match, so that a start event
- * carrying a message definition is recognized as a message start event rather than a plain one; the winning entry
- * then says which {@link #getJcrNodeType() node type} to store the node as. Adding a new kind of node is therefore
- * a matter of adding an entry here, not of adding a node type or a model.</p>
+ * parser matches each element against the {@link #getXmlElement() element}, {@link #getXmlChildElement() child
+ * element} and {@link #getXmlExtensionElement() extension element} of every entry. It keeps the
+ * highest-{@link #getPriority() priority} match. That is how a start event carrying a message definition is
+ * recognized as a message start event rather than a plain one. The winning entry then says which
+ * {@link #getJcrNodeType() node type} to store the node as. Its {@link #getParameters() parameters} say what else
+ * to read out of the element. Adding a new kind of node is therefore a matter of adding an entry here, not of
+ * adding a node type or a model.</p>
  *
- * <p>The same entries, served as {@link DocumentedItem documentation} at {@code /WorkflowTypes.doc.json}, are what
- * populates the toolbars of the visual editor, so this catalogue is a UI contract as much as a parser table.</p>
+ * <p>The same entries are served as {@link DocumentedItem documentation} at {@code /WorkflowTypes.doc.json}. The
+ * visual editor's properties panel reads them there, so this catalogue is a UI contract as much as a parser
+ * table.</p>
  *
  * <p>Like the other abstract bases in the IAP data model, this class is deliberately not itself a registered Sling
  * Model, so that {@code resource.adaptTo(FlowNodeType.class)} dispatches to the concrete subtype.</p>
@@ -76,13 +80,13 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     private String xmlChildElement;
 
     @ValueMapValue
+    private String xmlExtensionElement;
+
+    @ValueMapValue
     private String jcrNodeType;
 
     @ValueMapValue
     private String jcrProperties;
-
-    @ValueMapValue
-    private String[] properties;
 
     /**
      * How specific this entry is, used to pick a winner when several entries match the same XML element: a message
@@ -118,6 +122,20 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     public String getXmlChildElement()
     {
         return this.xmlChildElement;
+    }
+
+    /**
+     * The element inside {@code bpmn:extensionElements}, in the IAP namespace, this entry is written as, e.g.
+     * {@code addTag}. It tells two entries sharing an XML element apart by what they were configured with rather
+     * than by what BPMN calls them: one service task handler from another. It is also where every parameter located
+     * in an extension element is written.
+     *
+     * @return an element name, or {@code null} if the entry is recognized without one
+     */
+    @Nullable
+    public String getXmlExtensionElement()
+    {
+        return this.xmlExtensionElement;
     }
 
     /**
@@ -159,15 +177,15 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The names of the attributes to copy across from a matching XML element onto the stored node, on top of the
-     * ones every flow node has.
+     * The values a node of this kind carries beyond the ones every flow node has, in the order they are declared.
+     * Each says what it is called, what may be put in it and where a diagram writes it.
      *
-     * @return a copy of the property names, empty if nothing beyond the common properties is kept
+     * @return the declared parameters, empty if nothing beyond the common properties is kept
      */
     @NotNull
-    public List<String> getProperties()
+    public List<Parameter> getParameters()
     {
-        return this.properties == null ? List.of() : List.of(this.properties);
+        return Parameter.declaredIn(this.resource);
     }
 
     /**
@@ -219,10 +237,10 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     /**
      * {@inheritDoc}
      *
-     * <p>On top of the common fields, this adds everything the visual editor needs to build a toolbar entry and to
-     * map it back onto BPMN: the {@code priority}, the {@code xmlElement} and {@code xmlChildElement} it stands
-     * for, and the {@code jcrNodeType} it is stored as, plus the {@code jcrProperties} and {@code properties} when
-     * the entry declares any.</p>
+     * <p>On top of the common fields, this adds what the visual editor needs to recognize this entry's elements
+     * and to offer a field for each of its parameters. That is the {@code priority} and the {@code xmlElement},
+     * {@code xmlChildElement} and {@code xmlExtensionElement} it is written as. Then come the {@code jcrNodeType}
+     * it is stored as, and the {@code jcrProperties} and {@code parameters} when the entry declares any.</p>
      *
      * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
      * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better
@@ -243,13 +261,18 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
         if (this.xmlChildElement != null) {
             json.add("xmlChildElement", this.xmlChildElement);
         }
+        if (this.xmlExtensionElement != null) {
+            json.add("xmlExtensionElement", this.xmlExtensionElement);
+        }
         final JsonObject fixedProperties = this.getJcrProperties();
         if (fixedProperties != null) {
             json.add("jcrProperties", fixedProperties);
         }
-        final List<String> copiedProperties = this.getProperties();
-        if (!copiedProperties.isEmpty()) {
-            json.add("properties", Json.createArrayBuilder(copiedProperties));
+        final List<Parameter> parameters = this.getParameters();
+        if (!parameters.isEmpty()) {
+            final JsonArrayBuilder declared = Json.createArrayBuilder();
+            parameters.forEach(parameter -> declared.add(parameter.toJsonBuilder()));
+            json.add("parameters", declared);
         }
         return json;
     }

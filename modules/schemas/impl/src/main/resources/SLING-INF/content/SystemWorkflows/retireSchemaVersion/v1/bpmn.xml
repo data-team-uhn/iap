@@ -46,7 +46,10 @@
       <bpmn:messageEventDefinition id="retireRequested" messageRef="retireMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toMarkRetired" sourceRef="requested" targetRef="markRetired" />
-    <bpmn:serviceTask id="markRetired" iap:handler="addTag" iap:replaceExisting="true" iap:tag="retired" name="Mark it as retired">
+    <bpmn:serviceTask id="markRetired" name="Mark it as retired">
+      <bpmn:extensionElements>
+        <iap:addTag tag="retired" replaceExisting="true" />
+      </bpmn:extensionElements>
       <bpmn:incoming>toMarkRetired</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

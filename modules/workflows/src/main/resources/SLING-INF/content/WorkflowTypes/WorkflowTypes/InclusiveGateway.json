@@ -1,10 +1,9 @@
 {
   "jcr:primaryType": "wf:GatewayType",
   "label": "Inclusive Gateway",
-  "description": "A fork where every outgoing path whose condition holds is taken.",
+  "description": "Follows every path whose condition is met, which may be one or several.",
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:inclusiveGateway",
-  "jcrNodeType": "wf:InclusiveGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:InclusiveGateway"
 }

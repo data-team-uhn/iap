@@ -1,0 +1,98 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Update Content",
+  "description": "Applies the request's changes to the item this step works on, changing only the fields listed here that its type declares. The same list describes the form that offers the change.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "updateContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"updateContent\"}",
+  "fields": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Field",
+    "description": "The properties a change may set, in the order the form shows them, each stored as a node named after its property.",
+    "dataType": "structure",
+    "maxValues": 0,
+    "keyParameter": "name",
+    "parameters": {
+      "jcr:primaryType": "wf:Parameters",
+      "name": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Property",
+        "minValues": 1
+      },
+      "label": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Label",
+        "description": "What the form calls the field. Left blank, the property's name."
+      },
+      "help": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Help",
+        "description": "A line the form shows under the field."
+      },
+      "multiline": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Multiline",
+        "description": "Whether the form offers several lines of text.",
+        "dataType": "boolean"
+      },
+      "referenceType": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Reference type",
+        "description": "For a reference, the resource type the referenced content must have."
+      },
+      "referenceRoot": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Reference root",
+        "description": "For a reference, the path the referenced content is looked for under."
+      },
+      "unique": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Unique",
+        "description": "Whether no two siblings of the same type may hold the same value in the field.",
+        "dataType": "boolean"
+      },
+      "choices": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Choice",
+        "description": "The values the field allows. None allows any.",
+        "dataType": "structure",
+        "maxValues": 0,
+        "keyParameter": "value",
+        "parameters": {
+          "jcr:primaryType": "wf:Parameters",
+          "value": {
+            "jcr:primaryType": "wf:Parameter",
+            "label": "Value",
+            "minValues": 1
+          },
+          "label": {
+            "jcr:primaryType": "wf:Parameter",
+            "label": "Label",
+            "description": "What the form shows for the value. Left blank, the value itself."
+          }
+        }
+      },
+      "appliesWhen": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Applies when",
+        "description": "Offers the field only while another property holds one of some values. Left out, it always applies.",
+        "dataType": "structure",
+        "parameters": {
+          "jcr:primaryType": "wf:Parameters",
+          "property": {
+            "jcr:primaryType": "wf:Parameter",
+            "label": "Property",
+            "minValues": 1
+          },
+          "values": {
+            "jcr:primaryType": "wf:Parameter",
+            "label": "Values",
+            "maxValues": 0
+          }
+        }
+      }
+    }
+  }
+}

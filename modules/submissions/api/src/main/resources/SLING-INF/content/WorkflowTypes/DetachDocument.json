@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Detach Document",
+  "description": "Removes the document attached for a requirement of the submission, with all its versions, as long as the person who raised it is still drafting it.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "detachDocument",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"detachDocument\"}"
+}

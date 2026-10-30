@@ -1,0 +1,38 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Notify",
+  "description": "Sends a message to people when something happens. Choose who receives it, how urgently, and which wording to use.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "notify",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"notify\"}",
+  "event": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Event",
+    "description": "What happened, e.g. \"proposal approved\". Used to choose the message wording. If left blank, the name of this step is used."
+  },
+  "template": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Template",
+    "description": "The wording of the message, named by its template folder under /libs/iap/notificationTemplates/.",
+    "dataType": "reference",
+    "minValues": 1
+  },
+  "urgency": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Urgency",
+    "description": "How soon the recipients should hear about it.",
+    "minValues": 1,
+    "immediate": { "jcr:primaryType": "wf:ParameterOption", "value": "immediate", "label": "Immediately" },
+    "batched": { "jcr:primaryType": "wf:ParameterOption", "value": "batched", "label": "In the next digest" }
+  },
+  "recipients": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Recipients",
+    "description": "Who to tell: \"@creator\" for the person who raised the item, or any person or group.",
+    "dataType": "principal",
+    "minValues": 1,
+    "maxValues": 0
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "wf:SequenceFlowType",
+  "label": "Sequence Flow",
+  "description": "A connection from one step to the next, followed once the step it leaves is done.",
+  "priority": 0,
+  "xmlElement": "bpmn:sequenceFlow",
+  "jcrNodeType": "wf:SequenceFlow"
+}

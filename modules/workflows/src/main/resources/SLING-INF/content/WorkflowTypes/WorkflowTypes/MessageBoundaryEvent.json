@@ -7,5 +7,11 @@
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "cancelActivity": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Cancel the task",
+    "description": "Whether the task stops when this fires (yes), or carries on while a separate path also starts (no). Default: yes.",
+    "dataType": "boolean",
+    "xmlLocation": "bpmnAttribute"
+  }
 }

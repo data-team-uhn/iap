@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Parts",
+  "description": "Gives every item the submission is asked a part of its own, empty until its author fills it in. It acts on the submission an earlier step created, or else on the item this request is about.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createParts",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createParts\"}"
+}

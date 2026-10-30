@@ -47,7 +47,14 @@
       <bpmn:messageEventDefinition id="conditionRequested" messageRef="conditionMessage" />
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toReplace" sourceRef="requested" targetRef="replace" />
-    <bpmn:serviceTask id="replace" iap:child="cond:condition" iap:handler="replaceContent" iap:nodeTypes="cond:ConditionGroup,cond:SingleCondition,cond:ConditionOperand" name="Replace the condition">
+    <bpmn:serviceTask id="replace" name="Replace the condition">
+      <bpmn:extensionElements>
+        <iap:replaceContent child="cond:condition">
+          <iap:nodeTypes>cond:ConditionGroup</iap:nodeTypes>
+          <iap:nodeTypes>cond:SingleCondition</iap:nodeTypes>
+          <iap:nodeTypes>cond:ConditionOperand</iap:nodeTypes>
+        </iap:replaceContent>
+      </bpmn:extensionElements>
       <bpmn:incoming>toReplace</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Entity",
+  "description": "Creates a new item of the configured type under the item this request is about. The request's title becomes its title and, in camelCase, its name.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createEntity",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createEntity\"}",
+  "entityType": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Entity type",
+    "description": "The type of item to create, e.g. \"wf:WorkflowDefinition\".",
+    "minValues": 1
+  }
+}

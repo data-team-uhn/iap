@@ -42,7 +42,7 @@
         "jcr:primaryType": "nt:unstructured",
         "description": { "jcr:primaryType": "nt:unstructured", "label": "Description", "multiline": true }
       },
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UpdateContent",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

@@ -1,10 +1,9 @@
 {
   "jcr:primaryType": "wf:GatewayType",
   "label": "Event Based Gateway",
-  "description": "A fork decided by whatever happens first rather than by data: the workflow waits, and the first of the events it leads to wins.",
+  "description": "Waits, then follows the path of whichever event happens first.",
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:eventBasedGateway",
-  "jcrNodeType": "wf:EventBasedGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:EventBasedGateway"
 }

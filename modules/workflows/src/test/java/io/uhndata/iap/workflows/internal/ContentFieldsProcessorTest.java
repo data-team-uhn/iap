@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.internal.handlers.ContentFields;
 import io.uhndata.iap.workflows.internal.handlers.FieldsFixture;
 import io.uhndata.iap.workflows.internal.handlers.UpdateContentHandler;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -122,6 +123,20 @@ class ContentFieldsProcessorTest
         assertFalse(fields.getJsonObject(0).containsKey("default"));
         assertFalse(json.containsKey("@notice"));
         assertFalse(fields.getJsonObject(0).containsKey("unique"));
+    }
+
+    @Test
+    void takesAKeylessRecordsKeyFromItsNameUnescaped() throws Exception
+    {
+        final Node fields = this.fixture.session().getNode("/update/fields");
+        fields.addNode("jcr%3Atitle", "nt:unstructured").addNode("choices", "nt:unstructured")
+            .addNode("%2E%2E", "nt:unstructured");
+        this.fixture.session().save();
+
+        final ContentFields.Description title = ContentFields.describedBy(this.fixture.activity()).stream()
+            .filter(description -> "jcr:title".equals(description.name())).findFirst().orElseThrow();
+        assertEquals("jcr:title", title.label());
+        assertEquals(List.of(new ContentFields.Choice("..", "..")), title.choices());
     }
 
     @Test

@@ -114,6 +114,8 @@ public final class WorkflowFixture
         registerType(context, "ThrowingEventType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "ActivityType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "GatewayType", FlowNodeType.RESOURCE_TYPE);
+        registerType(context, "Parameter", "data/EntityPart");
+        registerType(context, "ParameterOption", "data/EntityPart");
         registerType(context, "WorkflowDefinition", "data/Entity");
         registerType(context, "WorkflowVersion", "data/Entity");
         registerType(context, "FlowNode", "data/EntityPart");
@@ -160,6 +162,33 @@ public final class WorkflowFixture
         Mockito.when(session.getNodeByIdentifier(identifier)).thenReturn(target);
     }
 
+    /**
+     * Lets a resource say which node types it is of, as one stored in a repository does: its
+     * {@code jcr:primaryType} and whatever that extends. Opt-in, since it changes what every resource adapts to
+     * {@link Node} as.
+     *
+     * @param context the Sling context to set up
+     * @param supertypes every type each node type extends, directly or not, for the node types that extend any
+     */
+    public static void answerNodeTypes(final SlingContext context, final Map<String, List<String>> supertypes)
+    {
+        context.registerAdapter(Resource.class, Node.class, (Function<Resource, Node>) resource -> {
+            final String primaryType = resource.getValueMap().get("jcr:primaryType", String.class);
+            final Node node = Mockito.mock(Node.class);
+            try {
+                Mockito.when(node.isNodeType(Mockito.anyString())).thenAnswer(invocation -> {
+                    final String wanted = invocation.getArgument(0);
+                    return primaryType != null && (wanted.equals(primaryType)
+                        || supertypes.getOrDefault(primaryType, List.of()).contains(wanted));
+                });
+            } catch (final RepositoryException e) {
+                // Cannot happen, for the reason stubTagging gives
+                throw new IllegalStateException(e);
+            }
+            return node;
+        });
+    }
+
     private static void registerType(final SlingContext context, final String name, final String superType)
     {
         context.create().resource("/libs/wf/" + name, Map.of(SUPER_TYPE, superType));
@@ -167,8 +196,7 @@ public final class WorkflowFixture
 
     /**
      * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
-     * installed. The engine replaces a host's lifecycle tag when a workflow finishes, so without this every run
-     * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
+     * installed. Without it every run that reaches an {@code addTag} task fails on the absent tags service.
      *
      * <p>Records into the resource's own {@code tags} property, which is where the service writes for real, so
      * a test can read back what a workflow placed and what it retired.</p>
@@ -213,8 +241,9 @@ public final class WorkflowFixture
     }
 
     /**
-     * Teaches a mocked {@code Taggable} to replace and report tags on the resource's own property. Only replacing
-     * with system tags allowed is stubbed, since that is how the engine moves a host between lifecycle tags.
+     * Teaches a mocked {@code Taggable} to place, replace and report tags on the resource's own property. Only the
+     * calls with system tags allowed are stubbed, since that is how a tag task places a lifecycle tag. A handler
+     * asking without it places nothing here, as it would fail for real on a system tag.
      *
      * @param taggable the mock to stub
      * @param resource the resource it stands for
@@ -224,6 +253,12 @@ public final class WorkflowFixture
     private static void stubTagging(final Taggable taggable, final Resource resource,
         final Map<String, List<String>> categories) throws PersistenceException
     {
+        Mockito.when(taggable.tag(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
+            final Set<String> names = tags(resource);
+            final boolean added = names.add(invocation.getArgument(0));
+            writeTags(resource, names);
+            return added;
+        });
         Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
             final Set<String> before = tags(resource);
             final Set<String> after = afterReplacing(before, invocation.getArgument(0), categories);

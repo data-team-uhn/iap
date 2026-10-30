@@ -1,0 +1,69 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Create Content",
+  "description": "Creates new content of the type the request names, inside the item this request is about. Later steps act on the new content. The type must be one listed here that the item can hold.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "createContent",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"createContent\"}",
+  "nameFrom": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name taken from",
+    "description": "The fields of the request the new content is named after; the first one holding text is used. If there are none, or none holds text, it is named after its type.",
+    "maxValues": 0
+  },
+  "namePattern": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name pattern",
+    "description": "A pattern (regular expression) that a requested name must match. Left blank, any valid name is allowed."
+  },
+  "nameHint": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Name hint",
+    "description": "What names the pattern allows, in words, for a form to show."
+  },
+  "types": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Type",
+    "description": "The types of content a request may ask for, in the order they are offered.",
+    "dataType": "structure",
+    "maxValues": 0,
+    "keyParameter": "name",
+    "parameters": {
+      "jcr:primaryType": "wf:Parameters",
+      "name": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name",
+        "minValues": 1
+      },
+      "nodeType": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Node type",
+        "description": "The type of content created, e.g. \"sch:Section\".",
+        "minValues": 1
+      },
+      "label": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Label",
+        "description": "What the type is offered as. Left blank, the node type."
+      },
+      "named": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Named",
+        "description": "Whether a request may ask for a name for content of this type. Left blank, it may.",
+        "dataType": "boolean"
+      },
+      "namePattern": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name pattern",
+        "description": "The pattern a name asked for content of this type must match, in place of this step's."
+      },
+      "nameHint": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name hint",
+        "description": "What names this type's pattern allows, in words, in place of this step's."
+      }
+    }
+  }
+}

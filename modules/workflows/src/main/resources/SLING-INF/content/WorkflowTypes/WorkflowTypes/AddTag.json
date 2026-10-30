@@ -1,0 +1,22 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Add Tag",
+  "description": "Adds a tag to the item this workflow is about.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "addTag",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"addTag\"}",
+  "tag": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Tag",
+    "description": "The name of the tag to add, e.g. \"retired\".",
+    "minValues": 1
+  },
+  "replaceExisting": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Replace existing",
+    "description": "Also remove any other tag from the same group as the added tag.",
+    "dataType": "boolean"
+  }
+}

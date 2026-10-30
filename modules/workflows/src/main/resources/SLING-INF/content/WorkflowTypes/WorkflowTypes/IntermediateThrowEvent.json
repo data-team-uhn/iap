@@ -5,6 +5,5 @@
   "category": ["Intermediate Events"],
   "priority": 0,
   "xmlElement": "bpmn:intermediateThrowEvent",
-  "jcrNodeType": "wf:IntermediateThrowingEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:IntermediateThrowingEvent"
 }

@@ -62,10 +62,10 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     // default, and a silent one.
     @ValueMapValue
     @Default(booleanValues = true)
-    private boolean interrupting;
+    private boolean cancelActivity;
 
     @ValueMapValue
-    private String timerDuration;
+    private String timeDuration;
 
     /** Whether the timer duration has been read into the two parts below. */
     private boolean durationRead;
@@ -83,17 +83,17 @@ public class IntermediateCatchingEvent extends IntermediateEvent
      */
     private void readTimerDuration()
     {
-        if (this.durationRead || this.timerDuration == null) {
+        if (this.durationRead || this.timeDuration == null) {
             return;
         }
         this.durationRead = true;
-        final int durationMarkerPosition = this.timerDuration.indexOf('T');
+        final int durationMarkerPosition = this.timeDuration.indexOf('T');
         try {
             final Period date = durationMarkerPosition == 1 ? Period.ZERO
-                : Period.parse(durationMarkerPosition < 0 ? this.timerDuration
-                    : this.timerDuration.substring(0, durationMarkerPosition));
+                : Period.parse(durationMarkerPosition < 0 ? this.timeDuration
+                    : this.timeDuration.substring(0, durationMarkerPosition));
             final Duration time = durationMarkerPosition < 0 ? Duration.ZERO
-                : Duration.parse("PT" + this.timerDuration.substring(durationMarkerPosition + 1));
+                : Duration.parse("PT" + this.timeDuration.substring(durationMarkerPosition + 1));
             if (!date.isNegative() && !time.isNegative()) {
                 this.datePart = date;
                 this.timePart = time;
@@ -103,10 +103,10 @@ public class IntermediateCatchingEvent extends IntermediateEvent
             // Reported below, with the negative durations
         }
         LOGGER.warn("The event {} declares {} as its timer duration, which is not a positive ISO-8601 duration",
-            this.getPath(), this.timerDuration);
+            this.getPath(), this.timeDuration);
         ErrorLogger.logProblem("timer duration is not a positive ISO-8601 duration",
             ErrorContext.of(IntermediateCatchingEvent.class, "readTimerDuration").about(this.getPath())
-                .with("timerDuration", this.timerDuration));
+                .with("timeDuration", this.timeDuration));
     }
 
     /**
@@ -117,9 +117,9 @@ public class IntermediateCatchingEvent extends IntermediateEvent
      *
      * @return {@code true} if firing cancels the watched activity
      */
-    public boolean isInterrupting()
+    public boolean cancelsActivity()
     {
-        return this.interrupting;
+        return this.cancelActivity;
     }
 
     /**

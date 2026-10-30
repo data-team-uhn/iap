@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Record Review",
+  "description": "Records the decision of the user task just before it as a review of the approval requirement named, by whoever completed that task, tagged with the task's outcome and carrying their note as a comment. Nothing may come between the two, neither a join nor a timer.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "recordReview",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"recordReview\"}",
+  "requirement": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Requirement",
+    "description": "The name of the approval requirement the decision answers, among those the submission's schema version asks, e.g. \"approval\".",
+    "minValues": 1
+  }
+}

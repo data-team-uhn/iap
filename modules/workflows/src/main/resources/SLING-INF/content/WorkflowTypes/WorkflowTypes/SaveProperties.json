@@ -1,0 +1,23 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Save Properties",
+  "description": "Saves plain text values from the submitted data onto the item this request is about. Which properties may be saved, and which must have a value, are set on this step rather than chosen by the caller.",
+  "priority": 10,
+  "xmlElement": "bpmn:serviceTask",
+  "xmlExtensionElement": "saveProperties",
+  "jcrNodeType": "wf:Activity",
+  "jcrProperties": "{\"handler\": \"saveProperties\"}",
+  "editable": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Editable properties",
+    "description": "The properties a caller may save. Any other submitted entry is ignored rather than refused.",
+    "minValues": 1,
+    "maxValues": 0
+  },
+  "required": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Required properties",
+    "description": "The editable properties that must have a value; refused when blank.",
+    "maxValues": 0
+  }
+}

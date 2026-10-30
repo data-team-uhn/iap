@@ -163,7 +163,7 @@ final class InstanceRunner
             "A task is only expired once its definition has been found");
         final Resource instanceResource = this.records.getResource(instance.getPath());
 
-        if (timer.isInterrupting()) {
+        if (timer.cancelsActivity()) {
             // Gateways downstream see the last recorded outcome, if there is one
             this.records.cancelTask(this.records.getResource(task.getPath()));
             runFrom(instanceResource, this.records.findTokenAt(instanceResource, definition.getElementId()), timer,
@@ -228,7 +228,6 @@ final class InstanceRunner
         final FlowNode node = step.node();
         this.records.moveToken(token, node, step.arrivedBy());
         if (node instanceof EndEvent) {
-            this.records.tagHost(instance, (EndEvent) node);
             if (((EndEvent) node).isTerminate()) {
                 this.records.terminateInstance(instance);
                 return false;
