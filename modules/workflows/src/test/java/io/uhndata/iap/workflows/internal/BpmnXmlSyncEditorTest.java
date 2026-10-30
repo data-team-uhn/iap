@@ -31,6 +31,8 @@ import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -176,6 +178,20 @@ class BpmnXmlSyncEditorTest
 
     private final String timerBoundaryEventTypeId = UUID.randomUUID().toString();
 
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
+    @BeforeEach
+    void setUp()
+    {
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
+    }
+
     /**
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
@@ -270,6 +286,7 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertEquals(0, after.getChildNode(START_1).getChildNodeCount(1));
+        assertRecorded("extension node declares no name", START_1);
     }
 
     @Test
@@ -287,6 +304,7 @@ class BpmnXmlSyncEditorTest
 
         final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
         assertEquals("equals", condition.getString("comparator"));
+        assertRecorded("extension property declares no name", START_1);
     }
 
     @Test
@@ -343,6 +361,9 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists(), "the flow node itself is still derived");
         assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").exists());
+        Mockito.verify(this.errors).logProblem(Mockito.eq("extension node declares no primary type"),
+            Mockito.argThat(context -> START_1.equals(context.getDetails().get("element"))
+                && "cond:condition".equals(context.getDetails().get("extensionNode"))));
     }
 
     @Test
@@ -402,6 +423,22 @@ class BpmnXmlSyncEditorTest
 
         assertTrue(after.getChildNode(START_1).exists());
         assertNull(after.getChildNode(START_1).getString("messageName"));
+        assertNothingRecorded();
+    }
+
+    @Test
+    void leavesAMessageEventPointingAtNoDeclaredMessageUnnamed() throws Exception
+    {
+        // Every new workflow starts with message events like this, so it is an unfinished draft rather than a fault
+        final NodeState after = firstSave(richBase(), DEFS_OPEN
+            + "  <bpmn:message id=\"saveMessage\" name=\"save\" />\n" + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"savMessage\" />\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertNull(after.getChildNode(START_1).getString("messageName"));
+        assertNothingRecorded();
     }
 
     @Test
@@ -1422,26 +1459,19 @@ class BpmnXmlSyncEditorTest
     @Test
     void reportsAConditionExpressionItCannotEvaluate() throws Exception
     {
-        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
-        ErrorLogger.setService(errors);
-        final NodeState version;
-        try {
-            version = firstSave(
-                DEFS_OPEN
-                + PROCESS_OPEN
-                + "    <bpmn:startEvent id=\"start1\"/>\n"
-                + "    <bpmn:endEvent id=\"end1\"/>\n"
-                + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
-                + "      <bpmn:conditionExpression>outcome == 'approved'</bpmn:conditionExpression>\n"
-                + "    </bpmn:sequenceFlow>\n"
-                + PROCESS_CLOSE
-                + DEFS_CLOSE);
-        } finally {
-            ErrorLogger.unsetService(errors);
-        }
+        final NodeState version = firstSave(
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"start1\"/>\n"
+            + "    <bpmn:endEvent id=\"end1\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+            + "      <bpmn:conditionExpression>outcome == 'approved'</bpmn:conditionExpression>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
 
         assertTrue(version.getChildNode(START_1).getChildNode(FLOW_1).exists());
-        Mockito.verify(errors).logProblem(Mockito.contains("conditionExpression"), Mockito.any());
+        Mockito.verify(this.errors).logProblem(Mockito.contains("conditionExpression"), Mockito.any());
     }
 
     /** A guard belongs to the arc that declares it, not to whatever an extension nested further down. */
@@ -1614,5 +1644,22 @@ class BpmnXmlSyncEditorTest
             assertFalse(untouched.hasProperty(HASH_PROPERTY));
             assertFalse(untouched.getChildNode(START_1).exists());
         }
+    }
+
+    /**
+     * Checks that a problem was recorded about the BPMN element it concerns.
+     *
+     * @param problem the phrase it was recorded under
+     * @param element the id of the BPMN element it is about
+     */
+    private void assertRecorded(final String problem, final String element)
+    {
+        Mockito.verify(this.errors).logProblem(Mockito.eq(problem),
+            Mockito.argThat(context -> element.equals(context.getDetails().get("element"))));
+    }
+
+    private void assertNothingRecorded()
+    {
+        Mockito.verify(this.errors, Mockito.never()).logProblem(Mockito.anyString(), Mockito.any());
     }
 }

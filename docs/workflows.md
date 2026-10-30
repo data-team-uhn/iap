@@ -955,6 +955,9 @@ each completed on its own.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem recorded; a guard is written as a `cond:condition` in the
   arc's `extensionElements`.
+- **An extension node with no name or no primary type is left out.** It is recorded,
+  and the element it belongs to is still created. A guard lost this way leaves its start
+  event or arc unguarded rather than closed.
 - **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is imported with no
   duration and never fires.
 - **Widening `performers` on a workflow-authoring definition needs an ACL to match.**
