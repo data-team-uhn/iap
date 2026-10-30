@@ -260,13 +260,37 @@ class WorkerDocumentGeneratorTest
     void anOversizedTemplateIsRefusedBeforeItIsSent()
     {
         final Resource huge = this.context.load().binaryFile(
-            new ByteArrayInputStream(new byte[DocumentGenerator.MAX_TEMPLATE_BYTES + 1]),
+            new ByteArrayInputStream(new byte[DocumentGenerator.DEFAULT_MAX_TEMPLATE_BYTES + 1]),
             "/Schemas/letter/decision/huge.docx");
 
         final GenerationResult result = generator(null, null).generate(huge, this.target);
 
         assertEquals(Status.TEMPLATE_ERROR, result.getStatus());
         assertNull(this.received);
+    }
+
+    @Test
+    void theEnvironmentSetsTheTemplateLimit()
+    {
+        final WorkerDocumentGenerator generator = generatorWithTemplateLimit("100");
+        final Resource large = this.context.load().binaryFile(new ByteArrayInputStream(new byte[101]),
+            "/Schemas/letter/decision/large.docx");
+
+        final GenerationResult result = generator.generate(large, this.target);
+
+        assertEquals(100, generator.getMaxTemplateBytes());
+        assertEquals(Status.TEMPLATE_ERROR, result.getStatus());
+        assertTrue(result.getMessage().contains("100-byte limit"), result.getMessage());
+        assertNull(this.received);
+    }
+
+    @Test
+    void aTemplateLimitThatIsNotAPositiveNumberIsIgnored()
+    {
+        for (final String limit : new String[] { null, "", " ", "ten megabytes", "0", "-1", "99999999999" }) {
+            assertEquals(DocumentGenerator.DEFAULT_MAX_TEMPLATE_BYTES,
+                generatorWithTemplateLimit(limit).getMaxTemplateBytes(), "the default stands in for " + limit);
+        }
     }
 
     @Test
@@ -474,6 +498,21 @@ class WorkerDocumentGeneratorTest
         };
         generator.activate(configuration(url, configuredToken == null ? "" : configuredToken, timeout));
         inject(generator, List.of(providers));
+        return generator;
+    }
+
+    private WorkerDocumentGenerator generatorWithTemplateLimit(final String limit)
+    {
+        final WorkerDocumentGenerator generator = new WorkerDocumentGenerator()
+        {
+            @Override
+            protected String environment(final String name)
+            {
+                return WorkerDocumentGenerator.MAX_TEMPLATE_BYTES_VARIABLE.equals(name) ? limit : null;
+            }
+        };
+        generator.activate(configuration(workerUrl(), "", 40));
+        inject(generator, List.of());
         return generator;
     }
 

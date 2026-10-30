@@ -32,10 +32,16 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface DocumentGenerator
 {
+    /** The largest template filled in when the deployment does not set its own limit. */
+    int DEFAULT_MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
+
     /**
-     * The maximum size a template can be.
+     * The largest template this deployment fills in. Uploads are checked against it too, so a template too large is
+     * refused once, when it is uploaded, rather than at every generation.
+     *
+     * @return a size in bytes, always positive
      */
-    int MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
+    int getMaxTemplateBytes();
 
     /**
      * Fill {@code template} with the values every provider has for {@code target}, and convert it to PDF.

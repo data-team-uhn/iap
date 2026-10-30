@@ -19,6 +19,8 @@ package io.uhndata.iap.schemas.editing.internal.handlers;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -28,7 +30,9 @@ import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.documents.generation.api.DocumentGenerator;
 import io.uhndata.iap.documents.generation.api.GeneratedDocument;
@@ -63,9 +67,6 @@ public class SetTemplateHandler implements ServiceTaskHandler
     /** The requirement's child holding the template, as the node type names it. */
     static final String TEMPLATE_NODE = "template";
 
-    /** The largest template taken, which is the largest the document generator will fill in. */
-    static final long MAX_TEMPLATE_BYTES = DocumentGenerator.MAX_TEMPLATE_BYTES;
-
     private static final long BYTES_PER_MEGABYTE = 1024L * 1024;
 
     private static final String GENERIC_TYPE = "application/octet-stream";
@@ -76,6 +77,20 @@ public class SetTemplateHandler implements ServiceTaskHandler
         "doc", "application/msword",
         "odt", "application/vnd.oasis.opendocument.text",
         "pdf", "application/pdf");
+
+    /** Whose limit a template is held to, so that one taken here can always be filled in. */
+    private final DocumentGenerator generator;
+
+    /**
+     * Create the handler.
+     *
+     * @param generator what fills the templates in
+     */
+    @Activate
+    public SetTemplateHandler(@Reference final DocumentGenerator generator)
+    {
+        this.generator = generator;
+    }
 
     @Override
     public String getName()
@@ -96,11 +111,11 @@ public class SetTemplateHandler implements ServiceTaskHandler
         if (file == null) {
             throw new InvalidPayloadException("No file was uploaded");
         }
-        if (file.getSize() > MAX_TEMPLATE_BYTES) {
-            // Rounded up, so a file just over the limit does not read as being at it
-            throw new InvalidPayloadException("That file is "
-                + (file.getSize() + BYTES_PER_MEGABYTE - 1) / BYTES_PER_MEGABYTE
-                + " MB, and a template can be at most " + MAX_TEMPLATE_BYTES / BYTES_PER_MEGABYTE + " MB");
+        final long limit = this.generator.getMaxTemplateBytes();
+        if (file.getSize() > limit) {
+            // The file rounded up and the limit down, so a file just over the limit does not read as being at it
+            throw new InvalidPayloadException("That file is " + megabytes(file.getSize(), RoundingMode.CEILING)
+                + " MB, and a template can be at most " + megabytes(limit, RoundingMode.FLOOR) + " MB");
         }
         final String mimeType = getMimeType(file);
         // Refused now rather than when the version is published, where GeneratedDocumentCheck would
@@ -158,5 +173,18 @@ public class SetTemplateHandler implements ServiceTaskHandler
         final String name = Objects.toString(file.getFileName(), "");
         final String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
         return TYPE_BY_EXTENSION.getOrDefault(extension, GENERIC_TYPE);
+    }
+
+    /**
+     * A size in megabytes to one decimal place, with no decimal when it is a whole number.
+     *
+     * @param bytes the size
+     * @param rounding which way to round
+     * @return the size, e.g. {@code 10} or {@code 2.5}
+     */
+    private static String megabytes(final long bytes, final RoundingMode rounding)
+    {
+        return BigDecimal.valueOf(bytes).divide(BigDecimal.valueOf(BYTES_PER_MEGABYTE), 1, rounding)
+            .stripTrailingZeros().toPlainString();
     }
 }
