@@ -27,6 +27,10 @@
     "{https://iap.uhndata.io/bpmn}to=to",
     "{https://iap.uhndata.io/bpmn}linkType=linkType",
     "{https://iap.uhndata.io/bpmn}linkLabel=linkLabel",
-    "{https://iap.uhndata.io/bpmn}requirement=requirement"
+    "{https://iap.uhndata.io/bpmn}requirement=requirement",
+    "{https://iap.uhndata.io/bpmn}recipients=recipients[]",
+    "{https://iap.uhndata.io/bpmn}template=template",
+    "{https://iap.uhndata.io/bpmn}urgency=urgency",
+    "{https://iap.uhndata.io/bpmn}event=event"
   ]
 }
