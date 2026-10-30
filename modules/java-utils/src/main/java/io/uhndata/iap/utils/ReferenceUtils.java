@@ -17,8 +17,14 @@
  */
 package io.uhndata.iap.utils;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import javax.jcr.Node;
+import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
+import javax.jcr.Value;
+import javax.jcr.ValueFactory;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -56,6 +62,41 @@ public final class ReferenceUtils
         }
         try {
             node.setProperty(property, referenced);
+        } catch (final RepositoryException e) {
+            throw new PersistenceException(failure, e);
+        }
+    }
+
+    /**
+     * Points a property of one resource at several others, as a multi-valued {@code REFERENCE}.
+     *
+     * @param holder the resource the property is set on
+     * @param property the property's name
+     * @param targets the resources it points at, in the order the property keeps them, each referenceable; an
+     *     empty list leaves the property an empty list of references
+     * @throws PersistenceException when the holder or any target is not a node, or the repository refuses a
+     *     reference
+     */
+    public static void setReferences(@NotNull final Resource holder, @NotNull final String property,
+        @NotNull final List<Resource> targets) throws PersistenceException
+    {
+        final Node node = holder.adaptTo(Node.class);
+        final List<Node> referenced = targets.stream()
+            .map(target -> target.adaptTo(Node.class))
+            .collect(Collectors.toList());
+        final String failure = "Cannot point " + property + " of " + holder.getPath() + " at "
+            + targets.stream().map(Resource::getPath).collect(Collectors.toList());
+        if (node == null || referenced.contains(null)) {
+            throw new PersistenceException(failure);
+        }
+        try {
+            final ValueFactory factory = node.getSession().getValueFactory();
+            final Value[] values = new Value[referenced.size()];
+            for (int i = 0; i < values.length; i++) {
+                values[i] = factory.createValue(referenced.get(i));
+            }
+            // Typed explicitly: an empty array carries no type of its own
+            node.setProperty(property, values, PropertyType.REFERENCE);
         } catch (final RepositoryException e) {
             throw new PersistenceException(failure, e);
         }
