@@ -33,6 +33,8 @@
         // boundary timer can name who else may fire it. It writes nothing itself: it only has to see the overdue
         // task to aim the event at it, and the engine does the rest through its own session.
         "create service user iap-timer \n set ACL for iap-timer \n allow jcr:read on / restriction(rep:ntNames,wf:TaskInstance) \n end",
+        // For writing history
+        "create group iap-history-writers \n add workflows to group iap-history-writers",
         // The group the shipped system workflows name as the performer of administrative acts. It exists so that
         // the definitions have something real to point at; who belongs to it is a deployment's business.
         "create group iap-administrators",

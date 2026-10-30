@@ -17,13 +17,10 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.Calendar;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -32,7 +29,6 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -69,8 +65,6 @@ public class TaskCompletion
 
     /** The service user that delivers passed deadlines, and who a boundary timer admits when it names nobody. */
     static final String TIMER_USER = "iap-timer";
-
-    private static final String WALK_ID_PROPERTY = "walkId";
 
     private final Performers performers;
 
@@ -116,29 +110,34 @@ public class TaskCompletion
      * @param event the incoming event
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
+     * @param record where the decision is gathered for history
      * @throws WorkflowException when the event does not apply, the actor may not complete it, the outcome is missing
      *             or not one the task offers, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final Actor actor, final InstanceRunner.ServiceTaskPerformer performer, final ActionRecord record)
         throws WorkflowException, PersistenceException
     {
         final TaskEvent kind = TaskEvent.of(event);
         final TaskInstance task = readOpenTask(taskResource);
         final Activity definition = readDefinition(task);
-        stamp(taskResource);
+        InstanceRecords.stamp(findInstance(taskResource));
         final Resource host = findHost(taskResource);
-        final PerformerCheck check = this.performers.createCheck(resolver, actor);
+        final PerformerCheck check = this.performers.createCheck(resolver, actor.effectiveUser());
         final InstanceRunner runner = this.runners.createRunner(resolver, performer, actor);
+        // A task is part of its host, which history can name and the task cannot
+        record.affecting(host, "host");
         if (kind == TaskEvent.TIMEOUT) {
             final IntermediateCatchingEvent timer = findRunningTimer(task, definition);
             check.verify(listWhoMayFire(timer), host);
-            checkDeadlinePassed(task);
+            record.task(taskResource, definition, null);
             runner.fireDeadline(task, timer);
         } else {
             check.verify(definition, host);
-            runner.completeTask(task, readOutcome(event, task, definition));
+            final String outcome = readOutcome(event, task, definition);
+            record.task(taskResource, definition, outcome);
+            runner.completeTask(task, outcome);
         }
     }
 
@@ -234,21 +233,6 @@ public class TaskCompletion
     }
 
     /**
-     * Stamps the task's instance with a new identifier. Two events carrying one instance on at once then both change
-     * the same property, and the second to commit is refused rather than merged. Otherwise two branches arriving at a
-     * join in two requests would each see only themselves arrive, and both would wait for good.
-     *
-     * @param taskResource the task the event is aimed at, resolved through the engine's own session
-     */
-    private static void stamp(final Resource taskResource)
-    {
-        final ModifiableValueMap properties = Objects.requireNonNull(
-            findInstance(taskResource).adaptTo(ModifiableValueMap.class),
-            "The engine's own session can always write an instance");
-        properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
-    }
-
-    /**
      * The boundary timer the task's deadline belongs to.
      *
      * @param task the task whose deadline has passed
@@ -278,20 +262,6 @@ public class TaskCompletion
     {
         final List<String> performers = timer.getPerformers();
         return performers.isEmpty() ? List.of(TIMER_USER) : performers;
-    }
-
-    /**
-     * Refuses to time out a task early, whoever asks.
-     *
-     * @param task the task
-     * @throws InvalidStateException when its deadline has not passed yet
-     */
-    private static void checkDeadlinePassed(final TaskInstance task) throws InvalidStateException
-    {
-        final Calendar due = task.getDueDate();
-        if (due == null || due.after(Calendar.getInstance())) {
-            throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
-        }
     }
 
     /**

@@ -52,6 +52,8 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.history.api.HistoryRecorder;
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.internal.CreatorResolver;
 import io.uhndata.iap.principals.internal.MeResolver;
@@ -221,7 +223,7 @@ public final class EngineFixture
     public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
         final Activity activity, final Map<String, Object> variables, final String actor)
     {
-        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+        return new WorkflowTaskContextImpl(target, event, activity, variables, Actor.of(actor), noFurtherTasks(), 0);
     }
 
     /**
@@ -241,6 +243,53 @@ public final class EngineFixture
             throw new IllegalStateException("The fixture could not build its principal service", e);
         }
         return service;
+    }
+
+    /**
+     * A history store that keeps what it is told, so that a test can see what an event recorded. Each action is
+     * named after its position and filed in a bucket, as the real store does, so the first is
+     * {@code /History/ab/cd/ef/action1}.
+     */
+    static final class History implements HistoryRecorder
+    {
+        private final List<RecordedAction> actions = new ArrayList<>();
+
+        /**
+         * What has been recorded so far.
+         *
+         * @return the actions, in the order they were recorded
+         */
+        List<RecordedAction> actions()
+        {
+            return this.actions;
+        }
+
+        @Override
+        public String record(final Session session, final RecordedAction action)
+        {
+            this.actions.add(action);
+            return "/History/ab/cd/ef/action" + this.actions.size();
+        }
+
+        @Override
+        public void completeSnapshots(final Session session, final String actionPath,
+            final Map<String, String> snapshots)
+        {
+            throw new UnsupportedOperationException("The engine takes no snapshots");
+        }
+    }
+
+    /**
+     * Who may act for others, as the engine is wired with it.
+     *
+     * @param delegates the principal name of the group whose members may
+     * @return a delegation policy
+     */
+    static Delegation delegation(final String delegates)
+    {
+        final DelegationConfiguration config = Mockito.mock(DelegationConfiguration.class);
+        Mockito.when(config.delegates()).thenReturn(delegates);
+        return new Delegation(performers(), config);
     }
 
     /**
@@ -433,6 +482,8 @@ public final class EngineFixture
         inject(engine, "runners", runners());
         inject(engine, "taskCompletion", taskCompletion());
         inject(engine, "queries", queries());
+        inject(engine, "delegation", delegation("iap-administrators"));
+        inject(engine, "recorder", new History());
         return engine;
     }
 

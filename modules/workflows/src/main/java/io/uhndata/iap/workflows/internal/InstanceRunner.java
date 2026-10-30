@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
+import java.util.Calendar;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -64,7 +66,7 @@ final class InstanceRunner
 {
     private final ServiceTaskPerformer performer;
 
-    private final String actor;
+    private final Actor actor;
 
     private final FlowRouting routing;
 
@@ -81,7 +83,7 @@ final class InstanceRunner
      * @param routing what decides where tokens go
      * @param hostAccess grants read access on the resource an instance drives
      */
-    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final String actor,
+    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final Actor actor,
         final FlowRouting routing, final HostAccess hostAccess)
     {
         this.records = records;
@@ -115,7 +117,7 @@ final class InstanceRunner
         }
         final Resource instance = this.records.createInstance(host, version);
         runFrom(instance, this.records.createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
-        this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor);
+        this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor.effectiveUser());
         return instance;
     }
 
@@ -136,7 +138,8 @@ final class InstanceRunner
             "A task is only completed once its definition has been found");
         final Resource instanceResource = this.records.getResource(instance.getPath());
         final Resource token = this.records.findTokenAt(instanceResource, definition.getElementId());
-        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()), this.actor, outcome);
+        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()),
+            this.actor.effectiveUser(), outcome);
 
         // An activity has exactly one way out. If it leads to a gateway, the walk forks there
         final SequenceFlow flow = this.routing.selectOutgoingFlows(definition, instance).get(0);
@@ -151,12 +154,17 @@ final class InstanceRunner
      *
      * @param task the task whose deadline has passed
      * @param timer the boundary event counting down to it
+     * @throws InvalidStateException when the task's deadline has not passed yet, whoever asks
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void fireDeadline(final TaskInstance task, final IntermediateCatchingEvent timer)
         throws WorkflowException, PersistenceException
     {
+        final Calendar due = task.getDueDate();
+        if (due == null || due.after(Calendar.getInstance())) {
+            throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
+        }
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
         final Activity definition = Objects.requireNonNull(task.getDefinition(),

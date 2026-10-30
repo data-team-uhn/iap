@@ -96,7 +96,7 @@ final class ServiceTaskDispatcher
      * @throws PersistenceException when a write fails
      */
     Map<String, Object> runSystemWorkflow(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor, final int depth) throws WorkflowException, PersistenceException
+        final Actor actor, final int depth) throws WorkflowException, PersistenceException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final Map<String, Object> variables = new LinkedHashMap<>();
@@ -110,7 +110,7 @@ final class ServiceTaskDispatcher
                     this, depth));
                 // After each activity rather than at the end: a later activity may start a workflow on what this one
                 // created, and @creator there reads createdBy
-                recordActor(resolver, variables, actor);
+                recordActor(resolver, variables, actor.effectiveUser());
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -130,7 +130,7 @@ final class ServiceTaskDispatcher
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
+     * @param actor the user the execution counts as
      * @throws PersistenceException when the created node cannot be written to
      */
     private static void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
@@ -181,7 +181,7 @@ final class ServiceTaskDispatcher
      * @param actor the user the instance is being moved for
      * @return a performer bound to this delivery
      */
-    InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
+    InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final Actor actor)
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
@@ -196,7 +196,7 @@ final class ServiceTaskDispatcher
      * @param actor the user the execution acts for
      * @return the runner
      */
-    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final String actor)
+    InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final Actor actor)
     {
         return this.runners.createRunner(resolver, performer(event, actor), actor);
     }
@@ -211,7 +211,7 @@ final class ServiceTaskDispatcher
      * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
      * @throws PersistenceException when the workflow's writes fail
      */
-    void send(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+    void send(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
@@ -237,7 +237,7 @@ final class ServiceTaskDispatcher
          * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
          * @throws PersistenceException when the workflow's writes fail
          */
-        void send(Resource target, WorkflowEvent event, String actor, int depth)
+        void send(Resource target, WorkflowEvent event, Actor actor, int depth)
             throws WorkflowException, PersistenceException;
     }
 }

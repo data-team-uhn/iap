@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -120,6 +121,8 @@ class UserWorkflowTest
 
     // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+
+    private final EngineFixture.History history = new EngineFixture.History();
 
     @BeforeEach
     void setUp()
@@ -582,7 +585,10 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
         registered.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
+        final WorkflowEngineImpl engine =
+            EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
+        EngineFixture.inject(engine, "recorder", this.history);
+        return engine;
     }
 
     /**
@@ -638,6 +644,19 @@ class UserWorkflowTest
         this.context.resourceResolver().refresh();
         final Resource resource = this.context.resourceResolver().getResource(path);
         return resource == null ? Map.of() : resource.getValueMap();
+    }
+
+    /**
+     * The repository's identifier for a node, which a workflow's own nodes have without being referenceable.
+     *
+     * @param path the node's path
+     * @return its identifier
+     * @throws RepositoryException when the node cannot be read
+     */
+    private String identifierOf(final String path) throws RepositoryException
+    {
+        return Objects.requireNonNull(this.context.resourceResolver().getResource(path).adaptTo(Node.class),
+            "The test repository is a JCR one").getIdentifier();
     }
 
     @Test
@@ -793,6 +812,42 @@ class UserWorkflowTest
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
         // A lifecycle is a tag: the models read `tags`, so an end event replaces the host's lifecycle tag there
         assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
+    }
+
+    @Test
+    void recordsWhomADelegateCompletedTheTaskFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.ADMIN), APPROVED, EngineFixture.REQUESTER);
+
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+        final RecordedAction decision = this.history.actions().get(this.history.actions().size() - 1);
+        assertEquals(EngineFixture.ADMIN, decision.getActor());
+        assertEquals(EngineFixture.REQUESTER, decision.getOnBehalfOf());
+    }
+
+    @Test
+    void recordsTheDecisionInHistory() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        final int before = this.history.actions().size();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(before + 1, this.history.actions().size());
+        final RecordedAction decision = this.history.actions().get(before);
+        assertEquals(EngineFixture.REQUESTER, decision.getActor());
+        assertEquals(TaskCompletion.COMPLETE_EVENT, decision.getEvent());
+        assertEquals(identifierOf(TASK), decision.getTaskInstance());
+        assertEquals("approved", decision.getOutcome());
+        assertEquals(identifierOf(HOST + "/wf:instances/timeOffRequest"), decision.getWorkflowInstance());
+        assertEquals(read(TASK).get("taskDefinitionId"), decision.getActivityId());
+        assertTrue(decision.getEffects().stream()
+            .anyMatch(effect -> "host".equals(effect.role()) && HOST.equals(effect.subjectPath())));
     }
 
     @Test

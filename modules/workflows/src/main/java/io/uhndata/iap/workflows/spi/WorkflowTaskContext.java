@@ -46,16 +46,29 @@ public interface WorkflowTaskContext
     Resource getTarget();
 
     /**
-     * Who this execution is acting for: the user who fired the event, as their repository user id.
+     * Who this execution is acting for, as their repository user id: the user who fired the event, or the user
+     * they fired it on behalf of.
      *
      * <p>The handler is not running with that user's rights. The engine already decided they were allowed here
      * and does the work privileged, so this is who to record and who to decide about. It is not a permission
      * check.</p>
      *
-     * @return the firing user's id
+     * @return the id of the user the execution counts as
      */
     @NotNull
     String getActor();
+
+    /**
+     * Who actually sent the event, as their repository user id. The same as {@link #getActor()}, unless they sent
+     * it on behalf of someone else.
+     *
+     * @return the id of the user who sent the event
+     */
+    @NotNull
+    default String getSender()
+    {
+        return getActor();
+    }
 
     /**
      * The event that set the workflow in motion.

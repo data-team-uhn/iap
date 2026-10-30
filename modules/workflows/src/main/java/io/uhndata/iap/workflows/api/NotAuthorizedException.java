@@ -20,9 +20,10 @@ package io.uhndata.iap.workflows.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The firing user may not do what the event asks. Authorization is enforced by the repository itself: the
- * execution writes with the firing user's own session, so this surfaces wherever an access control decision says
- * no. This is the <em>authorization</em> layer of event acceptance; HTTP channels answer 403.
+ * The firing user may not do what the event asks. Authorization is decided by the engine before execution, from the
+ * {@code performers} the definition names, and from who may act on behalf of others. Execution itself writes as the
+ * engine's service user, so the repository's access control never says no to it. This is the
+ * <em>authorization</em> layer of event acceptance; HTTP channels answer 403.
  *
  * @version $Id$
  * @since 0.1.0

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -64,6 +65,8 @@ final class InstanceRecords
     static final String OUTCOME_VARIABLE = "outcome";
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
+
+    private static final String WALK_ID_PROPERTY = "walkId";
 
     private final ResourceResolver resolver;
 
@@ -246,6 +249,20 @@ final class InstanceRecords
     {
         return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
             "An instance always lives in a container").getParent(), "A container always lives in its host");
+    }
+
+    /**
+     * Stamps an instance with a new identifier. Two events carrying one instance on at once then both change the
+     * same property, and the second to commit is refused rather than merged. Otherwise two branches arriving at a
+     * join in two requests would each see only themselves arrive, and both would wait for good.
+     *
+     * @param instance the instance an event is carrying on, resolved through the engine's own session
+     */
+    static void stamp(final Resource instance)
+    {
+        final ModifiableValueMap properties = Objects.requireNonNull(instance.adaptTo(ModifiableValueMap.class),
+            "The engine's own session can always write an instance");
+        properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
 
     /**
