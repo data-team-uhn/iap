@@ -86,7 +86,9 @@ On start you get:
 # Optional: only if the shared root is not /shared-docs
 # set IAP_SHARED_DOCS=C:\path\to\shared-docs
 
-python modules/documents/processing/src/main/python/docling_daemon.py
+# The daemon imports helpers from the utils module too, as the image has them side by side
+PYTHONPATH=modules/documents/utils/src/main/python \
+  python modules/documents/processing/src/main/python/docling_daemon.py
 ```
 
 ### Test endpoints

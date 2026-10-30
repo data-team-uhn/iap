@@ -41,17 +41,21 @@ jobs:
           java-version: 21
           cache: maven
 
-      # modules/documents/processing is a Python module whose ruff and pytest checks run as part
-      # of the `tests` profile below. It provisions its own virtualenv from requirements-test.txt,
-      # so nothing needs installing here -- this only pins the interpreter it is built from, and
-      # keeps pip's download cache warm between runs. `$CI` makes a provisioning failure fail the
-      # job rather than skip the checks; see modules/documents/processing/run_check.py.
+      # modules/documents/{utils,processing,generation/worker} are Python modules whose ruff and
+      # pytest checks run as part of the `tests` profile below. Each provisions its own virtualenv
+      # from its requirements-test.txt, so nothing needs installing here -- this only pins the
+      # interpreter they are built from, and keeps pip's download cache warm between runs. `$CI`
+      # makes a provisioning failure fail the job rather than skip the checks; see
+      # modules/documents/utils/run_check.py.
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: modules/documents/processing/requirements-test.txt
+          cache-dependency-path: |
+            modules/documents/utils/requirements-test.txt
+            modules/documents/processing/requirements-test.txt
+            modules/documents/generation/worker/requirements*.txt
 
       - name: Cache pnpm store
         uses: actions/cache@v6

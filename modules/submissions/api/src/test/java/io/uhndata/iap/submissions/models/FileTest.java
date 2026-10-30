@@ -109,9 +109,12 @@ class FileTest
         this.context.create().resource(FILE_PATH + "/uploadedFile", "sling:resourceType", NT_FILE);
         this.context.create().resource(FILE_PATH + "/consent.md", "sling:resourceType", NT_FILE);
         this.context.create().resource(FILE_PATH + "/consent.pdf", "sling:resourceType", NT_FILE);
+        // Made by the generator, not the pipeline
+        this.context.create().resource(FILE_PATH + "/generated.docx", "sling:resourceType", NT_FILE);
         final File file = resource.adaptTo(File.class);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
+        assertEquals("generated.docx", file.getGeneratedDocx().getName());
 
         final List<Resource> renditions = file.getRenditions();
 
@@ -132,6 +135,7 @@ class FileTest
         assertNull(file.getParseError());
         assertNull(file.getTokens());
         assertNull(file.getUploadedFile());
+        assertNull(file.getGeneratedDocx());
         assertTrue(file.getRenditions().isEmpty());
     }
 }

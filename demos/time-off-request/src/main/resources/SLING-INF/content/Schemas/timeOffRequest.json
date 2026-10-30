@@ -18,6 +18,13 @@
         "minAnswers": 1
       }
     },
+    "requestForm": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Time off request form",
+      "description": "Can be automatically generated once you have picked the day, or you can upload your own version as a .docx.",
+      "generated": true,
+      "acceptedFileTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+    },
     "approval": {
       "jcr:primaryType": "sch:ApprovalRequirement",
       "label": "Approval",

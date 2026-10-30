@@ -288,6 +288,57 @@ class TestDrainReportsRefusal:
         assert daemon_utils.drain_request_body(handler) is False
 
 
+class TestReadRequestBody:
+    """The generation worker's body reader: as strict as the drain, but keeping the bytes."""
+
+    def test_the_declared_body_is_returned(self):
+        assert daemon_utils.read_request_body(FakeHandler(b"abc"), 10) == b"abc"
+
+    def test_no_body_is_empty(self):
+        handler = FakeHandler()
+        del handler.headers["Content-Length"]
+        assert daemon_utils.read_request_body(handler, 10) == b""
+
+    def test_a_body_over_the_limit_is_a_413_and_is_not_read(self):
+        handler = FakeHandler(b"x" * 11)
+        with pytest.raises(daemon_utils.RequestBodyRefused) as refused:
+            daemon_utils.read_request_body(handler, 10)
+        assert refused.value.status == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+        assert handler.rfile.tell() == 0, "an oversized body must be refused before reading it"
+        assert handler.close_connection is True
+
+    @pytest.mark.parametrize(
+        "header, value",
+        [("Transfer-Encoding", "chunked"), ("Content-Length", "1_0"), ("Content-Length", "100")],
+    )
+    def test_anything_else_unreadable_is_a_400_that_closes(self, header, value):
+        # Chunked, a length int() would accept but HTTP does not, and a body that ends early
+        handler = FakeHandler(b"abc")
+        handler.set_header(header, value)
+        with pytest.raises(daemon_utils.RequestBodyRefused) as refused:
+            daemon_utils.read_request_body(handler, 1000)
+        assert refused.value.status == HTTPStatus.BAD_REQUEST
+        assert handler.close_connection is True
+
+
+class TestTokenVariable:
+    """Each service reads its own token, so one secret does not open the other."""
+
+    def test_the_named_variable_is_read(self, monkeypatch):
+        monkeypatch.setenv("IAP_OTHER_TOKEN", "other")
+        monkeypatch.delenv(daemon_utils.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+        assert daemon_utils.get_daemon_token("IAP_OTHER_TOKEN") == "other"
+        assert daemon_utils.get_daemon_token() is None
+
+    def test_the_refusal_names_the_variable_it_checked(self, monkeypatch):
+        monkeypatch.setenv("IAP_OTHER_TOKEN", "other")
+        handler = FakeHandler()
+        assert daemon_utils.refuse_unauthorized(
+            handler, "/generate", log=_log, variable="IAP_OTHER_TOKEN"
+        ) is True
+        assert b"IAP_OTHER_TOKEN" in handler.body()
+
+
 class TestParseQuery:
     """``/parse``'s query parsing, which the daemon module cannot cover in CI."""
 

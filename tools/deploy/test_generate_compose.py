@@ -246,7 +246,7 @@ class Credentials(unittest.TestCase):
         import re
         with tempfile.TemporaryDirectory() as directory:
             text = generate_into(directory, '--storage', 'postgres', '--keycloak', '--mail',
-                                 '--docling')
+                                 '--docling', '--generation')
             env = (Path(directory) / '.env').read_text(encoding='utf-8')
         referenced = set(re.findall(r'\$\{([A-Z_]+)\}', text))
         defined = {line.split('=', 1)[0] for line in env.splitlines()
@@ -358,6 +358,62 @@ class Docling(unittest.TestCase):
         self.assertNotIn('IAP_SHARED_DOCS', iap['environment'])
 
 
+class Generation(unittest.TestCase):
+    """The document generation worker, which like the parser binds 0.0.0.0 and has no login."""
+
+    def test_the_worker_token_is_generated_into_the_env_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            generate_into(directory, '--generation')
+            env = (Path(directory) / '.env').read_text(encoding='utf-8')
+        value = [line for line in env.splitlines() if line.startswith('IAP_GENERATION_TOKEN=')]
+        self.assertEqual(1, len(value))
+        self.assertGreater(len(value[0].split('=', 1)[1]), 20)
+
+    def test_both_sides_read_the_same_token(self):
+        # The worker refuses a request without it, and IAP sends what it is given, so the two
+        # have to come from the one .env value.
+        doc = document('--generation')
+        self.assertEqual('${IAP_GENERATION_TOKEN}',
+                         environment(doc, 'generation')['IAP_GENERATION_TOKEN'])
+        self.assertEqual('${IAP_GENERATION_TOKEN}', environment(doc)['IAP_GENERATION_TOKEN'])
+
+    def test_both_sides_read_the_same_template_limit(self):
+        # IAP refuses a template over it, and the worker refuses a request too large for one
+        # under it, so a limit raised on one side only would fail every generation.
+        doc = document('--generation')
+        self.assertEqual(environment(doc)['IAP_MAX_TEMPLATE_BYTES'],
+                         environment(doc, 'generation')['IAP_MAX_TEMPLATE_BYTES'])
+
+    def test_the_network_is_not_trusted_unless_an_operator_says_so(self):
+        self.assertEqual('${IAP_GENERATION_TRUSTED_NETWORK:-0}',
+                         environment(document('--generation'),
+                                     'generation')['IAP_GENERATION_TRUSTED_NETWORK'])
+
+    def test_the_port_is_bound_to_localhost_only(self):
+        self.assertEqual(['127.0.0.1:{0}:{0}'.format(gc.GENERATION_PORT)],
+                         service(document('--generation'), 'generation')['ports'])
+
+    def test_the_image_is_built_from_the_documents_tree(self):
+        # The context is modules/documents, not the worker's own directory: the Dockerfile copies
+        # the helpers it shares with the parser from utils/ there.
+        generation = service(document('--generation'), 'generation')
+        self.assertEqual('iap/generation', generation['image'])
+        self.assertEqual({'context': '../modules/documents',
+                          'dockerfile': 'generation/worker/Dockerfile'}, generation['build'])
+
+    def test_iap_reaches_the_worker_by_the_name_its_feature_expects(self):
+        # The bundle's feature defaults generation.url to http://generation:18766.
+        doc = document('--generation')
+        self.assertIn('generation', doc['services'])
+        self.assertEqual(['iap'], service(doc, 'generation')['networks'])
+        self.assertIn('generation', service(doc, 'iap')['depends_on'])
+
+    def test_no_worker_and_no_token_without_the_flag(self):
+        doc = document()
+        self.assertNotIn('generation', doc['services'])
+        self.assertNotIn('IAP_GENERATION_TOKEN', environment(doc))
+
+
 class Debugging(unittest.TestCase):
 
     def test_no_debug_publishes_no_debugger_port(self):
@@ -434,6 +490,7 @@ class Presentation(unittest.TestCase):
             return [command for _, group in actions for command in group]
 
         self.assertIn('docker compose up -d --build', commands('--docling'))
+        self.assertIn('docker compose up -d --build', commands('--generation'))
         self.assertIn('docker compose up -d --build', commands('--mail'))
         self.assertIn('docker compose up -d', commands())
 

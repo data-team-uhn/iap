@@ -18,6 +18,8 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -115,6 +117,15 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String DECIDED_AT_KEY = "at";
 
+    private static final String GENERATED_KEY = "generated";
+
+    private static final String OUTDATED_KEY = "outdated";
+
+    private static final String DOCX_KEY = "docx";
+
+    /** Stamped by the save workflow when it changes an answer, see SaveAnswersHandler. */
+    private static final String LAST_MODIFIED = "jcr:lastModified";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -195,7 +206,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
                 submission, answers));
         } else if (requirement instanceof DocumentRequirement) {
-            describe((DocumentRequirement) requirement, documents, json);
+            describe((DocumentRequirement) requirement, submission, documents, json);
         } else if (requirement instanceof ApprovalRequirement) {
             describe((ApprovalRequirement) requirement, submission, json);
         }
@@ -238,30 +249,39 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
-     * has already been attached for it.
+     * What a document requirement adds: whether the platform generates it, which types it takes, the blank to start
+     * from if it offers one, and what has already been attached for it.
      *
      * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
      * only place that says which requirements currently apply — reading them off the schema instead would mean a
      * control offering to answer something this submission is not being asked.</p>
      *
      * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
      * @param documents the documents attached to the submission
      * @param json the requirement's JSON, added to in place
      */
-    private void describe(final DocumentRequirement requirement, final List<Document> documents,
-        final JsonObjectBuilder json)
+    private void describe(final DocumentRequirement requirement, final Submission submission,
+        final List<Document> documents, final JsonObjectBuilder json)
     {
         // Stated always, not only when false: the upload control marks the optional case, and should do so
         // because the form said so rather than because a key was missing
         json.add(REQUIRED_KEY, requirement.isRequired());
+        // Stated always, for the same reason: the form offers to generate a generated document, as well as to upload
+        json.add(GENERATED_KEY, requirement.isGenerated());
+        // Until submitting is a workflow step (IAP-88): generated while the request is still being answered, a
+        // document can fall behind the answers it was filled in from
+        if (requirement.isGenerated()) {
+            json.add(OUTDATED_KEY, isOutdated(requirement, submission, documents));
+        }
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
         // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
         // empty — so the key is always there and it is the emptiness that carries the meaning
         requirement.getAcceptedFileTypes().forEach(accepted::add);
         json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
         final Resource template = requirement.getTemplate();
-        if (template != null) {
+        // A generated document's template is what the platform fills in, not a blank for the submitter
+        if (template != null && !requirement.isGenerated()) {
             json.add(TEMPLATE_KEY, template.getPath());
             json.add(TEMPLATE_NAME_KEY, getTemplateFileName(requirement, template));
         }
@@ -277,7 +297,34 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     * Whether an answer changed after the newest generation of a generated document. Until submitting is a workflow
+     * step (IAP-88).
+     *
+     * @param requirement the generated requirement
+     * @param submission the submission whose answers it was filled in from
+     * @param documents the documents attached to the submission
+     * @return {@code false} when nothing was generated yet, which is missing rather than outdated, or when the newest
+     *         version is one the submitter uploaded, which is theirs whatever it says
+     */
+    private static boolean isOutdated(final DocumentRequirement requirement, final Submission submission,
+        final List<Document> documents)
+    {
+        final Optional<Calendar> generated = documents.stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .filter(document -> editableOf(document).isPresent())
+            .map(Document::getCurrentVersion)
+            .map(DocumentVersion::getCreated)
+            .filter(Objects::nonNull)
+            .max(Comparator.naturalOrder());
+        return generated.isPresent() && submission.getAnswers().stream()
+            .map(answer -> Optional.ofNullable(answer.get(LAST_MODIFIED, Calendar.class)).orElse(answer.getCreated()))
+            .filter(Objects::nonNull)
+            .anyMatch(changed -> changed.after(generated.get()));
+    }
+
+    /**
+     * One attached document: its title, the path of its newest file, which is where it downloads from, and, when the
+     * platform generated that file, the path of the {@code .docx} it was filled in as, for the submitter to edit.
      *
      * @param document the attached document
      * @return the document's JSON, without a path when no file has landed yet
@@ -290,7 +337,21 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .map(DocumentVersion::getFile)
             .map(File::getUploadedFile)
             .ifPresent(file -> json.add(PATH_KEY, file.getPath()));
+        editableOf(document).ifPresent(docx -> json.add(DOCX_KEY, docx.getPath()));
         return json;
+    }
+
+    /**
+     * The filled {@code .docx} beside a document's newest file, which only a generated version has.
+     *
+     * @param document the document
+     * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
+     */
+    private static Optional<Resource> editableOf(final Document document)
+    {
+        return Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(File::getGeneratedDocx);
     }
 
     /**

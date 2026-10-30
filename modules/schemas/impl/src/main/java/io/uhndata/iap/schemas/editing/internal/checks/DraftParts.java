@@ -42,6 +42,9 @@ final class DraftParts
     /** A question's node type. */
     static final String QUESTION_TYPE = "sch:Question";
 
+    /** A document requirement's node type. */
+    static final String DOCUMENT_TYPE = "sch:DocumentRequirement";
+
     private DraftParts()
     {
         // Utility class
