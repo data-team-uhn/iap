@@ -79,8 +79,8 @@
               <title>IAP With Test Data</title>
             </aggregate>
             <!-- The platform plus the demo projects: a polished, working process rather than sample
-                 content. What the start script's demo option launches, and what the demo test suite
-                 runs against. -->
+                 content. What the demo test suite runs against. The start script's demo option loads
+                 the same demos, and the optional modules they need, onto a core distribution. -->
             <aggregate>
               <classifier>demo_tar</classifier>
               <filesInclude>*.json</filesInclude>
