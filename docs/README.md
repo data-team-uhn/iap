@@ -51,6 +51,7 @@ How content is shaped, related, and moved through its process.
 | [conditions.md](conditions.md) | The shared vocabulary for content that only applies *sometimes* — a question shown only when an earlier answer calls for it, a review needed only when a submission is sensitive |
 | [tags.md](tags.md) | Named markers like `incomplete` or `sensitive`, defined under `/Tags` before they may be used, and propagated up and down the tree |
 | [links.md](links.md) | Ad-hoc typed connections between resources, for the relations that are not part of a node type's own shape |
+| [history.md](history.md) | The record of what happened to the content: who asked for what, what it did to each resource, and snapshots of the content at the milestones a workflow declares |
 | [deletion.md](deletion.md) | Deleting a resource together with everything that depends on it: the impact analysis, the archive at `/Archive`, restoring, and purging |
 
 ## The user interface

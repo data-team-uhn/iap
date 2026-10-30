@@ -1,0 +1,300 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
+<data = 'https://iap.uhndata.io/data/'>
+<hist = 'https://iap.uhndata.io/hist/'>
+
+//-----------------------------------------------------------------------------
+//
+// History: the record of what happened to the content, kept under /History.
+//
+// The content of a past state is a JCR version, in the repository's version
+// storage. A version cannot be given a property or a mixin, so everything said
+// about a change is a node of these types. The two are joined by the version
+// identifier in hist:Entry.snapshot. docs/history.md explains the design.
+//
+// Every pointer in this file is an identifier or a path stored as STRING,
+// never a REFERENCE. A REFERENCE would stop anybody deleting what the record describes,
+// and the record has to outlive its subject.
+//
+// Nothing here is versionable and /History is not under a versionable
+// ancestor, so no on-parent-version attributes are needed in this file. The one
+// exception is the hist:Watchable mixin at the bottom, which is added to
+// content that is versionable.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// The store root at /History, and every prefix-tree bucket under it.
+//
+// rep:AccessControllable for the ACL repoinit places here.
+[hist:Log] > sling:Folder, rep:AccessControllable
+  // Attributes:
+
+  // We can query the record
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/Log" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Child nodes:
+
+  // A bucket of the prefix tree, holding further buckets or the actions
+  // themselves
+  + * (hist:Log) = hist:Log
+
+  // An action, at the bottom of the prefix tree
+  + * (hist:Action) = hist:Action
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One request somebody made: who made it, what they asked for, and what
+// handled it. One event delivery, not one step of the workflow carrying it out.
+//
+// jcr:created and jcr:createdBy are autocreated, through mix:created.
+// jcr:created is when the action was recorded. jcr:createdBy is the user whose
+// session wrote the record, often a service user. The person who asked for the
+// action is createdBy, below.
+[hist:Action] > data:Content
+  // Attributes:
+
+  // We can query the record
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/Action" mandatory autocreated protected
+
+  // The canonical username of who asked: the repository's spelling of their
+  // account name, which can differ from what they typed at login
+  - createdBy (STRING) mandatory
+
+  // Whom they acted on behalf of, if anybody: a canonical username, or an email
+  // address or URI for an external user
+  - onBehalfOf (STRING)
+
+  // A short verb naming what was asked for, for a reader of the log, such as
+  // "activate" or "purge"
+  - operation (STRING) mandatory
+
+  // The path of the content workflow instance the action started or advanced,
+  // and the jcr:uuid of the version of the workflow that handled the request.
+  // They can belong to different workflows: creating a submission is handled
+  // by a system workflow that starts the submission's content workflow.
+  - workflowInstance (STRING)
+  - workflowVersion (STRING)
+
+  // The elementId of the step of that workflow version that handled the
+  // request, and the label that version gives it
+  - activityId (STRING)
+  - activityLabel (STRING)
+
+  // The path of the wf:TaskInstance whose completion caused this, the outcome
+  // it was completed with, and what the person deciding wrote about it
+  - taskInstance (STRING)
+  - outcome (STRING)
+  - outcomeNote (STRING)
+
+  // The name of the workflow event that carried the request
+  - event (STRING)
+
+  // The fully qualified class name of the component that acted, when no
+  // workflow handled the request: a scheduled sweep, a migration, an import
+  - component (STRING)
+
+  // The path of the action this one was performed as part of
+  - parentAction (STRING)
+
+  // When the action happened, where that is not when it was recorded, as for an
+  // imported log. When it is absent, the action happened at jcr:created.
+  - occurredAt (DATE)
+
+  // Whether every snapshot this action wanted has been taken
+  - complete (BOOLEAN) = false mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Child nodes:
+
+  // What the action did, one child per resource it affected
+  + * (hist:Entry) = hist:Entry
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// What one action did to one resource.
+//
+// Named after the subject's identifier, so the repository refuses a second
+// entry for the same resource in the same action.
+[hist:Entry] > data:Content
+  // Attributes:
+
+  // We can query the record. This is how one resource's history is gathered,
+  // since entries are filed under their action rather than under their subject.
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/Entry" mandatory autocreated protected
+
+  // The jcr:uuid of the affected node
+  - subject (STRING) mandatory
+
+  // Its absolute path and its primary node type, such as sub:Submission, when
+  // the action happened
+  - subjectPath (STRING) mandatory
+  - subjectType (STRING) mandatory
+
+  // The part this resource played in the action, e.g. "submitted", "retired",
+  // "activated". Not constrained to a list of values: the workflow definitions
+  // own that vocabulary, and a constraint here would fail the commit recording
+  // a change rather than the change itself.
+  - role (STRING) mandatory
+
+  // The names of the JCR properties that changed, never their values
+  - changes (STRING) multiple
+
+  // The jcr:uuid of the JCR version holding this resource's content as it was
+  // after the action
+  - snapshot (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Child nodes:
+
+  // Notes people added about this change after it was recorded
+  + * (hist:Annotation) = hist:Annotation
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A note a person added to a recorded change: a correction, a clarification
+// or a decision, such as "this is the revision the approval was granted on".
+// A JCR version cannot carry it, so it lives here.
+[hist:Annotation] > data:Content
+  // Attributes:
+
+  // We can query annotations
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/Annotation" mandatory autocreated protected
+
+  // Who said it, as a canonical user id
+  - author (STRING) mandatory
+
+  // What they said
+  - note (STRING) mandatory
+
+  // Optionally, what it amounts to: a short machine-readable verdict beside the
+  // words, for annotations that are decisions rather than remarks
+  - resolution (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Marks content that remembers who has looked at it.
+//
+// A mixin added to the content, rather than a child declared on data:Entity,
+// so that the data model does not depend on history.
+//
+// IGNORE on-parent-version keeps the markers out of every snapshot. Without
+// it, opening a page would change what its next snapshot holds, and restoring
+// an old revision would tell people they have not seen what they have.
+[hist:Watchable]
+  // Attributes:
+
+  mixin
+
+  // Child nodes:
+
+  + hist:lastSeen (hist:LastSeen) = hist:LastSeen AUTOCREATED IGNORE
+
+//-----------------------------------------------------------------------------
+// The markers on one piece of content, one per person who has looked at it.
+// Under the content rather than under the person, since an item is looked at
+// by a handful of people while a reviewer opens a great many items.
+[hist:LastSeen] > data:Content
+  // Attributes:
+
+  // We can query the markers
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/LastSeen" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Child nodes:
+
+  // One marker per viewer, named after their canonical username
+  + * (hist:Marker) = hist:Marker
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// How recently one person looked at one piece of content, and what they saw.
+[hist:Marker] > data:Content
+  // Attributes:
+
+  // We can query the markers
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "hist/Marker" mandatory autocreated protected
+
+  // When they last looked at the content
+  - seenAt (DATE) mandatory
+
+  // The path of the newest action they had seen, for when the time cannot tell
+  // two actions apart
+  - seenAction (STRING)
+
+  // The jcr:uuid of the newest JCR version of the content they had seen
+  - seenSnapshot (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

@@ -143,11 +143,19 @@ class PrefixTreeTest
     }
 
     @Test
+    void bucketPathsCanBeComputedWithoutTheRepository() throws Exception
+    {
+        assertEquals(PrefixTree.bucketFor(this.root, NAME, TYPE).getPath(), PrefixTree.bucketPathFor("/content", NAME));
+        assertEquals("/ab/cd/ef", PrefixTree.bucketPathFor("/", NAME));
+    }
+
+    @Test
     void namesTooShortToFileAreRejected()
     {
         final String tooShort = "abcde";
         assertThrows(IllegalArgumentException.class, () -> PrefixTree.bucketFor(this.root, tooShort, TYPE));
         assertThrows(IllegalArgumentException.class, () -> PrefixTree.pathFor("/content", tooShort));
+        assertThrows(IllegalArgumentException.class, () -> PrefixTree.bucketPathFor("/content", tooShort));
         assertThrows(IllegalArgumentException.class, () -> PrefixTree.pendingBucketFor(
             this.context.resourceResolver().getResource("/content"), tooShort, TYPE));
     }
