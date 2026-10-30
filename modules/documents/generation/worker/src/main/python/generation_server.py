@@ -78,10 +78,14 @@ TRUSTED_NETWORK_VARIABLE = "IAP_GENERATION_TRUSTED_NETWORK"
 SLOTS_VARIABLE = "IAP_GENERATION_MAX_CONCURRENT"
 DEFAULT_SLOTS = 2
 
-# The largest request body read. A one-page template with a letterhead image is well under a
-# megabyte, and base64 adds a third.
+# The largest template IAP sends, which it reads from the same variable; keep the two in step
+MAX_TEMPLATE_BYTES_VARIABLE = "IAP_MAX_TEMPLATE_BYTES"
+DEFAULT_MAX_TEMPLATE_BYTES = 10 * 1024 * 1024
+
+# The largest request body read: by default the largest template once base64 has added a third,
+# plus room for the values it is filled with
 MAX_REQUEST_BYTES_VARIABLE = "IAP_GENERATION_MAX_REQUEST_BYTES"
-DEFAULT_MAX_REQUEST_BYTES = 16 * 1024 * 1024
+CONTEXT_ALLOWANCE_BYTES = 2 * 1024 * 1024
 
 # The name the template is written under for the zip-bomb check and the conversion
 STAGED_DOCX = "document.docx"
@@ -101,10 +105,14 @@ def _get_slot_count() -> int:
 
 
 def _get_max_request_bytes() -> int:
-    configured = shared_docs.read_positive_number_from_env(
-        MAX_REQUEST_BYTES_VARIABLE, DEFAULT_MAX_REQUEST_BYTES
+    template = shared_docs.read_positive_number_from_env(
+        MAX_TEMPLATE_BYTES_VARIABLE, DEFAULT_MAX_TEMPLATE_BYTES
     )
-    return configured if configured is not None else DEFAULT_MAX_REQUEST_BYTES
+    if template is None:
+        template = DEFAULT_MAX_TEMPLATE_BYTES
+    derived = (template + 2) // 3 * 4 + CONTEXT_ALLOWANCE_BYTES
+    configured = shared_docs.read_positive_number_from_env(MAX_REQUEST_BYTES_VARIABLE, derived)
+    return configured if configured is not None else derived
 
 
 class BadRequest(ValueError):
