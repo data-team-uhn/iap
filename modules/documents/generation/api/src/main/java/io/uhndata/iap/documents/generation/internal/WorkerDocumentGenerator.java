@@ -79,6 +79,12 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     /** Where the worker's token is read from when the configuration sets none. */
     static final String TOKEN_VARIABLE = "IAP_GENERATION_TOKEN";
 
+    /**
+     * The template size limit, in bytes. Only read from the environment, never configured here: the worker reads the
+     * same variable to size its request limit, and the two must agree.
+     */
+    static final String MAX_TEMPLATE_BYTES_VARIABLE = "IAP_MAX_TEMPLATE_BYTES";
+
     static final String DEFAULT_WORKER_URL = "http://localhost:18766";
 
     /** Above the worker's own worst case: three LibreOffice runs of 10 seconds each. */
@@ -144,8 +150,10 @@ public class WorkerDocumentGenerator implements DocumentGenerator
     /** The {@code Authorization} header to send, or {@code null} when the worker needs none. */
     private String authorization;
 
+    private volatile int maxTemplateBytes;
+
     /**
-     * Read the configuration, falling back to the environment for the token.
+     * Read the configuration, falling back to the environment for the token, and the template size limit.
      *
      * @param configuration the component configuration
      */
@@ -161,6 +169,37 @@ public class WorkerDocumentGenerator implements DocumentGenerator
         final String fromEnvironment = environment(TOKEN_VARIABLE);
         final String token = configured.isEmpty() && fromEnvironment != null ? fromEnvironment.trim() : configured;
         this.authorization = token.isEmpty() ? null : "Bearer " + token;
+        this.maxTemplateBytes = maxTemplateBytes(environment(MAX_TEMPLATE_BYTES_VARIABLE));
+    }
+
+    @Override
+    public int getMaxTemplateBytes()
+    {
+        return this.maxTemplateBytes;
+    }
+
+    /**
+     * The template size limit the environment sets, or the default.
+     *
+     * @param configured the variable's value, or {@code null} when it is not set
+     * @return a positive size in bytes
+     */
+    private static int maxTemplateBytes(final String configured)
+    {
+        final String value = configured == null ? "" : configured.trim();
+        if (value.isEmpty()) {
+            return DEFAULT_MAX_TEMPLATE_BYTES;
+        }
+        // Ten digits at most, so that parsing cannot fail and the range check below is all that is left
+        if (value.matches("\\d{1,10}")) {
+            final long parsed = Long.parseLong(value);
+            if (parsed > 0 && parsed <= Integer.MAX_VALUE) {
+                return (int) parsed;
+            }
+        }
+        LOGGER.warn("{}={} is not a positive number of bytes; using {}", MAX_TEMPLATE_BYTES_VARIABLE, configured,
+            DEFAULT_MAX_TEMPLATE_BYTES);
+        return DEFAULT_MAX_TEMPLATE_BYTES;
     }
 
     @Override
@@ -199,13 +238,13 @@ public class WorkerDocumentGenerator implements DocumentGenerator
      * @param content what {@link #read} found
      * @return the problem, or {@code null} when there is none
      */
-    private static String problem(final Resource template, final byte[] content)
+    private String problem(final Resource template, final byte[] content)
     {
         if (content == null) {
             return "The template at " + template.getPath() + " is not a file";
         }
-        if (content.length > MAX_TEMPLATE_BYTES) {
-            return "The template at " + template.getPath() + " is over the " + MAX_TEMPLATE_BYTES + "-byte limit";
+        if (content.length > this.maxTemplateBytes) {
+            return "The template at " + template.getPath() + " is over the " + this.maxTemplateBytes + "-byte limit";
         }
         return null;
     }
@@ -286,10 +325,12 @@ public class WorkerDocumentGenerator implements DocumentGenerator
      * @return the bytes read, or {@code null} when the resource has no file content
      * @throws IOException if the content cannot be read
      */
-    private static byte[] read(final Resource template) throws IOException
+    private byte[] read(final Resource template) throws IOException
     {
         try (InputStream content = template.adaptTo(InputStream.class)) {
-            return content == null ? null : content.readNBytes(MAX_TEMPLATE_BYTES + 1);
+            // Long arithmetic: a limit of Integer.MAX_VALUE plus one would wrap negative
+            return content == null ? null : content.readNBytes((int) Math.min(this.maxTemplateBytes + 1L,
+                Integer.MAX_VALUE));
         }
     }
 

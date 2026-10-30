@@ -377,6 +377,13 @@ class Generation(unittest.TestCase):
                          environment(doc, 'generation')['IAP_GENERATION_TOKEN'])
         self.assertEqual('${IAP_GENERATION_TOKEN}', environment(doc)['IAP_GENERATION_TOKEN'])
 
+    def test_both_sides_read_the_same_template_limit(self):
+        # IAP refuses a template over it, and the worker refuses a request too large for one
+        # under it, so a limit raised on one side only would fail every generation.
+        doc = document('--generation')
+        self.assertEqual(environment(doc)['IAP_MAX_TEMPLATE_BYTES'],
+                         environment(doc, 'generation')['IAP_MAX_TEMPLATE_BYTES'])
+
     def test_the_network_is_not_trusted_unless_an_operator_says_so(self):
         self.assertEqual('${IAP_GENERATION_TRUSTED_NETWORK:-0}',
                          environment(document('--generation'),

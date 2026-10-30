@@ -179,6 +179,33 @@ class TestBadRequests:
         assert status == HTTPStatus.NOT_FOUND
 
 
+class TestRequestLimit:
+    @pytest.fixture(autouse=True)
+    def unset(self, monkeypatch):
+        monkeypatch.delenv(generation_server.MAX_TEMPLATE_BYTES_VARIABLE, raising=False)
+        monkeypatch.delenv(generation_server.MAX_REQUEST_BYTES_VARIABLE, raising=False)
+
+    def test_by_default_it_fits_the_largest_template_iap_sends(self):
+        encoded = base64.b64encode(bytes(generation_server.DEFAULT_MAX_TEMPLATE_BYTES))
+        assert generation_server._get_max_request_bytes() >= len(encoded)
+
+    def test_it_follows_the_template_limit(self, monkeypatch):
+        monkeypatch.setenv(generation_server.MAX_TEMPLATE_BYTES_VARIABLE, "300")
+        expected = 400 + generation_server.CONTEXT_ALLOWANCE_BYTES
+        assert generation_server._get_max_request_bytes() == expected
+
+    def test_an_unreadable_template_limit_falls_back_to_the_default(self, monkeypatch):
+        monkeypatch.setenv(generation_server.MAX_TEMPLATE_BYTES_VARIABLE, "lots")
+        default = generation_server._get_max_request_bytes()
+        monkeypatch.delenv(generation_server.MAX_TEMPLATE_BYTES_VARIABLE)
+        assert default == generation_server._get_max_request_bytes()
+
+    def test_a_request_limit_set_outright_wins(self, monkeypatch):
+        monkeypatch.setenv(generation_server.MAX_TEMPLATE_BYTES_VARIABLE, "300")
+        monkeypatch.setenv(generation_server.MAX_REQUEST_BYTES_VARIABLE, "5000")
+        assert generation_server._get_max_request_bytes() == 5000
+
+
 class TestGuards:
     def test_a_browser_origin_is_refused(self, server, fake_soffice):
         status, _reply = post(
