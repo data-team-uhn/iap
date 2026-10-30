@@ -306,7 +306,7 @@ the execution has created, once it has created something, and on the target othe
 | --- | --- | --- |
 | `createEntity` | `entityType` | Creates an entity of that type under the target, named by camel-casing the event's `title` with a numeric suffix on collision, and reports its path in `createdPath`, which the servlet turns into a redirect |
 | `callActivity` | `message` | Runs the system workflow waiting for that event on the host, before carrying on |
-| `startWorkflow` | `workflowFrom` | Starts the content workflow a chain of references leads to, and runs it to its first wait |
+| `startWorkflow` | `workflowFrom`, `replaceActive` | Starts the content workflow a chain of references leads to, and runs it to its first wait; with `replaceActive`, after cancelling any instance of it still active on the host |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, in place of the host's own tags sharing any of its categories |
 | `removeTag` | `tag` | Removes the tag |
 | `checkValid` | — | Refuses the event with every problem the applicable `ValidityCheck`s report |
@@ -335,7 +335,10 @@ workflow version as a chain of reference properties from the host — for a subm
 the chain rather than hard-coding it keeps the workflows module from knowing what a
 submission is. A chain that breaks off or does not end on a workflow version starts
 nothing, which is not an error; a missing `workflowFrom`, an inactive version, or one
-without exactly one start event is a definition error.
+without exactly one start event is a definition error. With `replaceActive` set to
+`true`, any instance of the same workflow still active on the host, whatever its
+version, is cancelled first: its tokens go, its open tasks are cancelled, and it stays
+on the host with the status `cancelled`. A version that cannot start cancels nothing.
 
 The tag tasks make a lifecycle content: a transition is a guarded event followed by an
 `addTag` with `replaceExisting`. They may place and remove `system` tags, and touch only
@@ -734,6 +737,7 @@ void             setVariable(String name, Object value);
 ResourceResolver getResourceResolver();
 void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
+void             replaceWorkflow(Resource host, WorkflowVersion version);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);

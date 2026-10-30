@@ -23,11 +23,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceUtil;
 
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
@@ -111,6 +113,41 @@ final class InstanceRecords
     }
 
     /**
+     * The instances on a host still running any version of a workflow.
+     *
+     * @param host the resource the workflows drive
+     * @param version one version of the workflow; its siblings under the same definition count too
+     * @return the active instances' resources, oldest first; empty if there are none, or the host cannot hold
+     *     workflows
+     */
+    List<Resource> findActiveInstances(final Resource host, final WorkflowVersion version)
+    {
+        final Resource container = host.getChild(WorkflowInstances.NODE_NAME);
+        if (container == null) {
+            return List.of();
+        }
+        final String definition = ResourceUtil.getParent(version.getPath());
+        return Objects.requireNonNull(container.adaptTo(WorkflowInstances.class),
+            "A workflow container always adapts to its model").getInstances().stream()
+            .filter(instance -> WorkflowInstance.ACTIVE_STATUS.equals(instance.getStatus()))
+            .filter(instance -> definition.equals(definitionOf(instance)))
+            .map(instance -> getResource(instance.getPath()))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The workflow definition an instance runs a version of.
+     *
+     * @param instance a workflow instance
+     * @return the definition's path; {@code null} if the instance's version is gone or this session cannot read it
+     */
+    private static String definitionOf(final WorkflowInstance instance)
+    {
+        final WorkflowVersion version = instance.getWorkflowVersion();
+        return version == null ? null : ResourceUtil.getParent(version.getPath());
+    }
+
+    /**
      * Creates a token resting on a node.
      *
      * @param instance the running instance
@@ -165,7 +202,7 @@ final class InstanceRecords
     {
         this.resolver.delete(token);
         if (asInstance(instance).getTokens().isEmpty()) {
-            closeInstance(instance);
+            closeInstance(instance, WorkflowInstance.COMPLETED_STATUS);
         }
     }
 
@@ -260,6 +297,31 @@ final class InstanceRecords
      */
     void terminateInstance(final Resource instance) throws PersistenceException
     {
+        discardRemainingWork(instance);
+        closeInstance(instance, WorkflowInstance.COMPLETED_STATUS);
+    }
+
+    /**
+     * Stops an instance before it finishes. Its remaining work goes as it does when the instance is terminated, and
+     * it stays on the host, marked cancelled rather than completed.
+     *
+     * @param instance the running instance
+     * @throws PersistenceException when the instance cannot be written
+     */
+    void cancelInstance(final Resource instance) throws PersistenceException
+    {
+        discardRemainingWork(instance);
+        closeInstance(instance, WorkflowInstance.CANCELLED_STATUS);
+    }
+
+    /**
+     * Discards every remaining token of an instance, and cancels every task still waiting for somebody.
+     *
+     * @param instance the running instance
+     * @throws PersistenceException when a token cannot be removed
+     */
+    private void discardRemainingWork(final Resource instance) throws PersistenceException
+    {
         final WorkflowInstance model = asInstance(instance);
         for (final WorkflowToken token : model.getTokens()) {
             deleteToken(getResource(token.getPath()));
@@ -269,18 +331,18 @@ final class InstanceRecords
                 cancelTask(getResource(task.getPath()));
             }
         }
-        closeInstance(instance);
     }
 
     /**
      * Marks an instance as finished.
      *
      * @param instance the instance to close
+     * @param status how it finished, one of the {@code WorkflowInstance} statuses other than active
      */
-    private void closeInstance(final Resource instance)
+    private void closeInstance(final Resource instance, final String status)
     {
         final ModifiableValueMap properties = getModifiableProperties(instance);
-        properties.put(WorkflowInstance.STATUS_PROPERTY, WorkflowInstance.COMPLETED_STATUS);
+        properties.put(WorkflowInstance.STATUS_PROPERTY, status);
         properties.put(WorkflowInstance.END_TIME_PROPERTY, Calendar.getInstance());
     }
 

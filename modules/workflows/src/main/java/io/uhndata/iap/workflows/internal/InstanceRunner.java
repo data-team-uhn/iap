@@ -104,6 +104,42 @@ final class InstanceRunner
     Resource startInstance(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
+        return instantiate(host, version, findStartEvent(host, version));
+    }
+
+    /**
+     * Starts a new instance as {@link #startInstance} does, after cancelling every instance of the same workflow
+     * still active on the host, whatever version it runs. The new instance replaces the old ones rather than running
+     * beside them.
+     *
+     * @param host the resource the workflow drives, which must be {@code wf:WorkflowAttachable}
+     * @param version the version to instantiate
+     * @return the created instance's resource
+     * @throws WorkflowException when the version is not active or its definition cannot be run, in which case
+     *     nothing is cancelled
+     * @throws PersistenceException when an instance cannot be written
+     */
+    Resource replaceInstance(final Resource host, final WorkflowVersion version)
+        throws WorkflowException, PersistenceException
+    {
+        final FlowNode start = findStartEvent(host, version);
+        for (final Resource earlier : this.records.findActiveInstances(host, version)) {
+            this.records.cancelInstance(earlier);
+        }
+        return instantiate(host, version, start);
+    }
+
+    /**
+     * The node a new instance of a version starts on, once the version is known to be startable.
+     *
+     * @param host the resource the workflow would drive, for the error message
+     * @param version the version to instantiate
+     * @return its only start event
+     * @throws WorkflowDefinitionException when the version is not active, or has no start event or several
+     */
+    private static FlowNode findStartEvent(final Resource host, final WorkflowVersion version)
+        throws WorkflowDefinitionException
+    {
         if (!version.isActive()) {
             throw new WorkflowDefinitionException("The workflow version " + version.getPath()
                 + " is not active, so " + host.getPath() + " cannot be put through it");
@@ -113,8 +149,24 @@ final class InstanceRunner
             throw new WorkflowDefinitionException("A workflow needs exactly one start event to be instantiated, but "
                 + version.getPath() + " has " + starts.size());
         }
+        return starts.get(0);
+    }
+
+    /**
+     * Creates the instance, runs it from its start event up to its first wait, and lets its readers see the host.
+     *
+     * @param host the resource the workflow drives
+     * @param version the version to instantiate
+     * @param start the version's start event
+     * @return the created instance's resource
+     * @throws WorkflowException when the definition cannot be run
+     * @throws PersistenceException when the instance cannot be written
+     */
+    private Resource instantiate(final Resource host, final WorkflowVersion version, final FlowNode start)
+        throws WorkflowException, PersistenceException
+    {
         final Resource instance = this.records.createInstance(host, version);
-        runFrom(instance, this.records.createToken(instance, starts.get(0).getElementId()), starts.get(0), null);
+        runFrom(instance, this.records.createToken(instance, start.getElementId()), start, null);
         this.hostAccess.grantReaders(instance.getResourceResolver(), host, version, this.actor);
         return instance;
     }

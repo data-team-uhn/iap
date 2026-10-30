@@ -114,4 +114,10 @@ final class TaskContext implements WorkflowTaskContext
     {
         throw new IllegalStateException("No workflow was expected to be started here");
     }
+
+    @Override
+    public void replaceWorkflow(final Resource host, final WorkflowVersion version)
+    {
+        throw new IllegalStateException("No workflow was expected to be started here");
+    }
 }

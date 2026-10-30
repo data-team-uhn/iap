@@ -46,6 +46,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * hard-coding it keeps the workflows module ignorant of what a submission is. Starting the instance itself is
  * asked of the engine, through the task context.</p>
  *
+ * <p>With {@code replaceActive} set to {@code true}, an instance of the same workflow still active on the entity is
+ * cancelled first, so the new one replaces it rather than running beside it.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -57,6 +60,9 @@ public class StartWorkflowHandler implements ServiceTaskHandler
 
     /** The activity property naming the chain of references leading to the workflow version. */
     private static final String WORKFLOW_FROM_PARAMETER = "workflowFrom";
+
+    /** The activity property asking for any active instance of the same workflow to be cancelled first. */
+    private static final String REPLACE_ACTIVE_PARAMETER = "replaceActive";
 
     @Override
     public String getName()
@@ -87,8 +93,13 @@ public class StartWorkflowHandler implements ServiceTaskHandler
             // Nothing to run: an entity whose data names no workflow simply has none. Not an error
             return;
         }
-        context.startWorkflow(host, Objects.requireNonNull(versionResource.adaptTo(WorkflowVersion.class),
-            "A wf:WorkflowVersion resource always adapts to its model"));
+        final WorkflowVersion version = Objects.requireNonNull(versionResource.adaptTo(WorkflowVersion.class),
+            "A wf:WorkflowVersion resource always adapts to its model");
+        if (Boolean.parseBoolean(String.valueOf(context.getActivity().get(REPLACE_ACTIVE_PARAMETER)))) {
+            context.replaceWorkflow(host, version);
+        } else {
+            context.startWorkflow(host, version);
+        }
     }
 
     /**

@@ -58,6 +58,9 @@ public class WorkflowInstance extends EntityPart
     /** The status of an instance whose last token is spent, or that was terminated. */
     public static final String COMPLETED_STATUS = "completed";
 
+    /** The status of an instance stopped before it finished, its open tasks cancelled. */
+    public static final String CANCELLED_STATUS = "cancelled";
+
     /** The property holding when the instance {@link #getStartTime() started}. */
     public static final String START_TIME_PROPERTY = "startTime";
 
