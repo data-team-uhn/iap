@@ -24,6 +24,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -54,6 +55,7 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,6 +76,9 @@ class StartWorkflowHandlerTest
     private static final String VERSION = "/Workflows/timeOffRequest/v1";
 
     private static final String CHAIN = "workflowFrom";
+
+    /** The reference a submission holds to its workflow version. */
+    private static final String LINK = "workflow";
 
     // JCR-backed: following a reference means asking the repository for a node by identifier
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
@@ -117,18 +122,120 @@ class StartWorkflowHandlerTest
     @Test
     void startsTheWorkflowOnWhateverTheRunJustCreated() throws Exception
     {
-        reference(HOST, "workflow", VERSION);
-        this.handler.execute(context("workflow", "/Submissions", HOST));
+        reference(HOST, LINK, VERSION);
+        this.handler.execute(context(LINK, "/Submissions", HOST));
 
         // The created entity, not the homepage the event was aimed at, is what ends up under the workflow
         assertNotNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
     @Test
+    void cancelsAnEarlierActiveInstanceWhenAskedTo() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final String earlier = createActiveInstance("earlier", VERSION);
+
+        this.handler.execute(replacing(HOST));
+
+        assertEquals("cancelled", readStatus(earlier));
+        assertEquals("cancelled", readStatus(earlier + "/confirm"), "its open task goes with it");
+        assertNull(this.context.resourceResolver().getResource(earlier + "/token"), "and so does its token");
+        assertNotNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
+    }
+
+    @Test
+    void cancelsAnInstanceOfAnOlderVersionOfTheSameWorkflow() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        this.context.create().resource("/Workflows/timeOffRequest/v0", Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "0.9", TAGS, tags("retired")));
+        final String older = createActiveInstance("older", "/Workflows/timeOffRequest/v0");
+
+        this.handler.execute(replacing(HOST));
+
+        assertEquals("cancelled", readStatus(older));
+    }
+
+    @Test
+    void leavesAnEarlierActiveInstanceAloneByDefault() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final String earlier = createActiveInstance("earlier", VERSION);
+
+        this.handler.execute(context(LINK, HOST));
+
+        assertEquals("active", readStatus(earlier));
+        assertEquals("created", readStatus(earlier + "/confirm"));
+    }
+
+    @Test
+    void leavesAnInstanceOfAnotherWorkflowAlone() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        this.context.create().resource("/Workflows/other", Map.of(TYPE, "wf/WorkflowDefinition", "title", "Other"));
+        this.context.create().resource("/Workflows/other/v1", Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", TAGS, tags(ACTIVE)));
+        final String other = createActiveInstance("other", "/Workflows/other/v1");
+
+        this.handler.execute(replacing(HOST));
+
+        assertEquals("active", readStatus(other));
+    }
+
+    @Test
+    void leavesAFinishedInstanceAlone() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final String finished = createActiveInstance("finished", VERSION);
+        this.context.resourceResolver().getResource(finished).adaptTo(ModifiableValueMap.class)
+            .put("status", "completed");
+
+        this.handler.execute(replacing(HOST));
+
+        assertEquals("completed", readStatus(finished));
+        assertEquals("created", readStatus(finished + "/confirm"));
+    }
+
+    @Test
+    void leavesAnInstanceWhoseVersionCannotBeFoundAlone() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final String orphan = HOST + "/wf:instances/orphan";
+        this.context.create().resource(orphan, Map.of(TYPE, "wf/WorkflowInstance", "status", "active"));
+
+        this.handler.execute(replacing(HOST));
+
+        assertEquals("active", readStatus(orphan));
+    }
+
+    @Test
+    void cancelsNothingWhenTheNewVersionCannotStart() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final String earlier = createActiveInstance("earlier", VERSION);
+        this.context.resourceResolver().getResource(VERSION).adaptTo(ModifiableValueMap.class)
+            .put(TAGS, tags("retired"));
+
+        assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(replacing(HOST)));
+        assertEquals("active", readStatus(earlier));
+    }
+
+    @Test
+    void stillRefusesAHostThatCannotHoldWorkflowsWhenAskedToReplace() throws Exception
+    {
+        this.context.create().resource("/Submissions/plain", TYPE, "sub/Submission");
+        reference("/Submissions/plain", LINK, VERSION);
+
+        final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(replacing("/Submissions/plain")));
+        assertTrue(rejection.getMessage().contains("cannot hold workflows"));
+    }
+
+    @Test
     void refusesWhenNothingIsAtTheRecordedPath()
     {
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context("workflow", "/Submissions", "/Submissions/vanished")));
+            () -> this.handler.execute(context(LINK, "/Submissions", "/Submissions/vanished")));
         assertTrue(rejection.getMessage().contains("Nothing was created"));
     }
 
@@ -136,7 +243,7 @@ class StartWorkflowHandlerTest
     void doesNothingWhenTheChainLeadsNowhere() throws Exception
     {
         // No `workflow` property at all: an entity with no workflow is a perfectly ordinary entity
-        assertDoesNotThrow(() -> this.handler.execute(context("workflow", HOST)));
+        assertDoesNotThrow(() -> this.handler.execute(context(LINK, HOST)));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -146,9 +253,9 @@ class StartWorkflowHandlerTest
         // A reference to something that has since been removed, which a repository reports as simply not there
         this.context.resourceResolver().getResource(HOST)
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
-            .put("workflow", "1e17e5b1-0000-0000-0000-000000000000");
+            .put(LINK, "1e17e5b1-0000-0000-0000-000000000000");
 
-        assertDoesNotThrow(() -> this.handler.execute(context("workflow", HOST)));
+        assertDoesNotThrow(() -> this.handler.execute(context(LINK, HOST)));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -156,22 +263,22 @@ class StartWorkflowHandlerTest
     void doesNothingWhenTheChainEndsSomewhereElse() throws Exception
     {
         // A real reference, but not to a workflow version: the entity is not under a workflow
-        reference(HOST, "workflow", "/Workflows/timeOffRequest");
+        reference(HOST, LINK, "/Workflows/timeOffRequest");
 
-        assertDoesNotThrow(() -> this.handler.execute(context("workflow", HOST)));
+        assertDoesNotThrow(() -> this.handler.execute(context(LINK, HOST)));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
     @Test
     void refusesARetiredVersion() throws Exception
     {
-        reference(HOST, "workflow", VERSION);
+        reference(HOST, LINK, VERSION);
         this.context.resourceResolver().getResource(VERSION)
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
             .put(TAGS, tags("retired"));
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context("workflow", HOST)));
+            () -> this.handler.execute(context(LINK, HOST)));
         assertTrue(rejection.getMessage().contains("not active"));
     }
 
@@ -179,10 +286,10 @@ class StartWorkflowHandlerTest
     void refusesAHostThatCannotHoldWorkflows() throws Exception
     {
         this.context.create().resource("/Submissions/plain", TYPE, "sub/Submission");
-        reference("/Submissions/plain", "workflow", VERSION);
+        reference("/Submissions/plain", LINK, VERSION);
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context("workflow", "/Submissions/plain")));
+            () -> this.handler.execute(context(LINK, "/Submissions/plain")));
         assertTrue(rejection.getMessage().contains("cannot hold workflows"));
     }
 
@@ -190,12 +297,12 @@ class StartWorkflowHandlerTest
     void doesNothingWhenTheRepositoryAnswersWithNothing() throws Exception
     {
         // Not every repository signals a missing node the same way: some throw, some simply return nothing
-        reference(HOST, "workflow", VERSION);
+        reference(HOST, LINK, VERSION);
         final Session empty = Mockito.mock(Session.class);
         Mockito.when(empty.getNodeByIdentifier(Mockito.anyString())).thenReturn(null);
 
         assertDoesNotThrow(() -> this.handler.execute(
-            context("workflow", HOST, null, sessionOf(empty))));
+            context(LINK, HOST, null, sessionOf(empty))));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -204,7 +311,7 @@ class StartWorkflowHandlerTest
     {
         // The instance must point at the version it came from; a repository that refuses that leaves an instance
         // that could never be resumed, so the run has to fail rather than press on
-        reference(HOST, "workflow", VERSION);
+        reference(HOST, LINK, VERSION);
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
         });
@@ -229,19 +336,19 @@ class StartWorkflowHandlerTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(context("workflow", HOST, null, sabotaged)));
+            () -> this.handler.execute(context(LINK, HOST, null, sabotaged)));
         assertTrue(failure.getMessage().startsWith("Cannot point workflowVersion of "));
     }
 
     @Test
     void reportsARepositoryThatCannotFollowReferences() throws Exception
     {
-        reference(HOST, "workflow", VERSION);
+        reference(HOST, LINK, VERSION);
         final Session broken = Mockito.mock(Session.class);
         Mockito.when(broken.getNodeByIdentifier(Mockito.anyString()))
             .thenThrow(new RepositoryException("the identifier index is corrupt"));
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context("workflow", HOST, null, sessionOf(broken))));
+            () -> this.handler.execute(context(LINK, HOST, null, sessionOf(broken))));
         assertTrue(rejection.getMessage().contains("usable reference"));
     }
 
@@ -261,9 +368,50 @@ class StartWorkflowHandlerTest
         this.context.resourceResolver().commit();
     }
 
+    /**
+     * An instance of a workflow on the host, still waiting on one task.
+     *
+     * @param name the instance's node name
+     * @param version the path of the workflow version it runs
+     * @return the instance's path
+     * @throws Exception when the repository refuses the reference to its version
+     */
+    private String createActiveInstance(final String name, final String version) throws Exception
+    {
+        final String path = HOST + "/wf:instances/" + name;
+        this.context.create().resource(path, Map.of(TYPE, "wf/WorkflowInstance", "status", "active"));
+        this.context.create().resource(path + "/token", Map.of(TYPE, "wf/WorkflowToken", "currentNodeId", "confirm"));
+        this.context.create().resource(path + "/confirm", Map.of(TYPE, "wf/TaskInstance", "status", "created"));
+        reference(path, "workflowVersion", version);
+        return path;
+    }
+
+    private String readStatus(final String path)
+    {
+        return this.context.resourceResolver().getResource(path).getValueMap().get("status", String.class);
+    }
+
     private WorkflowTaskContext context(final String chain, final String target)
     {
         return context(chain, target, null, repository());
+    }
+
+    /**
+     * A task context for an activity following the {@code workflow} reference, and asking for active instances of
+     * the same workflow to be replaced.
+     *
+     * @param target the resource the event was aimed at
+     * @return the assembled context
+     */
+    private WorkflowTaskContext replacing(final String target)
+    {
+        return context(LINK, target, null, repository(), Map.of("replaceActive", true));
+    }
+
+    private WorkflowTaskContext context(final String chain, final String target, final String created,
+        final ResourceResolver resolver)
+    {
+        return context(chain, target, created, resolver, Map.of());
     }
 
     private WorkflowTaskContext context(final String chain, final String target, final String created)
@@ -306,13 +454,15 @@ class StartWorkflowHandlerTest
      * @param target the resource the event was aimed at
      * @param created what the run reports having created, or {@code null} for a run that created nothing
      * @param resolver the session to work through
+     * @param settings further activity properties by name, such as {@code replaceActive}
      * @return the assembled context
      */
     private WorkflowTaskContext context(final String chain, final String target, final String created,
-        final ResourceResolver resolver)
+        final ResourceResolver resolver, final Map<String, Object> settings)
     {
         final Map<String, Object> config = new HashMap<>(Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "start", "handler", StartWorkflowHandler.HANDLER_NAME));
+        config.putAll(settings);
         if (chain != null) {
             config.put(CHAIN, chain);
         }
