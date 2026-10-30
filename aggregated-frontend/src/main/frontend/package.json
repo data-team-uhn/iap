@@ -15,11 +15,9 @@
   ],
   "babel": {
     "presets": [
-      ["@babel/preset-env", {
-        "bugfixes": true
-      }],
+      "@babel/preset-env",
       ["@babel/preset-react", {
-        "runtime": "automatic"
+        "development": false
       }],
       "@babel/preset-typescript"
     ]
@@ -36,7 +34,7 @@
   },
   "version": "0.1.0",
   "dependencies": {
-    "@babel/runtime": "^8.0.7",
+    "@babel/runtime": "^8.0.8",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "@mui/icons-material": "9.5.0",
@@ -64,10 +62,10 @@
     "bpmn-js": "18.31.1"
   },
   "devDependencies": {
-    "@babel/core": "7.29.7",
-    "@babel/preset-env": "7.29.7",
-    "@babel/preset-react": "7.29.7",
-    "@babel/preset-typescript": "7.29.7",
+    "@babel/core": "8.0.10",
+    "@babel/preset-env": "8.0.7",
+    "@babel/preset-react": "8.0.1",
+    "@babel/preset-typescript": "8.0.7",
     "babel-loader": "10.1.1",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
