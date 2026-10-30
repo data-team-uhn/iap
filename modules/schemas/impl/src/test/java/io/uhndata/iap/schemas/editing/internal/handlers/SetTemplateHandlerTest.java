@@ -31,7 +31,9 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.documents.generation.api.DocumentGenerator;
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
@@ -62,7 +64,9 @@ class SetTemplateHandlerTest
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
-    private final SetTemplateHandler handler = new SetTemplateHandler();
+    private final DocumentGenerator generator = Mockito.mock(DocumentGenerator.class);
+
+    private final SetTemplateHandler handler = new SetTemplateHandler(this.generator);
 
     private SchemaFixture fixture;
 
@@ -74,6 +78,7 @@ class SetTemplateHandlerTest
         this.fixture = new SchemaFixture(this.context);
         this.context.addModelsForClasses(Requirement.class, DocumentRequirement.class);
         this.version = this.fixture.version(this.fixture.schema("study"), "v1", "draft");
+        Mockito.when(this.generator.getMaxTemplateBytes()).thenReturn(DocumentGenerator.DEFAULT_MAX_TEMPLATE_BYTES);
     }
 
     @Test
@@ -153,14 +158,34 @@ class SetTemplateHandlerTest
             @Override
             public long getSize()
             {
-                return SetTemplateHandler.MAX_TEMPLATE_BYTES + 1;
+                return DocumentGenerator.DEFAULT_MAX_TEMPLATE_BYTES + 1;
             }
         };
 
         final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(task(consent, huge)));
 
-        assertEquals("That file is 11 MB, and a template can be at most 10 MB", refusal.getMessage());
+        assertEquals("That file is 10.1 MB, and a template can be at most 10 MB", refusal.getMessage());
+    }
+
+    @Test
+    void holdsATemplateToTheLimitTheGeneratorIsGiven() throws PersistenceException
+    {
+        Mockito.when(this.generator.getMaxTemplateBytes()).thenReturn(5 * 1024 * 1024 / 2);
+        final Resource consent = requirement("consent", false);
+        final EventAttachment large = new Upload("large.docx", DOCX, CONTENT)
+        {
+            @Override
+            public long getSize()
+            {
+                return 3 * 1024 * 1024;
+            }
+        };
+
+        final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(task(consent, large)));
+
+        assertEquals("That file is 3 MB, and a template can be at most 2.5 MB", refusal.getMessage());
     }
 
     @Test

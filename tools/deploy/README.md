@@ -221,6 +221,10 @@ It is published on `127.0.0.1:18766` only, and `POST /generate` wants the `IAP_G
 the generator wrote into `.env`, which IAP is given too. IAP reaches it as `http://generation:18766`
 over the `iap` network. `IAP_GENERATION_MAX_CONCURRENT` (2 by default) is how many conversions run
 at once; a request past that is answered 503 and IAP reports the worker as unavailable.
+`IAP_MAX_TEMPLATE_BYTES` (10 MiB by default) is the largest template an administrator may upload.
+Set it in `.env`: IAP and the worker both read it, and the worker sizes its request limit to match.
+Larger templates cost memory on both sides, and each generation stores a new copy of the filled
+document.
 
 ## Credentials
 
