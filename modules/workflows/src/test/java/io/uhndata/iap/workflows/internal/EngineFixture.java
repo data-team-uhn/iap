@@ -424,13 +424,13 @@ public final class EngineFixture
     static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
         final List<ServiceTaskHandler> handlers) throws ReflectiveOperationException
     {
+        final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners());
+        dispatchers.setHandlers(handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", resolverFactory);
-        inject(engine, "handlers", handlers);
+        inject(engine, "dispatchers", dispatchers);
         inject(engine, "conditionEvaluator", conditions());
-        inject(engine, "routing", routing());
         inject(engine, "performers", performers());
-        inject(engine, "runners", runners());
         inject(engine, "taskCompletion", taskCompletion());
         inject(engine, "queries", queries());
         return engine;
