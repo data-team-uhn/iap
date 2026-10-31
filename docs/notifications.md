@@ -73,32 +73,37 @@ those modules. A producer for another channel would get the same reports for fre
 
 ## Workflow notifications
 
-A workflow can tell people what happened. A service task naming the `notify` handler carries the
-event name, who to tell, how urgent it is, and where its template lives, so adding a notification is
-adding a node and a template, never Java. Who to tell is written in the same vocabulary the
-workflow uses to say who may act: `@creator` is whoever raised the thing in question, and anything
-else is a person or a group, expanded into its members when the moment comes. The same name always
-means the same people in both places, because both are answered by the same service.
+A workflow tells people what happened with a message event: a message intermediate throw
+event its process passes, or a message end event it stops at. The event carries what
+happened as its message name, who to tell, how urgent it is, and where its template
+lives, so adding a notification is adding a node and a template, never Java. Who to tell
+is written in the same vocabulary the workflow uses to say who may act: `@creator` is
+whoever raised the thing in question, and anything else is a person or a group, expanded
+into its members when the moment comes. The same name always means the same people in
+both places, because both are answered by the same service.
 
 ```json
-"notifyApproved": {
-  "jcr:primaryType": "wf:Activity",
-  "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-  "elementId": "notifyApproved",
-  "handler": "notify",
+"requestApproved": {
+  "jcr:primaryType": "wf:EndEvent",
+  "jcr:reference:flowNodeType": "/WorkflowTypes/MessageEndEvent",
+  "elementId": "requestApproved",
+  "messageName": "approved",
   "template": "/libs/iap/notificationTemplates/submissionApproved",
   "recipients": [ "@creator" ],
-  "urgency": "immediate",
-  "event": "approved"
+  "urgency": "immediate"
 }
 ```
 
 | Property | Default | Meaning |
 |---|---|---|
+| `messageName` | — | What happened, which a person's notification settings key on |
 | `template` | — | The template folder, as [below](#where-the-templates-live) |
-| `recipients` | — | Who to tell; a step naming nobody tells nobody, and records a problem |
+| `recipients` | — | Who to tell; an event naming nobody tells nobody, and records a problem |
 | `urgency` | `immediate` | How soon: `immediate`, `batched`, or a deployment's own |
-| `event` | the `elementId` | What happened, which a person's notification settings key on |
+
+Nothing is sent until the workflow's changes are committed, so nobody hears of a decision
+that did not happen, and a run retried after a conflict tells them once
+([workflows](workflows.md#message-events-tell-people-what-happened)).
 
 What happens next deliberately splits in two. The workflow states *what happened and who it
 concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are

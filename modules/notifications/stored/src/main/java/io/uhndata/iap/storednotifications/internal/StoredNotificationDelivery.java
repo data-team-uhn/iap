@@ -63,8 +63,7 @@ import io.uhndata.iap.utils.PrefixTree;
  *
  * <p>
  * The write happens on the delivery's own session, committed before this method returns. That is safe because
- * deliveries run in plain service code, never inside a commit hook. It does mean a notification can exist for
- * a workflow whose own commit fails a moment later.
+ * deliveries run in plain service code, never inside a commit hook.
  * </p>
  *
  * @version $Id$

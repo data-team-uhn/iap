@@ -53,21 +53,6 @@
          names it. A test also registers the model. -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-entities-api</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-workflows</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-content-api</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
