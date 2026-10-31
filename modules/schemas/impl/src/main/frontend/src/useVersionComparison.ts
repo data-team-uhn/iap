@@ -20,8 +20,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
-import type { ReferenceCandidate } from "@iap/frontend-commons/fields/fieldsModel";
-import { readCandidates } from "@iap/frontend-commons/fields/referenceCandidates";
+import {
+  readReferences, type ReferenceCandidate, type ReferenceTarget,
+} from "@iap/frontend-commons/inputs/referenceChoices";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
@@ -93,10 +94,9 @@ export function useReferenceNames(fields: ComparedField[]) {
   const doFetch = useAuthenticatedFetch();
   const [ names, setNames ] = useState<Record<string, string>>({});
   const targets = JSON.stringify(fields.filter(field => field.referenceType !== undefined)
-    .map(({ referenceType, referenceRoot }) => ({ referenceType, referenceRoot })));
+    .map(({ referenceType, referenceRoot }) => ({ resourceType: referenceType, root: referenceRoot })));
   useEffect(() => {
-    void Promise.all((JSON.parse(targets) as Pick<ComparedField, "referenceType" | "referenceRoot">[])
-      .map(target => readCandidates(doFetch, target)))
+    void Promise.all((JSON.parse(targets) as ReferenceTarget[]).map(target => readReferences(doFetch, target)))
       .then(found => setNames(Object.fromEntries(found.flat().flatMap(namesOf))))
       // Without names, references show as where they point
       .catch(() => setNames({}));

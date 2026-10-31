@@ -127,6 +127,8 @@ describe("FieldsDialog", () => {
     await pick(dialog, "Answer type", "Whole number");
     const bound = within(dialog).getByRole("textbox", { name: "Lowest value" });
     expect(bound).toHaveAttribute("inputmode", "decimal");
+    fireEvent.change(bound, { target: { value: "." } });
+    expect(within(dialog).getByText("Enter a number.")).toBeInTheDocument();
     fireEvent.change(bound, { target: { value: "18.5" } });
     save(dialog);
 
@@ -136,7 +138,20 @@ describe("FieldsDialog", () => {
   it("keeps a save back while a value is not of the field's kind", () => {
     const { dialog } = renderDialog(QUESTION_NODE);
 
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "Most answers" }), { target: { value: "many" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Most answers" }), { target: { value: "-" } });
+
+    expect(within(dialog).getByText("Enter a whole number.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("says a value of a many-valued number field is not a number", () => {
+    const { dialog } = renderDialog({
+      "@fields": [ field("scores", "Scores", { kind: "long", multiple: true }) ], "scores": [ 1 ],
+    });
+
+    const input = within(dialog).getByRole("combobox", { name: "Scores" });
+    fireEvent.change(input, { target: { value: "abc" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(within(dialog).getByText("Enter a whole number.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -223,13 +238,23 @@ describe("FieldsDialog", () => {
     const fetch = serve(() => response({}));
     const { dialog, onSave } = renderDialog({ "@fields": [ field("link", "Link", { kind: "reference" }) ] });
 
-    const link = within(dialog).getByRole("combobox", { name: "Link" });
-    fireEvent.change(link, { target: { value: "/Anywhere" } });
-    fireEvent.keyDown(link, { key: "Enter" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Link" }), { target: { value: "/Anywhere" } });
     save(dialog);
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ link: "/Anywhere" }));
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("takes several paths for a reference naming no type", async () => {
+    serve(() => response({}));
+    const { dialog, onSave } = renderDialog({ "@fields": [ field("links", "Links", { kind: "reference", multiple: true }) ] });
+
+    const links = within(dialog).getByRole("combobox", { name: "Links" });
+    fireEvent.change(links, { target: { value: "/Anywhere" } });
+    fireEvent.keyDown(links, { key: "Enter" });
+    save(dialog);
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ links: [ "/Anywhere" ] }));
   });
 
   it("clears a reference", async () => {
