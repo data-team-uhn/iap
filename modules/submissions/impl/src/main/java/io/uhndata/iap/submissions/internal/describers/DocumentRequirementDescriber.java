@@ -26,6 +26,7 @@ import jakarta.json.JsonObjectBuilder;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.commons.mime.MimeTypeService;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -38,12 +39,8 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 /**
- * What a document requirement adds to a form: which types it takes, the blank to start from if it offers one, and
- * what has already been attached for it.
- *
- * <p>An upload control cannot be drawn without all three. They come with the form because only the form says which
- * requirements apply now. Read off the schema, they would offer a control for something this submission is not
- * asked.</p>
+ * What a document requirement adds to a form: whether it is required, the types it takes, its blank if it offers
+ * one, and what is already attached. An upload control cannot be drawn without them.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,8 +58,18 @@ public class DocumentRequirementDescriber implements RequirementDescriber
 
     private static final String REQUIRED_KEY = "required";
 
-    @Reference
-    private MimeTypeService mimeTypes;
+    private final MimeTypeService mimeTypes;
+
+    /**
+     * Constructor.
+     *
+     * @param mimeTypes gives the file extension a downloaded template is saved with
+     */
+    @Activate
+    public DocumentRequirementDescriber(@Reference final MimeTypeService mimeTypes)
+    {
+        this.mimeTypes = mimeTypes;
+    }
 
     @Override
     public boolean handles(final Requirement requirement)
@@ -73,28 +80,59 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     @Override
     public void describe(final Requirement requirement, final Submission submission, final JsonObjectBuilder json)
     {
-        final DocumentRequirement document = (DocumentRequirement) requirement;
-        // Stated always, not only when false: the upload control marks the optional case, and should do so
-        // because the form said so rather than because a key was missing
-        json.add(REQUIRED_KEY, document.isRequired());
+        final DocumentRequirement asked = (DocumentRequirement) requirement;
+        // Stated always, not only when false
+        json.add(REQUIRED_KEY, asked.isRequired());
+        json.add(ACCEPTED_FILE_TYPES_KEY, acceptedFileTypes(asked));
+        addTemplate(json, asked);
+        json.add(ATTACHED_KEY, attachments(asked, submission));
+    }
+
+    /**
+     * The file types a requirement takes.
+     *
+     * @param asked the document requirement
+     * @return the MIME types it accepts; empty when it accepts any type
+     */
+    private static JsonArrayBuilder acceptedFileTypes(final DocumentRequirement asked)
+    {
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
-        // Stated always: an empty list means any type is accepted
-        document.getAcceptedFileTypes().forEach(accepted::add);
-        json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
-        final Resource template = document.getTemplate();
+        asked.getAcceptedFileTypes().forEach(accepted::add);
+        return accepted;
+    }
+
+    /**
+     * Adds the blank a requirement offers to start from, if it offers one: where it downloads from, and the name it
+     * is saved under.
+     *
+     * @param json the requirement's object in the form's JSON
+     * @param asked the document requirement
+     */
+    private void addTemplate(final JsonObjectBuilder json, final DocumentRequirement asked)
+    {
+        final Resource template = asked.getTemplate();
         if (template != null) {
             json.add(TEMPLATE_KEY, template.getPath());
-            json.add(TEMPLATE_NAME_KEY, getTemplateFileName(document, template));
+            json.add(TEMPLATE_NAME_KEY, getTemplateFileName(asked, template));
         }
-        // Named rather than counted, so that a form reopened later says which document is there. Without this an
-        // upload control looks the same before and after, and the way to check would be to leave the page
+    }
+
+    /**
+     * What has been attached for a requirement, named, so that a reopened form says which document is there.
+     *
+     * @param asked the document requirement
+     * @param submission the submission holding the documents
+     * @return one object per attached document fulfilling the requirement; empty when none is attached
+     */
+    private static JsonArrayBuilder attachments(final DocumentRequirement asked, final Submission submission)
+    {
         final JsonArrayBuilder attached = Json.createArrayBuilder();
         submission.getDocuments().stream()
             .filter(Document::isAttached)
-            .filter(attachment -> attachment.isFulfilling(document))
+            .filter(document -> document.isFulfilling(asked))
             .map(DocumentRequirementDescriber::describeAttachment)
             .forEach(attached::add);
-        json.add(ATTACHED_KEY, attached);
+        return attached;
     }
 
     /**
@@ -118,14 +156,14 @@ public class DocumentRequirementDescriber implements RequirementDescriber
      * The name a downloaded template is saved under. The node is always called {@code template}, so the name is
      * the requirement's label plus the extension of the template's type.
      *
-     * @param requirement the requirement offering the template
+     * @param asked the requirement offering the template
      * @param template the template file
-     * @return a file name
+     * @return a file name, such as {@code Consent form.pdf}; the bare label when the type has no known extension
      */
-    private String getTemplateFileName(final DocumentRequirement requirement, final Resource template)
+    private String getTemplateFileName(final DocumentRequirement asked, final Resource template)
     {
-        final String label = Objects.toString(requirement.getLabel(), "");
-        final String base = label.isBlank() ? requirement.getName() : label;
+        final String label = Objects.toString(asked.getLabel(), "");
+        final String base = label.isBlank() ? asked.getName() : label;
         final String mimeType = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
         final String extension = mimeType == null ? null : this.mimeTypes.getExtension(mimeType);
         return extension == null ? base : base + "." + extension;

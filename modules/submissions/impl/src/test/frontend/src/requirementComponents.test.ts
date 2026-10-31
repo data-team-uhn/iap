@@ -21,7 +21,7 @@ import {
   getRequirementComponent,
   registerRequirementComponent,
   type RequirementComponent,
-  STORE_KEY,
+  type RequirementComponentCandidate,
 } from "@iap/submissions/requirementComponents";
 import {
   ApprovalSection,
@@ -48,56 +48,20 @@ function requirement(overrides: Partial<FormRequirement> = {}): FormRequirement 
 }
 
 const Stub = (() => null) as RequirementComponent;
-const Other = (() => null) as RequirementComponent;
 
 describe("the requirement component registry", () => {
-  beforeEach(() => {
-    clearRequirementComponents();
-  });
-
   afterEach(() => {
     clearRequirementComponents();
   });
 
-  it("has nothing to offer until something registers", () => {
-    expect(getRequirementComponent(requirement())).toBeNull();
-  });
+  // Spelled out rather than read from the module: the name is what a separately built bundle
+  // contributing a requirement kind agrees on
+  it("keeps its candidates where a separately built bundle finds them", () => {
+    const candidate: RequirementComponentCandidate = () => [ Stub, 50 ];
 
-  it("picks the candidate that is most confident", () => {
-    registerRequirementComponent(() => [ Stub, 10 ]);
-    registerRequirementComponent(() => [ Other, 60 ]);
-    registerRequirementComponent(() => [ Stub, 40 ]);
+    registerRequirementComponent(candidate);
 
-    expect(getRequirementComponent(requirement())).toBe(Other);
-  });
-
-  it("leaves a tie to whichever registered first", () => {
-    registerRequirementComponent(() => [ Stub, 50 ]);
-    registerRequirementComponent(() => [ Other, 50 ]);
-
-    expect(getRequirementComponent(requirement())).toBe(Stub);
-  });
-
-  it("passes over the candidates that do not recognize the requirement", () => {
-    registerRequirementComponent(() => null);
-    registerRequirementComponent(candidate =>
-      (candidate.type === DOCUMENT_REQUIREMENT_TYPE ? [ Stub, 50 ] : null));
-
-    expect(getRequirementComponent(requirement())).toBeNull();
-    expect(getRequirementComponent(requirement({ type: DOCUMENT_REQUIREMENT_TYPE }))).toBe(Stub);
-  });
-
-  // A copy of this module from another build reads the same candidates, because they live on the window
-  it("keeps its candidates where a second copy of this module finds them", () => {
-    registerRequirementComponent(() => [ Stub, 50 ]);
-
-    expect((window as unknown as Record<string, unknown[]>)[STORE_KEY]).toHaveLength(1);
-  });
-
-  it("offers nothing for a kind nobody claimed", () => {
-    registerBuiltinRequirementComponents();
-
-    expect(getRequirementComponent(requirement({ type: "datareq/DataRequirement" }))).toBeNull();
+    expect((window as unknown as Record<string, unknown>).__iapRequirementComponents).toEqual([ candidate ]);
   });
 
   describe("the kinds that ship with this module", () => {
@@ -109,11 +73,10 @@ describe("the requirement component registry", () => {
       expect(getRequirementComponent(requirement({ type: APPROVAL_REQUIREMENT_TYPE }))).toBe(ApprovalSection);
     });
 
-    it("holds one registration however often the same candidate is offered", () => {
-      registerBuiltinRequirementComponents();
+    it("offers nothing for a kind nobody claimed", () => {
       registerBuiltinRequirementComponents();
 
-      expect((window as unknown as Record<string, unknown[]>)[STORE_KEY]).toHaveLength(3);
+      expect(getRequirementComponent(requirement({ type: "datareq/DataRequirement" }))).toBeNull();
     });
   });
 });

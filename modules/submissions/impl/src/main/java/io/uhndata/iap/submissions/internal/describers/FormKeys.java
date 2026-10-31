@@ -18,29 +18,29 @@
 package io.uhndata.iap.submissions.internal.describers;
 
 /**
- * The keys of the form's JSON that more than one of the classes writing it uses.
+ * The keys shared by the objects of the form's JSON.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class FormKeys
 {
-    /** An item's node name. */
+    /** A node name. */
     public static final String NAME_KEY = "name";
 
-    /** A path: a requirement's or a question's, or where an attachment downloads from. */
+    /** An absolute path, or for a question its path relative to the schema version. */
     public static final String PATH_KEY = "path";
 
-    /** A submission's or an attachment's title. */
+    /** A title to display. */
     public static final String TITLE_KEY = "title";
 
-    /** A requirement's or a section's label. */
+    /** A label to display. */
     public static final String LABEL_KEY = "label";
 
-    /** A requirement's, a section's or a question's description. */
+    /** A description to display; empty when there is none. */
     public static final String DESCRIPTION_KEY = "description";
 
-    /** An item's resource type, which is how a reader tells the kinds apart. */
+    /** A resource type, which is how a reader tells the kinds of objects apart. */
     public static final String TYPE_KEY = "type";
 
     private FormKeys()

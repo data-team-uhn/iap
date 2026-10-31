@@ -20,14 +20,18 @@ import { createElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 
+import ErrorBoundary from "@iap/frontend-commons/components/ErrorBoundary";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { getRequirementComponent, type FieldState } from "./requirementComponents";
-import { registerBuiltinRequirementComponents } from "./requirements";
+import {
+  getRequirementComponent,
+  type FieldState,
+  type RequirementComponentProps,
+} from "./requirementComponents";
+import { registerBuiltinRequirementComponents, useRequirementComponents } from "./requirements";
 import {
   type FormQuestion,
-  type Requirement,
   type SubmissionForm,
   fetchForm,
   saveAnswer,
@@ -39,24 +43,23 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const CANNOT_COMPLETE_HERE = (
+  <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>
+);
+
+function ignoreSave(): void {
+  // Nothing on the page waits for the answers to be stored
+}
+
 // What a requirement asks for, drawn by the component registered for its kind. A kind with no
 // component says it cannot be completed here yet.
-function RequirementBody({ path, requirement, disabled, states, onAnswered, onChanged }: {
-  path: string;
-  requirement: Requirement;
-  disabled: boolean;
-  states: Record<string, FieldState | undefined>;
-  onAnswered: (question: FormQuestion, values: string[]) => void;
-  onChanged: () => void;
-}) {
-  const Body = getRequirementComponent(requirement);
+function RequirementBody(props: RequirementComponentProps) {
+  const Body = getRequirementComponent(props.requirement);
   if (!Body) {
-    return <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>;
+    return CANNOT_COMPLETE_HERE;
   }
-  // createElement rather than <Body/>: the component comes from the registry, and
-  // react-hooks/static-components refuses JSX on a component chosen during render. The registry
-  // returns the same function each time, so nothing remounts.
-  return createElement(Body, { path, requirement, disabled, states, onAnswered, onChanged });
+  // react-hooks/static-components refuses <Body/> for a component chosen during render
+  return createElement(Body, props);
 }
 
 // Filling a submission in.
@@ -68,7 +71,7 @@ function RequirementBody({ path, requirement, disabled, states, onAnswered, onCh
 // `onSaving` hears of each save as it starts, for whatever must wait until the answers are stored.
 // `onChanged` hears that a save or an attachment went through, so a page reading the submission
 // itself, such as what it is still missing, can read it again.
-function SubmissionEditor({ path, onSaving, onChanged }: {
+function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
   path: string;
   onSaving?: (save: Promise<unknown>) => void;
   onChanged?: () => void;
@@ -82,6 +85,9 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   // replaced.
   const latestFormRead = useRef(0);
   const doFetch = useAuthenticatedFetch();
+  // A requirement drawn by another module's component waits for that component to load, or it would
+  // first show as something that cannot be completed here
+  const componentsReady = useRequirementComponents();
 
   const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
     if (token === latestFormRead.current) {
@@ -100,7 +106,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
     latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
     const save = saveAnswer(doFetch, path, question.path, values);
-    onSaving?.(save);
+    onSaving(save);
     save
       // The field's own outcome, whether or not a later answer has overtaken this one. A save that
       // succeeded is not reported as still saving because something else happened after it. Settled
@@ -121,8 +127,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
       .catch((e: unknown) => setError(message(e)));
   }, [ doFetch, path, reload, onSaving, onChanged ]);
 
-  // The form again, because what it asks can change with what a requirement just did: one that is now
-  // answered, and a request that is no longer incomplete
+  // The form again: a requirement may now be answered, and the request no longer incomplete
   const changed = useCallback(() => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
@@ -133,7 +138,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
-  if (!form) {
+  if (!form || !componentsReady) {
     return <CircularProgress aria-label="Loading the request" />;
   }
 
@@ -147,14 +152,17 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
       ) }
       { form.requirements.map(requirement => (
         <Panel key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}>
-          <RequirementBody
-            path={path}
-            requirement={requirement}
-            disabled={!form.editable}
-            states={states}
-            onAnswered={answered}
-            onChanged={changed}
-          />
+          <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
+            <RequirementBody
+              path={path}
+              requirement={requirement}
+              disabled={!form.editable}
+              states={states}
+              onAnswered={answered}
+              onSaving={onSaving}
+              onChanged={changed}
+            />
+          </ErrorBoundary>
         </Panel>
       )) }
       { form.requirements.length === 0 && (

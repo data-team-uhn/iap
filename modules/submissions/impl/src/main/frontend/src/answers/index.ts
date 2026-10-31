@@ -16,57 +16,17 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
-import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { createExtensionLoader } from "@iap/ui-extension/extensionLoader";
 
 // Finds the answer components by asking the repository which ones are declared. A deployment adds a
 // question type by registering an `ext:Extension` on this point and shipping the asset it names.
 export const ANSWER_COMPONENT_POINT = "AnswerComponent";
 
-// What `loadExtensions` hands back is deliberately discarded. Each asset registers its own
-// candidate with the registry as it is evaluated.
-let request: Promise<void> | null = null;
-let loaded = false;
+const loader = createExtensionLoader(ANSWER_COMPONENT_POINT, "answer components");
 
-/**
- * Loads every declared answer component, once.
- */
-export async function loadAnswerComponents(): Promise<void> {
-  if (loaded) {
-    return;
-  }
-  request ??= loadExtensions(ANSWER_COMPONENT_POINT)
-    .then(() => {
-      loaded = true;
-    })
-    .catch((e: unknown) => {
-      console.error("Failed to load the answer components", e);
-    })
-    .finally(() => {
-      request = null;
-    });
-  return request;
-}
+// Loads every declared answer component, once
+export const loadAnswerComponents = loader.load;
 
-/**
- * Whether the answer components are available yet.
- * They arrive over HTTP, so the first render of a field happens before any of them is registered.
- *
- * @return {@code false} until the load settles, then {@code true}, however it settled
- */
-export function useAnswerComponents(): boolean {
-  const [ ready, setReady ] = useState(loaded);
-  useEffect(() => {
-    let live = true;
-    void loadAnswerComponents().finally(() => {
-      if (live) {
-        setReady(true);
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return ready;
-}
+// Whether the answer components are available yet. They arrive over HTTP, so the first render of a
+// field happens before any of them is registered.
+export const useAnswerComponents = loader.useLoaded;

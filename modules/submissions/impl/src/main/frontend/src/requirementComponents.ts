@@ -17,14 +17,14 @@
  */
 import type { ReactElement } from "react";
 
+import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/candidateRegistry";
+
 import type { SaveState } from "./AnswerField";
 import type { FormQuestion, Requirement } from "./submissionForm";
 
-// Which component draws each kind of requirement. A module adds a kind by registering a candidate
-// for it, and the editor draws that kind without naming it.
+// Which component draws each kind of requirement
 
-// How one answer's save is going, by the path of the question it answers. Held by the editor, which
-// is what saves, and read by a requirement that draws questions.
+// How one answer's save is going
 export interface FieldState {
   state: SaveState;
   error?: string;
@@ -40,55 +40,26 @@ export interface RequirementComponentProps {
   states: Record<string, FieldState | undefined>;
   // An answer was finished, for a kind that draws questions
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  // Hears of each save as it starts, so whatever must wait for stored data can wait for this kind's saves too
+  onSaving: (save: Promise<unknown>) => void;
   // Called after a kind changed the submission, so the editor reads the form again
   onChanged: () => void;
 }
 
 export type RequirementComponent = (props: RequirementComponentProps) => ReactElement | null;
 
-/**
- * How well a component suits a requirement: the component, and a confidence between 0 and 100. The
- * highest confidence wins. Returning null means "not mine".
- */
-export type RequirementComponentCandidate = (requirement: Requirement) => [RequirementComponent, number] | null;
+// How well a component suits a requirement
+export type RequirementComponentCandidate = Candidate<Requirement, RequirementComponent>;
 
-// The property name the registry hides under on `window`. A requirement kind may be contributed by a
-// bundle built separately, whose copy of this module would otherwise be a second, private registry.
+// The `window` property holding the candidates, shared by every bundle that contributes a requirement kind
 export const STORE_KEY = "__iapRequirementComponents";
 
-const candidates = (): RequirementComponentCandidate[] => {
-  const holder = window as unknown as Record<string, RequirementComponentCandidate[] | undefined>;
-  holder[STORE_KEY] ??= [];
-  return holder[STORE_KEY];
-};
+const registry = createCandidateRegistry<Requirement, RequirementComponent>(STORE_KEY);
 
-/**
- * Offers a component for the requirements it recognizes. Registering the same candidate again does
- * nothing.
- */
-export function registerRequirementComponent(candidate: RequirementComponentCandidate): void {
-  if (!candidates().includes(candidate)) {
-    candidates().push(candidate);
-  }
-}
+// Offers a component for the requirements it recognizes
+export const registerRequirementComponent = registry.register;
 
-// Only for tests: registration is otherwise a one-way, load-time act
-export function clearRequirementComponents(): void {
-  candidates().length = 0;
-}
+export const clearRequirementComponents = registry.clear;
 
-/**
- * The registered component that fits this requirement best, or null when nothing does.
- */
-export function getRequirementComponent(requirement: Requirement): RequirementComponent | null {
-  let best: RequirementComponent | null = null;
-  let bestConfidence = -1;
-  for (const candidate of candidates()) {
-    const offer = candidate(requirement);
-    // Strictly greater, so a tie goes to the first registered
-    if (offer && offer[1] > bestConfidence) {
-      [ best, bestConfidence ] = offer;
-    }
-  }
-  return best;
-}
+// The registered component that fits this requirement best, or null when nothing does
+export const getRequirementComponent = registry.get;

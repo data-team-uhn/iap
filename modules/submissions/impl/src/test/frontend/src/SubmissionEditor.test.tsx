@@ -27,6 +27,13 @@ import "@iap/submissions/answers/ChoiceAnswer";
 import "@iap/submissions/answers/DateAnswer";
 import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
+import {
+  clearRequirementComponents,
+  registerRequirementComponent,
+  type RequirementComponent,
+  type RequirementComponentCandidate,
+} from "@iap/submissions/requirementComponents";
+import { loadRequirementComponents, registerBuiltinRequirementComponents } from "@iap/submissions/requirements";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
   DOCUMENT_REQUIREMENT_TYPE,
@@ -45,9 +52,10 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
 }));
 
-// Settles the load before the first render, so a field draws its input rather than the spinner it
-// shows while the components are still on their way
+// Settles the loads before the first render, so the editor draws the form rather than a spinner,
+// and a field draws its input
 beforeEach(async () => {
+  await loadRequirementComponents();
   await loadAnswerComponents();
 });
 
@@ -201,6 +209,63 @@ describe("SubmissionEditor", () => {
 
     expect(await screen.findByText("Ethics")).toBeInTheDocument();
     expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+  });
+
+  describe("drawing a kind of requirement another module registers", () => {
+    const A_SAVE = Promise.resolve();
+
+    // Shows the submission path it was handed, and reports a save and a change when pressed
+    const Thing: RequirementComponent = ({ path, onSaving, onChanged }) => (
+      <button type="button" onClick={() => {
+        onSaving(A_SAVE);
+        onChanged();
+      }}>{path}</button>
+    );
+
+    const Broken: RequirementComponent = () => {
+      throw new Error("this kind of requirement is broken");
+    };
+
+    const candidateFor = (type: string, component: RequirementComponent): RequirementComponentCandidate =>
+      requirement => (requirement.type === type ? [ component, 50 ] : null);
+
+    function contributed(type: string) {
+      return { name: type, path: `/Schemas/timeOffRequest/v1/${type}`, type, label: `A ${type}` };
+    }
+
+    afterEach(() => {
+      clearRequirementComponents();
+      registerBuiltinRequirementComponents();
+      vi.restoreAllMocks();
+    });
+
+    it("draws it with the registered component, handing it the submission and the editor's callbacks", async () => {
+      registerRequirementComponent(candidateFor("test/Thing", Thing));
+      const saving = vi.fn();
+      const changed = vi.fn();
+      const fetchMock = serving(form({ requirements: [ contributed("test/Thing") ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} onSaving={saving} onChanged={changed} />);
+      await userEvent.click(await screen.findByRole("button", { name: PATH }));
+
+      expect(saving).toHaveBeenCalledWith(A_SAVE);
+      expect(changed).toHaveBeenCalledTimes(1);
+      // The form read again, since the kind changed the submission
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    });
+
+    it("shows a component that fails to draw as a part it cannot complete, and draws the rest", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      registerRequirementComponent(candidateFor("test/Broken", Broken));
+      vi.stubGlobal("fetch", serving(form({ requirements: [ contributed("test/Broken"), details([ duration() ]) ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("A test/Broken")).toBeInTheDocument();
+      expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/several days/)).toBeInTheDocument();
+    });
   });
 
   it("says who an approval needs, since somebody else grants it", async () => {

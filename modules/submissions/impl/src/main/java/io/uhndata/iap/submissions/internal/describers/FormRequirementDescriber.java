@@ -26,10 +26,15 @@ import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
 
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
@@ -48,12 +53,45 @@ import io.uhndata.iap.submissions.spi.RequirementDescriber;
 @Component(service = RequirementDescriber.class)
 public class FormRequirementDescriber implements RequirementDescriber
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FormRequirementDescriber.class);
+
     private static final String ITEMS_KEY = "items";
 
     private static final String VALUE_KEY = "value";
 
-    @Reference
-    private ConditionEvaluator conditions;
+    private static final String TEXT_KEY = "text";
+
+    private static final String DATA_TYPE_KEY = "dataType";
+
+    private static final String MIN_ANSWERS_KEY = "minAnswers";
+
+    private static final String MAX_ANSWERS_KEY = "maxAnswers";
+
+    private static final String OPTIONS_KEY = "options";
+
+    private static final String MIN_VALUE_KEY = "minValue";
+
+    private static final String MAX_VALUE_KEY = "maxValue";
+
+    private static final String PATTERN_KEY = "pattern";
+
+    private static final String PATTERN_MESSAGE_KEY = "patternMessage";
+
+    /** The data type of a question that names none. */
+    private static final String DEFAULT_DATA_TYPE = "text";
+
+    private final ConditionEvaluator conditions;
+
+    /**
+     * Constructor.
+     *
+     * @param conditions decides which sections and questions currently apply
+     */
+    @Activate
+    public FormRequirementDescriber(@Reference final ConditionEvaluator conditions)
+    {
+        this.conditions = conditions;
+    }
 
     @Override
     public boolean handles(final Requirement requirement)
@@ -64,72 +102,108 @@ public class FormRequirementDescriber implements RequirementDescriber
     @Override
     public void describe(final Requirement requirement, final Submission submission, final JsonObjectBuilder json)
     {
-        json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(), submission,
-            submission.getAnswersByQuestion()));
+        json.add(ITEMS_KEY, new ItemsWriter(submission).items(((FormRequirement) requirement).getChildren(),
+            requirement.getName()));
     }
 
     /**
-     * The items of a form or a section, in the order the schema puts them, skipping whatever does not apply.
+     * The items of one submission's form, read against the answers it holds.
      *
-     * @param children the form items to describe
-     * @param prefix the path of their container, relative to the schema version
-     * @param submission the submission they are being resolved against
-     * @param answers the submission's answers, by question path
-     * @return the items' JSON
+     * @since 0.1.0
      */
-    private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
+    private final class ItemsWriter
     {
-        final JsonArrayBuilder items = Json.createArrayBuilder();
-        children.stream()
-            .filter(child -> this.conditions.applies(child, submission))
-            .forEach(child -> {
-                final String path = prefix + "/" + child.getName();
-                if (child instanceof Section) {
-                    final Section section = (Section) child;
-                    items.add(Json.createObjectBuilder()
-                        .add(FormKeys.NAME_KEY, section.getName())
-                        .add(FormKeys.TYPE_KEY, section.getType())
-                        .add(FormKeys.LABEL_KEY, Objects.toString(section.getTitle(), ""))
-                        .add(FormKeys.DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers)));
-                } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
-                }
-            });
-        return items;
-    }
+        private final Submission submission;
 
-    /**
-     * One question, with the answer it already has.
-     *
-     * <p>It carries its own {@code path}, relative to the schema version, which is what the save workflow
-     * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
-     *
-     * @param question the question to describe
-     * @param path its path relative to the schema version
-     * @param answers the submission's answers, by question path
-     * @return the question's JSON
-     */
-    private static JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
-    {
-        final JsonArrayBuilder value = Json.createArrayBuilder();
-        answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
-        final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(FormKeys.NAME_KEY, question.getName())
-            .add(FormKeys.TYPE_KEY, question.getType())
-            .add(FormKeys.PATH_KEY, path)
-            .add("text", Objects.toString(question.getText(), ""))
-            .add(FormKeys.DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
-            .add("dataType", Objects.toString(question.getDataType(), "text"))
-            // The answer-count pair itself rather than flags derived from it, read the way it is stored
-            .add("minAnswers", question.getMinAnswers())
-            .add("maxAnswers", question.getMaxAnswers())
-            .add("options", options(question))
-            .add(VALUE_KEY, value);
-        addStatedConstraints(json, question);
-        return json;
+        private final Map<String, List<String>> answers;
+
+        ItemsWriter(final Submission submission)
+        {
+            this.submission = submission;
+            this.answers = submission.getAnswersByQuestion();
+        }
+
+        /**
+         * The items of a form or a section, in the order the schema puts them, skipping whatever does not apply.
+         *
+         * @param children the form items to describe
+         * @param prefix the path of their container, relative to the schema version, such as {@code details}
+         * @return the items' JSON
+         */
+        JsonArrayBuilder items(final List<FormItem> children, final String prefix)
+        {
+            final JsonArrayBuilder items = Json.createArrayBuilder();
+            children.stream()
+                .filter(child -> FormRequirementDescriber.this.conditions.applies(child, this.submission))
+                .map(child -> item(child, prefix + "/" + child.getName()))
+                .flatMap(Optional::stream)
+                .forEach(items::add);
+            return items;
+        }
+
+        /**
+         * One section or question.
+         *
+         * @param child the form item
+         * @param path its path relative to the schema version
+         * @return its JSON; empty for a kind of form item that is neither a section nor a question
+         */
+        private Optional<JsonObjectBuilder> item(final FormItem child, final String path)
+        {
+            if (child instanceof Section) {
+                return Optional.of(section((Section) child, path));
+            }
+            if (child instanceof Question) {
+                return Optional.of(question((Question) child, path));
+            }
+            LOGGER.warn("{} is a {}, which a form cannot show", child.getPath(), child.getType());
+            ErrorLogger.logProblem("A form item of a kind a form cannot show",
+                ErrorContext.of(FormRequirementDescriber.class, "describe")
+                    .about(this.submission.getPath())
+                    .with("item", child.getPath())
+                    .with("type", child.getType()));
+            return Optional.empty();
+        }
+
+        private JsonObjectBuilder section(final Section section, final String path)
+        {
+            return Json.createObjectBuilder()
+                .add(FormKeys.NAME_KEY, section.getName())
+                .add(FormKeys.TYPE_KEY, section.getType())
+                .add(FormKeys.LABEL_KEY, Objects.toString(section.getTitle(), ""))
+                .add(FormKeys.DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
+                .add(ITEMS_KEY, items(section.getChildren(), path));
+        }
+
+        /**
+         * One question, with the answer it already has.
+         *
+         * <p>It carries its own {@code path}, relative to the schema version, which is what the save workflow
+         * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
+         *
+         * @param question the question to describe
+         * @param path its path relative to the schema version
+         * @return the question's JSON
+         */
+        private JsonObjectBuilder question(final Question question, final String path)
+        {
+            final JsonArrayBuilder value = Json.createArrayBuilder();
+            this.answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
+            final JsonObjectBuilder json = Json.createObjectBuilder()
+                .add(FormKeys.NAME_KEY, question.getName())
+                .add(FormKeys.TYPE_KEY, question.getType())
+                .add(FormKeys.PATH_KEY, path)
+                .add(TEXT_KEY, Objects.toString(question.getText(), ""))
+                .add(FormKeys.DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
+                .add(DATA_TYPE_KEY, Objects.toString(question.getDataType(), DEFAULT_DATA_TYPE))
+                // The answer-count pair itself rather than flags derived from it, read the way it is stored
+                .add(MIN_ANSWERS_KEY, question.getMinAnswers())
+                .add(MAX_ANSWERS_KEY, question.getMaxAnswers())
+                .add(OPTIONS_KEY, options(question))
+                .add(VALUE_KEY, value);
+            addStatedConstraints(json, question);
+            return json;
+        }
     }
 
     /**
@@ -159,10 +233,11 @@ public class FormRequirementDescriber implements RequirementDescriber
     private static void addStatedConstraints(final JsonObjectBuilder json, final Question question)
     {
         Optional.ofNullable(question.getMinValue()).filter(Double::isFinite)
-            .ifPresent(bound -> json.add("minValue", bound));
+            .ifPresent(bound -> json.add(MIN_VALUE_KEY, bound));
         Optional.ofNullable(question.getMaxValue()).filter(Double::isFinite)
-            .ifPresent(bound -> json.add("maxValue", bound));
-        Optional.ofNullable(question.getPattern()).ifPresent(pattern -> json.add("pattern", pattern));
-        Optional.ofNullable(question.getPatternMessage()).ifPresent(message -> json.add("patternMessage", message));
+            .ifPresent(bound -> json.add(MAX_VALUE_KEY, bound));
+        Optional.ofNullable(question.getPattern()).ifPresent(pattern -> json.add(PATTERN_KEY, pattern));
+        Optional.ofNullable(question.getPatternMessage())
+            .ifPresent(message -> json.add(PATTERN_MESSAGE_KEY, message));
     }
 }

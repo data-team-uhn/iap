@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { createExtensionLoader } from "@iap/ui-extension/extensionLoader";
+
 import ApprovalState from "../ApprovalState";
 import DocumentUpload from "../DocumentUpload";
 import {
@@ -64,3 +66,14 @@ export function registerBuiltinRequirementComponents(): void {
     approvalSectionCandidate,
   ].forEach(registerRequirementComponent);
 }
+
+// Where other modules declare the components for the kinds of requirement they add
+export const REQUIREMENT_COMPONENT_POINT = "RequirementComponent";
+
+const loader = createExtensionLoader(REQUIREMENT_COMPONENT_POINT, "requirement components");
+
+// Loads every requirement component other modules declare, once
+export const loadRequirementComponents = loader.load;
+
+// Whether the requirement components other modules declare are available yet
+export const useRequirementComponents = loader.useLoaded;

@@ -33,13 +33,18 @@ import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.describers.FormKeys;
@@ -57,8 +62,8 @@ import io.uhndata.iap.utils.UserIds;
  * alone. What an editor needs is a different document from either: the schema's structure and the submission's answers,
  * merged, with conditions already resolved.</p>
  *
- * <p>Each kind of requirement adds its own fields through the {@link RequirementDescriber}s registered for it. A
- * kind declared in another module reaches the form without this module depending on it.</p>
+ * <p>Each requirement gets its kind's own fields from every {@link RequirementDescriber} that handles it. A kind
+ * declared in another module reaches the form without this module depending on it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,11 +78,33 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 6455351484949339021L;
 
-    @Reference
-    private transient ConditionEvaluator conditions;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SubmissionFormServlet.class);
+
+    private final transient ConditionEvaluator conditions;
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private transient volatile List<RequirementDescriber> describers;
+
+    /**
+     * Constructor.
+     *
+     * @param conditions decides which requirements currently apply
+     */
+    @Activate
+    public SubmissionFormServlet(@Reference final ConditionEvaluator conditions)
+    {
+        this.conditions = conditions;
+    }
+
+    /**
+     * Replaces the describers asked about each requirement, as the service registry does when they come and go.
+     *
+     * @param describers every describer, in the order they are applied
+     */
+    void setDescribers(final List<RequirementDescriber> describers)
+    {
+        this.describers = describers;
+    }
 
     @Override
     // The form is content, not a command's answer
@@ -114,10 +141,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
+        // Read once, so one form is described by one set of describers however the registry changes meanwhile.
+        // Null until the first describer arrives
+        final List<RequirementDescriber> current = Objects.requireNonNullElse(this.describers, List.of());
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission)));
+            .forEach(requirement -> requirements.add(requirement(requirement, submission, current)));
         return Json.createObjectBuilder()
             .add(FormKeys.PATH_KEY, submission.getPath())
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
@@ -133,25 +163,48 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      *
      * @param requirement a requirement that applies to the submission
      * @param submission the submission whose form is being served
+     * @param describers every describer, in the order they are applied
      * @return the requirement's object in the form's JSON
      */
-    private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission)
+    private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
+        final List<RequirementDescriber> describers)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(FormKeys.NAME_KEY, requirement.getName())
             // What a document's reference is compared against, since names repeat across schema versions
             .add(FormKeys.PATH_KEY, requirement.getPath())
-            // The resource type itself, not a vocabulary of our own. A kind nothing here knows names itself, and
-            // the reader already keys on resource types
             .add(FormKeys.TYPE_KEY, requirement.getType())
             .add(FormKeys.LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
             .add(FormKeys.DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
-        // A kind nobody describes still gets the common fields, so the form never reports a schema asking for less
-        // than it does
-        Objects.requireNonNullElse(this.describers, List.<RequirementDescriber>of()).stream()
-            .filter(describer -> describer.handles(requirement))
-            .forEach(describer -> describer.describe(requirement, submission, json));
+        // A requirement nobody describes is still listed, with the common fields only
+        describers.forEach(describer -> describe(describer, requirement, submission, json));
         return json;
+    }
+
+    /**
+     * Applies one describer to a requirement. A describer may come from any bundle, so one that fails is recorded
+     * and skipped, and the requirement keeps what was written before it.
+     *
+     * @param describer the describer to ask
+     * @param requirement a requirement that applies to the submission
+     * @param submission the submission whose form is being served
+     * @param json the requirement's object in the form's JSON
+     */
+    private static void describe(final RequirementDescriber describer, final Requirement requirement,
+        final Submission submission, final JsonObjectBuilder json)
+    {
+        try {
+            if (describer.handles(requirement)) {
+                final JsonObjectBuilder own = Json.createObjectBuilder();
+                describer.describe(requirement, submission, own);
+                json.addAll(own);
+            }
+        } catch (final RuntimeException e) {
+            LOGGER.error("{} failed to describe {}", describer.getClass().getName(), requirement.getPath(), e);
+            ErrorLogger.logError(e, ErrorContext.of(describer.getClass(), "describe")
+                .about(submission.getPath())
+                .with("requirement", requirement.getPath()));
+        }
     }
 
     /**
