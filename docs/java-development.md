@@ -334,6 +334,28 @@ Where an operation acts on a user's behalf, authorize against **their** session 
 the work with the service user — see [deletion](deletion.md), which checks the
 requester's `remove` rights node by node before the privileged scan begins.
 
+### Modification stamps
+
+Never write `jcr:lastModified` or `jcr:lastModifiedBy`. A commit editor in
+`iap-data-entities-api` stamps them on every node of a `mix:lastModified` type, as
+`data:Entity` and `nt:resource` are, whenever its content changes, whoever commits.
+
+A node's content is what a version of it keeps. A change modifies its node, then climbs
+to the parent until it reaches an entity, and stops at any child the parent's type
+declares `IGNORE`:
+
+| A change to | Stamps |
+| --- | --- |
+| an answer | the answer, then its submission |
+| an uploaded file | its `jcr:content`, every part above it, then the submission |
+| a submission | the submission, never its homepage |
+| a tag | nothing, since tag properties are `IGNORE` |
+| a workflow instance, a link | the changed node, but nothing above it: both are `IGNORE` children |
+
+Declare as `IGNORE` whatever describes the content without being part of it, and it
+will not move the stamp. `jcr:lastModifiedBy` names the session that committed, which
+for anything the engine writes is its service user, as with `jcr:createdBy`.
+
 ## Bundle assembly
 
 Each module ships a `feature.json` declaring its bundle and start order, aggregated by
